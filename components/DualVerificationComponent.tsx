@@ -210,7 +210,6 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       });
       
       const data = await response.json();
-      console.log(data);
       
       if (data.success) {
         toast.success("Phone verified successfully!");

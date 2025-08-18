@@ -31,7 +31,7 @@ const HeroSection = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(searchType);
+    
     if (searchQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchQuery)}&loc=${encodeURIComponent(location)}&type=${searchType}`);
     }

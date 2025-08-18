@@ -67,57 +67,7 @@ const JoinPage: React.FC = () => {
   }
 
   const sendVerificationCodes = async (): Promise<void> => {
-    try {
-      const fullPhoneNumber = `${formData.countryCode}${formData.phone}`
-      
-      // Send both email and phone OTPs
-      const responses = await Promise.allSettled([
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/verify-email/send-otp`, {
-          method: 'POST',
-          credentials: 'include', // Include cookies
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ email: formData.email })
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/verify-phone`, {
-          method: 'POST',
-          credentials: 'include', // Include cookies
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ phone: fullPhoneNumber })
-        })
-      ])
-
-      const emailResult = responses[0]
-      const phoneResult = responses[1]
-
-      let emailSent = false
-      let phoneSent = false
-
-      if (emailResult.status === 'fulfilled' && emailResult.value.ok) {
-        emailSent = true
-      }
-
-      if (phoneResult.status === 'fulfilled' && phoneResult.value.ok) {
-        phoneSent = true
-      }
-
-      if (emailSent && phoneSent) {
-        toast.success("Verification codes sent to your email and phone!")
-      } else if (emailSent || phoneSent) {
-        toast.success("Verification codes sent! Some may have failed - you can resend them.")
-      } else {
-        toast.error("Failed to send verification codes. You can resend them manually.")
-      }
-
-      setShowVerification(true)
-    } catch (error) {
-      console.error("OTP sending error:", error)
-      toast.error("Account created but failed to send verification codes. You can request them manually.")
-      setShowVerification(true)
-    }
+    setShowVerification(true)
   }
 
   const handleSubmit = async (): Promise<void> => {
@@ -139,9 +89,7 @@ const JoinPage: React.FC = () => {
       const success = await signup(submitData)
       
       if (success) {
-        toast.success("Account created successfully! Sending verification codes...")
-        
-        // Send verification codes after successful registration
+        toast.success("Account created successfully! We've sent verification codes to your email and phone.")
         await sendVerificationCodes()
       }
       

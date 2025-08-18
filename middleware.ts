@@ -79,6 +79,22 @@ export async function middleware(request: NextRequest) {
   
   // Get token from cookies
   const token = request.cookies.get('auth-token')?.value
+
+  // If user visits landing page and already has a valid token, redirect to dashboard
+  if (pathname === '/') {
+    if (token) {
+      const verification = await verifyToken(token)
+      if (verification.valid && !verification.expired) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+      if (!verification.valid || verification.expired) {
+        const response = NextResponse.next()
+        response.cookies.delete('auth-token')
+        return response
+      }
+    }
+    return NextResponse.next()
+  }
   
   // Check if the current path matches different route types
   const isProtectedRoute = protectedRoutes.some(route => 

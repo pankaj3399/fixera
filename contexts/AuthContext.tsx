@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 interface User {
@@ -48,13 +48,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const pathname = usePathname()
 
   const checkAuth = async () => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/me`, {
         credentials: 'include', // This is crucial for sending cookies
       })
-
+      
       if (response.ok) {
         const data = await response.json()
         setUser(data.user)
@@ -141,8 +142,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   useEffect(() => {
+    const skipPaths = new Set<string>(['/', '/login', '/join'])
+    if (skipPaths.has(pathname)) {
+      setLoading(false)
+      return
+    }
     checkAuth()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
 
   const value: AuthContextType = {
     user,
