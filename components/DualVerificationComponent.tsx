@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Mail, Phone, ArrowLeft, CheckCircle, Clock, Shield, Smartphone, AtSign } from "lucide-react"
+import {   ArrowLeft, CheckCircle, Clock, Shield, Smartphone, AtSign } from "lucide-react"
 import { toast } from "sonner"
 
 interface DualVerificationProps {
@@ -115,8 +115,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       } else {
         toast.error(data.message || "Failed to send email OTP");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send email OTP");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to send email OTP");
     } finally {
       setVerificationState(prev => ({ ...prev, emailResendLoading: false }));
     }
@@ -146,8 +146,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       } else {
         toast.error(data.message || "Failed to send phone OTP");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send phone OTP");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to send phone OTP");
     } finally {
       setVerificationState(prev => ({ ...prev, phoneResendLoading: false }));
     }
@@ -182,8 +182,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       } else {
         toast.error(data.message || "Invalid email verification code");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to verify email");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to verify email");
     } finally {
       setVerificationState(prev => ({ ...prev, emailLoading: false }));
     }
@@ -217,8 +217,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       } else {
         toast.error(data.message || "Invalid phone verification code");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to verify phone");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to verify phone");
     } finally {
       setVerificationState(prev => ({ ...prev, phoneLoading: false }));
     }

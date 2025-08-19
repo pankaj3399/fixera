@@ -38,7 +38,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
         setEmailVerified(true)
         toast.success("Email verified successfully!")
       }
-    } catch (error) {
+    } catch {
       toast.error("Invalid email OTP. Please try again.")
     }
     setIsLoading(false)
@@ -61,7 +61,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
         setPhoneVerified(true)
         toast.success("Phone verified successfully!")
       }
-    } catch (error) {
+    } catch {
       toast.error("Invalid phone OTP. Please try again.")
     }
     setIsLoading(false)
@@ -79,7 +79,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-email-otp`, { email })
       toast.success("Email OTP resent successfully!")
-    } catch (error) {
+    } catch {
       toast.error("Failed to resend email OTP")
     }
   }
@@ -88,7 +88,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-phone-otp`, { phone })
       toast.success("Phone OTP resent successfully!")
-    } catch (error) {
+    } catch {
       toast.error("Failed to resend phone OTP")
     }
   }
@@ -99,7 +99,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">Verify Your Account</CardTitle>
           <CardDescription className="text-gray-600 dark:text-gray-400">
-            We've sent verification codes to your email and phone
+            We&apos;ve sent verification codes to your email and phone
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -178,7 +178,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
 
           <div className="text-center">
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              Didn't receive the codes? Check your spam folder or try resending.
+              Didn&apos;t receive the codes? Check your spam folder or try resending.
             </p>
           </div>
         </CardContent>

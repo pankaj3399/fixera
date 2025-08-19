@@ -37,7 +37,7 @@ export default function DashboardPage() {
       <div className="max-w-4xl mx-auto pt-20">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user?.name}!</h1>
-          <p className="text-gray-600">Here's your dashboard overview</p>
+          <p className="text-gray-600">Here&apos;s your dashboard overview</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
