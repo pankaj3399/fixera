@@ -196,9 +196,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.user)
         toast.success('Account created successfully!')
         
-        // Redirect after signup
-        const dashboardPath = '/dashboard'
-        router.push(dashboardPath)
         
         return true
       } else {
@@ -239,18 +236,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return
     }
 
-    // Handle auth routes (login, register, etc.)
-    if (isAuthRoute(pathname)) {
-      if (isUserAuthenticated) {
-        // User is authenticated and trying to access auth routes - redirect to dashboard
-        const dashboardPath = '/dashboard'
-        router.replace(dashboardPath)
-      }
-      return
-    }
+
 
     // Handle protected routes
-    if (isProtectedRoute(pathname) || !isPublicRoute(pathname)) {
+    if (isProtectedRoute(pathname)) {
       if (!isUserAuthenticated) {
         // Store the intended path for redirect after login
         sessionStorage.setItem('redirectAfterAuth', pathname)

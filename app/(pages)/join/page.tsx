@@ -110,9 +110,9 @@ const JoinPage: React.FC = () => {
     
     // Redirect based on user role
     if (user?.role === 'professional') {
-      router.push('/dashboard/professional')
+      router.push('/dashboard')
     } else if (user?.role === 'customer') {
-      router.push('/dashboard/customer')
+      router.push('/dashboard')
     } else {
       router.push('/dashboard')
     }
