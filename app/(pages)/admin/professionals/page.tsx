@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
-import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColumn, ClosedCaption } from "lucide-react"
+import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColumn, ClosedCaption, AlertTriangle, FileText, Shield, X } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 interface Professional {
   _id: string;
@@ -27,6 +29,7 @@ interface Professional {
   };
   idProofUrl?: string;
   idProofFileName?: string;
+  isIdVerified?: boolean;
   vatNumber?: string;
   isVatVerified?: boolean;
   createdAt: string;
@@ -44,6 +47,20 @@ export default function ProfessionalsAdminPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [approvalError, setApprovalError] = useState<{professionalId: string, message: string, missingRequirements: string[]} | null>(null)
+  const [rejectionModal, setRejectionModal] = useState<{
+    isOpen: boolean;
+    professionalId: string;
+    professionalName: string;
+    reason: string;
+    error: string | null;
+  }>({
+    isOpen: false,
+    professionalId: '',
+    professionalName: '',
+    reason: '',
+    error: null
+  })
 
   useEffect(() => {
     if (!loading && (!isAuthenticated || user?.role !== 'admin')) {
@@ -74,8 +91,68 @@ export default function ProfessionalsAdminPage() {
     }
   }, [user, status, fetchProfessionals])
 
+  const handleVerifyIdProof = async (professionalId: string) => {
+    setActionLoading(professionalId)
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professionals/${professionalId}/verify-id`, {
+        method: 'PUT',
+        credentials: 'include',
+      })
+
+      if (response.ok) {
+        fetchProfessionals()
+        // Update the selected professional if it's the same one
+        if (selectedProfessional?._id === professionalId) {
+          setSelectedProfessional(prev => prev ? { ...prev, isIdVerified: true } : null)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to verify ID proof:', error)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // Handle rejection modal
+  const openRejectionModal = (professionalId: string, professionalName: string) => {
+    console.log('Opening rejection modal for:', professionalName);
+    setRejectionModal({
+      isOpen: true,
+      professionalId,
+      professionalName,
+      reason: '',
+      error: null
+    })
+  }
+
+  const closeRejectionModal = () => {
+    setRejectionModal({
+      isOpen: false,
+      professionalId: '',
+      professionalName: '',
+      reason: '',
+      error: null
+    })
+  }
+
+  const handleRejectionSubmit = () => {
+    const { reason, professionalId } = rejectionModal
+    
+    if (!reason || reason.trim().length < 10) {
+      setRejectionModal(prev => ({
+        ...prev,
+        error: 'Rejection reason must be at least 10 characters long'
+      }))
+      return
+    }
+
+    handleAction(professionalId, 'reject', reason.trim())
+    closeRejectionModal()
+  }
+
   const handleAction = async (professionalId: string, action: 'approve' | 'reject' | 'suspend', reason?: string) => {
     setActionLoading(professionalId)
+    setApprovalError(null)   
     try {
       const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professionals/${professionalId}/${action}`
       const body = reason ? { reason } : undefined
@@ -92,6 +169,15 @@ export default function ProfessionalsAdminPage() {
       if (response.ok) {
         fetchProfessionals()
         setSelectedProfessional(null)
+      } else {
+        const errorData = await response.json()
+        if (action === 'approve' && errorData.data?.missingRequirements) {
+          setApprovalError({
+            professionalId,
+            message: errorData.msg,
+            missingRequirements: errorData.data.missingRequirements
+          })
+        }
       }
     } catch (error) {
       console.error(`Failed to ${action} professional:`, error)
@@ -252,6 +338,68 @@ export default function ProfessionalsAdminPage() {
                     </div>
                   )}
 
+                  {/* Verification Requirements Status */}
+                  {professional.professionalStatus === 'pending' && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Verification Requirements:
+                      </div>
+                      <div className="space-y-1">
+                        <div className={`text-xs flex items-center gap-2 ${professional.vatNumber && professional.isVatVerified ? 'text-green-700' : 'text-orange-700'}`}>
+                          {professional.vatNumber && professional.isVatVerified ? (
+                            <CheckCircle className="h-3 w-3" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3" />
+                          )}
+                          VAT Number & Verification {professional.vatNumber && professional.isVatVerified ? '✓' : '(Missing)'}
+                        </div>
+                        <div className={`text-xs flex items-center gap-2 ${professional.idProofUrl && professional.isIdVerified ? 'text-green-700' : professional.idProofUrl ? 'text-orange-700' : 'text-red-700'}`}>
+                          {professional.idProofUrl && professional.isIdVerified ? (
+                            <CheckCircle className="h-3 w-3" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3" />
+                          )}
+                          ID Proof {professional.idProofUrl && professional.isIdVerified ? '✓ Verified' : professional.idProofUrl ? 'Uploaded - Needs Verification' : '(Not Uploaded)'}
+                        </div>
+                        <div className={`text-xs flex items-center gap-2 ${professional.businessInfo?.companyName ? 'text-green-700' : 'text-orange-700'}`}>
+                          {professional.businessInfo?.companyName ? (
+                            <CheckCircle className="h-3 w-3" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3" />
+                          )}
+                          Company Name {professional.businessInfo?.companyName ? '✓' : '(Missing)'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Approval Error Display */}
+                  {approvalError?.professionalId === professional._id && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="text-sm font-medium text-red-800 mb-2 flex items-center gap-2">
+                        <XCircle className="h-4 w-4" />
+                        Cannot Approve - Missing Requirements:
+                      </div>
+                      <ul className="text-xs text-red-700 space-y-1">
+                        {approvalError.missingRequirements.map((requirement, index) => (
+                          <li key={index} className="flex items-center gap-2">
+                            <AlertTriangle className="h-3 w-3" />
+                            {requirement}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        onClick={() => setApprovalError(null)}
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 text-xs"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <Button
                       onClick={() => setSelectedProfessional(professional)}
@@ -274,12 +422,7 @@ export default function ProfessionalsAdminPage() {
                           Approve
                         </Button>
                         <Button
-                          onClick={() => {
-                            const reason = prompt('Please provide a reason for rejection:')
-                            if (reason && reason.trim().length >= 10) {
-                              handleAction(professional._id, 'reject', reason)
-                            }
-                          }}
+                          onClick={() => openRejectionModal(professional._id, professional.name)}
                           disabled={actionLoading === professional._id}
                           size="sm"
                           variant="destructive"
@@ -334,8 +477,27 @@ export default function ProfessionalsAdminPage() {
                       <div><span className="font-medium">Name:</span> {selectedProfessional.name}</div>
                       <div><span className="font-medium">Email:</span> {selectedProfessional.email}</div>
                       <div><span className="font-medium">Phone:</span> {selectedProfessional.phone}</div>
-                      <div><span className="font-medium">VAT Number:</span> {selectedProfessional.vatNumber || 'Not provided'}</div>
-                      <div><span className="font-medium">VAT Status:</span> {selectedProfessional.isVatVerified ? 'Verified' : 'Not verified'}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">VAT Number:</span> 
+                        {selectedProfessional.vatNumber ? (
+                          <span className="flex items-center gap-1">
+                            {selectedProfessional.vatNumber}
+                            {selectedProfessional.isVatVerified ? (
+                              <Badge variant="outline" className="text-green-700 bg-green-50 text-xs">
+                                <CheckCircle className="h-3 w-3 mr-1" />Verified
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-orange-700 bg-orange-50 text-xs">
+                                <AlertTriangle className="h-3 w-3 mr-1" />Unverified
+                              </Badge>
+                            )}
+                          </span>
+                        ) : (
+                          <Badge variant="outline" className="text-red-700 bg-red-50 text-xs">
+                            <XCircle className="h-3 w-3 mr-1" />Not provided
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -368,21 +530,147 @@ export default function ProfessionalsAdminPage() {
                   </div>
                 )}
 
-                {selectedProfessional.idProofUrl && (
-                  <div>
-                    <h4 className="font-medium mb-3">ID Proof</h4>
-                    <p className="text-sm text-blue-600">
-                      <a href={selectedProfessional.idProofUrl} target="_blank" rel="noopener noreferrer">
-                        {selectedProfessional.idProofFileName || 'View ID Document'}
-                      </a>
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    ID Proof Document
+                  </h4>
+                  {selectedProfessional.idProofUrl ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={selectedProfessional.isIdVerified ? "text-green-700 bg-green-50 text-xs" : "text-orange-700 bg-orange-50 text-xs"}>
+                          {selectedProfessional.isIdVerified ? (
+                            <><CheckCircle className="h-3 w-3 mr-1" />Verified</>
+                          ) : (
+                            <><AlertTriangle className="h-3 w-3 mr-1" />Needs Verification</>
+                          )}
+                        </Badge>
+                        <a 
+                          href={selectedProfessional.idProofUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline"
+                        >
+                          {selectedProfessional.idProofFileName || 'View ID Document'}
+                        </a>
+                      </div>
+                      {!selectedProfessional.isIdVerified && (
+                        <Button
+                          onClick={() => handleVerifyIdProof(selectedProfessional._id)}
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Mark as Verified
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className="text-red-700 bg-red-50 text-xs">
+                      <XCircle className="h-3 w-3 mr-1" />Not uploaded
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Rejection Modal */}
+      {rejectionModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-red-700">
+                Reject Professional
+              </h3>
+              <Button
+                onClick={closeRejectionModal}
+                variant="ghost"
+                size="sm"
+                className="p-1"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                You are about to reject <strong>{rejectionModal.professionalName}</strong>
+              </p>
+              <p className="text-xs text-gray-500 mb-4">
+                They will receive an email with your rejection reason and can resubmit after making corrections.
+              </p>
+
+              <Label htmlFor="rejectionReason" className="text-sm font-medium">
+                Reason for Rejection *
+              </Label>
+              <textarea
+                id="rejectionReason"
+                placeholder="Please provide a detailed reason (minimum 10 characters)..."
+                value={rejectionModal.reason}
+                onChange={(e) => {
+                  console.log('Textarea onChange:', e.target.value);
+                  setRejectionModal(prev => ({
+                    ...prev,
+                    reason: e.target.value,
+                    error: null
+                  }));
+                }}
+                className="mt-1 flex min-h-[100px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                rows={4}
+              />
+              
+              {rejectionModal.error && (
+                <p className="text-red-600 text-xs mt-1">
+                  {rejectionModal.error}
+                </p>
+              )}
+              
+              <p className="text-xs text-gray-400 mt-1">
+                {rejectionModal.reason.length}/10 characters minimum
+              </p>
+              
+              {/* Debug info */}
+              <div className="text-xs text-gray-500 mt-1 p-2 bg-gray-50 rounded">
+                <strong>Debug:</strong> Reason length: {rejectionModal.reason.length}, Value: "{rejectionModal.reason}"
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={closeRejectionModal}
+                variant="outline"
+                size="sm"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRejectionSubmit}
+                disabled={actionLoading === rejectionModal.professionalId}
+                variant="destructive"
+                size="sm"
+                className="flex-1"
+              >
+                {actionLoading === rejectionModal.professionalId ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                    Rejecting...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Send Rejection
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

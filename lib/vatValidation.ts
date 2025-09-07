@@ -40,6 +40,14 @@ export interface VatValidationResult {
   valid: boolean;
   companyName?: string;
   companyAddress?: string;
+  parsedAddress?: {
+    fullAddress: string;
+    streetAddress: string;
+    city: string;
+    postalCode: string;
+    country: string;
+  };
+  autoPopulateRecommended?: boolean;
   error?: string;
 }
 
@@ -123,6 +131,8 @@ export const validateVATWithAPI = async (vatNumber: string): Promise<VatValidati
         valid: data.data.valid,
         companyName: data.data.companyName,
         companyAddress: data.data.companyAddress,
+        parsedAddress: data.data.parsedAddress,
+        autoPopulateRecommended: data.data.autoPopulateRecommended,
         error: data.data.error
       };
     } else {
@@ -146,6 +156,52 @@ interface UpdateVATResponse {
   error?: string;
   user?: unknown;
 }
+
+export const validateAndPopulateVAT = async (vatNumber: string, autoPopulate: boolean = false): Promise<UpdateVATResponse & { 
+  validationResult?: VatValidationResult;
+  businessInfo?: any;
+}> => {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/vat/validate-and-populate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ 
+        vatNumber: vatNumber ? formatVATNumber(vatNumber) : '',
+        autoPopulate
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      return {
+        success: true,
+        user: data.user,
+        validationResult: {
+          valid: data.data.isVatVerified,
+          companyName: data.data.companyName,
+          companyAddress: data.data.companyAddress,
+          autoPopulateRecommended: data.data.autoPopulated
+        },
+        businessInfo: data.data.businessInfo
+      };
+    } else {
+      return {
+        success: false,
+        error: data.msg || 'Failed to validate and populate VAT information'
+      };
+    }
+  } catch (error) {
+    console.error('Validate and populate VAT error:', error);
+    return {
+      success: false,
+      error: 'Network error occurred while validating VAT number'
+    };
+  }
+};
 
 export const updateUserVAT = async (vatNumber: string): Promise<UpdateVATResponse> => {
   try {
@@ -176,6 +232,41 @@ export const updateUserVAT = async (vatNumber: string): Promise<UpdateVATRespons
     return {
       success: false,
       error: 'Network error occurred while updating VAT number'
+    };
+  }
+};
+export const submitForVerification = async (): Promise<UpdateVATResponse & { 
+  professionalStatus?: string;
+  missingRequirements?: string[];
+}> => {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/submit-for-verification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      return {
+        success: true,
+        professionalStatus: data.data.professionalStatus,
+      };
+    } else {
+      return {
+        success: false,
+        error: data.msg || 'Failed to submit for verification',
+        missingRequirements: data.data?.missingRequirements
+      };
+    }
+  } catch (error) {
+    console.error('Submit for verification error:', error);
+    return {
+      success: false,
+      error: 'Network error occurred while submitting for verification'
     };
   }
 };
