@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, Clock, CalendarX } from "lucide-react"
+import TeamManagement from "@/components/TeamManagement"
+import PasswordChange from "@/components/PasswordChange"
+import TeamMemberAvailability from "@/components/TeamMemberAvailability"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -15,7 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   validateVATFormat, 
   validateVATWithAPI, 
-  updateUserVAT, 
+  updateUserVAT,
+  validateAndPopulateVAT,
+  submitForVerification,
   isEUVatNumber, 
   getVATCountryName,
   formatVATNumber 
@@ -60,7 +65,13 @@ export default function ProfilePage() {
   })
   const [blockedDates, setBlockedDates] = useState<string[]>([])
   const [newBlockedDate, setNewBlockedDate] = useState('')
+  const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
+  const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
+  const [blockingMode, setBlockingMode] = useState<'single' | 'range'>('range')
   const [profileSaving, setProfileSaving] = useState(false)
+  const [showAutoPopulateDialog, setShowAutoPopulateDialog] = useState(false)
+  const [pendingVatData, setPendingVatData] = useState<any>(null)
+  const [verificationSubmitting, setVerificationSubmitting] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -135,7 +146,6 @@ export default function ProfilePage() {
       return
     }
 
-    // API validation for EU VAT numbers
     setVatValidating(true)
     try {
       const result = await validateVATWithAPI(formatted)
@@ -143,8 +153,20 @@ export default function ProfilePage() {
         valid: result.valid,
         error: result.error,
         companyName: result.companyName,
-        companyAddress: result.companyAddress
+        companyAddress: result.companyAddress,
+        parsedAddress: result.parsedAddress,
+        autoPopulateRecommended: result.autoPopulateRecommended
       })
+
+      if (result.valid && result.autoPopulateRecommended && user?.role === 'professional') {
+        setPendingVatData({
+          vatNumber: formatted,
+          companyName: result.companyName,
+          companyAddress: result.companyAddress,
+          parsedAddress: result.parsedAddress
+        })
+        setShowAutoPopulateDialog(true)
+      }
     } catch {
       setVatValidation({
         valid: false,
@@ -307,6 +329,106 @@ export default function ProfilePage() {
     toast.success('Blocked date removed')
   }
 
+  const addBlockedRange = () => {
+    if (!newBlockedRange.startDate || !newBlockedRange.endDate) return
+    
+    const startDate = new Date(newBlockedRange.startDate)
+    const endDate = new Date(newBlockedRange.endDate)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    if (startDate < today) {
+      toast.error('Cannot block dates in the past')
+      return
+    }
+    
+    if (startDate > endDate) {
+      toast.error('Start date must be before end date')
+      return
+    }
+    
+    const newRange = {
+      startDate: newBlockedRange.startDate,
+      endDate: newBlockedRange.endDate,
+      reason: newBlockedRange.reason || undefined
+    }
+    
+    setBlockedRanges(prev => [...prev, newRange])
+    setNewBlockedRange({startDate: '', endDate: '', reason: ''})
+    
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    toast.success(`Blocked ${days} day${days === 1 ? '' : 's'} from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`)
+  }
+
+  const removeBlockedRange = (indexToRemove: number) => {
+    setBlockedRanges(prev => prev.filter((_, index) => index !== indexToRemove))
+    toast.success('Blocked period removed')
+  }
+
+  const handleAutoPopulate = async (shouldPopulate: boolean) => {
+    if (!pendingVatData || !shouldPopulate) {
+      setShowAutoPopulateDialog(false)
+      setPendingVatData(null)
+      return
+    }
+
+    setVatSaving(true)
+    try {
+      const result = await validateAndPopulateVAT(pendingVatData.vatNumber, true)
+      
+      if (result.success && result.businessInfo) {
+        // Update business info state with populated data
+        setBusinessInfo(prev => ({
+          ...prev,
+          companyName: result.businessInfo.companyName || prev.companyName,
+          address: result.businessInfo.address || prev.address,
+          city: result.businessInfo.city || prev.city,
+          country: result.businessInfo.country || prev.country,
+          postalCode: result.businessInfo.postalCode || prev.postalCode,
+        }))
+        
+        toast.success('✅ Business information auto-populated from VAT data!')
+        await checkAuth() // Refresh user data
+      } else {
+        toast.error(result.error || 'Failed to auto-populate business information')
+      }
+    } catch (error) {
+      toast.error('Failed to auto-populate business information')
+    } finally {
+      setVatSaving(false)
+      setShowAutoPopulateDialog(false)
+      setPendingVatData(null)
+    }
+  }
+
+  const handleSubmitForVerification = async () => {
+    if (!user) return
+
+    setVerificationSubmitting(true)
+    try {
+      const result = await submitForVerification()
+      
+      if (result.success) {
+        toast.success('✅ Thanks for submitting. Your profile will be checked within 48 hours.', {
+          duration: 5000,
+        })
+        await checkAuth() // Refresh user data to update professional status
+      } else {
+        if (result.missingRequirements && result.missingRequirements.length > 0) {
+          toast.error(`Please complete: ${result.missingRequirements.join(', ')}`, {
+            duration: 6000,
+          })
+        } else {
+          toast.error(result.error || 'Failed to submit for verification')
+        }
+      }
+    } catch (error) {
+      toast.error('Failed to submit for verification')
+    } finally {
+      setVerificationSubmitting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -339,12 +461,67 @@ export default function ProfilePage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile Settings</h1>
           <p className="text-gray-600">Manage your account information and settings</p>
           {isProfessional && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-800">
-                  Professional Status: {user?.professionalStatus || 'pending'}
-                </span>
+            <div className="mt-4 space-y-3">
+              <div className={`p-4 border rounded-lg ${
+                user?.professionalStatus === 'approved' ? 'bg-green-50 border-green-200' :
+                user?.professionalStatus === 'pending' ? 'bg-yellow-50 border-yellow-200' :
+                user?.professionalStatus === 'rejected' ? 'bg-red-50 border-red-200' :
+                'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className={`h-4 w-4 ${
+                      user?.professionalStatus === 'approved' ? 'text-green-600' :
+                      user?.professionalStatus === 'pending' ? 'text-yellow-600' :
+                      user?.professionalStatus === 'rejected' ? 'text-red-600' :
+                      'text-gray-600'
+                    }`} />
+                    <span className={`text-sm font-medium ${
+                      user?.professionalStatus === 'approved' ? 'text-green-800' :
+                      user?.professionalStatus === 'pending' ? 'text-yellow-800' :
+                      user?.professionalStatus === 'rejected' ? 'text-red-800' :
+                      'text-gray-800'
+                    }`}>
+                      Professional Status: {user?.professionalStatus || 'not submitted'}
+                    </span>
+                  </div>
+                  
+                  {(user?.professionalStatus === 'rejected' || !user?.professionalStatus) && (
+                    <Button
+                      onClick={handleSubmitForVerification}
+                      disabled={verificationSubmitting}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {verificationSubmitting ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          Submitting...
+                        </>
+                      ) : (
+                        'Send for Verification'
+                      )}
+                    </Button>
+                  )}
+                </div>
+                
+                {user?.professionalStatus === 'rejected' && user?.rejectionReason && (
+                  <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-700">
+                    <strong>Rejection Reason:</strong> {user.rejectionReason}
+                  </div>
+                )}
+                
+                {user?.professionalStatus === 'pending' && (
+                  <div className="mt-2 text-xs text-yellow-700">
+                    Your profile is under review. You will be notified within 48 hours.
+                  </div>
+                )}
+                
+                {user?.professionalStatus === 'approved' && (
+                  <div className="mt-2 text-xs text-green-700">
+                    ✅ Your professional profile has been approved. You can now receive project bookings.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -352,11 +529,12 @@ export default function ProfilePage() {
 
         {isProfessional ? (
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="business">Business Info</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="availability">Availability</TabsTrigger>
+              <TabsTrigger value="availability">Company Availability</TabsTrigger>
+              <TabsTrigger value="security">Security</TabsTrigger>
             </TabsList>
             
             <TabsContent value="profile" className="space-y-6">
@@ -815,13 +993,86 @@ export default function ProfilePage() {
               </Card>
             </TabsContent>
 
-            {/* Availability Tab */}
+            {/* Company Availability Tab */}
             <TabsContent value="availability" className="space-y-6">
+              {/* PHASE 4: Multi-tab availability structure */}
+              <div className="mb-6">
+                <Tabs defaultValue="company" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="company">Company Schedule</TabsTrigger>
+                    <TabsTrigger value="personal">Personal Availability</TabsTrigger>
+                    <TabsTrigger value="employees">Employees</TabsTrigger>
+                  </TabsList>
+                  
+                  {/* Company Schedule Tab */}
+                  <TabsContent value="company" className="space-y-6 mt-6">
+              {/* PHASE 4: Timezone Selection */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Clock className="h-5 w-5" />
-                    Weekly Availability
+                    Timezone & Business Hours
+                  </CardTitle>
+                  <CardDescription>
+                    Set your timezone and working hours for scheduling
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="timezone">Business Timezone</Label>
+                      <Select defaultValue={user?.businessInfo?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select timezone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                          <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                          <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                          <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                          <SelectItem value="Europe/London">London (GMT/BST)</SelectItem>
+                          <SelectItem value="Europe/Paris">Paris (CET/CEST)</SelectItem>
+                          <SelectItem value="Europe/Berlin">Berlin (CET/CEST)</SelectItem>
+                          <SelectItem value="Europe/Rome">Rome (CET/CEST)</SelectItem>
+                          <SelectItem value="Europe/Madrid">Madrid (CET/CEST)</SelectItem>
+                          <SelectItem value="Europe/Amsterdam">Amsterdam (CET/CEST)</SelectItem>
+                          <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                          <SelectItem value="Asia/Shanghai">Shanghai (CST)</SelectItem>
+                          <SelectItem value="Asia/Dubai">Dubai (GST)</SelectItem>
+                          <SelectItem value="Australia/Sydney">Sydney (AEST/AEDT)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500">
+                        Current: {new Intl.DateTimeFormat('en', {
+                          timeZone: user?.businessInfo?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                          timeZoneName: 'long'
+                        }).formatToParts(new Date()).find(part => part.type === 'timeZoneName')?.value}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Current Local Time</Label>
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm font-medium text-blue-800">
+                          {new Date().toLocaleString('en-US', {
+                            timeZone: user?.businessInfo?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            weekday: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZoneName: 'short'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Weekly Schedule */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Weekly Schedule
                   </CardTitle>
                   <CardDescription>
                     Set your working hours for each day of the week
@@ -877,80 +1128,185 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
 
-              {/* Blocked Dates Card */}
+              {/* PHASE 4: Enhanced Date Blocking Card */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CalendarX className="h-5 w-5" />
-                    Blocked Dates
+                    Date Blocking
                   </CardTitle>
                   <CardDescription>
-                    Block specific dates when you&apos;re not available for work
+                    Block single dates or date ranges when you&apos;re not available for work
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Add New Blocked Date */}
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Label htmlFor="newBlockedDate">Select Date to Block</Label>
-                      <Input
-                        id="newBlockedDate"
-                        type="date"
-                        value={newBlockedDate}
-                        onChange={(e) => setNewBlockedDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
-                        className="w-full"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <Button 
-                        onClick={addBlockedDate}
-                        disabled={!newBlockedDate}
-                        variant="outline"
+                  {/* PHASE 4: Blocking Mode Toggle */}
+                  <div className="flex items-center gap-4">
+                    <Label className="text-sm font-medium">Blocking Mode:</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={blockingMode === 'single' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setBlockingMode('single')}
                       >
-                        <CalendarX className="h-4 w-4 mr-2" />
-                        Block Date
+                        Single Dates
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={blockingMode === 'range' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setBlockingMode('range')}
+                      >
+                        Date Ranges
                       </Button>
                     </div>
                   </div>
 
-                  {/* Current Blocked Dates */}
-                  {blockedDates.length > 0 && (
-                    <div className="space-y-2">
-                      <Label>Currently Blocked Dates</Label>
-                      <div className="grid gap-2">
-                        {blockedDates.map((date) => (
-                          <div key={date} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <CalendarX className="h-4 w-4 text-red-600" />
-                              <span className="text-sm font-medium text-red-800">
-                                {new Date(date).toLocaleDateString('en-US', {
-                                  weekday: 'long',
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                })}
-                              </span>
-                            </div>
-                            <Button
-                              onClick={() => removeBlockedDate(date)}
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-100"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
+                  {/* Single Date Blocking */}
+                  {blockingMode === 'single' && (
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Label htmlFor="newBlockedDate">Select Date to Block</Label>
+                        <Input
+                          id="newBlockedDate"
+                          type="date"
+                          value={newBlockedDate}
+                          onChange={(e) => setNewBlockedDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button 
+                          onClick={addBlockedDate}
+                          disabled={!newBlockedDate}
+                          variant="outline"
+                        >
+                          <CalendarX className="h-4 w-4 mr-2" />
+                          Block Date
+                        </Button>
                       </div>
                     </div>
                   )}
 
-                  {blockedDates.length === 0 && (
+                  {/* PHASE 4: Date Range Blocking */}
+                  {blockingMode === 'range' && (
+                    <div className="space-y-4">
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="startDate">Start Date</Label>
+                          <Input
+                            id="startDate"
+                            type="date"
+                            value={newBlockedRange.startDate}
+                            onChange={(e) => setNewBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
+                            min={new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="endDate">End Date</Label>
+                          <Input
+                            id="endDate"
+                            type="date"
+                            value={newBlockedRange.endDate}
+                            onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
+                            min={newBlockedRange.startDate || new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="reason">Reason (Optional)</Label>
+                          <Input
+                            id="reason"
+                            placeholder="Vacation, Holiday, etc."
+                            value={newBlockedRange.reason}
+                            onChange={(e) => setNewBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button 
+                          onClick={addBlockedRange}
+                          disabled={!newBlockedRange.startDate || !newBlockedRange.endDate}
+                          variant="outline"
+                        >
+                          <CalendarX className="h-4 w-4 mr-2" />
+                          Block Period
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Current Blocked Items */}
+                  {(blockedDates.length > 0 || blockedRanges.length > 0) && (
+                    <div className="space-y-4">
+                      <Label>Currently Blocked Periods</Label>
+                      
+                      {/* PHASE 4: Blocked Ranges */}
+                      {blockedRanges.map((range, index) => (
+                        <div key={`range-${index}`} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <CalendarX className="h-4 w-4 text-red-600" />
+                            <div>
+                              <span className="text-sm font-medium text-red-800">
+                                {new Date(range.startDate).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })} - {new Date(range.endDate).toLocaleDateString('en-US', {
+                                  month: 'short', 
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                              {range.reason && (
+                                <p className="text-xs text-red-700 mt-1">{range.reason}</p>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => removeBlockedRange(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      
+                      {/* Individual Blocked Dates */}
+                      {blockedDates.map((date) => (
+                        <div key={date} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <CalendarX className="h-4 w-4 text-red-600" />
+                            <span className="text-sm font-medium text-red-800">
+                              {new Date(date).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                          <Button
+                            onClick={() => removeBlockedDate(date)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {blockedDates.length === 0 && blockedRanges.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
                       <CalendarX className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No blocked dates set</p>
-                      <p className="text-xs">Add dates when you&apos;re not available for work</p>
+                      <p className="text-sm">No blocked periods set</p>
+                      <p className="text-xs">Add dates or date ranges when you&apos;re not available for work</p>
                     </div>
                   )}
 
@@ -969,62 +1325,119 @@ export default function ProfilePage() {
                     )}
                   </Button>
                 </CardContent>
-              </Card>
+                  </Card>
+                  </TabsContent>
+
+                  {/* Personal Availability Tab */}
+                  <TabsContent value="personal" className="space-y-6 mt-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <User className="h-5 w-5" />
+                          Personal Availability
+                        </CardTitle>
+                        <CardDescription>
+                          Set your personal time off and unavailable periods
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="text-center py-8 text-gray-500">
+                          <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                          <p className="text-sm font-medium">Personal Availability Management</p>
+                          <p className="text-xs">Coming soon - manage your personal time off and availability</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Employees Tab */}
+                  <TabsContent value="employees" className="space-y-6 mt-6">
+                    <TeamManagement companyName={businessInfo.companyName || user?.name || 'Your Company'} />
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </TabsContent>
+
+            {/* Security Tab */}
+            <TabsContent value="security" className="space-y-6">
+              <PasswordChange />
             </TabsContent>
           </Tabs>
         ) : (
-          // Non-professional users get the simplified view
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* User Profile Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Profile Information
-                </CardTitle>
-                <CardDescription>Your account details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm">{user?.email}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm">{user?.phone}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm capitalize">{user?.role}</span>
-                </div>
-              </CardContent>
-            </Card>
+          // Non-professional users (customers, team members, etc.)
+          <Tabs defaultValue="profile" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="security">Security</TabsTrigger>
+              {user?.role === 'team_member' && (
+                <TabsTrigger value="availability">Availability</TabsTrigger>
+              )}
+            </TabsList>
+            
+            <TabsContent value="profile" className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* User Profile Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="h-5 w-5" />
+                      Profile Information
+                    </CardTitle>
+                    <CardDescription>Your account details</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm">{user?.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm">{user?.phone?.startsWith('+1000000') ? 'Not provided' : user?.phone}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm capitalize">{user?.role?.replace('_', ' ')}</span>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Verification Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Verification Status
-                </CardTitle>
-                <CardDescription>Account verification progress</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Email Verification</span>
-                  <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
-                    {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Phone Verification</span>
-                  <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
-                    {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                {/* Verification Status */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5" />
+                      Verification Status
+                    </CardTitle>
+                    <CardDescription>Account verification progress</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Email Verification</span>
+                      <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
+                        {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Phone Verification</span>
+                      <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
+                        {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="security" className="space-y-6">
+              <PasswordChange />
+            </TabsContent>
+
+            {user?.role === 'team_member' && (
+              <TabsContent value="availability" className="space-y-6">
+                <TeamMemberAvailability />
+              </TabsContent>
+            )}
+          </Tabs>
         )}
 
         {/* Back to Dashboard */}
@@ -1033,6 +1446,79 @@ export default function ProfilePage() {
             Back to Dashboard
           </Button>
         </div>
+        
+        {/* PHASE 2: Auto-populate Dialog */}
+        {showAutoPopulateDialog && pendingVatData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="h-5 w-5 text-blue-600" />
+                  Auto-populate Business Information?
+                </CardTitle>
+                <CardDescription>
+                  We found company information from your VAT registration. Would you like to auto-fill your business details?
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Preview of data to be populated */}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">Company Information Found:</h4>
+                  {pendingVatData.companyName && (
+                    <p className="text-sm text-blue-700"><strong>Company Name:</strong> {pendingVatData.companyName}</p>
+                  )}
+                  {pendingVatData.parsedAddress && (
+                    <>
+                      {pendingVatData.parsedAddress.streetAddress && (
+                        <p className="text-sm text-blue-700"><strong>Address:</strong> {pendingVatData.parsedAddress.streetAddress}</p>
+                      )}
+                      {pendingVatData.parsedAddress.city && (
+                        <p className="text-sm text-blue-700"><strong>City:</strong> {pendingVatData.parsedAddress.city}</p>
+                      )}
+                      {pendingVatData.parsedAddress.postalCode && (
+                        <p className="text-sm text-blue-700"><strong>Postal Code:</strong> {pendingVatData.parsedAddress.postalCode}</p>
+                      )}
+                      {pendingVatData.parsedAddress.country && (
+                        <p className="text-sm text-blue-700"><strong>Country:</strong> {getVATCountryName(pendingVatData.parsedAddress.country)}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+                
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    Only empty fields will be filled. Your existing data will not be overwritten.
+                  </p>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleAutoPopulate(true)}
+                    disabled={vatSaving}
+                    className="flex-1"
+                  >
+                    {vatSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Auto-filling...
+                      </>
+                    ) : (
+                      'Yes, Auto-fill'
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => handleAutoPopulate(false)}
+                    variant="outline"
+                    disabled={vatSaving}
+                    className="flex-1"
+                  >
+                    No, Skip
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

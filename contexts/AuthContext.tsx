@@ -229,6 +229,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.user)
         toast.success('Account created successfully!')
         
+        if (data.welcomeEmailSent) {
+          setTimeout(() => {
+            toast.success('📧 Welcome email sent! Check your inbox to get started.', {
+              duration: 4000,
+            })
+          }, 1000)
+        }
         
         return true
       } else {
