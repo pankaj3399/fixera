@@ -10,7 +10,7 @@ export default function ProjectCreatePage() {
   const router = useRouter()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen mt-20 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
           <CardHeader className="text-center pb-6">
@@ -66,7 +66,7 @@ export default function ProjectCreatePage() {
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
                 <div className="flex items-center justify-center gap-2 text-green-700">
                   <Clock className="w-5 h-5" />
-                  <span className="font-medium">Expected Launch: Q1 2025</span>
+                  <span className="font-medium">Expected Launch: Q4 2025</span>
                 </div>
               </div>
             </div>
