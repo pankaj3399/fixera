@@ -18,7 +18,8 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
-  Users
+  Users,
+  Trash2
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -69,6 +70,10 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
   const [resetPasswordDialog, setResetPasswordDialog] = useState<string | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [resettingPassword, setResettingPassword] = useState(false)
+
+  // Deactivation confirmation states
+  const [deactivateDialog, setDeactivateDialog] = useState<{memberId: string, memberName: string} | null>(null)
+  const [deactivating, setDeactivating] = useState(false)
 
   // Fetch team members
   const fetchTeamMembers = async () => {
@@ -130,9 +135,20 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
     }
   }
 
+  // Handle deactivation button click
+  const handleDeactivate = (teamMemberId: string, memberName: string) => {
+    setDeactivateDialog({ memberId: teamMemberId, memberName })
+  }
+
+  // Handle reactivation
+  const handleReactivate = async (teamMemberId: string) => {
+    await toggleTeamMemberStatus(teamMemberId, true)
+  }
+
   // Toggle team member status
   const toggleTeamMemberStatus = async (teamMemberId: string, isActive: boolean) => {
     try {
+      setDeactivating(true)
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/members/${teamMemberId}/status`, {
         method: 'PUT',
         headers: {
@@ -153,7 +169,17 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
     } catch (error) {
       console.error('Error updating team member status:', error)
       toast.error('Failed to update team member status')
+    } finally {
+      setDeactivating(false)
     }
+  }
+
+  // Confirm deactivation
+  const confirmDeactivation = async () => {
+    if (!deactivateDialog) return
+    
+    await toggleTeamMemberStatus(deactivateDialog.memberId, false)
+    setDeactivateDialog(null)
   }
 
   // Reset team member password
@@ -357,7 +383,7 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                       <TableHead>Contact</TableHead>
                       <TableHead>Availability</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Deactivate Employee</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -423,10 +449,27 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                         
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Switch
-                              checked={member.isActive}
-                              onCheckedChange={(checked) => toggleTeamMemberStatus(member._id, checked)}
-                            />
+                            {member.isActive ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeactivate(member._id, member.name)}
+                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                disabled={deactivating}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleReactivate(member._id)}
+                                className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                disabled={deactivating}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                            )}
                             
                             {member.managedByCompany && (
                               <Button
@@ -493,6 +536,53 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
               >
                 {resettingPassword && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Reset Password
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivation Confirmation Dialog */}
+      <Dialog open={!!deactivateDialog} onOpenChange={() => setDeactivateDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate Employee</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate <strong>{deactivateDialog?.memberName}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">
+                    This will deactivate the employee
+                  </p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    The employee will no longer be able to access the system or be scheduled for appointments. 
+                    You can reactivate them at any time.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setDeactivateDialog(null)}
+                disabled={deactivating}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={confirmDeactivation}
+                disabled={deactivating}
+              >
+                {deactivating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Deactivate Employee
               </Button>
             </div>
           </div>

@@ -282,7 +282,8 @@ export default function ProfilePage() {
           currency,
           serviceCategories,
           availability,
-          blockedDates
+          blockedDates,
+          blockedRanges
         })
       })
 
