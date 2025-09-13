@@ -43,7 +43,15 @@ interface User {
     saturday?: { available: boolean; startTime?: string; endTime?: string }
     sunday?: { available: boolean; startTime?: string; endTime?: string }
   }
-  blockedDates?: string[]
+  blockedDates?: {
+    date: string;
+    reason?: string;
+  }[]
+  blockedRanges?: {
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }[]
   profileCompletedAt?: string
   createdAt: string
   updatedAt: string
