@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -334,6 +334,175 @@ export default function DashboardPage() {
               </Card>
             </TabsContent>
           </Tabs>
+        </div>
+      </div>
+    )
+  }
+
+  // Professional dashboard
+  if (user?.role === 'professional') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-6xl mx-auto pt-20">
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                <Briefcase className="h-8 w-8 text-blue-600" />
+                Professional Dashboard
+              </h1>
+              <p className="text-gray-600">Manage your services and projects, {user?.name}!</p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {/* Create New Project Card */}
+            <Card className="border-2 border-dashed border-blue-300 hover:border-blue-500 transition-colors">
+              <CardHeader className="text-center">
+                <CardTitle className="flex items-center justify-center gap-2 text-blue-600">
+                  <Plus className="h-6 w-6" />
+                  Create New Project
+                </CardTitle>
+                <CardDescription>Start offering a new service to customers</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <Button
+                  onClick={() => router.push('/projects/create')}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  size="lg"
+                >
+                  Create Project
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Profile Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Profile Information
+                </CardTitle>
+                <CardDescription>Your professional account details</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm">{user?.email}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm">{user?.phone}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm capitalize">{user?.role}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Verification Status */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Verification Status
+                </CardTitle>
+                <CardDescription>Professional verification progress</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Email Verification</span>
+                  <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
+                    {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Phone Verification</span>
+                  <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
+                    {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Actions */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Common tasks for professionals</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/projects/create')}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Project
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/profile')}
+                  className="flex items-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  Edit Profile
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/professional/projects/manage')}
+                  className="flex items-center gap-2"
+                >
+                  <Briefcase className="h-4 w-4" />
+                  Manage Projects
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/professional/earnings')}
+                  className="flex items-center gap-2"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  View Earnings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Stats */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Account Stats
+              </CardTitle>
+              <CardDescription>Your professional account activity</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Professional Since</span>
+                <span className="text-sm font-medium">
+                  {new Date(user?.createdAt || '').toLocaleDateString()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Last Updated</span>
+                <span className="text-sm font-medium">
+                  {new Date(user?.updatedAt || '').toLocaleDateString()}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <div className="mt-8 flex gap-4">
+            {(!user?.isEmailVerified || !user?.isPhoneVerified) && (
+              <Button onClick={() => router.push('/verify-phone')}>
+                Complete Verification
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     )

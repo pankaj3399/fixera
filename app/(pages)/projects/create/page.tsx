@@ -1,110 +1,386 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Construction, ArrowLeft, Wrench, Clock, Lightbulb } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import WizardLayout from '@/components/professional/project-wizard/WizardLayout'
+import Step1BasicInfo from '@/components/professional/project-wizard/Step1BasicInfo'
+import Step2Subprojects from '@/components/professional/project-wizard/Step2Subprojects'
+import Step3ExtraOptions from '@/components/professional/project-wizard/Step3ExtraOptions'
+import Step4FAQ from '@/components/professional/project-wizard/Step4FAQ'
+import Step5RFQQuestions from '@/components/professional/project-wizard/Step5RFQQuestions'
+import Step6PostBookingQuestions from '@/components/professional/project-wizard/Step6PostBookingQuestions'
+import Step7CustomMessage from '@/components/professional/project-wizard/Step7CustomMessage'
+import { toast } from 'sonner'
+
+interface IIncludedItem {
+  name: string
+  description?: string
+  isCustom: boolean
+}
+
+interface ISubproject {
+  id: string
+  name: string
+  description: string
+  pricing: {
+    type: 'fixed' | 'unit' | 'rfq'
+    amount?: number
+    priceRange?: { min: number; max: number }
+    minProjectValue?: number
+  }
+  included: IIncludedItem[]
+  materialsIncluded: boolean
+  deliveryPreparation: number
+  executionDuration: {
+    value: number
+    unit: 'hours' | 'days'
+    range?: { min: number; max: number }
+  }
+  buffer?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  intakeDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+    buffer?: number
+  }
+  warrantyPeriod: number
+}
+
+interface IExtraOption {
+  id: string
+  name: string
+  description?: string
+  price: number
+  isCustom: boolean
+}
+
+interface ITermCondition {
+  id: string
+  name: string
+  description: string
+  additionalCost?: number
+  isCustom: boolean
+}
+
+interface IFAQ {
+  id: string
+  question: string
+  answer: string
+  isGenerated: boolean
+  isEditing?: boolean
+}
+
+interface IRFQQuestion {
+  id: string
+  question: string
+  type: 'text' | 'multiple_choice' | 'attachment'
+  options?: string[]
+  isRequired: boolean
+}
+
+interface IPostBookingQuestion {
+  id: string
+  question: string
+  type: 'text' | 'multiple_choice' | 'attachment'
+  options?: string[]
+  isRequired: boolean
+}
+
+interface ProjectData {
+  id?: string
+  category?: string
+  service?: string
+  areaOfWork?: string
+  distance?: {
+    address: string
+    useCompanyAddress: boolean
+    maxKmRange: number
+    noBorders: boolean
+  }
+  resources?: string[]
+  projectType?: string[]
+  description?: string
+  priceModel?: string
+  keywords?: string[]
+  title?: string
+  media?: {
+    images: string[]
+    video?: string
+  }
+  subprojects?: ISubproject[]
+  extraOptions?: IExtraOption[]
+  termsConditions?: ITermCondition[]
+  faq?: IFAQ[]
+  rfqQuestions?: IRFQQuestion[]
+  postBookingQuestions?: IPostBookingQuestion[]
+  customConfirmationMessage?: string
+  currentStep?: number
+}
 
 export default function ProjectCreatePage() {
   const router = useRouter()
+  const [currentStep, setCurrentStep] = useState(1)
+  const [projectData, setProjectData] = useState<ProjectData>({
+    currentStep: 1,
+    distance: {
+      address: '',
+      useCompanyAddress: false,
+      maxKmRange: 50,
+      noBorders: false
+    },
+    media: {
+      images: []
+    },
+    keywords: [],
+    projectType: [],
+    subprojects: [],
+    extraOptions: [],
+    termsConditions: [],
+    faq: [],
+    rfqQuestions: [],
+    postBookingQuestions: []
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [canProceed, setCanProceed] = useState(false)
+  const [stepValidation, setStepValidation] = useState<boolean[]>(new Array(8).fill(false))
 
-  return (
-    <div className="min-h-screen mt-20 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full">
-        <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
-          <CardHeader className="text-center pb-6">
-            <div className="mx-auto mb-6 relative">
-              <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-yellow-500 rounded-full flex items-center justify-center mx-auto shadow-lg">
-                <Construction className="w-12 h-12 text-white animate-pulse" />
-              </div>
-              <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                <Wrench className="w-4 h-4 text-white rotate-45" />
-              </div>
+  // Manual save function for draft
+  const saveProjectDraft = async () => {
+    try {
+      const response = await fetch('/api/projects/draft', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...projectData,
+          currentStep
+        }),
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        const savedProject = await response.json()
+        if (!projectData.id) {
+          setProjectData(prev => ({ ...prev, id: savedProject._id }))
+        }
+        toast.success('Project draft saved successfully!')
+        return savedProject
+      } else {
+        throw new Error('Failed to save')
+      }
+    } catch (error) {
+      console.error('Save error:', error)
+      toast.error('Failed to save project draft')
+    }
+  }
+
+  const handleStepChange = (step: number) => {
+    setCurrentStep(step)
+    setProjectData(prev => ({ ...prev, currentStep: step }))
+    // Set canProceed based on target step validation
+    const targetStepValid = stepValidation[step - 1] || false
+    setCanProceed(targetStepValid)
+  }
+
+  const handleNext = () => {
+    if (currentStep < 8 && canProceed) {
+      setCurrentStep(currentStep + 1)
+      // Reset canProceed for next step validation
+      const nextStepValid = stepValidation[currentStep] || false
+      setCanProceed(nextStepValid)
+    }
+  }
+
+  const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+      // Set canProceed based on previous step validation
+      const prevStepValid = stepValidation[currentStep - 2] || false
+      setCanProceed(prevStepValid)
+    }
+  }
+
+  const handleDataChange = (stepData: Partial<ProjectData>) => {
+    setProjectData(prev => ({ ...prev, ...stepData }))
+  }
+
+  const handleStepValidation = (step: number, isValid: boolean) => {
+    setStepValidation(prev => {
+      const newValidation = [...prev]
+      newValidation[step - 1] = isValid
+      return newValidation
+    })
+
+    // Update canProceed based on current step validation
+    if (step === currentStep) {
+      setCanProceed(isValid)
+    }
+  }
+
+  // Auto-validate step 8 when we reach it (it's just a review step)
+  useEffect(() => {
+    if (currentStep === 8) {
+      handleStepValidation(8, true)
+    }
+  }, [currentStep])
+
+  const handleSubmit = async () => {
+    if (isLoading) return // Prevent multiple submissions
+    setIsLoading(true)
+    try {
+      // If no project ID, save as draft first
+      let projectId = projectData.id
+      if (!projectId) {
+        const savedProject = await saveProjectDraft()
+        if (!savedProject) {
+          toast.error('Failed to save project before submission')
+          setIsLoading(false)
+          return
+        }
+        projectId = savedProject._id
+      }
+
+      const response = await fetch(`/api/projects/${projectId}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        toast.success('Project submitted for approval!')
+        router.push('/dashboard')
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Failed to submit project')
+      }
+    } catch (error) {
+      console.error('Submit error:', error)
+      toast.error('Failed to submit project')
+    }
+    setIsLoading(false)
+  }
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <Step1BasicInfo
+            data={projectData}
+            onChange={handleDataChange}
+            onValidate={(isValid) => handleStepValidation(1, isValid)}
+          />
+        )
+      case 2:
+        return (
+          <Step2Subprojects
+            data={projectData}
+            onChange={handleDataChange}
+            onValidate={(isValid) => handleStepValidation(2, isValid)}
+          />
+        )
+      case 3:
+        return (
+          <Step3ExtraOptions
+            data={projectData}
+            onChange={handleDataChange}
+            onValidate={(isValid) => handleStepValidation(3, isValid)}
+          />
+        )
+      case 4:
+        return (
+          <Step4FAQ
+            data={projectData}
+            onChange={handleDataChange}
+            onValidate={(isValid) => handleStepValidation(4, isValid)}
+          />
+        )
+      case 5:
+        return (
+          <Step5RFQQuestions
+            data={projectData}
+            onChange={handleDataChange}
+            onValidate={(isValid) => handleStepValidation(5, isValid)}
+          />
+        )
+      case 6:
+        return (
+          <Step6PostBookingQuestions
+            data={projectData}
+            onChange={handleDataChange}
+            onValidate={(isValid) => handleStepValidation(6, isValid)}
+          />
+        )
+      case 7:
+        return (
+          <Step7CustomMessage
+            data={projectData}
+            onChange={handleDataChange}
+            onValidate={(isValid) => handleStepValidation(7, isValid)}
+          />
+        )
+      case 8:
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold mb-4">Step 8: Review & Submit</h3>
+              <p className="text-gray-600 mb-6">Review your project and submit for admin approval</p>
             </div>
-            
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-              Under Construction
-            </CardTitle>
-            <CardDescription className="text-lg mt-3 text-gray-600">
-              We&apos;re building something amazing for you!
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="space-y-8 pb-8">
-            <div className="text-center space-y-4">
-              <p className="text-gray-700 leading-relaxed">
-                The <strong>Project Creation</strong> feature is currently under development. 
-                Our team is working hard to bring you an intuitive and powerful project management experience.
-              </p>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 space-y-4">
-                <h3 className="font-semibold text-gray-800 flex items-center justify-center gap-2">
-                  <Lightbulb className="w-5 h-5 text-yellow-500" />
-                  Coming Soon Features
-                </h3>
-                <ul className="text-sm text-gray-600 space-y-2">
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    Create and manage professional service projects
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                    Set project timelines and milestones
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    Collaborate with team members
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
-                    Track progress and deliverables
-                  </li>
-                </ul>
-              </div>
-              
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-center gap-2 text-green-700">
-                  <Clock className="w-5 h-5" />
-                  <span className="font-medium">Expected Launch: Q4 2025</span>
+
+            <div className="bg-white border rounded-lg p-6">
+              <h4 className="font-semibold mb-4">Project Summary</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <strong>Category:</strong> {projectData.category || 'Not specified'}
+                </div>
+                <div>
+                  <strong>Service:</strong> {projectData.service || 'Not specified'}
+                </div>
+                <div>
+                  <strong>Price Model:</strong> {projectData.priceModel || 'Not specified'}
+                </div>
+                <div>
+                  <strong>Service Range:</strong> {projectData.distance?.maxKmRange || 0} km
                 </div>
               </div>
+
+              {projectData.title && (
+                <div className="mt-4">
+                  <strong>Title:</strong>
+                  <p className="mt-1 text-gray-700">{projectData.title}</p>
+                </div>
+              )}
+
+              {projectData.description && (
+                <div className="mt-4">
+                  <strong>Description:</strong>
+                  <p className="mt-1 text-gray-700">{projectData.description.substring(0, 200)}...</p>
+                </div>
+              )}
             </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                onClick={() => router.back()} 
-                variant="outline" 
-                className="flex items-center gap-2 hover:bg-gray-50"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Go Back
-              </Button>
-              
-              <Link href="/dashboard">
-                <Button className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
-                  Visit Dashboard
-                </Button>
-              </Link>
-            </div>
-            
-            <div className="text-center pt-4 border-t">
-              <p className="text-sm text-gray-500">
-                Have questions or suggestions? 
-                <a href="mailto:support@fixera.com" className="text-blue-600 hover:underline ml-1">
-                  Contact our team
-                </a>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Floating Elements for Visual Appeal */}
-        <div className="absolute top-10 left-10 w-20 h-20 bg-blue-200 rounded-full opacity-20 animate-bounce" style={{animationDelay: '0s'}}></div>
-        <div className="absolute top-32 right-20 w-16 h-16 bg-indigo-200 rounded-full opacity-20 animate-bounce" style={{animationDelay: '1s'}}></div>
-        <div className="absolute bottom-20 left-32 w-12 h-12 bg-purple-200 rounded-full opacity-20 animate-bounce" style={{animationDelay: '2s'}}></div>
-        <div className="absolute bottom-32 right-16 w-14 h-14 bg-pink-200 rounded-full opacity-20 animate-bounce" style={{animationDelay: '0.5s'}}></div>
-      </div>
-    </div>
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+
+  return (
+    <WizardLayout
+      currentStep={currentStep}
+      onStepChange={handleStepChange}
+      onSaveDraft={saveProjectDraft}
+      onNext={handleNext}
+      onPrevious={handlePrevious}
+      onSubmit={handleSubmit}
+      isLoading={isLoading}
+      canProceed={canProceed}
+    >
+      {renderCurrentStep()}
+    </WizardLayout>
   )
 }
