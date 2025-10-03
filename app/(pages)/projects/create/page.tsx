@@ -22,6 +22,12 @@ interface ISubproject {
   id: string
   name: string
   description: string
+  projectType?: string[]
+  customProjectType?: string
+  professionalInputs?: Array<{
+    fieldName: string
+    value: string | number | { min: number; max: number }
+  }>
   pricing: {
     type: 'fixed' | 'unit' | 'rfq'
     amount?: number
@@ -45,7 +51,7 @@ interface ISubproject {
     unit: 'hours' | 'days'
     buffer?: number
   }
-  warrantyPeriod: number
+  warrantyPeriod: { value: number; unit: 'months' | 'years' }
 }
 
 interface IExtraOption {
@@ -89,6 +95,7 @@ interface IPostBookingQuestion {
 }
 
 interface ProjectData {
+  _id?: string
   id?: string
   category?: string
   service?: string
@@ -107,8 +114,15 @@ interface ProjectData {
   title?: string
   media?: {
     images: string[]
-    video?: string
+    videos: string[]
   }
+  serviceConfigurationId?: string
+  certifications?: Array<{
+    name: string
+    fileUrl: string
+    uploadedAt: Date
+    isRequired: boolean
+  }>
   subprojects?: ISubproject[]
   extraOptions?: IExtraOption[]
   termsConditions?: ITermCondition[]
@@ -134,7 +148,8 @@ export default function ProjectCreatePage() {
       noBorders: false
     },
     media: {
-      images: []
+      images: [],
+      videos: []
     },
     keywords: [],
     projectType: [],
@@ -464,7 +479,7 @@ export default function ProjectCreatePage() {
               {projectData.description && (
                 <div className="mt-4">
                   <strong>Description:</strong>
-                  <p className="mt-1 text-gray-700">{projectData.description.substring(0, 200)}...</p>
+                  <p className="mt-1 text-gray-700 break-words whitespace-pre-wrap">{projectData.description.substring(0, 200)}...</p>
                 </div>
               )}
             </div>

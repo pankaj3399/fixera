@@ -20,6 +20,7 @@ import {
   AlertCircle
 } from "lucide-react"
 import { toast } from 'sonner'
+import ProfessionalAttachments from "./ProfessionalAttachments"
 
 interface IRFQQuestion {
   id: string
@@ -27,6 +28,7 @@ interface IRFQQuestion {
   type: 'text' | 'multiple_choice' | 'attachment'
   options?: string[]
   isRequired: boolean
+  professionalAttachments?: string[]
 }
 
 interface IIncludedItem {
@@ -62,10 +64,11 @@ interface ISubproject {
     unit: 'hours' | 'days'
     buffer?: number
   }
-  warrantyPeriod: number
+  warrantyPeriod: { value: number; unit: 'months' | 'years' }
 }
 
 interface ProjectData {
+  _id?: string
   rfqQuestions?: IRFQQuestion[]
   category?: string
   service?: string
@@ -305,6 +308,12 @@ export default function Step5RFQQuestions({ data, onChange, onValidate }: Step5P
   const updateQuestion = (id: string, updates: Partial<IRFQQuestion>) => {
     setRfqQuestions(rfqQuestions.map(q =>
       q.id === id ? { ...q, ...updates } : q
+    ))
+  }
+
+  const updateQuestionByIndex = (index: number, updates: Partial<IRFQQuestion>) => {
+    setRfqQuestions(rfqQuestions.map((q, i) =>
+      i === index ? { ...q, ...updates } : q
     ))
   }
 
@@ -557,6 +566,9 @@ export default function Step5RFQQuestions({ data, onChange, onValidate }: Step5P
                 Clear All
               </Button>
             </CardTitle>
+            <CardDescription>
+              You can upload supporting documents for each question to help provide context or examples for customers.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -583,7 +595,7 @@ export default function Step5RFQQuestions({ data, onChange, onValidate }: Step5P
                         </div>
 
                         {question.options && (
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1 mb-3">
                             {question.options.map((option, i) => (
                               <Badge key={i} variant="outline" className="text-xs">
                                 {option}
@@ -591,6 +603,17 @@ export default function Step5RFQQuestions({ data, onChange, onValidate }: Step5P
                             ))}
                           </div>
                         )}
+
+                        {/* Professional Attachments */}
+                        <div className="mt-3">
+                          <ProfessionalAttachments
+                            attachments={question.professionalAttachments || []}
+                            onChange={(attachments) => updateQuestionByIndex(index, { professionalAttachments: attachments })}
+                            questionId={`rfq-${index}`}
+                            projectId={data._id}
+                            label="Upload Supporting Documents (Optional)"
+                          />
+                        </div>
 
                         {/* Required Toggle */}
                         <div className="flex items-center space-x-2 mt-3">

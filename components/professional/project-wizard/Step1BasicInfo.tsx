@@ -11,8 +11,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Upload, X, MapPin, FileText, Star, Users } from "lucide-react"
 import { toast } from 'sonner'
+import AddressAutocomplete from "./AddressAutocomplete"
+import CertificationManager from "./CertificationManager"
+import { useFileUpload } from "@/hooks/useFileUpload"
 
 interface ProjectData {
+  _id?: string
   category?: string
   service?: string
   areaOfWork?: string
@@ -30,9 +34,15 @@ interface ProjectData {
   title?: string
   media?: {
     images: string[]
-    video?: string
+    videos: string[]
   }
   serviceConfigurationId?: string
+  certifications?: Array<{
+    name: string
+    fileUrl: string
+    uploadedAt: Date
+    isRequired: boolean
+  }>
 }
 
 interface TeamMember {
@@ -53,19 +63,18 @@ export interface Step1Ref {
   showValidationErrors: () => void
 }
 
-const PRICE_MODELS = [
-  { value: 'fixed', label: 'Fixed Price' },
-  { value: 'hour', label: 'Per Hour' },
-  { value: 'm2', label: 'Per m²' },
-  { value: 'meter', label: 'Per Meter' },
-  { value: 'day', label: 'Per Day' },
-  { value: 'room', label: 'Per Room' }
-]
-
 const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onValidate }, ref) => {
   const [formData, setFormData] = useState<ProjectData>(data)
   const [keywordInput, setKeywordInput] = useState('')
   const [suggestedTitle, setSuggestedTitle] = useState('')
+  const [addressValid, setAddressValid] = useState(false)
+  const [serviceConfig, setServiceConfig] = useState<{
+    pricingModel?: string;
+    certificationRequired?: boolean;
+    projectTypes?: string[];
+  } | null>(null)
+  const [pricingModels, setPricingModels] = useState<string[]>([])
+  const { uploadFile, uploading, progress } = useFileUpload()
 
   // Backend data
   const [categories, setCategories] = useState<string[]>([])
@@ -174,8 +183,19 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       )
       if (response.ok) {
         const result = await response.json()
-        if (result.data?._id) {
-          updateFormData({ serviceConfigurationId: result.data._id })
+        if (result.data) {
+          // Store the full config
+          setServiceConfig(result.data)
+
+          // Extract pricing models
+          if (result.data.pricingModels && Array.isArray(result.data.pricingModels)) {
+            setPricingModels(result.data.pricingModels)
+          }
+
+          // Update form data with service configuration ID
+          if (result.data._id) {
+            updateFormData({ serviceConfigurationId: result.data._id })
+          }
         }
       }
     } catch (error) {
@@ -213,6 +233,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       formData.description.length >= 100 &&
       formData.priceModel &&
       formData.distance?.address &&
+      addressValid &&
       formData.distance?.maxKmRange
     )
     onValidate(isValid)
@@ -230,6 +251,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }
     if (!formData.priceModel) errors.push('Price Model is required')
     if (!formData.distance?.address) errors.push('Service Address is required')
+    if (!addressValid) errors.push('Please enter a valid address')
     if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
 
     if (errors.length > 0) {
@@ -258,12 +280,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }))
   }
 
-  const updateMedia = (updates: Partial<{ images: string[]; video?: string }>) => {
+  const updateMedia = (updates: Partial<{ images: string[]; videos: string[] }>) => {
     setFormData(prev => ({
       ...prev,
       media: {
         images: prev.media?.images || [],
-        video: prev.media?.video,
+        videos: prev.media?.videos || [],
         ...updates
       }
     }))
@@ -342,18 +364,18 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     const currentImages = formData.media?.images || []
 
     if (currentImages.length + files.length > maxFiles) {
-      alert(`Maximum ${maxFiles} images allowed. You currently have ${currentImages.length} images. You can select ${maxFiles - currentImages.length} more.`)
+      toast.error(`Maximum ${maxFiles} images allowed. You currently have ${currentImages.length} images. You can select ${maxFiles - currentImages.length} more.`)
       return
     }
 
     const validFiles = Array.from(files).filter(file => {
       if (file.size > maxSize) {
-        alert(`File ${file.name} is too large. Maximum size is 5MB`)
+        toast.error(`File ${file.name} is too large. Maximum size is 5MB`)
         return false
       }
 
       if (!file.type.startsWith('image/')) {
-        alert(`File ${file.name} is not an image`)
+        toast.error(`File ${file.name} is not an image`)
         return false
       }
 
@@ -377,6 +399,39 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       }
       reader.readAsDataURL(file)
     })
+  }
+
+  const handleVideoUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    const maxSize = 50 * 1024 * 1024 // 50MB
+    const currentVideos = formData.media?.videos || []
+
+    if (currentVideos.length >= 1) {
+      toast.error('Maximum 1 video allowed')
+      return
+    }
+
+    const file = files[0]
+    const validTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo']
+
+    if (!validTypes.includes(file.type)) {
+      toast.error('Only MP4, MOV, and AVI video formats are allowed')
+      return
+    }
+
+    if (file.size > maxSize) {
+      toast.error('Video file is too large. Maximum size is 50MB')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        updateMedia({ videos: [e.target.result as string] })
+      }
+    }
+    reader.readAsDataURL(file)
   }
 
   return (
@@ -471,26 +526,26 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 mb-4">
             <Checkbox
               id="useCompanyAddress"
               checked={formData.distance?.useCompanyAddress || false}
               onCheckedChange={(checked) => updateDistance({ useCompanyAddress: checked as boolean })}
             />
-            <Label htmlFor="useCompanyAddress">Use my company address</Label>
+            <Label htmlFor="useCompanyAddress" className="cursor-pointer">
+              Use company address
+            </Label>
           </div>
 
-          {!formData.distance?.useCompanyAddress && (
-            <div>
-              <Label htmlFor="address">Service Address *</Label>
-              <Input
-                id="address"
-                value={formData.distance?.address || ''}
-                onChange={(e) => updateDistance({ address: e.target.value })}
-                placeholder="Enter address or area"
-              />
-            </div>
-          )}
+          <AddressAutocomplete
+            value={formData.distance?.address || ''}
+            onChange={(address) => updateDistance({ address })}
+            onValidation={setAddressValid}
+            useCompanyAddress={formData.distance?.useCompanyAddress || false}
+            companyAddress="[Get from user profile]"
+            label="Service Address"
+            required
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -517,6 +572,14 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           </div>
         </CardContent>
       </Card>
+
+      {/* Certification Manager - Always visible but optional */}
+      <CertificationManager
+        certifications={formData.certifications || []}
+        onChange={(certs) => updateFormData({ certifications: certs })}
+        required={serviceConfig?.certificationRequired || false}
+        projectId={formData._id}
+      />
 
       {/* Team Members - Only show for Renovation category */}
       {formData.category?.toLowerCase() === 'renovation' && (
@@ -613,11 +676,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 <SelectValue placeholder="Select pricing model" />
               </SelectTrigger>
               <SelectContent>
-                {PRICE_MODELS.map(model => (
-                  <SelectItem key={model.value} value={model.value}>
-                    {model.label}
+                {pricingModels.length > 0 ? (
+                  pricingModels.map(model => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="" disabled>
+                    No pricing models configured for this service
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -703,22 +772,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         </CardContent>
       </Card>
 
-      {/* Media Upload */}
+      {/* Media Upload - Images */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Upload className="w-5 h-5" />
-            <span>Project Images</span>
+            <span>Project Images (Optional)</span>
           </CardTitle>
           <CardDescription>
-            Upload up to 4 images to showcase your work
+            Upload up to 4 images to showcase your work (optional)
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">Click to upload or drag and drop images here</p>
-            <p className="text-sm text-gray-500 mt-2">PNG, JPG, WebP up to 5MB each</p>
+            <p className="text-sm text-gray-500 mt-2">PNG, JPG, WebP up to 5MB each (max 4 images)</p>
             <input
               type="file"
               multiple
@@ -751,6 +820,62 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     }}
                   >
                     <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Media Upload - Videos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Upload className="w-5 h-5" />
+            <span>Project Video (Optional)</span>
+          </CardTitle>
+          <CardDescription>
+            Upload 1 video to showcase your work (optional)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">Click to upload or drag and drop video here</p>
+            <p className="text-sm text-gray-500 mt-2">MP4, MOV, AVI up to 50MB (max 1 video)</p>
+            <input
+              type="file"
+              accept="video/mp4,video/quicktime,video/x-msvideo"
+              className="hidden"
+              id="video-upload"
+              onChange={(e) => handleVideoUpload(e.target.files)}
+            />
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => document.getElementById('video-upload')?.click()}
+              disabled={formData.media?.videos && formData.media.videos.length >= 1}
+            >
+              Choose Video
+            </Button>
+          </div>
+
+          {formData.media?.videos && formData.media.videos.length > 0 && (
+            <div className="mt-4">
+              {formData.media.videos.map((video, index) => (
+                <div key={index} className="relative">
+                  <video src={video} controls className="w-full max-h-64 rounded" />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-1 right-1"
+                    onClick={() => {
+                      updateMedia({ videos: [] })
+                    }}
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Remove Video
                   </Button>
                 </div>
               ))}

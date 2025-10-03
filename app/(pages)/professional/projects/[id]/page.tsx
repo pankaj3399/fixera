@@ -99,6 +99,12 @@ interface IIntakeDuration {
 interface ISubproject {
   name: string
   description: string
+  projectType?: string[]
+  customProjectType?: string
+  professionalInputs?: Array<{
+    fieldName: string
+    value: string | number | { min: number; max: number }
+  }>
   pricing: IPricing
   included: IIncludedItem[]
   materialsIncluded: boolean
@@ -106,7 +112,7 @@ interface ISubproject {
   executionDuration: IExecutionDuration
   buffer?: IBuffer
   intakeDuration?: IIntakeDuration
-  warrantyPeriod: number
+  warrantyPeriod: { value: number; unit: 'months' | 'years' }
 }
 
 interface IExtraOption {
@@ -577,7 +583,7 @@ export default function ProjectDetailPage() {
                         </div>
                         <div>
                           <span className="font-medium text-gray-600">Warranty:</span>
-                          <p>{subproject.warrantyPeriod} years</p>
+                          <p>{subproject.warrantyPeriod.value === 0 ? 'No warranty' : `${subproject.warrantyPeriod.value} ${subproject.warrantyPeriod.unit}`}</p>
                         </div>
                         <div>
                           <span className="font-medium text-gray-600">Materials:</span>

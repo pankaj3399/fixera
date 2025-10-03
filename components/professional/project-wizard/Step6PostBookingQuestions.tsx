@@ -20,6 +20,7 @@ import {
   Calendar
 } from "lucide-react"
 import { toast } from 'sonner'
+import ProfessionalAttachments from "./ProfessionalAttachments"
 
 interface IPostBookingQuestion {
   id: string
@@ -27,9 +28,11 @@ interface IPostBookingQuestion {
   type: 'text' | 'multiple_choice' | 'attachment'
   options?: string[]
   isRequired: boolean
+  professionalAttachments?: string[]
 }
 
 interface ProjectData {
+  _id?: string
   postBookingQuestions?: IPostBookingQuestion[]
   category?: string
   service?: string
@@ -241,6 +244,12 @@ export default function Step6PostBookingQuestions({ data, onChange, onValidate }
   const updateQuestion = (id: string, updates: Partial<IPostBookingQuestion>) => {
     setPostBookingQuestions(postBookingQuestions.map(q =>
       q.id === id ? { ...q, ...updates } : q
+    ))
+  }
+
+  const updateQuestionByIndex = (index: number, updates: Partial<IPostBookingQuestion>) => {
+    setPostBookingQuestions(postBookingQuestions.map((q, i) =>
+      i === index ? { ...q, ...updates } : q
     ))
   }
 
@@ -490,6 +499,9 @@ export default function Step6PostBookingQuestions({ data, onChange, onValidate }
                 Clear All
               </Button>
             </CardTitle>
+            <CardDescription>
+              You can upload supporting documents for each question to help provide context or examples for customers.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -525,8 +537,19 @@ export default function Step6PostBookingQuestions({ data, onChange, onValidate }
                           </div>
                         )}
 
+                        {/* Professional Attachments */}
+                        <div className="mt-3">
+                          <ProfessionalAttachments
+                            attachments={question.professionalAttachments || []}
+                            onChange={(attachments) => updateQuestionByIndex(index, { professionalAttachments: attachments })}
+                            questionId={`post-booking-${index}`}
+                            projectId={data._id}
+                            label="Upload Supporting Documents (Optional)"
+                          />
+                        </div>
+
                         {/* Required Toggle */}
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 mt-3">
                           <Checkbox
                             id={`required-${question.id}`}
                             checked={question.isRequired}

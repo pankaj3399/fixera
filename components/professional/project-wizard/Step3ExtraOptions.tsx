@@ -41,6 +41,7 @@ interface ProjectData {
   termsConditions?: ITermCondition[]
   category?: string
   service?: string
+  customerPresence?: string
 }
 
 interface Step3Props {
@@ -117,11 +118,10 @@ const PREDEFINED_TERMS = {
   ]
 }
 
-const OWNER_PRESENCE_OPTIONS = [
-  { value: 'yes', label: 'Yes - Required throughout' },
-  { value: 'no', label: 'No - Not required' },
-  { value: 'first_hour', label: 'Only first hour' },
-  { value: 'first_day', label: 'Only first day' }
+const CUSTOMER_PRESENCE_OPTIONS = [
+  { value: 'not_required', label: 'Not required' },
+  { value: 'available', label: 'Yes - Customer should be available' },
+  { value: 'present_throughout', label: 'Yes - Customer must be present throughout' }
 ]
 
 export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3Props) {
@@ -131,23 +131,40 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [termsConditions, setTermsConditions] = useState<ITermCondition[]>(
     data.termsConditions || []
   )
+  const [customerPresence, setCustomerPresence] = useState<string>(
+    data.customerPresence || ''
+  )
   const [customExtraName, setCustomExtraName] = useState('')
   const [customExtraPrice, setCustomExtraPrice] = useState('')
   const [customTermName, setCustomTermName] = useState('')
   const [customTermDescription, setCustomTermDescription] = useState('')
   const [customTermCost, setCustomTermCost] = useState('')
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
 
   useEffect(() => {
-    onChange({ ...data, extraOptions, termsConditions })
+    onChange({ ...data, extraOptions, termsConditions, customerPresence })
     validateForm()
-  }, [extraOptions, termsConditions])
+  }, [extraOptions, termsConditions, customerPresence])
 
   const validateForm = () => {
-    // Step 3 is completely optional - both extra options and terms are optional
-    // Extra options: 0-10
-    // Terms conditions: 0-5 (not required)
-    const isValid = true // Always valid - this step is optional
+    const errors: string[] = []
+
+    // Customer presence is now required
+    if (!customerPresence) {
+      errors.push('Customer presence selection is required')
+    }
+
+    setValidationErrors(errors)
+    const isValid = errors.length === 0
     onValidate(isValid)
+  }
+
+  const showValidationErrors = () => {
+    if (validationErrors.length > 0) {
+      validationErrors.forEach(error => {
+        toast.error(error)
+      })
+    }
   }
 
   const getPredefinedExtraOptions = () => {
@@ -293,10 +310,58 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
             <span>Extra Options & Project Conditions</span>
           </CardTitle>
           <CardDescription>
-            Add optional extra services and define terms & conditions for your project.
+            Set customer presence requirements, add optional extra services and define terms & conditions for your project.
             Extra options give customers flexibility while terms protect your business.
           </CardDescription>
         </CardHeader>
+      </Card>
+
+      {/* Customer Presence Section - REQUIRED */}
+      <Card className="border-2 border-blue-500">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <User className="w-5 h-5" />
+            <span>Customer Presence Required *</span>
+          </CardTitle>
+          <CardDescription>
+            Specify whether the customer needs to be present during the service
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">
+              Select customer presence requirement *
+            </Label>
+            {validationErrors.includes('Customer presence selection is required') && (
+              <div className="flex items-center space-x-2 text-red-600 text-sm">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Please select a customer presence option</span>
+              </div>
+            )}
+            <Select value={customerPresence} onValueChange={setCustomerPresence}>
+              <SelectTrigger className={`w-full ${!customerPresence && validationErrors.length > 0 ? 'border-red-500' : ''}`}>
+                <SelectValue placeholder="Select customer presence requirement..." />
+              </SelectTrigger>
+              <SelectContent>
+                {CUSTOMER_PRESENCE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {customerPresence && (
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">
+                    Selected: {CUSTOMER_PRESENCE_OPTIONS.find(opt => opt.value === customerPresence)?.label}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
       </Card>
 
       {/* Extra Options Section */}
@@ -427,32 +492,6 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-
-          {/* Owner Presence Quick Add */}
-          <div className="border rounded-lg p-4 bg-green-50">
-            <Label className="text-sm font-medium flex items-center space-x-2">
-              <User className="w-4 h-4" />
-              <span>Owner Presence Requirement</span>
-            </Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-              {OWNER_PRESENCE_OPTIONS.map((option) => (
-                <Button
-                  key={option.value}
-                  variant="outline"
-                  onClick={() => addPredefinedTerm({
-                    name: `Owner presence: ${option.label}`,
-                    cost: 0,
-                    description: `Customer or authorized representative ${option.label.toLowerCase()}`
-                  })}
-                  disabled={termsConditions.some(t => t.name.includes('Owner presence')) || termsConditions.length >= 5}
-                  className="text-left h-auto p-3"
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
           {/* Predefined Terms */}
           <div>
             <Label className="text-sm font-medium">Quick Add (Predefined Terms)</Label>
