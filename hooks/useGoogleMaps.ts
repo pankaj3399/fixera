@@ -15,16 +15,35 @@ export const useGoogleMaps = (): GoogleMapsHook => {
       return;
     }
 
-    // Load Google Maps script
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.onload = () => setIsLoaded(true);
-    script.onerror = () => {
-      console.error('Failed to load Google Maps');
-      setIsLoaded(false);
+    // Load Google Maps script from backend (public endpoint)
+    const loadGoogleMapsScript = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`);
+
+        if (!response.ok) {
+          throw new Error('Failed to get Google Maps configuration');
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.scriptUrl) {
+          const script = document.createElement('script');
+          script.src = data.scriptUrl;
+          script.async = true;
+          script.onload = () => setIsLoaded(true);
+          script.onerror = () => {
+            console.error('Failed to load Google Maps');
+            setIsLoaded(false);
+          };
+          document.head.appendChild(script);
+        }
+      } catch (error) {
+        console.error('Failed to load Google Maps configuration:', error);
+        setIsLoaded(false);
+      }
     };
-    document.head.appendChild(script);
+
+    loadGoogleMapsScript();
 
     return () => {
       // Cleanup if needed
@@ -32,14 +51,24 @@ export const useGoogleMaps = (): GoogleMapsHook => {
   }, []);
 
   const validateAddress = async (address: string): Promise<boolean> => {
-    if (!address || !isLoaded) return false;
+    if (!address) return false;
 
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/validate-address`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ address })
+        }
       );
+
       const data = await response.json();
-      return data.status === 'OK' && data.results.length > 0;
+      return data.success && data.isValid;
     } catch (error) {
       console.error('Address validation error:', error);
       return false;

@@ -502,7 +502,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                                   <SelectValue placeholder={field.placeholder || `Select ${field.label}`} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {field.options?.map((option) => (
+                                  {field.options?.filter(option => option && option.trim()).map((option) => (
                                     <SelectItem key={option} value={option}>
                                       {option}
                                     </SelectItem>
