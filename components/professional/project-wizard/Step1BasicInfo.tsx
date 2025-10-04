@@ -460,7 +460,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                   <SelectValue placeholder={loadingCategories ? "Loading..." : "Select category"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map(category => (
+                  {categories.filter(category => category && category.trim()).map(category => (
                     <SelectItem key={category} value={category}>
                       {category}
                     </SelectItem>
@@ -480,7 +480,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                   <SelectValue placeholder={loadingServices ? "Loading..." : "Select service"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {services.map(service => (
+                  {services.filter(service => service && service.trim()).map(service => (
                     <SelectItem key={service} value={service}>
                       {service}
                     </SelectItem>
@@ -502,7 +502,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                   <SelectValue placeholder={loadingAreas ? "Loading..." : "Select area of work"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {areasOfWork.map(area => (
+                  {areasOfWork.filter(area => area && area.trim()).map(area => (
                     <SelectItem key={area} value={area}>
                       {area}
                     </SelectItem>
@@ -677,13 +677,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               </SelectTrigger>
               <SelectContent>
                 {pricingModels.length > 0 ? (
-                  pricingModels.map(model => (
+                  pricingModels.filter(model => model && model.trim()).map(model => (
                     <SelectItem key={model} value={model}>
                       {model}
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="no-pricing-models" disabled>
+                  <SelectItem value="none-available" disabled>
                     No pricing models configured for this service
                   </SelectItem>
                 )}
