@@ -35,6 +35,13 @@ interface IProfessionalInput {
   value: string | number | { min: number; max: number }
 }
 
+interface IMaterial {
+  name: string
+  quantity?: string
+  unit?: string
+  description?: string
+}
+
 interface ISubproject {
   id: string
   name: string
@@ -50,6 +57,7 @@ interface ISubproject {
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
+  materials?: IMaterial[]
   deliveryPreparation: number
   executionDuration: {
     value: number
@@ -170,7 +178,9 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
       sub.pricing.type &&
       (sub.pricing.type === 'rfq' || sub.pricing.amount) &&
       sub.included.length >= 3 &&
-      sub.executionDuration.value > 0
+      sub.executionDuration.value > 0 &&
+      // Materials validation: if materialsIncluded is true, must have at least one material
+      (!sub.materialsIncluded || (sub.materials && sub.materials.length > 0))
     )
     onValidate(isValid)
   }
@@ -193,6 +203,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
       },
       included: [],
       materialsIncluded: false,
+      materials: [],
       deliveryPreparation: 1,
       executionDuration: {
         value: 1,
@@ -275,6 +286,36 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
     const service = data.service || 'default'
     return PREDEFINED_INCLUDED_ITEMS[service as keyof typeof PREDEFINED_INCLUDED_ITEMS] ||
            PREDEFINED_INCLUDED_ITEMS.default
+  }
+
+  const addMaterial = (subprojectId: string, material: IMaterial) => {
+    const subproject = subprojects.find(s => s.id === subprojectId)
+    if (!subproject) return
+
+    updateSubproject(subprojectId, {
+      materials: [...(subproject.materials || []), material]
+    })
+  }
+
+  const removeMaterial = (subprojectId: string, materialIndex: number) => {
+    const subproject = subprojects.find(s => s.id === subprojectId)
+    if (!subproject) return
+
+    updateSubproject(subprojectId, {
+      materials: (subproject.materials || []).filter((_, index) => index !== materialIndex)
+    })
+  }
+
+  const updateMaterial = (subprojectId: string, materialIndex: number, updates: Partial<IMaterial>) => {
+    const subproject = subprojects.find(s => s.id === subprojectId)
+    if (!subproject) return
+
+    const updatedMaterials = [...(subproject.materials || [])]
+    updatedMaterials[materialIndex] = { ...updatedMaterials[materialIndex], ...updates }
+
+    updateSubproject(subprojectId, {
+      materials: updatedMaterials
+    })
   }
 
   const calculateTotalPrice = () => {
@@ -713,9 +754,14 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                       <Label className="text-sm font-medium">Materials Included *</Label>
                       <RadioGroup
                         value={subproject.materialsIncluded ? 'yes' : 'no'}
-                        onValueChange={(value) =>
-                          updateSubproject(subproject.id, { materialsIncluded: value === 'yes' })
-                        }
+                        onValueChange={(value) => {
+                          const materialsIncluded = value === 'yes'
+                          updateSubproject(subproject.id, {
+                            materialsIncluded,
+                            // Clear materials list if switching to "no"
+                            materials: materialsIncluded ? subproject.materials : []
+                          })
+                        }}
                       >
                         <div className="flex items-center space-x-4 mt-2">
                           <div className="flex items-center space-x-2">
@@ -733,6 +779,136 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                         </div>
                       </RadioGroup>
                     </div>
+
+                    {/* Materials List - Show when materialsIncluded is true */}
+                    {subproject.materialsIncluded && (
+                      <div className="border-t pt-4 mt-4">
+                        <div className="mb-3">
+                          <Label className="text-sm font-medium">Materials List (at least 1 required) *</Label>
+                          <p className="text-xs text-gray-500 mt-1">
+                            List all materials that will be provided with this package
+                          </p>
+                        </div>
+
+                        {/* Add Material Form */}
+                        <div className="grid grid-cols-12 gap-2 mb-4">
+                          <Input
+                            id={`material-name-${subproject.id}`}
+                            placeholder="Material name *"
+                            className="col-span-4"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                const name = (e.target as HTMLInputElement).value.trim()
+                                const qty = (document.getElementById(`material-qty-${subproject.id}`) as HTMLInputElement)?.value.trim()
+                                const unit = (document.getElementById(`material-unit-${subproject.id}`) as HTMLInputElement)?.value.trim()
+                                const desc = (document.getElementById(`material-desc-${subproject.id}`) as HTMLInputElement)?.value.trim()
+
+                                if (name) {
+                                  addMaterial(subproject.id, {
+                                    name,
+                                    quantity: qty || undefined,
+                                    unit: unit || undefined,
+                                    description: desc || undefined
+                                  })
+                                  // Clear inputs
+                                  ;(e.target as HTMLInputElement).value = ''
+                                  if (document.getElementById(`material-qty-${subproject.id}`)) {
+                                    (document.getElementById(`material-qty-${subproject.id}`) as HTMLInputElement).value = ''
+                                  }
+                                  if (document.getElementById(`material-unit-${subproject.id}`)) {
+                                    (document.getElementById(`material-unit-${subproject.id}`) as HTMLInputElement).value = ''
+                                  }
+                                  if (document.getElementById(`material-desc-${subproject.id}`)) {
+                                    (document.getElementById(`material-desc-${subproject.id}`) as HTMLInputElement).value = ''
+                                  }
+                                }
+                              }
+                            }}
+                          />
+                          <Input
+                            id={`material-qty-${subproject.id}`}
+                            placeholder="Quantity"
+                            className="col-span-2"
+                          />
+                          <Input
+                            id={`material-unit-${subproject.id}`}
+                            placeholder="Unit"
+                            className="col-span-2"
+                          />
+                          <Input
+                            id={`material-desc-${subproject.id}`}
+                            placeholder="Description"
+                            className="col-span-3"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="col-span-1"
+                            onClick={() => {
+                              const name = (document.getElementById(`material-name-${subproject.id}`) as HTMLInputElement)?.value.trim()
+                              const qty = (document.getElementById(`material-qty-${subproject.id}`) as HTMLInputElement)?.value.trim()
+                              const unit = (document.getElementById(`material-unit-${subproject.id}`) as HTMLInputElement)?.value.trim()
+                              const desc = (document.getElementById(`material-desc-${subproject.id}`) as HTMLInputElement)?.value.trim()
+
+                              if (name) {
+                                addMaterial(subproject.id, {
+                                  name,
+                                  quantity: qty || undefined,
+                                  unit: unit || undefined,
+                                  description: desc || undefined
+                                })
+                                // Clear inputs
+                                ;(document.getElementById(`material-name-${subproject.id}`) as HTMLInputElement).value = ''
+                                ;(document.getElementById(`material-qty-${subproject.id}`) as HTMLInputElement).value = ''
+                                ;(document.getElementById(`material-unit-${subproject.id}`) as HTMLInputElement).value = ''
+                                ;(document.getElementById(`material-desc-${subproject.id}`) as HTMLInputElement).value = ''
+                              } else {
+                                toast.error('Material name is required')
+                              }
+                            }}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        {/* Materials List */}
+                        {(subproject.materials && subproject.materials.length > 0) ? (
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {subproject.materials.map((material, index) => (
+                              <div key={index} className="flex items-start justify-between p-3 bg-blue-50 rounded border border-blue-200">
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm">{material.name}</div>
+                                  <div className="text-xs text-gray-600 mt-1">
+                                    {material.quantity && material.unit && (
+                                      <span className="mr-3">
+                                        <strong>Qty:</strong> {material.quantity} {material.unit}
+                                      </span>
+                                    )}
+                                    {material.description && (
+                                      <span>{material.description}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeMaterial(subproject.id, index)}
+                                  className="w-6 h-6 p-0 text-red-500 hover:text-red-700 ml-2"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2 text-amber-600 bg-amber-50 p-3 rounded">
+                            <AlertCircle className="w-4 h-4" />
+                            <span className="text-sm">Please add at least one material</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Predefined Items */}

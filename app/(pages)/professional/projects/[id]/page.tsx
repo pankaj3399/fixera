@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import MeetingScheduler from "@/components/professional/meetings/MeetingScheduler"
+import MeetingsList from "@/components/professional/meetings/MeetingsList"
 import {
   ArrowLeft,
   Calendar,
@@ -219,6 +221,8 @@ export default function ProjectDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [showMeetingScheduler, setShowMeetingScheduler] = useState(false)
+  const [refreshMeetings, setRefreshMeetings] = useState(0)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -888,6 +892,42 @@ export default function ProjectDetailPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Meetings Section */}
+            <Card>
+              <CardHeader className="px-4 md:px-6">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Calendar className="h-5 w-5" />
+                    Team Meetings
+                  </CardTitle>
+                  <Button
+                    onClick={() => setShowMeetingScheduler(!showMeetingScheduler)}
+                    size="sm"
+                  >
+                    {showMeetingScheduler ? 'Hide Scheduler' : 'Schedule Meeting'}
+                  </Button>
+                </div>
+                <CardDescription>
+                  Schedule and manage team meetings for this project
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-4 md:px-6 space-y-4">
+                {showMeetingScheduler && (
+                  <MeetingScheduler
+                    projectId={project._id}
+                    onMeetingCreated={() => {
+                      setRefreshMeetings(prev => prev + 1)
+                      setShowMeetingScheduler(false)
+                    }}
+                  />
+                )}
+                <MeetingsList
+                  projectId={project._id}
+                  refreshTrigger={refreshMeetings}
+                />
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}

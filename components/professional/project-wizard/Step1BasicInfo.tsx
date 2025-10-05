@@ -9,17 +9,25 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Upload, X, MapPin, FileText, Star, Users } from "lucide-react"
+import { Upload, X, MapPin, FileText, Star, Users, Plus } from "lucide-react"
 import { toast } from 'sonner'
 import AddressAutocomplete from "./AddressAutocomplete"
 import CertificationManager from "./CertificationManager"
 import { useFileUpload } from "@/hooks/useFileUpload"
+
+interface IServiceSelection {
+  category: string
+  service: string
+  areaOfWork?: string
+}
 
 interface ProjectData {
   _id?: string
   category?: string
   service?: string
   areaOfWork?: string
+  categories?: string[]
+  services?: IServiceSelection[]
   distance?: {
     address: string
     useCompanyAddress: boolean
@@ -86,6 +94,14 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const [loadingAreas, setLoadingAreas] = useState(false)
   const [loadingTeamMembers, setLoadingTeamMembers] = useState(false)
 
+  // Multi-service selection state
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(data.categories || [])
+  const [selectedServices, setSelectedServices] = useState<IServiceSelection[]>(data.services || [])
+  const [currentCategory, setCurrentCategory] = useState('')
+  const [currentService, setCurrentService] = useState('')
+  const [currentAreaOfWork, setCurrentAreaOfWork] = useState('')
+  const [availableServices, setAvailableServices] = useState<Record<string, string[]>>({})
+
   // Fetch categories and team members on mount
   useEffect(() => {
     fetchCategories()
@@ -117,6 +133,15 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       fetchServiceConfigurationId(formData.category, formData.service, formData.areaOfWork)
     }
   }, [formData.service, formData.areaOfWork])
+
+  // Fetch pricing models for all selected services
+  useEffect(() => {
+    if (selectedServices.length > 0) {
+      fetchPricingModelsForAllServices()
+    } else {
+      setPricingModels([])
+    }
+  }, [selectedServices])
 
   const fetchCategories = async () => {
     setLoadingCategories(true)
@@ -226,9 +251,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }, [formData])
 
   const validateForm = () => {
+    const hasMinimumServices = (formData.services?.length || 0) >= 3 && (formData.services?.length || 0) <= 10
     const isValid = !!(
-      formData.category &&
-      formData.service &&
+      hasMinimumServices &&
       formData.description &&
       formData.description.length >= 100 &&
       formData.priceModel &&
@@ -242,8 +267,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const showValidationErrors = () => {
     const errors: string[] = []
 
-    if (!formData.category) errors.push('Category is required')
-    if (!formData.service) errors.push('Service is required')
+    const servicesCount = formData.services?.length || 0
+    if (servicesCount < 3) {
+      errors.push(`You must add at least 3 services (currently ${servicesCount})`)
+    } else if (servicesCount > 10) {
+      errors.push(`Maximum 10 services allowed (currently ${servicesCount})`)
+    }
+
     if (!formData.description) {
       errors.push('Description is required')
     } else if (formData.description.length < 100) {
@@ -304,6 +334,135 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     updateFormData({
       keywords: formData.keywords?.filter(k => k !== keyword) || []
     })
+  }
+
+  // Multi-service management functions
+  const addServiceToList = () => {
+    if (!currentCategory || !currentService) {
+      toast.error('Please select both category and service')
+      return
+    }
+
+    if (selectedServices.length >= 10) {
+      toast.error('Maximum 10 services allowed')
+      return
+    }
+
+    const serviceExists = selectedServices.some(
+      s => s.category === currentCategory && s.service === currentService && s.areaOfWork === currentAreaOfWork
+    )
+
+    if (serviceExists) {
+      toast.error('This service has already been added')
+      return
+    }
+
+    const newService: IServiceSelection = {
+      category: currentCategory,
+      service: currentService,
+      areaOfWork: currentAreaOfWork || undefined
+    }
+
+    const updatedServices = [...selectedServices, newService]
+    setSelectedServices(updatedServices)
+
+    // Update categories list
+    if (!selectedCategories.includes(currentCategory)) {
+      setSelectedCategories([...selectedCategories, currentCategory])
+    }
+
+    // Update formData
+    updateFormData({
+      categories: selectedCategories.includes(currentCategory)
+        ? selectedCategories
+        : [...selectedCategories, currentCategory],
+      services: updatedServices,
+      // Set primary category/service from first selection
+      category: updatedServices[0]?.category || currentCategory,
+      service: updatedServices[0]?.service || currentService,
+      areaOfWork: updatedServices[0]?.areaOfWork
+    })
+
+    // Reset current selections
+    setCurrentCategory('')
+    setCurrentService('')
+    setCurrentAreaOfWork('')
+    toast.success('Service added successfully')
+  }
+
+  const removeServiceFromList = (index: number) => {
+    const updatedServices = selectedServices.filter((_, i) => i !== index)
+    setSelectedServices(updatedServices)
+
+    // Update categories to only include those still in use
+    const usedCategories = [...new Set(updatedServices.map(s => s.category))]
+    setSelectedCategories(usedCategories)
+
+    updateFormData({
+      services: updatedServices,
+      categories: usedCategories,
+      // Update primary category/service from first selection
+      category: updatedServices[0]?.category || '',
+      service: updatedServices[0]?.service || '',
+      areaOfWork: updatedServices[0]?.areaOfWork || ''
+    })
+
+    toast.success('Service removed')
+  }
+
+  const fetchServicesForCategory = async (category: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/services/${encodeURIComponent(category)}`,
+        { credentials: 'include' }
+      )
+      if (response.ok) {
+        const result = await response.json()
+        setAvailableServices(prev => ({ ...prev, [category]: result.data || [] }))
+        return result.data || []
+      }
+    } catch (error) {
+      console.error('Failed to fetch services:', error)
+    }
+    return []
+  }
+
+  const fetchPricingModelsForAllServices = async () => {
+    try {
+      const allPricingModels = new Set<string>()
+
+      // Fetch pricing models for each selected service
+      for (const service of selectedServices) {
+        const params = new URLSearchParams({
+          category: service.category,
+          service: service.service
+        })
+        if (service.areaOfWork) {
+          params.append('areaOfWork', service.areaOfWork)
+        }
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`,
+          { credentials: 'include' }
+        )
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.data?.pricingModels && Array.isArray(result.data.pricingModels)) {
+            result.data.pricingModels.forEach((model: string) => {
+              if (model && model.trim()) {
+                allPricingModels.add(model)
+              }
+            })
+          }
+        }
+      }
+
+      // Convert Set to Array and update state
+      setPricingModels(Array.from(allPricingModels))
+    } catch (error) {
+      console.error('Failed to fetch pricing models for all services:', error)
+    }
   }
 
   const generateTitle = async () => {
@@ -436,7 +595,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
   return (
     <div className="space-y-6">
-      {/* Service Selection */}
+      {/* Service Selection - Multiple Services */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -444,71 +603,146 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <span>Service Information</span>
           </CardTitle>
           <CardDescription>
-            Select the category and specific service you want to offer
+            Select 3-10 services across multiple categories you want to offer
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="category">Category *</Label>
-              <Select
-                value={formData.category || ''}
-                onValueChange={(value) => updateFormData({ category: value, service: '', areaOfWork: '' })}
-                disabled={loadingCategories}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingCategories ? "Loading..." : "Select category"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.filter(category => category && category.trim()).map(category => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Add Service Form */}
+          <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
+            <h4 className="font-semibold text-sm">Add Services (3-10 required)</h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="currentCategory">Category *</Label>
+                <Select
+                  value={currentCategory}
+                  onValueChange={async (value) => {
+                    setCurrentCategory(value)
+                    setCurrentService('')
+                    setCurrentAreaOfWork('')
+                    await fetchServicesForCategory(value)
+                  }}
+                  disabled={loadingCategories}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingCategories ? "Loading..." : "Select category"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.filter(category => category && category.trim()).map(category => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="currentService">Service *</Label>
+                <Select
+                  value={currentService}
+                  onValueChange={(value) => {
+                    setCurrentService(value)
+                    setCurrentAreaOfWork('')
+                  }}
+                  disabled={!currentCategory}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(availableServices[currentCategory] || []).filter(service => service && service.trim()).map(service => (
+                      <SelectItem key={service} value={service}>
+                        {service}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="currentAreaOfWork">Area of Work (Optional)</Label>
+                <Input
+                  id="currentAreaOfWork"
+                  value={currentAreaOfWork}
+                  onChange={(e) => setCurrentAreaOfWork(e.target.value)}
+                  placeholder="e.g., Residential, Commercial"
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="service">Service *</Label>
-              <Select
-                value={formData.service || ''}
-                onValueChange={(value) => updateFormData({ service: value, areaOfWork: '' })}
-                disabled={!formData.category || loadingServices}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingServices ? "Loading..." : "Select service"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {services.filter(service => service && service.trim()).map(service => (
-                    <SelectItem key={service} value={service}>
-                      {service}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Button
+              onClick={addServiceToList}
+              disabled={!currentCategory || !currentService || selectedServices.length >= 10}
+              className="w-full md:w-auto"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Service ({selectedServices.length +1 }/10)
+            </Button>
           </div>
 
-          {areasOfWork.length > 0 && (
-            <div>
-              <Label htmlFor="areaOfWork">Area of Work</Label>
-              <Select
-                value={formData.areaOfWork || ''}
-                onValueChange={(value) => updateFormData({ areaOfWork: value })}
-                disabled={loadingAreas}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingAreas ? "Loading..." : "Select area of work"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {areasOfWork.filter(area => area && area.trim()).map(area => (
-                    <SelectItem key={area} value={area}>
-                      {area}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Selected Services List */}
+          {selectedServices.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-sm">Selected Services ({selectedServices.length})</h4>
+                {selectedServices.length < 3 && (
+                  <Badge variant="destructive" className="text-xs">
+                    Add at least 3 services
+                  </Badge>
+                )}
+                {selectedServices.length >= 3 && selectedServices.length <= 10 && (
+                  <Badge className="text-xs bg-green-500">
+                    ✓ Valid
+                  </Badge>
+                )}
+              </div>
+
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {selectedServices.map((service, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-white border rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{service.service}</div>
+                      <div className="text-xs text-gray-600">
+                        <span className="font-semibold">Category:</span> {service.category}
+                        {service.areaOfWork && (
+                          <span className="ml-3">
+                            <span className="font-semibold">Area:</span> {service.areaOfWork}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeServiceFromList(index)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+              <Star className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+              <p className="font-medium">No services added yet</p>
+              <p className="text-sm">Add at least 3 services to continue</p>
+            </div>
+          )}
+
+          {/* Selected Categories Summary */}
+          {selectedCategories.length > 0 && (
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium">Categories Used</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedCategories.map(category => (
+                  <Badge key={category} variant="outline" className="text-xs">
+                    {category}
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
