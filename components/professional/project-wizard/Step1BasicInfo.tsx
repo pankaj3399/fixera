@@ -34,6 +34,14 @@ interface ProjectData {
     noBorders: boolean
   }
   resources?: string[]
+  intakeMeeting?: {
+    enabled: boolean
+    resources: string[]
+  }
+  renovationPlanning?: {
+    fixeraManaged: boolean
+    resources: string[]
+  }
   projectType?: string[]
   description?: string
   priceModel?: string
@@ -79,8 +87,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     pricingModel?: string;
     certificationRequired?: boolean;
     projectTypes?: string[];
+    areaOfWorkRequired?: boolean;
   } | null>(null)
   const [pricingModels, setPricingModels] = useState<string[]>([])
+
+  // Derived flags
+  const isRenovationCategory = (formData.category || '').toLowerCase() === 'renovation'
 
   // Backend data
   const [categories, setCategories] = useState<string[]>([])
@@ -231,15 +243,47 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   useEffect(() => {
     onChange(formData)
     validateForm()
-  }, [formData])
+  }, [formData, serviceConfig])
+
+  // Ensure a priceModel is auto-selected for non-renovation when pricing models load
+  useEffect(() => {
+    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
+    if (!isRenovation && !formData.priceModel && pricingModels.length > 0) {
+      updateFormData({ priceModel: pricingModels[0] })
+    }
+  }, [pricingModels])
 
   const validateForm = () => {
+    // Check if area of work is required and missing
+    const isAreaOfWorkValid = !serviceConfig?.areaOfWorkRequired ||
+      (serviceConfig?.areaOfWorkRequired && formData.areaOfWork)
+
+    // Check certifications when required by service configuration
+    const isCertificationsValid = !serviceConfig?.certificationRequired || (
+      Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
+      formData.certifications.every(c => !!c.fileUrl)
+    )
+
+    // Resources requirement per service/category
+    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
+    const hasExecutionResources = Array.isArray(formData.resources) && formData.resources.length > 0
+    const hasIntakeResources = Array.isArray(formData.intakeMeeting?.resources) && (formData.intakeMeeting?.resources.length || 0) > 0
+    const planningEnabled = !!formData.renovationPlanning?.fixeraManaged
+    const hasPlanningExecResources = Array.isArray(formData.renovationPlanning?.resources) && (formData.renovationPlanning?.resources.length || 0) > 0
+
+    const isResourcesValid = isRenovation
+      ? (hasIntakeResources && (!planningEnabled || (hasPlanningExecResources && hasExecutionResources)))
+      : hasExecutionResources
+
     const isValid = !!(
       formData.category &&
       formData.service &&
+      isAreaOfWorkValid &&
+      isCertificationsValid &&
+      isResourcesValid &&
       formData.description &&
       formData.description.length >= 100 &&
-      formData.priceModel &&
+      (isRenovationCategory || (!!formData.priceModel)) &&
       formData.distance?.address &&
       addressValid &&
       formData.distance?.maxKmRange
@@ -253,12 +297,50 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (!formData.category) errors.push('Category is required')
     if (!formData.service) errors.push('Service is required')
 
+    // Check area of work requirement
+    if (serviceConfig?.areaOfWorkRequired && !formData.areaOfWork) {
+      errors.push('Area of Work is required for this service')
+    }
+
+    // Check certifications requirement
+    if (serviceConfig?.certificationRequired) {
+      const hasValidCert = Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
+        formData.certifications.every(c => !!c.fileUrl)
+      if (!hasValidCert) {
+        errors.push('At least one valid certification is required for this service')
+      }
+    }
+
+    // Check resources per category
+    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
+    if (isRenovation) {
+      const hasIntake = Array.isArray(formData.intakeMeeting?.resources) && (formData.intakeMeeting?.resources.length || 0) > 0
+      if (!hasIntake) {
+        errors.push('At least one intake meeting resource is required for Renovation')
+      }
+      if (formData.renovationPlanning?.fixeraManaged) {
+        const hasPlanningExec = Array.isArray(formData.renovationPlanning?.resources) && (formData.renovationPlanning?.resources.length || 0) > 0
+        const hasExecutionExec = Array.isArray(formData.resources) && (formData.resources.length || 0) > 0
+        if (!hasPlanningExec) {
+          errors.push('At least one planning resource is required when Renovation planning is enabled')
+        }
+        if (!hasExecutionExec) {
+          errors.push('At least one execution resource is required when Renovation planning is enabled')
+        }
+      }
+    } else {
+      const hasExec = Array.isArray(formData.resources) && (formData.resources.length || 0) > 0
+      if (!hasExec) {
+        errors.push('At least one team member must be assigned for execution')
+      }
+    }
+
     if (!formData.description) {
       errors.push('Description is required')
     } else if (formData.description.length < 100) {
       errors.push(`Description must be at least 100 characters (currently ${formData.description.length})`)
     }
-    if (!formData.priceModel) errors.push('Price Model is required')
+    if (!isRenovationCategory && !formData.priceModel) errors.push('Price Model is required')
     if (!formData.distance?.address) errors.push('Service Address is required')
     if (!addressValid) errors.push('Please enter a valid address')
     if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
@@ -366,6 +448,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }
   }
 
+  const toggleIntakeMember = (memberId: string) => {
+    const current = formData.intakeMeeting?.resources || []
+    const updatedResources = current.includes(memberId)
+      ? current.filter(id => id !== memberId)
+      : [...current, memberId]
+    updateFormData({ intakeMeeting: { enabled: formData.intakeMeeting?.enabled ?? true, resources: updatedResources } })
+  }
+
+  const togglePlanningMember = (memberId: string) => {
+    const current = formData.renovationPlanning?.resources || []
+    const updatedResources = current.includes(memberId)
+      ? current.filter(id => id !== memberId)
+      : [...current, memberId]
+    updateFormData({ renovationPlanning: { fixeraManaged: formData.renovationPlanning?.fixeraManaged ?? false, resources: updatedResources } })
+  }
+
   const handleImageUpload = (files: FileList | null) => {
     if (!files) return
 
@@ -459,7 +557,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
+            <div className='space-y-2'>
               <Label htmlFor="category">Category *</Label>
               <Select
                 value={formData.category || ''}
@@ -468,6 +566,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     category: value,
                     service: '',
                     areaOfWork: '',
+                    priceModel: value.toLowerCase() === 'renovation' ? 'rfq' : (formData.priceModel || ''),
                     categories: [value],
                     services: []
                   })
@@ -487,7 +586,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               </Select>
             </div>
 
-            <div>
+            <div className='space-y-2'>
               <Label htmlFor="service">Service *</Label>
               <Select
                 value={formData.service || ''}
@@ -517,34 +616,39 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="areaOfWork">Area of Work (Optional)</Label>
-              <Select
-                value={formData.areaOfWork || ''}
-                onValueChange={(value) => {
-                  updateFormData({
-                    areaOfWork: value,
-                    services: formData.category && formData.service ? [{
-                      category: formData.category,
-                      service: formData.service,
-                      areaOfWork: value
-                    }] : []
-                  })
-                }}
-                disabled={!formData.service || loadingAreas}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingAreas ? "Loading..." : areasOfWork.length > 0 ? "Select area" : "No areas available"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {areasOfWork.filter(area => area && area.trim()).map(area => (
-                    <SelectItem key={area} value={area}>
-                      {area}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Only show Area of Work dropdown if areas are available */}
+            {areasOfWork.length > 0 && (
+              <div className='space-y-2'>
+                <Label htmlFor="areaOfWork">
+                  Area of Work {serviceConfig?.areaOfWorkRequired ? '*' : '(Optional)'}
+                </Label>
+                <Select
+                  value={formData.areaOfWork || ''}
+                  onValueChange={(value) => {
+                    updateFormData({
+                      areaOfWork: value,
+                      services: formData.category && formData.service ? [{
+                        category: formData.category,
+                        service: formData.service,
+                        areaOfWork: value
+                      }] : []
+                    })
+                  }}
+                  disabled={!formData.service || loadingAreas}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingAreas ? "Loading..." : "Select area"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {areasOfWork.filter(area => area && area.trim()).map(area => (
+                      <SelectItem key={area} value={area}>
+                        {area}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Display selected service */}
@@ -603,7 +707,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className='space-y-2'>
               <Label htmlFor="maxKmRange">Maximum Range (km) *</Label>
               <Input
                 id="maxKmRange"
@@ -636,16 +740,16 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         projectId={formData._id}
       />
 
-      {/* Team Members - Only show for Renovation category */}
-      {formData.category?.toLowerCase() === 'renovation' && (
+      {/* Execution Resources - Shown for all services except Renovation */}
+      {formData.category?.toLowerCase() !== 'renovation' && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Users className="w-5 h-5" />
-              <span>Assign Team Members</span>
+              <span>Assign Execution Team Members</span>
             </CardTitle>
             <CardDescription>
-              Select team members who will work on this renovation project
+              Select team members who will execute this project
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -668,11 +772,10 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                   {teamMembers.map((member) => (
                     <div
                       key={member._id}
-                      className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${
-                        formData.resources?.includes(member._id)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${formData.resources?.includes(member._id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                        }`}
                       onClick={() => toggleTeamMember(member._id)}
                     >
                       <Checkbox
@@ -697,6 +800,150 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         </Card>
       )}
 
+      {/* Renovation-specific: Intake Meeting & Renovation Planning */}
+      {formData.category?.toLowerCase() === 'renovation' && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="w-5 h-5" />
+                <span>Intake Meeting</span>
+              </CardTitle>
+              <CardDescription>
+                Select team members who will do the intake meeting
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600 mb-1">
+                  {formData.intakeMeeting?.resources?.length || 0} team member(s) assigned to intake
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {teamMembers.map((member) => (
+                    <div
+                      key={member._id}
+                      className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${(formData.intakeMeeting?.resources || []).includes(member._id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      onClick={() => toggleIntakeMember(member._id)}
+                    >
+                      <Checkbox
+                        checked={(formData.intakeMeeting?.resources || []).includes(member._id)}
+                        onCheckedChange={() => toggleIntakeMember(member._id)}
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{member.name}</p>
+                        {member.hasEmail && member.email && (
+                          <p className="text-sm text-gray-500">{member.email}</p>
+                        )}
+                        {!member.hasEmail && (
+                          <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="w-5 h-5" />
+                <span>Renovation Planning</span>
+              </CardTitle>
+              <CardDescription>
+                Choose if planning is Fixera-managed and assign team members
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="planningManaged"
+                  checked={formData.renovationPlanning?.fixeraManaged || false}
+                  onCheckedChange={(checked) => updateFormData({ renovationPlanning: { fixeraManaged: checked as boolean, resources: formData.renovationPlanning?.resources || [] } })}
+                />
+                <Label htmlFor="planningManaged" className="cursor-pointer">Fixera-managed planning</Label>
+              </div>
+
+              {formData.renovationPlanning?.fixeraManaged && (
+                <div className="space-y-6">
+                  {/* Planning Team Selection */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-900">Planning Team</h4>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {(formData.renovationPlanning?.resources.length || 0)} team member(s) assigned to planning
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {teamMembers.map((member) => (
+                        <div
+                          key={member._id}
+                          className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${(formData.renovationPlanning?.resources || []).includes(member._id)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          onClick={() => togglePlanningMember(member._id)}
+                        >
+                          <Checkbox
+                            checked={(formData.renovationPlanning?.resources || []).includes(member._id)}
+                            onCheckedChange={() => togglePlanningMember(member._id)}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{member.name}</p>
+                            {member.hasEmail && member.email && (
+                              <p className="text-sm text-gray-500">{member.email}</p>
+                            )}
+                            {!member.hasEmail && (
+                              <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Execution Team Selection for Renovation with Planning */}
+                  <div className="space-y-3 border-t pt-4">
+                    <h4 className="font-medium text-gray-900">Execution Team</h4>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {formData.resources?.length || 0} team member(s) assigned to execution
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {teamMembers.map((member) => (
+                        <div
+                          key={member._id}
+                          className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${formData.resources?.includes(member._id)
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          onClick={() => toggleTeamMember(member._id)}
+                        >
+                          <Checkbox
+                            checked={formData.resources?.includes(member._id) || false}
+                            onCheckedChange={() => toggleTeamMember(member._id)}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{member.name}</p>
+                            {member.hasEmail && member.email && (
+                              <p className="text-sm text-gray-500">{member.email}</p>
+                            )}
+                            {!member.hasEmail && (
+                              <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       {/* Description & Pricing */}
       <Card>
         <CardHeader>
@@ -706,7 +953,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
+          <div className='space-y-2'>
             <Label htmlFor="description">Detailed Description *</Label>
             <Textarea
               id="description"
@@ -721,30 +968,32 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             </p>
           </div>
 
-          <div>
-            <Label htmlFor="priceModel">Price Model *</Label>
-            <Select
-              value={formData.priceModel || ''}
-              onValueChange={(value) => updateFormData({ priceModel: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select pricing model" />
-              </SelectTrigger>
-              <SelectContent>
-                {pricingModels.length > 0 ? (
-                  pricingModels.filter(model => model && model.trim()).map(model => (
-                    <SelectItem key={model} value={model}>
-                      {model}
+          {!isRenovationCategory && (
+            <div className='space-y-2'>
+              <Label htmlFor="priceModel">Price Model *</Label>
+              <Select
+                value={formData.priceModel || ''}
+                onValueChange={(value) => updateFormData({ priceModel: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select pricing model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pricingModels.length > 0 ? (
+                    pricingModels.filter(model => model && model.trim()).map(model => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none-available" disabled>
+                      No pricing models configured for this service
                     </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="none-available" disabled>
-                    No pricing models configured for this service
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -810,7 +1059,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             </div>
           )}
 
-          <div>
+          <div className='space-y-2'>
             <Label htmlFor="title">Project Title *</Label>
             <Input
               id="title"

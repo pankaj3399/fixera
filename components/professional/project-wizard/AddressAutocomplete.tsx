@@ -153,7 +153,7 @@ export default function AddressAutocomplete({
       <Label htmlFor="address">
         {label} {required && '*'}
       </Label>
-      <div className="relative">
+      <div className="relative mt-2">
         <Input
           ref={inputRef}
           id="address"
@@ -176,7 +176,7 @@ export default function AddressAutocomplete({
           disabled={useCompanyAddress}
           className={
             isValid === true ? 'border-green-500' :
-            isValid === false ? 'border-red-500' : ''
+              isValid === false ? 'border-red-500' : ''
           }
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">

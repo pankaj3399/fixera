@@ -107,6 +107,14 @@ interface ProjectData {
     noBorders: boolean
   }
   resources?: string[]
+  intakeMeeting?: {
+    enabled: boolean
+    resources: string[]
+  }
+  renovationPlanning?: {
+    fixeraManaged: boolean
+    resources: string[]
+  }
   projectType?: string[]
   description?: string
   priceModel?: string
@@ -182,6 +190,8 @@ export default function ProjectCreatePage() {
               category: project.category,
               service: project.service,
               areaOfWork: project.areaOfWork,
+              intakeMeeting: project.intakeMeeting || { enabled: false, resources: [] },
+              renovationPlanning: project.renovationPlanning || { fixeraManaged: false, resources: [] },
               distance: project.distance || {
                 address: '',
                 useCompanyAddress: false,
@@ -225,8 +235,24 @@ export default function ProjectCreatePage() {
   // Manual save function for draft
   const saveProjectDraft = async () => {
     try {
+      // Ensure priceModel is always provided for backend requirements
+      const computedPriceModel = (() => {
+        const pm = (projectData.priceModel || '').trim()
+        if (pm) return pm
+        const isRenovation = (projectData.category || '').toLowerCase() === 'renovation'
+        if (isRenovation) return 'rfq'
+        // Derive from subprojects if available
+        const subs = projectData.subprojects || []
+        if (subs.length > 0) {
+          if (subs.some(s => s.pricing?.type === 'rfq')) return 'rfq'
+          return 'fixed'
+        }
+        return 'fixed'
+      })()
+
       const dataToSave = {
         ...projectData,
+        priceModel: computedPriceModel,
         currentStep
       }
 
