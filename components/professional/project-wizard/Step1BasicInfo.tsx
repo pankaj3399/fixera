@@ -272,7 +272,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     const hasPlanningExecResources = Array.isArray(formData.renovationPlanning?.resources) && (formData.renovationPlanning?.resources.length || 0) > 0
 
     const isResourcesValid = isRenovation
-      ? (hasIntakeResources && (!planningEnabled || hasPlanningExecResources))
+      ? (hasIntakeResources && (!planningEnabled || (hasPlanningExecResources && hasExecutionResources)))
       : hasExecutionResources
 
     const isValid = !!(
@@ -319,8 +319,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         errors.push('At least one intake meeting resource is required for Renovation')
       }
       if (formData.renovationPlanning?.fixeraManaged) {
-        const hasExec = Array.isArray(formData.renovationPlanning?.resources) && (formData.renovationPlanning?.resources.length || 0) > 0
-        if (!hasExec) {
+        const hasPlanningExec = Array.isArray(formData.renovationPlanning?.resources) && (formData.renovationPlanning?.resources.length || 0) > 0
+        const hasExecutionExec = Array.isArray(formData.resources) && (formData.resources.length || 0) > 0
+        if (!hasPlanningExec) {
+          errors.push('At least one planning resource is required when Renovation planning is enabled')
+        }
+        if (!hasExecutionExec) {
           errors.push('At least one execution resource is required when Renovation planning is enabled')
         }
       }
@@ -865,35 +869,73 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               </div>
 
               {formData.renovationPlanning?.fixeraManaged && (
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-600 mb-1">
-                    {(formData.renovationPlanning?.resources.length || 0)} team member(s) assigned to planning
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {teamMembers.map((member) => (
-                      <div
-                        key={member._id}
-                        className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${(formData.renovationPlanning?.resources || []).includes(member._id)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        onClick={() => togglePlanningMember(member._id)}
-                      >
-                        <Checkbox
-                          checked={(formData.renovationPlanning?.resources || []).includes(member._id)}
-                          onCheckedChange={() => togglePlanningMember(member._id)}
-                        />
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">{member.name}</p>
-                          {member.hasEmail && member.email && (
-                            <p className="text-sm text-gray-500">{member.email}</p>
-                          )}
-                          {!member.hasEmail && (
-                            <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
-                          )}
+                <div className="space-y-6">
+                  {/* Planning Team Selection */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-900">Planning Team</h4>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {(formData.renovationPlanning?.resources.length || 0)} team member(s) assigned to planning
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {teamMembers.map((member) => (
+                        <div
+                          key={member._id}
+                          className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${(formData.renovationPlanning?.resources || []).includes(member._id)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          onClick={() => togglePlanningMember(member._id)}
+                        >
+                          <Checkbox
+                            checked={(formData.renovationPlanning?.resources || []).includes(member._id)}
+                            onCheckedChange={() => togglePlanningMember(member._id)}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{member.name}</p>
+                            {member.hasEmail && member.email && (
+                              <p className="text-sm text-gray-500">{member.email}</p>
+                            )}
+                            {!member.hasEmail && (
+                              <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Execution Team Selection for Renovation with Planning */}
+                  <div className="space-y-3 border-t pt-4">
+                    <h4 className="font-medium text-gray-900">Execution Team</h4>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {formData.resources?.length || 0} team member(s) assigned to execution
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {teamMembers.map((member) => (
+                        <div
+                          key={member._id}
+                          className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${formData.resources?.includes(member._id)
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          onClick={() => toggleTeamMember(member._id)}
+                        >
+                          <Checkbox
+                            checked={formData.resources?.includes(member._id) || false}
+                            onCheckedChange={() => toggleTeamMember(member._id)}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{member.name}</p>
+                            {member.hasEmail && member.email && (
+                              <p className="text-sm text-gray-500">{member.email}</p>
+                            )}
+                            {!member.hasEmail && (
+                              <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
