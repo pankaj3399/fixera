@@ -26,6 +26,7 @@ interface WizardLayoutProps {
   isLoading?: boolean
   canProceed?: boolean
   isEditing?: boolean
+  projectStatus?: 'draft' | 'pending_approval' | 'published' | 'rejected' | 'booked' | 'on_hold' | 'completed' | 'cancelled'
 }
 
 const WIZARD_STEPS: WizardStep[] = [
@@ -90,7 +91,8 @@ export default function WizardLayout({
   children,
   isLoading = false,
   canProceed = true,
-  isEditing = false
+  isEditing = false,
+  projectStatus
 }: WizardLayoutProps) {
   const [steps, setSteps] = useState(WIZARD_STEPS)
   const progress = (currentStep / 8) * 100
@@ -244,10 +246,21 @@ export default function WizardLayout({
                           }
                         }}
                         disabled={isLoading}
-                        className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+                        className={`flex items-center space-x-2 ${
+                          projectStatus === 'pending_approval' 
+                            ? 'bg-blue-600 hover:bg-blue-700' 
+                            : 'bg-green-600 hover:bg-green-700'
+                        }`}
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Submit for Approval</span>
+                        <span>
+                          {projectStatus === 'pending_approval' 
+                            ? 'Already Submitted - Go to Projects' 
+                            : projectStatus === 'published' || projectStatus === 'on_hold'
+                            ? 'Submit Changes for Re-approval'
+                            : 'Submit for Approval'
+                          }
+                        </span>
                       </Button>
                     ) : (
                       <Button

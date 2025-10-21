@@ -78,6 +78,7 @@ export default function ManageProjectsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [holdDialogOpen, setHoldDialogOpen] = useState(false)
+  const [editWarningDialogOpen, setEditWarningDialogOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -364,6 +365,14 @@ export default function ManageProjectsPage() {
     }
   }
 
+  const editProjectWithWarning = (projectId: string) => {
+    // Close dialog and redirect to edit page
+    // The backend will automatically handle status change to pending_approval on save
+    setEditWarningDialogOpen(false)
+    setSelectedProject(null)
+    router.push(`/projects/create?id=${projectId}`)
+  }
+
   // Since filtering is now handled server-side, we use projects directly
   const filteredProjects = projects
 
@@ -397,6 +406,7 @@ export default function ManageProjectsPage() {
   // Project Action Menu Component
   const ProjectActionMenu = ({ project }: { project: Project }) => {
     const canEdit = ['draft', 'rejected'].includes(project.status)
+    const canEditWithWarning = ['published', 'on_hold'].includes(project.status)
     const canSubmit = project.status === 'draft'
     const canHold = ['published', 'on_hold'].includes(project.status)
     const canDelete = ['draft', 'rejected'].includes(project.status)
@@ -416,6 +426,18 @@ export default function ManageProjectsPage() {
 
           {canEdit && (
             <DropdownMenuItem onClick={() => router.push(`/projects/create?id=${project._id}`)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Project
+            </DropdownMenuItem>
+          )}
+
+          {canEditWithWarning && (
+            <DropdownMenuItem 
+              onClick={() => {
+                setSelectedProject(project)
+                setEditWarningDialogOpen(true)
+              }}
+            >
               <Edit className="h-4 w-4 mr-2" />
               Edit Project
             </DropdownMenuItem>
@@ -1221,6 +1243,52 @@ export default function ManageProjectsPage() {
                 onClick={() => selectedProject && toggleProjectHold(selectedProject._id, selectedProject.status)}
               >
                 {selectedProject?.status === 'published' ? 'Put On Hold' : 'Resume Publishing'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Warning Dialog */}
+        <Dialog open={editWarningDialogOpen} onOpenChange={setEditWarningDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-orange-500" />
+                Edit Published Project
+              </DialogTitle>
+              <DialogDescription className="space-y-3">
+                <p>
+                  You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProject?.status === 'published' ? 'published and visible to customers' : 'on hold'}.
+                </p>
+                <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-orange-800">
+                      <p className="font-medium mb-1">Important Notice:</p>
+                      <ul className="space-y-1 text-xs">
+                        <li>• When you save any changes, the project will automatically move to &quot;Pending Approval&quot; status</li>
+                        <li>• Every change will need to be re-approved by our admin team</li>
+                        <li>• The approval process typically takes up to 48 hours</li>
+                        <li>• The project will not be visible to customers until re-approved</li>
+                        <li>• Previous approval fields will be cleared and submittedAt will be updated</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-sm">
+                  Do you want to proceed with editing this project?
+                </p>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditWarningDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => selectedProject && editProjectWithWarning(selectedProject._id)}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                Yes, Edit Project
               </Button>
             </DialogFooter>
           </DialogContent>

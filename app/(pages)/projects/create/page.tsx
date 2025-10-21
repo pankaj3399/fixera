@@ -99,6 +99,7 @@ interface IPostBookingQuestion {
 interface ProjectData {
   _id?: string
   id?: string
+  status?: 'draft' | 'pending_approval' | 'published' | 'rejected' | 'booked' | 'on_hold' | 'completed' | 'cancelled'
   category?: string
   service?: string
   areaOfWork?: string
@@ -186,8 +187,11 @@ export default function ProjectCreatePage() {
 
           if (response.ok) {
             const project = await response.json()
+            console.log('Loaded project data:', project)
+            console.log('Project status:', project.status)
             setProjectData({
               id: project._id,
+              status: project.status,
               currentStep: project.currentStep || 1,
               category: project.category,
               service: project.service,
@@ -271,9 +275,15 @@ export default function ProjectCreatePage() {
 
       if (response.ok) {
         const savedProject = await response.json()
-        if (!projectData.id) {
-          setProjectData(prev => ({ ...prev, id: savedProject._id }))
-        }
+
+        
+        // Update project data with the saved project info, including status
+        setProjectData(prev => ({ 
+          ...prev, 
+          id: savedProject._id,
+          status: savedProject.status // Update status in case it changed
+        }))
+        
         toast.success('Project draft saved successfully!')
         return savedProject
       } else {
@@ -351,6 +361,9 @@ export default function ProjectCreatePage() {
     if (isLoading) return // Prevent multiple submissions
     setIsLoading(true)
     try {
+      console.log('Submit called - Current project status:', projectData.status)
+      console.log('Full project data:', projectData)
+      
       // If no project ID, save as draft first
       let projectId = projectData.id
       if (!projectId) {
@@ -363,6 +376,69 @@ export default function ProjectCreatePage() {
         projectId = savedProject._id
       }
 
+      // Refresh project status from server before attempting submission
+      try {
+        const statusResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}`, {
+          credentials: 'include'
+        })
+        
+        if (statusResponse.ok) {
+          const currentProject = await statusResponse.json()
+          console.log('Current project status from server:', currentProject.status)
+          
+          // Update local state with current status
+          setProjectData(prev => ({ ...prev, status: currentProject.status }))
+          
+          // Check if project is already in pending_approval status
+          if (currentProject.status === 'pending_approval') {
+            console.log('Project already pending approval, redirecting...')
+            toast.success('Project is already submitted and pending approval!')
+            router.push('/professional/projects/manage')
+            setIsLoading(false)
+            return
+          }
+          
+          // Handle on_hold projects - need to change to published first
+          if (currentProject.status === 'on_hold') {
+            console.log('🔄 NEW CODE: On-hold project detected - changing to published status first')
+            try {
+              const statusChangeResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}/status`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ status: 'published' })
+              })
+
+              if (!statusChangeResponse.ok) {
+                const statusError = await statusChangeResponse.json()
+                console.error('Failed to change on_hold to published:', statusError)
+                toast.error('Failed to prepare project for submission')
+                setIsLoading(false)
+                return
+              }
+              
+              console.log('✅ NEW CODE: Successfully changed on_hold project to published')
+              setProjectData(prev => ({ ...prev, status: 'published' }))
+            } catch (error) {
+              console.error('Error changing status to published:', error)
+              toast.error('Failed to prepare project for submission')
+              setIsLoading(false)
+              return
+            }
+          }
+          
+          // For published projects, submission will change status to pending_approval
+          if (currentProject.status === 'published') {
+            console.log('Submitting published project - will change to pending_approval')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check project status:', error)
+        // Continue with submission attempt if status check fails
+      }
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}/submit`, {
         method: 'POST',
         headers: {
@@ -372,10 +448,19 @@ export default function ProjectCreatePage() {
       })
 
       if (response.ok) {
+        const submittedProject = await response.json()
+        console.log('Project submitted successfully:', submittedProject)
+        
+        // Update local state with the new status
+        if (submittedProject.status) {
+          setProjectData(prev => ({ ...prev, status: submittedProject.status }))
+        }
+        
         toast.success('Project submitted for approval!')
-        router.push('/dashboard')
+        router.push('/professional/projects/manage')
       } else {
         const error = await response.json()
+        console.error('Submission failed:', error)
         toast.error(error.error || 'Failed to submit project')
       }
     } catch (error) {
@@ -530,6 +615,7 @@ export default function ProjectCreatePage() {
       isLoading={isLoading}
       canProceed={canProceed}
       isEditing={!!projectId}
+      projectStatus={projectData.status}
     >
       {renderCurrentStep()}
     </WizardLayout>
