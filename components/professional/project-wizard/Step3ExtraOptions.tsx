@@ -121,6 +121,7 @@ const PREDEFINED_TERMS = {
 const CUSTOMER_PRESENCE_OPTIONS = [
   { value: 'not_required', label: 'Not required' },
   { value: 'available', label: 'Yes - Customer should be available' },
+  { value: 'first_hour_only', label: 'Yes - Only first hour' },
   { value: 'present_throughout', label: 'Yes - Customer must be present throughout' }
 ]
 
@@ -170,13 +171,13 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const getPredefinedExtraOptions = () => {
     const service = data.service || 'default'
     return PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] ||
-           PREDEFINED_EXTRA_OPTIONS.default
+      PREDEFINED_EXTRA_OPTIONS.default
   }
 
   const getPredefinedTerms = () => {
     const service = data.service || 'default'
     return PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] ||
-           PREDEFINED_TERMS.default
+      PREDEFINED_TERMS.default
   }
 
   const addPredefinedExtraOption = (option: { name: string; price: number }) => {

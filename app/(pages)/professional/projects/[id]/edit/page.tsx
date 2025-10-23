@@ -243,6 +243,8 @@ export default function ProjectEditPage() {
         },
         body: JSON.stringify({
           ...project,
+          // Ensure priceModel is always set when saving edits
+          priceModel: (project.priceModel && project.priceModel.trim()) || ((project.category || '').toLowerCase() === 'renovation' ? 'rfq' : (project.subprojects?.some(s => s.pricing?.type === 'rfq') ? 'rfq' : 'fixed')),
           id: project._id,
         }),
         credentials: 'include',
@@ -282,7 +284,7 @@ export default function ProjectEditPage() {
       setIsSaving(false);
     }
   };
-/* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const updateField = (field: string, value: any) => {
     if (!project) return;
     setProject({ ...project, [field]: value });

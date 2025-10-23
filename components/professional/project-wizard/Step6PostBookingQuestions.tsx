@@ -172,7 +172,7 @@ export default function Step6PostBookingQuestions({ data, onChange, onValidate }
   const getQuestionTemplates = () => {
     const service = data.service || 'default'
     return POST_BOOKING_QUESTION_TEMPLATES[service as keyof typeof POST_BOOKING_QUESTION_TEMPLATES] ||
-           POST_BOOKING_QUESTION_TEMPLATES.default
+      POST_BOOKING_QUESTION_TEMPLATES.default
   }
 
   const addTemplateQuestion = (template: Omit<IPostBookingQuestion, 'id'>) => {
@@ -537,16 +537,18 @@ export default function Step6PostBookingQuestions({ data, onChange, onValidate }
                           </div>
                         )}
 
-                        {/* Professional Attachments */}
-                        <div className="mt-3">
-                          <ProfessionalAttachments
-                            attachments={question.professionalAttachments || []}
-                            onChange={(attachments) => updateQuestionByIndex(index, { professionalAttachments: attachments })}
-                            questionId={`post-booking-${index}`}
-                            projectId={data._id}
-                            label="Upload Supporting Documents (Optional)"
-                          />
-                        </div>
+                        {/* Professional-provided file for customer to download/sign/fill in (only for attachment questions) */}
+                        {question.type === 'attachment' && (
+                          <div className="mt-3">
+                            <ProfessionalAttachments
+                              attachments={question.professionalAttachments || []}
+                              onChange={(attachments) => updateQuestionByIndex(index, { professionalAttachments: attachments })}
+                              questionId={`post-booking-${index}`}
+                              projectId={data._id}
+                              label="Upload file for customer to sign or fill in (Optional)"
+                            />
+                          </div>
+                        )}
 
                         {/* Required Toggle */}
                         <div className="flex items-center space-x-2 mt-3">

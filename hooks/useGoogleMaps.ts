@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 interface GoogleMapsHook {
   isLoaded: boolean;
@@ -18,27 +18,29 @@ export const useGoogleMaps = (): GoogleMapsHook => {
     // Load Google Maps script from backend (public endpoint)
     const loadGoogleMapsScript = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`);
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`
+        );
 
         if (!response.ok) {
-          throw new Error('Failed to get Google Maps configuration');
+          throw new Error("Failed to get Google Maps configuration");
         }
 
         const data = await response.json();
 
         if (data.success && data.scriptUrl) {
-          const script = document.createElement('script');
+          const script = document.createElement("script");
           script.src = data.scriptUrl;
           script.async = true;
           script.onload = () => setIsLoaded(true);
           script.onerror = () => {
-            console.error('Failed to load Google Maps');
+            console.error("Failed to load Google Maps");
             setIsLoaded(false);
           };
           document.head.appendChild(script);
         }
       } catch (error) {
-        console.error('Failed to load Google Maps configuration:', error);
+        console.error("Failed to load Google Maps configuration:", error);
         setIsLoaded(false);
       }
     };
@@ -54,17 +56,22 @@ export const useGoogleMaps = (): GoogleMapsHook => {
     if (!address) return false;
 
     try {
-      console.log('🔍 Frontend: Sending validation request for:', address);
-      const token = localStorage.getItem('token');
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/validate-address`,
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ address })
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ address }),
         }
       );
 
@@ -82,7 +89,7 @@ export const useGoogleMaps = (): GoogleMapsHook => {
 
       return data.success && data.isValid;
     } catch (error) {
-      console.error('❌ Frontend: Address validation error:', error);
+      console.error("Address validation error:", error);
       return false;
     }
   };
