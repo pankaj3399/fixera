@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, Clock, CalendarX } from "lucide-react"
-import TeamManagement from "@/components/TeamManagement"
+import EmployeeManagement from "@/components/TeamManagement"
 import PasswordChange from "@/components/PasswordChange"
-import TeamMemberAvailability from "@/components/TeamMemberAvailability"
+import EmployeeAvailability from "@/components/EmployeeAvailability"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -820,10 +820,11 @@ export default function ProfilePage() {
 
         {isProfessional ? (
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="business">Business Info</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
+              <TabsTrigger value="employees">Employees</TabsTrigger>
               <TabsTrigger value="personal-availability">Personal Availability</TabsTrigger>
               <TabsTrigger value="company-availability">Company Availability</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
@@ -1854,18 +1855,23 @@ export default function ProfilePage() {
               </Card>
             </TabsContent>
 
+            {/* Employees Tab */}
+            <TabsContent value="employees" className="space-y-6">
+              <EmployeeManagement companyName={user?.businessInfo?.companyName || user?.name || ''} />
+            </TabsContent>
+
             {/* Security Tab */}
             <TabsContent value="security" className="space-y-6">
               <PasswordChange />
             </TabsContent>
           </Tabs>
         ) : (
-          // Non-professional users (customers, team members, etc.)
+          // Non-professional users (customers, employees, etc.)
           <Tabs defaultValue="profile" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
-              {user?.role === 'professional' && (
+              {user?.role === 'employee' && (
                 <TabsTrigger value="availability">Availability</TabsTrigger>
               )}
             </TabsList>
@@ -1928,9 +1934,9 @@ export default function ProfilePage() {
               <PasswordChange />
             </TabsContent>
 
-            {user?.role === 'professional' && (
+            {user?.role === 'employee' && (
               <TabsContent value="availability" className="space-y-6">
-                <TeamMemberAvailability />
+                <EmployeeAvailability />
               </TabsContent>
             )}
           </Tabs>

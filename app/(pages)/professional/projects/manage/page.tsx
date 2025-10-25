@@ -29,10 +29,6 @@ import {
   Play,
   MoreVertical,
   Search,
-  Filter,
-  BookOpen,
-  CheckCheck,
-  Ban,
   ChevronLeft,
   ChevronRight,
   Loader2
@@ -42,8 +38,7 @@ interface Project {
   _id: string
   title: string
   description: string
-  status: 'draft' | 'pending' | 'pending_approval' | 'published' | 'rejected' | 'on_hold' | 'booked' | 'completed' | 'cancelled'
-  bookingStatus?: 'rfq' | 'quoted' | 'booked' | 'execution' | 'completed' | 'cancelled' | 'dispute' | 'warranty'
+  status: 'draft' | 'pending' | 'rejected' | 'published' | 'on_hold'
   category: string
   subprojects: Array<{
     name: string
@@ -89,10 +84,7 @@ export default function ManageProjectsPage() {
     pending: 0,
     published: 0,
     on_hold: 0,
-    rejected: 0,
-    booked: 0,
-    completed: 0,
-    cancelled: 0
+    rejected: 0
   })
 
   useEffect(() => {
@@ -177,10 +169,7 @@ export default function ManageProjectsPage() {
               pending: responseData.counts.pending || 0,
               published: responseData.counts.published || 0,
               on_hold: responseData.counts.on_hold || 0,
-              rejected: responseData.counts.rejected || 0,
-              booked: responseData.counts.booked || 0,
-              completed: responseData.counts.completed || 0,
-              cancelled: responseData.counts.cancelled || 0
+              rejected: responseData.counts.rejected || 0
             })
           }
 
@@ -243,48 +232,18 @@ export default function ManageProjectsPage() {
     }
   }
 
-  const getBookingStatusColor = (bookingStatus: string | undefined) => {
-    if (!bookingStatus) return ''
-    switch (bookingStatus) {
-      case 'rfq':
-        return 'bg-purple-100 text-purple-800 border-purple-300'
-      case 'quoted':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-300'
-      case 'booked':
-        return 'bg-blue-100 text-blue-800 border-blue-300'
-      case 'execution':
-        return 'bg-cyan-100 text-cyan-800 border-cyan-300'
-      case 'completed':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-300'
-      case 'cancelled':
-        return 'bg-slate-100 text-slate-800 border-slate-300'
-      case 'dispute':
-        return 'bg-red-100 text-red-800 border-red-300'
-      case 'warranty':
-        return 'bg-teal-100 text-teal-800 border-teal-300'
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300'
-    }
-  }
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'draft':
         return <FileText className="h-4 w-4" />
-      case 'pending_approval':
+      case 'pending':
         return <Clock className="h-4 w-4" />
       case 'published':
         return <CheckCircle className="h-4 w-4" />
       case 'rejected':
         return <XCircle className="h-4 w-4" />
-      case 'booked':
-        return <BookOpen className="h-4 w-4" />
       case 'on_hold':
         return <Pause className="h-4 w-4" />
-      case 'completed':
-        return <CheckCheck className="h-4 w-4" />
-      case 'cancelled':
-        return <Ban className="h-4 w-4" />
       default:
         return <FileText className="h-4 w-4" />
     }
@@ -411,13 +370,10 @@ export default function ManageProjectsPage() {
   }
 
   const draftProjects = filteredProjects.filter(p => p.status === 'draft')
-  const pendingProjects = filteredProjects.filter(p => p.status === 'pending_approval')
+  const pendingProjects = filteredProjects.filter(p => p.status === 'pending')
   const publishedProjects = filteredProjects.filter(p => p.status === 'published')
   const rejectedProjects = filteredProjects.filter(p => p.status === 'rejected')
-  const bookedProjects = filteredProjects.filter(p => p.status === 'booked')
   const onHoldProjects = filteredProjects.filter(p => p.status === 'on_hold')
-  const completedProjects = filteredProjects.filter(p => p.status === 'completed')
-  const cancelledProjects = filteredProjects.filter(p => p.status === 'cancelled')
 
   // Get unique categories for filter dropdown
   const uniqueCategories = Array.from(new Set(projects.map(p => p.category))).filter(Boolean)
@@ -582,13 +538,10 @@ export default function ManageProjectsPage() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="published">Published</SelectItem>
-                  <SelectItem value="booked">Booked</SelectItem>
                   <SelectItem value="on_hold">On Hold</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -607,7 +560,7 @@ export default function ManageProjectsPage() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-6 md:mb-8">
           <Card>
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
@@ -647,18 +600,6 @@ export default function ManageProjectsPage() {
           <Card>
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
-                <BookOpen className="h-3 w-3 text-blue-500 flex-shrink-0" />
-                <span className="truncate">Booked</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.booked}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
-              <CardTitle className="flex items-center gap-1 text-xs">
                 <Pause className="h-3 w-3 text-orange-500 flex-shrink-0" />
                 <span className="truncate">On Hold</span>
               </CardTitle>
@@ -671,36 +612,12 @@ export default function ManageProjectsPage() {
           <Card>
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
-                <CheckCheck className="h-3 w-3 text-emerald-500 flex-shrink-0" />
-                <span className="truncate">Completed</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.completed}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
-              <CardTitle className="flex items-center gap-1 text-xs">
                 <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />
                 <span className="truncate">Rejected</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
               <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.rejected}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
-              <CardTitle className="flex items-center gap-1 text-xs">
-                <Ban className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                <span className="truncate">Cancelled</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.cancelled}</div>
             </CardContent>
           </Card>
         </div>
@@ -720,14 +637,8 @@ export default function ManageProjectsPage() {
               <TabsTrigger value="published" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 Published ({publishedProjects.length})
               </TabsTrigger>
-              <TabsTrigger value="booked" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Booked ({bookedProjects.length})
-              </TabsTrigger>
               <TabsTrigger value="on_hold" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 On Hold ({onHoldProjects.length})
-              </TabsTrigger>
-              <TabsTrigger value="completed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Completed ({completedProjects.length})
               </TabsTrigger>
               <TabsTrigger value="rejected" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 Rejected ({rejectedProjects.length})
@@ -779,7 +690,7 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            {project.status === 'pending_approval' && project.submittedAt && `Submitted: ${new Date(project.submittedAt).toLocaleDateString()}`}
+                            {project.status === 'pending' && project.submittedAt && `Submitted: ${new Date(project.submittedAt).toLocaleDateString()}`}
                             {project.status === 'published' && project.approvedAt && `Published: ${new Date(project.approvedAt).toLocaleDateString()}`}
                             {!project.submittedAt && !project.approvedAt && `Updated: ${new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString()}`}
                           </span>
@@ -996,52 +907,6 @@ export default function ManageProjectsPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="booked" className="space-y-6">
-            {bookedProjects.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No booked projects</h3>
-                  <p className="text-gray-600">Projects that have been booked by customers will appear here</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
-                {bookedProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow border-blue-200 flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            Booked: {new Date(project.updatedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
           <TabsContent value="on_hold" className="space-y-6">
             {onHoldProjects.length === 0 ? (
               <Card>
@@ -1076,52 +941,6 @@ export default function ManageProjectsPage() {
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
                             Put on hold: {new Date(project.updatedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="completed" className="space-y-6">
-            {completedProjects.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <CheckCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No completed projects</h3>
-                  <p className="text-gray-600">Projects you&apos;ve completed will appear here</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
-                {completedProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow border-emerald-200 flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            Completed: {new Date(project.updatedAt).toLocaleDateString()}
                           </span>
                         </div>
                         <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>

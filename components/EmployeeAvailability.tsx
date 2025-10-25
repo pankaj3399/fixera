@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
 
-interface TeamMemberAvailabilityProps {
+interface EmployeeAvailabilityProps {
   className?: string
 }
 
@@ -43,7 +43,7 @@ interface AvailabilityData {
   }[]
 }
 
-export default function TeamMemberAvailability({ className }: TeamMemberAvailabilityProps) {
+export default function EmployeeAvailability({ className }: EmployeeAvailabilityProps) {
   const { user } = useAuth()
   const [, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -107,7 +107,7 @@ export default function TeamMemberAvailability({ className }: TeamMemberAvailabi
         }
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/availability/effective`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/availability/effective`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -143,7 +143,7 @@ export default function TeamMemberAvailability({ className }: TeamMemberAvailabi
     try {
       setSaving(true)
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/availability/preference`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/availability/preference`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ export default function TeamMemberAvailability({ className }: TeamMemberAvailabi
     try {
       setSaving(true)
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/availability`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/availability`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -275,8 +275,8 @@ export default function TeamMemberAvailability({ className }: TeamMemberAvailabi
     fetchAvailability()
   }, [])
 
-  // Check if user is a professional
-  if (user?.role !== 'professional') {
+  // Check if user is an employee
+  if (user?.role !== 'employee') {
     return (
       <Card className={className}>
         <CardHeader>
@@ -288,7 +288,7 @@ export default function TeamMemberAvailability({ className }: TeamMemberAvailabi
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <User className="h-12 w-12 mx-auto mb-2" />
-            <p className="text-sm">This feature is only available for team members and professionals</p>
+            <p className="text-sm">This feature is only available for employees</p>
           </div>
         </CardContent>
       </Card>
