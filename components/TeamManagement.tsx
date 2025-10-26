@@ -9,21 +9,43 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
-import { 
-  User, 
-  Mail, 
-  UserPlus, 
-  Calendar, 
+import {
+  User,
+  Mail,
+  UserPlus,
+  Calendar,
   RotateCcw,
   AlertCircle,
   CheckCircle,
   Loader2,
   Users,
-  Trash2
+  Trash2,
+  X,
+  Plus
 } from "lucide-react"
 import { toast } from "sonner"
 
-interface TeamMember {
+type Day =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+interface DayAvailability {
+  available: boolean;
+  startTime: string;
+  endTime: string;
+}
+
+type WeeklyAvailability = {
+  [day in Day]: DayAvailability;
+};
+
+
+interface Employee {
   _id: string
   name: string
   email?: string
@@ -34,13 +56,7 @@ interface TeamMember {
   acceptedAt?: string
   isActive: boolean
   managedByCompany: boolean
-  availability?: {
-    [day: string]: {
-      isAvailable: boolean;
-      startTime?: string;
-      endTime?: string;
-    };
-  }
+  availability?:WeeklyAvailability
   blockedDates?: Date[]
   blockedRanges?: {
     startDate: string;
@@ -49,12 +65,12 @@ interface TeamMember {
   }[]
 }
 
-interface TeamManagementProps {
+interface EmployeeManagementProps {
   companyName: string
 }
 
-export default function TeamManagement({ companyName: _ }: TeamManagementProps) {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+export default function EmployeeManagement({ companyName: _ }: EmployeeManagementProps) {
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [inviting, setInviting] = useState(false)
@@ -75,36 +91,54 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
   const [deactivateDialog, setDeactivateDialog] = useState<{memberId: string, memberName: string} | null>(null)
   const [deactivating, setDeactivating] = useState(false)
 
-  // Fetch team members
-  const fetchTeamMembers = async () => {
+  // Availability management states
+  const [availabilityDialog, setAvailabilityDialog] = useState<Employee | null>(null)
+  const [savingAvailability, setSavingAvailability] = useState(false)
+const [availability, setAvailability] = useState<WeeklyAvailability>({
+  monday: { available: false, startTime: '09:00', endTime: '17:00' },
+  tuesday: { available: false, startTime: '09:00', endTime: '17:00' },
+  wednesday: { available: false, startTime: '09:00', endTime: '17:00' },
+  thursday: { available: false, startTime: '09:00', endTime: '17:00' },
+  friday: { available: false, startTime: '09:00', endTime: '17:00' },
+  saturday: { available: false, startTime: '09:00', endTime: '17:00' },
+  sunday: { available: false, startTime: '09:00', endTime: '17:00' },
+});
+
+  const [blockedDates, setBlockedDates] = useState<{date: string, reason?: string}[]>([])
+  const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
+  const [newBlockedDate, setNewBlockedDate] = useState({date: '', reason: ''})
+  const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
+
+  // Fetch employees
+  const fetchEmployees = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/members`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/list`, {
         method: 'GET',
         credentials: 'include'
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
-        setTeamMembers(data.data.teamMembers || [])
+        setEmployees(data.data.employees || [])
       } else {
-        console.error('Failed to fetch team members:', data.msg)
+        console.error('Failed to fetch employees:', data.msg)
       }
     } catch (error) {
-      console.error('Error fetching team members:', error)
-      toast.error('Failed to load team members')
+      console.error('Error fetching employees:', error)
+      toast.error('Failed to load employees')
     } finally {
       setLoading(false)
     }
   }
 
-  // Invite team member
-  const inviteTeamMember = async () => {
+  // Invite employee
+  const inviteEmployee = async () => {
     try {
       setInviting(true)
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/invite`, {
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,44 +146,44 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
         credentials: 'include',
         body: JSON.stringify(inviteForm)
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
         toast.success(
-          inviteForm.hasEmail 
-            ? 'Team member invitation sent successfully!' 
-            : 'Team member added successfully!'
+          inviteForm.hasEmail
+            ? 'Employee invitation sent successfully!'
+            : 'Employee added successfully!'
         )
         setInviteDialogOpen(false)
         setInviteForm({ name: '', email: '', hasEmail: true })
-        fetchTeamMembers() // Refresh the list
+        fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || 'Failed to invite team member')
+        toast.error(data.msg || 'Failed to invite employee')
       }
     } catch (error) {
-      console.error('Error inviting team member:', error)
-      toast.error('Failed to invite team member')
+      console.error('Error inviting employee:', error)
+      toast.error('Failed to invite employee')
     } finally {
       setInviting(false)
     }
   }
 
   // Handle deactivation button click
-  const handleDeactivate = (teamMemberId: string, memberName: string) => {
-    setDeactivateDialog({ memberId: teamMemberId, memberName })
+  const handleDeactivate = (employeeId: string, employeeName: string) => {
+    setDeactivateDialog({ memberId: employeeId, memberName: employeeName })
   }
 
   // Handle reactivation
-  const handleReactivate = async (teamMemberId: string) => {
-    await toggleTeamMemberStatus(teamMemberId, true)
+  const handleReactivate = async (employeeId: string) => {
+    await toggleEmployeeStatus(employeeId, true)
   }
 
-  // Toggle team member status
-  const toggleTeamMemberStatus = async (teamMemberId: string, isActive: boolean) => {
+  // Toggle employee status
+  const toggleEmployeeStatus = async (employeeId: string, isActive: boolean) => {
     try {
       setDeactivating(true)
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/members/${teamMemberId}/status`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/${employeeId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -157,18 +191,18 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
         credentials: 'include',
         body: JSON.stringify({ isActive })
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
-        toast.success(`Team member ${isActive ? 'activated' : 'deactivated'} successfully`)
-        fetchTeamMembers() // Refresh the list
+        toast.success(`Employee ${isActive ? 'activated' : 'deactivated'} successfully`)
+        fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || 'Failed to update team member status')
+        toast.error(data.msg || 'Failed to update employee status')
       }
     } catch (error) {
-      console.error('Error updating team member status:', error)
-      toast.error('Failed to update team member status')
+      console.error('Error updating employee status:', error)
+      toast.error('Failed to update employee status')
     } finally {
       setDeactivating(false)
     }
@@ -177,32 +211,32 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
   // Confirm deactivation
   const confirmDeactivation = async () => {
     if (!deactivateDialog) return
-    
-    await toggleTeamMemberStatus(deactivateDialog.memberId, false)
+
+    await toggleEmployeeStatus(deactivateDialog.memberId, false)
     setDeactivateDialog(null)
   }
 
-  // Reset team member password
-  const resetTeamMemberPassword = async () => {
+  // Reset employee password
+  const resetEmployeePassword = async () => {
     if (!resetPasswordDialog || !newPassword) return
-    
+
     try {
       setResettingPassword(true)
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/reset-password`, {
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/reset-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
         body: JSON.stringify({
-          teamMemberId: resetPasswordDialog,
+          employeeId: resetPasswordDialog,
           newPassword
         })
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
         toast.success('Password reset successfully')
         setResetPasswordDialog(null)
@@ -218,9 +252,109 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
     }
   }
 
-  // Load team members on component mount
+  // Open availability dialog
+  const openAvailabilityDialog = (employee: Employee) => {
+    setAvailabilityDialog(employee)
+    // Load employee's current availability
+    if (employee.availability) {
+      setAvailability(employee.availability)
+    }
+    if (employee.blockedDates) {
+      setBlockedDates(employee.blockedDates.map(d => ({
+        date: typeof d === 'string' ? d : new Date(d).toISOString().split('T')[0],
+        reason: undefined
+      })))
+    }
+    if (employee.blockedRanges) {
+      setBlockedRanges(employee.blockedRanges)
+    }
+  }
+
+  // Update availability day
+  const updateAvailability = (day: string, field: string, value: boolean | string) => {
+    setAvailability(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day as keyof typeof prev],
+        [field]: value
+      }
+    }))
+  }
+
+  // Add blocked date
+  const addBlockedDate = () => {
+    if (!newBlockedDate.date) {
+      toast.error('Please select a date')
+      return
+    }
+    setBlockedDates(prev => [...prev, newBlockedDate])
+    setNewBlockedDate({date: '', reason: ''})
+  }
+
+  // Remove blocked date
+  const removeBlockedDate = (dateToRemove: string) => {
+    setBlockedDates(prev => prev.filter(d => d.date !== dateToRemove))
+  }
+
+  // Add blocked range
+  const addBlockedRange = () => {
+    if (!newBlockedRange.startDate || !newBlockedRange.endDate) {
+      toast.error('Please select both start and end dates')
+      return
+    }
+    if (new Date(newBlockedRange.startDate) > new Date(newBlockedRange.endDate)) {
+      toast.error('Start date must be before end date')
+      return
+    }
+    setBlockedRanges(prev => [...prev, newBlockedRange])
+    setNewBlockedRange({startDate: '', endDate: '', reason: ''})
+  }
+
+  // Remove blocked range
+  const removeBlockedRange = (index: number) => {
+    setBlockedRanges(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Save employee availability
+  const saveEmployeeAvailability = async () => {
+    if (!availabilityDialog) return
+
+    try {
+      setSavingAvailability(true)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/${availabilityDialog._id}/availability`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          availability,
+          blockedDates,
+          blockedRanges
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Employee availability updated successfully')
+        setAvailabilityDialog(null)
+        fetchEmployees() // Refresh the list
+      } else {
+        toast.error(data.msg || 'Failed to update availability')
+      }
+    } catch (error) {
+      console.error('Error updating availability:', error)
+      toast.error('Failed to update availability')
+    } finally {
+      setSavingAvailability(false)
+    }
+  }
+
+  // Load employees on component mount
   useEffect(() => {
-    fetchTeamMembers()
+    fetchEmployees()
   }, [])
 
   if (loading) {
@@ -229,13 +363,13 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Team Management
+            Employee Management
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading team members...</span>
+            <span className="ml-2">Loading employees...</span>
           </div>
         </CardContent>
       </Card>
@@ -250,25 +384,25 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Team Management
+                Employee Management
               </CardTitle>
               <CardDescription>
-                Invite and manage your team members
+                Invite and manage your employees
               </CardDescription>
             </div>
-            
+
             <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" />
-                  Invite Team Member
+                  Invite Employee
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Invite Team Member</DialogTitle>
+                  <DialogTitle>Invite Employee</DialogTitle>
                   <DialogDescription>
-                    Add a new team member to your company
+                    Add a new employee to your company
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -332,8 +466,8 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                     >
                       Cancel
                     </Button>
-                    <Button 
-                      onClick={inviteTeamMember}
+                    <Button
+                      onClick={inviteEmployee}
                       disabled={!inviteForm.name || (inviteForm.hasEmail && !inviteForm.email) || inviting}
                     >
                       {inviting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -345,36 +479,36 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
             </Dialog>
           </div>
         </CardHeader>
-        
+
         <CardContent>
-          {teamMembers.length === 0 ? (
+          {employees.length === 0 ? (
             <div className="text-center py-12">
               <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">No Team Members Yet</h3>
+              <h3 className="text-lg font-medium mb-2">No Employees Yet</h3>
               <p className="text-muted-foreground mb-4">
-                Start by inviting your first team member to collaborate
+                Start by inviting your first employee
               </p>
               <Button onClick={() => setInviteDialogOpen(true)}>
                 <UserPlus className="h-4 w-4 mr-2" />
-                Invite Team Member
+                Invite Employee
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
-                  {teamMembers.length} team member{teamMembers.length !== 1 ? 's' : ''}
+                  {employees.length} employee{employees.length !== 1 ? 's' : ''}
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={fetchTeamMembers}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchEmployees}
                   className="h-8"
                 >
                   <RotateCcw className="h-4 w-4" />
                 </Button>
               </div>
-              
+
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -383,11 +517,11 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                       <TableHead>Contact</TableHead>
                       <TableHead>Availability</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Deactivate Employee</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {teamMembers.map((member) => (
+                    {employees.map((member) => (
                       <TableRow key={member._id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -446,9 +580,19 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                             )}
                           </div>
                         </TableCell>
-                        
+
                         <TableCell>
                           <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openAvailabilityDialog(member)}
+                              className="h-8 px-2"
+                              title="Manage Availability"
+                            >
+                              <Calendar className="h-4 w-4" />
+                            </Button>
+
                             {member.isActive ? (
                               <Button
                                 variant="ghost"
@@ -456,6 +600,7 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                                 onClick={() => handleDeactivate(member._id, member.name)}
                                 className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                                 disabled={deactivating}
+                                title="Deactivate"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -466,17 +611,19 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                                 onClick={() => handleReactivate(member._id)}
                                 className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
                                 disabled={deactivating}
+                                title="Reactivate"
                               >
                                 <CheckCircle className="h-4 w-4" />
                               </Button>
                             )}
-                            
+
                             {member.managedByCompany && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setResetPasswordDialog(member._id)}
                                 className="h-8 px-2"
+                                title="Reset Password"
                               >
                                 <RotateCcw className="h-4 w-4" />
                               </Button>
@@ -497,9 +644,9 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
       <Dialog open={!!resetPasswordDialog} onOpenChange={() => setResetPasswordDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset Team Member Password</DialogTitle>
+            <DialogTitle>Reset Employee Password</DialogTitle>
             <DialogDescription>
-              Set a new password for this company-managed team member
+              Set a new password for this company-managed employee
             </DialogDescription>
           </DialogHeader>
           
@@ -530,8 +677,8 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={resetTeamMemberPassword}
+              <Button
+                onClick={resetEmployeePassword}
                 disabled={!newPassword || newPassword.length < 6 || resettingPassword}
               >
                 {resettingPassword && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -551,7 +698,7 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
               Are you sure you want to deactivate <strong>{deactivateDialog?.memberName}</strong>?
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
               <div className="flex items-start gap-3">
@@ -561,28 +708,193 @@ export default function TeamManagement({ companyName: _ }: TeamManagementProps) 
                     This will deactivate the employee
                   </p>
                   <p className="text-sm text-amber-700 mt-1">
-                    The employee will no longer be able to access the system or be scheduled for appointments. 
+                    The employee will no longer be able to access the system or be scheduled for appointments.
                     You can reactivate them at any time.
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-2 pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setDeactivateDialog(null)}
                 disabled={deactivating}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 variant="destructive"
                 onClick={confirmDeactivation}
                 disabled={deactivating}
               >
                 {deactivating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Deactivate Employee
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Availability Management Dialog */}
+      <Dialog open={!!availabilityDialog} onOpenChange={() => setAvailabilityDialog(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Availability - {availabilityDialog?.name}</DialogTitle>
+            <DialogDescription>
+              Set working hours and blocked dates for this employee
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Weekly Schedule */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Weekly Schedule</Label>
+              {Object.entries(availability).map(([day, schedule]) => (
+                <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="w-24 text-sm font-medium capitalize">{day}</div>
+                  <Switch
+                    checked={schedule.available}
+                    onCheckedChange={(checked) => updateAvailability(day, 'available', checked)}
+                  />
+                  <span className="text-sm">Available</span>
+                  {schedule.available && (
+                    <>
+                      <Input
+                        type="time"
+                        value={schedule.startTime}
+                        onChange={(e) => updateAvailability(day, 'startTime', e.target.value)}
+                        className="w-32"
+                      />
+                      <span className="text-sm">to</span>
+                      <Input
+                        type="time"
+                        value={schedule.endTime}
+                        onChange={(e) => updateAvailability(day, 'endTime', e.target.value)}
+                        className="w-32"
+                      />
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Blocked Dates */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Blocked Dates</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={newBlockedDate.date}
+                  onChange={(e) => setNewBlockedDate(prev => ({...prev, date: e.target.value}))}
+                  className="flex-1"
+                />
+                <Input
+                  type="text"
+                  placeholder="Reason (optional)"
+                  value={newBlockedDate.reason}
+                  onChange={(e) => setNewBlockedDate(prev => ({...prev, reason: e.target.value}))}
+                  className="flex-1"
+                />
+                <Button onClick={addBlockedDate} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {blockedDates.length > 0 && (
+                <div className="space-y-2">
+                  {blockedDates.map((blocked, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <span className="text-sm font-medium">
+                          {new Date(blocked.date).toLocaleDateString()}
+                        </span>
+                        {blocked.reason && <span className="text-xs text-muted-foreground ml-2">{blocked.reason}</span>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeBlockedDate(blocked.date)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Blocked Ranges */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Blocked Date Ranges</Label>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={newBlockedRange.startDate}
+                    onChange={(e) => setNewBlockedRange(prev => ({...prev, startDate: e.target.value}))}
+                    placeholder="Start date"
+                    className="flex-1"
+                  />
+                  <Input
+                    type="date"
+                    value={newBlockedRange.endDate}
+                    onChange={(e) => setNewBlockedRange(prev => ({...prev, endDate: e.target.value}))}
+                    placeholder="End date"
+                    className="flex-1"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Reason (optional)"
+                    value={newBlockedRange.reason}
+                    onChange={(e) => setNewBlockedRange(prev => ({...prev, reason: e.target.value}))}
+                    className="flex-1"
+                  />
+                  <Button onClick={addBlockedRange} size="sm">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Range
+                  </Button>
+                </div>
+              </div>
+              {blockedRanges.length > 0 && (
+                <div className="space-y-2">
+                  {blockedRanges.map((range, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <span className="text-sm font-medium">
+                          {new Date(range.startDate).toLocaleDateString()} - {new Date(range.endDate).toLocaleDateString()}
+                        </span>
+                        {range.reason && <span className="text-xs text-muted-foreground ml-2">{range.reason}</span>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeBlockedRange(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setAvailabilityDialog(null)}
+                disabled={savingAvailability}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={saveEmployeeAvailability}
+                disabled={savingAvailability}
+              >
+                {savingAvailability && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save Availability
               </Button>
             </div>
           </div>

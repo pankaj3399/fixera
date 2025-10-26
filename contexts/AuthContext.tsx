@@ -9,7 +9,7 @@ interface User {
   name: string
   email: string
   phone: string
-  role: 'admin' | 'visitor' | 'customer' | 'professional'
+  role: 'admin' | 'visitor' | 'customer' | 'professional' | 'employee'
   isEmailVerified: boolean
   isPhoneVerified: boolean
   vatNumber?: string
