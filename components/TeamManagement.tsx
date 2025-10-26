@@ -255,10 +255,7 @@ const [availability, setAvailability] = useState<WeeklyAvailability>({
   // Open availability dialog
   const openAvailabilityDialog = (employee: Employee) => {
     setAvailabilityDialog(employee)
-    // Load employee's current availability
-    if (employee.availability) {
-      setAvailability(employee.availability)
-    }
+    // Load employee's blocked dates
     if (employee.blockedDates) {
       setBlockedDates(employee.blockedDates.map(d => ({
         date: typeof d === 'string' ? d : new Date(d).toISOString().split('T')[0],
@@ -315,7 +312,7 @@ const [availability, setAvailability] = useState<WeeklyAvailability>({
     setBlockedRanges(prev => prev.filter((_, i) => i !== index))
   }
 
-  // Save employee availability
+  // Save employee blocked dates (employees follow company weekly schedule)
   const saveEmployeeAvailability = async () => {
     if (!availabilityDialog) return
 
@@ -329,7 +326,6 @@ const [availability, setAvailability] = useState<WeeklyAvailability>({
         },
         credentials: 'include',
         body: JSON.stringify({
-          availability,
           blockedDates,
           blockedRanges
         })
@@ -742,43 +738,11 @@ const [availability, setAvailability] = useState<WeeklyAvailability>({
           <DialogHeader>
             <DialogTitle>Manage Availability - {availabilityDialog?.name}</DialogTitle>
             <DialogDescription>
-              Set working hours and blocked dates for this employee
+              Set blocked dates for this employee. They will follow the company&apos;s weekly schedule.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Weekly Schedule */}
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Weekly Schedule</Label>
-              {Object.entries(availability).map(([day, schedule]) => (
-                <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
-                  <div className="w-24 text-sm font-medium capitalize">{day}</div>
-                  <Switch
-                    checked={schedule.available}
-                    onCheckedChange={(checked) => updateAvailability(day, 'available', checked)}
-                  />
-                  <span className="text-sm">Available</span>
-                  {schedule.available && (
-                    <>
-                      <Input
-                        type="time"
-                        value={schedule.startTime}
-                        onChange={(e) => updateAvailability(day, 'startTime', e.target.value)}
-                        className="w-32"
-                      />
-                      <span className="text-sm">to</span>
-                      <Input
-                        type="time"
-                        value={schedule.endTime}
-                        onChange={(e) => updateAvailability(day, 'endTime', e.target.value)}
-                        className="w-32"
-                      />
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-
             {/* Blocked Dates */}
             <div className="space-y-3">
               <Label className="text-base font-medium">Blocked Dates</Label>
@@ -894,7 +858,7 @@ const [availability, setAvailability] = useState<WeeklyAvailability>({
                 disabled={savingAvailability}
               >
                 {savingAvailability && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Save Availability
+                Save Blocked Dates
               </Button>
             </div>
           </div>
