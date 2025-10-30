@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
+import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
 
 interface EmployeeAvailabilityProps {
   className?: string
@@ -234,6 +235,31 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
       </CardHeader>
       
       <CardContent className="space-y-6">
+        {/* Calendar View */}
+        {availabilityData && (
+          <AvailabilityCalendar
+            title="Availability Calendar"
+            description="Month view with company schedule, company blocks and your blocks"
+            weeklySchedule={availabilityData.availability}
+            personalBlockedDates={blockedDates}
+            personalBlockedRanges={blockedRanges}
+            companyBlockedDates={availabilityData.companyBlockedDates}
+            companyBlockedRanges={availabilityData.companyBlockedRanges}
+            mode="employee"
+            compact
+            onToggleDay={async (dateStr) => {
+              const exists = blockedDates.some(d => d.date === dateStr)
+              const updated = exists ? blockedDates.filter(d => d.date !== dateStr) : [...blockedDates, { date: dateStr }]
+              setBlockedDates(updated)
+              await saveBlockedDates()
+            }}
+            onAddRange={async (startDate, endDate) => {
+              const updated = [...blockedRanges, { startDate, endDate }]
+              setBlockedRanges(updated)
+              await saveBlockedDates()
+            }}
+          />
+        )}
         {/* Company Schedule Display */}
         {availabilityData && (
           <div className="space-y-3">

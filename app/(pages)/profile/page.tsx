@@ -9,6 +9,7 @@ import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, L
 import EmployeeManagement from "@/components/TeamManagement"
 import PasswordChange from "@/components/PasswordChange"
 import EmployeeAvailability from "@/components/EmployeeAvailability"
+import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -105,6 +106,23 @@ export default function ProfilePage() {
     };
   } | null>(null)
   const [verificationSubmitting, setVerificationSubmitting] = useState(false)
+
+  // Calendar handlers (month view, two-click range, full-day blocks)
+  const toggleBlockedDateFromCalendar = async (dateStr: string) => {
+    const exists = blockedDates.some(d => d.date === dateStr)
+    const updatedDates = exists
+      ? blockedDates.filter(d => d.date !== dateStr)
+      : [...blockedDates, { date: dateStr }].sort((a, b) => a.date.localeCompare(b.date))
+    setBlockedDates(updatedDates)
+    await saveBlockedDatesAndRanges(updatedDates, blockedRanges)
+  }
+
+  const addBlockedRangeFromCalendar = async (startDate: string, endDate: string) => {
+    const newRange = { startDate, endDate } as { startDate: string; endDate: string; reason?: string }
+    const updatedRanges = [...blockedRanges, newRange]
+    setBlockedRanges(updatedRanges)
+    await saveBlockedDatesAndRanges(blockedDates, updatedRanges)
+  }
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -1288,6 +1306,21 @@ export default function ProfilePage() {
 
             {/* Personal Availability Tab */}
             <TabsContent value="personal-availability" className="space-y-6">
+              {/* Calendar View */}
+              <AvailabilityCalendar
+                title="Personal Availability"
+                description="Month view with working days, company blocks and your blocks"
+                weeklySchedule={availability}
+                personalBlockedDates={blockedDates}
+                personalBlockedRanges={blockedRanges}
+                companyBlockedDates={companyBlockedDates}
+                companyBlockedRanges={companyBlockedRanges}
+                mode="professional"
+                onToggleDay={toggleBlockedDateFromCalendar}
+                onAddRange={addBlockedRangeFromCalendar}
+                compact
+              />
+
               <div className="mb-6">
                 <h3 className="text-lg font-semibold">Your Personal Working Hours</h3>
                 <p className="text-sm text-muted-foreground">Set your own working schedule and time off (separate from company hours)</p>
@@ -1571,6 +1604,19 @@ export default function ProfilePage() {
                 <h3 className="text-lg font-semibold">Company Availability & Holidays</h3>
                 <p className="text-sm text-muted-foreground">Set company-wide schedule that team members can inherit</p>
               </div>
+
+              {/* Company Calendar View (read-only for company blocks) */}
+              <AvailabilityCalendar
+                title="Company Availability"
+                description="Month view with company working days and company blocks"
+                weeklySchedule={companyAvailability}
+                personalBlockedDates={[]}
+                personalBlockedRanges={[]}
+                companyBlockedDates={companyBlockedDates}
+                companyBlockedRanges={companyBlockedRanges}
+                mode="professional"
+                compact
+              />
 
               {/* Company Weekly Schedule */}
               <Card>
