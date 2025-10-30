@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -31,11 +31,16 @@ interface ApprovalStats {
   total: number;
 }
 
+interface ProjectStats {
+  pendingProjects: number;
+}
+
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const [loyaltyStats, setLoyaltyStats] = useState<LoyaltyStats | null>(null)
   const [approvalStats, setApprovalStats] = useState<ApprovalStats | null>(null)
+  const [projectStats, setProjectStats] = useState<ProjectStats | null>(null)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
 
   useEffect(() => {
@@ -54,11 +59,14 @@ export default function DashboardPage() {
   const fetchAdminData = async () => {
     setIsLoadingStats(true)
     try {
-      const [loyaltyResponse, approvalResponse] = await Promise.all([
+      const [loyaltyResponse, approvalResponse, projectsResponse] = await Promise.all([
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/analytics`, {
           credentials: 'include'
         }),
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats/approvals`, {
+          credentials: 'include'
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/pending`, {
           credentials: 'include'
         }),
       ])
@@ -71,6 +79,12 @@ export default function DashboardPage() {
       if (approvalResponse.ok) {
         const approvalData = await approvalResponse.json()
         setApprovalStats(approvalData.data.stats)
+      }
+
+      if (projectsResponse.ok) {
+        const projectsData = await projectsResponse.json()
+        console.log('✅ Pending projects:', projectsData.length)
+        setProjectStats({ pendingProjects: projectsData.length })
       }
 
     } catch (error) {
@@ -107,12 +121,23 @@ export default function DashboardPage() {
               </h1>
               <p className="text-gray-600">Welcome back, {user?.name}! Manage your platform here.</p>
             </div>
-            <Link className="text-pink-800 underline" href='/admin/projects/approval'>Approve Projects</Link>
+            <Link
+              className="text-pink-800 underline flex items-center gap-2"
+              href='/admin/projects/approval'
+            >
+              Approve Projects
+              {projectStats && projectStats.pendingProjects > 0 && (
+                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                  {projectStats.pendingProjects}
+                </span>
+              )}
+            </Link>
           </div>
 
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="services">Services</TabsTrigger>
               <TabsTrigger value="loyalty">Loyalty System</TabsTrigger>
               <TabsTrigger value="approvals">Professional Approvals</TabsTrigger>
             </TabsList>
@@ -120,10 +145,28 @@ export default function DashboardPage() {
             <TabsContent value="overview" className="space-y-6">
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Quick Stats */}
+                <Card
+                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => window.open('/admin/projects/approval', '_blank')}
+                >
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <Briefcase className="h-4 w-4 text-blue-500" />
+                      Pending Projects
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {isLoadingStats ? '...' : projectStats?.pendingProjects || 0}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Click to review</p>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
-                      <Users className="h-4 w-4 text-blue-500" />
+                      <Users className="h-4 w-4 text-green-500" />
                       Total Customers
                     </CardTitle>
                   </CardHeader>
@@ -137,7 +180,7 @@ export default function DashboardPage() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
-                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <TrendingUp className="h-4 w-4 text-emerald-500" />
                       Total Revenue
                     </CardTitle>
                   </CardHeader>
@@ -152,7 +195,7 @@ export default function DashboardPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <Clock className="h-4 w-4 text-orange-500" />
-                      Pending Approvals
+                      Pending Professionals
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -161,21 +204,53 @@ export default function DashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <Award className="h-4 w-4 text-purple-500" />
-                      Points Issued
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {isLoadingStats ? '...' : (loyaltyStats?.overallStats.totalPointsIssued || 0).toLocaleString()}
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="services" className="space-y-6">
+              {/* Service Configuration Management */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5 text-purple-500" />
+                    Service Configuration Management
+                  </CardTitle>
+                  <CardDescription>Manage service offerings, pricing models, and requirements</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Configure and manage all service types, pricing models, project types, included items, and professional requirements for your platform.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <Button
+                      onClick={() => window.open('/admin/services', '_blank')}
+                      className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    >
+                      <Package className="h-4 w-4 mr-2" />
+                      Manage Service Configurations
+                    </Button>
+                    <Button
+                      onClick={() => window.open('/admin/services', '_blank')}
+                      variant="outline"
+                      className="w-full border-purple-200 hover:bg-purple-50"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Service
+                    </Button>
+                  </div>
+
+                  <div className="mt-6 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border-2 border-purple-100">
+                    <h4 className="font-semibold mb-2 text-purple-900">What you can manage:</h4>
+                    <ul className="text-sm space-y-1 text-purple-800">
+                      <li>• Service categories and types</li>
+                      <li>• Pricing models and certification requirements</li>
+                      <li>• Project types (New Built, Extension, Refurbishment, etc.)</li>
+                      <li>• Included items and professional input fields</li>
+                      <li>• Extra options and conditions/warnings</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="loyalty" className="space-y-6">

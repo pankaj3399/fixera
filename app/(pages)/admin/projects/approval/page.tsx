@@ -14,8 +14,17 @@ import {
   MapPin,
   DollarSign,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  ImageIcon,
+  Video,
+  Award,
+  Paperclip,
+  ExternalLink,
+  Mail,
+  Phone,
+  Building
 } from "lucide-react"
+import Image from 'next/image'
 import { toast } from 'sonner'
 
 interface QualityCheck {
@@ -23,6 +32,46 @@ interface QualityCheck {
   status: 'passed' | 'failed' | 'warning'
   message: string
   checkedAt: string
+}
+
+interface Professional {
+  name: string
+  email: string
+  phone: string
+  businessInfo?: {
+    businessName?: string
+    website?: string
+    address?: string
+  }
+  professionalStatus?: string
+}
+
+interface MediaFile {
+  url: string
+  key: string
+  uploadedAt: string
+}
+
+interface Certification {
+  name: string
+  issuedBy: string
+  issuedDate: string
+  expiryDate?: string
+  certificateUrl?: string
+}
+
+interface RFQQuestion {
+  question: string
+  answerType: string
+  professionalAnswer?: string
+  professionalAttachments?: MediaFile[]
+}
+
+interface PostBookingQuestion {
+  question: string
+  answerType: string
+  professionalAnswer?: string
+  professionalAttachments?: MediaFile[]
 }
 
 interface Project {
@@ -43,6 +92,14 @@ interface Project {
   status: string
   submittedAt: string
   qualityChecks: QualityCheck[]
+  professional?: Professional
+  media?: {
+    images?: MediaFile[]
+    video?: MediaFile
+  }
+  certifications?: Certification[]
+  rfqQuestions?: RFQQuestion[]
+  postBookingQuestions?: PostBookingQuestion[]
 }
 
 export default function ProjectApprovalPage() {
@@ -345,6 +402,260 @@ export default function ProjectApprovalPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Professional Information */}
+                  {selectedProject.professional && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <Building className="w-4 h-4" />
+                        <span>Professional Information</span>
+                      </h4>
+                      <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium flex items-center space-x-1">
+                              <User className="w-3 h-3" />
+                              <span>Name</span>
+                            </Label>
+                            <p className="text-sm text-gray-700">{selectedProject.professional.name}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium flex items-center space-x-1">
+                              <Mail className="w-3 h-3" />
+                              <span>Email</span>
+                            </Label>
+                            <p className="text-sm text-gray-700">{selectedProject.professional.email}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium flex items-center space-x-1">
+                              <Phone className="w-3 h-3" />
+                              <span>Phone</span>
+                            </Label>
+                            <p className="text-sm text-gray-700">{selectedProject.professional.phone}</p>
+                          </div>
+                          {selectedProject.professional.professionalStatus && (
+                            <div>
+                              <Label className="text-sm font-medium">Status</Label>
+                              <Badge variant="outline" className="mt-1">
+                                {selectedProject.professional.professionalStatus}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+                        {selectedProject.professional.businessInfo && (
+                          <div>
+                            <Label className="text-sm font-medium">Business Information</Label>
+                            <div className="mt-2 space-y-2 text-sm text-gray-700">
+                              {selectedProject.professional.businessInfo.businessName && (
+                                <p><strong>Business:</strong> {selectedProject.professional.businessInfo.businessName}</p>
+                              )}
+                              {selectedProject.professional.businessInfo.website && (
+                                <p>
+                                  <strong>Website:</strong>{' '}
+                                  <a
+                                    href={selectedProject.professional.businessInfo.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline flex items-center inline-flex space-x-1"
+                                  >
+                                    <span>{selectedProject.professional.businessInfo.website}</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </p>
+                              )}
+                              {selectedProject.professional.businessInfo.address && (
+                                <p><strong>Address:</strong> {selectedProject.professional.businessInfo.address}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Project Images */}
+                  {selectedProject.media?.images && selectedProject.media.images.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <ImageIcon className="w-4 h-4" />
+                        <span>Project Images ({selectedProject.media.images.length})</span>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        {selectedProject.media.images.map((image, index) => (
+                          <div key={index} className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
+                            <Image
+                              src={image.url}
+                              alt={`Project image ${index + 1}`}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 100vw, 50vw"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Project Video */}
+                  {selectedProject.media?.video && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <Video className="w-4 h-4" />
+                        <span>Project Video</span>
+                      </h4>
+                      <div className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
+                        <video
+                          src={selectedProject.media.video.url}
+                          controls
+                          className="w-full h-full"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Certifications */}
+                  {selectedProject.certifications && selectedProject.certifications.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <Award className="w-4 h-4" />
+                        <span>Certifications ({selectedProject.certifications.length})</span>
+                      </h4>
+                      <div className="space-y-3">
+                        {selectedProject.certifications.map((cert, index) => (
+                          <div key={index} className="p-4 border rounded-lg bg-gray-50">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h5 className="font-medium text-sm">{cert.name}</h5>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Issued by: {cert.issuedBy}
+                                </p>
+                                <div className="flex items-center space-x-4 text-xs text-gray-500 mt-2">
+                                  <span>Issued: {new Date(cert.issuedDate).toLocaleDateString()}</span>
+                                  {cert.expiryDate && (
+                                    <span>Expires: {new Date(cert.expiryDate).toLocaleDateString()}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {cert.certificateUrl && (
+                                <a
+                                  href={cert.certificateUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-4 text-blue-600 hover:text-blue-800"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* RFQ Questions & Attachments */}
+                  {selectedProject.rfqQuestions && selectedProject.rfqQuestions.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <FileText className="w-4 h-4" />
+                        <span>RFQ Questions & Answers</span>
+                      </h4>
+                      <div className="space-y-3">
+                        {selectedProject.rfqQuestions.map((rfq, index) => (
+                          <div key={index} className="p-4 border rounded-lg">
+                            <div className="mb-2">
+                              <Label className="text-sm font-medium">Q{index + 1}: {rfq.question}</Label>
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                {rfq.answerType}
+                              </Badge>
+                            </div>
+                            {rfq.professionalAnswer && (
+                              <p className="text-sm text-gray-700 mb-2">
+                                <strong>Answer:</strong> {rfq.professionalAnswer}
+                              </p>
+                            )}
+                            {rfq.professionalAttachments && rfq.professionalAttachments.length > 0 && (
+                              <div className="mt-3">
+                                <Label className="text-xs font-medium text-gray-500 flex items-center space-x-1">
+                                  <Paperclip className="w-3 h-3" />
+                                  <span>Attachments ({rfq.professionalAttachments.length})</span>
+                                </Label>
+                                <div className="mt-2 space-y-2">
+                                  {rfq.professionalAttachments.map((attachment, attIndex) => (
+                                    <a
+                                      key={attIndex}
+                                      href={attachment.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      <Paperclip className="w-3 h-3" />
+                                      <span>Attachment {attIndex + 1}</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Post-Booking Questions & Attachments */}
+                  {selectedProject.postBookingQuestions && selectedProject.postBookingQuestions.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <FileText className="w-4 h-4" />
+                        <span>Post-Booking Questions & Answers</span>
+                      </h4>
+                      <div className="space-y-3">
+                        {selectedProject.postBookingQuestions.map((pbq, index) => (
+                          <div key={index} className="p-4 border rounded-lg bg-blue-50">
+                            <div className="mb-2">
+                              <Label className="text-sm font-medium">Q{index + 1}: {pbq.question}</Label>
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                {pbq.answerType}
+                              </Badge>
+                            </div>
+                            {pbq.professionalAnswer && (
+                              <p className="text-sm text-gray-700 mb-2">
+                                <strong>Answer:</strong> {pbq.professionalAnswer}
+                              </p>
+                            )}
+                            {pbq.professionalAttachments && pbq.professionalAttachments.length > 0 && (
+                              <div className="mt-3">
+                                <Label className="text-xs font-medium text-gray-500 flex items-center space-x-1">
+                                  <Paperclip className="w-3 h-3" />
+                                  <span>Attachments ({pbq.professionalAttachments.length})</span>
+                                </Label>
+                                <div className="mt-2 space-y-2">
+                                  {pbq.professionalAttachments.map((attachment, attIndex) => (
+                                    <a
+                                      key={attIndex}
+                                      href={attachment.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      <Paperclip className="w-3 h-3" />
+                                      <span>Attachment {attIndex + 1}</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Quality Checks */}
                   {selectedProject.qualityChecks && selectedProject.qualityChecks.length > 0 && (

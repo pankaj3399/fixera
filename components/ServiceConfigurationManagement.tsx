@@ -1,0 +1,692 @@
+'use client'
+
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Switch } from "@/components/ui/switch"
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Loader2,
+  X,
+  CheckCircle,
+  AlertCircle,
+  Package
+} from "lucide-react"
+import { toast } from "sonner"
+
+interface DynamicField {
+  fieldName: string
+  fieldType: 'range' | 'dropdown' | 'number' | 'text'
+  unit?: string
+  label: string
+  placeholder?: string
+  isRequired: boolean
+  options?: string[]
+  min?: number
+  max?: number
+}
+
+interface IncludedItem {
+  name: string
+  description?: string
+  isDynamic: boolean
+  dynamicField?: DynamicField
+}
+
+interface ExtraOption {
+  name: string
+  description?: string
+  isCustomizable: boolean
+}
+
+interface ConditionWarning {
+  text: string
+  type: 'condition' | 'warning'
+}
+
+interface ServiceConfiguration {
+  _id?: string
+  category: string
+  service: string
+  areaOfWork?: string
+  pricingModel: string
+  certificationRequired: boolean
+  projectTypes: string[]
+  includedItems: IncludedItem[]
+  professionalInputFields: DynamicField[]
+  extraOptions: ExtraOption[]
+  conditionsAndWarnings: ConditionWarning[]
+  isActive: boolean
+  country: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+const EMPTY_FORM: ServiceConfiguration = {
+  category: '',
+  service: '',
+  areaOfWork: '',
+  pricingModel: '',
+  certificationRequired: false,
+  projectTypes: [],
+  includedItems: [],
+  professionalInputFields: [],
+  extraOptions: [],
+  conditionsAndWarnings: [],
+  isActive: true,
+  country: 'BE'
+}
+
+export default function ServiceConfigurationManagement() {
+  const [services, setServices] = useState<ServiceConfiguration[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const [formData, setFormData] = useState<ServiceConfiguration>(EMPTY_FORM)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  // Fetch all services
+  const fetchServices = async () => {
+    console.log('📡 Fetching services from:', `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/service-configurations`)
+    try {
+      setLoading(true)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/service-configurations`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      console.log('📥 Response status:', response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Services fetched:', data)
+        setServices(data.data || [])
+      } else {
+        const error = await response.json()
+        console.error('❌ Fetch failed:', error)
+        toast.error(error.message || 'Failed to fetch service configurations')
+      }
+    } catch (error) {
+      console.error('💥 Error fetching services:', error)
+      toast.error('Failed to load service configurations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Create new service
+  const createService = async () => {
+    console.log('➕ Creating service:', formData)
+    try {
+      setSaving(true)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/service-configurations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(formData)
+      })
+
+      console.log('📥 Create response status:', response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Service created:', data)
+        toast.success('Service created successfully!')
+        setEditDialogOpen(false)
+        setFormData(EMPTY_FORM)
+        setEditingId(null)
+        await fetchServices()
+      } else {
+        const error = await response.json()
+        console.error('❌ Create failed:', error)
+        toast.error(error.message || 'Failed to create service')
+      }
+    } catch (error) {
+      console.error('💥 Error creating service:', error)
+      toast.error('Failed to create service')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Update existing service
+  const updateService = async (id: string) => {
+    console.log(`✏️ Updating service ${id}:`, formData)
+    try {
+      setSaving(true)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/service-configurations/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(formData)
+      })
+
+      console.log('📥 Update response status:', response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Service updated:', data)
+        toast.success('Service updated successfully!')
+        setEditDialogOpen(false)
+        setFormData(EMPTY_FORM)
+        setEditingId(null)
+        await fetchServices()
+      } else {
+        const error = await response.json()
+        console.error('❌ Update failed:', error)
+        toast.error(error.message || 'Failed to update service')
+      }
+    } catch (error) {
+      console.error('💥 Error updating service:', error)
+      toast.error('Failed to update service')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Delete service
+  const deleteService = async (id: string) => {
+    console.log(`🗑️ Deleting service: ${id}`)
+    try {
+      setDeleting(true)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/service-configurations/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+
+      console.log('📥 Delete response status:', response.status)
+
+      if (response.ok) {
+        console.log('✅ Service deleted')
+        toast.success('Service deleted successfully')
+        setDeleteDialogOpen(false)
+        setDeleteId(null)
+        await fetchServices()
+      } else {
+        const error = await response.json()
+        console.error('❌ Delete failed:', error)
+        toast.error(error.message || 'Failed to delete service')
+      }
+    } catch (error) {
+      console.error('💥 Error deleting service:', error)
+      toast.error('Failed to delete service')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // Open dialog for adding new service
+  const handleAddClick = () => {
+    console.log('🆕 Opening add dialog')
+    setFormData(EMPTY_FORM)
+    setEditingId(null)
+    setEditDialogOpen(true)
+  }
+
+  // Open dialog for editing service
+  const handleEditClick = (service: ServiceConfiguration) => {
+    console.log('✏️ Opening edit dialog for:', service)
+    setFormData({ ...service })
+    setEditingId(service._id || null)
+    setEditDialogOpen(true)
+    console.log('✏️ Edit dialog state set to:', true)
+  }
+
+  // Open delete confirmation dialog
+  const handleDeleteClick = (id: string) => {
+    console.log('🗑️ Opening delete dialog for:', id)
+    setDeleteId(id)
+    setDeleteDialogOpen(true)
+    console.log('🗑️ Delete dialog state set to:', true)
+  }
+
+  // Handle save button click
+  const handleSave = () => {
+    if (editingId) {
+      updateService(editingId)
+    } else {
+      createService()
+    }
+  }
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = () => {
+    if (deleteId) {
+      deleteService(deleteId)
+    }
+  }
+
+  // Project Type handlers
+  const addProjectType = () => {
+    setFormData(prev => ({
+      ...prev,
+      projectTypes: [...prev.projectTypes, '']
+    }))
+  }
+
+  const removeProjectType = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      projectTypes: prev.projectTypes.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateProjectType = (index: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      projectTypes: prev.projectTypes.map((item, i) => i === index ? value : item)
+    }))
+  }
+
+  // Included Item handlers
+  const addIncludedItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      includedItems: [...prev.includedItems, { name: '', description: '', isDynamic: false }]
+    }))
+  }
+
+  const removeIncludedItem = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      includedItems: prev.includedItems.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateIncludedItem = (index: number, field: keyof IncludedItem, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      includedItems: prev.includedItems.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      )
+    }))
+  }
+
+  useEffect(() => {
+    fetchServices()
+  }, [])
+
+  useEffect(() => {
+    console.log('🔄 Edit dialog state changed:', editDialogOpen)
+  }, [editDialogOpen])
+
+  useEffect(() => {
+    console.log('🔄 Delete dialog state changed:', deleteDialogOpen)
+  }, [deleteDialogOpen])
+
+  if (loading) {
+    return (
+      <Card className="border-2 border-transparent bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Service Configuration Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span className="ml-2">Loading services...</span>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-2 border-transparent bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg relative before:absolute before:inset-0 before:rounded-lg before:p-[2px] before:bg-gradient-to-br before:from-purple-300 before:via-pink-300 before:to-blue-300 before:-z-10">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-purple-600" />
+                Service Configuration Management
+              </CardTitle>
+              <CardDescription>
+                Manage your service configurations, pricing models, and requirements
+              </CardDescription>
+            </div>
+
+            <Button
+              onClick={handleAddClick}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Service
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {services.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">No Services Yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Start by adding your first service configuration
+              </p>
+              <Button onClick={handleAddClick} className="bg-gradient-to-r from-purple-500 to-pink-500">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Service
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                {services.length} service{services.length !== 1 ? 's' : ''} configured
+              </div>
+
+              <div className="border-2 border-transparent bg-white rounded-lg overflow-hidden relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-blue-200 before:via-purple-200 before:to-pink-200 before:-z-10">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Service</TableHead>
+                      <TableHead>Area of Work</TableHead>
+                      <TableHead>Pricing Model</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {services.map((service) => (
+                      <TableRow key={service._id}>
+                        <TableCell className="font-medium">{service.category}</TableCell>
+                        <TableCell>{service.service}</TableCell>
+                        <TableCell>{service.areaOfWork || '-'}</TableCell>
+                        <TableCell className="text-sm">{service.pricingModel}</TableCell>
+                        <TableCell>
+                          {service.isActive ? (
+                            <Badge className="bg-green-100 text-green-800 border-green-200">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Inactive
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClick(service)}
+                              className="h-8 px-2 hover:bg-blue-50"
+                              title="Edit service"
+                            >
+                              <Edit2 className="h-4 w-4 text-blue-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteClick(service._id!)}
+                              className="h-8 px-2 hover:bg-red-50"
+                              title="Delete service"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => {
+        console.log('🔄 Dialog onOpenChange called with:', open)
+        setEditDialogOpen(open)
+        if (!open) {
+          setFormData(EMPTY_FORM)
+          setEditingId(null)
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-2xl bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              {editingId ? 'Edit Service Configuration' : 'Add New Service Configuration'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure the service details, pricing model, and requirements
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* Basic Information */}
+            <div className="space-y-4 p-4 rounded-lg border-2 border-transparent bg-white relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-purple-200 before:to-pink-200 before:-z-10">
+              <h3 className="font-semibold text-lg">Basic Information</h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category *</Label>
+                  <Input
+                    id="category"
+                    value={formData.category}
+                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    placeholder="e.g., Exterior, Interior"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="service">Service *</Label>
+                  <Input
+                    id="service"
+                    value={formData.service}
+                    onChange={(e) => setFormData(prev => ({ ...prev, service: e.target.value }))}
+                    placeholder="e.g., Architect, Plumbing"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="areaOfWork">Area of Work</Label>
+                  <Input
+                    id="areaOfWork"
+                    value={formData.areaOfWork}
+                    onChange={(e) => setFormData(prev => ({ ...prev, areaOfWork: e.target.value }))}
+                    placeholder="e.g., Strip Foundations, Raft Foundation"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pricingModel">Pricing Model *</Label>
+                  <Input
+                    id="pricingModel"
+                    value={formData.pricingModel}
+                    onChange={(e) => setFormData(prev => ({ ...prev, pricingModel: e.target.value }))}
+                    placeholder="e.g., Total price, Per m²"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="certificationRequired"
+                  checked={formData.certificationRequired}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, certificationRequired: checked }))}
+                />
+                <Label htmlFor="certificationRequired">Certification Required</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isActive: checked }))}
+                />
+                <Label htmlFor="isActive">Service Active</Label>
+              </div>
+            </div>
+
+            {/* Project Types */}
+            <div className="space-y-4 p-4 rounded-lg border-2 border-transparent bg-white relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-blue-200 before:to-purple-200 before:-z-10">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Project Types</h3>
+                <Button onClick={addProjectType} size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Type
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {formData.projectTypes.map((type, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      value={type}
+                      onChange={(e) => updateProjectType(index, e.target.value)}
+                      placeholder="e.g., New Built, Extension, Refurbishment"
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={() => removeProjectType(index)}
+                      variant="ghost"
+                      size="sm"
+                      className="hover:bg-red-50"
+                    >
+                      <X className="h-4 w-4 text-red-600" />
+                    </Button>
+                  </div>
+                ))}
+                {formData.projectTypes.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No project types added yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* Included Items */}
+            <div className="space-y-4 p-4 rounded-lg border-2 border-transparent bg-white relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-green-200 before:to-blue-200 before:-z-10">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Included Items</h3>
+                <Button onClick={addIncludedItem} size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Item
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {formData.includedItems.map((item, index) => (
+                  <div key={index} className="p-3 border rounded-lg space-y-2 bg-gray-50">
+                    <div className="flex gap-2">
+                      <Input
+                        value={item.name}
+                        onChange={(e) => updateIncludedItem(index, 'name', e.target.value)}
+                        placeholder="Item name"
+                        className="flex-1 bg-white"
+                      />
+                      <Button
+                        onClick={() => removeIncludedItem(index)}
+                        variant="ghost"
+                        size="sm"
+                        className="hover:bg-red-50"
+                      >
+                        <X className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                    <Input
+                      value={item.description || ''}
+                      onChange={(e) => updateIncludedItem(index, 'description', e.target.value)}
+                      placeholder="Description (optional)"
+                      className="bg-white"
+                    />
+                  </div>
+                ))}
+                {formData.includedItems.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No included items added yet</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditDialogOpen(false)
+                  setFormData(EMPTY_FORM)
+                  setEditingId(null)
+                }}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={!formData.category || !formData.service || !formData.pricingModel || saving}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+              >
+                {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {editingId ? 'Update Service' : 'Create Service'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        console.log('🔄 Delete dialog onOpenChange called with:', open)
+        setDeleteDialogOpen(open)
+      }}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete Service Configuration</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this service configuration? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                setDeleteId(null)
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete Service
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
