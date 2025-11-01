@@ -22,6 +22,7 @@ interface CertificationManagerProps {
   onChange: (certifications: ICertification[]) => void;
   required: boolean;
   projectId?: string;
+  requiredTypes?: string[];
 }
 
 const CERTIFICATION_TYPES = [
@@ -36,7 +37,8 @@ export default function CertificationManager({
   certifications,
   onChange,
   required,
-  projectId
+  projectId,
+  requiredTypes = []
 }: CertificationManagerProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
     certifications.map(c => c.name)
@@ -104,8 +106,10 @@ export default function CertificationManager({
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Certifications</span>
-          {required && (
-            <Badge variant="destructive" className="text-xs">Required</Badge>
+          {(required || (requiredTypes && requiredTypes.length > 0)) && (
+            <Badge variant="destructive" className="text-xs">
+              {requiredTypes && requiredTypes.length > 0 ? `Required: ${requiredTypes.join(', ')}` : 'Required'}
+            </Badge>
           )}
         </CardTitle>
         <CardDescription>
@@ -146,6 +150,9 @@ export default function CertificationManager({
                 <Label className="cursor-pointer text-sm flex-1">
                   {type}
                 </Label>
+                {requiredTypes.includes(type) && (
+                  <Badge variant="outline" className="text-[10px]">Required</Badge>
+                )}
               </div>
             ))}
           </div>
