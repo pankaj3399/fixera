@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
@@ -117,13 +117,7 @@ export default function CategoryPage() {
   const categoryName = getCategoryName(categorySlug);
   const categoryDescription = `Find verified professionals for all your ${categoryName.toLowerCase()} needs`;
 
-  useEffect(() => {
-    if (categorySlug) {
-      fetchProfessionals();
-    }
-  }, [categorySlug]);
-
-  const fetchProfessionals = async () => {
+  const fetchProfessionals = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -147,7 +141,13 @@ export default function CategoryPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [categorySlug]);
+
+  useEffect(() => {
+    if (categorySlug) {
+      fetchProfessionals();
+    }
+  }, [categorySlug, fetchProfessionals]);
 
   if (isLoading) {
     return (

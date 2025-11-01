@@ -226,13 +226,50 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const fetchTeamMembers = async () => {
     setLoadingTeamMembers(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/team/members`, {
-        credentials: 'include'
-      })
-      if (response.ok) {
-        const result = await response.json()
-        setTeamMembers(result.data?.teamMembers || [])
+      // Fetch employees and current user (professional) and merge
+      const [empRes, meRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/list`, { credentials: 'include' }),
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/me`, { credentials: 'include' })
+      ])
+
+      let members: TeamMember[] = []
+
+      if (empRes.ok) {
+        const result = await empRes.json()
+        type EmployeeApi = {
+          _id: string
+          name: string
+          email?: string
+          hasEmail?: boolean
+          isActive?: boolean
+        }
+        const employees: EmployeeApi[] = result?.data?.employees || []
+        members = employees.map((m: EmployeeApi) => ({
+          _id: m._id,
+          name: m.name,
+          email: m.email,
+          hasEmail: typeof m.hasEmail === 'boolean' ? m.hasEmail : !!m.email,
+          isActive: typeof m.isActive === 'boolean' ? m.isActive : true,
+        }))
       }
+
+      if (meRes.ok) {
+        const me = await meRes.json()
+        const user = me?.user
+        if (user && user._id) {
+          const selfMember: TeamMember = {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            hasEmail: !!user.email,
+            isActive: true,
+          }
+          // Put professional first and de-duplicate
+          members = [selfMember, ...members.filter(m => m._id !== selfMember._id)]
+        }
+      }
+
+      setTeamMembers(members)
     } catch (error) {
       console.error('Failed to fetch team members:', error)
     } finally {
@@ -783,6 +820,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                         {!member.hasEmail && (
                           <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
                         )}
+                        {formData.category && (
+                          <div className="mt-1">
+                            <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -832,6 +874,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                         )}
                         {!member.hasEmail && (
                           <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                        )}
+                        {formData.category && (
+                          <div className="mt-1">
+                            <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -891,6 +938,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                             {!member.hasEmail && (
                               <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
                             )}
+                            {formData.category && (
+                              <div className="mt-1">
+                                <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -924,6 +976,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                             )}
                             {!member.hasEmail && (
                               <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                            )}
+                            {formData.category && (
+                              <div className="mt-1">
+                                <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                              </div>
                             )}
                           </div>
                         </div>

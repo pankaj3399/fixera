@@ -85,7 +85,6 @@ export default function AvailabilityCalendar({
   personalBlockedRanges = [],
   companyBlockedDates = [],
   companyBlockedRanges = [],
-  mode = 'professional',
   onToggleDay,
   onAddRange,
   disabledPast = true,

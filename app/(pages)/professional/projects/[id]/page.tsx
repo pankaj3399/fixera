@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, useParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Image from "next/image"
 import MeetingScheduler from "@/components/professional/meetings/MeetingScheduler"
 import MeetingsList from "@/components/professional/meetings/MeetingsList"
@@ -27,15 +27,10 @@ import {
   HelpCircle,
   MessageSquare,
   ImageIcon,
-  Play,
   Award,
-  Timer,
-  Target,
   Shield,
   ExternalLink,
-  Phone,
-  Building,
-  ZoomIn
+  
 } from "lucide-react"
 
 // Extended interfaces to match the full project model
@@ -234,13 +229,7 @@ export default function ProjectDetailPage() {
     }
   }, [isAuthenticated, loading, router, user])
 
-  useEffect(() => {
-    if (user?.role === 'professional' && params.id) {
-      fetchProject()
-    }
-  }, [user, params.id])
-
-  const fetchProject = async () => {
+  const fetchProject = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${params.id}`, {
@@ -259,7 +248,13 @@ export default function ProjectDetailPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    if (user?.role === 'professional' && params.id) {
+      fetchProject()
+    }
+  }, [user, params.id, fetchProject])
 
   const getStatusColor = (status: string) => {
     switch (status) {

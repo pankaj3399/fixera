@@ -355,7 +355,7 @@ export default function ProjectCreatePage() {
     if (currentStep === 8) {
       handleStepValidation(8, true)
     }
-  }, [currentStep])
+  }, [currentStep, handleStepValidation])
 
   const handleSubmit = async () => {
     if (isLoading) return // Prevent multiple submissions

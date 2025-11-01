@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowRight, Star, Shield, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowRight, Shield, Loader2, AlertCircle } from 'lucide-react';
 import { iconMap } from '@/data/content';
 import { toast } from 'sonner';
 

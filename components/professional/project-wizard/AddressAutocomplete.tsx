@@ -59,7 +59,7 @@ export default function AddressAutocomplete({
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
-  }, [isLoaded, useCompanyAddress]);
+  }, [isLoaded, useCompanyAddress, onChange, onValidation]);
 
   // Validate on blur - only for manually typed addresses
   const handleBlur = async () => {
@@ -95,13 +95,6 @@ export default function AddressAutocomplete({
     setValidating(false);
   };
 
-  // Validate company address when it changes
-  useEffect(() => {
-    if (useCompanyAddress && companyAddress) {
-      validateCompanyAddress();
-    }
-  }, [useCompanyAddress, companyAddress]);
-
   const validateCompanyAddress = async () => {
     if (!companyAddress) return;
 
@@ -111,6 +104,13 @@ export default function AddressAutocomplete({
     onValidation(valid);
     setValidating(false);
   };
+
+  // Validate company address when it changes
+  useEffect(() => {
+    if (useCompanyAddress && companyAddress) {
+      validateCompanyAddress();
+    }
+  }, [useCompanyAddress, companyAddress]);
 
   // Initialize: If value already exists on mount and hasn't been validated yet, validate it
   useEffect(() => {
@@ -131,7 +131,7 @@ export default function AddressAutocomplete({
         setValidating(false);
       })();
     }
-  }, []);
+  }, [value, validateAddress, onValidation]);
 
   // Watch for value changes from parent and preserve validation if it's the same validated address
   useEffect(() => {

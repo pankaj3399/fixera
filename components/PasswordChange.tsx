@@ -14,14 +14,13 @@ import {
   CheckCircle
 } from "lucide-react"
 import { toast } from "sonner"
-import { useAuth } from "@/contexts/AuthContext"
+
 
 interface PasswordChangeProps {
   className?: string
 }
 
 export default function PasswordChange({ className }: PasswordChangeProps) {
-  const { user: _ } = useAuth()
   const [loading, setLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)

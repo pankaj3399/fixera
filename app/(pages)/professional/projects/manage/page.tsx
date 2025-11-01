@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -64,7 +64,6 @@ export default function ManageProjectsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const [projects, setProjects] = useState<Project[]>([])
-  const [drafts, setDrafts] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -103,21 +102,6 @@ export default function ManageProjectsPage() {
 
     return () => clearTimeout(timer)
   }, [searchTerm])
-
-  // Fetch projects when filters change
-  useEffect(() => {
-    if (user?.role === 'professional') {
-      setCurrentPage(1) // Reset to first page when filters change
-      fetchProjects()
-    }
-  }, [user, debouncedSearchTerm, statusFilter, categoryFilter])
-
-  // Fetch projects when page changes
-  useEffect(() => {
-    if (user?.role === 'professional' && currentPage > 1) {
-      fetchProjects()
-    }
-  }, [currentPage])
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true)
@@ -173,29 +157,28 @@ export default function ManageProjectsPage() {
             })
           }
 
-          // Set drafts for backwards compatibility
-          setDrafts(responseData.items.filter((p: Project) => p.status === 'draft'))
+          // drafts list no longer used; counts cover stats
         } else if (responseData.projects) {
           // Legacy paginated response
           setProjects(responseData.projects)
           setTotalPages(responseData.totalPages || 1)
           setTotalProjects(responseData.totalProjects || responseData.projects.length)
           setCurrentPage(responseData.currentPage || 1)
-          setDrafts(responseData.projects.filter((p: Project) => p.status === 'draft'))
+          // drafts list no longer used; counts cover stats
         } else if (Array.isArray(responseData)) {
           // Direct array response
           setProjects(responseData)
           setTotalPages(1)
           setTotalProjects(responseData.length)
           setCurrentPage(1)
-          setDrafts(responseData.filter((p: Project) => p.status === 'draft'))
+          // drafts list no longer used; counts cover stats
         } else {
           // Fallback
           setProjects([])
           setTotalPages(1)
           setTotalProjects(0)
           setCurrentPage(1)
-          setDrafts([])
+          // drafts list no longer used; counts cover stats
         }
       } else {
         const errorData = await projectsResponse.json().catch(() => ({}))
@@ -214,6 +197,21 @@ export default function ManageProjectsPage() {
       setIsLoading(false)
     }
   }, [debouncedSearchTerm, statusFilter, categoryFilter, currentPage])
+
+  // Fetch projects when filters change
+  useEffect(() => {
+    if (user?.role === 'professional') {
+      setCurrentPage(1) // Reset to first page when filters change
+      fetchProjects()
+    }
+  }, [user, debouncedSearchTerm, statusFilter, categoryFilter, fetchProjects])
+
+  // Fetch projects when page changes
+  useEffect(() => {
+    if (user?.role === 'professional' && currentPage > 1) {
+      fetchProjects()
+    }
+  }, [currentPage, user?.role, fetchProjects])
 
   const getStatusColor = (status: string) => {
     switch (status) {

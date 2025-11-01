@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, Clock, CalendarX } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, CalendarX } from "lucide-react"
 import EmployeeManagement from "@/components/TeamManagement"
 import PasswordChange from "@/components/PasswordChange"
 import EmployeeAvailability from "@/components/EmployeeAvailability"
@@ -448,15 +448,7 @@ export default function ProfilePage() {
     )
   }
 
-  const updateAvailability = (day: string, field: string, value: boolean | string) => {
-    setAvailability(prev => ({
-      ...prev,
-      [day]: {
-        ...prev[day as keyof typeof prev],
-        [field]: value
-      }
-    }))
-  }
+  
 
   const addBlockedDate = async () => {
     if (!newBlockedDate.date) return
@@ -701,7 +693,7 @@ export default function ProfilePage() {
       } else {
         toast.error(result.error || 'Failed to auto-populate business information')
       }
-    } catch (_) {
+    } catch {
       toast.error('Failed to auto-populate business information')
     } finally {
       setVatSaving(false)
@@ -731,7 +723,7 @@ export default function ProfilePage() {
           toast.error(result.error || 'Failed to submit for verification')
         }
       }
-    } catch (_) {
+    } catch {
       toast.error('Failed to submit for verification')
     } finally {
       setVerificationSubmitting(false)
@@ -1320,72 +1312,6 @@ export default function ProfilePage() {
                 onAddRange={addBlockedRangeFromCalendar}
                 compact
               />
-
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold">Your Personal Working Hours</h3>
-                <p className="text-sm text-muted-foreground">Set your own working schedule and time off (separate from company hours)</p>
-              </div>
-
-              {/* Personal Weekly Schedule */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Weekly Schedule
-                  </CardTitle>
-                  <CardDescription>
-                    Set your working hours for each day of the week
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {Object.entries(availability).map(([day, schedule]) => (
-                    <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
-                      <div className="w-20 text-sm font-medium capitalize">{day}</div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={schedule.available}
-                          onChange={(e) => updateAvailability(day, 'available', e.target.checked)}
-                          className="rounded"
-                        />
-                        <span className="text-sm">Available</span>
-                      </div>
-                      {schedule.available && (
-                        <>
-                          <Input
-                            type="time"
-                            value={schedule.startTime}
-                            onChange={(e) => updateAvailability(day, 'startTime', e.target.value)}
-                            className="w-32"
-                          />
-                          <span className="text-sm">to</span>
-                          <Input
-                            type="time"
-                            value={schedule.endTime}
-                            onChange={(e) => updateAvailability(day, 'endTime', e.target.value)}
-                            className="w-32"
-                          />
-                        </>
-                      )}
-                    </div>
-                  ))}
-                  
-                  <Button 
-                    onClick={saveBusinessInfo}
-                    disabled={profileSaving}
-                    className="w-full mt-6"
-                  >
-                    {profileSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Availability'
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
 
               {/* PHASE 4: Enhanced Date Blocking Card */}
               <Card>
