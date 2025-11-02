@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -58,16 +59,24 @@ interface ServiceConfiguration {
   areaOfWork?: string
   pricingModel: string
   certificationRequired: boolean
+  requiredCertifications?: string[]
   projectTypes: string[]
   includedItems: IncludedItem[]
   professionalInputFields: DynamicField[]
   extraOptions: ExtraOption[]
   conditionsAndWarnings: ConditionWarning[]
   isActive: boolean
-  country: string
+  country?: string
+  activeCountries?: string[]
   createdAt?: string
   updatedAt?: string
 }
+
+const CERTIFICATION_TYPES = [
+  'ISO', 'EN', 'VCA', 'BREEAM', 'LEED', 'DGNB',
+  'Architect', 'Demolition', 'EPC', 'Asbestos',
+  'Gas & Oil', 'Electric', 'Waste Transport', 'Pest Control'
+]
 
 const EMPTY_FORM: ServiceConfiguration = {
   category: '',
@@ -75,13 +84,14 @@ const EMPTY_FORM: ServiceConfiguration = {
   areaOfWork: '',
   pricingModel: '',
   certificationRequired: false,
+  requiredCertifications: [],
   projectTypes: [],
   includedItems: [],
   professionalInputFields: [],
   extraOptions: [],
   conditionsAndWarnings: [],
   isActive: true,
-  country: 'BE'
+  activeCountries: ['BE']
 }
 
 export default function ServiceConfigurationManagement() {
@@ -95,6 +105,7 @@ export default function ServiceConfigurationManagement() {
   const [formData, setFormData] = useState<ServiceConfiguration>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  
 
   // Fetch all services
   const fetchServices = async () => {
@@ -129,8 +140,9 @@ export default function ServiceConfigurationManagement() {
   }
 
   // Create new service
-  const createService = async () => {
-    console.log('➕ Creating service:', formData)
+  const createService = async (dataOverride?: ServiceConfiguration) => {
+    const payload = dataOverride || { ...formData, activeCountries: (formData.activeCountries || []).filter(Boolean) }
+    console.log('Creating service:', payload)
     try {
       setSaving(true)
 
@@ -140,14 +152,14 @@ export default function ServiceConfigurationManagement() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
 
-      console.log('📥 Create response status:', response.status)
+      console.log('Create response status:', response.status)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ Service created:', data)
+        console.log('Service created:', data)
         toast.success('Service created successfully!')
         setEditDialogOpen(false)
         setFormData(EMPTY_FORM)
@@ -155,11 +167,11 @@ export default function ServiceConfigurationManagement() {
         await fetchServices()
       } else {
         const error = await response.json()
-        console.error('❌ Create failed:', error)
+        console.error('Create failed:', error)
         toast.error(error.message || 'Failed to create service')
       }
     } catch (error) {
-      console.error('💥 Error creating service:', error)
+      console.error('Error creating service:', error)
       toast.error('Failed to create service')
     } finally {
       setSaving(false)
@@ -167,8 +179,9 @@ export default function ServiceConfigurationManagement() {
   }
 
   // Update existing service
-  const updateService = async (id: string) => {
-    console.log(`✏️ Updating service ${id}:`, formData)
+  const updateService = async (id: string, dataOverride?: ServiceConfiguration) => {
+    const payload = dataOverride || { ...formData, activeCountries: (formData.activeCountries || []).filter(Boolean) }
+    console.log(`Updating service ${id}:`, payload)
     try {
       setSaving(true)
 
@@ -178,14 +191,14 @@ export default function ServiceConfigurationManagement() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
 
-      console.log('📥 Update response status:', response.status)
+      console.log('Update response status:', response.status)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ Service updated:', data)
+        console.log('Service updated:', data)
         toast.success('Service updated successfully!')
         setEditDialogOpen(false)
         setFormData(EMPTY_FORM)
@@ -193,11 +206,11 @@ export default function ServiceConfigurationManagement() {
         await fetchServices()
       } else {
         const error = await response.json()
-        console.error('❌ Update failed:', error)
+        console.error('Update failed:', error)
         toast.error(error.message || 'Failed to update service')
       }
     } catch (error) {
-      console.error('💥 Error updating service:', error)
+      console.error('Error updating service:', error)
       toast.error('Failed to update service')
     } finally {
       setSaving(false)
@@ -247,7 +260,11 @@ export default function ServiceConfigurationManagement() {
   // Open dialog for editing service
   const handleEditClick = (service: ServiceConfiguration) => {
     console.log('✏️ Opening edit dialog for:', service)
-    setFormData({ ...service })
+    const legacyCountry = service.country
+    const resolvedActiveCountries = Array.isArray(service.activeCountries) && service.activeCountries.length > 0
+      ? service.activeCountries
+      : legacyCountry ? [legacyCountry] : []
+    setFormData({ ...service, activeCountries: resolvedActiveCountries })
     setEditingId(service._id || null)
     setEditDialogOpen(true)
     console.log('✏️ Edit dialog state set to:', true)
@@ -319,6 +336,56 @@ export default function ServiceConfigurationManagement() {
       ...prev,
       includedItems: prev.includedItems.map((item, i) =>
         i === index ? { ...item, [field]: value } : item
+      )
+    }))
+  }
+
+  // Extra Options handlers
+  const addExtraOption = () => {
+    setFormData(prev => ({
+      ...prev,
+      extraOptions: [...prev.extraOptions, { name: '', description: '', isCustomizable: false }]
+    }))
+  }
+
+  const removeExtraOption = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      extraOptions: prev.extraOptions.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateExtraOption = (index: number, field: keyof ExtraOption, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      extraOptions: prev.extraOptions.map((opt, i) => i === index ? { ...opt, [field]: value } : opt)
+    }))
+  }
+
+  // Conditions & Warnings handlers
+  const addConditionWarning = () => {
+    setFormData(prev => ({
+      ...prev,
+      conditionsAndWarnings: [...prev.conditionsAndWarnings, { text: '', type: 'condition' }]
+    }))
+  }
+
+  const removeConditionWarning = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      conditionsAndWarnings: prev.conditionsAndWarnings.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateConditionWarning = <K extends keyof ConditionWarning>(
+    index: number,
+    field: K,
+    value: ConditionWarning[K]
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      conditionsAndWarnings: prev.conditionsAndWarnings.map((cw, i) =>
+        i === index ? ({ ...cw, [field]: value } as ConditionWarning) : cw
       )
     }))
   }
@@ -530,13 +597,47 @@ export default function ServiceConfigurationManagement() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="certificationRequired"
-                  checked={formData.certificationRequired}
-                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, certificationRequired: checked }))}
+              {/* Active Countries */}
+              <div className="space-y-2">
+                <Label htmlFor="activeCountries">Active Countries</Label>
+                <Input
+                  id="activeCountries"
+                  value={(formData.activeCountries || []).join(', ')}
+                  onChange={(e) => {
+                    console.log('ActiveCountries input change:', e.target.value)
+                    const parts = e.target.value.split(',').map(s => s.trim())
+                    setFormData(prev => ({ ...prev, activeCountries: parts }))
+                  }}
+                  placeholder="e.g., BE, NL, FR"
                 />
-                <Label htmlFor="certificationRequired">Certification Required</Label>
+                <p className="text-xs text-muted-foreground">Comma-separated ISO country codes</p>
+              </div>
+
+              {/* Required Certifications */}
+              <div className="space-y-2">
+                <Label>Required Certifications</Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {CERTIFICATION_TYPES.map((type) => {
+                    const checked = (formData.requiredCertifications || []).includes(type)
+                    return (
+                      <div key={type} className="flex items-center space-x-2 p-2 border rounded">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            const isChecked = Boolean(v)
+                            setFormData(prev => ({
+                              ...prev,
+                              requiredCertifications: isChecked
+                                ? [ ...(prev.requiredCertifications || []), type ]
+                                : (prev.requiredCertifications || []).filter(t => t !== type)
+                            }))
+                          }}
+                        />
+                        <Label className="cursor-pointer text-sm">{type}</Label>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -580,6 +681,100 @@ export default function ServiceConfigurationManagement() {
                 ))}
                 {formData.projectTypes.length === 0 && (
                   <p className="text-sm text-muted-foreground">No project types added yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* Extra Options */}
+            <div className="space-y-4 p-4 rounded-lg border-2 border-transparent bg-white relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-yellow-200 before:to-orange-200 before:-z-10">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Extra Options</h3>
+                <Button onClick={addExtraOption} size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Extra
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {(formData.extraOptions || []).map((opt, index) => (
+                  <div key={index} className="p-3 border rounded-lg space-y-2 bg-gray-50">
+                    <div className="flex gap-2">
+                      <Input
+                        value={opt.name}
+                        onChange={(e) => updateExtraOption(index, 'name', e.target.value)}
+                        placeholder="Extra name"
+                        className="flex-1 bg-white"
+                      />
+                      <Button
+                        onClick={() => removeExtraOption(index)}
+                        variant="ghost"
+                        size="sm"
+                        className="hover:bg-red-50"
+                      >
+                        <X className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                    <Input
+                      value={opt.description || ''}
+                      onChange={(e) => updateExtraOption(index, 'description', e.target.value)}
+                      placeholder="Description (optional)"
+                      className="bg-white"
+                    />
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id={`extra-customizable-${index}`}
+                        checked={!!opt.isCustomizable}
+                        onCheckedChange={(checked) => updateExtraOption(index, 'isCustomizable', checked)}
+                      />
+                      <Label htmlFor={`extra-customizable-${index}`}>Customizable by professional</Label>
+                    </div>
+                  </div>
+                ))}
+                {(!formData.extraOptions || formData.extraOptions.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No extras added yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* Conditions & Warnings */}
+            <div className="space-y-4 p-4 rounded-lg border-2 border-transparent bg-white relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-red-200 before:to-pink-200 before:-z-10">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Conditions & Warnings</h3>
+                <Button onClick={addConditionWarning} size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Item
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {(formData.conditionsAndWarnings || []).map((cw, index) => (
+                  <div key={index} className="p-3 border rounded-lg space-y-2 bg-gray-50">
+                    <div className="flex gap-2">
+                      <Input
+                        value={cw.text}
+                        onChange={(e) => updateConditionWarning(index, 'text', e.target.value)}
+                        placeholder="Condition or warning text"
+                        className="flex-1 bg-white"
+                      />
+                      <select
+                        className="border rounded px-2 py-1 bg-white"
+                        value={cw.type}
+                        onChange={(e) => updateConditionWarning(index, 'type', e.target.value as 'condition' | 'warning')}
+                      >
+                        <option value="condition">Condition</option>
+                        <option value="warning">Warning</option>
+                      </select>
+                      <Button
+                        onClick={() => removeConditionWarning(index)}
+                        variant="ghost"
+                        size="sm"
+                        className="hover:bg-red-50"
+                      >
+                        <X className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {(!formData.conditionsAndWarnings || formData.conditionsAndWarnings.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No conditions or warnings added yet</p>
                 )}
               </div>
             </div>

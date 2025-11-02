@@ -86,6 +86,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const [serviceConfig, setServiceConfig] = useState<{
     pricingModel?: string;
     certificationRequired?: boolean;
+    requiredCertifications?: string[];
     projectTypes?: string[];
     areaOfWorkRequired?: boolean;
   } | null>(null)
@@ -296,9 +297,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       (serviceConfig?.areaOfWorkRequired && formData.areaOfWork)
 
     // Check certifications when required by service configuration
-    const isCertificationsValid = !serviceConfig?.certificationRequired || (
-      Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
-      formData.certifications.every(c => !!c.fileUrl)
+    const requiredTypes = serviceConfig?.requiredCertifications || []
+    const hasRequiredTypes = requiredTypes.length === 0 || (
+      Array.isArray(formData.certifications) &&
+      requiredTypes.every(t => formData.certifications!.some(c => c.name === t && !!c.fileUrl))
+    )
+    // Backward compatibility: if only boolean is provided, keep previous behavior
+    const isCertificationsValid = hasRequiredTypes && (
+      requiredTypes.length > 0 || !serviceConfig?.certificationRequired || (
+        Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
+        formData.certifications.every(c => !!c.fileUrl)
+      )
     )
 
     // Resources requirement per service/category
@@ -319,6 +328,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       isResourcesValid &&
       formData.description &&
       formData.description.length >= 100 &&
+      formData.title &&
+      formData.title.length >= 30 &&
       (isRenovationCategory || (!!formData.priceModel)) &&
       formData.distance?.address &&
       addressValid &&
@@ -332,6 +343,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
     if (!formData.category) errors.push('Category is required')
     if (!formData.service) errors.push('Service is required')
+    // Title validation
+    if (!formData.title) {
+      errors.push('Title is required')
+    } else if (formData.title.length < 30) {
+      errors.push('Title must be at least 30 characters long')
+    }
 
     // Check area of work requirement
     if (serviceConfig?.areaOfWorkRequired && !formData.areaOfWork) {
@@ -339,7 +356,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }
 
     // Check certifications requirement
-    if (serviceConfig?.certificationRequired) {
+    const requiredTypes = serviceConfig?.requiredCertifications || []
+    if (requiredTypes.length > 0) {
+      const missing = requiredTypes.filter(t => !formData.certifications?.some(c => c.name === t && !!c.fileUrl))
+      if (missing.length > 0) {
+        errors.push(`Missing required certifications: ${missing.join(', ')}`)
+      }
+    } else if (serviceConfig?.certificationRequired) {
       const hasValidCert = Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
         formData.certifications.every(c => !!c.fileUrl)
       if (!hasValidCert) {
@@ -766,7 +789,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       <CertificationManager
         certifications={formData.certifications || []}
         onChange={(certs) => updateFormData({ certifications: certs })}
-        required={serviceConfig?.certificationRequired || false}
+        required={!!(serviceConfig?.requiredCertifications && serviceConfig.requiredCertifications.length > 0) || !!serviceConfig?.certificationRequired}
+        requiredTypes={serviceConfig?.requiredCertifications || []}
         projectId={formData._id}
       />
 
@@ -1244,3 +1268,4 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 Step1BasicInfo.displayName = 'Step1BasicInfo'
 
 export default Step1BasicInfo
+ 
