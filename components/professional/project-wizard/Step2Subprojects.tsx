@@ -105,6 +105,16 @@ interface Step2Props {
   onValidate: (isValid: boolean) => void
 }
 
+interface IServiceConfigurationIncludedItem {
+  name?: string
+  isDynamic?: boolean
+  dynamicField?: {
+    fieldName?: string
+    label?: string
+    unit?: string
+  }
+}
+
 // Predefined included items by service category
 const PREDEFINED_INCLUDED_ITEMS = {
   'plumber': [
@@ -133,6 +143,13 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([])
   const [projectTypes, setProjectTypes] = useState<string[]>([])
+  const [configIncludedItems, setConfigIncludedItems] = useState<{
+    name: string
+    isDynamic?: boolean
+    fieldName?: string
+    label?: string
+    unit?: string
+  }[]>([])
 
   const fetchDynamicFields = async () => {
     try {
@@ -160,10 +177,43 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
     }
   }
 
+  const fetchServiceIncludedItems = async () => {
+    try {
+      const params = new URLSearchParams({
+        category: data.category || '',
+        service: data.service || ''
+      })
+      if (data.areaOfWork) params.append('areaOfWork', data.areaOfWork)
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`,
+        { credentials: 'include' }
+      )
+
+      if (response.ok) {
+        const result = await response.json()
+        const items = (result?.data?.includedItems || []).map((it: IServiceConfigurationIncludedItem) => ({
+          name: it?.name,
+          isDynamic: !!it?.isDynamic,
+          fieldName: it?.dynamicField?.fieldName,
+          label: it?.dynamicField?.label,
+          unit: it?.dynamicField?.unit,
+        }))
+        setConfigIncludedItems(items.filter((i: { name?: string }) => Boolean(i?.name)))
+      } else {
+        setConfigIncludedItems([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch service configuration:', error)
+      // do not toast repeatedly; keep silent here to avoid noise
+    }
+  }
+
   // Fetch dynamic fields when category/service changes
   useEffect(() => {
     if (data.category && data.service) {
       fetchDynamicFields()
+      fetchServiceIncludedItems()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.category, data.service, data.areaOfWork])
@@ -300,10 +350,15 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
 
   // Note: Dynamic fields are shown only when 'Service Details' is included
 
-  const getPredefinedItems = () => {
+  const getQuickAddItems = (): { name: string; fieldName?: string }[] => {
+    // Prefer admin-configured included items
+    if (configIncludedItems.length > 0) {
+      return configIncludedItems
+    }
+    // Fallback to predefined constants (names only)
     const service = data.service || 'default'
-    return PREDEFINED_INCLUDED_ITEMS[service as keyof typeof PREDEFINED_INCLUDED_ITEMS] ||
-      PREDEFINED_INCLUDED_ITEMS.default
+    const names = PREDEFINED_INCLUDED_ITEMS[service as keyof typeof PREDEFINED_INCLUDED_ITEMS] || PREDEFINED_INCLUDED_ITEMS.default
+    return names.map((n) => ({ name: n }))
   }
 
   const addMaterial = (subprojectId: string, material: IMaterial) => {
@@ -829,20 +884,26 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                     </div>
                   )}
 
-                  {/* Predefined Items */}
+                  {/* Predefined Items (from Admin Config if available) */}
                   <div className="mb-4">
                     <Label className="text-sm font-medium">Quick Add (Predefined)</Label>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {getPredefinedItems().map((item, index) => (
+                      {getQuickAddItems().map((item, index) => (
                         <Button
                           key={index}
                           variant="outline"
                           size="sm"
-                          onClick={() => addIncludedItem(subproject.id, item)}
-                          disabled={subproject.included.some(inc => inc.name === item)}
+                          onClick={() => item.fieldName
+                            ? addIncludedItem(subproject.id, item.name, false, { isDynamicField: true, fieldName: item.fieldName })
+                            : addIncludedItem(subproject.id, item.name)
+                          }
+                          disabled={item.fieldName
+                            ? subproject.included.some(inc => inc.fieldName === item.fieldName)
+                            : subproject.included.some(inc => inc.name === item.name)
+                          }
                         >
-                          {item}
-                        </Button>
+                          {item.name}
+                          </Button>
                       ))}
                     </div>
                   </div>

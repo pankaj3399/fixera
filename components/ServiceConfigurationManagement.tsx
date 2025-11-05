@@ -141,7 +141,12 @@ export default function ServiceConfigurationManagement() {
 
   // Create new service
   const createService = async (dataOverride?: ServiceConfiguration) => {
-    const payload = dataOverride || { ...formData, activeCountries: (formData.activeCountries || []).filter(Boolean) }
+    const cleanedActive = (formData.activeCountries || []).filter(Boolean)
+    if (cleanedActive.length === 0) {
+      toast.error('Please select at least one active country')
+      return
+    }
+    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
     console.log('Creating service:', payload)
     try {
       setSaving(true)
@@ -180,7 +185,12 @@ export default function ServiceConfigurationManagement() {
 
   // Update existing service
   const updateService = async (id: string, dataOverride?: ServiceConfiguration) => {
-    const payload = dataOverride || { ...formData, activeCountries: (formData.activeCountries || []).filter(Boolean) }
+    const cleanedActive = (dataOverride?.activeCountries ?? formData.activeCountries ?? []).filter(Boolean)
+    if (cleanedActive.length === 0) {
+      toast.error('Please select at least one active country')
+      return
+    }
+    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
     console.log(`Updating service ${id}:`, payload)
     try {
       setSaving(true)

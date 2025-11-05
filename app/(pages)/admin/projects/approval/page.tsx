@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   CheckCircle,
   XCircle,
@@ -46,32 +48,34 @@ interface Professional {
   professionalStatus?: string
 }
 
-interface MediaFile {
-  url: string
-  key: string
-  uploadedAt: string
-}
+// Media and attachment items can be either string URLs or objects with url
+type MediaItem = string | { url: string }
+type AttachmentItem = string | { url: string }
 
-interface Certification {
-  name: string
-  issuedBy: string
-  issuedDate: string
+// Support both legacy and current certification shapes
+interface CertificationItem {
+  name?: string
+  issuedBy?: string
+  issuedDate?: string
   expiryDate?: string
   certificateUrl?: string
+  fileUrl?: string
+  uploadedAt?: string
+  isRequired?: boolean
 }
 
 interface RFQQuestion {
   question: string
   answerType: string
   professionalAnswer?: string
-  professionalAttachments?: MediaFile[]
+  professionalAttachments?: AttachmentItem[]
 }
 
 interface PostBookingQuestion {
   question: string
   answerType: string
   professionalAnswer?: string
-  professionalAttachments?: MediaFile[]
+  professionalAttachments?: AttachmentItem[]
 }
 
 interface Project {
@@ -94,24 +98,55 @@ interface Project {
   qualityChecks: QualityCheck[]
   professional?: Professional
   media?: {
-    images?: MediaFile[]
-    video?: MediaFile
+    images?: MediaItem[]
+    video?: MediaItem
   }
-  certifications?: Certification[]
+  certifications?: CertificationItem[]
   rfqQuestions?: RFQQuestion[]
   postBookingQuestions?: PostBookingQuestion[]
 }
 
+// Helpers to normalize media/attachment URLs and certification link
+const getUrl = (item?: MediaItem | AttachmentItem | null): string => {
+  if (!item) return ''
+  return typeof item === 'string' ? item : (item.url || '')
+}
+
+const getCertUrl = (cert?: CertificationItem | null): string => {
+  if (!cert) return ''
+  return cert.certificateUrl || cert.fileUrl || ''
+}
+
 export default function ProjectApprovalPage() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [approvedProjects, setApprovedProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [suspendReason, setSuspendReason] = useState('')
+  const [deleteReason, setDeleteReason] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending')
+  const [approvedFilter, setApprovedFilter] = useState<'all' | 'published' | 'on_hold'>('all')
+  const [approvedSearch, setApprovedSearch] = useState('')
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   useEffect(() => {
-    fetchPendingProjects()
-  }, [])
+    if (activeTab === 'pending') {
+      fetchPendingProjects()
+    } else {
+      fetchApprovedProjects()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'approved') {
+      fetchApprovedProjects()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approvedFilter])
 
   const fetchPendingProjects = async () => {
     try {
@@ -128,6 +163,27 @@ export default function ProjectApprovalPage() {
     } catch (error) {
       console.error('Error fetching projects:', error)
       toast.error('Failed to fetch pending projects')
+    }
+    setIsLoading(false)
+  }
+
+  const fetchApprovedProjects = async () => {
+    setIsLoading(true)
+    try {
+      const statusParam = approvedFilter !== 'all' ? `?status=${approvedFilter}` : ''
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/approved${statusParam}`, {
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setApprovedProjects(data)
+      } else {
+        toast.error('Failed to fetch approved projects')
+      }
+    } catch (error) {
+      console.error('Error fetching approved projects:', error)
+      toast.error('Failed to fetch approved projects')
     }
     setIsLoading(false)
   }
@@ -186,12 +242,96 @@ export default function ProjectApprovalPage() {
     setActionLoading(false)
   }
 
+  // Admin actions on approved projects
+  const handleDeactivate = async (projectId: string) => {
+    if (!suspendReason.trim()) {
+      toast.error('Please provide a suspension reason')
+      return
+    }
+    setActionLoading(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/${projectId}/deactivate`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: suspendReason })
+      })
+      if (res.ok) {
+        toast.success('Project suspended and email sent')
+        setApprovedProjects(prev => prev.map(p => p._id === projectId ? { ...p, status: 'on_hold' } : p))
+        if (selectedProject?._id === projectId) setSelectedProject({ ...selectedProject, status: 'on_hold' } as Project)
+        setSuspendReason('')
+        setSuspendDialogOpen(false)
+      } else {
+        toast.error('Failed to suspend project')
+      }
+    } catch (e) {
+      console.error('Error deactivating project:', e)
+      toast.error('Failed to suspend project')
+    }
+    setActionLoading(false)
+  }
+
+  const handleReactivate = async (projectId: string) => {
+    setActionLoading(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/${projectId}/reactivate`, {
+        method: 'PUT',
+        credentials: 'include'
+      })
+      if (res.ok) {
+        toast.success('Project reactivated and email sent')
+        setApprovedProjects(prev => prev.map(p => p._id === projectId ? { ...p, status: 'published' } : p))
+        if (selectedProject?._id === projectId) setSelectedProject({ ...selectedProject, status: 'published' } as Project)
+      } else {
+        toast.error('Failed to reactivate project')
+      }
+    } catch (e) {
+      console.error('Error reactivating project:', e)
+      toast.error('Failed to reactivate project')
+    }
+    setActionLoading(false)
+  }
+
+  const handleDelete = async (projectId: string) => {
+    if (!deleteReason.trim()) {
+      toast.error('Please provide a deletion reason')
+      return
+    }
+    setActionLoading(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/${projectId}/delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: deleteReason })
+      })
+      if (res.ok) {
+        toast.success('Project deleted and email sent')
+        setApprovedProjects(prev => prev.filter(p => p._id !== projectId))
+        if (selectedProject?._id === projectId) setSelectedProject(null)
+        setDeleteReason('')
+        setDeleteDialogOpen(false)
+      } else {
+        toast.error('Failed to delete project')
+      }
+    } catch (e) {
+      console.error('Error deleting project:', e)
+      toast.error('Failed to delete project')
+    }
+    setActionLoading(false)
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
         return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending Review</Badge>
       case 'published':
         return <Badge variant="secondary" className="bg-green-100 text-green-800">Published</Badge>
+      case 'on_hold':
+        return <Badge variant="secondary" className="bg-orange-100 text-orange-800">On Hold</Badge>
+      case 'rejected':
+        return <Badge variant="secondary" className="bg-red-100 text-red-800">Rejected</Badge>
       case 'draft':
         return <Badge variant="secondary" className="bg-gray-100 text-gray-800">Draft</Badge>
       default:
@@ -228,7 +368,7 @@ export default function ProjectApprovalPage() {
   return (
     <div className="min-h-screen p-6 bg-gray-50">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Project Approval Queue
           </h1>
@@ -237,27 +377,60 @@ export default function ProjectApprovalPage() {
           </p>
         </div>
 
+        {/* Tabs */}
+        <div className="mb-6 flex items-center space-x-2">
+          <Button variant={activeTab === 'pending' ? 'default' : 'outline'} size="sm" onClick={() => { setActiveTab('pending'); setSelectedProject(null) }}>
+            Pending
+          </Button>
+          <Button variant={activeTab === 'approved' ? 'default' : 'outline'} size="sm" onClick={() => { setActiveTab('approved'); setSelectedProject(null) }}>
+            Approved
+          </Button>
+          {activeTab === 'approved' && (
+            <div className="ml-auto flex items-center gap-2 w-full sm:w-auto">
+              <div className="hidden sm:flex items-center gap-2">
+                <Label className="text-xs">Filter:</Label>
+                <Button size="sm" variant={approvedFilter === 'all' ? 'default' : 'outline'} onClick={() => setApprovedFilter('all')}>All</Button>
+                <Button size="sm" variant={approvedFilter === 'published' ? 'default' : 'outline'} onClick={() => setApprovedFilter('published')}>Published</Button>
+                <Button size="sm" variant={approvedFilter === 'on_hold' ? 'default' : 'outline'} onClick={() => setApprovedFilter('on_hold')}>On Hold</Button>
+              </div>
+              <div className="flex-1 sm:flex-none">
+                <Input
+                  placeholder="Search approved by title..."
+                  value={approvedSearch}
+                  onChange={(e) => setApprovedSearch(e.target.value)}
+                  className="h-8 w-full sm:w-72"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Projects List */}
           <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Pending Projects ({projects.length})</span>
-                  <Button variant="outline" size="sm" onClick={fetchPendingProjects}>
-                    Refresh
+                  <span>{activeTab === 'pending' ? `Pending Projects (${projects.length})` : `Approved Projects (${approvedProjects.filter(p => approvedFilter === 'all' ? true : p.status === approvedFilter).length})`}</span>
+                  <Button variant="outline" size="sm" onClick={activeTab === 'pending' ? fetchPendingProjects : fetchApprovedProjects}>
+                     Refresh
                   </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {projects.length === 0 ? (
+                {(activeTab === 'pending' ? projects.length === 0 : approvedProjects.filter(p => approvedFilter === 'all' ? true : p.status === approvedFilter).length === 0) ? (
                   <div className="text-center py-8">
                     <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                    <p className="text-gray-600">No projects pending approval</p>
+                    <p className="text-gray-600">{activeTab === 'pending' ? 'No projects pending approval' : 'No approved projects found'}</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {projects.map((project) => (
+                    {(activeTab === 'pending'
+                      ? projects
+                      : approvedProjects
+                          .filter(p => approvedFilter === 'all' ? true : p.status === approvedFilter)
+                          .filter(p => p.title.toLowerCase().includes(approvedSearch.trim().toLowerCase()))
+                    ).map((project) => (
                       <Card
                         key={project._id}
                         className={`cursor-pointer transition-colors ${
@@ -271,8 +444,11 @@ export default function ProjectApprovalPage() {
                           <div className="flex justify-between items-start mb-2">
                             <h4 className="font-semibold text-sm line-clamp-2">
                               {project.title}
+                              {activeTab === 'approved' && (
+                                <span className="ml-2 align-middle">{getStatusBadge(project.status)}</span>
+                              )}
                             </h4>
-                            {getStatusBadge(project.status)}
+                            {activeTab === 'pending' && getStatusBadge(project.status)}
                           </div>
 
                           <div className="space-y-2 text-sm text-gray-600">
@@ -330,10 +506,10 @@ export default function ProjectApprovalPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <FileText className="w-5 h-5" />
-                    <span>Project Review</span>
+                    <span>{activeTab === 'pending' ? 'Project Review' : 'Approved Project'}</span>
                   </CardTitle>
                   <CardDescription>
-                    Review project details and make approval decision
+                    {activeTab === 'pending' ? 'Review project details and make approval decision' : 'Manage approved project (suspend, reactivate, or delete)'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -458,7 +634,7 @@ export default function ProjectApprovalPage() {
                                     href={selectedProject.professional.businessInfo.website}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline flex items-center inline-flex space-x-1"
+                                    className="text-blue-600 hover:underline items-center inline-flex space-x-1"
                                   >
                                     <span>{selectedProject.professional.businessInfo.website}</span>
                                     <ExternalLink className="w-3 h-3" />
@@ -486,7 +662,7 @@ export default function ProjectApprovalPage() {
                         {selectedProject.media.images.map((image, index) => (
                           <div key={index} className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
                             <Image
-                              src={image.url}
+                              src={getUrl(image)}
                               alt={`Project image ${index + 1}`}
                               fill
                               className="object-cover"
@@ -507,7 +683,7 @@ export default function ProjectApprovalPage() {
                       </h4>
                       <div className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
                         <video
-                          src={selectedProject.media.video.url}
+                          src={getUrl(selectedProject.media.video)}
                           controls
                           className="w-full h-full"
                         >
@@ -529,20 +705,28 @@ export default function ProjectApprovalPage() {
                           <div key={index} className="p-4 border rounded-lg bg-gray-50">
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
-                                <h5 className="font-medium text-sm">{cert.name}</h5>
-                                <p className="text-sm text-gray-600 mt-1">
-                                  Issued by: {cert.issuedBy}
-                                </p>
+                                <h5 className="font-medium text-sm">{cert.name || 'Certification'}</h5>
+                                {(cert.issuedBy || cert.uploadedAt) && (
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {cert.issuedBy ? (
+                                      <>Issued by: {cert.issuedBy}</>
+                                    ) : (
+                                      <>Uploaded: {cert.uploadedAt ? new Date(cert.uploadedAt).toLocaleDateString() : ''}</>
+                                    )}
+                                  </p>
+                                )}
                                 <div className="flex items-center space-x-4 text-xs text-gray-500 mt-2">
-                                  <span>Issued: {new Date(cert.issuedDate).toLocaleDateString()}</span>
+                                  {cert.issuedDate && (
+                                    <span>Issued: {new Date(cert.issuedDate).toLocaleDateString()}</span>
+                                  )}
                                   {cert.expiryDate && (
                                     <span>Expires: {new Date(cert.expiryDate).toLocaleDateString()}</span>
                                   )}
                                 </div>
                               </div>
-                              {cert.certificateUrl && (
+                              {getCertUrl(cert) && (
                                 <a
-                                  href={cert.certificateUrl}
+                                  href={getCertUrl(cert)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="ml-4 text-blue-600 hover:text-blue-800"
@@ -588,7 +772,7 @@ export default function ProjectApprovalPage() {
                                   {rfq.professionalAttachments.map((attachment, attIndex) => (
                                     <a
                                       key={attIndex}
-                                      href={attachment.url}
+                                      href={getUrl(attachment)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
@@ -638,7 +822,7 @@ export default function ProjectApprovalPage() {
                                   {pbq.professionalAttachments.map((attachment, attIndex) => (
                                     <a
                                       key={attIndex}
-                                      href={attachment.url}
+                                      href={getUrl(attachment)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
@@ -683,39 +867,107 @@ export default function ProjectApprovalPage() {
                     </div>
                   )}
 
-                  {/* Feedback */}
-                  <div>
-                    <Label htmlFor="feedback">Admin Feedback (Required for rejection)</Label>
-                    <Textarea
-                      id="feedback"
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      placeholder="Provide feedback for the professional..."
-                      className="mt-1"
-                      rows={4}
-                    />
-                  </div>
+                  {activeTab === 'pending' ? (
+                    <>
+                      {/* Feedback */}
+                      <div>
+                        <Label htmlFor="feedback">Admin Feedback (Required for rejection)</Label>
+                        <Textarea
+                          id="feedback"
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
+                          placeholder="Provide feedback for the professional..."
+                          className="mt-1"
+                          rows={4}
+                        />
+                      </div>
 
-                  {/* Actions */}
-                  <div className="flex space-x-3 pt-4 border-t">
-                    <Button
-                      onClick={() => handleApprove(selectedProject._id)}
-                      disabled={actionLoading}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Approve Project
-                    </Button>
-                    <Button
-                      onClick={() => handleReject(selectedProject._id)}
-                      disabled={actionLoading || !feedback.trim()}
-                      variant="destructive"
-                      className="flex-1"
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      Reject Project
-                    </Button>
-                  </div>
+                      {/* Actions */}
+                      <div className="flex space-x-3 pt-4 border-t">
+                        <Button
+                          onClick={() => handleApprove(selectedProject._id)}
+                          disabled={actionLoading}
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Approve Project
+                        </Button>
+                        <Button
+                          onClick={() => handleReject(selectedProject._id)}
+                          disabled={actionLoading || !feedback.trim()}
+                          variant="destructive"
+                          className="flex-1"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Reject Project
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Suspension Reason */}
+                      {selectedProject.status === 'published' && (
+                        <div>
+                          <Label htmlFor="suspend-reason">Suspension Reason (Required)</Label>
+                          <Textarea
+                            id="suspend-reason"
+                            value={suspendReason}
+                            onChange={(e) => setSuspendReason(e.target.value)}
+                            placeholder="Provide reason for suspending this project..."
+                            className="mt-1"
+                            rows={3}
+                          />
+                        </div>
+                      )}
+
+                      {/* Deletion Reason */}
+                      <div>
+                        <Label htmlFor="delete-reason">Deletion Reason (Required)</Label>
+                        <Textarea
+                          id="delete-reason"
+                          value={deleteReason}
+                          onChange={(e) => setDeleteReason(e.target.value)}
+                          placeholder="Provide reason for deleting this project..."
+                          className="mt-1"
+                          rows={3}
+                        />
+                      </div>
+
+                      {/* Actions for approved */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 border-t">
+                        {selectedProject.status === 'published' && (
+                          <Button
+                            onClick={() => setSuspendDialogOpen(true)}
+                            disabled={actionLoading || !suspendReason.trim()}
+                            variant="destructive"
+                            className="w-full"
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Suspend Project
+                          </Button>
+                        )}
+                        {selectedProject.status === 'on_hold' && (
+                          <Button
+                            onClick={() => handleReactivate(selectedProject._id)}
+                            disabled={actionLoading}
+                            className="w-full bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Reactivate Project
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => setDeleteDialogOpen(true)}
+                          disabled={actionLoading || !deleteReason.trim()}
+                          variant="outline"
+                          className="w-full border-red-300 text-red-600 hover:bg-red-50"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Delete Project
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             ) : (
@@ -731,6 +983,42 @@ export default function ProjectApprovalPage() {
           </div>
         </div>
       </div>
+
+      {/* Suspend Confirmation Dialog */}
+      <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Suspend Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to suspend &quot;{selectedProject?.title}&quot;? It will be put on hold and an email will be sent to the professional.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSuspendDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => selectedProject && handleDeactivate(selectedProject._id)} disabled={!suspendReason.trim() || actionLoading}>
+              Suspend
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              This will permanently delete &quot;{selectedProject?.title}&quot; and notify the professional. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => selectedProject && handleDelete(selectedProject._id)} disabled={!deleteReason.trim() || actionLoading}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

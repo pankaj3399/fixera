@@ -42,6 +42,7 @@ interface ProjectData {
   category?: string
   service?: string
   customerPresence?: string
+  areaOfWork?: string
 }
 
 interface Step3Props {
@@ -141,6 +142,39 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [customTermDescription, setCustomTermDescription] = useState('')
   const [customTermCost, setCustomTermCost] = useState('')
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  // Admin-configured defaults
+  const [configExtraOptions, setConfigExtraOptions] = useState<Array<{ name: string; description?: string; isCustomizable?: boolean }>>([])
+  const [configConditions, setConfigConditions] = useState<Array<{ text: string; type: 'condition' | 'warning' }>>([])
+
+  // Fetch admin-configured items for the selected service
+  const fetchServiceConfiguration = async () => {
+    if (!data.category || !data.service) return
+    try {
+      const params = new URLSearchParams({ category: data.category, service: data.service })
+      if (data.areaOfWork) params.append('areaOfWork', data.areaOfWork)
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`, {
+        credentials: 'include'
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setConfigExtraOptions(json?.data?.extraOptions || [])
+        setConfigConditions(json?.data?.conditionsAndWarnings || [])
+      } else {
+        setConfigExtraOptions([])
+        setConfigConditions([])
+      }
+    } catch {
+      // silent fail to avoid noisy toasts on every render
+      setConfigExtraOptions([])
+      setConfigConditions([])
+    }
+  }
+
+  useEffect(() => {
+    fetchServiceConfiguration()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.category, data.service, data.areaOfWork])
 
   useEffect(() => {
     onChange({ ...data, extraOptions, termsConditions, customerPresence })
@@ -169,15 +203,24 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   }
 
   const getPredefinedExtraOptions = () => {
+    if (configExtraOptions.length > 0) {
+      // Backend does not supply price; default to 0 and let professional edit
+      return configExtraOptions.map(o => ({ name: o.name, price: 0 }))
+    }
     const service = data.service || 'default'
-    return PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] ||
-      PREDEFINED_EXTRA_OPTIONS.default
+    return PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] || PREDEFINED_EXTRA_OPTIONS.default
   }
 
   const getPredefinedTerms = () => {
+    if (configConditions.length > 0) {
+      return configConditions.map(c => ({
+        name: c.text,
+        description: c.text,
+        cost: 0
+      }))
+    }
     const service = data.service || 'default'
-    return PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] ||
-      PREDEFINED_TERMS.default
+    return PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] || PREDEFINED_TERMS.default
   }
 
   const addPredefinedExtraOption = (option: { name: string; price: number }) => {
