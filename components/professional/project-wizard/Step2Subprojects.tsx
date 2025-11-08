@@ -353,7 +353,8 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
   const getQuickAddItems = (): { name: string; fieldName?: string }[] => {
     // Prefer admin-configured included items
     if (configIncludedItems.length > 0) {
-      return configIncludedItems
+      // Show only static included items here to avoid duplicating parameters
+      return configIncludedItems.filter((i) => !i?.isDynamic && !i?.fieldName)
     }
     // Fallback to predefined constants (names only)
     const service = data.service || 'default'

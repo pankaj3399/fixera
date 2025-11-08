@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,6 +19,7 @@ import {
   ImageIcon,
   Video,
   Award,
+  Package,
   Paperclip,
   ExternalLink,
   Mail,
@@ -78,6 +78,37 @@ interface PostBookingQuestion {
   professionalAttachments?: AttachmentItem[]
 }
 
+interface SubprojectIncludedItem {
+  name: string
+  isDynamicField?: boolean
+}
+
+interface SubprojectMaterial {
+  name: string
+}
+
+interface Subproject {
+  name: string
+  description?: string
+  projectType?: string[]
+  included?: SubprojectIncludedItem[]
+  materialsIncluded?: boolean
+  materials?: SubprojectMaterial[]
+  pricing?: {
+    type?: string
+    amount?: number
+  }
+  deliveryPreparation?: number
+  executionDuration?: {
+    value?: number
+    unit?: string
+    range?: { min?: number; max?: number }
+  }
+  buffer?: { value?: number; unit?: string }
+  intakeDuration?: { value?: number; unit?: string }
+  warrantyPeriod?: { value?: number; unit?: string }
+}
+
 interface Project {
   _id: string
   title: string
@@ -104,6 +135,7 @@ interface Project {
   certifications?: CertificationItem[]
   rfqQuestions?: RFQQuestion[]
   postBookingQuestions?: PostBookingQuestion[]
+  subprojects?: Subproject[]
 }
 
 // Helpers to normalize media/attachment URLs and certification link
@@ -127,7 +159,7 @@ export default function ProjectApprovalPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending')
-  const [approvedFilter, setApprovedFilter] = useState<'all' | 'published' | 'on_hold'>('all')
+  const [approvedFilter, setApprovedFilter] = useState<'all' | 'published' | 'on_hold' | 'suspended'>('all')
   const [approvedSearch, setApprovedSearch] = useState('')
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -329,7 +361,9 @@ export default function ProjectApprovalPage() {
       case 'published':
         return <Badge variant="secondary" className="bg-green-100 text-green-800">Published</Badge>
       case 'on_hold':
-        return <Badge variant="secondary" className="bg-orange-100 text-orange-800">On Hold</Badge>
+        return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Suspended / On Hold</Badge>
+      case 'suspended':
+        return <Badge variant="secondary" className="bg-red-100 text-red-800">Suspended</Badge>
       case 'rejected':
         return <Badge variant="secondary" className="bg-red-100 text-red-800">Rejected</Badge>
       case 'draft':
@@ -391,7 +425,8 @@ export default function ProjectApprovalPage() {
                 <Label className="text-xs">Filter:</Label>
                 <Button size="sm" variant={approvedFilter === 'all' ? 'default' : 'outline'} onClick={() => setApprovedFilter('all')}>All</Button>
                 <Button size="sm" variant={approvedFilter === 'published' ? 'default' : 'outline'} onClick={() => setApprovedFilter('published')}>Published</Button>
-                <Button size="sm" variant={approvedFilter === 'on_hold' ? 'default' : 'outline'} onClick={() => setApprovedFilter('on_hold')}>On Hold</Button>
+                <Button size="sm" variant={approvedFilter === 'on_hold' ? 'default' : 'outline'} onClick={() => setApprovedFilter('on_hold')}>Suspended / On Hold</Button>
+                <Button size="sm" variant={approvedFilter === 'suspended' ? 'default' : 'outline'} onClick={() => setApprovedFilter('suspended')}>Suspended</Button>
               </div>
               <div className="flex-1 sm:flex-none">
                 <Input
@@ -689,6 +724,61 @@ export default function ProjectApprovalPage() {
                         >
                           Your browser does not support the video tag.
                         </video>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Subprojects */}
+                  {selectedProject && selectedProject.subprojects && selectedProject.subprojects.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <Package className="w-4 h-4" />
+                        <span>Subprojects ({selectedProject.subprojects.length})</span>
+                      </h4>
+                      <div className="space-y-3">
+                        {selectedProject.subprojects.map((sp: Subproject, idx: number) => (
+                          <div key={idx} className="p-3 rounded-lg border bg-gray-50">
+                            <div className="flex items-center justify-between">
+                              <div className="font-medium">{sp.name}</div>
+                              <div>{sp.pricing?.type && (
+                                <Badge variant="outline" className="text-xs">
+                                  {sp.pricing.type}{sp.pricing?.amount ? ` • ${sp.pricing.amount}` : ''}
+                                </Badge>
+                              )}</div>
+                            </div>
+                            {sp.description && (
+                              <p className="text-sm text-gray-700 mt-1">{sp.description}</p>
+                            )}
+                            {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
+                            )}
+                            {Array.isArray(sp.included) && sp.included.length > 0 && (
+                              <div className="mt-2">
+                                <Label className="text-xs font-medium">Included Items</Label>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {sp.included.map((it: SubprojectIncludedItem, i: number) => (
+                                    <Badge key={i} variant="outline" className={`text-[10px] ${it.isDynamicField ? 'bg-purple-100' : ''}`}>
+                                      {it.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
+                            )}
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
+                              {sp.deliveryPreparation != null && (<div>Preparation: {sp.deliveryPreparation}</div>)}
+                              {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
+                              {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
+                              {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
+                              {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
+                            </div>
+                            {sp.warrantyPeriod && (
+                              <div className="mt-2 text-xs text-gray-700">Warranty: {sp.warrantyPeriod.value} {sp.warrantyPeriod.unit}</div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

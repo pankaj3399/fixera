@@ -38,7 +38,7 @@ interface Project {
   _id: string
   title: string
   description: string
-  status: 'draft' | 'pending' | 'rejected' | 'published' | 'on_hold'
+  status: 'draft' | 'pending' | 'rejected' | 'published' | 'on_hold' | 'suspended'
   category: string
   subprojects: Array<{
     name: string

@@ -38,7 +38,7 @@ interface IncludedItem {
   name: string
   description?: string
   isDynamic: boolean
-  dynamicField?: DynamicField
+  dynamicField?: Partial<DynamicField>
 }
 
 interface ExtraOption {
@@ -824,8 +824,167 @@ export default function ServiceConfigurationManagement() {
                       placeholder="Description (optional)"
                       className="bg-white"
                     />
-                  </div>
-                ))}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={!!item.isDynamic}
+                          onCheckedChange={(checked) => updateIncludedItem(index, 'isDynamic', Boolean(checked))}
+                        />
+                        <Label className="text-sm">Parameter?</Label>
+                      </div>
+                      {item.isDynamic && (
+                        <>
+                          <Input
+                            value={item.dynamicField?.fieldName || ''}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), fieldName: v }
+                                }) : it)
+                              }))
+                            }}
+                            placeholder="Field name (unique id)"
+                            className="bg-white"
+                          />
+                          <Input
+                            value={item.dynamicField?.label || ''}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), label: v }
+                                }) : it)
+                              }))
+                            }}
+                            placeholder="Label"
+                            className="bg-white"
+                          />
+                        </>
+                      )}
+                    </div>
+                    {item.isDynamic && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <Label className="text-xs">Type</Label>
+                          <select
+                            className="border rounded px-2 py-1 bg-white w-full"
+                            value={item.dynamicField?.fieldType || 'text'}
+                            onChange={(e) => {
+                              const v = e.target.value as DynamicField['fieldType']
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), fieldType: v }
+                                }) : it)
+                              }))
+                            }}
+                          >
+                            <option value="text">Text</option>
+                            <option value="number">Number</option>
+                            <option value="dropdown">Dropdown</option>
+                            <option value="range">Range</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Unit</Label>
+                          <Input
+                            value={item.dynamicField?.unit || ''}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), unit: v }
+                                }) : it)
+                              }))
+                            }}
+                            placeholder="e.g. m2, kW"
+                            className="bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Placeholder</Label>
+                          <Input
+                            value={item.dynamicField?.placeholder || ''}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), placeholder: v }
+                                }) : it)
+                              }))
+                            }}
+                            placeholder="Helper text"
+                            className="bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Min</Label>
+                          <Input
+                            type="number"
+                            value={item.dynamicField?.min ?? ''}
+                            onChange={(e) => {
+                              const v = e.target.value ? Number(e.target.value) : undefined
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), min: v }
+                                }) : it)
+                              }))
+                            }}
+                            className="bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Max</Label>
+                          <Input
+                            type="number"
+                            value={item.dynamicField?.max ?? ''}
+                            onChange={(e) => {
+                              const v = e.target.value ? Number(e.target.value) : undefined
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), max: v }
+                                }) : it)
+                              }))
+                            }}
+                            className="bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Options (comma separated)</Label>
+                          <Input
+                            value={(item.dynamicField?.options || []).join(', ')}
+                            onChange={(e) => {
+                              const v = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                              setFormData(prev => ({
+                                ...prev,
+                                includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                  ...it,
+                                  dynamicField: { ...(it.dynamicField || {}), options: v }
+                                }) : it)
+                              }))
+                            }}
+                            placeholder="Only for dropdown"
+                            className="bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                </div>
+              ))}
                 {formData.includedItems.length === 0 && (
                   <p className="text-sm text-muted-foreground">No included items added yet</p>
                 )}
