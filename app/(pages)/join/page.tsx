@@ -58,7 +58,7 @@ export default function JoinPage() {
           </h1>
 
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Choose your path and start your journey with Europe's leading property services platform
+            Choose your path and start your journey with Europe&apos;s leading property services platform
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export default function JoinPage() {
               </div>
 
               <CardTitle className="text-3xl font-bold text-gray-900">
-                I'm a Customer
+                I&apos;m a Customer
               </CardTitle>
 
               <CardDescription className="text-lg text-gray-600 mt-2">
@@ -117,7 +117,7 @@ export default function JoinPage() {
               </div>
 
               <CardTitle className="text-3xl font-bold text-gray-900">
-                I'm a Professional
+                I&apos;m a Professional
               </CardTitle>
 
               <CardDescription className="text-lg text-gray-600 mt-2">

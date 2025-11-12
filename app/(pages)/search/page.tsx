@@ -1,13 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, ComponentProps } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, AlertCircle, Search as SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProfessionalCard from '@/components/search/ProfessionalCard';
 import ProjectCard from '@/components/search/ProjectCard';
-import SearchFilters from '@/components/search/SearchFilters';
+import SearchFilters, { type SearchFiltersState } from '@/components/search/SearchFilters';
+
+type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
+type ProjectResult = ComponentProps<typeof ProjectCard>['project'];
+type SearchResult = ProfessionalResult | ProjectResult;
+
+type PaginationState = {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
@@ -16,17 +27,17 @@ function SearchPageContent() {
   const initialType = (searchParams.get('type') || 'professionals') as 'professionals' | 'projects';
 
   const [searchType, setSearchType] = useState<'professionals' | 'projects'>(initialType);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
+  const [pagination, setPagination] = useState<PaginationState>({
     total: 0,
     page: 1,
     limit: 20,
     totalPages: 0,
   });
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<SearchFiltersState>({
     query: initialQuery,
     location: initialLocation,
     priceMin: '',
@@ -38,6 +49,9 @@ function SearchPageContent() {
 
   const [categories, setCategories] = useState<string[]>([]);
 
+  const professionalResults = results as ProfessionalResult[];
+  const projectResults = results as ProjectResult[];
+ 
   // Fetch categories on mount
   useEffect(() => {
     fetchCategories();
@@ -59,8 +73,8 @@ function SearchPageContent() {
         { credentials: 'include' }
       );
       if (response.ok) {
-        const data = await response.json();
-        const categoryNames = data.map((cat: any) => cat.name);
+        const data = (await response.json()) as Array<{ name: string }>;
+        const categoryNames = data.map((cat) => cat.name);
         setCategories(categoryNames);
       }
     } catch (err) {
@@ -99,20 +113,25 @@ function SearchPageContent() {
         throw new Error(`Search failed: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        results?: SearchResult[];
+        pagination?: PaginationState;
+      };
       console.log('Search response:', data);
       console.log('Results count:', data.results?.length || 0);
-      setResults(data.results || []);
-      setPagination(data.pagination || pagination);
-    } catch (err: any) {
+      setResults(data.results ?? []);
+      setPagination((prev) => data.pagination ?? prev);
+    } catch (err) {
       console.error('Search error:', err);
-      setError(err.message || 'Failed to perform search. Please try again.');
+      const message =
+        err instanceof Error ? err.message : 'Failed to perform search. Please try again.';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleFilterChange = (key: string, value: any) => {
+  const handleFilterChange = <K extends keyof SearchFiltersState>(key: K, value: SearchFiltersState[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPagination((prev) => ({ ...prev, page: 1 })); // Reset to page 1 on filter change
   };
@@ -143,7 +162,7 @@ function SearchPageContent() {
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
             Search Results
             {filters.query && (
-              <span className="text-blue-600"> for "{filters.query}"</span>
+              <span className="text-blue-600"> for &quot;{filters.query}&quot;</span>
             )}
           </h1>
           <p className="text-gray-600">
@@ -152,7 +171,7 @@ function SearchPageContent() {
         </div>
 
         {/* Search Type Tabs */}
-        <Tabs value={searchType} onValueChange={(val) => setSearchType(val as any)} className="mb-8">
+        <Tabs value={searchType} onValueChange={(val) => setSearchType(val as 'professionals' | 'projects')} className="mb-8">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="professionals">Professionals</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
@@ -193,7 +212,7 @@ function SearchPageContent() {
                 <SearchIcon className="w-16 h-16 text-gray-300 mb-4" />
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">No Results Found</h2>
                 <p className="text-gray-600 mb-6">
-                  Try adjusting your search or filters to find what you're looking for.
+                  Try adjusting your search or filters to find what you&apos;re looking for.
                 </p>
                 <Button onClick={handleClearFilters}>Clear Filters</Button>
               </div>
@@ -202,10 +221,10 @@ function SearchPageContent() {
                 {/* Results Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                   {searchType === 'professionals'
-                    ? results.map((professional: any) => (
+                    ? professionalResults.map((professional) => (
                         <ProfessionalCard key={professional._id} professional={professional} />
                       ))
-                    : results.map((project: any) => (
+                    : projectResults.map((project) => (
                         <ProjectCard key={project._id} project={project} />
                       ))}
                 </div>

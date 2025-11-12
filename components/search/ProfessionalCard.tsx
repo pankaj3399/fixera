@@ -20,7 +20,7 @@ interface ProfessionalCardProps {
     currency?: string;
     serviceCategories?: string[];
     profileImage?: string;
-    availability?: any;
+    availability?: boolean;
   };
 }
 

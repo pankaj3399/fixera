@@ -3,12 +3,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Loader2, Search, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Suggestion {
-  type: string;
-  value: string;
-  label: string;
-}
+import { type Suggestion } from '@/hooks/useSearchAutocomplete';
 
 interface SearchAutocompleteProps {
   suggestions: Suggestion[];

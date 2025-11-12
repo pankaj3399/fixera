@@ -7,18 +7,20 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar } from '@/components/ui/calendar'
+import Calendar from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CalendarIcon, Loader2, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
+type BookingDto = Record<string, unknown>
+
 interface RFQFormProps {
   bookingType: 'professional' | 'project'
   professionalId?: string
   projectId?: string
-  onSuccess?: (booking: any) => void
+  onSuccess?: (booking: BookingDto) => void
   onCancel?: () => void
 }
 
@@ -247,7 +249,7 @@ export default function RFQForm({
             <p className="text-sm text-blue-800">
               <strong>What happens next?</strong>
               <br />
-              The professional will review your request and provide a detailed quote. You'll receive a notification once the quote is ready for review.
+              The professional will review your request and provide a detailed quote. You&apos;ll receive a notification once the quote is ready for review.
             </p>
           </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-interface Suggestion {
+export interface Suggestion {
   type: string;
   value: string;
   label: string;
@@ -40,8 +40,8 @@ export const useSearchAutocomplete = (
       );
 
       if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data.suggestions || []);
+        const data = (await response.json()) as { suggestions?: Suggestion[] };
+        setSuggestions(data.suggestions ?? []);
       } else {
         setSuggestions([]);
       }

@@ -9,16 +9,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Filter, X } from 'lucide-react';
 
+export type SortOption = 'relevant' | 'price_low' | 'price_high' | 'newest';
+
+export interface SearchFiltersState {
+  query: string;
+  location: string;
+  priceMin: string;
+  priceMax: string;
+  category: string;
+  availability: boolean;
+  sortBy: SortOption;
+}
+
+export type SearchFilterKey = keyof SearchFiltersState;
+
 interface SearchFiltersProps {
-  filters: {
-    priceMin: string;
-    priceMax: string;
-    location: string;
-    category: string;
-    availability: boolean;
-    sortBy: string;
-  };
-  onFilterChange: (key: string, value: any) => void;
+  filters: SearchFiltersState;
+  onFilterChange: <K extends SearchFilterKey>(key: K, value: SearchFiltersState[K]) => void;
   onClearFilters: () => void;
   searchType: 'professionals' | 'projects';
   categories?: string[];
@@ -134,11 +141,11 @@ const SearchFilters = ({
       {searchType === 'professionals' && (
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
-            <Checkbox
-              id="availability"
-              checked={filters.availability}
-              onCheckedChange={(checked) => onFilterChange('availability', checked)}
-            />
+          <Checkbox
+            id="availability"
+            checked={filters.availability}
+            onCheckedChange={(checked) => onFilterChange('availability', Boolean(checked))}
+          />
             <Label
               htmlFor="availability"
               className="text-sm font-medium text-gray-700 cursor-pointer"
@@ -154,7 +161,7 @@ const SearchFilters = ({
         <Label htmlFor="sortBy" className="text-sm font-semibold text-gray-900">
           Sort By
         </Label>
-        <Select value={filters.sortBy} onValueChange={(val) => onFilterChange('sortBy', val)}>
+        <Select value={filters.sortBy} onValueChange={(val) => onFilterChange('sortBy', val as SortOption)}>
           <SelectTrigger id="sortBy" className="w-full">
             <SelectValue placeholder="Most Relevant" />
           </SelectTrigger>

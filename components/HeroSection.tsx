@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Search, MapPin, ArrowRight} from 'lucide-react'
 import SearchAutocomplete from './search/SearchAutocomplete'
-import { useSearchAutocomplete } from '@/hooks/useSearchAutocomplete'
+import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
 import { useAuth } from '@/contexts/AuthContext'
 
 // Import the Select component from shadcn/ui
@@ -60,10 +60,10 @@ const HeroSection = () => {
       );
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { services?: Array<{ name: string }> };
         // Extract service names from published projects
         if (data.services && data.services.length > 0) {
-          const serviceNames = data.services.map((s: any) => s.name);
+          const serviceNames = data.services.map((s) => s.name);
           setPopularServices(serviceNames);
         } else {
           // No published projects yet, show message or fallback
@@ -90,7 +90,7 @@ const HeroSection = () => {
     }
   };
 
-  const handleSuggestionSelect = (suggestion: any) => {
+  const handleSuggestionSelect = (suggestion: Suggestion) => {
     setSearchQuery(suggestion.value);
     setIsAutocompleteOpen(false);
   };
