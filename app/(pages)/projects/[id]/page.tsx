@@ -309,20 +309,26 @@ export default function ProjectDetailPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Professional Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Provided By</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <p className="font-semibold text-lg">
-                    {project.professionalId.businessInfo?.companyName || project.professionalId.name}
-                  </p>
-                  <p className="text-sm text-gray-600">{project.professionalId.email}</p>
-                  <p className="text-sm text-gray-600">{project.professionalId.phone}</p>
-                </div>
-              </CardContent>
-            </Card>
+            {project.professionalId && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Provided By</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="font-semibold text-lg">
+                      {project.professionalId.businessInfo?.companyName || project.professionalId.name}
+                    </p>
+                    {project.professionalId.email && (
+                      <p className="text-sm text-gray-600">{project.professionalId.email}</p>
+                    )}
+                    {project.professionalId.phone && (
+                      <p className="text-sm text-gray-600">{project.professionalId.phone}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Book Now Card */}
             <Card className="sticky top-6">
