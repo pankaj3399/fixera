@@ -817,15 +817,45 @@ export default function ProjectDetailPage() {
               </Card>
             )}
 
-            <Card>
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Professional Info */}
+            {project.professionalId && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Provided By</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="font-semibold text-lg">
+                      {project.professionalId.businessInfo?.companyName || project.professionalId.name}
+                    </p>
+                    {project.professionalId.email && (
+                      <p className="text-sm text-gray-600">{project.professionalId.email}</p>
+                    )}
+                    {project.professionalId.phone && (
+                      <p className="text-sm text-gray-600">{project.professionalId.phone}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Book Now Card */}
+            <Card className="sticky top-6">
               <CardHeader>
-                <CardTitle>Reviews & More From This Professional</CardTitle>
-                <CardDescription>Coming soon in the next phase</CardDescription>
+                <CardTitle>Ready to Book?</CardTitle>
+                <CardDescription>Get started with your project today</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className='text-sm text-gray-600'>
-                  We&apos;re working on surfacing verified reviews and
-                  additional projects from this company. Stay tuned!
+                <Button
+                  onClick={handleBookNow}
+                  className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700"
+                >
+                  Book This Project
+                </Button>
+                <p className="text-xs text-center text-gray-500 mt-3">
+                  {!isAuthenticated ? 'Sign in required to book' : 'Fill out the booking form to get started'}
                 </p>
               </CardContent>
             </Card>
