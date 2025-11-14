@@ -14,30 +14,43 @@ import { ArrowLeft, Calendar, Loader2, Upload, CheckCircle2 } from 'lucide-react
 import { toast } from 'sonner'
 import { format, addDays, isAfter, isBefore, parseISO } from 'date-fns'
 
-interface Project {
-  _id: string
-  title: string
-  subprojects: Array<{
-    name: string
-    description: string
-    pricing: {
-      type: 'fixed' | 'unit' | 'rfq'
-      amount?: number
-      priceRange?: { min: number; max: number }
-    }
-  }>
-  rfqQuestions: Array<{
-    question: string
-    type: 'text' | 'multiple_choice' | 'attachment'
-    options?: string[]
-    isRequired: boolean
-  }>
-  extraOptions: Array<{
-    name: string
-    description?: string
-    price: number
-  }>
-}
+interface Project {
+  _id: string
+  title: string
+  timeMode?: 'hours' | 'days'
+  preparationDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  executionDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  bufferDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  subprojects: Array<{
+    name: string
+    description: string
+    pricing: {
+      type: 'fixed' | 'unit' | 'rfq'
+      amount?: number
+      priceRange?: { min: number; max: number }
+    }
+  }>
+  rfqQuestions: Array<{
+    question: string
+    type: 'text' | 'multiple_choice' | 'attachment'
+    options?: string[]
+    isRequired: boolean
+  }>
+  extraOptions: Array<{
+    name: string
+    description?: string
+    price: number
+  }>
+}
 
 interface ProjectBookingFormProps {
   project: Project
@@ -50,20 +63,37 @@ interface RFQAnswer {
   type: string
 }
 
-interface BlockedDates {
-  blockedDates: string[]
-  blockedRanges: Array<{
-    startDate: string
-    endDate: string
-  }>
-}
-
-export default function ProjectBookingForm({ project, onBack }: ProjectBookingFormProps) {
+interface BlockedDates {
+  blockedDates: string[]
+  blockedRanges: Array<{
+    startDate: string
+    endDate: string
+  }>
+}
+
+interface ScheduleProposalsResponse {
+  success: boolean
+  proposals?: {
+    mode: 'hours' | 'days'
+    earliestBookableDate: string
+    earliestProposal?: {
+      start: string
+      end: string
+    }
+    shortestThroughputProposal?: {
+      start: string
+      end: string
+    }
+  }
+}
+
+export default function ProjectBookingForm({ project, onBack }: ProjectBookingFormProps) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [blockedDates, setBlockedDates] = useState<BlockedDates>({ blockedDates: [], blockedRanges: [] })
-  const [loadingAvailability, setLoadingAvailability] = useState(true)
+  const [blockedDates, setBlockedDates] = useState<BlockedDates>({ blockedDates: [], blockedRanges: [] })
+  const [loadingAvailability, setLoadingAvailability] = useState(true)
+  const [proposals, setProposals] = useState<ScheduleProposalsResponse['proposals'] | null>(null)
 
 
   // Form state
@@ -73,11 +103,12 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>([])
   const [additionalNotes, setAdditionalNotes] = useState('')
 
-  useEffect(() => {
-    fetchTeamAvailability()
-  }, [])
+  useEffect(() => {
+    fetchTeamAvailability()
+    fetchScheduleProposals()
+  }, [])
 
-  const fetchTeamAvailability = async () => {
+  const fetchTeamAvailability = async () => {
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/availability`
@@ -91,9 +122,24 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
       console.error('Error fetching availability:', error)
       toast.error('Failed to load availability calendar')
     } finally {
-      setLoadingAvailability(false)
-    }
-  }
+      setLoadingAvailability(false)
+    }
+  }
+
+  const fetchScheduleProposals = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/schedule-proposals`
+      )
+      const data: ScheduleProposalsResponse = await response.json()
+
+      if (data.success && data.proposals) {
+        setProposals(data.proposals)
+      }
+    } catch (error) {
+      console.error('Error fetching schedule proposals:', error)
+    }
+  }
 
   const isDateBlocked = (dateString: string): boolean => {
     // Check if date is in blocked dates list
@@ -117,9 +163,13 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
     return false
   }
 
-  const getMinDate = (): string => {
-    // Start checking from tomorrow
-    let checkDate = addDays(new Date(), 1)
+  const getMinDate = (): string => {
+    // If we have an earliestBookableDate from proposals, use that as the lower bound.
+    const earliest = proposals?.earliestBookableDate
+      ? parseISO(proposals.earliestBookableDate)
+      : addDays(new Date(), 1)
+
+    let checkDate = earliest
 
     // Find the first available date
     for (let i = 0; i < 90; i++) {
@@ -516,27 +566,74 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
                 ) : (
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="preferred-date">Preferred Start Date *</Label>
-                      <div className="relative mt-2">
-                        <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
-                        <Input
-                          id="preferred-date"
-                          type="date"
-                          value={selectedDate}
-                          min={getMinDate()}
-                          max={format(addDays(new Date(), 180), 'yyyy-MM-dd')}
-                          onChange={(e) => {
-                            const date = e.target.value
-                            if (isDateBlocked(date)) {
-                              toast.error('This date is not available. Please choose another date.')
-                              return
-                            }
-                            setSelectedDate(date)
-                          }}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
+                      <Label htmlFor="preferred-date">Preferred Start Date *</Label>
+                        <div className="relative mt-2">
+                          <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
+                          <Input
+                            id="preferred-date"
+                            type="date"
+                            value={selectedDate}
+                            min={getMinDate()}
+                            max={format(addDays(new Date(), 180), 'yyyy-MM-dd')}
+                            onChange={(e) => {
+                              const date = e.target.value
+                              if (isDateBlocked(date)) {
+                                toast.error('This date is not available. Please choose another date.')
+                                return
+                              }
+                              setSelectedDate(date)
+                            }}
+                            className="pl-10"
+                            required
+                          />
+                        </div>
+
+                        {proposals && (
+                          <div className="mt-4 space-y-2 text-xs text-gray-600">
+                            <p className="font-semibold text-gray-700">Suggested dates</p>
+                            <div className="flex flex-wrap gap-2">
+                              {proposals.mode === 'days' && proposals.shortestThroughputProposal && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const start = proposals.shortestThroughputProposal?.start
+                                      ? format(parseISO(proposals.shortestThroughputProposal.start), 'yyyy-MM-dd')
+                                      : ''
+                                    if (start && !isDateBlocked(start)) {
+                                      setSelectedDate(start)
+                                    }
+                                  }}
+                                >
+                                  Shortest throughput:{' '}
+                                  {proposals.shortestThroughputProposal.start &&
+                                    format(parseISO(proposals.shortestThroughputProposal.start), 'MMM d, yyyy')}
+                                </Button>
+                              )}
+
+                              {proposals.earliestProposal && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const start = proposals.earliestProposal?.start
+                                      ? format(parseISO(proposals.earliestProposal.start), 'yyyy-MM-dd')
+                                      : ''
+                                    if (start && !isDateBlocked(start)) {
+                                      setSelectedDate(start)
+                                    }
+                                  }}
+                                >
+                                  Earliest possible:{' '}
+                                  {proposals.earliestProposal.start &&
+                                    format(parseISO(proposals.earliestProposal.start), 'MMM d, yyyy')}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       <p className="text-xs text-gray-500 mt-2">
                         Team has {blockedDates.blockedDates.length} blocked dates and {blockedDates.blockedRanges.length} blocked periods
                       </p>
