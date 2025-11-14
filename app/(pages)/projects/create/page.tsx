@@ -192,7 +192,7 @@ export default function ProjectCreatePage() {
     keywords: [],
     projectType: [],
     minResources: 1,
-    minOverlapPercentage: 90,
+    minOverlapPercentage: 70,
     subprojects: [],
     extraOptions: [],
     termsConditions: [],
@@ -242,19 +242,10 @@ export default function ProjectCreatePage() {
             headers
           })
 
-          console.log('📡 Project fetch response:', response.status, response.statusText)
-
           if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            console.error('❌ Failed to load project:', {
-              status: response.status,
-              statusText: response.statusText,
-              error: errorData
-            })
-
             if (response.status === 401) {
               toast.error('Please log in to edit this project')
-              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)            
+              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
               return
             } else if (response.status === 404) {
               toast.error('Project not found')
@@ -266,6 +257,7 @@ export default function ProjectCreatePage() {
               return
             }
 
+            const errorData = await response.json().catch(() => ({}))
             throw new Error(errorData.msg || 'Failed to load project')
           }
 
