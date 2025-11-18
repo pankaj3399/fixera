@@ -386,7 +386,7 @@ export default function DashboardPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push("/")}
+                      onClick={() => router.push("/projects")}
                       className="bg-white/80 border-pink-200 hover:border-pink-300"
                     >
                       Browse projects
