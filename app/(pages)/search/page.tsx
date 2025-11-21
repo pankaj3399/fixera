@@ -64,7 +64,7 @@ function SearchPageContent() {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchType, filters.query, filters.location, filters.priceMin, filters.priceMax, filters.category, filters.availability, pagination.page]);
+  }, [searchType, filters.query, filters.location, filters.priceMin, filters.priceMax, filters.category, filters.availability, filters.sortBy, pagination.page]);
 
   const fetchCategories = async () => {
     try {
@@ -154,6 +154,14 @@ function SearchPageContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSearchTypeChange = (newType: 'professionals' | 'projects') => {
+    setSearchType(newType);
+    // Reset to page 1 when changing search type
+    setPagination((prev) => ({ ...prev, page: 1 }));
+    // Clear results to show loading state
+    setResults([]);
+  };
+
   return (
     <div className="bg-gray-50 min-h-screen">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
@@ -171,7 +179,7 @@ function SearchPageContent() {
         </div>
 
         {/* Search Type Tabs */}
-        <Tabs value={searchType} onValueChange={(val) => setSearchType(val as 'professionals' | 'projects')} className="mb-8">
+        <Tabs value={searchType} onValueChange={(val) => handleSearchTypeChange(val as 'professionals' | 'projects')} className="mb-8">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="professionals">Professionals</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>

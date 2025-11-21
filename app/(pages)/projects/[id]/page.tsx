@@ -18,6 +18,19 @@ interface Project {
   description: string
   category: string
   service: string
+  timeMode?: 'hours' | 'days'
+  preparationDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  executionDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  bufferDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
   media: {
     images: string[]
     video?: string
@@ -39,11 +52,11 @@ interface Project {
       name: string
       description?: string
     }>
-    executionDuration: {
+    executionDuration?: {
       value: number
       unit: 'hours' | 'days'
     }
-    warrantyPeriod: {
+    warrantyPeriod?: {
       value: number
       unit: 'months' | 'years'
     }
@@ -227,6 +240,50 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Project Timeline */}
+                {project.executionDuration && (
+                  <div className="pt-4 border-t">
+                    <h4 className="font-semibold mb-3">Project Timeline</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {project.preparationDuration && (
+                        <div className="flex items-start gap-2">
+                          <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-gray-500">Preparation Time</p>
+                            <p className="font-medium">{project.preparationDuration.value} {project.preparationDuration.unit}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-start gap-2">
+                        <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-500">Execution Duration</p>
+                          <p className="font-medium">{project.executionDuration.value} {project.executionDuration.unit}</p>
+                        </div>
+                      </div>
+                      {project.bufferDuration && project.bufferDuration.value > 0 && (
+                        <div className="flex items-start gap-2">
+                          <Calendar className="h-5 w-5 text-yellow-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-gray-500">Buffer Time</p>
+                            <p className="font-medium">{project.bufferDuration.value} {project.bufferDuration.unit}</p>
+                            <p className="text-xs text-gray-500">Reserved for quality assurance</p>
+                          </div>
+                        </div>
+                      )}
+                      {project.timeMode && (
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-gray-500">Scheduling Mode</p>
+                            <p className="font-medium capitalize">{project.timeMode}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -251,9 +308,12 @@ export default function ProjectDetailPage() {
                           </p>
                         )}
                         {subproject.pricing.type === 'unit' && subproject.pricing.priceRange && (
-                          <p className="text-xl font-bold text-blue-600">
-                            €{subproject.pricing.priceRange.min} - €{subproject.pricing.priceRange.max}
-                          </p>
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-blue-600">
+                              €{subproject.pricing.priceRange.min} - €{subproject.pricing.priceRange.max}
+                            </p>
+                            <p className="text-xs text-gray-500">per unit</p>
+                          </div>
                         )}
                         {subproject.pricing.type === 'rfq' && (
                           <Badge variant="outline">Request Quote</Badge>
@@ -274,14 +334,23 @@ export default function ProjectDetailPage() {
                     </div>
 
                     <div className="flex gap-4 text-sm text-gray-600 pt-2 border-t">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{subproject.executionDuration.value} {subproject.executionDuration.unit}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>{subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty</span>
-                      </div>
+                      {(subproject.executionDuration || project.executionDuration) && (
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>
+                            {subproject.executionDuration
+                              ? `${subproject.executionDuration.value} ${subproject.executionDuration.unit}`
+                              : `${project.executionDuration?.value} ${project.executionDuration?.unit}`
+                            }
+                          </span>
+                        </div>
+                      )}
+                      {subproject.warrantyPeriod && (
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>{subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
