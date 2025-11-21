@@ -115,7 +115,7 @@ export const validateVATFormat = (vatNumber: string): { valid: boolean; error?: 
 // Validate VAT number with backend API
 export const validateVATWithAPI = async (vatNumber: string): Promise<VatValidationResult> => {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/vat/validate`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/vat/validate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

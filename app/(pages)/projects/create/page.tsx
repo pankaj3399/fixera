@@ -100,6 +100,7 @@ interface ProjectData {
   _id?: string
   id?: string
   status?: 'draft' | 'pending_approval' | 'published' | 'rejected' | 'booked' | 'on_hold' | 'completed' | 'cancelled'
+  timeMode?: 'hours' | 'days'
   category?: string
   service?: string
   areaOfWork?: string
@@ -142,6 +143,20 @@ interface ProjectData {
   postBookingQuestions?: IPostBookingQuestion[]
   customConfirmationMessage?: string
   currentStep?: number
+  minResources?: number
+  minOverlapPercentage?: number
+  preparationDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  executionDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  bufferDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
 }
 
 export default function ProjectCreatePage() {
@@ -152,6 +167,7 @@ export default function ProjectCreatePage() {
   const step1Ref = useRef<Step1Ref>(null)
   const [projectData, setProjectData] = useState<ProjectData>({
     currentStep: 1,
+    timeMode: 'days',
     distance: {
       address: '',
       useCompanyAddress: false,
@@ -164,6 +180,8 @@ export default function ProjectCreatePage() {
     },
     keywords: [],
     projectType: [],
+    minResources: 1,
+    minOverlapPercentage: 70,
     subprojects: [],
     extraOptions: [],
     termsConditions: [],
@@ -193,6 +211,7 @@ export default function ProjectCreatePage() {
               id: project._id,
               status: project.status,
               currentStep: project.currentStep || 1,
+              timeMode: project.timeMode || 'days',
               category: project.category,
               service: project.service,
               areaOfWork: project.areaOfWork,
@@ -214,6 +233,11 @@ export default function ProjectCreatePage() {
               rfqQuestions: project.rfqQuestions || [],
               postBookingQuestions: project.postBookingQuestions || [],
               resources: project.resources,
+               minResources: project.minResources,
+               minOverlapPercentage: project.minOverlapPercentage,
+               preparationDuration: project.preparationDuration,
+               executionDuration: project.executionDuration,
+               bufferDuration: project.bufferDuration,
               description: project.description,
               priceModel: project.priceModel,
               title: project.title,

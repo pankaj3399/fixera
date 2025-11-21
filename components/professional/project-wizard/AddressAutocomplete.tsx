@@ -6,9 +6,18 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { useGoogleMaps } from "@/hooks/useGoogleMaps";
 
+export interface PlaceData {
+  formatted_address: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  address_components?: google.maps.GeocoderAddressComponent[];
+}
+
 interface AddressAutocompleteProps {
   value: string;
-  onChange: (address: string) => void;
+  onChange: (address: string, placeData?: PlaceData) => void;
   onValidation: (isValid: boolean) => void;
   useCompanyAddress: boolean;
   companyAddress?: string;
@@ -36,8 +45,12 @@ export default function AddressAutocomplete({
 
   // Initialize autocomplete
   useEffect(() => {
-    if (!isLoaded || !inputRef.current || useCompanyAddress) return;
+    if (!isLoaded || !inputRef.current || useCompanyAddress) {
+      console.log('AddressAutocomplete not initialized:', { isLoaded, hasInput: !!inputRef.current, useCompanyAddress });
+      return;
+    }
 
+    console.log('✅ Initializing Google Places Autocomplete');
     autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
       types: ['address']
     });
@@ -46,7 +59,19 @@ export default function AddressAutocomplete({
       const place = autocompleteRef.current?.getPlace();
       if (place?.formatted_address) {
         console.log('✅ Address selected from dropdown:', place.formatted_address);
-        onChange(place.formatted_address);
+
+        // Extract coordinates and address components
+        const placeData: PlaceData = {
+          formatted_address: place.formatted_address,
+          coordinates: place.geometry?.location ? {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng()
+          } : undefined,
+          address_components: place.address_components
+        };
+
+        // Call onChange with both parameters (second parameter is optional for backward compatibility)
+        onChange(place.formatted_address, placeData);
         selectedFromDropdownRef.current = true;
         validatedAddressRef.current = place.formatted_address;
         setIsValid(true);

@@ -73,6 +73,15 @@ interface User {
     reason?: string;
     isHoliday?: boolean;
   }[]
+  location?: {
+    type: 'Point'
+    coordinates: [number, number] // [longitude, latitude]
+    address?: string
+    city?: string
+    country?: string
+    postalCode?: string
+  }
+  customerType?: 'individual' | 'business'
   profileCompletedAt?: string
   createdAt: string
   updatedAt: string
@@ -297,15 +306,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleRouteProtection = async (currentUser: User | null) => {
     const isUserAuthenticated = !!currentUser
 
-    // Handle landing page redirect for authenticated users
-    if (pathname === '/' && isUserAuthenticated) {
-      const dashboardPath = '/dashboard'
-      router.replace(dashboardPath)
-      return
-    }
-
-
-
     // Handle protected routes
     if (isProtectedRoute(pathname)) {
       if (!isUserAuthenticated) {
@@ -333,7 +333,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true)
       
       // Always check auth status on route change, except for certain paths
-      const skipAuthCheck = isPublicRoute(pathname) && pathname !== '/'
+      const skipAuthCheck = isPublicRoute(pathname)
       
       let currentUser = user
       

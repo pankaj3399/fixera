@@ -25,6 +25,7 @@ interface ProjectData {
   category?: string
   service?: string
   areaOfWork?: string
+  timeMode?: 'hours' | 'days'
   categories?: string[]
   services?: IServiceSelection[]
   distance?: {
@@ -58,6 +59,20 @@ interface ProjectData {
     uploadedAt: Date
     isRequired: boolean
   }>
+  minResources?: number
+  minOverlapPercentage?: number
+  preparationDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  executionDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
+  bufferDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
 }
 
 interface TeamMember {
@@ -104,6 +119,20 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const [loadingServices, setLoadingServices] = useState(false)
   const [loadingAreas, setLoadingAreas] = useState(false)
   const [loadingTeamMembers, setLoadingTeamMembers] = useState(false)
+
+  // Ensure defaults for new scheduling fields
+  useEffect(() => {
+    setFormData(prev => ({
+      timeMode: prev.timeMode || 'days',
+      minResources: prev.minResources || 1,
+      minOverlapPercentage: prev.minOverlapPercentage ?? 70,
+      preparationDuration: prev.preparationDuration || { value: 0, unit: 'days' },
+      executionDuration: prev.executionDuration || { value: 1, unit: 'days' },
+      bufferDuration: prev.bufferDuration || { value: 0, unit: 'days' },
+      ...prev
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
 
   // Fetch categories and team members on mount
@@ -336,6 +365,25 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       formData.distance?.maxKmRange
     )
     onValidate(isValid)
+  }
+
+  const handleTimeModeChange = (value: 'hours' | 'days') => {
+    setFormData(prev => ({
+      ...prev,
+      timeMode: value,
+      executionDuration: {
+        ...(prev.executionDuration || { value: 1, unit: value }),
+        unit: value
+      },
+      bufferDuration: {
+        ...(prev.bufferDuration || { value: 0, unit: value }),
+        unit: value
+      },
+      preparationDuration: {
+        ...(prev.preparationDuration || { value: 0, unit: value }),
+        unit: value
+      }
+    }))
   }
 
   const showValidationErrors = () => {
@@ -597,6 +645,184 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
   return (
     <div className="space-y-6">
+      {/* Scheduling & Resources */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Scheduling & Resources</CardTitle>
+          <CardDescription>
+            Define how long this project takes, how many resources you need, and whether you plan in hours or days.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Time Mode</Label>
+              <Select
+                value={formData.timeMode || 'days'}
+                onValueChange={(value) => handleTimeModeChange(value as 'hours' | 'days')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select time mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="days">Days</SelectItem>
+                  <SelectItem value="hours">Hours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Minimum Required Resources</Label>
+              <Input
+                type="number"
+                min={1}
+                value={formData.minResources ?? 1}
+                onChange={(e) => updateFormData({
+                  minResources: Number(e.target.value) > 0 ? Number(e.target.value) : 1
+                })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Minimum Overlap (%)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={formData.minOverlapPercentage ?? 70}
+                onChange={(e) => {
+                  const value = Number(e.target.value)
+                  const clamped = Math.min(100, Math.max(0, isNaN(value) ? 70 : value))
+                  updateFormData({ minOverlapPercentage: clamped })
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Preparation Time</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  value={formData.preparationDuration?.value ?? 0}
+                  onChange={(e) => {
+                    const value = Number(e.target.value)
+                    updateFormData({
+                      preparationDuration: {
+                        value: value >= 0 ? value : 0,
+                        unit: formData.preparationDuration?.unit || formData.timeMode || 'days'
+                      }
+                    })
+                  }}
+                />
+                <Select
+                  value={formData.preparationDuration?.unit || formData.timeMode || 'days'}
+                  onValueChange={(unit) => {
+                    updateFormData({
+                      preparationDuration: {
+                        value: formData.preparationDuration?.value ?? 0,
+                        unit: unit as 'hours' | 'days'
+                      }
+                    })
+                  }}
+                >
+                  <SelectTrigger className="w-[110px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">Days</SelectItem>
+                    <SelectItem value="hours">Hours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Execution Duration</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.executionDuration?.value ?? 1}
+                  onChange={(e) => {
+                    const value = Number(e.target.value)
+                    updateFormData({
+                      executionDuration: {
+                        value: value > 0 ? value : 1,
+                        unit: formData.executionDuration?.unit || formData.timeMode || 'days'
+                      }
+                    })
+                  }}
+                />
+                <Select
+                  value={formData.executionDuration?.unit || formData.timeMode || 'days'}
+                  onValueChange={(unit) => {
+                    updateFormData({
+                      executionDuration: {
+                        value: formData.executionDuration?.value ?? 1,
+                        unit: unit as 'hours' | 'days'
+                      }
+                    })
+                  }}
+                >
+                  <SelectTrigger className="w-[110px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">Days</SelectItem>
+                    <SelectItem value="hours">Hours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Buffer Time</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  value={formData.bufferDuration?.value ?? 0}
+                  onChange={(e) => {
+                    const value = Number(e.target.value)
+                    updateFormData({
+                      bufferDuration: {
+                        value: value >= 0 ? value : 0,
+                        unit: formData.bufferDuration?.unit || formData.timeMode || 'days'
+                      }
+                    })
+                  }}
+                />
+                <Select
+                  value={formData.bufferDuration?.unit || formData.timeMode || 'days'}
+                  onValueChange={(unit) => {
+                    updateFormData({
+                      bufferDuration: {
+                        value: formData.bufferDuration?.value ?? 0,
+                        unit: unit as 'hours' | 'days'
+                      }
+                    })
+                  }}
+                >
+                  <SelectTrigger className="w-[110px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">Days</SelectItem>
+                    <SelectItem value="hours">Hours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Preparation defines when clients can first book, execution is the actual work time, and buffer is reserved after execution to stay on schedule.
+          </p>
+        </CardContent>
+      </Card>
       {/* Service Selection - Single Service */}
       <Card>
         <CardHeader>

@@ -66,7 +66,7 @@ export const useGoogleMaps = (): GoogleMapsHook => {
       }
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/validate-address`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/validate-address`,
         {
           method: "POST",
           headers,

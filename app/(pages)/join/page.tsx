@@ -1,296 +1,191 @@
 'use client'
 
-import React, { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Eye, EyeOff, User, Mail, Lock, Briefcase, Phone } from "lucide-react"
-import { CountryCode, countryCodes } from "@/lib/helpers"
-import { toast } from "sonner"
-import { useAuth } from "@/contexts/AuthContext"
-import { useRouter } from "next/navigation"
-import DualVerificationComponent from "@/components/DualVerificationComponent"
+import React from 'react'
+import { useRouter } from 'next/navigation'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { ArrowRight, Briefcase, UserCircle, CheckCircle2, Sparkles } from 'lucide-react'
+import Link from 'next/link'
 
-interface FormData {
-  name: string;
-  email: string;
-  countryCode: string;
-  phone: string;
-  password: string;
-  role: string;
-}
-
-const JoinPage: React.FC = () => {
-  const [formData, setFormData] = useState<FormData>({
-    name: "",
-    email: "",
-    countryCode: "+1",
-    phone: "",
-    password: "",
-    role: "",
-  })
-  const [showPassword, setShowPassword] = useState<boolean>(false)
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [showVerification, setShowVerification] = useState<boolean>(false)
-
-  const { signup, user } = useAuth()
+export default function JoinPage() {
   const router = useRouter()
 
-  const validateForm = (): boolean => {
-    if (!formData.name.trim()) {
-      toast.error("Please enter your full name")
-      return false
-    }
-    if (!formData.email.trim()) {
-      toast.error("Please enter your email address")
-      return false
-    }
-    if (!formData.phone.trim()) {
-      toast.error("Please enter your phone number")
-      return false
-    }
-    if (!formData.password.trim()) {
-      toast.error("Please enter a password")
-      return false
-    }
-    if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters long")
-      return false
-    }
-    if (!formData.role) {
-      toast.error("Please select your role")
-      return false
-    }
-    return true
-  }
-
-  const sendVerificationCodes = async (): Promise<void> => {
-    setShowVerification(true)
-  }
-
-  const handleSubmit = async (): Promise<void> => {
-    if (!validateForm()) return
-
-    setIsLoading(true)
-
-    try {
-      const fullPhoneNumber = `${formData.countryCode}${formData.phone}`
-      const submitData = {
-        name: formData.name.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phone: fullPhoneNumber,
-        password: formData.password,
-        role: formData.role as 'customer' | 'professional'
-      }
-
-      // Use the auth context register method
-      const success = await signup(submitData)
-      
-      if (success) {
-        toast.success("Account created successfully! We've sent verification codes to your email and phone.")
-        await sendVerificationCodes()
-      }
-      
-    } catch (error:unknown) {
-      console.error("Submission error:", error)
-      toast.error("An unexpected error occurred. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleInputChange = (field: keyof FormData, value: string): void => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const handleVerificationSuccess = (): void => {
-    toast.success("Account verified successfully! Welcome to Fixera!")
-    
-    // Redirect based on user role
-    if (user?.role === 'professional') {
-      router.push('/dashboard')
-    } else if (user?.role === 'customer') {
-      router.push('/dashboard')
-    } else {
-      router.push('/dashboard')
-    }
-  }
-
-  const handleBackToSignup = (): void => {
-    setShowVerification(false)
-  }
-
-  // Show verification component if user is registered but not verified
-  if (showVerification) {
-    return (
-      <DualVerificationComponent
-        email={formData.email}
-        phone={`${formData.countryCode}${formData.phone}`}
-        onVerificationSuccess={handleVerificationSuccess}
-        onBack={handleBackToSignup}
-      />
-    )
+  const features = {
+    customer: [
+      'Find verified property professionals',
+      'Get custom quotes instantly',
+      'Book services with confidence',
+      'Track project progress',
+      'Rate and review professionals',
+      'Secure payment protection'
+    ],
+    professional: [
+      'Reach thousands of customers',
+      'Manage your projects easily',
+      'Build your professional profile',
+      'Accept bookings online',
+      'Flexible schedule management',
+      'Grow your business'
+    ]
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">Join Fixera</CardTitle>
-          <CardDescription className="text-gray-600 dark:text-gray-400">
-            Create your professional account to get started
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">
-                Full Name
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Enter your full name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 opacity-10" style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234F46E5' fill-opacity='0.2'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+      }} />
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email Address
-              </Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
+      {/* Header */}
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        <Link href="/">
+          <Button variant="ghost" className="mb-8 hover:bg-white/50">
+            ← Back to Home
+          </Button>
+        </Link>
+      </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-medium">
-                Phone Number
-              </Label>
-              <div className="flex gap-2">
-                <div className="relative w-28">
-                  <Select 
-                    value={formData.countryCode} 
-                    onValueChange={(value: string) => handleInputChange("countryCode", value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countryCodes.map((country: CountryCode) => (
-                        <SelectItem key={country.code} value={country.code}>
-                          <span className="flex items-center gap-4 ">
-                            <span>{country.country}</span>
-                            <span>{country.code}</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="relative flex-1">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="Enter phone number"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value.replace(/\D/g, ''))} // Only allow numbers
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
+      {/* Main content */}
+      <div className="relative z-10 container mx-auto px-4 pb-16">
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full text-blue-700 font-medium mb-6">
+            <Sparkles className="h-4 w-4" />
+            Join Fixera Today
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
-                Password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Create a strong password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange("password", e.target.value)}
-                  className="pl-10 pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">
+            How would you like to join?
+          </h1>
+
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Choose your path and start your journey with Europe&apos;s leading property services platform
+          </p>
+        </div>
+
+        {/* Role selection cards */}
+        <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          {/* Customer Card */}
+          <Card className="relative overflow-hidden border-2 border-gray-200 hover:border-blue-500 transition-all duration-300 hover:shadow-2xl group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400/20 to-purple-400/20 blur-3xl group-hover:scale-150 transition-transform duration-500" />
+
+            <CardHeader className="relative z-10">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <UserCircle className="h-8 w-8 text-white" />
               </div>
-              <p className="text-xs text-gray-500">
-                Password must be at least 6 characters long
+
+              <CardTitle className="text-3xl font-bold text-gray-900">
+                I&apos;m a Customer
+              </CardTitle>
+
+              <CardDescription className="text-lg text-gray-600 mt-2">
+                Looking for trusted professionals to help with property services
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="relative z-10 space-y-6">
+              <div className="space-y-3">
+                {features.customer.map((feature, index) => (
+                  <div key={index} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                    <span className="text-gray-700">{feature}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={() => router.push('/signup/customer')}
+                className="w-full h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold text-lg group/btn"
+                size="lg"
+              >
+                Join as Customer
+                <ArrowRight className="ml-2 h-5 w-5 group-hover/btn:translate-x-1 transition-transform" />
+              </Button>
+
+              <p className="text-sm text-center text-gray-500">
+                Free to join • No credit card required
               </p>
-            </div>
+            </CardContent>
+          </Card>
 
-            <div className="space-y-2">
-              <Label htmlFor="role" className="text-sm font-medium">
-                Professional Role
-              </Label>
-              <div className="relative">
-                <Briefcase className="absolute left-3 top-3 h-4 w-4 text-gray-400 z-10" />
-                <Select 
-                  value={formData.role} 
-                  onValueChange={(value: string) => handleInputChange("role", value)}
-                >
-                  <SelectTrigger className="pl-10">
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="customer">Customer</SelectItem>
-                    <SelectItem value="professional">Professional</SelectItem>
-                  </SelectContent>
-                </Select>
+          {/* Professional Card */}
+          <Card className="relative overflow-hidden border-2 border-gray-200 hover:border-purple-500 transition-all duration-300 hover:shadow-2xl group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-pink-400/20 blur-3xl group-hover:scale-150 transition-transform duration-500" />
+
+            <CardHeader className="relative z-10">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Briefcase className="h-8 w-8 text-white" />
               </div>
-            </div>
 
-            <Button
-              onClick={handleSubmit}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || !formData.name || !formData.email || !formData.phone || !formData.password || !formData.role}
-            >
-              {isLoading ? "Creating Account..." : "Create Account"}
-            </Button>
-          </div>
+              <CardTitle className="text-3xl font-bold text-gray-900">
+                I&apos;m a Professional
+              </CardTitle>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Already have an account?{" "}
-              <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                Sign in
-              </a>
-            </p>
+              <CardDescription className="text-lg text-gray-600 mt-2">
+                Ready to offer my property services and grow my business
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="relative z-10 space-y-6">
+              <div className="space-y-3">
+                {features.professional.map((feature, index) => (
+                  <div key={index} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-purple-600 mt-0.5 shrink-0" />
+                    <span className="text-gray-700">{feature}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                onClick={() => router.push('/register')}
+                className="w-full h-12 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold text-lg group/btn"
+                size="lg"
+              >
+                Join as Professional
+                <ArrowRight className="ml-2 h-5 w-5 group-hover/btn:translate-x-1 transition-transform" />
+              </Button>
+
+              <p className="text-sm text-center text-gray-500">
+                Free to join • Start getting bookings today
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Bottom CTA */}
+        <div className="text-center mt-12">
+          <p className="text-gray-600 mb-4">
+            Already have an account?
+          </p>
+          <Button
+            onClick={() => router.push('/login')}
+            variant="outline"
+            size="lg"
+            className="border-2 hover:bg-white/50"
+          >
+            Sign In
+          </Button>
+        </div>
+
+        {/* Trust indicators */}
+        <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-gray-900">10K+</div>
+            <div className="text-sm text-gray-600">Active Professionals</div>
           </div>
-        </CardContent>
-      </Card>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-gray-900">50K+</div>
+            <div className="text-sm text-gray-600">Projects Completed</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-gray-900">4.8★</div>
+            <div className="text-sm text-gray-600">Average Rating</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-gray-900">20+</div>
+            <div className="text-sm text-gray-600">Countries Served</div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
-
-export default JoinPage

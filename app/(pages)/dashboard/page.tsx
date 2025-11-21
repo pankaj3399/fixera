@@ -3,6 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -35,6 +36,93 @@ interface ProjectStats {
   pendingProjects: number;
 }
 
+type BookingStatus =
+  | "rfq"
+  | "quoted"
+  | "quote_accepted"
+  | "quote_rejected"
+  | "payment_pending"
+  | "booked"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "dispute"
+  | "refunded"
+  | string
+
+interface Booking {
+  _id: string
+  bookingType: "professional" | "project"
+  status: BookingStatus
+  rfqData?: {
+    serviceType?: string
+    description?: string
+    preferredStartDate?: string
+    budget?: {
+      min?: number
+      max?: number
+      currency?: string
+    }
+  }
+  scheduledStartDate?: string
+  scheduledEndDate?: string
+  createdAt?: string
+  project?: {
+    _id: string
+    title?: string
+    category?: string
+    service?: string
+  }
+  professional?: {
+    _id: string
+    name?: string
+    businessInfo?: {
+      companyName?: string
+    }
+  }
+}
+
+const BOOKING_STATUS_STYLES: Record<string, string> = {
+  rfq: "bg-indigo-50 text-indigo-700 border border-indigo-100",
+  quoted: "bg-blue-50 text-blue-700 border border-blue-100",
+  quote_accepted: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+  payment_pending: "bg-amber-50 text-amber-700 border border-amber-100",
+  booked: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+  in_progress: "bg-sky-50 text-sky-700 border border-sky-100",
+  completed: "bg-teal-50 text-teal-700 border border-teal-100",
+  cancelled: "bg-rose-50 text-rose-700 border border-rose-100",
+  refunded: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100",
+  dispute: "bg-red-50 text-red-700 border border-red-100",
+}
+
+const STATUS_FILTERS: { id: string; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "rfq", label: "RFQ" },
+  { id: "quoted", label: "Quoted" },
+  { id: "booked", label: "Booked" },
+  { id: "in_progress", label: "In progress" },
+  { id: "completed", label: "Completed" },
+  { id: "cancelled", label: "Cancelled" },
+]
+
+const isPastBooking = (booking: Booking): boolean => {
+  const pastStatuses = new Set<BookingStatus>(["completed", "cancelled", "refunded"])
+  return pastStatuses.has(booking.status)
+}
+
+const formatBudget = (booking: Booking): string | null => {
+  const budget = booking.rfqData?.budget
+  if (!budget || (budget.min == null && budget.max == null)) return null
+
+  const currency = budget.currency || "€"
+  if (budget.min != null && budget.max != null && budget.min !== budget.max) {
+    return `${currency}${budget.min.toLocaleString()} – ${currency}${budget.max.toLocaleString()}`
+  }
+  const value = budget.min ?? budget.max
+  if (value == null) return null
+  return `${currency}${value.toLocaleString()}`
+}
+
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -42,6 +130,10 @@ export default function DashboardPage() {
   const [approvalStats, setApprovalStats] = useState<ApprovalStats | null>(null)
   const [projectStats, setProjectStats] = useState<ProjectStats | null>(null)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [bookingsLoading, setBookingsLoading] = useState(false)
+  const [bookingsError, setBookingsError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>("all")
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -55,6 +147,36 @@ export default function DashboardPage() {
       fetchAdminData()
     }
   }, [user])
+
+  // Fetch bookings for customer dashboard
+  useEffect(() => {
+    if (!user || !isAuthenticated || user.role !== "customer") return
+
+    const fetchBookings = async () => {
+      setBookingsLoading(true)
+      setBookingsError(null)
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?limit=50`,
+          { credentials: "include" }
+        )
+        const data = await response.json()
+
+        if (response.ok && data.success) {
+          setBookings(data.bookings || [])
+        } else {
+          setBookingsError(data.msg || "Failed to load your bookings.")
+        }
+      } catch (error) {
+        console.error("Failed to fetch bookings:", error)
+        setBookingsError("Failed to load your bookings.")
+      } finally {
+        setBookingsLoading(false)
+      }
+    }
+
+    fetchBookings()
+  }, [user, isAuthenticated])
 
   const fetchAdminData = async () => {
     setIsLoadingStats(true)
@@ -107,6 +229,391 @@ export default function DashboardPage() {
 
   if (!isAuthenticated) {
     return null
+  }
+
+  // Customer dashboard with bookings overview
+  if (user?.role === "customer") {
+    const upcomingBookings = bookings.filter(b => !isPastBooking(b))
+    const pastBookings = bookings.filter(isPastBooking)
+
+    const filteredUpcoming = upcomingBookings.filter(b =>
+      statusFilter === "all" ? true : b.status === statusFilter
+    )
+    const filteredPast = pastBookings.filter(b =>
+      statusFilter === "all" ? true : b.status === statusFilter
+    )
+
+    const totalBookings = bookings.length
+    const totalUpcoming = upcomingBookings.length
+    const totalCompleted = bookings.filter(b => b.status === "completed").length
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
+        <div className="max-w-6xl mx-auto pt-20 space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Welcome back, {user?.name}!
+              </h1>
+              <p className="text-gray-600">
+                Here you can track all your bookings and project requests.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/projects")}
+                className="bg-white/70 backdrop-blur border border-pink-100 hover:border-pink-300"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Book another project
+              </Button>
+            </div>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid md:grid-cols-3 gap-4">
+            <Card className="bg-white/80 backdrop-blur border border-indigo-100 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-indigo-900">
+                  <Package className="h-5 w-5 text-indigo-500" />
+                  Total bookings
+                </CardTitle>
+                <CardDescription>Your overall activity</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold text-indigo-900">
+                  {totalBookings}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/80 backdrop-blur border border-emerald-100 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-emerald-900">
+                  <Clock className="h-5 w-5 text-emerald-500" />
+                  Active / upcoming
+                </CardTitle>
+                <CardDescription>Requests that are in progress</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold text-emerald-900">
+                  {totalUpcoming}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/80 backdrop-blur border border-teal-100 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-teal-900">
+                  <CheckCircle className="h-5 w-5 text-teal-500" />
+                  Completed
+                </CardTitle>
+                <CardDescription>Finished bookings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold text-teal-900">
+                  {totalCompleted}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Status filter chips */}
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTERS.map(filter => {
+              const isActive = statusFilter === filter.id
+              return (
+                <Button
+                  key={filter.id}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStatusFilter(filter.id)}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    isActive
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                      : "bg-white/80 text-gray-700 border-indigo-100 hover:border-indigo-300"
+                  }`}
+                >
+                  {filter.label}
+                </Button>
+              )
+            })}
+          </div>
+
+          {/* Bookings lists */}
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-indigo-500" />
+                Upcoming & active bookings
+              </h2>
+
+              {bookingsLoading && (
+                <Card className="bg-white/70 backdrop-blur border border-indigo-100">
+                  <CardContent className="py-8 text-center text-gray-500">
+                    Loading your bookings...
+                  </CardContent>
+                </Card>
+              )}
+
+              {!bookingsLoading && bookingsError && (
+                <Card className="bg-rose-50 border border-rose-100">
+                  <CardContent className="py-4 text-sm text-rose-700">
+                    {bookingsError}
+                  </CardContent>
+                </Card>
+              )}
+
+              {!bookingsLoading && !bookingsError && upcomingBookings.length === 0 && (
+                <Card className="bg-white/80 backdrop-blur border border-dashed border-indigo-200">
+                  <CardContent className="py-8 text-center space-y-2">
+                    <p className="text-sm text-gray-600">
+                      You don&apos;t have any active or upcoming bookings yet.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push("/projects")}
+                      className="bg-white/80 border-pink-200 hover:border-pink-300"
+                    >
+                      Browse projects
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {!bookingsLoading && !bookingsError && filteredUpcoming.map(booking => {
+                const isProject = booking.bookingType === "project"
+                const title =
+                  (isProject ? booking.project?.title : booking.professional?.businessInfo?.companyName) ||
+                  booking.rfqData?.serviceType ||
+                  "Booking"
+
+                const statusLabel = booking.status.replace(/_/g, " ")
+                const statusClasses =
+                  BOOKING_STATUS_STYLES[booking.status] ||
+                  "bg-slate-50 text-slate-700 border border-slate-100"
+
+                const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
+                const preferredStart = booking.rfqData?.preferredStartDate
+                  ? new Date(booking.rfqData.preferredStartDate)
+                  : booking.scheduledStartDate
+                  ? new Date(booking.scheduledStartDate)
+                  : null
+
+                const budgetLabel = formatBudget(booking)
+
+                return (
+                  <div
+                    key={booking._id}
+                    className="bg-gradient-to-r from-pink-100 via-purple-100 to-blue-100 rounded-2xl p-[1px]"
+                  >
+                    <Card className="bg-white/90 backdrop-blur rounded-[1rem] shadow-sm">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              {isProject ? (
+                                <Package className="h-4 w-4 text-indigo-500" />
+                              ) : (
+                                <Briefcase className="h-4 w-4 text-indigo-500" />
+                              )}
+                              <CardTitle className="text-base font-semibold text-gray-900">
+                                {title}
+                              </CardTitle>
+                            </div>
+                            <CardDescription className="text-xs text-gray-500">
+                              {isProject ? "Project booking" : "Professional booking"}
+                            </CardDescription>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs font-medium capitalize rounded-full px-2.5 py-1 ${statusClasses}`}
+                          >
+                            {statusLabel}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0 space-y-2 text-xs text-gray-700">
+                        {preferredStart && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-3 w-3 text-indigo-500" />
+                            <span>
+                              Preferred start:{" "}
+                              <span className="font-medium">
+                                {preferredStart.toLocaleDateString()}
+                              </span>
+                            </span>
+                          </div>
+                        )}
+
+                        {createdAt && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            <span>
+                              Requested on{" "}
+                              <span className="font-medium">
+                                {createdAt.toLocaleDateString()}
+                              </span>
+                            </span>
+                          </div>
+                        )}
+
+                        {budgetLabel && (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold">
+                              €
+                            </span>
+                            <span>
+                              Estimated budget:{" "}
+                              <span className="font-medium">{budgetLabel}</span>
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/bookings/${booking._id}`)}
+                            className="text-xs bg-white/80 border-indigo-200 hover:border-indigo-300"
+                          >
+                            View details
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Past bookings */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-teal-500" />
+                Past bookings
+              </h2>
+
+              {!bookingsLoading && !bookingsError && pastBookings.length === 0 && (
+                <Card className="bg-white/80 backdrop-blur border border-dashed border-teal-200">
+                  <CardContent className="py-8 text-center text-sm text-gray-600">
+                    Past bookings will appear here once your projects are completed or cancelled.
+                  </CardContent>
+                </Card>
+              )}
+
+              {!bookingsLoading && !bookingsError && filteredPast.map(booking => {
+                const isProject = booking.bookingType === "project"
+                const title =
+                  (isProject ? booking.project?.title : booking.professional?.businessInfo?.companyName) ||
+                  booking.rfqData?.serviceType ||
+                  "Booking"
+
+                const statusLabel = booking.status.replace(/_/g, " ")
+                const statusClasses =
+                  BOOKING_STATUS_STYLES[booking.status] ||
+                  "bg-slate-50 text-slate-700 border border-slate-100"
+
+                const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
+                const preferredStart = booking.rfqData?.preferredStartDate
+                  ? new Date(booking.rfqData.preferredStartDate)
+                  : booking.scheduledStartDate
+                  ? new Date(booking.scheduledStartDate)
+                  : null
+
+                const budgetLabel = formatBudget(booking)
+
+                return (
+                  <div
+                    key={booking._id}
+                    className="bg-gradient-to-r from-teal-50 via-sky-50 to-indigo-50 rounded-2xl p-[1px]"
+                  >
+                    <Card className="bg-white/90 backdrop-blur rounded-[1rem] shadow-sm">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              {isProject ? (
+                                <Package className="h-4 w-4 text-teal-500" />
+                              ) : (
+                                <Briefcase className="h-4 w-4 text-teal-500" />
+                              )}
+                              <CardTitle className="text-base font-semibold text-gray-900">
+                                {title}
+                              </CardTitle>
+                            </div>
+                            <CardDescription className="text-xs text-gray-500">
+                              {isProject ? "Project booking" : "Professional booking"}
+                            </CardDescription>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs font-medium capitalize rounded-full px-2.5 py-1 ${statusClasses}`}
+                          >
+                            {statusLabel}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0 space-y-2 text-xs text-gray-700">
+                        {preferredStart && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-3 w-3 text-teal-500" />
+                            <span>
+                              Start date:{" "}
+                              <span className="font-medium">
+                                {preferredStart.toLocaleDateString()}
+                              </span>
+                            </span>
+                          </div>
+                        )}
+
+                        {createdAt && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            <span>
+                              Requested on{" "}
+                              <span className="font-medium">
+                                {createdAt.toLocaleDateString()}
+                              </span>
+                            </span>
+                          </div>
+                        )}
+
+                        {budgetLabel && (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold">
+                              €
+                            </span>
+                            <span>
+                              Budget:{" "}
+                              <span className="font-medium">{budgetLabel}</span>
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/bookings/${booking._id}`)}
+                            className="text-xs bg-white/80 border-teal-200 hover:border-teal-300"
+                          >
+                            View details
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (user?.role === 'admin') {
@@ -587,7 +1094,7 @@ export default function DashboardPage() {
     )
   }
 
-  // Regular user dashboard
+  // Regular user dashboard (fallback)
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-4xl mx-auto pt-20">
@@ -634,14 +1141,14 @@ export default function DashboardPage() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm">Email Verification</span>
-                <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
-                  {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
+                <span className={`text-sm font-medium ${user?.isEmailVerified ? "text-green-600" : "text-red-600"}`}>
+                  {user?.isEmailVerified ? "Verified" : "Not Verified"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Phone Verification</span>
-                <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
-                  {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
+                <span className={`text-sm font-medium ${user?.isPhoneVerified ? "text-green-600" : "text-red-600"}`}>
+                  {user?.isPhoneVerified ? "Verified" : "Not Verified"}
                 </span>
               </div>
             </CardContent>
@@ -660,13 +1167,13 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Member Since</span>
                 <span className="text-sm font-medium">
-                  {new Date(user?.createdAt || '').toLocaleDateString()}
+                  {new Date(user?.createdAt || "").toLocaleDateString()}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Last Updated</span>
                 <span className="text-sm font-medium">
-                  {new Date(user?.updatedAt || '').toLocaleDateString()}
+                  {new Date(user?.updatedAt || "").toLocaleDateString()}
                 </span>
               </div>
             </CardContent>
@@ -676,7 +1183,7 @@ export default function DashboardPage() {
         {/* Action Buttons */}
         <div className="mt-8 flex gap-4">
           {(!user?.isEmailVerified || !user?.isPhoneVerified) && (
-            <Button onClick={() => router.push('/verify-phone')}>
+            <Button onClick={() => router.push("/verify-phone")}>
               Complete Verification
             </Button>
           )}

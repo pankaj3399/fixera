@@ -1,11 +1,14 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Search, MapPin, ArrowRight} from 'lucide-react'
+import SearchAutocomplete from './search/SearchAutocomplete'
+import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Import the Select component from shadcn/ui
 import {
@@ -20,21 +23,76 @@ import Icon from './Icon'
 
 
 
-const popularServices = ['Plumber', 'Electrician', 'Painter', 'Handyman', 'Renovation'];
-
-
 const HeroSection = () => {
   const router = useRouter();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useState('');
   const [searchType, setSearchType] = useState('projects');
+  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
+  const [popularServices, setPopularServices] = useState<string[]>([]);
+
+  // Use autocomplete hook
+  const { suggestions, isLoading } = useSearchAutocomplete(searchQuery, {
+    searchType: searchType as 'professionals' | 'projects',
+  });
+
+  // Pre-fill location from user's saved address
+  useEffect(() => {
+    if (user?.location?.city && user?.location?.country) {
+      // Format: "City, Country" for better user experience
+      const userLocation = `${user.location.city}, ${user.location.country}`;
+      setLocation(userLocation);
+    }
+  }, [user]);
+
+  // Fetch popular services from backend on mount
+  useEffect(() => {
+    fetchPopularServices();
+  }, []);
+
+  const fetchPopularServices = async () => {
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+      const response = await fetch(
+        `${backendUrl}/api/search/popular?limit=5`,
+        { credentials: 'include' }
+      );
+
+      if (response.ok) {
+        const data = (await response.json()) as { services?: Array<{ name: string }> };
+        // Extract service names from published projects
+        if (data.services && data.services.length > 0) {
+          const serviceNames = data.services.map((s) => s.name);
+          setPopularServices(serviceNames);
+        } else {
+          // No published projects yet, show message or fallback
+          setPopularServices([]);
+        }
+      } else {
+        // Fallback to empty if API fails
+        console.error('Failed to fetch popular services');
+        setPopularServices([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch popular services:', error);
+      // Fallback to empty on error
+      setPopularServices([]);
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setIsAutocompleteOpen(false);
+
     if (searchQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchQuery)}&loc=${encodeURIComponent(location)}&type=${searchType}`);
     }
+  };
+
+  const handleSuggestionSelect = (suggestion: Suggestion) => {
+    setSearchQuery(suggestion.value);
+    setIsAutocompleteOpen(false);
   };
 
   return (
@@ -65,16 +123,20 @@ const HeroSection = () => {
           </p>
 
           <form onSubmit={handleSearch} className="max-w-5xl mx-auto mb-5">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-3">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-3 relative">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                <div className="lg:col-span-4 flex items-center px-2">
+                <div className="lg:col-span-4 flex items-center px-2 relative">
                   <label htmlFor="service-search" className="sr-only">Service Search</label>
                   <Search className="w-5 h-5 text-gray-400 mr-3 shrink-0" />
                   <Input
                     id="service-search"
                     placeholder="What service do you need?"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setIsAutocompleteOpen(true);
+                    }}
+                    onFocus={() => setIsAutocompleteOpen(true)}
                     className="border-0 focus:ring-0 text-lg placeholder:text-gray-500 w-full"
                   />
                 </div>
@@ -114,25 +176,36 @@ const HeroSection = () => {
                   </Button>
                 </div>
               </div>
+
+              {/* Autocomplete Dropdown */}
+              <SearchAutocomplete
+                suggestions={suggestions}
+                isLoading={isLoading}
+                onSelect={handleSuggestionSelect}
+                isOpen={isAutocompleteOpen && searchQuery.length >= 2}
+                onClose={() => setIsAutocompleteOpen(false)}
+              />
             </div>
 
-            <div className="mt-6 text-center">
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-                <p className="text-gray-600 text-sm">Popular:</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {popularServices.map((service) => (
-                    <button
-                      type="button"
-                      key={service}
-                      onClick={() => setSearchQuery(service)}
-                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-full text-gray-700 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                    >
-                      {service}
-                    </button>
-                  ))}
+            {popularServices.length > 0 && (
+              <div className="mt-6 text-center">
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                  <p className="text-gray-600 text-sm">Popular:</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {popularServices.map((service) => (
+                      <button
+                        type="button"
+                        key={service}
+                        onClick={() => setSearchQuery(service)}
+                        className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-full text-gray-700 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      >
+                        {service}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </form>
 
           {/* Key Benefits Section */}
