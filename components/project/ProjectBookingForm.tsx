@@ -409,6 +409,9 @@ export default function ProjectBookingForm({
       console.log('[BOOKING] Blocked dates:', data.blockedDates);
       console.log('[BOOKING] Blocked ranges:', data.blockedRanges);
 
+      console.log('📅 Availability data received:', data)
+      console.log('📅 Blocked ranges:', data.blockedRanges?.length || 0)
+
       if (data.success) {
         // Normalize dates to yyyy-MM-dd format
         const normalizedData: BlockedDates = {
