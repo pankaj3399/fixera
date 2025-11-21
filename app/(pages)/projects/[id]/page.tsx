@@ -45,25 +45,24 @@ import {
 } from '@/lib/timezoneDisplay';
 
 interface Project {
-  _id: string;
-  title: string;
-  description: string;
-  category: string;
-  service: string;
-  priceModel?: string;
-  timeMode?: 'hours' | 'days';
+  _id: string
+  title: string
+  description: string
+  category: string
+  service: string
+  timeMode?: 'hours' | 'days'
   preparationDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
+    value: number
+    unit: 'hours' | 'days'
+  }
   executionDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
+    value: number
+    unit: 'hours' | 'days'
+  }
   bufferDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
+    value: number
+    unit: 'hours' | 'days'
+  }
   media: {
     images: string[];
     video?: string;
@@ -90,18 +89,18 @@ interface Project {
       priceRange?: { min: number; max: number };
     };
     included: Array<{
-      name: string;
-      description?: string;
-    }>;
+      name: string
+      description?: string
+    }>
     executionDuration?: {
-      value: number;
-      unit: 'hours' | 'days';
-    };
+      value: number
+      unit: 'hours' | 'days'
+    }
     warrantyPeriod?: {
-      value: number;
-      unit: 'months' | 'years';
-    };
-  }>;
+      value: number
+      unit: 'months' | 'years'
+    }
+  }>
   rfqQuestions: Array<{
     question: string;
     type: 'text' | 'multiple_choice' | 'attachment';
@@ -486,28 +485,135 @@ export default function ProjectDetailPage() {
                   </p>
                 </div>
 
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t'>
-                  {priceModelLabel && (
-                    <div className='flex items-start gap-3'>
-                      <Euro className='h-5 w-5 text-blue-600 mt-0.5' />
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-gray-500" />
+                    <div>
+                      <p className="text-sm text-gray-500">Service Area</p>
+                      <p className="font-medium">{project.distance.maxKmRange} km radius</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-gray-500" />
+                    <div>
+                      <p className="text-sm text-gray-500">Team Size</p>
+                      <p className="font-medium">{project.resources.length} members</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project Timeline */}
+                {project.executionDuration && (
+                  <div className="pt-4 border-t">
+                    <h4 className="font-semibold mb-3">Project Timeline</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {project.preparationDuration && (
+                        <div className="flex items-start gap-2">
+                          <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-gray-500">Preparation Time</p>
+                            <p className="font-medium">{project.preparationDuration.value} {project.preparationDuration.unit}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-start gap-2">
+                        <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-500">Execution Duration</p>
+                          <p className="font-medium">{project.executionDuration.value} {project.executionDuration.unit}</p>
+                        </div>
+                      </div>
+                      {project.bufferDuration && project.bufferDuration.value > 0 && (
+                        <div className="flex items-start gap-2">
+                          <Calendar className="h-5 w-5 text-yellow-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-gray-500">Buffer Time</p>
+                            <p className="font-medium">{project.bufferDuration.value} {project.bufferDuration.unit}</p>
+                            <p className="text-xs text-gray-500">Reserved for quality assurance</p>
+                          </div>
+                        </div>
+                      )}
+                      {project.timeMode && (
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-gray-500">Scheduling Mode</p>
+                            <p className="font-medium capitalize">{project.timeMode}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Subprojects/Packages */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Packages</CardTitle>
+                <CardDescription>Choose from our service packages</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {project.subprojects.map((subproject, idx) => (
+                  <div key={idx} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between items-start">
                       <div>
-                        <p className='text-sm text-gray-500'>Price Model</p>
-                        <p className='font-medium text-gray-900'>
-                          {priceModelLabel}
-                        </p>
+                        <h4 className="font-semibold text-lg">{subproject.name}</h4>
+                        <p className="text-gray-600 text-sm mt-1">{subproject.description}</p>
+                      </div>
+                      <div className="text-right">
+                        {subproject.pricing.type === 'fixed' && subproject.pricing.amount && (
+                          <p className="text-2xl font-bold text-blue-600">
+                            €{subproject.pricing.amount}
+                          </p>
+                        )}
+                        {subproject.pricing.type === 'unit' && subproject.pricing.priceRange && (
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-blue-600">
+                              €{subproject.pricing.priceRange.min} - €{subproject.pricing.priceRange.max}
+                            </p>
+                            <p className="text-xs text-gray-500">per unit</p>
+                          </div>
+                        )}
+                        {subproject.pricing.type === 'rfq' && (
+                          <Badge variant="outline">Request Quote</Badge>
+                        )}
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className='grid grid-cols-2 gap-4 pt-4 border-t'>
-                  <div className='flex items-center gap-2'>
-                    <MapPin className='h-5 w-5 text-gray-500' />
-                    <div>
-                      <p className='text-sm text-gray-500'>Service Area</p>
-                      <p className='font-medium'>
-                        {project.distance.maxKmRange} km radius
-                      </p>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Included:</p>
+                      <ul className="space-y-1">
+                        {subproject.included.slice(0, 3).map((item, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                            <span>{item.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="flex gap-4 text-sm text-gray-600 pt-2 border-t">
+                      {(subproject.executionDuration || project.executionDuration) && (
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>
+                            {subproject.executionDuration
+                              ? `${subproject.executionDuration.value} ${subproject.executionDuration.unit}`
+                              : `${project.executionDuration?.value} ${project.executionDuration?.unit}`
+                            }
+                          </span>
+                        </div>
+                      )}
+                      {subproject.warrantyPeriod && (
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>{subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className='flex items-center gap-2'>

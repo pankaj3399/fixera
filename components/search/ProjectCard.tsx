@@ -11,15 +11,10 @@ interface ProjectCardProps {
   project: {
     _id: string;
     title: string;
-  description: string;
-  category: string;
-  service: string;
-  areaOfWork?: string;
-  services?: Array<{
-    service?: string;
-    areaOfWork?: string;
-  }>;
-  timeMode?: 'hours' | 'days';
+    description: string;
+    category: string;
+    service: string;
+    timeMode?: 'hours' | 'days';
     executionDuration?: {
       value: number;
       unit: 'hours' | 'days';
@@ -159,23 +154,11 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     .join(', ');
   const qualityCertificates = (project.certifications || []).filter((cert) => isQualityCertificate(cert.name));
 
-  const images = project.media?.images || [];
-  const hasMultipleImages = images.length > 1;
-
-  useEffect(() => {
-    setViewerTimeZone(getViewerTimezone());
-  }, []);
-
-  // Pre-compute timezone labels for first available date and windows
-  const firstAvailableDateLabels = formatUtcViewerLabel(project.firstAvailableDate, viewerTimeZone);
-  const firstAvailableWindowLabels = formatWindowUtcViewer(project.firstAvailableWindow, viewerTimeZone);
-  const resolvedShortestThroughputWindow = getResolvedShortestThroughputWindow(project);
-  const shortestThroughputLabels = formatWindowUtcViewer(resolvedShortestThroughputWindow, viewerTimeZone);
-
   const getProjectDuration = () => {
     if (project.executionDuration) {
       const exec = project.executionDuration;
       const buffer = project.bufferDuration;
+      const total = exec.value + (buffer?.value || 0);
       return `${exec.value}${buffer?.value ? `+${buffer.value}` : ''} ${exec.unit}`;
     }
     return null;
@@ -192,19 +175,7 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     return 'Contact';
   };
 
-  const handlePrevImage = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
-  };
-
-  const handleNextImage = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
-  };
-
-  const currentImage = images[currentImageIndex];
+  const mainImage = project.media?.images?.[0];
 
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col h-full">
@@ -317,15 +288,11 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           </div>
         </div>
 
-        {/* Project Duration & Availability */}
-        {(getProjectDuration() || firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels) && (
-          <div className="space-y-2 mb-3 text-sm text-gray-700">
-            {getProjectDuration() && (
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-600" />
-                <span className="font-medium">Duration: {getProjectDuration()}</span>
-              </div>
-            )}
+        {/* Project Duration */}
+        {getProjectDuration() && (
+          <div className="flex items-center gap-2 mb-3 text-sm text-gray-700">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <span className="font-medium">Duration: {getProjectDuration()}</span>
           </div>
         )}
 
@@ -338,25 +305,9 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                 <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs border border-gray-200">
                   <div className="flex-1 min-w-0 mr-2">
                     <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
-                    <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-gray-500">
-                      {subproject.executionDuration && (
-                        <span>
-                          {subproject.executionDuration.value} {subproject.executionDuration.unit}
-                        </span>
-                      )}
-                      {subproject.warrantyPeriod && (
-                        <span>
-                          {subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty
-                        </span>
-                      )}
-                    </div>
-                    {subproject.firstAvailableDate && (
-                      <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
-                        <Calendar className="w-3 h-3" />
-                        Available: {new Date(subproject.firstAvailableDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                    {subproject.executionDuration && (
+                      <p className="text-gray-500 text-[10px]">
+                        {subproject.executionDuration.value} {subproject.executionDuration.unit}
                       </p>
                     )}
                   </div>

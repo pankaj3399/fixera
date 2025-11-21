@@ -289,26 +289,7 @@ function SearchPageContent() {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    searchType,
-    filters.query,
-    filters.location,
-    filters.priceMin,
-    filters.priceMax,
-    filters.category,
-    filters.availability,
-    filters.sortBy,
-    filters.services,
-    filters.geographicArea,
-    filters.priceModel,
-    filters.projectTypes,
-    filters.includedItems,
-    filters.areasOfWork,
-    filters.startDateFrom,
-    filters.startDateTo,
-    pagination.page,
-    locationCoordinates
-  ]);
+  }, [searchType, filters.query, filters.location, filters.priceMin, filters.priceMax, filters.category, filters.availability, filters.sortBy, pagination.page]);
 
   const fetchCategories = async () => {
     try {
