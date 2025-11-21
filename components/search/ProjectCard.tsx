@@ -12,6 +12,15 @@ interface ProjectCardProps {
     description: string;
     category: string;
     service: string;
+    timeMode?: 'hours' | 'days';
+    executionDuration?: {
+      value: number;
+      unit: 'hours' | 'days';
+    };
+    bufferDuration?: {
+      value: number;
+      unit: 'hours' | 'days';
+    };
     pricing?: {
       type: 'fixed' | 'unit' | 'rfq';
       amount?: number;
@@ -35,6 +44,13 @@ interface ProjectCardProps {
       profileImage?: string;
     };
     subprojects?: Array<{
+      name: string;
+      description: string;
+      pricing: {
+        type: 'fixed' | 'unit' | 'rfq';
+        amount?: number;
+        priceRange?: { min: number; max: number };
+      };
       executionDuration?: {
         value: number;
         unit: 'hours' | 'days';
@@ -50,27 +66,25 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     .filter(Boolean)
     .join(', ');
 
-  const getPriceDisplay = () => {
-    if (!project.pricing) return 'Contact for pricing';
-
-    if (project.pricing.type === 'fixed' && project.pricing.amount) {
-      return `€${project.pricing.amount.toLocaleString()}`;
-    } else if (project.pricing.type === 'unit' && project.pricing.priceRange) {
-      return `€${project.pricing.priceRange.min} - €${project.pricing.priceRange.max}`;
-    } else if (project.pricing.type === 'rfq') {
-      return 'Request Quote';
-    }
-    return 'Contact for pricing';
-  };
-
-  const getDuration = () => {
-    if (project.subprojects && project.subprojects.length > 0) {
-      const firstSubproject = project.subprojects[0];
-      if (firstSubproject.executionDuration) {
-        return `${firstSubproject.executionDuration.value} ${firstSubproject.executionDuration.unit}`;
-      }
+  const getProjectDuration = () => {
+    if (project.executionDuration) {
+      const exec = project.executionDuration;
+      const buffer = project.bufferDuration;
+      const total = exec.value + (buffer?.value || 0);
+      return `${exec.value}${buffer?.value ? `+${buffer.value}` : ''} ${exec.unit}`;
     }
     return null;
+  };
+
+  const formatSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
+    if (pricing.type === 'fixed' && pricing.amount) {
+      return `€${pricing.amount.toLocaleString()}`;
+    } else if (pricing.type === 'unit' && pricing.priceRange) {
+      return `€${pricing.priceRange.min}-€${pricing.priceRange.max}`;
+    } else if (pricing.type === 'rfq') {
+      return 'RFQ';
+    }
+    return 'Contact';
   };
 
   const mainImage = project.media?.images?.[0];
@@ -119,27 +133,64 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           </div>
         </div>
 
+        {/* Project Duration */}
+        {getProjectDuration() && (
+          <div className="flex items-center gap-2 mb-3 text-sm text-gray-700">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <span className="font-medium">Duration: {getProjectDuration()}</span>
+          </div>
+        )}
+
+        {/* Subprojects/Packages */}
+        {project.subprojects && project.subprojects.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Available Packages:</p>
+            <div className="space-y-2">
+              {project.subprojects.slice(0, 3).map((subproject, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs border border-gray-200">
+                  <div className="flex-1 min-w-0 mr-2">
+                    <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
+                    {subproject.executionDuration && (
+                      <p className="text-gray-500 text-[10px]">
+                        {subproject.executionDuration.value} {subproject.executionDuration.unit}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant={subproject.pricing.type === 'rfq' ? 'outline' : 'default'} className="text-[10px] px-2 py-0.5 shrink-0">
+                    {formatSubprojectPrice(subproject.pricing)}
+                  </Badge>
+                </div>
+              ))}
+              {project.subprojects.length > 3 && (
+                <p className="text-[10px] text-gray-500 text-center">
+                  +{project.subprojects.length - 3} more package{project.subprojects.length - 3 > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Professional Info */}
         {professional && (
-          <div className="pt-4 border-t border-gray-200 mb-4">
+          <div className="pt-3 border-t border-gray-200 mt-auto">
             <div className="flex items-center gap-3">
               {professional.profileImage ? (
                 <img
                   src={professional.profileImage}
                   alt={professionalName}
-                  className="w-10 h-10 rounded-full object-cover"
+                  className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
                   {professionalName.charAt(0).toUpperCase()}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">
+                <p className="text-xs font-semibold text-gray-900 truncate">
                   {professionalName}
                 </p>
                 {location && (
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <div className="flex items-center gap-1 text-[10px] text-gray-500">
                     <MapPin className="w-3 h-3" />
                     <span className="truncate">{location}</span>
                   </div>
@@ -148,20 +199,6 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
             </div>
           </div>
         )}
-
-        {/* Footer Info */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-2">
-            <Euro className="w-5 h-5 text-blue-600" />
-            <span className="font-bold text-gray-900">{getPriceDisplay()}</span>
-          </div>
-          {getDuration() && (
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <Clock className="w-4 h-4" />
-              <span>{getDuration()}</span>
-            </div>
-          )}
-        </div>
 
         {/* CTA Button */}
         <Button asChild className="w-full mt-4" variant="default">

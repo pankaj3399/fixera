@@ -12,7 +12,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, Loader2, Upload, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { format, addDays, isAfter, isBefore, parseISO } from 'date-fns'
+import { format, addDays, isAfter, isBefore, parseISO, isWithinInterval, startOfDay } from 'date-fns'
+import { DayPicker } from 'react-day-picker'
+import 'react-day-picker/dist/style.css'
 
 interface Project {
   _id: string
@@ -99,6 +101,7 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
   // Form state
   const [selectedSubprojects, setSelectedSubprojects] = useState<number[]>([])
   const [selectedDate, setSelectedDate] = useState('')
+  const [showCalendar, setShowCalendar] = useState(false)
   const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([])
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>([])
   const [additionalNotes, setAdditionalNotes] = useState('')
@@ -110,13 +113,21 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
 
   const fetchTeamAvailability = async () => {
     try {
+      console.log('🔄 Fetching team availability for project:', project._id)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/availability`
       )
       const data = await response.json()
 
+      console.log('📅 Availability data received:', data)
+      console.log('📅 Blocked ranges:', data.blockedRanges?.length || 0)
+
       if (data.success) {
         setBlockedDates(data)
+        console.log('✅ Blocked dates set:', {
+          blockedDates: data.blockedDates?.length || 0,
+          blockedRanges: data.blockedRanges?.length || 0
+        })
       }
     } catch (error) {
       console.error('Error fetching availability:', error)
@@ -161,6 +172,23 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
     }
 
     return false
+  }
+
+  const getDisabledDays = () => {
+    const disabled: Date[] = []
+
+    // Add individual blocked dates
+    blockedDates.blockedDates.forEach(dateStr => {
+      disabled.push(parseISO(dateStr))
+    })
+
+    // Add date ranges
+    const disabledRanges = blockedDates.blockedRanges.map(range => ({
+      from: parseISO(range.startDate),
+      to: parseISO(range.endDate)
+    }))
+
+    return [...disabled, ...disabledRanges]
   }
 
   const getMinDate = (): string => {
@@ -538,6 +566,14 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
                           {subproject.pricing.type === 'fixed' && subproject.pricing.amount && (
                             <p className="text-xl font-bold text-blue-600">€{subproject.pricing.amount}</p>
                           )}
+                          {subproject.pricing.type === 'unit' && subproject.pricing.priceRange && (
+                            <div>
+                              <p className="text-xl font-bold text-blue-600">
+                                €{subproject.pricing.priceRange.min} - €{subproject.pricing.priceRange.max}
+                              </p>
+                              <p className="text-xs text-gray-500">per unit</p>
+                            </div>
+                          )}
                           {subproject.pricing.type === 'rfq' && (
                             <Badge variant="outline">Quote Required</Badge>
                           )}
@@ -566,27 +602,66 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
                 ) : (
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="preferred-date">Preferred Start Date *</Label>
-                        <div className="relative mt-2">
-                          <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
-                          <Input
-                            id="preferred-date"
-                            type="date"
-                            value={selectedDate}
-                            min={getMinDate()}
-                            max={format(addDays(new Date(), 180), 'yyyy-MM-dd')}
-                            onChange={(e) => {
-                              const date = e.target.value
-                              if (isDateBlocked(date)) {
-                                toast.error('This date is not available. Please choose another date.')
-                                return
-                              }
-                              setSelectedDate(date)
-                            }}
-                            className="pl-10"
-                            required
-                          />
-                        </div>
+                      <Label>Preferred Start Date *</Label>
+                      <div className="mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal h-10"
+                          onClick={() => setShowCalendar(!showCalendar)}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {selectedDate ? format(parseISO(selectedDate), 'MMMM d, yyyy') : 'Select a date'}
+                        </Button>
+
+                        {showCalendar && (
+                          <div className="mt-3 p-6 border rounded-lg bg-white shadow-xl">
+                            <DayPicker
+                              mode="single"
+                              selected={selectedDate ? parseISO(selectedDate) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  setSelectedDate(format(date, 'yyyy-MM-dd'))
+                                  setShowCalendar(false)
+                                }
+                              }}
+                              disabled={[
+                                { before: proposals?.earliestBookableDate ? parseISO(proposals.earliestBookableDate) : addDays(new Date(), 1) },
+                                { after: addDays(new Date(), 180) },
+                                ...getDisabledDays()
+                              ]}
+                              styles={{
+                                months: { width: '100%' },
+                                month: { width: '100%' },
+                                table: { width: '100%', maxWidth: '100%' },
+                                head_cell: { width: '14.28%', textAlign: 'center' },
+                                cell: { width: '14.28%', textAlign: 'center' },
+                                day: {
+                                  width: '40px',
+                                  height: '40px',
+                                  margin: '2px auto',
+                                  fontSize: '14px'
+                                },
+                              }}
+                              modifiersStyles={{
+                                selected: {
+                                  backgroundColor: '#3b82f6',
+                                  color: 'white',
+                                  fontWeight: 'bold'
+                                },
+                                disabled: {
+                                  textDecoration: 'line-through',
+                                  opacity: 0.3,
+                                  cursor: 'not-allowed'
+                                },
+                                today: {
+                                  fontWeight: 'bold',
+                                  color: '#3b82f6'
+                                }
+                              }}
+                            />
+                          </div>
+                        )}
 
                         {proposals && (
                           <div className="mt-4 space-y-2 text-xs text-gray-600">
@@ -634,32 +709,47 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
                             </div>
                           </div>
                         )}
-                      <p className="text-xs text-gray-500 mt-2">
-                        Team has {blockedDates.blockedDates.length} blocked dates and {blockedDates.blockedRanges.length} blocked periods
-                      </p>
+                      </div>
                     </div>
 
                     {selectedDate && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
                         <p className="text-sm text-blue-900">
                           <strong>Selected Start Date:</strong> {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
                         </p>
                         {project.executionDuration && project.bufferDuration && (
-                          <p className="text-sm text-blue-900 mt-2">
-                            <strong>Estimated Delivery Date:</strong>{' '}
-                            {format(
-                              addDays(
-                                parseISO(selectedDate),
-                                (project.executionDuration.unit === 'days'
-                                  ? project.executionDuration.value
-                                  : Math.ceil(project.executionDuration.value / 24)) +
-                                (project.bufferDuration.unit === 'days'
-                                  ? project.bufferDuration.value
-                                  : Math.ceil(project.bufferDuration.value / 24))
-                              ),
-                              'EEEE, MMMM d, yyyy'
-                            )}
-                          </p>
+                          <>
+                            <div className="border-t border-blue-300 pt-3 space-y-2">
+                              <p className="text-sm text-blue-900">
+                                <strong>Execution Duration:</strong> {project.executionDuration.value} {project.executionDuration.unit}
+                              </p>
+                              <p className="text-sm text-blue-900">
+                                <strong>Buffer Time:</strong> {project.bufferDuration.value} {project.bufferDuration.unit}
+                                <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                                  Blocked in contractor&apos;s calendar
+                                </span>
+                              </p>
+                            </div>
+                            <p className="text-sm text-blue-900 font-semibold pt-2 border-t border-blue-300">
+                              <strong>Project Completion:</strong>{' '}
+                              {format(
+                                addDays(
+                                  parseISO(selectedDate),
+                                  (project.executionDuration.unit === 'days'
+                                    ? project.executionDuration.value
+                                    : Math.ceil(project.executionDuration.value / 24)) +
+                                  (project.bufferDuration.unit === 'days'
+                                    ? project.bufferDuration.value
+                                    : Math.ceil(project.bufferDuration.value / 24))
+                                ),
+                                'EEEE, MMMM d, yyyy'
+                              )}
+                            </p>
+                            <p className="text-xs text-blue-700 italic">
+                              The buffer time ensures your contractor stays on schedule even if unexpected delays occur.
+                              This time is reserved exclusively for your project.
+                            </p>
+                          </>
                         )}
                       </div>
                     )}
@@ -759,6 +849,11 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
                       {project.subprojects[idx].pricing.type === 'fixed' && project.subprojects[idx].pricing.amount && (
                         <span className="font-semibold">€{project.subprojects[idx].pricing.amount}</span>
                       )}
+                      {project.subprojects[idx].pricing.type === 'unit' && project.subprojects[idx].pricing.priceRange && (
+                        <span className="font-semibold">
+                          €{project.subprojects[idx].pricing.priceRange?.min} - €{project.subprojects[idx].pricing.priceRange?.max} /unit
+                        </span>
+                      )}
                       {project.subprojects[idx].pricing.type === 'rfq' && (
                         <Badge variant="outline">Quote Required</Badge>
                       )}
@@ -769,24 +864,42 @@ export default function ProjectBookingForm({ project, onBack }: ProjectBookingFo
                 {/* Selected Date */}
                 <div className="space-y-3">
                   <h3 className="font-semibold">Project Timeline</h3>
-                  <div className="bg-gray-50 p-3 rounded space-y-2">
-                    <p><strong>Start Date:</strong> {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}</p>
+                  <div className="bg-gray-50 p-4 rounded space-y-3">
+                    <p className="text-sm">
+                      <strong>Start Date:</strong> {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
+                    </p>
                     {project.executionDuration && project.bufferDuration && (
-                      <p>
-                        <strong>Estimated Delivery:</strong>{' '}
-                        {format(
-                          addDays(
-                            parseISO(selectedDate),
-                            (project.executionDuration.unit === 'days'
-                              ? project.executionDuration.value
-                              : Math.ceil(project.executionDuration.value / 24)) +
-                            (project.bufferDuration.unit === 'days'
-                              ? project.bufferDuration.value
-                              : Math.ceil(project.bufferDuration.value / 24))
-                          ),
-                          'EEEE, MMMM d, yyyy'
-                        )}
-                      </p>
+                      <>
+                        <div className="border-t border-gray-300 pt-3 space-y-2">
+                          <p className="text-sm">
+                            <strong>Execution Duration:</strong> {project.executionDuration.value} {project.executionDuration.unit}
+                          </p>
+                          <p className="text-sm">
+                            <strong>Buffer Time:</strong> {project.bufferDuration.value} {project.bufferDuration.unit}
+                            <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                              Reserved in contractor&apos;s calendar
+                            </span>
+                          </p>
+                        </div>
+                        <p className="text-sm font-semibold pt-2 border-t border-gray-300">
+                          <strong>Expected Completion:</strong>{' '}
+                          {format(
+                            addDays(
+                              parseISO(selectedDate),
+                              (project.executionDuration.unit === 'days'
+                                ? project.executionDuration.value
+                                : Math.ceil(project.executionDuration.value / 24)) +
+                              (project.bufferDuration.unit === 'days'
+                                ? project.bufferDuration.value
+                                : Math.ceil(project.bufferDuration.value / 24))
+                            ),
+                            'EEEE, MMMM d, yyyy'
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-600 italic">
+                          Buffer time is reserved to ensure timely completion and handle any unforeseen circumstances.
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
