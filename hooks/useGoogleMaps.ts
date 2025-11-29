@@ -1,98 +1,93 @@
-import { useState, useEffect } from "react";
+'use client'
+
+import { useEffect, useState } from 'react'
 
 interface GoogleMapsHook {
-  isLoaded: boolean;
-  validateAddress: (address: string) => Promise<boolean>;
+  isLoaded: boolean
+  validateAddress: (address: string) => Promise<boolean>
 }
 
 export const useGoogleMaps = (): GoogleMapsHook => {
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
-    // Check if already loaded
     if ((window as any).google?.maps) {
-      setIsLoaded(true);
-      return;
+      setIsLoaded(true)
+      return
     }
 
-    // Load Google Maps script from backend (public endpoint)
     const loadGoogleMapsScript = async () => {
       try {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/google-maps-config`
-        );
+        )
 
         if (!response.ok) {
-          throw new Error("Failed to get Google Maps configuration");
+          throw new Error('Failed to get Google Maps configuration')
         }
 
-        const data = await response.json();
+        const data = await response.json()
 
         if (data.success && data.scriptUrl) {
-          const script = document.createElement("script");
-          script.src = data.scriptUrl;
-          script.async = true;
-          script.onload = () => setIsLoaded(true);
+          const script = document.createElement('script')
+          script.src = data.scriptUrl
+          script.async = true
+          script.onload = () => setIsLoaded(true)
           script.onerror = () => {
-            console.error("Failed to load Google Maps");
-            setIsLoaded(false);
-          };
-          document.head.appendChild(script);
+            console.error('Failed to load Google Maps script')
+            setIsLoaded(false)
+          }
+          document.head.appendChild(script)
         }
       } catch (error) {
-        console.error("Failed to load Google Maps configuration:", error);
-        setIsLoaded(false);
+        console.error('Failed to load Google Maps configuration:', error)
+        setIsLoaded(false)
       }
-    };
+    }
 
-    loadGoogleMapsScript();
-
-    return () => {
-      // Cleanup if needed
-    };
-  }, []);
+    loadGoogleMapsScript()
+  }, [])
 
   const validateAddress = async (address: string): Promise<boolean> => {
-    if (!address) return false;
+    if (!address) return false
 
     try {
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+        'Content-Type': 'application/json'
+      }
       if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+        headers['Authorization'] = `Bearer ${token}`
       }
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/validate-address`,
         {
-          method: "POST",
+          method: 'POST',
           headers,
-          credentials: "include",
-          body: JSON.stringify({ address }),
+          credentials: 'include',
+          body: JSON.stringify({ address })
         }
-      );
+      )
 
-      const data = await response.json();
-      console.log('📨 Frontend: Received validation response:', {
+      const data = await response.json()
+      console.log('[GoogleMaps] Address validation response:', {
         success: data.success,
         isValid: data.isValid,
         statusCode: response.status
-      });
+      })
 
       if (!response.ok) {
-        console.error('❌ Frontend: Validation request failed:', response.status, data);
-        return false;
+        console.error('[GoogleMaps] Validation request failed:', response.status, data)
+        return false
       }
 
-      return data.success && data.isValid;
+      return data.success && data.isValid
     } catch (error) {
-      console.error("Address validation error:", error);
-      return false;
+      console.error('Address validation error:', error)
+      return false
     }
-  };
+  }
 
-  return { isLoaded, validateAddress };
-};
+  return { isLoaded, validateAddress }
+}
