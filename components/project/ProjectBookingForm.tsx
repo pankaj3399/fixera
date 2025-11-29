@@ -409,8 +409,8 @@ export default function ProjectBookingForm({
       console.log('[BOOKING] Blocked dates:', data.blockedDates);
       console.log('[BOOKING] Blocked ranges:', data.blockedRanges);
 
-      console.log('📅 Availability data received:', data)
-      console.log('📅 Blocked ranges:', data.blockedRanges?.length || 0)
+      console.log('[BOOKING] Availability data received:', data)
+      console.log('[BOOKING] Blocked ranges:', data.blockedRanges?.length || 0)
 
       if (data.success) {
         // Normalize dates to yyyy-MM-dd format
@@ -977,6 +977,63 @@ export default function ProjectBookingForm({
     return slotTime < now;
   };
 
+  const shouldCollectUsage = (pricingType: 'fixed' | 'unit' | 'rfq'): boolean => {
+    if (pricingType === 'unit') {
+      return true
+    }
+
+    const projectPriceModel = (project.priceModel || '').toLowerCase()
+    if (!projectPriceModel) {
+      return false
+    }
+
+    return !projectPriceModel.includes('total')
+  }
+
+  const formatCurrency = (value?: number) =>
+    typeof value === 'number'
+      ? new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
+      : null
+
+  // Check if a date is a weekend (Saturday or Sunday)
+  const isWeekend = (date: Date): boolean => {
+    const day = date.getDay()
+    return day === 0 || day === 6 // Sunday = 0, Saturday = 6
+  }
+
+  // Generate available time slots for hourly bookings
+  const generateTimeSlots = (): string[] => {
+    const slots: string[] = []
+    const startHour = 9 // Default start: 9 AM
+    const endHour = 17 // Default end: 5 PM
+
+    for (let hour = startHour; hour < endHour; hour++) {
+      slots.push(`${hour.toString().padStart(2, '0')}:00`)
+      slots.push(`${hour.toString().padStart(2, '0')}:30`)
+    }
+
+    return slots
+  }
+
+  // Check if a time slot is in the past for today's date
+  const isTimeSlotPast = (timeSlot: string): boolean => {
+    if (!selectedDate) return false
+
+    const selectedDateObj = parseISO(selectedDate)
+    const today = startOfDay(new Date())
+
+    // Only check if selected date is today
+    if (selectedDateObj.getTime() !== today.getTime()) return false
+
+    const [hours, minutes] = timeSlot.split(':').map(Number)
+    const now = new Date()
+    const slotTime = new Date()
+    slotTime.setHours(hours, minutes, 0, 0)
+
+    return slotTime < now
+  }
+
+  // Check if date is blocked (unavailable - includes company closures)
   const isDateBlocked = (dateString: string): boolean => {
     const dateObj = parseISO(dateString);
     if (Number.isNaN(dateObj.getTime())) {
@@ -1706,6 +1763,63 @@ export default function ProjectBookingForm({
       setSelectedTime('');
     }
   }, [projectMode, selectedDate]);
+
+  const projectedCompletionDate = calculateCompletionDate()
+
+  const getPreparationDurationLabel = () => {
+    if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
+      return `${selectedPackage.deliveryPreparation} days`
+    }
+
+    if (project.preparationDuration?.value && project.preparationDuration.value > 0) {
+      return `${project.preparationDuration.value} ${project.preparationDuration.unit}`
+    }
+
+    return null
+  }
+
+  const getExecutionDurationLabel = () => {
+    const duration = selectedPackage?.executionDuration || project.executionDuration
+    if (!duration) return null
+
+    if (selectedPackage?.pricing.type === 'rfq' && hasDurationRange(duration)) {
+      const min = duration.range.min
+      const max = duration.range.max
+      if (min && max) return `${min} - ${max} ${duration.unit}`
+      if (max) return `${max} ${duration.unit}`
+      if (min) return `${min} ${duration.unit}`
+    }
+
+    if (!duration.value || duration.value <= 0) return null
+    return `${duration.value} ${duration.unit}`
+  }
+
+  const getBufferDurationLabel = () => {
+    const buffer = selectedPackage?.buffer || project.bufferDuration
+    if (!buffer || !buffer.value || buffer.value <= 0) return null
+    return `${buffer.value} ${buffer.unit}`
+  }
+
+  const preparationLabel = getPreparationDurationLabel()
+  const executionLabel = getExecutionDurationLabel()
+  const bufferLabel = getBufferDurationLabel()
+
+  useEffect(() => {
+    if (!selectedPackage) {
+      setEstimatedUsage(1)
+      return
+    }
+
+    if (!shouldCollectUsage(selectedPackage.pricing.type)) {
+      setEstimatedUsage(1)
+    }
+  }, [selectedPackage])
+
+  useEffect(() => {
+    if (project.timeMode === 'hours') {
+      setSelectedTime('')
+    }
+  }, [project.timeMode, selectedDate])
 
   return (
     <div className='min-h-screen bg-gray-50 py-8'>

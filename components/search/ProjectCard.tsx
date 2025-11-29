@@ -172,6 +172,9 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
   const resolvedShortestThroughputWindow = getResolvedShortestThroughputWindow(project);
   const shortestThroughputLabels = formatWindowUtcViewer(resolvedShortestThroughputWindow, viewerTimeZone);
 
+  const images = project.media?.images || [];
+  const hasMultipleImages = images.length > 1;
+
   const getProjectDuration = () => {
     if (project.executionDuration) {
       const exec = project.executionDuration;
