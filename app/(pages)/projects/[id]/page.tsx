@@ -6,11 +6,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, MapPin, Calendar, Users, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Loader2, MapPin, Calendar, Users, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import Image from 'next/image'
 import ProjectBookingForm from '@/components/project/ProjectBookingForm'
+import SubprojectComparisonTable from '@/components/project/SubprojectComparisonTable'
 
 interface Project {
   _id: string
@@ -18,6 +19,7 @@ interface Project {
   description: string
   category: string
   service: string
+  priceModel?: string
   timeMode?: 'hours' | 'days'
   preparationDuration?: {
     value: number
@@ -83,6 +85,21 @@ interface Project {
     }
     email: string
     phone: string
+    companyAvailability?: {
+      monday?: { available: boolean; startTime?: string; endTime?: string }
+      tuesday?: { available: boolean; startTime?: string; endTime?: string }
+      wednesday?: { available: boolean; startTime?: string; endTime?: string }
+      thursday?: { available: boolean; startTime?: string; endTime?: string }
+      friday?: { available: boolean; startTime?: string; endTime?: string }
+      saturday?: { available: boolean; startTime?: string; endTime?: string }
+      sunday?: { available: boolean; startTime?: string; endTime?: string }
+    }
+    companyBlockedRanges?: Array<{
+      startDate: string
+      endDate: string
+      reason?: string
+      isHoliday?: boolean
+    }>
   }
 }
 
@@ -93,8 +110,17 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [showBookingForm, setShowBookingForm] = useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [selectedSubprojectIndex, setSelectedSubprojectIndex] = useState<number | null>(null)
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
 
   const projectId = params.id as string
+
+  useEffect(() => {
+    setCurrentImageIndex(0)
+    setSelectedSubprojectIndex(null)
+  }, [project?._id])
 
   useEffect(() => {
     fetchProject()
@@ -121,7 +147,7 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const handleBookNow = () => {
+  const handleSelectPackage = (index: number) => {
     if (!isAuthenticated) {
       toast.error('Please sign in to book this project')
       router.push(`/login?redirect=/projects/${projectId}`)
@@ -133,6 +159,7 @@ export default function ProjectDetailPage() {
       return
     }
 
+    setSelectedSubprojectIndex(index)
     setShowBookingForm(true)
   }
 
@@ -156,7 +183,11 @@ export default function ProjectDetailPage() {
     return (
       <ProjectBookingForm
         project={project}
-        onBack={() => setShowBookingForm(false)}
+        onBack={() => {
+          setShowBookingForm(false)
+          setSelectedSubprojectIndex(null)
+        }}
+        selectedSubprojectIndex={selectedSubprojectIndex}
       />
     )
   }
@@ -175,29 +206,70 @@ export default function ProjectDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Image Gallery */}
+            {/* Image Gallery with Carousel */}
             {project.media.images.length > 0 && (
               <Card>
                 <CardContent className="p-0">
-                  <div className="relative h-96 w-full">
+                  <div className="relative h-96 w-full group">
                     <Image
-                      src={project.media.images[0]}
+                      src={project.media.images[currentImageIndex]}
                       alt={project.title}
                       fill
                       className="object-cover rounded-t-lg"
                     />
+
+                    {/* Left Arrow */}
+                    {project.media.images.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => setCurrentImageIndex(prev =>
+                            prev > 0 ? prev - 1 : project.media.images.length - 1
+                          )}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          aria-label="Previous image"
+                        >
+                          <ChevronLeft className="w-6 h-6" />
+                        </button>
+
+                        {/* Right Arrow */}
+                        <button
+                          onClick={() => setCurrentImageIndex(prev =>
+                            prev < project.media.images.length - 1 ? prev + 1 : 0
+                          )}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          aria-label="Next image"
+                        >
+                          <ChevronRight className="w-6 h-6" />
+                        </button>
+
+                        {/* Image Counter */}
+                        <div className="absolute bottom-4 right-4 bg-black/60 text-white px-3 py-1 rounded-full text-sm font-medium">
+                          {currentImageIndex + 1} / {project.media.images.length}
+                        </div>
+                      </>
+                    )}
                   </div>
+
+                  {/* Thumbnail Navigation */}
                   {project.media.images.length > 1 && (
-                    <div className="grid grid-cols-4 gap-2 p-4">
-                      {project.media.images.slice(1, 5).map((img, idx) => (
-                        <div key={idx} className="relative h-24">
+                    <div className="flex gap-2 p-4 overflow-x-auto">
+                      {project.media.images.map((img, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentImageIndex(idx)}
+                          className={`relative h-20 w-20 flex-shrink-0 rounded overflow-hidden border-2 transition-all ${
+                            currentImageIndex === idx
+                              ? 'border-blue-500 ring-2 ring-blue-200'
+                              : 'border-gray-200 hover:border-gray-400'
+                          }`}
+                        >
                           <Image
                             src={img}
-                            alt={`${project.title} ${idx + 2}`}
+                            alt={`${project.title} thumbnail ${idx + 1}`}
                             fill
-                            className="object-cover rounded"
+                            className="object-cover"
                           />
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -287,75 +359,80 @@ export default function ProjectDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Subprojects/Packages */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Packages</CardTitle>
-                <CardDescription>Choose from our service packages</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {project.subprojects.map((subproject, idx) => (
-                  <div key={idx} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-semibold text-lg">{subproject.name}</h4>
-                        <p className="text-gray-600 text-sm mt-1">{subproject.description}</p>
-                      </div>
-                      <div className="text-right">
-                        {subproject.pricing.type === 'fixed' && subproject.pricing.amount && (
-                          <p className="text-2xl font-bold text-blue-600">
-                            €{subproject.pricing.amount}
-                          </p>
-                        )}
-                        {subproject.pricing.type === 'unit' && subproject.pricing.priceRange && (
-                          <div className="text-right">
-                            <p className="text-xl font-bold text-blue-600">
-                              €{subproject.pricing.priceRange.min} - €{subproject.pricing.priceRange.max}
-                            </p>
-                            <p className="text-xs text-gray-500">per unit</p>
+            {/* Company Working Hours & Availability */}
+            {project.professionalId.companyAvailability && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Working Hours & Availability
+                  </CardTitle>
+                  <CardDescription>
+                    Standard business hours and upcoming closures
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Weekly Schedule */}
+                  <div>
+                    <h4 className="font-semibold mb-3">Standard Working Days:</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
+                        const dayKey = day as keyof typeof project.professionalId.companyAvailability
+                        const dayInfo = project.professionalId.companyAvailability?.[dayKey]
+                        const dayName = day.charAt(0).toUpperCase() + day.slice(1)
+
+                        return (
+                          <div key={day} className="flex justify-between items-center p-2 rounded bg-gray-50">
+                            <span className="font-medium">{dayName}:</span>
+                            {dayInfo?.available ? (
+                              <span className="text-green-600">
+                                {dayInfo.startTime || '09:00'} - {dayInfo.endTime || '17:00'}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">Closed</span>
+                            )}
                           </div>
-                        )}
-                        {subproject.pricing.type === 'rfq' && (
-                          <Badge variant="outline">Request Quote</Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Included:</p>
-                      <ul className="space-y-1">
-                        {subproject.included.slice(0, 3).map((item, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                            <span>{item.name}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="flex gap-4 text-sm text-gray-600 pt-2 border-t">
-                      {(subproject.executionDuration || project.executionDuration) && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>
-                            {subproject.executionDuration
-                              ? `${subproject.executionDuration.value} ${subproject.executionDuration.unit}`
-                              : `${project.executionDuration?.value} ${project.executionDuration?.unit}`
-                            }
-                          </span>
-                        </div>
-                      )}
-                      {subproject.warrantyPeriod && (
-                        <div className="flex items-center gap-1">
-                          <CheckCircle className="h-4 w-4" />
-                          <span>{subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty</span>
-                        </div>
-                      )}
+                        )
+                      })}
                     </div>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
+
+                  {/* Company Closures */}
+                  {project.professionalId.companyBlockedRanges &&
+                   project.professionalId.companyBlockedRanges.length > 0 && (
+                    <div className="pt-4 border-t">
+                      <h4 className="font-semibold mb-3">Upcoming Closures:</h4>
+                      <div className="space-y-2">
+                        {project.professionalId.companyBlockedRanges
+                          .filter(closure => {
+                            const endDate = new Date(closure.endDate)
+                            return endDate >= new Date() // Only show future/current closures
+                          })
+                          .slice(0, 5) // Limit to 5 upcoming closures
+                          .map((closure, idx) => (
+                            <div
+                              key={idx}
+                              className="flex justify-between items-start p-3 bg-yellow-50 border border-yellow-200 rounded text-sm"
+                            >
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {closure.reason || (closure.isHoliday ? 'Holiday Period' : 'Company Closure')}
+                                </p>
+                                <p className="text-gray-600 text-xs mt-1">
+                                  {new Date(closure.startDate).toLocaleDateString()} - {new Date(closure.endDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                              {closure.isHoliday && (
+                                <Badge variant="secondary" className="text-xs">Holiday</Badge>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* FAQ */}
             {project.faq.length > 0 && (
@@ -373,50 +450,61 @@ export default function ProjectDetailPage() {
                 </CardContent>
               </Card>
             )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Reviews & More From This Professional</CardTitle>
+                <CardDescription>Coming soon in the next phase</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600">
+                  We&apos;re working on surfacing verified reviews and additional projects from this company. Stay tuned!
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Professional Info */}
+            {project.subprojects.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <SubprojectComparisonTable
+                  subprojects={project.subprojects}
+                  onSelectPackage={handleSelectPackage}
+                />
+              </div>
+            )}
+
+            {/* Professional Info - Hidden until after booking */}
             {project.professionalId && (
               <Card>
                 <CardHeader>
                   <CardTitle>Provided By</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    <p className="font-semibold text-lg">
-                      {project.professionalId.businessInfo?.companyName || project.professionalId.name}
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
+                        P
+                      </div>
+                      <div>
+                        <p className="font-semibold text-lg text-gray-900">
+                          Verified Professional
+                        </p>
+                        <Badge variant="secondary" className="text-xs">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Verified
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded p-3">
+                      <strong>Note:</strong> Contact details will be revealed after you complete your booking and payment.
                     </p>
-                    {project.professionalId.email && (
-                      <p className="text-sm text-gray-600">{project.professionalId.email}</p>
-                    )}
-                    {project.professionalId.phone && (
-                      <p className="text-sm text-gray-600">{project.professionalId.phone}</p>
-                    )}
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Book Now Card */}
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle>Ready to Book?</CardTitle>
-                <CardDescription>Get started with your project today</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  onClick={handleBookNow}
-                  className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700"
-                >
-                  Book This Project
-                </Button>
-                <p className="text-xs text-center text-gray-500 mt-3">
-                  {!isAuthenticated ? 'Sign in required to book' : 'Fill out the booking form to get started'}
-                </p>
-              </CardContent>
-            </Card>
 
             {/* Extra Options */}
             {project.extraOptions.length > 0 && (
@@ -433,7 +521,7 @@ export default function ProjectDetailPage() {
                           <p className="text-gray-600 text-xs">{option.description}</p>
                         )}
                       </div>
-                      <p className="font-semibold text-blue-600">+€{option.price}</p>
+                      <p className="font-semibold text-blue-600">+{formatCurrency(option.price)}</p>
                     </div>
                   ))}
                 </CardContent>
@@ -445,3 +533,4 @@ export default function ProjectDetailPage() {
     </div>
   )
 }
+

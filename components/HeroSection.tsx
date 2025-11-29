@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Search, MapPin, ArrowRight} from 'lucide-react'
+import { Search, ArrowRight} from 'lucide-react'
 import SearchAutocomplete from './search/SearchAutocomplete'
+import LocationAutocomplete from './search/LocationAutocomplete'
 import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -104,7 +105,7 @@ const HeroSection = () => {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <Badge className="mb-8 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 border-blue-200 px-6 py-2 text-base font-medium">
-            🚀 One Platform. Every Solution.
+            One Platform. Every Solution.
           </Badge>
 
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold mb-8 leading-[1.1] tracking-tight">
@@ -141,15 +142,12 @@ const HeroSection = () => {
                   />
                 </div>
 
-                <div className="lg:col-span-3 flex items-center px-2 lg:border-l lg:border-gray-200">
+                <div className="lg:col-span-3 px-2 lg:border-l lg:border-gray-200">
                   <label htmlFor="location-search" className="sr-only">Location</label>
-                  <MapPin className="w-5 h-5 text-gray-400 mr-3 shrink-0" />
-                  <Input
-                    id="location-search"
-                    placeholder="Location"
+                  <LocationAutocomplete
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="border-0 focus:ring-0 text-lg placeholder:text-gray-500 w-full"
+                    onChange={setLocation}
+                    placeholder="City, Country"
                   />
                 </div>
 

@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Euro, ArrowRight, Clock } from 'lucide-react';
+import { MapPin, Euro, ArrowRight, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ProjectCardProps {
   project: {
@@ -60,11 +60,15 @@ interface ProjectCardProps {
 }
 
 const ProjectCard = ({ project }: ProjectCardProps) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const professional = project.professionalId;
   const professionalName = professional?.businessInfo?.companyName || professional?.name || 'Professional';
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
+
+  const images = project.media?.images || [];
+  const hasMultipleImages = images.length > 1;
 
   const getProjectDuration = () => {
     if (project.executionDuration) {
@@ -87,15 +91,27 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     return 'Contact';
   };
 
-  const mainImage = project.media?.images?.[0];
+  const handlePrevImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  };
+
+  const handleNextImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+  };
+
+  const currentImage = images[currentImageIndex];
 
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col h-full">
-      {/* Image Section */}
+      {/* Image Section with Carousel */}
       <div className="relative h-48 bg-gradient-to-br from-blue-50 to-purple-50">
-        {mainImage ? (
+        {currentImage ? (
           <img
-            src={mainImage}
+            src={currentImage}
             alt={project.title}
             className="w-full h-full object-cover"
           />
@@ -104,9 +120,53 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
             <div className="text-6xl text-gray-300">🏗️</div>
           </div>
         )}
+
+        {/* Category Badge */}
         <Badge className="absolute top-3 right-3 bg-blue-600 text-white">
           {project.category}
         </Badge>
+
+        {/* Navigation Arrows - Only show if there are multiple images */}
+        {hasMultipleImages && (
+          <>
+            <button
+              onClick={handlePrevImage}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              aria-label="Previous image"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleNextImage}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              aria-label="Next image"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </>
+        )}
+
+        {/* Image Indicators - Only show if there are multiple images */}
+        {hasMultipleImages && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {images.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCurrentImageIndex(idx);
+                }}
+                className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${
+                  idx === currentImageIndex
+                    ? 'bg-white w-4'
+                    : 'bg-white/60 hover:bg-white/80'
+                }`}
+                aria-label={`Go to image ${idx + 1}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Content Section */}

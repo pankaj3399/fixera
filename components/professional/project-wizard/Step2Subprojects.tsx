@@ -597,32 +597,60 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                   <div className="w-full flex gap-4">
                     <div>
                       <Label>Pricing Type *</Label>
-                      <Select
-                        value={subproject.pricing.type}
-                        onValueChange={(value: string) => {
-                          // If user chooses the service's price model label option, map to fixed
-                          const resolved: 'fixed' | 'unit' | 'rfq' = value === 'model' ? 'fixed' : (value as 'fixed' | 'unit' | 'rfq')
-                          updateSubproject(subproject.id, {
-                            pricing: { ...subproject.pricing, type: resolved }
-                          })
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {data.priceModel && data.category?.toLowerCase() !== 'renovation' && (
-                            <SelectItem value="model">{data.priceModel}</SelectItem>
-                          )}
-                          <SelectItem value="rfq">RFQ</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <Select
+                      value={subproject.pricing.type}
+                      onValueChange={(value: string) => {
+                        // If user chooses the service's price model label option, map to fixed
+                        const resolved: 'fixed' | 'unit' | 'rfq' = value === 'model' ? 'fixed' : (value as 'fixed' | 'unit' | 'rfq')
+                        updateSubproject(subproject.id, {
+                          pricing: { ...subproject.pricing, type: resolved }
+                        })
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select pricing type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.priceModel && data.category?.toLowerCase() !== 'renovation' ? (
+                          <SelectItem value="model">{data.priceModel}</SelectItem>
+                        ) : (
+                          <>
+                            <SelectItem value="fixed">Fixed Price (Total)</SelectItem>
+                            <SelectItem value="unit">Unit Price (EUR/unit)</SelectItem>
+                          </>
+                        )}
+                        <SelectItem value="rfq">RFQ (Request for Quote)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      Current selection:{' '}
+                      {subproject.pricing.type === 'fixed' && 'Fixed Price (Total)'}
+                      {subproject.pricing.type === 'unit' && 'Unit Price (per unit)'}
+                      {subproject.pricing.type === 'rfq' && 'Request for Quote'}
+                      {!subproject.pricing.type && 'None'}
+                    </p>
+                  </div>
 
                     {subproject.pricing.type === 'fixed' && (
+                      <div>
+                        <Label>Total Price (EUR) *</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={subproject.pricing.amount || ''}
+                          onChange={(e) => updateSubproject(subproject.id, {
+                            pricing: { ...subproject.pricing, amount: parseFloat(e.target.value) }
+                          })}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+
+                    {subproject.pricing.type === 'unit' && (
                       <>
                         <div>
-                          <Label>{data.priceModel} (€) *</Label>
+                          <Label>Price per Unit (EUR/unit) *</Label>
                           <Input
                             type="number"
                             min="0"
@@ -635,7 +663,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                           />
                         </div>
                         <div>
-                          <Label>Minimum Order Value (€) *</Label>
+                          <Label>Minimum Order Value (EUR)</Label>
                           <Input
                             type="number"
                             min="0"
@@ -652,7 +680,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
 
                     {subproject.pricing.type === 'rfq' && (
                       <div className="md:col-span-2">
-                        <Label>Estimated Price Range (€)</Label>
+                        <Label>Estimated Price Range (EUR)</Label>
                         <div className="flex space-x-2">
                           <Input
                             type="number"
@@ -1344,7 +1372,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                     <tr key={sub.id} className="border-b">
                       <td className="p-2 font-medium">{sub.name || `Package ${index + 1}`}</td>
                       <td className="p-2">
-                        {sub.pricing.type === 'fixed' && sub.pricing.amount && `€${sub.pricing.amount} (${data.priceModel})`}
+                        {sub.pricing.type === 'fixed' && sub.pricing.amount && `EUR ${sub.pricing.amount} (${data.priceModel})`}
                         {sub.pricing.type === 'rfq' && 'Quote required'}
                       </td>
                       <td className="p-2">
@@ -1365,7 +1393,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                 <div className="flex items-center space-x-2">
                   <Info className="w-4 h-4 text-blue-600" />
                   <span className="font-medium text-blue-900">
-                    Total fixed price packages: €{calculateTotalPrice().toFixed(2)}
+                    Total fixed price packages: EUR {calculateTotalPrice().toFixed(2)}
                   </span>
                 </div>
               </div>
