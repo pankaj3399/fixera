@@ -484,8 +484,9 @@ export default function ProjectCreatePage() {
           if (currentProject.status === 'pending_approval') {
             console.log('Project already pending approval, redirecting...')
             toast.success('Project is already submitted and pending approval!')
-            shouldResetLoading = false
-            router.replace('/professional/projects/manage')
+            setTimeout(() => {
+              router.push('/professional/projects/manage')
+            }, 500)
             return
           }
 
@@ -509,7 +510,7 @@ export default function ProjectCreatePage() {
                 return
               }
 
-              console.log('Successfully changed on_hold project to published')
+              console.log('✅ NEW CODE: Successfully changed on_hold project to published')
               setProjectData(prev => ({ ...prev, status: 'published' }))
             } catch (error) {
               console.error('Error changing status to published:', error)
@@ -540,9 +541,15 @@ export default function ProjectCreatePage() {
         const submittedProject = await response.json()
         console.log('Project submitted successfully:', submittedProject)
 
+        // Update local state with the new status
+        if (submittedProject.status) {
+          setProjectData(prev => ({ ...prev, status: submittedProject.status }))
+        }
+
         toast.success('Project submitted for approval!')
-        shouldResetLoading = false
-        router.replace('/professional/projects/manage')
+        setTimeout(() => {
+          router.push('/professional/projects/manage')
+        }, 500)
       } else {
         const error = await response.json()
         console.error('Submission failed:', error)
@@ -552,9 +559,7 @@ export default function ProjectCreatePage() {
       console.error('Submit error:', error)
       toast.error('Failed to submit project')
     } finally {
-      if (shouldResetLoading) {
-        setIsLoading(false)
-      }
+      setIsLoading(false)
     }
   }
 

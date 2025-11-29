@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } from '@/lib/projectHighlights';
-import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
+import { MapPin, Euro, ArrowRight, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ProjectCardProps {
   project: {
@@ -146,13 +144,15 @@ const getResolvedShortestThroughputWindow = (project: ProjectCardProps['project'
 
 const ProjectCard = ({ project }: ProjectCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
   const professional = project.professionalId;
   const professionalName = professional?.businessInfo?.companyName || professional?.name || 'Professional';
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
   const qualityCertificates = (project.certifications || []).filter((cert) => isQualityCertificate(cert.name));
+
+  const images = project.media?.images || [];
+  const hasMultipleImages = images.length > 1;
 
   const getProjectDuration = () => {
     if (project.executionDuration) {
@@ -175,7 +175,19 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     return 'Contact';
   };
 
-  const mainImage = project.media?.images?.[0];
+  const handlePrevImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  };
+
+  const handleNextImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+  };
+
+  const currentImage = images[currentImageIndex];
 
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col h-full">
@@ -197,17 +209,6 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
         <Badge className="absolute top-3 right-3 bg-blue-600 text-white">
           {project.category}
         </Badge>
-
-        {/* First Available Date Badge */}
-        {project.firstAvailableDate && (
-          <Badge className="absolute top-3 left-3 bg-emerald-600 text-white flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {new Date(project.firstAvailableDate).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-            })}
-          </Badge>
-        )}
 
         {/* Navigation Arrows - Only show if there are multiple images */}
         {hasMultipleImages && (
