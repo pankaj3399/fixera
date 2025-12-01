@@ -38,7 +38,7 @@ interface Project {
   _id: string
   title: string
   description: string
-  status: 'draft' | 'pending' | 'rejected' | 'published' | 'on_hold' | 'suspended'
+  status: string
   category: string
   subprojects: Array<{
     name: string
@@ -60,6 +60,98 @@ interface Project {
   updatedAt: string
 }
 
+type NormalizedProjectStatus = 'draft' | 'pending' | 'published' | 'on_hold' | 'rejected'
+type TabValue = 'all' | 'drafts' | 'pending' | 'published' | 'on_hold' | 'rejected'
+
+const DEFAULT_PROJECT_COUNTS = {
+  drafts: 0,
+  pending: 0,
+  published: 0,
+  on_hold: 0,
+  rejected: 0
+}
+
+const normalizeProjectStatus = (status: Project['status']): NormalizedProjectStatus => {
+  const value = (status || '').toString().trim().toLowerCase()
+
+  if (value === 'pending' || value === 'pending_approval' || value === 'pending approval' || value === 'pendingapproval' || value === 'awaiting_approval' || value === 'awaiting approval' || value === 'awaitingapproval') {
+    return 'pending'
+  }
+
+  if (value === 'published' || value === 'active' || value === 'live') {
+    return 'published'
+  }
+
+  if (value === 'on_hold' || value === 'on hold' || value === 'hold' || value === 'suspended' || value === 'paused' || value === 'pause') {
+    return 'on_hold'
+  }
+
+  if (value === 'rejected') {
+    return 'rejected'
+  }
+
+  return 'draft'
+}
+
+const formatProjectStatusLabel = (status: Project['status']) => {
+  const normalized = normalizeProjectStatus(status)
+  switch (normalized) {
+    case 'pending':
+      return 'Pending Approval'
+    case 'published':
+      return 'Published'
+    case 'on_hold':
+      return 'On Hold'
+    case 'rejected':
+      return 'Rejected'
+    default:
+      return 'Draft'
+  }
+}
+
+const deriveCountsFromProjects = (projects: Project[]) => {
+  const counts = { ...DEFAULT_PROJECT_COUNTS }
+
+  projects.forEach((project) => {
+    const normalized = normalizeProjectStatus(project.status)
+    switch (normalized) {
+      case 'draft':
+        counts.drafts += 1
+        break
+      case 'pending':
+        counts.pending += 1
+        break
+      case 'published':
+        counts.published += 1
+        break
+      case 'on_hold':
+        counts.on_hold += 1
+        break
+      case 'rejected':
+        counts.rejected += 1
+        break
+      default:
+        break
+    }
+  })
+
+  return counts
+}
+
+const mapCountsFromApi = (counts: Record<string, number> | undefined | null) => {
+  if (!counts) {
+    return null
+  }
+
+  return {
+    drafts: counts.drafts ?? counts.draft ?? 0,
+    pending: counts.pending ?? counts.pending_approval ?? 0,
+    published: counts.published ?? 0,
+    on_hold: counts.on_hold ?? counts.onHold ?? 0,
+    rejected: counts.rejected ?? 0
+  }
+}
+
 export default function ManageProjectsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -78,13 +170,59 @@ export default function ManageProjectsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalProjects, setTotalProjects] = useState(0)
-  const [projectCounts, setProjectCounts] = useState({
-    drafts: 0,
-    pending: 0,
-    published: 0,
-    on_hold: 0,
-    rejected: 0
-  })
+  const [projectCounts, setProjectCounts] = useState(() => ({ ...DEFAULT_PROJECT_COUNTS }))
+  const [activeTab, setActiveTab] = useState<TabValue>('all')
+
+  const mapTabToStatus = (tab: TabValue): string => {
+    switch (tab) {
+      case 'drafts':
+        return 'draft'
+      case 'pending':
+        return 'pending'
+      case 'published':
+        return 'published'
+      case 'on_hold':
+        return 'on_hold'
+      case 'rejected':
+        return 'rejected'
+      default:
+        return 'all'
+    }
+  }
+
+  const mapStatusToTab = (status: string): TabValue => {
+    switch (status) {
+      case 'draft':
+        return 'drafts'
+      case 'pending':
+        return 'pending'
+      case 'published':
+        return 'published'
+      case 'on_hold':
+        return 'on_hold'
+      case 'rejected':
+        return 'rejected'
+      default:
+        return 'all'
+    }
+  }
+
+  const handleStatusFilterChange = (status: string) => {
+    console.log('[ManageProjects] Status filter changed', { status })
+    setStatusFilter(status)
+    setActiveTab(mapStatusToTab(status))
+    setCurrentPage(1)
+  }
+
+  const handleTabChange = (tabValue: TabValue) => {
+    console.log('[ManageProjects] Tab changed', { tabValue })
+    setActiveTab(tabValue)
+    const mappedStatus = mapTabToStatus(tabValue)
+    if (statusFilter !== mappedStatus) {
+      setStatusFilter(mappedStatus)
+      setCurrentPage(1)
+    }
+  }
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -107,6 +245,12 @@ export default function ManageProjectsPage() {
     setIsLoading(true)
     setError(null)
     try {
+      console.log('[ManageProjects] Fetching projects', {
+        search: debouncedSearchTerm,
+        statusFilter,
+        categoryFilter,
+        currentPage
+      })
       // Build query parameters
       const queryParams = new URLSearchParams()
 
@@ -126,6 +270,7 @@ export default function ManageProjectsPage() {
       queryParams.append('limit', '20')
 
       const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/master${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+      console.log('[ManageProjects] Request URL', url)
 
       const projectsResponse = await fetch(url, {
         method: 'GET',
@@ -137,62 +282,87 @@ export default function ManageProjectsPage() {
 
       if (projectsResponse.ok) {
         const responseData = await projectsResponse.json()
+        let fetchedProjects: Project[] = []
+        let responseCounts: Record<string, number> | undefined
 
-        // Handle the new API response structure
         if (responseData.items && responseData.meta) {
-          // New API response format
-          setProjects(responseData.items)
+          console.log('[ManageProjects] Using paginated items format', {
+            meta: responseData.meta,
+            itemCount: responseData.items.length,
+            counts: responseData.counts
+          })
+          fetchedProjects = responseData.items
+          responseCounts = responseData.counts
           setTotalPages(responseData.meta.pages || 1)
           setTotalProjects(responseData.meta.total || responseData.items.length)
           setCurrentPage(responseData.meta.page || 1)
-
-          // Set project counts from the counts object
-          if (responseData.counts) {
-            setProjectCounts({
-              drafts: responseData.counts.drafts || 0,
-              pending: responseData.counts.pending || 0,
-              published: responseData.counts.published || 0,
-              on_hold: responseData.counts.on_hold || 0,
-              rejected: responseData.counts.rejected || 0
-            })
-          }
-
-          // drafts list no longer used; counts cover stats
         } else if (responseData.projects) {
-          // Legacy paginated response
-          setProjects(responseData.projects)
+          console.log('[ManageProjects] Using legacy projects format', {
+            totalPages: responseData.totalPages,
+            totalProjects: responseData.totalProjects,
+            counts: responseData.counts
+          })
+          fetchedProjects = responseData.projects
+          responseCounts = responseData.counts
           setTotalPages(responseData.totalPages || 1)
           setTotalProjects(responseData.totalProjects || responseData.projects.length)
           setCurrentPage(responseData.currentPage || 1)
-          // drafts list no longer used; counts cover stats
         } else if (Array.isArray(responseData)) {
-          // Direct array response
-          setProjects(responseData)
+          console.log('[ManageProjects] Using array response format', {
+            itemCount: responseData.length
+          })
+          fetchedProjects = responseData
           setTotalPages(1)
           setTotalProjects(responseData.length)
           setCurrentPage(1)
-          // drafts list no longer used; counts cover stats
         } else {
-          // Fallback
+          console.warn('[ManageProjects] Unexpected response payload, resetting lists', responseData)
           setProjects([])
           setTotalPages(1)
           setTotalProjects(0)
-          setCurrentPage(1)
-          // drafts list no longer used; counts cover stats
+          setProjectCounts({ ...DEFAULT_PROJECT_COUNTS })
+          return
+        }
+
+        setProjects(fetchedProjects)
+        console.log('[ManageProjects] Received projects', {
+          length: fetchedProjects.length,
+          statuses: fetchedProjects.reduce<Record<string, number>>((acc, project) => {
+            const status = normalizeProjectStatus(project.status)
+            acc[status] = (acc[status] || 0) + 1
+            return acc
+          }, {})
+        })
+        console.log('[ManageProjects] Raw status values', fetchedProjects.map(project => project.status))
+
+        const mappedCounts = mapCountsFromApi(responseCounts)
+        if (mappedCounts) {
+          console.log('[ManageProjects] Using API counts', mappedCounts)
+          setProjectCounts(mappedCounts)
+        } else {
+          const derived = deriveCountsFromProjects(fetchedProjects)
+          console.log('[ManageProjects] Derived counts from fetched data', derived)
+          setProjectCounts(derived)
         }
       } else {
         const errorData = await projectsResponse.json().catch(() => ({}))
+        console.error('[ManageProjects] Failed to fetch projects', {
+          status: projectsResponse.status,
+          errorData
+        })
         setError(errorData.message || 'Failed to fetch projects')
         setProjects([])
         setTotalPages(1)
         setTotalProjects(0)
+        setProjectCounts({ ...DEFAULT_PROJECT_COUNTS })
       }
     } catch (error) {
-      console.error('Failed to fetch projects:', error)
+      console.error('[ManageProjects] Exception while fetching projects', error)
       setError('Failed to fetch projects. Please check your connection.')
       setProjects([])
       setTotalPages(1)
       setTotalProjects(0)
+      setProjectCounts({ ...DEFAULT_PROJECT_COUNTS })
     } finally {
       setIsLoading(false)
     }
@@ -213,8 +383,9 @@ export default function ManageProjectsPage() {
     }
   }, [currentPage, user?.role, fetchProjects])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusColor = (status: Project['status']) => {
+    const normalized = normalizeProjectStatus(status)
+    switch (normalized) {
       case 'draft':
         return 'bg-gray-100 text-gray-800 border-gray-300'
       case 'pending':
@@ -230,8 +401,9 @@ export default function ManageProjectsPage() {
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
+  const getStatusIcon = (status: Project['status']) => {
+    const normalized = normalizeProjectStatus(status)
+    switch (normalized) {
       case 'draft':
         return <FileText className="h-4 w-4" />
       case 'pending':
@@ -314,9 +486,10 @@ export default function ManageProjectsPage() {
     }
   }
 
-  const toggleProjectHold = async (projectId: string, currentStatus: string) => {
+  const toggleProjectHold = async (projectId: string, currentStatus: Project['status']) => {
     try {
-      const newStatus = currentStatus === 'published' ? 'on_hold' : 'published'
+      const normalizedStatus = normalizeProjectStatus(currentStatus)
+      const newStatus = normalizedStatus === 'published' ? 'on_hold' : 'published'
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}/status`, {
         method: 'PATCH',
         headers: {
@@ -367,22 +540,34 @@ export default function ManageProjectsPage() {
     return null
   }
 
-  const draftProjects = filteredProjects.filter(p => p.status === 'draft')
-  const pendingProjects = filteredProjects.filter(p => p.status === 'pending')
-  const publishedProjects = filteredProjects.filter(p => p.status === 'published')
-  const rejectedProjects = filteredProjects.filter(p => p.status === 'rejected')
-  const onHoldProjects = filteredProjects.filter(p => p.status === 'on_hold')
+  const draftProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'draft')
+  const pendingProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'pending')
+  const publishedProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'published')
+  const rejectedProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'rejected')
+  const onHoldProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'on_hold')
+
+  const fallbackCounts = deriveCountsFromProjects(filteredProjects)
+  const tabCounts = {
+    drafts: projectCounts.drafts || fallbackCounts.drafts,
+    pending: projectCounts.pending || fallbackCounts.pending,
+    published: projectCounts.published || fallbackCounts.published,
+    on_hold: projectCounts.on_hold || fallbackCounts.on_hold,
+    rejected: projectCounts.rejected || fallbackCounts.rejected
+  }
 
   // Get unique categories for filter dropdown
   const uniqueCategories = Array.from(new Set(projects.map(p => p.category))).filter(Boolean)
 
+  const selectedProjectStatus = selectedProject ? normalizeProjectStatus(selectedProject.status) : null
+
   // Project Action Menu Component
   const ProjectActionMenu = ({ project }: { project: Project }) => {
-    const canEdit = ['draft', 'rejected'].includes(project.status)
-    const canEditWithWarning = ['published', 'on_hold'].includes(project.status)
-    const canSubmit = project.status === 'draft'
-    const canHold = ['published', 'on_hold'].includes(project.status)
-    const canDelete = ['draft', 'rejected'].includes(project.status)
+    const normalizedStatus = normalizeProjectStatus(project.status)
+    const canEdit = normalizedStatus === 'draft' || normalizedStatus === 'rejected'
+    const canEditWithWarning = normalizedStatus === 'published' || normalizedStatus === 'on_hold'
+    const canSubmit = normalizedStatus === 'draft'
+    const canHold = normalizedStatus === 'published' || normalizedStatus === 'on_hold'
+    const canDelete = normalizedStatus === 'draft' || normalizedStatus === 'rejected'
 
     return (
       <DropdownMenu>
@@ -445,7 +630,7 @@ export default function ManageProjectsPage() {
                   setHoldDialogOpen(true)
                 }}
               >
-                {project.status === 'published' ? (
+                {normalizeProjectStatus(project.status) === 'published' ? (
                   <>
                     <Pause className="h-4 w-4 mr-2" />
                     Put On Hold
@@ -529,7 +714,7 @@ export default function ManageProjectsPage() {
               />
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
@@ -620,26 +805,26 @@ export default function ManageProjectsPage() {
           </Card>
         </div>
 
-        <Tabs defaultValue="all" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as TabValue)} className="space-y-6">
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="all" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 All ({filteredProjects.length})
               </TabsTrigger>
               <TabsTrigger value="drafts" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Drafts ({draftProjects.length})
+                Drafts ({tabCounts.drafts})
               </TabsTrigger>
               <TabsTrigger value="pending" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Pending ({pendingProjects.length})
+                Pending ({tabCounts.pending})
               </TabsTrigger>
               <TabsTrigger value="published" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Published ({publishedProjects.length})
+                Published ({tabCounts.published})
               </TabsTrigger>
               <TabsTrigger value="on_hold" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                On Hold ({onHoldProjects.length})
+                On Hold ({tabCounts.on_hold})
               </TabsTrigger>
               <TabsTrigger value="rejected" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Rejected ({rejectedProjects.length})
+                Rejected ({tabCounts.rejected})
               </TabsTrigger>
             </TabsList>
           </div>
@@ -674,7 +859,7 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={`${getStatusColor(project.status)} border text-xs`}>
                             {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status.replace('_', ' ')}</span>
+                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
                           </Badge>
                           <ProjectActionMenu project={project} />
                         </div>
@@ -688,8 +873,8 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            {project.status === 'pending' && project.submittedAt && `Submitted: ${new Date(project.submittedAt).toLocaleDateString()}`}
-                            {project.status === 'published' && project.approvedAt && `Published: ${new Date(project.approvedAt).toLocaleDateString()}`}
+                            {normalizeProjectStatus(project.status) === 'pending' && project.submittedAt && `Submitted: ${new Date(project.submittedAt).toLocaleDateString()}`}
+                            {normalizeProjectStatus(project.status) === 'published' && project.approvedAt && `Published: ${new Date(project.approvedAt).toLocaleDateString()}`}
                             {!project.submittedAt && !project.approvedAt && `Updated: ${new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString()}`}
                           </span>
                         </div>
@@ -697,7 +882,7 @@ export default function ManageProjectsPage() {
                         {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
                       </div>
 
-                      {project.adminFeedback && project.status === 'rejected' && (
+                      {project.adminFeedback && normalizeProjectStatus(project.status) === 'rejected' && (
                         <div className="bg-red-50 border border-red-200 rounded-md p-2 md:p-3">
                           <h4 className="font-medium text-red-800 mb-1 text-xs">Admin Feedback:</h4>
                           <p className="text-xs text-red-700 line-clamp-3 break-words">{project.adminFeedback}</p>
@@ -733,7 +918,7 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={`${getStatusColor(project.status)} border text-xs`}>
                             {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status.replace('_', ' ')}</span>
+                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
                           </Badge>
                           <ProjectActionMenu project={project} />
                         </div>
@@ -779,7 +964,7 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={`${getStatusColor(project.status)} border text-xs`}>
                             {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status.replace('_', ' ')}</span>
+                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
                           </Badge>
                           <ProjectActionMenu project={project} />
                         </div>
@@ -825,7 +1010,7 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={`${getStatusColor(project.status)} border text-xs`}>
                             {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status}</span>
+                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
                           </Badge>
                           <ProjectActionMenu project={project} />
                         </div>
@@ -871,7 +1056,7 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={`${getStatusColor(project.status)} border text-xs`}>
                             {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status}</span>
+                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
                           </Badge>
                           <ProjectActionMenu project={project} />
                         </div>
@@ -924,7 +1109,7 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={`${getStatusColor(project.status)} border text-xs`}>
                             {getStatusIcon(project.status)}
-                            <span className="ml-1 capitalize hidden sm:inline">{project.status.replace('_', ' ')}</span>
+                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
                           </Badge>
                           <ProjectActionMenu project={project} />
                         </div>
@@ -1062,10 +1247,10 @@ export default function ManageProjectsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {selectedProject?.status === 'published' ? 'Put Project On Hold' : 'Resume Project Publishing'}
+                {selectedProjectStatus === 'published' ? 'Put Project On Hold' : 'Resume Project Publishing'}
               </DialogTitle>
               <DialogDescription>
-                {selectedProject?.status === 'published'
+                {selectedProjectStatus === 'published'
                   ? `Are you sure you want to put &quot;${selectedProject?.title}&quot; on hold? It will no longer be visible to customers.`
                   : `Are you sure you want to resume publishing &quot;${selectedProject?.title}&quot;? It will become visible to customers again.`
                 }
@@ -1078,7 +1263,7 @@ export default function ManageProjectsPage() {
               <Button
                 onClick={() => selectedProject && toggleProjectHold(selectedProject._id, selectedProject.status)}
               >
-                {selectedProject?.status === 'published' ? 'Put On Hold' : 'Resume Publishing'}
+                {selectedProjectStatus === 'published' ? 'Put On Hold' : 'Resume Publishing'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1094,7 +1279,7 @@ export default function ManageProjectsPage() {
               </DialogTitle>
               <DialogDescription className="space-y-3">
                 <p>
-                  You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProject?.status === 'published' ? 'published and visible to customers' : 'on hold'}.
+                  You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProjectStatus === 'published' ? 'published and visible to customers' : 'on hold'}.
                 </p>
                 <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
                   <div className="flex items-start gap-2">
