@@ -977,6 +977,21 @@ export default function ProjectBookingForm({
     return slotTime < now;
   };
 
+  const fetchProfessionalWorkingHours = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
+      )
+      const data: WorkingHoursResponse = await response.json()
+
+      if (data.success && data.availability) {
+        setProfessionalAvailability(data.availability)
+      }
+    } catch (error) {
+      console.error('Error fetching professional working hours:', error)
+    }
+  }
+
   const shouldCollectUsage = (pricingType: 'fixed' | 'unit' | 'rfq'): boolean => {
     if (pricingType === 'unit') {
       return true
@@ -1001,18 +1016,153 @@ export default function ProjectBookingForm({
     return day === 0 || day === 6 // Sunday = 0, Saturday = 6
   }
 
-  // Generate available time slots for hourly bookings
+  // Check if professional works on this date (based on their availability)
+  const isProfessionalWorkingDay = (date: Date): boolean => {
+    if (!professionalAvailability) {
+      // Default: work Monday-Friday, not weekends
+      return !isWeekend(date)
+    }
+
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
+    const dayAvailability = professionalAvailability[dayName]
+
+    return dayAvailability?.available || false
+  }
+
+  // Get working hours for the selected date
+  const getWorkingHoursForDate = (date: Date): { startTime: string; endTime: string } => {
+    const defaultHours = { startTime: '09:00', endTime: '17:00' }
+
+    if (!professionalAvailability) return defaultHours
+
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
+    const dayAvailability = professionalAvailability[dayName]
+
+    if (!dayAvailability || !dayAvailability.available) return defaultHours
+
+    return {
+      startTime: dayAvailability.startTime || '09:00',
+      endTime: dayAvailability.endTime || '17:00'
+    }
+  }
+
   const generateTimeSlots = (): string[] => {
     const slots: string[] = []
-    const startHour = 9 // Default start: 9 AM
-    const endHour = 17 // Default end: 5 PM
 
-    for (let hour = startHour; hour < endHour; hour++) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`)
-      slots.push(`${hour.toString().padStart(2, '0')}:30`)
+    // Get execution duration in hours
+    const executionSource: AnyExecutionDuration | undefined =
+      selectedPackage?.executionDuration || project.executionDuration
+
+    let executionHours = 0
+    if (executionSource) {
+      if (executionSource.unit === 'hours') {
+        executionHours = executionSource.value || 0
+      } else {
+        executionHours = (executionSource.value || 0) * 24
+      }
+    }
+
+    // Get working hours for selected date
+    let startTime = '09:00'
+    let endTime = '17:00'
+
+    if (selectedDate) {
+      const dateObj = parseISO(selectedDate)
+      const workingHours = getWorkingHoursForDate(dateObj)
+      startTime = workingHours.startTime
+      endTime = workingHours.endTime
+    }
+
+    // Parse start and end times
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
+
+    // Calculate working hours per day
+    const workingHoursPerDay = (endHour * 60 + endMin - (startHour * 60 + startMin)) / 60
+
+    // If execution time exceeds one working day, return empty array
+    // This indicates the project should be in days mode instead
+    if (executionHours > workingHoursPerDay) {
+      console.warn(`Execution time (${executionHours}h) exceeds working hours per day (${workingHoursPerDay}h). This project should use days mode.`)
+      return []
+    }
+
+    // Calculate last available slot: closing time - execution time
+    const closingTimeMinutes = endHour * 60 + endMin
+    const executionMinutes = executionHours * 60
+    const lastSlotMinutes = closingTimeMinutes - executionMinutes
+
+    // Generate slots from start to last available slot
+    let currentMinutes = startHour * 60 + startMin
+
+    while (currentMinutes <= lastSlotMinutes) {
+      const hours = Math.floor(currentMinutes / 60)
+      const minutes = currentMinutes % 60
+      slots.push(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`)
+      currentMinutes += 30 // 30-minute intervals
     }
 
     return slots
+  }
+
+  // Calculate end time for a given start time (hours mode)
+  const calculateEndTime = (startTime: string): string => {
+    if (!startTime) return ''
+
+    // Get execution duration in hours
+    const executionSource: AnyExecutionDuration | undefined =
+      selectedPackage?.executionDuration || project.executionDuration
+
+    let executionHours = 0
+    if (executionSource) {
+      if (executionSource.unit === 'hours') {
+        executionHours = executionSource.value || 0
+      } else {
+        executionHours = (executionSource.value || 0) * 24
+      }
+    }
+
+    const [hours, minutes] = startTime.split(':').map(Number)
+    const startMinutes = hours * 60 + minutes
+    const endMinutes = startMinutes + (executionHours * 60)
+
+    const endHours = Math.floor(endMinutes / 60)
+    const endMins = endMinutes % 60
+
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
+  }
+
+  /**
+   * Format time range for display (e.g., "9:00 AM - 11:00 AM (2 hours)")
+   *
+   * FIX: Shows end time at completion, not just start time
+   * This helps customers understand the full booking window
+   */
+  const formatTimeRange = (startTime: string): string => {
+    if (!startTime) return ''
+
+    const endTime = calculateEndTime(startTime)
+
+    // Get execution duration
+    const executionSource: AnyExecutionDuration | undefined =
+      selectedPackage?.executionDuration || project.executionDuration
+
+    let durationLabel = ''
+    if (executionSource) {
+      durationLabel = `${executionSource.value} ${executionSource.unit}`
+    }
+
+    // Format times to AM/PM
+    const formatTime = (time: string) => {
+      const [hours, minutes] = time.split(':').map(Number)
+      const period = hours >= 12 ? 'PM' : 'AM'
+      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
+    }
+
+    return `${formatTime(startTime)} - ${formatTime(endTime)} (${durationLabel})`
   }
 
   // Check if a time slot is in the past for today's date
