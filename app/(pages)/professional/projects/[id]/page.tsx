@@ -290,7 +290,7 @@ const submitProject = async () => {
   if (!project) return;
 
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
+    const response = await fetch(`${process.env.NEXTPUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
       method: 'POST',
       credentials: 'include'
     });
