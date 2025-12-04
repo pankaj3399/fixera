@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Euro, ArrowRight, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Euro, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
 interface ProjectCardProps {
   project: {
@@ -26,6 +26,11 @@ interface ProjectCardProps {
       amount?: number;
       priceRange?: { min: number; max: number };
     };
+    priceModel?: string;
+    certifications?: Array<{
+      name: string;
+      fileUrl: string;
+    }>;
     media?: {
       images?: string[];
       video?: string;
@@ -55,7 +60,12 @@ interface ProjectCardProps {
         value: number;
         unit: 'hours' | 'days';
       };
+      warrantyPeriod?: {
+        value: number;
+        unit: 'months' | 'years';
+      };
     }>;
+    firstAvailableDate?: string | null;
   };
 }
 
@@ -78,6 +88,31 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
       return `${exec.value}${buffer?.value ? `+${buffer.value}` : ''} ${exec.unit}`;
     }
     return null;
+  };
+
+  const formatAvailableDate = (dateString: string | null | undefined) => {
+    if (!dateString) {
+      return 'Contact for availability';
+    }
+
+    try {
+      const date = new Date(dateString);
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Contact for availability';
+      }
+
+      // Format date as "MMM DD, YYYY" (e.g., "Dec 15, 2025")
+      const options: Intl.DateTimeFormatOptions = {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      };
+      return date.toLocaleDateString('en-US', options);
+    } catch (error) {
+      return 'Contact for availability';
+    }
   };
 
   const formatSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
@@ -184,10 +219,19 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
             <Badge variant="secondary" className="text-xs">
               {project.service}
             </Badge>
-            {project.pricing && (
+            {project.priceModel && (
               <Badge variant="outline" className="text-xs">
-                {project.pricing.type === 'fixed' ? 'Fixed Price' :
-                 project.pricing.type === 'unit' ? 'Unit Price' : 'Quote'}
+                {project.priceModel}
+              </Badge>
+            )}
+            {project.certifications && project.certifications.slice(0, 3).map((cert, idx) => (
+              <Badge key={idx} variant="secondary" className="text-xs">
+                {cert.name}
+              </Badge>
+            ))}
+            {project.certifications && project.certifications.length > 3 && (
+              <Badge variant="secondary" className="text-xs">
+                +{project.certifications.length - 3} more
               </Badge>
             )}
           </div>
@@ -201,6 +245,14 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           </div>
         )}
 
+        {/* First Available Date */}
+        <div className="flex items-center gap-2 mb-3 text-sm text-gray-700">
+          <Calendar className="w-4 h-4 text-green-600" />
+          <span className="font-medium">
+            Available: {formatAvailableDate(project.firstAvailableDate)}
+          </span>
+        </div>
+
         {/* Subprojects/Packages */}
         {project.subprojects && project.subprojects.length > 0 && (
           <div className="mb-4">
@@ -213,6 +265,11 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                     {subproject.executionDuration && (
                       <p className="text-gray-500 text-[10px]">
                         {subproject.executionDuration.value} {subproject.executionDuration.unit}
+                      </p>
+                    )}
+                    {subproject.warrantyPeriod && (
+                      <p className="text-gray-500 text-[10px]">
+                        {subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty
                       </p>
                     )}
                   </div>
