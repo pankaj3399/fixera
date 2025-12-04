@@ -12,7 +12,6 @@ import Calendar from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Filter, X, ChevronDown, ChevronUp, CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
-import LocationAutocomplete, { type LocationData } from '@/components/search/LocationAutocomplete';
 
 export type SortOption = 'relevant' | 'price_low' | 'price_high' | 'newest' | 'availability' | 'popularity';
 
@@ -29,24 +28,18 @@ export interface SearchFiltersState {
   priceModel: string[];
   projectTypes: string[];
   includedItems: string[];
-  areasOfWork: string[];
   startDateFrom: Date | undefined;
   startDateTo: Date | undefined;
 }
 
 export type SearchFilterKey = keyof SearchFiltersState;
 
-// Re-export FilterOptions from shared types for backward compatibility
-export type { FilterOptions } from '@/types/filters';
-import { type FilterOptions, DEFAULT_PRICE_MODELS } from '@/types/filters';
-
-export interface ProjectFacetCounts {
-  categories: Record<string, number>;
-  services: Record<string, number>;
-  areasOfWork: Record<string, number>;
-  priceModels: Record<string, number>;
-  projectTypes: Record<string, number>;
-  includedItems: Record<string, number>;
+export interface FilterOptions {
+  services?: string[];
+  projectTypes?: string[];
+  includedItems?: string[];
+  priceModels?: Array<{ value: string; label: string }>;
+  categories?: string[];
 }
 
 interface SearchFiltersProps {
@@ -56,8 +49,6 @@ interface SearchFiltersProps {
   searchType: 'professionals' | 'projects';
   categories?: string[];
   filterOptions?: FilterOptions;
-  facets?: ProjectFacetCounts | null;
-  onLocationCoordinatesChange?: (coordinates: { lat: number; lng: number } | null) => void;
 }
 
 // Common services list
@@ -77,8 +68,8 @@ const COMMON_INCLUDED_ITEMS = [
   'Transportation', 'Design Services', 'Consultation', 'Warranty'
 ];
 
-// Use shared price models constant (with fallback for type safety)
-const PRICE_MODELS = DEFAULT_PRICE_MODELS ?? [
+// Price models
+const PRICE_MODELS = [
   { value: 'fixed', label: 'Fixed Price' },
   { value: 'unit', label: 'Unit Based' },
   { value: 'rfq', label: 'Request for Quote' }
@@ -91,14 +82,11 @@ const SearchFilters = ({
   searchType,
   categories = [],
   filterOptions,
-  facets,
-  onLocationCoordinatesChange,
 }: SearchFiltersProps) => {
   // Use dynamic filter options if provided, otherwise fall back to hardcoded values
   const servicesList = filterOptions?.services || COMMON_SERVICES;
   const projectTypesList = filterOptions?.projectTypes || PROJECT_TYPES;
   const includedItemsList = filterOptions?.includedItems || COMMON_INCLUDED_ITEMS;
-  const areasOfWorkList = filterOptions?.areasOfWork || [];
   const priceModelsList = filterOptions?.priceModels || PRICE_MODELS;
   const categoriesList = filterOptions?.categories || categories;
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -107,7 +95,6 @@ const SearchFilters = ({
     priceModel: false,
     projectType: false,
     includedItems: false,
-    areaOfWork: false,
     startDate: false,
     price: false,
   });
@@ -126,62 +113,6 @@ const SearchFilters = ({
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  type FacetOption = {
-    value: string
-    count?: number
-  }
-
-  // Helper to build dynamic option lists with counts
-  const buildOptions = (counts?: Record<string, number>, fallback?: string[]): FacetOption[] => {
-    if (counts && Object.keys(counts).length > 0) {
-      return Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([value, count]) => ({ value, count }));
-    }
-    return (fallback || []).map(value => ({ value }));
-  };
-
-  const dynamicServices = searchType === 'projects'
-    ? buildOptions(facets?.services)
-    : buildOptions(undefined, servicesList);
-
-  const dynamicProjectTypes = searchType === 'projects'
-    ? buildOptions(facets?.projectTypes)
-    : buildOptions(undefined, projectTypesList);
-
-  const dynamicIncludedItems = searchType === 'projects'
-    ? buildOptions(facets?.includedItems)
-    : buildOptions(undefined, includedItemsList);
-
-  const dynamicAreasOfWork = searchType === 'projects'
-    ? buildOptions(facets?.areasOfWork)
-    : buildOptions(undefined, areasOfWorkList);
-
-  const dynamicCategories = searchType === 'projects'
-    ? buildOptions(facets?.categories)
-    : buildOptions(undefined, categoriesList);
-
-  const dynamicPriceModels = searchType === 'projects'
-    ? (facets?.priceModels && Object.keys(facets.priceModels).length > 0
-        ? Object.entries(facets.priceModels)
-            .sort((a, b) => b[1] - a[1])
-            .map(([value, count]) => ({ value, count }))
-        : priceModelsList.map(model => ({ value: model.value, count: undefined })))
-    : priceModelsList.map(model => ({ value: model.value, count: undefined }));
-
-  const getPriceModelLabel = (value: string) =>
-    priceModelsList.find(model => model.value === value)?.label ||
-    value.replace(/^\w/, char => char.toUpperCase());
-
-  const renderOptionContent = (label: string, count?: number) => (
-    <span className="flex w-full items-center justify-between">
-      <span>{label}</span>
-      {typeof count === 'number' && (
-        <span className="text-xs text-gray-500 ml-2">{count}</span>
-      )}
-    </span>
-  );
-
   // Calculate active filters count
   const activeFiltersCount = [
     filters.services.length > 0,
@@ -189,7 +120,6 @@ const SearchFilters = ({
     filters.priceModel.length > 0,
     filters.projectTypes.length > 0,
     filters.includedItems.length > 0,
-    filters.areasOfWork.length > 0,
     filters.startDateFrom !== undefined || filters.startDateTo !== undefined,
     filters.priceMin !== '' || filters.priceMax !== '',
     filters.location.trim() !== '',
@@ -198,10 +128,7 @@ const SearchFilters = ({
   ].filter(Boolean).length;
 
   // Helper to toggle array values
-  const toggleArrayValue = (
-    key: 'services' | 'priceModel' | 'projectTypes' | 'includedItems' | 'areasOfWork',
-    value: string
-  ) => {
+  const toggleArrayValue = (key: 'services' | 'priceModel' | 'projectTypes' | 'includedItems', value: string) => {
     const currentArray = filters[key] as string[];
     const newArray = currentArray.includes(value)
       ? currentArray.filter(v => v !== value)
@@ -235,7 +162,7 @@ const SearchFilters = ({
       </div>
 
       {/* Service Filter - Only for projects */}
-      {searchType === 'projects' && dynamicServices.length > 0 && (
+      {searchType === 'projects' && (
         <div className="space-y-2 border-b pb-4">
           <button
             onClick={() => toggleSection('service')}
@@ -248,52 +175,18 @@ const SearchFilters = ({
           </button>
           {expandedSections.service && (
             <div className="space-y-2 mt-2 max-h-48 overflow-y-auto">
-              {dynamicServices.map(({ value, count }) => (
-                <div key={value} className="flex items-center space-x-2">
+              {servicesList.map((service) => (
+                <div key={service} className="flex items-center space-x-2">
                   <Checkbox
-                    id={`service-${value}`}
-                    checked={filters.services.includes(value)}
-                    onCheckedChange={() => toggleArrayValue('services', value)}
+                    id={`service-${service}`}
+                    checked={filters.services.includes(service)}
+                    onCheckedChange={() => toggleArrayValue('services', service)}
                   />
                   <Label
-                    htmlFor={`service-${value}`}
+                    htmlFor={`service-${service}`}
                     className="text-sm font-normal text-gray-700 cursor-pointer"
                   >
-                    {renderOptionContent(value, count)}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Area of Work Filter - Only for projects */}
-      {searchType === 'projects' && dynamicAreasOfWork.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
-          <button
-            onClick={() => toggleSection('areaOfWork')}
-            className="flex items-center justify-between w-full text-left"
-          >
-            <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Area of Work {filters.areasOfWork.length > 0 && `(${filters.areasOfWork.length})`}
-            </Label>
-            {expandedSections.areaOfWork ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          {expandedSections.areaOfWork && (
-            <div className="space-y-2 mt-2 max-h-48 overflow-y-auto">
-              {dynamicAreasOfWork.map(({ value, count }) => (
-                <div key={value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`area-${value}`}
-                    checked={filters.areasOfWork.includes(value)}
-                    onCheckedChange={() => toggleArrayValue('areasOfWork', value)}
-                  />
-                  <Label
-                    htmlFor={`area-${value}`}
-                    className="text-sm font-normal text-gray-700 cursor-pointer"
-                  >
-                    {renderOptionContent(value, count)}
+                    {service}
                   </Label>
                 </div>
               ))}
@@ -315,26 +208,21 @@ const SearchFilters = ({
         </button>
         {expandedSections.location && (
           <div className="space-y-2 mt-2">
-            <LocationAutocomplete
-              value={filters.geographicArea || filters.location}
-              onChange={(location: string, locationData?: LocationData) => {
-                onFilterChange('geographicArea', location);
-                onFilterChange('location', location);
-
-                // Send coordinates to parent if callback is provided
-                if (onLocationCoordinatesChange) {
-                  onLocationCoordinatesChange(locationData?.coordinates || null);
-                }
-              }}
+            <Input
               placeholder="City, Region, or Postal Code"
-              className="border rounded-md px-3 py-2"
+              value={filters.geographicArea || filters.location}
+              onChange={(e) => {
+                onFilterChange('geographicArea', e.target.value);
+                onFilterChange('location', e.target.value);
+              }}
+              className="w-full"
             />
           </div>
         )}
       </div>
 
       {/* Price Model Filter - Only for projects */}
-      {searchType === 'projects' && dynamicPriceModels.length > 0 && (
+      {searchType === 'projects' && (
         <div className="space-y-2 border-b pb-4">
           <button
             onClick={() => toggleSection('priceModel')}
@@ -347,18 +235,18 @@ const SearchFilters = ({
           </button>
           {expandedSections.priceModel && (
             <div className="space-y-2 mt-2">
-              {dynamicPriceModels.map(({ value, count }) => (
-                <div key={value} className="flex items-center space-x-2">
+              {priceModelsList.map((model) => (
+                <div key={model.value} className="flex items-center space-x-2">
                   <Checkbox
-                    id={`priceModel-${value}`}
-                    checked={filters.priceModel.includes(value)}
-                    onCheckedChange={() => toggleArrayValue('priceModel', value)}
+                    id={`priceModel-${model.value}`}
+                    checked={filters.priceModel.includes(model.value)}
+                    onCheckedChange={() => toggleArrayValue('priceModel', model.value)}
                   />
                   <Label
-                    htmlFor={`priceModel-${value}`}
+                    htmlFor={`priceModel-${model.value}`}
                     className="text-sm font-normal text-gray-700 cursor-pointer"
                   >
-                    {renderOptionContent(getPriceModelLabel(value), count)}
+                    {model.label}
                   </Label>
                 </div>
               ))}
@@ -368,7 +256,7 @@ const SearchFilters = ({
       )}
 
       {/* Project Type Filter - Only for projects */}
-      {searchType === 'projects' && dynamicProjectTypes.length > 0 && (
+      {searchType === 'projects' && (
         <div className="space-y-2 border-b pb-4">
           <button
             onClick={() => toggleSection('projectType')}
@@ -381,18 +269,18 @@ const SearchFilters = ({
           </button>
           {expandedSections.projectType && (
             <div className="space-y-2 mt-2">
-              {dynamicProjectTypes.map(({ value, count }) => (
-                <div key={value} className="flex items-center space-x-2">
+              {projectTypesList.map((type) => (
+                <div key={type} className="flex items-center space-x-2">
                   <Checkbox
-                    id={`projectType-${value}`}
-                    checked={filters.projectTypes.includes(value)}
-                    onCheckedChange={() => toggleArrayValue('projectTypes', value)}
+                    id={`projectType-${type}`}
+                    checked={filters.projectTypes.includes(type)}
+                    onCheckedChange={() => toggleArrayValue('projectTypes', type)}
                   />
                   <Label
-                    htmlFor={`projectType-${value}`}
+                    htmlFor={`projectType-${type}`}
                     className="text-sm font-normal text-gray-700 cursor-pointer"
                   >
-                    {renderOptionContent(value, count)}
+                    {type}
                   </Label>
                 </div>
               ))}
@@ -402,7 +290,7 @@ const SearchFilters = ({
       )}
 
       {/* Included Items Filter - Only for projects */}
-      {searchType === 'projects' && dynamicIncludedItems.length > 0 && (
+      {searchType === 'projects' && (
         <div className="space-y-2 border-b pb-4">
           <button
             onClick={() => toggleSection('includedItems')}
@@ -415,18 +303,18 @@ const SearchFilters = ({
           </button>
           {expandedSections.includedItems && (
             <div className="space-y-2 mt-2 max-h-48 overflow-y-auto">
-              {dynamicIncludedItems.map(({ value, count }) => (
-                <div key={value} className="flex items-center space-x-2">
+              {includedItemsList.map((item) => (
+                <div key={item} className="flex items-center space-x-2">
                   <Checkbox
-                    id={`includedItem-${value}`}
-                    checked={filters.includedItems.includes(value)}
-                    onCheckedChange={() => toggleArrayValue('includedItems', value)}
+                    id={`includedItem-${item}`}
+                    checked={filters.includedItems.includes(item)}
+                    onCheckedChange={() => toggleArrayValue('includedItems', item)}
                   />
                   <Label
-                    htmlFor={`includedItem-${value}`}
+                    htmlFor={`includedItem-${item}`}
                     className="text-sm font-normal text-gray-700 cursor-pointer"
                   >
-                    {renderOptionContent(value, count)}
+                    {item}
                   </Label>
                 </div>
               ))}
@@ -455,7 +343,6 @@ const SearchFilters = ({
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      type="button"
                       className="w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -467,7 +354,6 @@ const SearchFilters = ({
                       mode="single"
                       selected={filters.startDateFrom}
                       onSelect={(date) => onFilterChange('startDateFrom', date)}
-                      disabled={filters.startDateTo ? (date: Date) => date > filters.startDateTo! : undefined}
                       initialFocus
                     />
                   </PopoverContent>
@@ -478,7 +364,6 @@ const SearchFilters = ({
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
-                      type="button"
                       variant="outline"
                       className="w-full justify-start text-left font-normal"
                     >
@@ -491,7 +376,6 @@ const SearchFilters = ({
                       mode="single"
                       selected={filters.startDateTo}
                       onSelect={(date) => onFilterChange('startDateTo', date)}
-                      disabled={filters.startDateFrom ? (date: Date) => date < filters.startDateFrom! : undefined}
                       initialFocus
                     />
                   </PopoverContent>
@@ -547,7 +431,7 @@ const SearchFilters = ({
       </div>
 
       {/* Category Filter */}
-      {dynamicCategories.length > 0 && (
+      {categoriesList.length > 0 && (
         <div className="space-y-2 border-b pb-4">
           <Label htmlFor="category" className="text-sm font-semibold text-gray-900">
             Service Category
@@ -558,9 +442,9 @@ const SearchFilters = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              {dynamicCategories.map(({ value, count }) => (
-                <SelectItem key={value} value={value}>
-                  {renderOptionContent(value, count)}
+              {categoriesList.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -609,6 +493,11 @@ const SearchFilters = ({
             </SelectItem>
           </SelectContent>
         </Select>
+        {filters.sortBy === 'popularity' && (
+          <p className="text-xs text-gray-500 mt-1">
+            Available in future release - based on reviews and bookings
+          </p>
+        )}
       </div>
     </div>
   );

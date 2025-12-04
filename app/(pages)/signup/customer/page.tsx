@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { logError } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
 import DualVerificationComponent from '@/components/DualVerificationComponent';
 import {
@@ -49,7 +48,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { EU_COUNTRIES } from '@/lib/countries';
-import { isValidPhoneNumber } from 'libphonenumber-js';
+import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
 
 interface FormData {
   name: string;
@@ -126,7 +125,7 @@ export default function CustomerSignupPage() {
     // If we have place data from autocomplete dropdown, use it directly
     if (placeData?.coordinates && placeData?.address_components) {
       console.log(
-        'Using place data from autocomplete - no API call needed'
+        '?o. Using place data from autocomplete - no API call needed'
       );
 
       const components = placeData.address_components;
@@ -161,44 +160,34 @@ export default function CustomerSignupPage() {
 
   // Auto-populate business info from VAT validation
   useEffect(() => {
-    if (!vatValidation.valid || formData.customerType !== 'business') {
-      return;
-    }
-
-    setFormData((prev) => {
-      let next = prev;
-
-      const applyUpdate = (patch: Partial<FormData>) => {
-        if (next === prev) {
-          next = { ...prev, ...patch };
-        } else {
-          next = { ...next, ...patch };
-        }
-      };
-
-      if (!prev.companyName && vatValidation.companyName) {
-        applyUpdate({ companyName: vatValidation.companyName });
+    if (
+      vatValidation.valid &&
+      vatValidation.companyName &&
+      formData.customerType === 'business'
+    ) {
+      // Auto-fill company name if empty
+      if (!formData.companyName && vatValidation.companyName) {
+        handleInputChange('companyName', vatValidation.companyName);
       }
 
+      // Auto-fill address fields from parsed address
       if (vatValidation.parsedAddress) {
         const parsed = vatValidation.parsedAddress;
-        if (parsed.streetAddress && !prev.address) {
-          applyUpdate({ address: parsed.streetAddress });
+        if (parsed.streetAddress && !formData.address) {
+          handleInputChange('address', parsed.streetAddress);
         }
-        if (parsed.city && !prev.city) {
-          applyUpdate({ city: parsed.city });
+        if (parsed.city && !formData.city) {
+          handleInputChange('city', parsed.city);
         }
-        if (parsed.postalCode && !prev.postalCode) {
-          applyUpdate({ postalCode: parsed.postalCode });
+        if (parsed.postalCode && !formData.postalCode) {
+          handleInputChange('postalCode', parsed.postalCode);
         }
-        if (parsed.country && !prev.country) {
-          applyUpdate({ country: parsed.country });
+        if (parsed.country && !formData.country) {
+          handleInputChange('country', parsed.country);
         }
       }
-
-      return next;
-    });
-  }, [vatValidation, formData.customerType]);
+    }
+  }, [vatValidation]);
 
   const validateVatNumber = async () => {
     if (!formData.vatNumber.trim()) {
@@ -244,8 +233,7 @@ export default function CustomerSignupPage() {
         // Don't show error toast - just update the state
         // VAT validation is optional, so errors shouldn't block the user
       }
-    } catch (error) {
-      logError(error, 'VAT validation error', { component: 'CustomerSignup', action: 'validateVat' });
+    } catch {
       setVatValidation({
         valid: false,
         error:

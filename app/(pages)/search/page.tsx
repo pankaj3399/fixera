@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProfessionalCard from '@/components/search/ProfessionalCard';
 import ProjectCard from '@/components/search/ProjectCard';
-import SearchFilters, { type SearchFiltersState, type ProjectFacetCounts } from '@/components/search/SearchFilters';
+import SearchFilters, { type SearchFiltersState } from '@/components/search/SearchFilters';
 import { useFilterOptions } from '@/hooks/useFilterOptions';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
@@ -192,7 +192,6 @@ function SearchPageContent() {
     priceModel: [],
     projectTypes: [],
     includedItems: [],
-    areasOfWork: [],
     startDateFrom: undefined,
     startDateTo: undefined,
   });
@@ -209,19 +208,10 @@ function SearchPageContent() {
   const [categories, setCategories] = useState<string[]>([]);
 
   // Fetch dynamic filter options using the custom hook
-  const { filterOptions } = useFilterOptions({ country: 'BE' });
+  const { filterOptions, isLoading: isLoadingFilters } = useFilterOptions({ country: 'BE' });
 
   const professionalResults = results as ProfessionalResult[];
   const projectResults = results as ProjectResult[];
-  const projectFacets = useMemo(() => {
-    if (searchType !== 'projects') {
-      return null;
-    }
-    if (projectResults.length === 0) {
-      return null;
-    }
-    return buildProjectFacets(projectResults);
-  }, [projectResults, searchType]);
 
   // Fetch categories on mount (kept for backward compatibility)
   useEffect(() => {
@@ -289,7 +279,24 @@ function SearchPageContent() {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchType, filters.query, filters.location, filters.priceMin, filters.priceMax, filters.category, filters.availability, filters.sortBy, pagination.page]);
+  }, [
+    searchType,
+    filters.query,
+    filters.location,
+    filters.priceMin,
+    filters.priceMax,
+    filters.category,
+    filters.availability,
+    filters.sortBy,
+    filters.services,
+    filters.geographicArea,
+    filters.priceModel,
+    filters.projectTypes,
+    filters.includedItems,
+    filters.startDateFrom,
+    filters.startDateTo,
+    pagination.page
+  ]);
 
   const fetchCategories = async () => {
     try {
@@ -332,24 +339,8 @@ function SearchPageContent() {
       if (filters.priceModel.length > 0) params.append('priceModel', filters.priceModel.join(','));
       if (filters.projectTypes.length > 0) params.append('projectTypes', filters.projectTypes.join(','));
       if (filters.includedItems.length > 0) params.append('includedItems', filters.includedItems.join(','));
-      if (filters.areasOfWork.length > 0) params.append('areaOfWork', filters.areasOfWork.join(','));
       if (filters.startDateFrom) params.append('startDateFrom', filters.startDateFrom.toISOString());
       if (filters.startDateTo) params.append('startDateTo', filters.startDateTo.toISOString());
-
-      if (searchType === 'projects' && (filters.location || filters.geographicArea)) {
-        const locationDetails = extractLocationDetails(filters.location || filters.geographicArea);
-        if (locationDetails.city) params.append('customerCity', locationDetails.city);
-        if (locationDetails.state) params.append('customerState', locationDetails.state);
-        if (locationDetails.country) params.append('customerCountry', locationDetails.country);
-        if (locationDetails.address) params.append('customerAddress', locationDetails.address);
-
-        // Send GPS coordinates if available (for accurate distance filtering)
-        if (locationCoordinates) {
-          params.append('customerLat', locationCoordinates.lat.toString());
-          params.append('customerLon', locationCoordinates.lng.toString());
-          console.log('📍 Sending customer coordinates for distance filtering:', locationCoordinates);
-        }
-      }
 
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
       const searchUrl = `${backendUrl}/api/search?${params.toString()}`;
@@ -443,7 +434,6 @@ function SearchPageContent() {
       priceModel: [],
       projectTypes: [],
       includedItems: [],
-      areasOfWork: [],
       startDateFrom: undefined,
       startDateTo: undefined,
     });
@@ -500,8 +490,6 @@ function SearchPageContent() {
                 searchType={searchType}
                 categories={categories}
                 filterOptions={filterOptions}
-                facets={projectFacets}
-                onLocationCoordinatesChange={setLocationCoordinates}
               />
             </div>
           </aside>

@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { FilterOptions, DEFAULT_PRICE_MODELS } from '@/types/filters';
-import { logError } from '@/lib/logger';
 
-export type { FilterOptions } from '@/types/filters';
-
-interface ServiceCategoryResponse {
-  name: string;
-  services: Array<{ name: string }>;
+export interface FilterOptions {
+  services: string[];
+  projectTypes: string[];
+  includedItems: string[];
+  priceModels: Array<{ value: string; label: string }>;
+  categories: string[];
 }
 
 interface UseFilterOptionsParams {
@@ -22,8 +21,11 @@ export const useFilterOptions = ({
     services: [],
     projectTypes: [],
     includedItems: [],
-    areasOfWork: [],
-    priceModels: DEFAULT_PRICE_MODELS,
+    priceModels: [
+      { value: 'fixed', label: 'Fixed Price' },
+      { value: 'unit', label: 'Unit Based' },
+      { value: 'rfq', label: 'Request for Quote' }
+    ],
     categories: [],
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -37,13 +39,8 @@ export const useFilterOptions = ({
       setError(null);
 
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-        if (!backendUrl) {
-          throw new Error('NEXT_PUBLIC_BACKEND_URL is not configured');
-        }
-
         const response = await fetch(
-          `${backendUrl}/api/service-categories/active?country=${country}`,
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=${country}`,
           { credentials: 'include' }
         );
 
@@ -51,7 +48,12 @@ export const useFilterOptions = ({
           throw new Error(`Failed to fetch filter options: ${response.status}`);
         }
 
-        const data = await response.json() as ServiceCategoryResponse[];
+        const data = await response.json() as Array<{
+          name: string;
+          services: Array<{
+            name: string;
+          }>;
+        }>;
 
         // Extract unique categories
         const categories = data.map(cat => cat.name);
@@ -65,7 +67,13 @@ export const useFilterOptions = ({
         });
         const services = Array.from(servicesSet).sort();
 
-        // Static defaults until a dedicated filter options endpoint is available
+        // Fetch additional filter options from service configurations
+        // This could be enhanced with a dedicated endpoint in the future
+        const projectTypesSet = new Set<string>();
+        const includedItemsSet = new Set<string>();
+
+        // For now, we'll use common values as fallback
+        // These could be fetched from a dedicated filter options endpoint
         const commonProjectTypes = [
           'Residential',
           'Commercial',
@@ -95,17 +103,15 @@ export const useFilterOptions = ({
           services,
           projectTypes: commonProjectTypes,
           includedItems: commonIncludedItems,
-          areasOfWork: [],
-          priceModels: DEFAULT_PRICE_MODELS,
+          priceModels: [
+            { value: 'fixed', label: 'Fixed Price' },
+            { value: 'unit', label: 'Unit Based' },
+            { value: 'rfq', label: 'Request for Quote' }
+          ],
           categories,
         });
       } catch (err) {
-        logError(err, 'Failed to fetch filter options', {
-          endpoint: '/api/service-categories/active',
-          params: { country },
-          component: 'useFilterOptions',
-          action: 'fetchFilterOptions',
-        });
+        console.error('Failed to fetch filter options:', err);
         setError(err instanceof Error ? err : new Error('Unknown error'));
 
         // Set fallback values on error
@@ -121,8 +127,11 @@ export const useFilterOptions = ({
             'Materials', 'Labor', 'Permits', 'Cleanup', 'Disposal', 'Tools & Equipment',
             'Transportation', 'Design Services', 'Consultation', 'Warranty'
           ],
-          areasOfWork: [],
-          priceModels: DEFAULT_PRICE_MODELS,
+          priceModels: [
+            { value: 'fixed', label: 'Fixed Price' },
+            { value: 'unit', label: 'Unit Based' },
+            { value: 'rfq', label: 'Request for Quote' }
+          ],
           categories: [],
         });
       } finally {
