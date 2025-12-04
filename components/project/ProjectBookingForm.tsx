@@ -102,6 +102,27 @@ interface ScheduleProposalsResponse {
   }
 }
 
+interface DayAvailability {
+  available: boolean
+  startTime?: string
+  endTime?: string
+}
+
+interface ProfessionalAvailability {
+  monday?: DayAvailability
+  tuesday?: DayAvailability
+  wednesday?: DayAvailability
+  thursday?: DayAvailability
+  friday?: DayAvailability
+  saturday?: DayAvailability
+  sunday?: DayAvailability
+}
+
+interface WorkingHoursResponse {
+  success: boolean
+  availability?: ProfessionalAvailability
+}
+
 type ProjectExecutionDuration = NonNullable<Project['executionDuration']>
 type SubprojectExecutionDuration = NonNullable<Project['subprojects'][number]['executionDuration']>
 type AnyExecutionDuration = ProjectExecutionDuration | SubprojectExecutionDuration
@@ -118,6 +139,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   const [blockedDates, setBlockedDates] = useState<BlockedDates>({ blockedDates: [], blockedRanges: [] })
   const [loadingAvailability, setLoadingAvailability] = useState(true)
   const [proposals, setProposals] = useState<ScheduleProposalsResponse['proposals'] | null>(null)
+  const [professionalAvailability, setProfessionalAvailability] = useState<ProfessionalAvailability | null>(null)
 
 
   // Form state
@@ -142,6 +164,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   useEffect(() => {
     fetchTeamAvailability()
     fetchScheduleProposals()
+    fetchProfessionalWorkingHours()
   }, [])
 
   const fetchTeamAvailability = async () => {
@@ -185,6 +208,21 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     }
   }
 
+  const fetchProfessionalWorkingHours = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
+      )
+      const data: WorkingHoursResponse = await response.json()
+
+      if (data.success && data.availability) {
+        setProfessionalAvailability(data.availability)
+      }
+    } catch (error) {
+      console.error('Error fetching professional working hours:', error)
+    }
+  }
+
   const shouldCollectUsage = (pricingType: 'fixed' | 'unit' | 'rfq'): boolean => {
     if (pricingType === 'unit') {
       return true
@@ -209,18 +247,153 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     return day === 0 || day === 6 // Sunday = 0, Saturday = 6
   }
 
-  // Generate available time slots for hourly bookings
+  // Check if professional works on this date (based on their availability)
+  const isProfessionalWorkingDay = (date: Date): boolean => {
+    if (!professionalAvailability) {
+      // Default: work Monday-Friday, not weekends
+      return !isWeekend(date)
+    }
+
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
+    const dayAvailability = professionalAvailability[dayName]
+
+    return dayAvailability?.available || false
+  }
+
+  // Get working hours for the selected date
+  const getWorkingHoursForDate = (date: Date): { startTime: string; endTime: string } => {
+    const defaultHours = { startTime: '09:00', endTime: '17:00' }
+
+    if (!professionalAvailability) return defaultHours
+
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
+    const dayAvailability = professionalAvailability[dayName]
+
+    if (!dayAvailability || !dayAvailability.available) return defaultHours
+
+    return {
+      startTime: dayAvailability.startTime || '09:00',
+      endTime: dayAvailability.endTime || '17:00'
+    }
+  }
+
   const generateTimeSlots = (): string[] => {
     const slots: string[] = []
-    const startHour = 9 // Default start: 9 AM
-    const endHour = 17 // Default end: 5 PM
 
-    for (let hour = startHour; hour < endHour; hour++) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`)
-      slots.push(`${hour.toString().padStart(2, '0')}:30`)
+    // Get execution duration in hours
+    const executionSource: AnyExecutionDuration | undefined =
+      selectedPackage?.executionDuration || project.executionDuration
+
+    let executionHours = 0
+    if (executionSource) {
+      if (executionSource.unit === 'hours') {
+        executionHours = executionSource.value || 0
+      } else {
+        executionHours = (executionSource.value || 0) * 24
+      }
+    }
+
+    // Get working hours for selected date
+    let startTime = '09:00'
+    let endTime = '17:00'
+
+    if (selectedDate) {
+      const dateObj = parseISO(selectedDate)
+      const workingHours = getWorkingHoursForDate(dateObj)
+      startTime = workingHours.startTime
+      endTime = workingHours.endTime
+    }
+
+    // Parse start and end times
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
+
+    // Calculate working hours per day
+    const workingHoursPerDay = (endHour * 60 + endMin - (startHour * 60 + startMin)) / 60
+
+    // If execution time exceeds one working day, return empty array
+    // This indicates the project should be in days mode instead
+    if (executionHours > workingHoursPerDay) {
+      console.warn(`Execution time (${executionHours}h) exceeds working hours per day (${workingHoursPerDay}h). This project should use days mode.`)
+      return []
+    }
+
+    // Calculate last available slot: closing time - execution time
+    const closingTimeMinutes = endHour * 60 + endMin
+    const executionMinutes = executionHours * 60
+    const lastSlotMinutes = closingTimeMinutes - executionMinutes
+
+    // Generate slots from start to last available slot
+    let currentMinutes = startHour * 60 + startMin
+
+    while (currentMinutes <= lastSlotMinutes) {
+      const hours = Math.floor(currentMinutes / 60)
+      const minutes = currentMinutes % 60
+      slots.push(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`)
+      currentMinutes += 30 // 30-minute intervals
     }
 
     return slots
+  }
+
+  // Calculate end time for a given start time (hours mode)
+  const calculateEndTime = (startTime: string): string => {
+    if (!startTime) return ''
+
+    // Get execution duration in hours
+    const executionSource: AnyExecutionDuration | undefined =
+      selectedPackage?.executionDuration || project.executionDuration
+
+    let executionHours = 0
+    if (executionSource) {
+      if (executionSource.unit === 'hours') {
+        executionHours = executionSource.value || 0
+      } else {
+        executionHours = (executionSource.value || 0) * 24
+      }
+    }
+
+    const [hours, minutes] = startTime.split(':').map(Number)
+    const startMinutes = hours * 60 + minutes
+    const endMinutes = startMinutes + (executionHours * 60)
+
+    const endHours = Math.floor(endMinutes / 60)
+    const endMins = endMinutes % 60
+
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
+  }
+
+  /**
+   * Format time range for display (e.g., "9:00 AM - 11:00 AM (2 hours)")
+   *
+   * FIX: Shows end time at completion, not just start time
+   * This helps customers understand the full booking window
+   */
+  const formatTimeRange = (startTime: string): string => {
+    if (!startTime) return ''
+
+    const endTime = calculateEndTime(startTime)
+
+    // Get execution duration
+    const executionSource: AnyExecutionDuration | undefined =
+      selectedPackage?.executionDuration || project.executionDuration
+
+    let durationLabel = ''
+    if (executionSource) {
+      durationLabel = `${executionSource.value} ${executionSource.unit}`
+    }
+
+    // Format times to AM/PM
+    const formatTime = (time: string) => {
+      const [hours, minutes] = time.split(':').map(Number)
+      const period = hours >= 12 ? 'PM' : 'AM'
+      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
+    }
+
+    return `${formatTime(startTime)} - ${formatTime(endTime)} (${durationLabel})`
   }
 
   // Check if a time slot is in the past for today's date
@@ -278,7 +451,12 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
       to: parseISO(range.endDate)
     }))
 
-    return [...disabled, ...disabledRanges]
+    // Add a custom matcher for non-working days
+    const nonWorkingDayMatcher = (date: Date) => {
+      return !isProfessionalWorkingDay(date)
+    }
+
+    return [...disabled, ...disabledRanges, nonWorkingDayMatcher]
   }
 
   const getMinDate = (): string => {
@@ -289,10 +467,14 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
 
     let checkDate = earliest
 
-    // Find the first available date
+    // Find the first available date that is:
+    // 1. A working day for the professional
+    // 2. Not blocked
     for (let i = 0; i < 90; i++) {
       const dateStr = format(checkDate, 'yyyy-MM-dd')
-      if (!isDateBlocked(dateStr)) {
+
+      // Check if professional works this day and it's not blocked
+      if (isProfessionalWorkingDay(checkDate) && !isDateBlocked(dateStr)) {
         return dateStr
       }
       checkDate = addDays(checkDate, 1)
@@ -333,6 +515,8 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined
     const executionDays = convertDurationToDays(executionSource, preferRange)
     const bufferDays = convertDurationToDays(bufferSource)
+
+    // IMPORTANT: Include buffer time in completion date shown to customer
     const totalWorkingDays = Math.ceil(executionDays + bufferDays)
 
     if (totalWorkingDays <= 0) {
@@ -342,10 +526,13 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     let addedDays = 0
     let cursor = parseISO(selectedDate)
 
+    // Count working days based on professional's availability
     while (addedDays < totalWorkingDays) {
       cursor = addDays(cursor, 1)
       const cursorStr = format(cursor, 'yyyy-MM-dd')
-      if (!isWeekend(cursor) && !isDateBlocked(cursorStr)) {
+
+      // Only count days when professional is working and not blocked
+      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
         addedDays++
       }
     }
@@ -477,6 +664,8 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
       const usageDetails = usageRequired ? ` Estimated usage: ${estimatedUsage}.` : ''
       const additionalNotesText = additionalNotes ? ` Additional notes: ${additionalNotes}` : ''
       const serviceDescription = `Booking for ${project.title}. Selected package: ${selectedPackage.name}.${usageDetails}${additionalNotesText}`
+      const totalPrice = calculateTotal()
+      const addOnsPrice = selectedExtraOptions.reduce((sum, idx) => sum + (project.extraOptions[idx]?.price || 0), 0)
 
       const bookingData = {
         bookingType: 'project',
@@ -485,11 +674,12 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
         preferredStartTime: project.timeMode === 'hours' && selectedTime ? selectedTime : undefined,
         selectedSubprojectIndex: selectedPackageIndex,
         estimatedUsage: usageRequired ? estimatedUsage : undefined,
+        selectedExtraOptions: selectedExtraOptions.length > 0 ? selectedExtraOptions : undefined,
         rfqData: {
           serviceType: project.title,
           description: serviceDescription,
           answers: rfqAnswers,
-          budget: calculateTotal() > 0 ? calculateTotal() : undefined
+          budget: totalPrice > 0 ? totalPrice : undefined
         },
         urgency: 'medium'
       }
@@ -1025,37 +1215,53 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-2">
-                          {generateTimeSlots().map((timeSlot) => {
-                            const isPast = isTimeSlotPast(timeSlot)
-                            const isSelected = selectedTime === timeSlot
+                        {generateTimeSlots().length === 0 ? (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <p className="text-sm text-red-900 font-semibold mb-2">
+                              ⚠️ No Time Slots Available
+                            </p>
+                            <p className="text-sm text-red-800">
+                              This project&apos;s execution time ({selectedPackage?.executionDuration?.value || project.executionDuration?.value}{' '}
+                              {selectedPackage?.executionDuration?.unit || project.executionDuration?.unit}) exceeds a single working day.
+                              This project should be configured in <strong>days mode</strong> instead of hours mode.
+                            </p>
+                            <p className="text-sm text-red-800 mt-2">
+                              Please contact the professional to update the project configuration.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-4 gap-2">
+                            {generateTimeSlots().map((timeSlot) => {
+                              const isPast = isTimeSlotPast(timeSlot)
+                              const isSelected = selectedTime === timeSlot
 
-                            return (
-                              <button
-                                key={timeSlot}
-                                type="button"
-                                onClick={() => !isPast && setSelectedTime(timeSlot)}
-                                disabled={isPast}
-                                className={`
-                                  px-3 py-2 rounded-lg border text-sm font-medium transition-all
-                                  ${isSelected
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                                    : isPast
-                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500 hover:bg-blue-50'
-                                  }
-                                `}
-                              >
-                                {timeSlot}
-                              </button>
-                            )
-                          })}
-                        </div>
+                              return (
+                                <button
+                                  key={timeSlot}
+                                  type="button"
+                                  onClick={() => !isPast && setSelectedTime(timeSlot)}
+                                  disabled={isPast}
+                                  className={`
+                                    px-3 py-2 rounded-lg border text-sm font-medium transition-all
+                                    ${isSelected
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                                      : isPast
+                                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500 hover:bg-blue-50'
+                                    }
+                                  `}
+                                >
+                                  {timeSlot}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
 
                         {selectedTime && (
                           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                             <p className="text-sm text-green-900">
-                              <strong>Selected Time:</strong> {selectedTime}
+                              <strong>Selected Time:</strong> {formatTimeRange(selectedTime)}
                             </p>
                           </div>
                         )}
@@ -1067,7 +1273,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                         <p className="text-sm text-blue-900">
                           <strong>Selected Start Date:</strong> {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
                           {project.timeMode === 'hours' && selectedTime && (
-                            <span className="ml-2 font-bold">at {selectedTime}</span>
+                            <span className="ml-2 font-bold">{formatTimeRange(selectedTime)}</span>
                           )}
                         </p>
                         {(preparationLabel || executionLabel || bufferLabel) && (
@@ -1109,9 +1315,117 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
               </div>
             )}
 
-            {/* Step 3: RFQ Questions */}
+            {/* Step 3: RFQ Questions & Add-ons */}
             {currentStep === 3 && (
               <div className="space-y-6">
+                {/* Add-ons Section */}
+                {project.extraOptions && project.extraOptions.length > 0 && (
+                  <div className="space-y-4 pb-6 border-b">
+                    <div>
+                      <h2 className="text-xl font-semibold mb-2">Add-On Options</h2>
+                      <p className="text-gray-600 text-sm mb-4">
+                        Select any additional options you would like to include with your booking
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {project.extraOptions.map((option, idx) => (
+                        <div
+                          key={idx}
+                          className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                            selectedExtraOptions.includes(idx)
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => handleExtraOptionToggle(idx)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              checked={selectedExtraOptions.includes(idx)}
+                              onCheckedChange={() => handleExtraOptionToggle(idx)}
+                              className="mt-1"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <h3 className="font-semibold text-gray-900">{option.name}</h3>
+                                  {option.description && (
+                                    <p className="text-sm text-gray-600 mt-1">{option.description}</p>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="font-bold text-blue-600">+{formatCurrency(option.price)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Price Breakdown */}
+                    {selectedPackage && (
+                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-3">
+                        <h3 className="font-semibold text-gray-900 mb-3">Price Summary</h3>
+
+                        {/* Base Package Price */}
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-700">Package Price:</span>
+                          <span className="font-semibold">
+                            {selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount
+                              ? formatCurrency(selectedPackage.pricing.amount)
+                              : selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount
+                              ? formatCurrency(estimatedUsage * selectedPackage.pricing.amount)
+                              : 'Quote Required'}
+                          </span>
+                        </div>
+
+                        {/* Selected Add-ons */}
+                        {selectedExtraOptions.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-blue-300">
+                            <p className="text-sm font-semibold text-gray-700">Selected Add-ons:</p>
+                            {selectedExtraOptions.map(idx => {
+                              const option = project.extraOptions[idx]
+                              if (!option) return null
+                              return (
+                                <div key={idx} className="flex justify-between items-center text-sm pl-4">
+                                  <span className="text-gray-700">
+                                    <CheckCircle2 className="h-4 w-4 inline mr-2 text-green-600" />
+                                    {option.name}
+                                  </span>
+                                  <span className="font-semibold text-green-600">+{formatCurrency(option.price)}</span>
+                                </div>
+                              )
+                            })}
+                            {/* Add-ons Subtotal */}
+                            <div className="flex justify-between items-center text-sm pt-2 border-t border-blue-200">
+                              <span className="text-gray-700 font-semibold">Add-ons Total:</span>
+                              <span className="font-semibold">
+                                {formatCurrency(selectedExtraOptions.reduce((sum, idx) => sum + (project.extraOptions[idx]?.price || 0), 0))}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Grand Total */}
+                        {calculateTotal() > 0 && (
+                          <div className="flex justify-between items-center pt-3 border-t-2 border-blue-400">
+                            <span className="text-lg font-bold text-gray-900">Grand Total:</span>
+                            <span className="text-2xl font-bold text-blue-600">{formatCurrency(calculateTotal())}</span>
+                          </div>
+                        )}
+
+                        {selectedPackage.pricing.type === 'unit' && (
+                          <p className="text-xs text-gray-600 pt-2">
+                            Based on {estimatedUsage} units at {formatCurrency(selectedPackage.pricing.amount)}/unit
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* RFQ Questions Section */}
                 <div>
                   <h2 className="text-xl font-semibold mb-2">Project Details</h2>
                   <p className="text-gray-600 text-sm mb-6">
@@ -1225,7 +1539,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                     <p className="text-sm">
                       <strong>Start Date:</strong> {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
                       {project.timeMode === 'hours' && selectedTime && (
-                        <span className="ml-2 font-semibold">at {selectedTime}</span>
+                        <span className="ml-2 font-semibold">{formatTimeRange(selectedTime)}</span>
                       )}
                     </p>
                     {(preparationLabel || executionLabel || bufferLabel) && (
@@ -1263,33 +1577,85 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                   </div>
                 </div>
 
-                {/* Extra Options */}
-                {selectedExtraOptions.length > 0 && (
+                {/* Price Breakdown */}
+                {selectedPackage && (
                   <div className="space-y-3">
-                    <h3 className="font-semibold">Add-On Options</h3>
-                    {selectedExtraOptions.map(idx => {
-                      const option = project.extraOptions[idx]
-                      if (!option) return null
-                      return (
-                        <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded">
-                          <span>{option.name}</span>
-                          <span className="font-semibold text-blue-600">+{formatCurrency(option.price)}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                    <h3 className="font-semibold">Price Summary</h3>
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-3">
+                      {/* Base Package Price */}
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-700">Package Price:</span>
+                        <span className="font-semibold">
+                          {selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount
+                            ? formatCurrency(selectedPackage.pricing.amount)
+                            : selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount
+                            ? formatCurrency(estimatedUsage * selectedPackage.pricing.amount)
+                            : 'Quote Required'}
+                        </span>
+                      </div>
 
-                {/* Total (if applicable) */}
-                {calculateTotal() > 0 && (
-                  <div className="border-t pt-4">
-                    <div className="flex justify-between items-center text-lg font-bold">
-                      <span>Estimated Total</span>
-                      <span className="text-blue-600">{formatCurrency(calculateTotal())}</span>
+                      {selectedPackage.pricing.type === 'unit' && estimatedUsage && selectedPackage.pricing.amount && (
+                        <p className="text-xs text-gray-600">
+                          ({estimatedUsage} units × {formatCurrency(selectedPackage.pricing.amount)}/unit)
+                        </p>
+                      )}
+
+                      {/* Selected Add-ons */}
+                      {selectedExtraOptions.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-blue-300">
+                          <p className="text-sm font-semibold text-gray-700">Selected Add-ons:</p>
+                          {selectedExtraOptions.map(idx => {
+                            const option = project.extraOptions[idx]
+                            if (!option) return null
+                            return (
+                              <div key={idx} className="flex justify-between items-start text-sm pl-4">
+                                <div className="flex-1">
+                                  <div className="flex items-start gap-2">
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                      <p className="text-gray-700 font-medium">{option.name}</p>
+                                      {option.description && (
+                                        <p className="text-xs text-gray-600 mt-0.5">{option.description}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="font-semibold text-green-600 ml-4 flex-shrink-0">
+                                  +{formatCurrency(option.price)}
+                                </span>
+                              </div>
+                            )
+                          })}
+
+                          {/* Add-ons Subtotal */}
+                          <div className="flex justify-between items-center text-sm pt-2 border-t border-blue-200">
+                            <span className="text-gray-700 font-semibold">Add-ons Total:</span>
+                            <span className="font-semibold">
+                              {formatCurrency(selectedExtraOptions.reduce((sum, idx) => sum + (project.extraOptions[idx]?.price || 0), 0))}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Separator */}
+                      {calculateTotal() > 0 && (
+                        <div className="border-t-2 border-blue-400 my-2"></div>
+                      )}
+
+                      {/* Grand Total */}
+                      {calculateTotal() > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-bold text-gray-900">Grand Total:</span>
+                          <span className="text-2xl font-bold text-blue-600">{formatCurrency(calculateTotal())}</span>
+                        </div>
+                      )}
+
+                      {selectedPackage.pricing.type !== 'rfq' && (
+                        <p className="text-xs text-gray-600 pt-2 border-t border-blue-200">
+                          *Final price may vary based on professional&apos;s assessment
+                        </p>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      *Final price may vary based on professional&apos;s quote
-                    </p>
                   </div>
                 )}
 
