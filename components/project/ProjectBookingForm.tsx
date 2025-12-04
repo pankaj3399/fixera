@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, Loader2, Upload, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { format, addDays, isAfter, isBefore, parseISO, isWithinInterval, startOfDay } from 'date-fns'
+import { format, addDays, isAfter, isBefore, parseISO, startOfDay } from 'date-fns'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
 
@@ -176,14 +176,20 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
       const data = await response.json()
 
       console.log('[BOOKING] Availability data received:', data)
-      console.log('[BOOKING] Blocked ranges:', data.blockedRanges?.length || 0)
+      console.log('[BOOKING] Blocked dates:', data.blockedDates)
+      console.log('[BOOKING] Blocked ranges:', data.blockedRanges)
 
       if (data.success) {
-        setBlockedDates(data)
-        console.log('[BOOKING] Blocked dates set:', {
-          blockedDates: data.blockedDates?.length || 0,
-          blockedRanges: data.blockedRanges?.length || 0
-        })
+        // Normalize dates to yyyy-MM-dd format
+        const normalizedData = {
+          blockedDates: (data.blockedDates || []).map((d: string) => format(parseISO(d), 'yyyy-MM-dd')),
+          blockedRanges: (data.blockedRanges || []).map((range: { startDate: string; endDate: string }) => ({
+            startDate: format(parseISO(range.startDate), 'yyyy-MM-dd'),
+            endDate: format(parseISO(range.endDate), 'yyyy-MM-dd')
+          }))
+        }
+        console.log('[BOOKING] Normalized data:', normalizedData)
+        setBlockedDates(normalizedData)
       }
     } catch (error) {
       console.error('Error fetching availability:', error)
@@ -210,16 +216,21 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
 
   const fetchProfessionalWorkingHours = async () => {
     try {
+      console.log('[BOOKING] Fetching working hours for project:', project._id)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
       )
       const data: WorkingHoursResponse = await response.json()
 
+      console.log('[BOOKING] Working hours response:', data)
       if (data.success && data.availability) {
+        console.log('[BOOKING] Professional availability set:', data.availability)
         setProfessionalAvailability(data.availability)
+      } else {
+        console.warn('[BOOKING] No working hours data received or request failed')
       }
     } catch (error) {
-      console.error('Error fetching professional working hours:', error)
+      console.error('[BOOKING] Error fetching professional working hours:', error)
     }
   }
 
@@ -251,14 +262,18 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   const isProfessionalWorkingDay = (date: Date): boolean => {
     if (!professionalAvailability) {
       // Default: work Monday-Friday, not weekends
-      return !isWeekend(date)
+      const isWorkDay = !isWeekend(date)
+      console.log('[BOOKING] No professional availability, using default. Date:', format(date, 'yyyy-MM-dd'), 'Is work day:', isWorkDay)
+      return isWorkDay
     }
 
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
     const dayAvailability = professionalAvailability[dayName]
 
-    return dayAvailability?.available || false
+    const isAvailable = dayAvailability?.available || false
+    console.log('[BOOKING] Checking work day for', format(date, 'yyyy-MM-dd'), dayName, '- Available:', isAvailable, 'Day config:', dayAvailability)
+    return isAvailable
   }
 
   // Get working hours for the selected date
@@ -418,6 +433,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   const isDateBlocked = (dateString: string): boolean => {
     // Check if date is in blocked dates list
     if (blockedDates.blockedDates.includes(dateString)) {
+      console.log('[BOOKING] Date blocked (in blockedDates list):', dateString)
       return true
     }
 
@@ -430,6 +446,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
         (isAfter(checkDate, start) || checkDate.getTime() === start.getTime()) &&
         (isBefore(checkDate, end) || checkDate.getTime() === end.getTime())
       ) {
+        console.log('[BOOKING] Date blocked (in blocked range):', dateString, 'Range:', range.startDate, 'to', range.endDate)
         return true
       }
     }
