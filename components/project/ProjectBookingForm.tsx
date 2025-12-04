@@ -410,7 +410,8 @@ export default function ProjectBookingForm({
       console.log('[BOOKING] Blocked ranges:', data.blockedRanges);
 
       console.log('[BOOKING] Availability data received:', data)
-      console.log('[BOOKING] Blocked ranges:', data.blockedRanges?.length || 0)
+      console.log('[BOOKING] Blocked dates:', data.blockedDates)
+      console.log('[BOOKING] Blocked ranges:', data.blockedRanges)
 
       if (data.success) {
         // Normalize dates to yyyy-MM-dd format
@@ -979,16 +980,21 @@ export default function ProjectBookingForm({
 
   const fetchProfessionalWorkingHours = async () => {
     try {
+      console.log('[BOOKING] Fetching working hours for project:', project._id)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
       )
       const data: WorkingHoursResponse = await response.json()
 
+      console.log('[BOOKING] Working hours response:', data)
       if (data.success && data.availability) {
+        console.log('[BOOKING] Professional availability set:', data.availability)
         setProfessionalAvailability(data.availability)
+      } else {
+        console.warn('[BOOKING] No working hours data received or request failed')
       }
     } catch (error) {
-      console.error('Error fetching professional working hours:', error)
+      console.error('[BOOKING] Error fetching professional working hours:', error)
     }
   }
 
@@ -1020,14 +1026,18 @@ export default function ProjectBookingForm({
   const isProfessionalWorkingDay = (date: Date): boolean => {
     if (!professionalAvailability) {
       // Default: work Monday-Friday, not weekends
-      return !isWeekend(date)
+      const isWorkDay = !isWeekend(date)
+      console.log('[BOOKING] No professional availability, using default. Date:', format(date, 'yyyy-MM-dd'), 'Is work day:', isWorkDay)
+      return isWorkDay
     }
 
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
     const dayAvailability = professionalAvailability[dayName]
 
-    return dayAvailability?.available || false
+    const isAvailable = dayAvailability?.available || false
+    console.log('[BOOKING] Checking work day for', format(date, 'yyyy-MM-dd'), dayName, '- Available:', isAvailable, 'Day config:', dayAvailability)
+    return isAvailable
   }
 
   // Get working hours for the selected date
