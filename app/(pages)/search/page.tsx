@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProfessionalCard from '@/components/search/ProfessionalCard';
 import ProjectCard from '@/components/search/ProjectCard';
 import SearchFilters, { type SearchFiltersState } from '@/components/search/SearchFilters';
+import { useFilterOptions } from '@/hooks/useFilterOptions';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
 type ProjectResult = ComponentProps<typeof ProjectCard>['project'];
@@ -45,14 +46,25 @@ function SearchPageContent() {
     category: '',
     availability: false,
     sortBy: 'relevant',
+    // Search filters
+    services: [],
+    geographicArea: '',
+    priceModel: [],
+    projectTypes: [],
+    includedItems: [],
+    startDateFrom: undefined,
+    startDateTo: undefined,
   });
 
   const [categories, setCategories] = useState<string[]>([]);
 
+  // Fetch dynamic filter options using the custom hook
+  const { filterOptions, isLoading: isLoadingFilters } = useFilterOptions({ country: 'BE' });
+
   const professionalResults = results as ProfessionalResult[];
   const projectResults = results as ProjectResult[];
- 
-  // Fetch categories on mount
+
+  // Fetch categories on mount (kept for backward compatibility)
   useEffect(() => {
     fetchCategories();
   }, []);
@@ -64,7 +76,24 @@ function SearchPageContent() {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchType, filters.query, filters.location, filters.priceMin, filters.priceMax, filters.category, filters.availability, filters.sortBy, pagination.page]);
+  }, [
+    searchType,
+    filters.query,
+    filters.location,
+    filters.priceMin,
+    filters.priceMax,
+    filters.category,
+    filters.availability,
+    filters.sortBy,
+    filters.services,
+    filters.geographicArea,
+    filters.priceModel,
+    filters.projectTypes,
+    filters.includedItems,
+    filters.startDateFrom,
+    filters.startDateTo,
+    pagination.page
+  ]);
 
   const fetchCategories = async () => {
     try {
@@ -99,6 +128,16 @@ function SearchPageContent() {
       if (filters.priceMax) params.append('priceMax', filters.priceMax);
       if (filters.category) params.append('category', filters.category);
       if (filters.availability) params.append('availability', 'true');
+      if (filters.sortBy) params.append('sortBy', filters.sortBy);
+
+      // New filters
+      if (filters.services.length > 0) params.append('services', filters.services.join(','));
+      if (filters.geographicArea) params.append('geographicArea', filters.geographicArea);
+      if (filters.priceModel.length > 0) params.append('priceModel', filters.priceModel.join(','));
+      if (filters.projectTypes.length > 0) params.append('projectTypes', filters.projectTypes.join(','));
+      if (filters.includedItems.length > 0) params.append('includedItems', filters.includedItems.join(','));
+      if (filters.startDateFrom) params.append('startDateFrom', filters.startDateFrom.toISOString());
+      if (filters.startDateTo) params.append('startDateTo', filters.startDateTo.toISOString());
 
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
       const searchUrl = `${backendUrl}/api/search?${params.toString()}`;
@@ -145,6 +184,14 @@ function SearchPageContent() {
       category: '',
       availability: false,
       sortBy: 'relevant',
+      // Reset new filters
+      services: [],
+      geographicArea: '',
+      priceModel: [],
+      projectTypes: [],
+      includedItems: [],
+      startDateFrom: undefined,
+      startDateTo: undefined,
     });
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
@@ -197,6 +244,7 @@ function SearchPageContent() {
                 onClearFilters={handleClearFilters}
                 searchType={searchType}
                 categories={categories}
+                filterOptions={filterOptions}
               />
             </div>
           </aside>
