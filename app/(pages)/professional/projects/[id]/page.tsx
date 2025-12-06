@@ -286,26 +286,29 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const submitProject = async () => {
-    if (!project) return
+const submitProject = async () => {
+  if (!project) return;
 
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        fetchProject()
-      } else {
-        const errorData = await response.json()
-        alert(errorData.error || 'Failed to submit project')
-      }
-    } catch (error) {
-      console.error('Failed to submit project:', error)
-      alert('Failed to submit project')
+  try {
+    const response = await fetch(`${process.env.NEXTPUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+    
+    if (response.ok) {
+      // Redirect to projects manage page on success
+      router.push('/professional/projects/manage');
+      router.refresh(); // Optional: refresh the manage page data
+    } else {
+      const errorData = await response.json();
+      alert(`${errorData.error || 'Failed to submit project'}`);
     }
+  } catch (error) {
+    console.error('Failed to submit project', error);
+    alert('Failed to submit project');
   }
+};
+
 
   const formatPricing = (pricing: IPricing) => {
     if (pricing.type === 'fixed' && pricing.amount) {
