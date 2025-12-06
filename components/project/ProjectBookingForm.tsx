@@ -1025,19 +1025,27 @@ export default function ProjectBookingForm({
   // Check if professional works on this date (based on their availability)
   const isProfessionalWorkingDay = (date: Date): boolean => {
     if (!professionalAvailability) {
-      // Default: work Monday-Friday, not weekends
-      const isWorkDay = !isWeekend(date)
-      console.log('[BOOKING] No professional availability, using default. Date:', format(date, 'yyyy-MM-dd'), 'Is work day:', isWorkDay)
-      return isWorkDay
+      console.log('[BOOKING] No professional availability, defaulting to all days available. Date:', format(date, 'yyyy-MM-dd'))
+      return true
     }
 
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
     const dayAvailability = professionalAvailability[dayName]
 
-    const isAvailable = dayAvailability?.available || false
-    console.log('[BOOKING] Checking work day for', format(date, 'yyyy-MM-dd'), dayName, '- Available:', isAvailable, 'Day config:', dayAvailability)
-    return isAvailable
+    if (!dayAvailability) {
+      return true
+    }
+
+    if (typeof dayAvailability.available === 'boolean') {
+      return dayAvailability.available
+    }
+
+    if (dayAvailability.startTime || dayAvailability.endTime) {
+      return true
+    }
+
+    return true
   }
 
   // Get working hours for the selected date
