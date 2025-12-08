@@ -136,43 +136,61 @@ export default function ProfilePage() {
       if (user.hourlyRate) setHourlyRate(user.hourlyRate.toString())
       if (user.currency) setCurrency(user.currency)
       if (user.serviceCategories) setServiceCategories(user.serviceCategories)
-      const mergedRanges = new Map<string, { startDate: string; endDate: string; reason?: string }>()
-      const addRange = (range: { startDate: string; endDate: string; reason?: string }) => {
-        const key = `${range.startDate}-${range.endDate}-${range.reason || ''}`
-        if (!mergedRanges.has(key)) {
-          mergedRanges.set(key, range)
+      if (user.availability) {
+        // Check if ALL days are unavailable (old/bad data)
+        const allDaysUnavailable = Object.values(user.availability).every(
+          (dayAvail) => dayAvail && typeof dayAvail === 'object' && 'available' in dayAvail && !dayAvail.available
+        )
+
+        // If all days are unavailable, don't load it - keep the new defaults (Mon-Fri available)
+        // Otherwise, load the saved availability
+        if (!allDaysUnavailable) {
+          setAvailability(prev => {
+            const updated = { ...prev }
+            Object.entries(user.availability!).forEach(([day, dayAvailability]) => {
+              if (dayAvailability) {
+                updated[day as keyof typeof updated] = {
+                  available: dayAvailability.available,
+                  startTime: dayAvailability.startTime || '09:00',
+                  endTime: dayAvailability.endTime || '17:00'
+                }
+              }
+            })
+            return updated
+          })
         }
       }
 
-      if (user.blockedRanges) {
-        user.blockedRanges.forEach((range: { startDate: string | Date; endDate: string | Date; reason?: string }) => {
-          const startDateStr = typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString()
-          const endDateStr = typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString()
-          addRange({
-            startDate: startDateStr,
-            endDate: endDateStr,
-            reason: range.reason || ''
-          })
-        })
-      }
-
       if (user.blockedDates) {
-        user.blockedDates.forEach((item: string | { date: string | Date; reason?: string }) => {
-          const dateValue = typeof item === 'string'
-            ? item
-            : item.date
-              ? (typeof item.date === 'string' ? item.date : item.date.toISOString())
-              : ''
-          const dateOnly = dateValue.split('T')[0]
-          if (!dateOnly) return
-          const startIso = new Date(`${dateOnly}T00:00:00`).toISOString()
-          const endIso = new Date(`${dateOnly}T23:59:59`).toISOString()
-          addRange({
-            startDate: startIso,
-            endDate: endIso,
-            reason: typeof item === 'string' ? undefined : item.reason
-          })
-        })
+        // Handle both old format (string[]) and new format (object[])
+        const formattedDates = user.blockedDates.map((item: string | { date: string | Date; reason?: string }) => {
+          if (typeof item === 'string') {
+            // Strip time portion if present
+            return { date: item.split('T')[0] };
+          } else if (item.date) {
+            // Always strip time portion from date string or Date object
+            const dateStr = typeof item.date === 'string' ? item.date : item.date.toISOString();
+            return {
+              date: dateStr.split('T')[0],
+              reason: item.reason
+            };
+          }
+          return { date: String(item).split('T')[0] };
+        });
+        setBlockedDates(formattedDates);
+      }
+      if (user.blockedRanges) {
+        // Format blocked ranges from backend
+        const formattedRanges = user.blockedRanges.map((range: { startDate: string | Date; endDate: string | Date; reason?: string }) => {
+          const startDateStr = typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString();
+          const endDateStr = typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString();
+          return {
+            startDate: startDateStr.split('T')[0],
+            endDate: endDateStr.split('T')[0],
+            reason: range.reason || ''
+          };
+        });
+        setBlockedRanges(formattedRanges);
       }
 
       setBlockedRanges(Array.from(mergedRanges.values()))
@@ -202,44 +220,39 @@ export default function ProfilePage() {
           })
         }
       }
-      const mergedCompanyRanges = new Map<string, { startDate: string; endDate: string; reason?: string; isHoliday?: boolean }>()
-      const addCompanyRange = (range: { startDate: string; endDate: string; reason?: string; isHoliday?: boolean }) => {
-        const key = `${range.startDate}-${range.endDate}-${range.reason || ''}-${range.isHoliday ? 'holiday' : ''}`
-        if (!mergedCompanyRanges.has(key)) {
-          mergedCompanyRanges.set(key, range)
-        }
-      }
-
-      if (user.companyBlockedRanges) {
-        // Keep full ISO timestamps for consistency with personal ranges
-        user.companyBlockedRanges.forEach((range: { startDate: string | Date; endDate: string | Date; reason?: string; isHoliday?: boolean }) => {
-          const startDateStr = typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString()
-          const endDateStr = typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString()
-          addCompanyRange({
-            startDate: startDateStr,
-            endDate: endDateStr,
-            reason: range.reason || '',
-            isHoliday: range.isHoliday || false
-          })
-        })
-      }
 
       if (user.companyBlockedDates) {
-        user.companyBlockedDates.forEach((item: string | { date: string | Date; reason?: string; isHoliday?: boolean }) => {
-          const dateValue = typeof item === 'string'
-            ? item
-            : item.date
-              ? (typeof item.date === 'string' ? item.date : item.date.toISOString())
-              : ''
-          const dateOnly = dateValue.split('T')[0]
-          if (!dateOnly) return
-          addCompanyRange({
-            startDate: dateOnly,
-            endDate: dateOnly,
-            reason: typeof item === 'string' ? undefined : item.reason,
-            isHoliday: typeof item === 'string' ? false : item.isHoliday || false
-          })
-        })
+        console.log('📥 Frontend: Loading companyBlockedDates from user:', user.companyBlockedDates);
+        const formattedDates = user.companyBlockedDates.map((item: string | { date: string | Date; reason?: string; isHoliday?: boolean }) => {
+          if (typeof item === 'string') {
+            // Strip time portion if present
+            return { date: item.split('T')[0], isHoliday: false };
+          } else if (item.date) {
+            // Always strip time portion from date string or Date object
+            const dateStr = typeof item.date === 'string' ? item.date : item.date.toISOString();
+            return {
+              date: dateStr.split('T')[0],
+              reason: item.reason,
+              isHoliday: item.isHoliday || false
+            };
+          }
+          return { date: String(item).split('T')[0], isHoliday: false };
+        });
+        console.log('📥 Frontend: Formatted companyBlockedDates:', formattedDates);
+        setCompanyBlockedDates(formattedDates);
+      }
+      if (user.companyBlockedRanges) {
+        const formattedRanges = user.companyBlockedRanges.map((range: { startDate: string | Date; endDate: string | Date; reason?: string; isHoliday?: boolean }) => {
+          const startDateStr = typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString();
+          const endDateStr = typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString();
+          return {
+            startDate: startDateStr.split('T')[0],
+            endDate: endDateStr.split('T')[0],
+            reason: range.reason || '',
+            isHoliday: range.isHoliday || false
+          };
+        });
+        setCompanyBlockedRanges(formattedRanges);
       }
 
       setCompanyBlockedRanges(Array.from(mergedCompanyRanges.values()))
