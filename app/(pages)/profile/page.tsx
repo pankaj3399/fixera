@@ -66,6 +66,17 @@ export default function ProfilePage() {
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
+  const [availability, setAvailability] = useState({
+    monday: { available: true, startTime: '09:00', endTime: '17:00' },
+    tuesday: { available: true, startTime: '09:00', endTime: '17:00' },
+    wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
+    thursday: { available: true, startTime: '09:00', endTime: '17:00' },
+    friday: { available: true, startTime: '09:00', endTime: '17:00' },
+    saturday: { available: false, startTime: '09:00', endTime: '17:00' },
+    sunday: { available: false, startTime: '09:00', endTime: '17:00' }
+  })
+  const [blockedDates, setBlockedDates] = useState<{date: string, reason?: string}[]>([])
+  const [newBlockedDate, setNewBlockedDate] = useState({date: '', reason: ''})
   const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
   const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
 
@@ -1454,6 +1465,98 @@ export default function ProfilePage() {
 
             {/* Personal Availability Tab */}
             <TabsContent value="personal-availability" className="space-y-6">
+              {/* Calendar View */}
+              <AvailabilityCalendar
+                title="Personal Availability"
+                description="Month view with working days, company blocks and your blocks"
+                weeklySchedule={availability}
+                personalBlockedDates={blockedDates}
+                personalBlockedRanges={blockedRanges}
+                companyBlockedDates={companyBlockedDates}
+                companyBlockedRanges={companyBlockedRanges}
+                mode="professional"
+                onToggleDay={toggleBlockedDateFromCalendar}
+                onAddRange={addBlockedRangeFromCalendar}
+                compact
+              />
+
+              {/* Personal Weekly Schedule */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Personal Working Hours
+                  </CardTitle>
+                  <CardDescription>
+                    Set your personal weekly schedule and working hours
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {Object.entries(availability).map(([day, schedule]) => (
+                    <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                      <div className="w-20 text-sm font-medium capitalize">{day}</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={schedule.available}
+                          onChange={(e) => {
+                            setAvailability(prev => ({
+                              ...prev,
+                              [day]: { ...prev[day as keyof typeof prev], available: e.target.checked }
+                            }))
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Available</span>
+                      </div>
+                      {schedule.available && (
+                        <>
+                          <Input
+                            type="time"
+                            value={schedule.startTime}
+                            onChange={(e) => {
+                              setAvailability(prev => ({
+                                ...prev,
+                                [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
+                              }))
+                            }}
+                            className="w-32"
+                          />
+                          <span className="text-sm">to</span>
+                          <Input
+                            type="time"
+                            value={schedule.endTime}
+                            onChange={(e) => {
+                              setAvailability(prev => ({
+                                ...prev,
+                                [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
+                              }))
+                            }}
+                            className="w-32"
+                          />
+                        </>
+                      )}
+                    </div>
+                  ))}
+
+                  <Button
+                    onClick={saveBusinessInfo}
+                    disabled={profileSaving}
+                    className="w-full mt-6"
+                  >
+                    {profileSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Personal Schedule'
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* PHASE 4: Enhanced Date Blocking Card */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
