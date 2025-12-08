@@ -147,85 +147,117 @@ export default function ProfilePage() {
       if (user.currency) setCurrency(user.currency)
       if (user.serviceCategories) setServiceCategories(user.serviceCategories)
       if (user.availability) {
-        setAvailability(prev => {
-          const updated = { ...prev }
-          Object.entries(user.availability!).forEach(([day, dayAvailability]) => {
-            if (dayAvailability) {
-              updated[day as keyof typeof updated] = {
-                available: dayAvailability.available,
-                startTime: dayAvailability.startTime || '09:00',
-                endTime: dayAvailability.endTime || '17:00'
+        // Check if ALL days are unavailable (old/bad data)
+        const allDaysUnavailable = Object.values(user.availability).every(
+          (dayAvail) => dayAvail && typeof dayAvail === 'object' && 'available' in dayAvail && !dayAvail.available
+        )
+
+        // If all days are unavailable, don't load it - keep the new defaults (Mon-Fri available)
+        // Otherwise, load the saved availability
+        if (!allDaysUnavailable) {
+          setAvailability(prev => {
+            const updated = { ...prev }
+            Object.entries(user.availability!).forEach(([day, dayAvailability]) => {
+              if (dayAvailability) {
+                updated[day as keyof typeof updated] = {
+                  available: dayAvailability.available,
+                  startTime: dayAvailability.startTime || '09:00',
+                  endTime: dayAvailability.endTime || '17:00'
+                }
               }
-            }
+            })
+            return updated
           })
-          return updated
-        })
+        }
       }
       if (user.blockedDates) {
         // Handle both old format (string[]) and new format (object[])
         const formattedDates = user.blockedDates.map((item: string | { date: string | Date; reason?: string }) => {
           if (typeof item === 'string') {
-            return { date: item };
+            // Strip time portion if present
+            return { date: item.split('T')[0] };
           } else if (item.date) {
+            // Always strip time portion from date string or Date object
+            const dateStr = typeof item.date === 'string' ? item.date : item.date.toISOString();
             return {
-              date: typeof item.date === 'string' ? item.date : item.date.toISOString().split('T')[0],
+              date: dateStr.split('T')[0],
               reason: item.reason
             };
           }
-          return { date: String(item) };
+          return { date: String(item).split('T')[0] };
         });
         setBlockedDates(formattedDates);
       }
       if (user.blockedRanges) {
         // Format blocked ranges from backend
-        const formattedRanges = user.blockedRanges.map((range: { startDate: string | Date; endDate: string | Date; reason?: string }) => ({
-          startDate: typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString().split('T')[0],
-          endDate: typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString().split('T')[0],
-          reason: range.reason || ''
-        }));
+        const formattedRanges = user.blockedRanges.map((range: { startDate: string | Date; endDate: string | Date; reason?: string }) => {
+          const startDateStr = typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString();
+          const endDateStr = typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString();
+          return {
+            startDate: startDateStr.split('T')[0],
+            endDate: endDateStr.split('T')[0],
+            reason: range.reason || ''
+          };
+        });
         setBlockedRanges(formattedRanges);
       }
 
       // Load company availability
       if (user.companyAvailability) {
-        setCompanyAvailability(prev => {
-          const updated = { ...prev }
-          Object.entries(user.companyAvailability!).forEach(([day, dayAvailability]) => {
-            if (dayAvailability) {
-              updated[day as keyof typeof updated] = {
-                available: dayAvailability.available,
-                startTime: dayAvailability.startTime || '09:00',
-                endTime: dayAvailability.endTime || '17:00'
+        // Check if ALL days are unavailable (old/bad data)
+        const allDaysUnavailable = Object.values(user.companyAvailability).every(
+          (dayAvail) => dayAvail && typeof dayAvail === 'object' && 'available' in dayAvail && !dayAvail.available
+        )
+
+        // If all days are unavailable, don't load it - keep the new defaults (Mon-Fri available)
+        // Otherwise, load the saved company availability
+        if (!allDaysUnavailable) {
+          setCompanyAvailability(prev => {
+            const updated = { ...prev }
+            Object.entries(user.companyAvailability!).forEach(([day, dayAvailability]) => {
+              if (dayAvailability) {
+                updated[day as keyof typeof updated] = {
+                  available: dayAvailability.available,
+                  startTime: dayAvailability.startTime || '09:00',
+                  endTime: dayAvailability.endTime || '17:00'
+                }
               }
-            }
+            })
+            return updated
           })
-          return updated
-        })
+        }
       }
       if (user.companyBlockedDates) {
         console.log('📥 Frontend: Loading companyBlockedDates from user:', user.companyBlockedDates);
         const formattedDates = user.companyBlockedDates.map((item: string | { date: string | Date; reason?: string; isHoliday?: boolean }) => {
           if (typeof item === 'string') {
-            return { date: item, isHoliday: false };
+            // Strip time portion if present
+            return { date: item.split('T')[0], isHoliday: false };
           } else if (item.date) {
+            // Always strip time portion from date string or Date object
+            const dateStr = typeof item.date === 'string' ? item.date : item.date.toISOString();
             return {
-              date: typeof item.date === 'string' ? item.date : item.date.toISOString().split('T')[0],
+              date: dateStr.split('T')[0],
               reason: item.reason,
               isHoliday: item.isHoliday || false
             };
           }
-          return { date: String(item), isHoliday: false };
+          return { date: String(item).split('T')[0], isHoliday: false };
         });
         console.log('📥 Frontend: Formatted companyBlockedDates:', formattedDates);
         setCompanyBlockedDates(formattedDates);
       }
       if (user.companyBlockedRanges) {
-        const formattedRanges = user.companyBlockedRanges.map((range: { startDate: string | Date; endDate: string | Date; reason?: string; isHoliday?: boolean }) => ({
-          startDate: typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString().split('T')[0],
-          endDate: typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString().split('T')[0],
-          reason: range.reason || '',
-          isHoliday: range.isHoliday || false
-        }));
+        const formattedRanges = user.companyBlockedRanges.map((range: { startDate: string | Date; endDate: string | Date; reason?: string; isHoliday?: boolean }) => {
+          const startDateStr = typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString();
+          const endDateStr = typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString();
+          return {
+            startDate: startDateStr.split('T')[0],
+            endDate: endDateStr.split('T')[0],
+            reason: range.reason || '',
+            isHoliday: range.isHoliday || false
+          };
+        });
         setCompanyBlockedRanges(formattedRanges);
       }
     }
