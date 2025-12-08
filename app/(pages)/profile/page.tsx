@@ -63,11 +63,11 @@ export default function ProfilePage() {
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
   const [availability, setAvailability] = useState({
-    monday: { available: false, startTime: '09:00', endTime: '17:00' },
-    tuesday: { available: false, startTime: '09:00', endTime: '17:00' },
-    wednesday: { available: false, startTime: '09:00', endTime: '17:00' },
-    thursday: { available: false, startTime: '09:00', endTime: '17:00' },
-    friday: { available: false, startTime: '09:00', endTime: '17:00' },
+    monday: { available: true, startTime: '09:00', endTime: '17:00' },
+    tuesday: { available: true, startTime: '09:00', endTime: '17:00' },
+    wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
+    thursday: { available: true, startTime: '09:00', endTime: '17:00' },
+    friday: { available: true, startTime: '09:00', endTime: '17:00' },
     saturday: { available: false, startTime: '09:00', endTime: '17:00' },
     sunday: { available: false, startTime: '09:00', endTime: '17:00' }
   })
@@ -79,11 +79,11 @@ export default function ProfilePage() {
 
   // Company availability (for team members to inherit)
   const [companyAvailability, setCompanyAvailability] = useState({
-    monday: { available: false, startTime: '09:00', endTime: '17:00' },
-    tuesday: { available: false, startTime: '09:00', endTime: '17:00' },
-    wednesday: { available: false, startTime: '09:00', endTime: '17:00' },
-    thursday: { available: false, startTime: '09:00', endTime: '17:00' },
-    friday: { available: false, startTime: '09:00', endTime: '17:00' },
+    monday: { available: true, startTime: '09:00', endTime: '17:00' },
+    tuesday: { available: true, startTime: '09:00', endTime: '17:00' },
+    wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
+    thursday: { available: true, startTime: '09:00', endTime: '17:00' },
+    friday: { available: true, startTime: '09:00', endTime: '17:00' },
     saturday: { available: false, startTime: '09:00', endTime: '17:00' },
     sunday: { available: false, startTime: '09:00', endTime: '17:00' }
   })
@@ -1312,6 +1312,82 @@ export default function ProfilePage() {
                 onAddRange={addBlockedRangeFromCalendar}
                 compact
               />
+
+              {/* Personal Weekly Schedule */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Personal Working Hours
+                  </CardTitle>
+                  <CardDescription>
+                    Set your personal weekly schedule and working hours
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {Object.entries(availability).map(([day, schedule]) => (
+                    <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                      <div className="w-20 text-sm font-medium capitalize">{day}</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={schedule.available}
+                          onChange={(e) => {
+                            setAvailability(prev => ({
+                              ...prev,
+                              [day]: { ...prev[day as keyof typeof prev], available: e.target.checked }
+                            }))
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Available</span>
+                      </div>
+                      {schedule.available && (
+                        <>
+                          <Input
+                            type="time"
+                            value={schedule.startTime}
+                            onChange={(e) => {
+                              setAvailability(prev => ({
+                                ...prev,
+                                [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
+                              }))
+                            }}
+                            className="w-32"
+                          />
+                          <span className="text-sm">to</span>
+                          <Input
+                            type="time"
+                            value={schedule.endTime}
+                            onChange={(e) => {
+                              setAvailability(prev => ({
+                                ...prev,
+                                [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
+                              }))
+                            }}
+                            className="w-32"
+                          />
+                        </>
+                      )}
+                    </div>
+                  ))}
+
+                  <Button
+                    onClick={saveBusinessInfo}
+                    disabled={profileSaving}
+                    className="w-full mt-6"
+                  >
+                    {profileSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Personal Schedule'
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
 
               {/* PHASE 4: Enhanced Date Blocking Card */}
               <Card>
