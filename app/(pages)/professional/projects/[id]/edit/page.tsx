@@ -63,7 +63,8 @@ interface Subproject {
   pricing: Pricing;
   included?: IncludedItem[];
   materialsIncluded?: boolean;
-  preparationDuration?: { value: number; unit: 'hours' | 'days' };
+  deliveryPreparation?: number;
+  deliveryPreparationUnit?: 'hours' | 'days';
   executionDuration?: ExecutionDuration;
   buffer?: Buffer;
   intakeDuration?: IntakeDuration;
@@ -961,8 +962,9 @@ export default function ProjectEditPage() {
                   pricing: { type: 'fixed', amount: 0 },
                   included: [],
                   materialsIncluded: false,
-                  preparationDuration: { value: 1, unit: 'days' },
-                  executionDuration: { value: 1, unit: 'hours' },
+                  deliveryPreparation: 0,
+                  deliveryPreparationUnit: project.timeMode === 'hours' ? 'hours' : 'days',
+                  executionDuration: { value: 1, unit: 'days' },
                   warrantyPeriod: 0,
                 };
                 updateField('subprojects', [

@@ -65,22 +65,16 @@ interface ISubproject {
   customProjectType?: string; // NEW: Custom project type when "Other" is selected
   professionalInputs?: IProfessionalInput[]; // NEW: Dynamic field values
   pricing: {
-    type: 'fixed' | 'unit' | 'rfq';
-    amount?: number;
-    priceRange?: { min?: number; max?: number };
-    minOrderQuantity?: number; // Unit pricing: minimum order quantity
-  };
-  errors?: {
-    priceRange?: string;
-    executionDurationRange?: string;
-  };
-  included: IIncludedItem[];
-  materialsIncluded: boolean;
-  materials?: IMaterial[];
-  preparationDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
+    type: 'fixed' | 'unit' | 'rfq'
+    amount?: number
+    priceRange?: { min: number; max: number }
+    minProjectValue?: number
+  }
+  included: IIncludedItem[]
+  materialsIncluded: boolean
+  materials?: IMaterial[]
+  deliveryPreparation: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
     value: number;
     unit: 'hours' | 'days';
@@ -111,12 +105,12 @@ interface IDynamicField {
 }
 
 interface ProjectData {
-  subprojects?: ISubproject[];
-  category?: string;
-  service?: string;
-  areaOfWork?: string;
-  timeMode?: 'hours' | 'days';
-  priceModel?: string;
+  subprojects?: ISubproject[]
+  category?: string
+  service?: string
+  areaOfWork?: string
+  timeMode?: 'hours' | 'days'
+  priceModel?: string
 }
 
 interface Step2Props {
@@ -179,77 +173,16 @@ const PREDEFINED_INCLUDED_ITEMS = {
   ],
 };
 
-// Check if priceModel is a "total price" type (fixed pricing)
-const isTotalPriceModel = (priceModel?: string): boolean => {
-  if (!priceModel) return false;
-  const normalized = priceModel.toLowerCase().trim();
-  return (
-    normalized === 'total price' ||
-    normalized === 'total' ||
-    normalized === 'fixed price'
-  );
-};
-
-// Get unit label from priceModel (e.g., "m² of floor surface" → "m²")
-const getUnitLabel = (priceModel?: string): string => {
-  if (!priceModel) return 'unit';
-  const normalized = priceModel.toLowerCase().trim();
-  if (normalized.includes('m²') || normalized.includes('m2')) return 'm²';
-  if (normalized.includes('hour')) return 'hour';
-  if (normalized.includes('day')) return 'day';
-  if (normalized.includes('meter')) return 'meter';
-  if (normalized.includes('room')) return 'room';
-  return 'unit'; // Return safe default if no match
-};
-
-type PricingType = 'fixed' | 'unit' | 'rfq';
-
-const getValidPricingTypes = (
-  category?: string,
-  priceModel?: string
-): PricingType[] => {
-  const isRenovation = category?.toLowerCase() === 'renovation';
-  if (isRenovation) return ['rfq'];
-  if (isTotalPriceModel(priceModel)) return ['fixed', 'rfq'];
-  return ['unit', 'rfq'];
-};
-
-const getDefaultPricingType = (
-  category?: string,
-  priceModel?: string
-): PricingType => getValidPricingTypes(category, priceModel)[0];
-
-export default function Step2Subprojects({
-  data,
-  onChange,
-  onValidate,
-}: Step2Props) {
-  // Determine if this is a total price model or unit-based model
-  const unitLabel = getUnitLabel(data.priceModel);
-  const validPricingTypes = getValidPricingTypes(
-    data.category,
-    data.priceModel
-  );
-
-  const normalizePreparationDuration = (subproject?: ISubproject) => {
-    const value =
-      typeof subproject?.preparationDuration?.value === 'number'
-        ? subproject.preparationDuration.value
-        : 1;
-    const unit = (subproject?.preparationDuration?.unit || 'days') as
-      | 'hours'
-      | 'days';
-    return { value, unit };
-  };
-
+export default function Step2Subprojects({ data, onChange, onValidate }: Step2Props) {
+  const defaultTimeMode = data.timeMode === 'hours' ? 'hours' : 'days'
   const resolvePreparationUnit = (subproject?: ISubproject) =>
-    normalizePreparationDuration(subproject).unit;
+    (subproject?.deliveryPreparationUnit || defaultTimeMode) as 'hours' | 'days'
   const [subprojects, setSubprojects] = useState<ISubproject[]>(() =>
     (data.subprojects || []).map((sub) => ({
       ...sub,
-      preparationDuration: normalizePreparationDuration(sub),
+      deliveryPreparationUnit: sub.deliveryPreparationUnit || defaultTimeMode
     }))
-  );
+  )
 
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);
@@ -368,6 +301,16 @@ export default function Step2Subprojects({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.priceModel, data.category]);
 
+  useEffect(() => {
+    setSubprojects(prev =>
+      prev.map(sub =>
+        sub.deliveryPreparationUnit
+          ? sub
+          : { ...sub, deliveryPreparationUnit: defaultTimeMode }
+      )
+    )
+  }, [defaultTimeMode])
+
   const validateForm = () => {
     const isValid =
       subprojects.length > 0 &&
@@ -425,7 +368,8 @@ export default function Step2Subprojects({
       included: [],
       materialsIncluded: false,
       materials: [],
-      preparationDuration: { value: 1, unit: 'days' },
+      deliveryPreparation: 1,
+      deliveryPreparationUnit: defaultTimeMode,
       executionDuration: {
         value: 1,
         unit: 'hours',
@@ -1705,54 +1649,85 @@ export default function Step2Subprojects({
                   <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                     <div>
                       <Label>Preparation Time *</Label>
-                      <div className='flex space-x-2'>
+                      <div className="flex space-x-2">
                         <Input
-                          type='number'
-                          min='0'
-                          step='0.5'
-                          value={subproject.preparationDuration?.value ?? 0}
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={subproject.deliveryPreparation}
                           onChange={(e) => {
-                            const parsed = parseFloat(e.target.value);
+                            const parsed = parseFloat(e.target.value)
                             updateSubproject(subproject.id, {
-                              preparationDuration: {
-                                value: Number.isNaN(parsed) ? 0 : parsed,
-                                unit: resolvePreparationUnit(subproject),
-                              },
-                            });
+                              deliveryPreparation: Number.isNaN(parsed) ? 0 : parsed
+                            })
                           }}
                         />
                         <Select
                           value={resolvePreparationUnit(subproject)}
                           onValueChange={(value: 'hours' | 'days') =>
                             updateSubproject(subproject.id, {
-                              preparationDuration: {
-                                value:
-                                  subproject.preparationDuration?.value ?? 0,
-                                unit: value,
-                              },
+                              deliveryPreparationUnit: value
                             })
                           }
                         >
-                          <SelectTrigger className='w-24'>
+                          <SelectTrigger className="w-24">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value='hours'>Hours</SelectItem>
-                            <SelectItem value='days'>Days</SelectItem>
+                            <SelectItem value="hours">Hours</SelectItem>
+                            <SelectItem value="days">Days</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <p className='text-xs text-gray-500 mt-1'>
-                        Time needed before starting work (
-                        {resolvePreparationUnit(subproject)})
+                      <p className="text-xs text-gray-500 mt-1">
+                        Time needed before starting work ({resolvePreparationUnit(subproject)})
                       </p>
                     </div>
 
                     {subproject.pricing.type === 'rfq' ? (
                       <>
                         <div>
-                          <Label>Execution Duration (Range) *</Label>
-                          <div className='flex space-x-2'>
+                          <Label>Minimum *</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={subproject.executionDuration.range?.min || ''}
+                            onChange={(e) => updateSubproject(subproject.id, {
+                              executionDuration: {
+                                ...subproject.executionDuration,
+                                range: {
+                                  min: parseInt(e.target.value) || 1,
+                                  max: subproject.executionDuration.range?.max || 1
+                                }
+                              }
+                            })}
+                            placeholder="Min duration"
+                          />
+                        </div>
+                        <div>
+                          <Label>Maximum *</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={subproject.executionDuration.range?.max || ''}
+                            onChange={(e) => updateSubproject(subproject.id, {
+                              executionDuration: {
+                                ...subproject.executionDuration,
+                                range: {
+                                  min: subproject.executionDuration.range?.min || 1,
+                                  max: parseInt(e.target.value) || 1
+                                }
+                              }
+                            })}
+                            placeholder="Max duration"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <Label>Execution Duration *</Label>
+                          <div className="flex space-x-2">
                             <Input
                               type='number'
                               min='1'

@@ -49,10 +49,8 @@ interface ISubproject {
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
-  preparationDuration?: {
-    value: number
-    unit: 'hours' | 'days'
-  }
+  deliveryPreparation: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
     value: number
     unit: 'hours' | 'days'

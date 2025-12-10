@@ -197,7 +197,10 @@ function SearchPageContent() {
   const [locationCoordinates, setLocationCoordinates] = useState<{
     lat: number;
     lng: number;
-  } | null>(null);
+  } | null>(initialCoordinates);
+
+  // Store whether user location has been loaded
+  const [userLocationLoaded, setUserLocationLoaded] = useState(false);
 
   const [categories, setCategories] = useState<string[]>([]);
 

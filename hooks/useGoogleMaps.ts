@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 interface GoogleMapsHook {
   isLoaded: boolean
   validateAddress: (address: string) => Promise<boolean>
+  geocodeAddress: (address: string) => Promise<{ lat: number; lng: number } | null>
 }
 
 export const useGoogleMaps = (): GoogleMapsHook => {
@@ -116,5 +117,59 @@ export const useGoogleMaps = (): GoogleMapsHook => {
     }
   }
 
-  return { isLoaded, validateAddress }
+  const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    if (!address || !isLoaded) {
+      console.log('⚠️ Geocoding skipped: address or Google Maps not loaded')
+      return null
+    }
+
+    // Check if Google Maps and Geocoder are available
+    if (typeof google === 'undefined' || !google.maps || !google.maps.Geocoder) {
+      console.error('❌ Google Maps Geocoder not available')
+      return null
+    }
+
+    try {
+      const geocoder = new google.maps.Geocoder()
+
+      return new Promise((resolve) => {
+        // Set a timeout to avoid hanging promises
+        const timeoutId = setTimeout(() => {
+          console.error('❌ Geocoding timeout')
+          resolve(null)
+        }, 10000)
+
+        geocoder.geocode({ address }, (results, status) => {
+          clearTimeout(timeoutId)
+
+          if (status === 'OK' && results && results.length > 0 && results[0]) {
+            try {
+              const location = results[0].geometry.location
+              const lat = typeof location.lat === 'function' ? location.lat() : location.lat
+              const lng = typeof location.lng === 'function' ? location.lng() : location.lng
+
+              if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+                console.log('✅ Geocoded address:', address, '→', { lat, lng })
+                resolve({ lat, lng })
+              } else {
+                console.error('❌ Invalid coordinates from geocoding:', { lat, lng })
+                resolve(null)
+              }
+            } catch (parseError) {
+              console.error('❌ Error parsing geocoding result:', parseError)
+              resolve(null)
+            }
+          } else {
+            console.warn(`⚠️ Geocoding failed: ${status}`)
+            resolve(null)
+          }
+        })
+      })
+    } catch (error) {
+      console.error('❌ Geocoding error:', error)
+      return null
+    }
+  }
+
+  return { isLoaded, validateAddress, geocodeAddress }
 }

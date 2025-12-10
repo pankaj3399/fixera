@@ -98,7 +98,8 @@ interface Subproject {
     type?: string
     amount?: number
   }
-  preparationDuration?: { value?: number; unit?: string }
+  deliveryPreparation?: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration?: {
     value?: number
     unit?: string
@@ -751,41 +752,20 @@ export default function ProjectApprovalPage() {
                                   )}
                                 </div>
                               </div>
-                              {sp.description && (
-                                <p className="text-sm text-gray-700 mt-1">{sp.description}</p>
-                              )}
-                              {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
-                                <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
-                              )}
-                              {Array.isArray(sp.included) && sp.included.length > 0 && (
-                                <div className="mt-2">
-                                  <Label className="text-xs font-medium">Included Items</Label>
-                                  <div className="mt-1 flex flex-wrap gap-1">
-                                    {sp.included.map((it: SubprojectIncludedItem, i: number) => (
-                                      <Badge key={i} variant="outline" className={`text-[10px] ${it.isDynamicField ? 'bg-purple-100' : ''}`}>
-                                        {it.name}
-                                      </Badge>
-                                    ))}
-                                  </div>
+                            )}
+                            {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
+                            )}
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
+                              {sp.deliveryPreparation != null && (
+                                <div>
+                                  Preparation: {sp.deliveryPreparation} {sp.deliveryPreparationUnit || 'days'}
                                 </div>
                               )}
-                              {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
-                                <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
-                              )}
-                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
-                                {preparationValue != null && (
-                                  <div>
-                                    Preparation: {preparationValue} {preparationUnit}
-                                  </div>
-                                )}
-                                {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
-                                {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
-                                {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
-                                {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
-                              </div>
-                              {sp.warrantyPeriod && (
-                                <div className="mt-2 text-xs text-gray-700">Warranty: {sp.warrantyPeriod.value} {sp.warrantyPeriod.unit}</div>
-                              )}
+                              {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
+                              {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
+                              {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
+                              {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
                             </div>
                           )
                         })}

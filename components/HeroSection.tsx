@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Search, ArrowRight} from 'lucide-react'
 import SearchAutocomplete from './search/SearchAutocomplete'
-import LocationAutocomplete from './search/LocationAutocomplete'
+import LocationAutocomplete, { type LocationData } from './search/LocationAutocomplete'
 import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -168,7 +168,10 @@ const HeroSection = () => {
                   <label htmlFor="location-search" className="sr-only">Location</label>
                   <LocationAutocomplete
                     value={location}
-                    onChange={setLocation}
+                    onChange={(value: string, locationData?: LocationData) => {
+                      setLocation(value);
+                      setLocationCoordinates(locationData?.coordinates || null);
+                    }}
                     placeholder="City, Country"
                   />
                 </div>
