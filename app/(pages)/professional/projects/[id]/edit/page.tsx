@@ -641,6 +641,25 @@ export default function ProjectEditPage() {
 
             <div>
               <label className='block text-sm font-medium text-gray-700 mb-2'>
+                Scheduling Mode <span className='text-red-500'>*</span>
+              </label>
+              <select
+                value={project.timeMode || 'days'}
+                onChange={(e) => updateField('timeMode', e.target.value)}
+                className='w-full p-2 border border-gray-300 rounded-md'
+              >
+                <option value='days'>Days Mode - Customer selects date only</option>
+                <option value='hours'>Hours Mode - Customer selects date and time</option>
+              </select>
+              <p className='text-xs text-gray-500 mt-1'>
+                {project.timeMode === 'hours'
+                  ? 'Customers will select specific time slots when booking'
+                  : 'Customers will select only the start date when booking'}
+              </p>
+            </div>
+
+            <div>
+              <label className='block text-sm font-medium text-gray-700 mb-2'>
                 Custom Confirmation Message
               </label>
               <Textarea

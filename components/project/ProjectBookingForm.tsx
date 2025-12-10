@@ -119,6 +119,12 @@ interface BlockedRange {
   reason?: string;
 }
 
+interface BlockedRange {
+  startDate: string
+  endDate: string
+  reason?: string
+}
+
 interface BlockedDates {
   blockedDates: string[];
   blockedRanges: BlockedRange[];
@@ -393,6 +399,99 @@ export default function ProjectBookingForm({
     selectedPackage,
     selectedTime,
   ]);
+
+  useEffect(() => {
+    fetchScheduleProposals(typeof selectedPackageIndex === 'number' ? selectedPackageIndex : undefined)
+    setHasUserSelectedDate(false)
+  }, [selectedPackageIndex])
+
+  const getFormattedDate = (dateStr?: string | null) => {
+    if (!dateStr) return null
+    const parsed = parseISO(dateStr)
+    if (Number.isNaN(parsed.getTime())) return null
+    return format(parsed, 'yyyy-MM-dd')
+  }
+
+  useEffect(() => {
+    if (!proposals) {
+      return
+    }
+
+    const proposalDate = getFormattedDate(proposals.earliestProposal?.start)
+    const fallbackDate = getFormattedDate(proposals.earliestBookableDate)
+    const initialDate = proposalDate || fallbackDate
+
+    if (
+      initialDate &&
+      (!selectedDate || (!hasUserSelectedDate && selectedDate !== initialDate)) &&
+      !isDateBlocked(initialDate)
+    ) {
+      setSelectedDate(initialDate)
+    }
+  }, [proposals, selectedDate, hasUserSelectedDate])
+
+  useEffect(() => {
+    if (selectedDate || hasUserSelectedDate) {
+      return
+    }
+
+    if (!loadingAvailability && !loadingWorkingHours) {
+      console.log('[BOOKING FORM] All data loaded, selecting default preferred start date...')
+      console.log('[BOOKING FORM] Professional availability:', professionalAvailability)
+
+      let defaultDate: string | null = null
+      const earliestProposal = getFormattedDate(proposals?.earliestProposal?.start)
+      const earliestBookable = getFormattedDate(proposals?.earliestBookableDate)
+
+      if (earliestProposal && !isDateBlocked(earliestProposal)) {
+        defaultDate = earliestProposal
+        console.log('[BOOKING FORM] Using earliest proposal date:', defaultDate)
+      } else if (earliestBookable && !isDateBlocked(earliestBookable)) {
+        defaultDate = earliestBookable
+        console.log('[BOOKING FORM] Using earliest bookable date:', defaultDate)
+      } else {
+        defaultDate = getMinDate()
+      }
+
+      if (defaultDate) {
+        setSelectedDate(defaultDate)
+
+        if (project.firstAvailableDate) {
+          const projectAvailableDate = format(parseISO(project.firstAvailableDate), 'yyyy-MM-dd')
+          if (projectAvailableDate !== defaultDate) {
+            console.warn('[BOOKING FORM] Date discrepancy detected!')
+            console.warn('[BOOKING FORM] Search/Project page showed:', projectAvailableDate)
+            console.warn('[BOOKING FORM] Actual first available date:', defaultDate)
+            console.warn('[BOOKING FORM] This may be due to bookings made after viewing the search results')
+          } else {
+            console.log('[BOOKING FORM] Available dates match:', defaultDate)
+          }
+        }
+      }
+    }
+  }, [loadingAvailability, loadingWorkingHours, blockedDates, professionalAvailability, proposals, selectedDate, hasUserSelectedDate])
+
+  useEffect(() => {
+    if (project.timeMode !== 'hours') {
+      return
+    }
+    if (!selectedDate) {
+      setSelectedTime('')
+      return
+    }
+    const dateObj = parseISO(selectedDate)
+    if (Number.isNaN(dateObj.getTime())) {
+      return
+    }
+    const slots = generateTimeSlotsForDate(dateObj)
+    if (slots.length === 0) {
+      setSelectedTime('')
+      return
+    }
+    if (!selectedTime || !slots.includes(selectedTime)) {
+      setSelectedTime(slots[0])
+    }
+  }, [selectedDate, project.timeMode, blockedDates, professionalAvailability, selectedPackage, selectedTime])
 
   const fetchTeamAvailability = async () => {
     try {
@@ -981,6 +1080,7 @@ export default function ProjectBookingForm({
   const fetchProfessionalWorkingHours = async () => {
     try {
       console.log('[BOOKING] Fetching working hours for project:', project._id)
+      setLoadingWorkingHours(true)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
       )
@@ -995,6 +1095,8 @@ export default function ProjectBookingForm({
       }
     } catch (error) {
       console.error('[BOOKING] Error fetching professional working hours:', error)
+    } finally {
+      setLoadingWorkingHours(false)
     }
   }
 
@@ -1025,8 +1127,10 @@ export default function ProjectBookingForm({
   // Check if professional works on this date (based on their availability)
   const isProfessionalWorkingDay = (date: Date): boolean => {
     if (!professionalAvailability) {
-      console.log('[BOOKING] No professional availability, defaulting to all days available. Date:', format(date, 'yyyy-MM-dd'))
-      return true
+      // This should only happen during initial load before working hours are fetched
+      console.warn('[BOOKING] ⚠️ isProfessionalWorkingDay called before working hours loaded! Date:', format(date, 'yyyy-MM-dd'))
+      console.warn('[BOOKING] Loading states - availability:', loadingAvailability, 'workingHours:', loadingWorkingHours)
+      return true // Default to available while loading
     }
 
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
@@ -1066,36 +1170,76 @@ export default function ProjectBookingForm({
     }
   }
 
-  const generateTimeSlots = (): string[] => {
-    const slots: string[] = []
-
-    // Get execution duration in hours
+  const getExecutionDurationHours = (): number => {
     const executionSource: AnyExecutionDuration | undefined =
       selectedPackage?.executionDuration || project.executionDuration
 
-    let executionHours = 0
-    if (executionSource) {
-      if (executionSource.unit === 'hours') {
-        executionHours = executionSource.value || 0
-      } else {
-        executionHours = (executionSource.value || 0) * 24
+    if (!executionSource) {
+      return 0
+    }
+
+    if (executionSource.unit === 'hours') {
+      return executionSource.value || 0
+    }
+
+    return (executionSource.value || 0) * 24
+  }
+
+  const getBlockedIntervalsForDate = (date: Date) => {
+    const intervals: Array<{ start: Date; end: Date }> = []
+    const dayStart = startOfDay(date)
+    const dayEnd = addDays(dayStart, 1)
+    const dateKey = format(dayStart, 'yyyy-MM-dd')
+
+    if (blockedDates.blockedDates.includes(dateKey)) {
+      intervals.push({ start: dayStart, end: dayEnd })
+    }
+
+    blockedDates.blockedRanges.forEach((range) => {
+      try {
+        const rangeStart = parseISO(range.startDate)
+        const rangeEnd = parseISO(range.endDate)
+
+        if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+          return
+        }
+
+        if (rangeEnd <= dayStart || rangeStart >= dayEnd) {
+          return
+        }
+
+        const start = rangeStart > dayStart ? rangeStart : dayStart
+        const end = rangeEnd < dayEnd ? rangeEnd : dayEnd
+        intervals.push({ start, end })
+      } catch (error) {
+        // Ignore malformed entries
       }
+    })
+
+    return intervals
+  }
+
+  const generateTimeSlotsForDate = (date: Date): string[] => {
+    const slots: string[] = []
+    if (project.timeMode !== 'hours') {
+      return slots
     }
 
-    // Get working hours for selected date
-    let startTime = '09:00'
-    let endTime = '17:00'
-
-    if (selectedDate) {
-      const dateObj = parseISO(selectedDate)
-      const workingHours = getWorkingHoursForDate(dateObj)
-      startTime = workingHours.startTime
-      endTime = workingHours.endTime
+    const executionHours = getExecutionDurationHours()
+    if (executionHours <= 0) {
+      return slots
     }
+
+    let workingStart = '09:00'
+    let workingEnd = '17:00'
+
+    const workingHours = getWorkingHoursForDate(date)
+    workingStart = workingHours.startTime
+    workingEnd = workingHours.endTime
 
     // Parse start and end times
-    const [startHour, startMin] = startTime.split(':').map(Number)
-    const [endHour, endMin] = endTime.split(':').map(Number)
+    const [startHour, startMin] = workingStart.split(':').map(Number)
+    const [endHour, endMin] = workingEnd.split(':').map(Number)
 
     // Calculate working hours per day
     const workingHoursPerDay = (endHour * 60 + endMin - (startHour * 60 + startMin)) / 60
@@ -1111,6 +1255,7 @@ export default function ProjectBookingForm({
     const closingTimeMinutes = endHour * 60 + endMin
     const executionMinutes = executionHours * 60
     const lastSlotMinutes = closingTimeMinutes - executionMinutes
+    const blockedIntervals = getBlockedIntervalsForDate(date)
 
     // Generate slots from start to last available slot
     let currentMinutes = startHour * 60 + startMin
@@ -1118,11 +1263,37 @@ export default function ProjectBookingForm({
     while (currentMinutes <= lastSlotMinutes) {
       const hours = Math.floor(currentMinutes / 60)
       const minutes = currentMinutes % 60
-      slots.push(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`)
-      currentMinutes += 30 // 30-minute intervals
+      const slotLabel = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+      const slotStart = new Date(date)
+      slotStart.setHours(hours, minutes, 0, 0)
+      const slotEnd = new Date(slotStart)
+      slotEnd.setMinutes(slotEnd.getMinutes() + executionMinutes)
+
+      const overlapsBlocked = blockedIntervals.some(
+        (interval) => slotStart < interval.end && slotEnd > interval.start
+      )
+
+      if (!overlapsBlocked) {
+        slots.push(slotLabel)
+      }
+
+      currentMinutes += 30
     }
 
     return slots
+  }
+
+  const generateTimeSlots = (): string[] => {
+    if (!selectedDate) {
+      return []
+    }
+
+    const dateObj = parseISO(selectedDate)
+    if (Number.isNaN(dateObj.getTime())) {
+      return []
+    }
+
+    return generateTimeSlotsForDate(dateObj)
   }
 
   // Calculate end time for a given start time (hours mode)
@@ -1201,7 +1372,6 @@ export default function ProjectBookingForm({
     return slotTime < now
   }
 
-  // Check if date is blocked (unavailable - includes company closures)
   const isDateBlocked = (dateString: string): boolean => {
     const dateObj = parseISO(dateString);
     if (Number.isNaN(dateObj.getTime())) {
@@ -1447,6 +1617,24 @@ export default function ProjectBookingForm({
     completion.setHours(endHour, endMin, 0, 0);
     return completion;
   };
+
+  const calculateCompletionDateTime = (): Date | null => {
+    if (project.timeMode !== 'hours' || !selectedDate || !selectedTime) {
+      return null
+    }
+
+    const executionHours = getExecutionDurationHours()
+    if (executionHours <= 0) {
+      return null
+    }
+
+    const [hours, minutes] = selectedTime.split(':').map(Number)
+    const startDate = parseISO(selectedDate)
+    startDate.setHours(hours, minutes, 0, 0)
+    const completion = new Date(startDate)
+    completion.setHours(completion.getHours() + executionHours)
+    return completion
+  }
 
   const handleRFQAnswerChange = (index: number, answer: string) => {
     setRFQAnswers((prev) => {
@@ -1933,6 +2121,7 @@ export default function ProjectBookingForm({
   }, [projectMode, selectedDate]);
 
   const projectedCompletionDate = calculateCompletionDate()
+  const projectedCompletionDateTime = calculateCompletionDateTime()
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
@@ -1962,15 +2151,8 @@ export default function ProjectBookingForm({
     return `${duration.value} ${duration.unit}`
   }
 
-  const getBufferDurationLabel = () => {
-    const buffer = selectedPackage?.buffer || project.bufferDuration
-    if (!buffer || !buffer.value || buffer.value <= 0) return null
-    return `${buffer.value} ${buffer.unit}`
-  }
-
   const preparationLabel = getPreparationDurationLabel()
   const executionLabel = getExecutionDurationLabel()
-  const bufferLabel = getBufferDurationLabel()
 
   useEffect(() => {
     if (!selectedPackage) {

@@ -520,7 +520,6 @@ export default function ManageProjectsPage() {
     console.log('[ManageProjects] Editing project with warning:', projectId)
     setEditWarningDialogOpen(false)
     setSelectedProject(null)
-
     router.push(`/professional/projects/${projectId}/edit`)
   }
 

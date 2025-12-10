@@ -169,6 +169,7 @@ function SearchPageContent() {
 
   const [searchType, setSearchType] = useState<'professionals' | 'projects'>(initialType);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [serverFacets, setServerFacets] = useState<ProjectFacetCounts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -386,9 +387,11 @@ function SearchPageContent() {
       const data = (await response.json()) as {
         results?: SearchResult[];
         pagination?: PaginationState;
+        facets?: ProjectFacetCounts | null;
       };
       console.log('Search response:', data);
       console.log('Results count:', data.results?.length || 0);
+      console.log('Server facets received:', data.facets);
       setResults(data.results ?? []);
       setPagination((prev) => data.pagination ?? prev);
       if (searchType === 'projects' && data.results?.length) {
@@ -445,6 +448,7 @@ function SearchPageContent() {
     setSearchType(newType);
     // Reset to page 1 when changing search type
     setPagination((prev) => ({ ...prev, page: 1 }));
+    setServerFacets(null);
     // Clear results to show loading state
     setResults([]);
   };
