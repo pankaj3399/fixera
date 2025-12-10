@@ -520,7 +520,6 @@ export default function ManageProjectsPage() {
     console.log('[ManageProjects] Editing project with warning:', projectId)
     setEditWarningDialogOpen(false)
     setSelectedProject(null)
-
     router.push(`/professional/projects/${projectId}/edit`)
   }
 
@@ -585,10 +584,7 @@ export default function ManageProjectsPage() {
           </DropdownMenuItem>
 
           {canEdit && (
-            <DropdownMenuItem onClick={() => {
-              console.log('[ManageProjects] Editing project:', project._id)
-              router.push(`/professional/projects/${project._id}/edit`);
-            }}>
+            <DropdownMenuItem onClick={() => router.push(`/professional/projects/${project._id}/edit`)}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Project
             </DropdownMenuItem>
@@ -1282,10 +1278,10 @@ export default function ManageProjectsPage() {
                 <AlertCircle className="h-5 w-5 text-orange-500" />
                 Edit Published Project
               </DialogTitle>
-              <DialogDescription className="space-y-3">
-                <p>
-                  You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProjectStatus === 'published' ? 'published and visible to customers' : 'on hold'}.
-                </p>
+              <DialogDescription>
+                You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProjectStatus === 'published' ? 'published and visible to customers' : 'on hold'}.
+              </DialogDescription>
+              <div className="space-y-3 mt-3">
                 <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />

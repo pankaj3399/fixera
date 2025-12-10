@@ -166,30 +166,12 @@ export default function ProjectEditPage() {
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [hasShownWarning, setHasShownWarning] = useState(false);
 
-  const normalizePreparationDuration = (subprojects: Subproject[]) =>
-    subprojects.map((subproject) => {
-      const preparationValue = subproject.preparationDuration?.value;
-      if (preparationValue == null) {
-        return subproject;
-      }
-
-      const preparationUnit =
-        subproject.preparationDuration?.unit ??
-        subproject.executionDuration?.unit ??
-        'days';
-
-      return {
-        ...subproject,
-        preparationDuration: {
-          value: preparationValue,
-          unit: preparationUnit,
-        },
-      };
-    });
-
   const buildAuthHeaders = useCallback(
     (headers: Record<string, string> = {}) => {
-      const token = getAuthToken();
+      if (typeof window === 'undefined') {
+        return headers;
+      }
+      const token = window.localStorage.getItem('authToken');
       if (!token) {
         return headers;
       }
@@ -631,6 +613,25 @@ export default function ProjectEditPage() {
                 onChange={(e) => updateField('priceModel', e.target.value)}
                 placeholder='Price model'
               />
+            </div>
+
+            <div>
+              <label className='block text-sm font-medium text-gray-700 mb-2'>
+                Scheduling Mode <span className='text-red-500'>*</span>
+              </label>
+              <select
+                value={project.timeMode || 'days'}
+                onChange={(e) => updateField('timeMode', e.target.value)}
+                className='w-full p-2 border border-gray-300 rounded-md'
+              >
+                <option value='days'>Days Mode - Customer selects date only</option>
+                <option value='hours'>Hours Mode - Customer selects date and time</option>
+              </select>
+              <p className='text-xs text-gray-500 mt-1'>
+                {project.timeMode === 'hours'
+                  ? 'Customers will select specific time slots when booking'
+                  : 'Customers will select only the start date when booking'}
+              </p>
             </div>
 
             <div>

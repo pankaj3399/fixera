@@ -230,7 +230,7 @@ export default function ProjectCreatePage() {
         setIsLoading(true)
         try {
           console.log('🔄 Loading project:', projectId)
-          const token = getAuthToken()
+          const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
           const headers: Record<string, string> = {
             'Content-Type': 'application/json'
           }
@@ -242,22 +242,30 @@ export default function ProjectCreatePage() {
             headers
           })
 
+          console.log('📡 Project fetch response:', response.status, response.statusText)
+
           if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            console.error('❌ Failed to load project:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
+            })
+
             if (response.status === 401) {
               toast.error('Please log in to edit this project')
-              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+              router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search))
               return
             } else if (response.status === 404) {
               toast.error('Project not found')
-              router.replace('/professional/projects/manage')
+              router.push('/professional/projects/manage')
               return
             } else if (response.status === 403) {
               toast.error('You do not have permission to edit this project')
-              router.replace('/professional/projects/manage')
+              router.push('/professional/projects/manage')
               return
             }
 
-            const errorData = await response.json().catch(() => ({}))
             throw new Error(errorData.msg || 'Failed to load project')
           }
 

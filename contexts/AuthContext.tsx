@@ -107,6 +107,8 @@ interface SignupData {
   role?: 'customer' | 'professional'
 }
 
+const AUTH_TOKEN_KEY = 'authToken'
+
 // Route Configuration
 const ROUTE_CONFIG = {
   // Public routes - accessible to everyone
@@ -219,9 +221,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter()
   const pathname = usePathname()
 
+  const getStoredToken = () => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+    return window.localStorage.getItem(AUTH_TOKEN_KEY)
+  }
+
+  const persistToken = (token?: string | null) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (token) {
+      window.localStorage.setItem(AUTH_TOKEN_KEY, token)
+    } else {
+      window.localStorage.removeItem(AUTH_TOKEN_KEY)
+    }
+  }
+
   const checkAuth = async () => {
     try {
-      const token = getAuthToken()
+      const token = getStoredToken()
       const headers: Record<string, string> = {}
 
       if (token) {
@@ -230,7 +251,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/me`, {
         credentials: 'include',
-        headers
+        headers: Object.keys(headers).length ? headers : undefined
       })
       if (response.ok) {
         const data = await response.json()
@@ -238,13 +259,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return data.user
       } else {
         setUser(null)
-        setAuthToken(null)
+        persistToken(null)
         return null
       }
     } catch (error) {
       console.error('Auth check failed:', error)
       setUser(null)
-      setAuthToken(null)
+      persistToken(null)
       return null
     } finally {
       setLoading(false)
@@ -266,7 +287,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (response.ok && data.success) {
         setUser(data.user)
-        setAuthToken(data.token)
+        persistToken(data.token)
         toast.success('Login successful!')
         
         // Handle redirect after successful login
@@ -307,7 +328,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (response.ok && data.success) {
         setUser(data.user)
-        setAuthToken(data.token)
+        persistToken(data.token)
         toast.success('Account created successfully!')
         
         if (data.welcomeEmailSent) {
@@ -340,7 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Logout error:', error)
     } finally {
       setUser(null)
-      setAuthToken(null)
+      persistToken(null)
       sessionStorage.removeItem('redirectAfterAuth')
       toast.success('Logged out successfully')
       router.push('/login')

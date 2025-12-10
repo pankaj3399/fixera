@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProfessionalCard from '@/components/search/ProfessionalCard';
 import ProjectCard from '@/components/search/ProjectCard';
-import SearchFilters, { type SearchFiltersState } from '@/components/search/SearchFilters';
+import SearchFilters, { type SearchFiltersState, type ProjectFacetCounts } from '@/components/search/SearchFilters';
 import { useFilterOptions } from '@/hooks/useFilterOptions';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
@@ -128,24 +128,19 @@ const buildProjectFacets = (projects: ProjectResult[]): ProjectFacetCounts => {
 
 const extractLocationDetails = (raw?: string | null) => {
   if (!raw) {
-    return { city: undefined, state: undefined, country: undefined, address: undefined };
+    return { city: undefined, country: undefined, address: undefined };
   }
 
   const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
   if (parts.length === 0) {
-    return { city: undefined, state: undefined, country: undefined, address: undefined };
+    return { city: undefined, country: undefined, address: undefined };
   }
 
+  const city = parts[0] || undefined;
   const country = parts.length > 1 ? parts[parts.length - 1] : undefined;
-  const state = parts.length > 2 ? parts[parts.length - 2] : parts.length === 2 ? parts[1] : undefined;
-  const city =
-    parts.length >= 3
-      ? parts[parts.length - 3]
-      : parts[0] || undefined;
 
   return {
     city,
-    state,
     country,
     address: raw.trim(),
   };
@@ -169,6 +164,7 @@ function SearchPageContent() {
 
   const [searchType, setSearchType] = useState<'professionals' | 'projects'>(initialType);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [serverFacets, setServerFacets] = useState<ProjectFacetCounts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -192,6 +188,7 @@ function SearchPageContent() {
     priceModel: [],
     projectTypes: [],
     includedItems: [],
+    areasOfWork: [],
     startDateFrom: undefined,
     startDateTo: undefined,
   });
@@ -200,18 +197,32 @@ function SearchPageContent() {
   const [locationCoordinates, setLocationCoordinates] = useState<{
     lat: number;
     lng: number;
-  } | null>(initialCoordinates);
-
-  // Store whether user location has been loaded
-  const [userLocationLoaded, setUserLocationLoaded] = useState(false);
+  } | null>(null);
 
   const [categories, setCategories] = useState<string[]>([]);
 
   // Fetch dynamic filter options using the custom hook
-  const { filterOptions, isLoading: isLoadingFilters } = useFilterOptions({ country: 'BE' });
+  const { filterOptions } = useFilterOptions({ country: 'BE' });
 
   const professionalResults = results as ProfessionalResult[];
   const projectResults = results as ProjectResult[];
+  const projectFacets = useMemo(() => {
+    if (searchType !== 'projects') {
+      return null;
+    }
+    // Always prefer server facets (which represent ALL matching projects in the database)
+    if (serverFacets) {
+      console.log('Using server facets (from ALL database projects)');
+      return serverFacets;
+    }
+    // Fallback to client-side facets only if server didn't provide them
+    // Note: This fallback only represents the current page of results, not all database projects
+    if (projectResults.length === 0) {
+      return null;
+    }
+    console.warn('Using client-side facets (only current page results) - server facets not available');
+    return buildProjectFacets(projectResults);
+  }, [projectResults, searchType, serverFacets]);
 
   // Fetch categories on mount (kept for backward compatibility)
   useEffect(() => {
@@ -293,9 +304,11 @@ function SearchPageContent() {
     filters.priceModel,
     filters.projectTypes,
     filters.includedItems,
+    filters.areasOfWork,
     filters.startDateFrom,
     filters.startDateTo,
-    pagination.page
+    pagination.page,
+    locationCoordinates
   ]);
 
   const fetchCategories = async () => {
@@ -339,8 +352,23 @@ function SearchPageContent() {
       if (filters.priceModel.length > 0) params.append('priceModel', filters.priceModel.join(','));
       if (filters.projectTypes.length > 0) params.append('projectTypes', filters.projectTypes.join(','));
       if (filters.includedItems.length > 0) params.append('includedItems', filters.includedItems.join(','));
+      if (filters.areasOfWork.length > 0) params.append('areaOfWork', filters.areasOfWork.join(','));
       if (filters.startDateFrom) params.append('startDateFrom', filters.startDateFrom.toISOString());
       if (filters.startDateTo) params.append('startDateTo', filters.startDateTo.toISOString());
+
+      if (searchType === 'projects' && (filters.location || filters.geographicArea)) {
+        const locationDetails = extractLocationDetails(filters.location || filters.geographicArea);
+        if (locationDetails.city) params.append('customerCity', locationDetails.city);
+        if (locationDetails.country) params.append('customerCountry', locationDetails.country);
+        if (locationDetails.address) params.append('customerAddress', locationDetails.address);
+
+        // Send GPS coordinates if available (for accurate distance filtering)
+        if (locationCoordinates) {
+          params.append('customerLat', locationCoordinates.lat.toString());
+          params.append('customerLon', locationCoordinates.lng.toString());
+          console.log('📍 Sending customer coordinates for distance filtering:', locationCoordinates);
+        }
+      }
 
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
       const searchUrl = `${backendUrl}/api/search?${params.toString()}`;
@@ -358,51 +386,18 @@ function SearchPageContent() {
       const data = (await response.json()) as {
         results?: SearchResult[];
         pagination?: PaginationState;
+        facets?: ProjectFacetCounts | null;
       };
       console.log('Search response:', data);
       console.log('Results count:', data.results?.length || 0);
-       if (searchType === 'projects' && Array.isArray(data.results)) {
-        const availabilityDebug = data.results
-          .map((project) => {
-            const projectData = project as ProjectResult;
-            const subprojects = projectData.subprojects || [];
-            const missingSubprojects = subprojects
-              .filter((subproject) => !subproject.firstAvailableDate)
-              .map((subproject) => ({
-                name: subproject.name,
-                executionDuration: subproject.executionDuration,
-                firstAvailableDate: subproject.firstAvailableDate ?? null,
-              }));
-            if (missingSubprojects.length === 0) {
-              return null;
-            }
-            return {
-              id: projectData._id,
-              title: projectData.title,
-              timeMode: projectData.timeMode,
-              executionDuration: projectData.executionDuration,
-              firstAvailableDate: projectData.firstAvailableDate ?? null,
-              missingSubprojects,
-            };
-          })
-          .filter(Boolean);
-        if (availabilityDebug.length > 0) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn(
-              '[SEARCH] Missing subproject availability data:',
-              availabilityDebug
-            );
-          }
-        }
-      }
+      console.log('Server facets received:', data.facets);
       setResults(data.results ?? []);
       setPagination((prev) => data.pagination ?? prev);
-      if (searchType === 'projects' && data.results?.length) {
-        const priceModelsOnPage = data.results.map((project) => {
-          const projectData = project as ProjectResult;
-          return projectData?.priceModel || 'unknown';
-        });
-        console.log('Project price models on page:', priceModelsOnPage);
+      if (searchType === 'projects') {
+        console.log('Setting server facets for projects:', data.facets);
+        setServerFacets(data.facets ?? null);
+      } else {
+        setServerFacets(null);
       }
     } catch (err) {
       console.error('Search error:', err);
@@ -434,6 +429,7 @@ function SearchPageContent() {
       priceModel: [],
       projectTypes: [],
       includedItems: [],
+      areasOfWork: [],
       startDateFrom: undefined,
       startDateTo: undefined,
     });
@@ -450,6 +446,7 @@ function SearchPageContent() {
     setSearchType(newType);
     // Reset to page 1 when changing search type
     setPagination((prev) => ({ ...prev, page: 1 }));
+    setServerFacets(null);
     // Clear results to show loading state
     setResults([]);
   };
@@ -490,6 +487,8 @@ function SearchPageContent() {
                 searchType={searchType}
                 categories={categories}
                 filterOptions={filterOptions}
+                facets={projectFacets}
+                onLocationCoordinatesChange={setLocationCoordinates}
               />
             </div>
           </aside>

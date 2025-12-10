@@ -11,8 +11,28 @@ export const useGoogleMaps = (): GoogleMapsHook => {
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
-    if ((window as any).google?.maps) {
+    // Check if Google Maps is already loaded
+    if ((window as any).google?.maps?.places) {
       setIsLoaded(true)
+      return
+    }
+
+    // Check if script is already being loaded
+    const existingScript = document.querySelector(
+      'script[src*="maps.googleapis.com"]'
+    )
+
+    if (existingScript) {
+      // Script is already loading, wait for it
+      const checkInterval = setInterval(() => {
+        if ((window as any).google?.maps?.places) {
+          setIsLoaded(true)
+          clearInterval(checkInterval)
+        }
+      }, 100)
+
+      // Clear interval after 10 seconds
+      setTimeout(() => clearInterval(checkInterval), 10000)
       return
     }
 
@@ -32,15 +52,27 @@ export const useGoogleMaps = (): GoogleMapsHook => {
           const script = document.createElement('script')
           script.src = data.scriptUrl
           script.async = true
-          script.onload = () => setIsLoaded(true)
-          script.onerror = () => {
-            console.error('Failed to load Google Maps script')
+          script.defer = true
+          script.onload = () => {
+            // Wait a bit for the API to fully initialize
+            setTimeout(() => {
+              if ((window as any).google?.maps?.places) {
+                setIsLoaded(true)
+              } else {
+                console.error('❌ Google Maps loaded but places API not available')
+              }
+            }, 100)
+          }
+          script.onerror = (error) => {
+            console.error('❌ Failed to load Google Maps script:', error)
             setIsLoaded(false)
           }
           document.head.appendChild(script)
+        } else {
+          console.error('❌ Invalid Google Maps config response')
         }
       } catch (error) {
-        console.error('Failed to load Google Maps configuration:', error)
+        console.error('❌ Failed to load Google Maps configuration:', error)
         setIsLoaded(false)
       }
     }
@@ -71,11 +103,6 @@ export const useGoogleMaps = (): GoogleMapsHook => {
       )
 
       const data = await response.json()
-      console.log('[GoogleMaps] Address validation response:', {
-        success: data.success,
-        isValid: data.isValid,
-        statusCode: response.status
-      })
 
       if (!response.ok) {
         console.error('[GoogleMaps] Validation request failed:', response.status, data)

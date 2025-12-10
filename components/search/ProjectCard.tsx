@@ -4,15 +4,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Euro, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } from '@/lib/projectHighlights';
 
 interface ProjectCardProps {
   project: {
     _id: string;
     title: string;
-    description: string;
-    category: string;
-    service: string;
-    timeMode?: 'hours' | 'days';
+  description: string;
+  category: string;
+  service: string;
+  areaOfWork?: string;
+  services?: Array<{
+    service?: string;
+    areaOfWork?: string;
+  }>;
+  timeMode?: 'hours' | 'days';
     executionDuration?: {
       value: number;
       unit: 'hours' | 'days';
@@ -64,6 +70,11 @@ interface ProjectCardProps {
         value: number;
         unit: 'months' | 'years';
       };
+      projectType?: string[];
+      included?: Array<{
+        name?: string;
+        description?: string;
+      }>;
     }>;
     firstAvailableDate?: string | null;
   };
@@ -281,17 +292,20 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
             </Badge>
             {project.priceModel && (
               <Badge variant="outline" className="text-xs">
-                {project.priceModel}
+                {formatPriceModelLabel(project.priceModel)}
               </Badge>
             )}
-            {project.certifications && project.certifications.slice(0, 3).map((cert, idx) => (
-              <Badge key={idx} variant="secondary" className="text-xs">
+            {qualityCertificates.slice(0, 3).map((cert, idx) => (
+              <span
+                key={`${cert.name}-${idx}`}
+                className={`text-xs py-1 px-2 rounded-full text-white font-semibold bg-gradient-to-r ${getCertificateGradient(cert.name)}`}
+              >
                 {cert.name}
-              </Badge>
+              </span>
             ))}
-            {project.certifications && project.certifications.length > 3 && (
+            {qualityCertificates.length > 3 && (
               <Badge variant="secondary" className="text-xs">
-                +{project.certifications.length - 3} more
+                +{qualityCertificates.length - 3} more
               </Badge>
             )}
           </div>

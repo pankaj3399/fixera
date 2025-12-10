@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, MouseEvent, useMemo } from "react"
+import { useState, useEffect, MouseEvent } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -12,7 +12,7 @@ import { Calendar, User, Loader2, Save, RefreshCw, X, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
 import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
-import { addDays, format, parseISO, startOfDay, isWithinInterval } from "date-fns"
+import WeeklyTimeBlocker from "@/components/calendar/WeeklyTimeBlocker"
 
 interface BlockedRange {
   startDate: string
@@ -298,13 +298,22 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           />
         )}
 
-        {/* Booking blocked dates note */}
-        {bookingBlockedDates.length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Note: {bookingBlockedDates.length} day(s) are blocked due to existing bookings (shown in red on calendar).
-          </p>
-        )}
-
+        <WeeklyTimeBlocker
+          blockedRanges={blockedRanges}
+          onAddBlockedRange={async (start, end, reason) => {
+            const startIso = new Date(start).toISOString()
+            const endIso = new Date(end).toISOString()
+            const updated = [...blockedRanges, { startDate: startIso, endDate: endIso, reason }]
+            setBlockedRanges(updated)
+            await saveBlockedDates(blockedDates, updated)
+          }}
+          onRemoveBlockedRange={async (index) => {
+            const updated = blockedRanges.filter((_, i) => i !== index)
+            setBlockedRanges(updated)
+            await saveBlockedDates(blockedDates, updated)
+          }}
+          description="Use this weekly planner to mark personal hours as unavailable."
+        />
         {/* Company Schedule Display */}
         {availabilityData && (
           <div className="space-y-3">

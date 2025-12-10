@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, Loader2, Upload, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { format, addDays, isAfter, isBefore, parseISO, startOfDay } from 'date-fns'
+import { format, addDays, parseISO, startOfDay } from 'date-fns'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
 
@@ -26,10 +26,10 @@ interface Project {
     unit: 'hours' | 'days';
   };
   executionDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
-  firstAvailableDate?: string | null;
+    value: number
+    unit: 'hours' | 'days'
+  }
+  firstAvailableDate?: string | null
   bufferDuration?: {
     value: number;
     unit: 'hours' | 'days';
@@ -97,10 +97,15 @@ interface RFQAnswer {
   type: string
 }
 
+interface BlockedRange {
+  startDate: string
+  endDate: string
+  reason?: string
+}
+
 interface BlockedDates {
-  blockedDates: string[];
-  blockedRanges: BlockedRange[];
-  resourcePolicy?: ResourcePolicy;
+  blockedDates: string[]
+  blockedRanges: BlockedRange[]
 }
 
 interface ScheduleProposalsResponse {
@@ -174,6 +179,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   const [loading, setLoading] = useState(false)
   const [blockedDates, setBlockedDates] = useState<BlockedDates>({ blockedDates: [], blockedRanges: [] })
   const [loadingAvailability, setLoadingAvailability] = useState(true)
+  const [loadingWorkingHours, setLoadingWorkingHours] = useState(true)
   const [proposals, setProposals] = useState<ScheduleProposalsResponse['proposals'] | null>(null)
   const [professionalAvailability, setProfessionalAvailability] = useState<ProfessionalAvailability | null>(null)
 
@@ -186,6 +192,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [showCalendar, setShowCalendar] = useState(false)
+  const [hasUserSelectedDate, setHasUserSelectedDate] = useState(false)
   const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([])
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>([])
   const [additionalNotes, setAdditionalNotes] = useState('')
@@ -194,14 +201,111 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   useEffect(() => {
     if (typeof selectedSubprojectIndex === 'number') {
       setSelectedPackageIndex(selectedSubprojectIndex)
+      setHasUserSelectedDate(false)
     }
   }, [selectedSubprojectIndex])
 
   useEffect(() => {
     fetchTeamAvailability()
-    fetchScheduleProposals()
     fetchProfessionalWorkingHours()
+
+    // Log for debugging available date consistency
+    console.log('[BOOKING FORM] Initializing booking form for project:', project._id)
+    console.log('[BOOKING FORM] First available date from search/project page:', project.firstAvailableDate)
   }, [])
+
+  useEffect(() => {
+    fetchScheduleProposals(typeof selectedPackageIndex === 'number' ? selectedPackageIndex : undefined)
+    setHasUserSelectedDate(false)
+  }, [selectedPackageIndex])
+
+  const getFormattedDate = (dateStr?: string | null) => {
+    if (!dateStr) return null
+    const parsed = parseISO(dateStr)
+    if (Number.isNaN(parsed.getTime())) return null
+    return format(parsed, 'yyyy-MM-dd')
+  }
+
+  useEffect(() => {
+    if (!proposals) {
+      return
+    }
+
+    const proposalDate = getFormattedDate(proposals.earliestProposal?.start)
+    const fallbackDate = getFormattedDate(proposals.earliestBookableDate)
+    const initialDate = proposalDate || fallbackDate
+
+    if (
+      initialDate &&
+      (!selectedDate || (!hasUserSelectedDate && selectedDate !== initialDate)) &&
+      !isDateBlocked(initialDate)
+    ) {
+      setSelectedDate(initialDate)
+    }
+  }, [proposals, selectedDate, hasUserSelectedDate])
+
+  useEffect(() => {
+    if (selectedDate || hasUserSelectedDate) {
+      return
+    }
+
+    if (!loadingAvailability && !loadingWorkingHours) {
+      console.log('[BOOKING FORM] All data loaded, selecting default preferred start date...')
+      console.log('[BOOKING FORM] Professional availability:', professionalAvailability)
+
+      let defaultDate: string | null = null
+      const earliestProposal = getFormattedDate(proposals?.earliestProposal?.start)
+      const earliestBookable = getFormattedDate(proposals?.earliestBookableDate)
+
+      if (earliestProposal && !isDateBlocked(earliestProposal)) {
+        defaultDate = earliestProposal
+        console.log('[BOOKING FORM] Using earliest proposal date:', defaultDate)
+      } else if (earliestBookable && !isDateBlocked(earliestBookable)) {
+        defaultDate = earliestBookable
+        console.log('[BOOKING FORM] Using earliest bookable date:', defaultDate)
+      } else {
+        defaultDate = getMinDate()
+      }
+
+      if (defaultDate) {
+        setSelectedDate(defaultDate)
+
+        if (project.firstAvailableDate) {
+          const projectAvailableDate = format(parseISO(project.firstAvailableDate), 'yyyy-MM-dd')
+          if (projectAvailableDate !== defaultDate) {
+            console.warn('[BOOKING FORM] Date discrepancy detected!')
+            console.warn('[BOOKING FORM] Search/Project page showed:', projectAvailableDate)
+            console.warn('[BOOKING FORM] Actual first available date:', defaultDate)
+            console.warn('[BOOKING FORM] This may be due to bookings made after viewing the search results')
+          } else {
+            console.log('[BOOKING FORM] Available dates match:', defaultDate)
+          }
+        }
+      }
+    }
+  }, [loadingAvailability, loadingWorkingHours, blockedDates, professionalAvailability, proposals, selectedDate, hasUserSelectedDate])
+
+  useEffect(() => {
+    if (project.timeMode !== 'hours') {
+      return
+    }
+    if (!selectedDate) {
+      setSelectedTime('')
+      return
+    }
+    const dateObj = parseISO(selectedDate)
+    if (Number.isNaN(dateObj.getTime())) {
+      return
+    }
+    const slots = generateTimeSlotsForDate(dateObj)
+    if (slots.length === 0) {
+      setSelectedTime('')
+      return
+    }
+    if (!selectedTime || !slots.includes(selectedTime)) {
+      setSelectedTime(slots[0])
+    }
+  }, [selectedDate, project.timeMode, blockedDates, professionalAvailability, selectedPackage, selectedTime])
 
   const fetchTeamAvailability = async () => {
     try {
@@ -217,11 +321,12 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
 
       if (data.success) {
         // Normalize dates to yyyy-MM-dd format
-        const normalizedData = {
+        const normalizedData: BlockedDates = {
           blockedDates: (data.blockedDates || []).map((d: string) => format(parseISO(d), 'yyyy-MM-dd')),
-          blockedRanges: (data.blockedRanges || []).map((range: { startDate: string; endDate: string }) => ({
-            startDate: format(parseISO(range.startDate), 'yyyy-MM-dd'),
-            endDate: format(parseISO(range.endDate), 'yyyy-MM-dd')
+          blockedRanges: (data.blockedRanges || []).map((range: BlockedRange) => ({
+            startDate: range.startDate,
+            endDate: range.endDate,
+            reason: range.reason
           }))
         }
         console.log('[BOOKING] Normalized data:', normalizedData)
@@ -235,9 +340,15 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     }
   }
 
-  if (!value || value <= 0) return 0;
-  return duration.unit === 'days' ? value : value / 24;
-};
+  const fetchScheduleProposals = async (packageIndex?: number) => {
+    try {
+      let endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/schedule-proposals`
+      if (typeof packageIndex === 'number') {
+        endpoint += `?subprojectIndex=${packageIndex}`
+      }
+
+      const response = await fetch(endpoint)
+      const data: ScheduleProposalsResponse = await response.json()
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -565,6 +676,7 @@ export default function ProjectBookingForm({
   const fetchProfessionalWorkingHours = async () => {
     try {
       console.log('[BOOKING] Fetching working hours for project:', project._id)
+      setLoadingWorkingHours(true)
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
       )
@@ -579,6 +691,8 @@ export default function ProjectBookingForm({
       }
     } catch (error) {
       console.error('[BOOKING] Error fetching professional working hours:', error)
+    } finally {
+      setLoadingWorkingHours(false)
     }
   }
 
@@ -609,8 +723,10 @@ export default function ProjectBookingForm({
   // Check if professional works on this date (based on their availability)
   const isProfessionalWorkingDay = (date: Date): boolean => {
     if (!professionalAvailability) {
-      console.log('[BOOKING] No professional availability, defaulting to all days available. Date:', format(date, 'yyyy-MM-dd'))
-      return true
+      // This should only happen during initial load before working hours are fetched
+      console.warn('[BOOKING] ⚠️ isProfessionalWorkingDay called before working hours loaded! Date:', format(date, 'yyyy-MM-dd'))
+      console.warn('[BOOKING] Loading states - availability:', loadingAvailability, 'workingHours:', loadingWorkingHours)
+      return true // Default to available while loading
     }
 
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
@@ -650,36 +766,76 @@ export default function ProjectBookingForm({
     }
   }
 
-  const generateTimeSlots = (): string[] => {
-    const slots: string[] = []
-
-    // Get execution duration in hours
+  const getExecutionDurationHours = (): number => {
     const executionSource: AnyExecutionDuration | undefined =
       selectedPackage?.executionDuration || project.executionDuration
 
-    let executionHours = 0
-    if (executionSource) {
-      if (executionSource.unit === 'hours') {
-        executionHours = executionSource.value || 0
-      } else {
-        executionHours = (executionSource.value || 0) * 24
+    if (!executionSource) {
+      return 0
+    }
+
+    if (executionSource.unit === 'hours') {
+      return executionSource.value || 0
+    }
+
+    return (executionSource.value || 0) * 24
+  }
+
+  const getBlockedIntervalsForDate = (date: Date) => {
+    const intervals: Array<{ start: Date; end: Date }> = []
+    const dayStart = startOfDay(date)
+    const dayEnd = addDays(dayStart, 1)
+    const dateKey = format(dayStart, 'yyyy-MM-dd')
+
+    if (blockedDates.blockedDates.includes(dateKey)) {
+      intervals.push({ start: dayStart, end: dayEnd })
+    }
+
+    blockedDates.blockedRanges.forEach((range) => {
+      try {
+        const rangeStart = parseISO(range.startDate)
+        const rangeEnd = parseISO(range.endDate)
+
+        if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+          return
+        }
+
+        if (rangeEnd <= dayStart || rangeStart >= dayEnd) {
+          return
+        }
+
+        const start = rangeStart > dayStart ? rangeStart : dayStart
+        const end = rangeEnd < dayEnd ? rangeEnd : dayEnd
+        intervals.push({ start, end })
+      } catch (error) {
+        // Ignore malformed entries
       }
+    })
+
+    return intervals
+  }
+
+  const generateTimeSlotsForDate = (date: Date): string[] => {
+    const slots: string[] = []
+    if (project.timeMode !== 'hours') {
+      return slots
     }
 
-    // Get working hours for selected date
-    let startTime = '09:00'
-    let endTime = '17:00'
-
-    if (selectedDate) {
-      const dateObj = parseISO(selectedDate)
-      const workingHours = getWorkingHoursForDate(dateObj)
-      startTime = workingHours.startTime
-      endTime = workingHours.endTime
+    const executionHours = getExecutionDurationHours()
+    if (executionHours <= 0) {
+      return slots
     }
+
+    let workingStart = '09:00'
+    let workingEnd = '17:00'
+
+    const workingHours = getWorkingHoursForDate(date)
+    workingStart = workingHours.startTime
+    workingEnd = workingHours.endTime
 
     // Parse start and end times
-    const [startHour, startMin] = startTime.split(':').map(Number)
-    const [endHour, endMin] = endTime.split(':').map(Number)
+    const [startHour, startMin] = workingStart.split(':').map(Number)
+    const [endHour, endMin] = workingEnd.split(':').map(Number)
 
     // Calculate working hours per day
     const workingHoursPerDay = (endHour * 60 + endMin - (startHour * 60 + startMin)) / 60
@@ -695,6 +851,7 @@ export default function ProjectBookingForm({
     const closingTimeMinutes = endHour * 60 + endMin
     const executionMinutes = executionHours * 60
     const lastSlotMinutes = closingTimeMinutes - executionMinutes
+    const blockedIntervals = getBlockedIntervalsForDate(date)
 
     // Generate slots from start to last available slot
     let currentMinutes = startHour * 60 + startMin
@@ -702,11 +859,37 @@ export default function ProjectBookingForm({
     while (currentMinutes <= lastSlotMinutes) {
       const hours = Math.floor(currentMinutes / 60)
       const minutes = currentMinutes % 60
-      slots.push(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`)
-      currentMinutes += 30 // 30-minute intervals
+      const slotLabel = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+      const slotStart = new Date(date)
+      slotStart.setHours(hours, minutes, 0, 0)
+      const slotEnd = new Date(slotStart)
+      slotEnd.setMinutes(slotEnd.getMinutes() + executionMinutes)
+
+      const overlapsBlocked = blockedIntervals.some(
+        (interval) => slotStart < interval.end && slotEnd > interval.start
+      )
+
+      if (!overlapsBlocked) {
+        slots.push(slotLabel)
+      }
+
+      currentMinutes += 30
     }
 
     return slots
+  }
+
+  const generateTimeSlots = (): string[] => {
+    if (!selectedDate) {
+      return []
+    }
+
+    const dateObj = parseISO(selectedDate)
+    if (Number.isNaN(dateObj.getTime())) {
+      return []
+    }
+
+    return generateTimeSlotsForDate(dateObj)
   }
 
   // Calculate end time for a given start time (hours mode)
@@ -785,76 +968,101 @@ export default function ProjectBookingForm({
     return slotTime < now
   }
 
-  // Check if date is blocked (unavailable - includes company closures)
   const isDateBlocked = (dateString: string): boolean => {
-    // Check if date is in blocked dates list
-    if (blockedDates.blockedDates.includes(dateString)) {
-      console.log('[BOOKING] Date blocked (in blockedDates list):', dateString)
+    const dateObj = parseISO(dateString)
+    if (Number.isNaN(dateObj.getTime())) {
       return true
     }
 
-    // Check if date is in any blocked range
-    const checkDate = parseISO(dateString)
-    for (const range of blockedDates.blockedRanges) {
-      const start = parseISO(range.startDate)
-      const end = parseISO(range.endDate)
-      if (
-        (isAfter(checkDate, start) || checkDate.getTime() === start.getTime()) &&
-        (isBefore(checkDate, end) || checkDate.getTime() === end.getTime())
-      ) {
-        console.log('[BOOKING] Date blocked (in blocked range):', dateString, 'Range:', range.startDate, 'to', range.endDate)
-        return true
-      }
+    if (project.timeMode === 'hours') {
+      return generateTimeSlotsForDate(dateObj).length === 0
     }
 
-    return false
+    if (blockedDates.blockedDates.includes(dateString)) {
+      return true
+    }
+
+    return blockedDates.blockedRanges.some((range) => {
+      const rangeStart = parseISO(range.startDate)
+      const rangeEnd = parseISO(range.endDate)
+      if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+        return false
+      }
+      const dayStart = startOfDay(dateObj)
+      const dayEnd = addDays(dayStart, 1)
+      return rangeStart < dayEnd && rangeEnd > dayStart
+    })
   }
 
   const getDisabledDays = () => {
-    const disabled: Date[] = []
+    const disabledMatchers: Array<Date | { from: Date; to: Date } | ((date: Date) => boolean)> = []
 
-    // Add individual blocked dates
     blockedDates.blockedDates.forEach(dateStr => {
-      disabled.push(parseISO(dateStr))
+      disabledMatchers.push(parseISO(dateStr))
     })
 
-    // Add date ranges
-    const disabledRanges = blockedDates.blockedRanges.map(range => ({
-      from: parseISO(range.startDate),
-      to: parseISO(range.endDate)
-    }))
+    if (project.timeMode !== 'hours') {
+      blockedDates.blockedRanges.forEach(range => {
+        const from = parseISO(range.startDate)
+        const to = parseISO(range.endDate)
+        if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())) {
+          disabledMatchers.push({ from, to })
+        }
+      })
+    }
 
-    // Add a custom matcher for non-working days
     const nonWorkingDayMatcher = (date: Date) => {
       return !isProfessionalWorkingDay(date)
     }
 
-    return [...disabled, ...disabledRanges, nonWorkingDayMatcher]
+    return [...disabledMatchers, nonWorkingDayMatcher]
   }
 
-  const getMinDate = (): string => {
-    // If we have an earliestBookableDate from proposals, use that as the lower bound.
+  const getMinDate = (): string | null => {
+    console.log('[getMinDate] Starting calculation...')
+    console.log('[getMinDate] Project timeMode:', project.timeMode)
+    console.log('[getMinDate] Proposals earliestBookableDate:', proposals?.earliestBookableDate)
+
     const earliest = proposals?.earliestBookableDate
       ? parseISO(proposals.earliestBookableDate)
       : addDays(new Date(), 1);
 
-    let checkDate = earliest
+    console.log('[getMinDate] Starting from:', format(earliest, 'yyyy-MM-dd'))
 
-    // Find the first available date that is:
-    // 1. A working day for the professional
-    // 2. Not blocked
-    for (let i = 0; i < 90; i++) {
+    let checkDate = startOfDay(earliest)
+
+    for (let i = 0; i < 120; i++) {
+      const isWorkingDay = isProfessionalWorkingDay(checkDate)
+      console.log(`[getMinDate] Checking ${format(checkDate, 'yyyy-MM-dd')} - Working day: ${isWorkingDay}`)
+
+      if (!isWorkingDay) {
+        checkDate = addDays(checkDate, 1)
+        continue
+      }
+
       const dateStr = format(checkDate, 'yyyy-MM-dd')
 
-      // Check if professional works this day and it's not blocked
-      if (isProfessionalWorkingDay(checkDate) && !isDateBlocked(dateStr)) {
-        return dateStr
+      if (project.timeMode === 'hours') {
+        const slots = generateTimeSlotsForDate(checkDate)
+        console.log(`[getMinDate] ${dateStr} - Available slots:`, slots.length)
+        if (slots.length > 0) {
+          console.log(`[getMinDate] ✅ Found first available date: ${dateStr}`)
+          return dateStr
+        }
+      } else {
+        const blocked = isDateBlocked(dateStr)
+        console.log(`[getMinDate] ${dateStr} - Blocked: ${blocked}`)
+        if (!blocked) {
+          console.log(`[getMinDate] ✅ Found first available date: ${dateStr}`)
+          return dateStr
+        }
       }
+
       checkDate = addDays(checkDate, 1)
     }
 
-    // Default to tomorrow if no available date found
-    return format(addDays(new Date(), 1), 'yyyy-MM-dd')
+    console.warn('[getMinDate] ⚠️ No available date found in 120 days!')
+    return null
   }
 
   const convertDurationToDays = (
@@ -884,13 +1092,9 @@ export default function ProjectBookingForm({
 
     const executionSource: AnyExecutionDuration | undefined =
       selectedPackage?.executionDuration || project.executionDuration
-    const bufferSource = selectedPackage?.buffer || project.bufferDuration
     const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined
     const executionDays = convertDurationToDays(executionSource, preferRange)
-    const bufferDays = convertDurationToDays(bufferSource)
-
-    // IMPORTANT: Include buffer time in completion date shown to customer
-    const totalWorkingDays = Math.ceil(executionDays + bufferDays)
+    const totalWorkingDays = Math.ceil(executionDays)
 
     if (totalWorkingDays <= 0) {
       return parseISO(selectedDate)
@@ -911,6 +1115,24 @@ export default function ProjectBookingForm({
     }
 
     return cursor
+  }
+
+  const calculateCompletionDateTime = (): Date | null => {
+    if (project.timeMode !== 'hours' || !selectedDate || !selectedTime) {
+      return null
+    }
+
+    const executionHours = getExecutionDurationHours()
+    if (executionHours <= 0) {
+      return null
+    }
+
+    const [hours, minutes] = selectedTime.split(':').map(Number)
+    const startDate = parseISO(selectedDate)
+    startDate.setHours(hours, minutes, 0, 0)
+    const completion = new Date(startDate)
+    completion.setHours(completion.getHours() + executionHours)
+    return completion
   }
 
   const handleRFQAnswerChange = (index: number, answer: string) => {
@@ -934,8 +1156,6 @@ export default function ProjectBookingForm({
   }
 
   const validateStep = (): boolean => {
-    console.log('[VALIDATION] Validating step:', currentStep)
-
     if (currentStep === 1) {
       if (selectedPackageIndex === null || !selectedPackage) {
         toast.error('Please select a package from the project page')
@@ -949,51 +1169,38 @@ export default function ProjectBookingForm({
     }
 
     if (currentStep === 2) {
-      console.log('[VALIDATION] Step 2 - Checking date:', selectedDate)
       if (!selectedDate) {
-        console.error('[VALIDATION] No date selected')
         toast.error('Please select a preferred start date')
         return false
       }
 
       if (isDateBlocked(selectedDate)) {
-        console.error('[VALIDATION] Date is blocked:', selectedDate)
         toast.error('Selected date is not available. Please choose another date.')
         return false
       }
 
       // Check time selection for hourly projects
       if (project.timeMode === 'hours' && !selectedTime) {
-        console.error('[VALIDATION] No time selected for hourly project')
         toast.error('Please select a time slot for your booking')
         return false
       }
-
-      console.log('[VALIDATION] Step 2 valid')
     }
 
     if (currentStep === 3) {
-      console.log('[VALIDATION] Step 3 - Checking RFQ answers')
-      console.log('[VALIDATION] Total RFQ questions:', project.rfqQuestions.length)
-      console.log('[VALIDATION] Current answers:', rfqAnswers)
 
       // Validate required RFQ questions
       for (let i = 0; i < project.rfqQuestions.length; i++) {
         const question = project.rfqQuestions[i]
         if (question.isRequired && (!rfqAnswers[i] || !rfqAnswers[i].answer.trim())) {
-          console.error('[VALIDATION] Missing required answer for:', question.question)
           toast.error(`Please answer: ${question.question}`)
           return false
         }
       }
-      console.log('[VALIDATION] Step 3 valid')
     }
 
     if (currentStep === 4) {
-      console.log('[VALIDATION] Step 4 - Final review, no validation needed')
     }
 
-    console.log('[VALIDATION] All validations passed')
     return true
   }
 
@@ -1052,6 +1259,8 @@ export default function ProjectBookingForm({
           serviceType: project.title,
           description: serviceDescription,
           answers: rfqAnswers,
+          preferredStartDate: selectedDate,
+          preferredStartTime: project.timeMode === 'hours' && selectedTime ? selectedTime : undefined,
           budget: totalPrice > 0 ? totalPrice : undefined
         },
         urgency: 'medium'
@@ -1187,6 +1396,7 @@ export default function ProjectBookingForm({
   }
 
   const projectedCompletionDate = calculateCompletionDate()
+  const projectedCompletionDateTime = calculateCompletionDateTime()
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
@@ -1216,15 +1426,8 @@ export default function ProjectBookingForm({
     return `${duration.value} ${duration.unit}`
   }
 
-  const getBufferDurationLabel = () => {
-    const buffer = selectedPackage?.buffer || project.bufferDuration
-    if (!buffer || !buffer.value || buffer.value <= 0) return null
-    return `${buffer.value} ${buffer.unit}`
-  }
-
   const preparationLabel = getPreparationDurationLabel()
   const executionLabel = getExecutionDurationLabel()
-  const bufferLabel = getBufferDurationLabel()
 
   useEffect(() => {
     if (!selectedPackage) {
@@ -1426,9 +1629,10 @@ export default function ProjectBookingForm({
                   </p>
                 </div>
 
-                {loadingAvailability ? (
+                {(loadingAvailability || loadingWorkingHours) ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <p className="ml-3 text-gray-600">Loading availability and working hours...</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -1447,18 +1651,23 @@ export default function ProjectBookingForm({
 
                         {showCalendar && (
                           <div className="mt-3 p-6 border rounded-lg bg-white shadow-xl">
-                            <DayPicker
+                              <DayPicker
                               mode="single"
                               selected={selectedDate ? parseISO(selectedDate) : undefined}
-                              onSelect={(date) => {
-                                if (date) {
-                                  setSelectedDate(format(date, 'yyyy-MM-dd'))
-                                  setShowCalendar(false)
-                                }
-                              }}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    setHasUserSelectedDate(true)
+                                    setSelectedDate(format(date, 'yyyy-MM-dd'))
+                                    setShowCalendar(false)
+                                  }
+                                }}
                               disabled={[
-                                { before: proposals?.earliestBookableDate ? parseISO(proposals.earliestBookableDate) : addDays(new Date(), 1) },
-                                { after: addDays(new Date(), 180) },
+                                {
+                                  before: proposals?.earliestBookableDate
+                                    ? startOfDay(parseISO(proposals.earliestBookableDate))
+                                    : addDays(startOfDay(new Date()), 1)
+                                },
+                                { after: addDays(startOfDay(new Date()), 180) },
                                 ...getDisabledDays()
                               ]}
                               modifiers={{
@@ -1529,123 +1738,22 @@ export default function ProjectBookingForm({
                           </div>
                         )}
 
-                        {selectedPackage.pricing.type !== 'rfq' &&
-                          selectedPackage.pricing.amount && (
-                            <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-2'>
-                              <p className='text-sm text-gray-600'>
-                                Estimated Price:
-                              </p>
-                              <p className='text-4xl font-bold text-blue-600'>
-                                {formatCurrency(
-                                  estimatedUsage *
-                                    (selectedPackage.pricing.amount || 0)
-                                )}
-                              </p>
-                              <p className='text-sm text-gray-500'>
-                                {estimatedUsage}{' '}
-                                {getUnitLabel(project.priceModel)} x{' '}
-                                {formatCurrency(selectedPackage.pricing.amount)}
-                                /{getUnitLabel(project.priceModel)}
-                              </p>
-                            </div>
-                          )}
-                      </div>
-                    )}
-
-                    {!shouldCollectUsage(selectedPackage.pricing.type) && (
-                      <div className='rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900'>
-                        Great choice! Click <strong>Next</strong> to select your
-                        preferred start date.
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Step 2: Choose Date */}
-            {currentStep === 2 && (
-              <div className='space-y-4'>
-                <div>
-                  <h2 className='text-xl font-semibold mb-2'>
-                    Choose Preferred Start Date
-                  </h2>
-                  <p className='text-gray-600 text-sm mb-4'>
-                    Select when you&apos;d like the work to begin. Dates when
-                    team members are unavailable are disabled.
-                  </p>
-                  {blockedDates.resourcePolicy &&
-                    blockedDates.resourcePolicy.minResources > 1 && (
-                      <div className='bg-blue-50 border border-blue-200 rounded-md p-3 mb-4'>
-                        <p className='text-sm text-blue-800'>
-                          <span className='font-medium'>Team requirement:</span>{' '}
-                          {blockedDates.resourcePolicy.minResources} of{' '}
-                          {blockedDates.resourcePolicy.totalResources} team
-                          members must be available for at least{' '}
-                          {blockedDates.resourcePolicy.minOverlapPercentage}% of
-                          the scheduled time.
-                        </p>
-                      </div>
-                    )}
-                </div>
-
-                {loadingAvailability || loadingWorkingHours ? (
-                  <div className='flex items-center justify-center py-12'>
-                    <Loader2 className='h-8 w-8 animate-spin text-blue-600' />
-                    <p className='ml-3 text-gray-600'>
-                      Loading availability and working hours...
-                    </p>
-                  </div>
-                ) : (
-                  <div className='space-y-4'>
-                    <div>
-                      <Label>Preferred Start Date *</Label>
-                      <div className='mt-2'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          className='w-full justify-start text-left font-normal h-10'
-                          onClick={() => setShowCalendar(!showCalendar)}
-                        >
-                          <Calendar className='mr-2 h-4 w-4' />
-                          {selectedDate
-                            ? format(parseISO(selectedDate), 'MMMM d, yyyy')
-                            : 'Select a date'}
-                        </Button>
-
-                        {showCalendar && (
-                          <div className='mt-3 p-6 border rounded-lg bg-white shadow-xl'>
-                            <DayPicker
-                              mode='single'
-                              selected={
-                                selectedDate
-                                  ? parseISO(selectedDate)
-                                  : undefined
-                              }
-                              onSelect={(date) => {
-                                if (date) {
-                                  // Prevent selection of weekends
-                                  if (isWeekend(date)) {
-                                    toast.error(
-                                      'Weekends are not available for booking'
-                                    );
-                                    return;
-                                  }
-                                  // Prevent selection of other non-working days
-                                  if (!isProfessionalWorkingDay(date)) {
-                                    toast.error(
-                                      'This day is not a working day'
-                                    );
-                                    return;
-                                  }
-                                  // For hours mode, check if there are available time slots
-                                  if (projectMode === 'hours') {
-                                    const dateStr = toLocalDateKey(date);
-                                    if (isDateBlocked(dateStr)) {
-                                      toast.error(
-                                        'No available time slots on this day'
-                                      );
-                                      return;
+                        {proposals && (
+                          <div className="mt-4 space-y-2 text-xs text-gray-600">
+                            <p className="font-semibold text-gray-700">Suggested dates</p>
+                            <div className="flex flex-wrap gap-2">
+                              {proposals.mode === 'days' && proposals.shortestThroughputProposal && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const start = proposals.shortestThroughputProposal?.start
+                                      ? format(parseISO(proposals.shortestThroughputProposal.start), 'yyyy-MM-dd')
+                                      : ''
+                                    if (start && !isDateBlocked(start)) {
+                                      setHasUserSelectedDate(true)
+                                      setSelectedDate(start)
                                     }
                                   }
                                   setHasUserSelectedDate(true);
@@ -1884,8 +1992,8 @@ export default function ProjectBookingForm({
                                         )
                                       : '';
                                     if (start && !isDateBlocked(start)) {
-                                      setHasUserSelectedDate(true);
-                                      setSelectedDate(start);
+                                      setHasUserSelectedDate(true)
+                                      setSelectedDate(start)
                                     }
                                   }}
                                 >
@@ -1975,7 +2083,7 @@ export default function ProjectBookingForm({
                             <span className="ml-2 font-bold">{formatTimeRange(selectedTime)}</span>
                           )}
                         </p>
-                        {(preparationLabel || executionLabel || bufferLabel) && (
+                        {(preparationLabel || executionLabel) && (
                           <div className="border-t border-blue-300 pt-3 space-y-2">
                             {preparationLabel && (
                               <p className="text-sm text-blue-900">
@@ -1987,20 +2095,20 @@ export default function ProjectBookingForm({
                                 <strong>Execution Duration:</strong> {executionLabel}
                               </p>
                             )}
-                            {bufferLabel && (
-                              <p className="text-sm text-blue-900">
-                                <strong>Buffer Time:</strong> {bufferLabel}
-                                <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                                  Reserved in contractor&apos;s calendar
-                                </span>
-                              </p>
-                            )}
                           </div>
                         )}
-                        {projectedCompletionDate && (
+                        {(project.timeMode === 'hours' ? projectedCompletionDateTime : projectedCompletionDate) && (
                           <>
                             <p className="text-sm text-blue-900 font-semibold pt-2 border-t border-blue-300">
-                              <strong>Projected Completion:</strong> {format(projectedCompletionDate, 'EEEE, MMMM d, yyyy')}
+                              <strong>Projected Completion:</strong>{' '}
+                              {project.timeMode === 'hours' && projectedCompletionDateTime
+                                ? `${format(projectedCompletionDateTime, 'EEEE, MMMM d, yyyy')} at ${projectedCompletionDateTime.toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit'
+                                  })}`
+                                : projectedCompletionDate
+                                ? format(projectedCompletionDate, 'EEEE, MMMM d, yyyy')
+                                : null}
                             </p>
                             <p className="text-xs text-blue-700 italic">
                               Weekends and blocked dates are skipped automatically when calculating this estimate.
@@ -2241,7 +2349,7 @@ export default function ProjectBookingForm({
                         <span className="ml-2 font-semibold">{formatTimeRange(selectedTime)}</span>
                       )}
                     </p>
-                    {(preparationLabel || executionLabel || bufferLabel) && (
+                    {(preparationLabel || executionLabel) && (
                       <div className="border-t border-gray-300 pt-3 space-y-2">
                         {preparationLabel && (
                           <p className="text-sm">
@@ -2253,20 +2361,20 @@ export default function ProjectBookingForm({
                             <strong>Execution Duration:</strong> {executionLabel}
                           </p>
                         )}
-                        {bufferLabel && (
-                          <p className="text-sm">
-                            <strong>Buffer Time:</strong> {bufferLabel}
-                            <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                              Reserved in contractor&apos;s calendar
-                            </span>
-                          </p>
-                        )}
                       </div>
                     )}
-                    {projectedCompletionDate && (
+                    {(project.timeMode === 'hours' ? projectedCompletionDateTime : projectedCompletionDate) && (
                       <>
                         <p className="text-sm font-semibold pt-2 border-t border-gray-300">
-                          <strong>Expected Completion:</strong> {format(projectedCompletionDate, 'EEEE, MMMM d, yyyy')}
+                          <strong>Expected Completion:</strong>{' '}
+                          {project.timeMode === 'hours' && projectedCompletionDateTime
+                            ? `${format(projectedCompletionDateTime, 'EEEE, MMMM d, yyyy')} at ${projectedCompletionDateTime.toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}`
+                            : projectedCompletionDate
+                            ? format(projectedCompletionDate, 'EEEE, MMMM d, yyyy')
+                            : null}
                         </p>
                         <p className="text-xs text-gray-600 italic">
                           Weekends and blocked dates are automatically excluded from this estimate.

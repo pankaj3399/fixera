@@ -5,9 +5,19 @@ import { Input } from '@/components/ui/input'
 import { MapPin } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/useGoogleMaps'
 
+export interface LocationData {
+  formattedAddress: string
+  coordinates?: {
+    lat: number
+    lng: number
+  }
+  city?: string
+  country?: string
+}
+
 interface LocationAutocompleteProps {
   value: string
-  onChange: (location: string) => void
+  onChange: (location: string, locationData?: LocationData) => void
   placeholder?: string
   className?: string
 }
@@ -54,7 +64,48 @@ export default function LocationAutocomplete({
       }
 
       const formattedLocation = city && country ? `${city}, ${country}` : place.formatted_address
-      onChange(formattedLocation)
+
+      // Extract coordinates from geometry with proper null checks
+      let coordinates: { lat: number; lng: number } | undefined;
+
+      try {
+        if (place.geometry?.location) {
+          const location = place.geometry.location;
+          const resolveCoordinate = (
+            value: number | (() => number) | undefined
+          ): number | undefined => {
+            if (typeof value === 'function') {
+              return value();
+            }
+            if (typeof value === 'number') {
+              return value;
+            }
+            return undefined;
+          };
+
+          const latValue = resolveCoordinate(location.lat);
+          const lngValue = resolveCoordinate(location.lng);
+
+          if (latValue !== undefined && lngValue !== undefined) {
+            coordinates = {
+              lat: latValue,
+              lng: lngValue
+            };
+          }
+        }
+      } catch (error) {
+        console.warn('ƒsÿ‹,? Could not extract coordinates from location:', error);
+      }
+
+      const locationData: LocationData = {
+        formattedAddress: formattedLocation,
+        coordinates,
+        city,
+        country
+      }
+
+      console.log('📍 Location selected with coordinates:', locationData)
+      onChange(formattedLocation, locationData)
     })
 
     return () => {
