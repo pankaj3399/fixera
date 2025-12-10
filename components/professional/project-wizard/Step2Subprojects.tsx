@@ -231,6 +231,16 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subprojects])
 
+  useEffect(() => {
+    setSubprojects(prev =>
+      prev.map(sub =>
+        sub.deliveryPreparationUnit
+          ? sub
+          : { ...sub, deliveryPreparationUnit: defaultTimeMode }
+      )
+    )
+  }, [defaultTimeMode])
+
   const validateForm = () => {
     const isValid = subprojects.length > 0 && subprojects.every(sub =>
       sub.name &&

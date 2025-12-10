@@ -394,14 +394,6 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           </div>
         )}
 
-        {/* First Available Date */}
-        <div className="flex items-center gap-2 mb-3 text-sm text-gray-700">
-          <Calendar className="w-4 h-4 text-green-600" />
-          <span className="font-medium">
-            Available: {formatAvailableDate(project.firstAvailableDate)}
-          </span>
-        </div>
-
         {/* Subprojects/Packages */}
         {project.subprojects && project.subprojects.length > 0 && (
           <div className="mb-4">

@@ -2125,7 +2125,7 @@ export default function ProjectBookingForm({
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
-      return `${selectedPackage.deliveryPreparation} days`
+      return `${selectedPackage.deliveryPreparation} ${selectedPackage.deliveryPreparationUnit || 'days'}`
     }
 
     if (project.preparationDuration?.value && project.preparationDuration.value > 0) {
