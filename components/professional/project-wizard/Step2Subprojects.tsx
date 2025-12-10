@@ -762,11 +762,9 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                       <Label>Pricing Type *</Label>
                     <Select
                       value={subproject.pricing.type}
-                      onValueChange={(value: string) => {
-                        // If user chooses the service's price model label option, map to fixed
-                        const resolved: 'fixed' | 'unit' | 'rfq' = value === 'model' ? 'fixed' : (value as 'fixed' | 'unit' | 'rfq')
+                      onValueChange={(value: 'fixed' | 'unit' | 'rfq') => {
                         updateSubproject(subproject.id, {
-                          pricing: { ...subproject.pricing, type: resolved }
+                          pricing: { ...subproject.pricing, type: value }
                         })
                       }}
                     >
@@ -775,7 +773,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                       </SelectTrigger>
                       <SelectContent>
                         {data.priceModel && data.category?.toLowerCase() !== 'renovation' ? (
-                          <SelectItem value="model">{data.priceModel}</SelectItem>
+                          <SelectItem value="fixed">{data.priceModel}</SelectItem>
                         ) : (
                           <>
                             <SelectItem value="fixed">Fixed Price (Total)</SelectItem>
@@ -787,7 +785,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                     </Select>
                     <p className="text-xs text-gray-500">
                       Current selection:{' '}
-                      {subproject.pricing.type === 'fixed' && 'Fixed Price (Total)'}
+                      {subproject.pricing.type === 'fixed' && (data.priceModel && data.category?.toLowerCase() !== 'renovation' ? data.priceModel : 'Fixed Price (Total)')}
                       {subproject.pricing.type === 'unit' && 'Unit Price (per unit)'}
                       {subproject.pricing.type === 'rfq' && 'Request for Quote'}
                       {!subproject.pricing.type && 'None'}
@@ -1646,7 +1644,39 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                     Timing & Duration
                   </h4>
 
-                  <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                  {/* Time Mode Selection - Only show in first package */}
+                  {index === 0 && (
+                    <div className="mb-4 pb-4 border-b border-green-200">
+                      <Label className="text-sm font-medium mb-2 block">Time Mode (applies to all packages) *</Label>
+                      <RadioGroup
+                        value={data.timeMode || 'days'}
+                        onValueChange={(value: 'hours' | 'days') => {
+                          onChange({ ...data, timeMode: value })
+                        }}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="days" id="mode-days" />
+                          <Label htmlFor="mode-days" className="text-sm font-normal cursor-pointer">
+                            Days Mode
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="hours" id="mode-hours" />
+                          <Label htmlFor="mode-hours" className="text-sm font-normal cursor-pointer">
+                            Hours Mode
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                      <p className="text-xs text-gray-600 mt-2">
+                        {data.timeMode === 'hours'
+                          ? 'Customers select date + time slot. Execution durations should be in hours and fit within a working day.'
+                          : 'Customers select only a start date. Best for multi-day projects.'}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label>Preparation Time *</Label>
                       <div className="flex space-x-2">
