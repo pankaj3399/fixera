@@ -63,6 +63,7 @@ interface Subproject {
   included?: IncludedItem[];
   materialsIncluded?: boolean;
   deliveryPreparation?: number;
+  deliveryPreparationUnit?: 'hours' | 'days';
   executionDuration?: ExecutionDuration;
   buffer?: Buffer;
   intakeDuration?: IntakeDuration;
@@ -960,6 +961,7 @@ export default function ProjectEditPage() {
                   included: [],
                   materialsIncluded: false,
                   deliveryPreparation: 0,
+                  deliveryPreparationUnit: project.timeMode === 'hours' ? 'hours' : 'days',
                   executionDuration: { value: 1, unit: 'days' },
                   warrantyPeriod: 0,
                 };

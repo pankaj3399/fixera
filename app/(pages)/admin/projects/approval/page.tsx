@@ -99,6 +99,7 @@ interface Subproject {
     amount?: number
   }
   deliveryPreparation?: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration?: {
     value?: number
     unit?: string
@@ -768,7 +769,11 @@ export default function ProjectApprovalPage() {
                               <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
                             )}
                             <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
-                              {sp.deliveryPreparation != null && (<div>Preparation: {sp.deliveryPreparation}</div>)}
+                              {sp.deliveryPreparation != null && (
+                                <div>
+                                  Preparation: {sp.deliveryPreparation} {sp.deliveryPreparationUnit || 'days'}
+                                </div>
+                              )}
                               {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
                               {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
                               {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}

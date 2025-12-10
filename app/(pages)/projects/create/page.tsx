@@ -37,6 +37,7 @@ interface ISubproject {
   included: IIncludedItem[]
   materialsIncluded: boolean
   deliveryPreparation: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
     value: number
     unit: 'hours' | 'days'
@@ -109,6 +110,10 @@ interface ProjectData {
     useCompanyAddress: boolean
     maxKmRange: number
     noBorders: boolean
+    coordinates?: {
+      latitude: number
+      longitude: number
+    }
   }
   resources?: string[]
   intakeMeeting?: {
