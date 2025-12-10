@@ -151,6 +151,16 @@ function SearchPageContent() {
   const initialQuery = searchParams.get('q') || '';
   const initialLocation = searchParams.get('loc') || '';
   const initialType = (searchParams.get('type') || 'professionals') as 'professionals' | 'projects';
+  const initialLat = searchParams.get('lat');
+  const initialLon = searchParams.get('lon');
+  const initialCoordinates =
+    initialLat !== null && initialLon !== null
+      ? (() => {
+          const lat = parseFloat(initialLat);
+          const lng = parseFloat(initialLon);
+          return isNaN(lat) || isNaN(lng) ? null : { lat, lng };
+        })()
+      : null;
 
   const [searchType, setSearchType] = useState<'professionals' | 'projects'>(initialType);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -187,7 +197,10 @@ function SearchPageContent() {
   const [locationCoordinates, setLocationCoordinates] = useState<{
     lat: number;
     lng: number;
-  } | null>(null);
+  } | null>(initialCoordinates);
+
+  // Store whether user location has been loaded
+  const [userLocationLoaded, setUserLocationLoaded] = useState(false);
 
   const [categories, setCategories] = useState<string[]>([]);
 
@@ -218,6 +231,60 @@ function SearchPageContent() {
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  // Fetch user location if logged in and no location in URL
+  useEffect(() => {
+    const fetchUserLocation = async () => {
+      // Skip if location already set from URL params or already loaded
+      if (initialLocation || userLocationLoaded) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/me`,
+          { credentials: 'include' }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const user = data.data;
+
+          // Check if user has location set
+          if (user?.location?.coordinates && user.location.coordinates.length === 2) {
+            const [longitude, latitude] = user.location.coordinates;
+
+            // Format location string from user data
+            const locationParts = [
+              user.location.city,
+              user.location.country
+            ].filter(Boolean);
+
+            if (locationParts.length > 0) {
+              const userLocation = locationParts.join(', ');
+
+              console.log('✅ Pre-filling user location:', userLocation, { latitude, longitude });
+
+              // Update filters with user location
+              setFilters(prev => ({
+                ...prev,
+                location: userLocation
+              }));
+
+              // Set coordinates
+              setLocationCoordinates({ lat: latitude, lng: longitude });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch user location:', error);
+      } finally {
+        setUserLocationLoaded(true);
+      }
+    };
+
+    fetchUserLocation();
+  }, [initialLocation, userLocationLoaded]);
 
   // Fetch results when filters or search type changes
   useEffect(() => {
@@ -370,6 +437,7 @@ function SearchPageContent() {
       startDateTo: undefined,
     });
     setPagination((prev) => ({ ...prev, page: 1 }));
+    setLocationCoordinates(null);
   };
 
   const handlePageChange = (newPage: number) => {

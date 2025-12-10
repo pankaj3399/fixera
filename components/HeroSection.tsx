@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Search, ArrowRight} from 'lucide-react'
 import SearchAutocomplete from './search/SearchAutocomplete'
-import LocationAutocomplete from './search/LocationAutocomplete'
+import LocationAutocomplete, { type LocationData } from './search/LocationAutocomplete'
 import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -29,6 +29,7 @@ const HeroSection = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useState('');
+  const [locationCoordinates, setLocationCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [searchType, setSearchType] = useState('projects');
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const [popularServices, setPopularServices] = useState<string[]>([]);
@@ -44,6 +45,17 @@ const HeroSection = () => {
       // Format: "City, Country" for better user experience
       const userLocation = `${user.location.city}, ${user.location.country}`;
       setLocation(userLocation);
+    }
+
+    if (
+      user?.location?.coordinates &&
+      Array.isArray(user.location.coordinates) &&
+      user.location.coordinates.length === 2
+    ) {
+      const [lng, lat] = user.location.coordinates;
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        setLocationCoordinates({ lat, lng });
+      }
     }
   }, [user]);
 
@@ -87,7 +99,17 @@ const HeroSection = () => {
     setIsAutocompleteOpen(false);
 
     if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery)}&loc=${encodeURIComponent(location)}&type=${searchType}`);
+      const params = new URLSearchParams();
+      params.set('type', searchType);
+      params.set('q', searchQuery.trim());
+      if (location.trim()) {
+        params.set('loc', location.trim());
+      }
+      if (locationCoordinates) {
+        params.set('lat', locationCoordinates.lat.toString());
+        params.set('lon', locationCoordinates.lng.toString());
+      }
+      router.push(`/search?${params.toString()}`);
     }
   };
 
@@ -146,7 +168,10 @@ const HeroSection = () => {
                   <label htmlFor="location-search" className="sr-only">Location</label>
                   <LocationAutocomplete
                     value={location}
-                    onChange={setLocation}
+                    onChange={(value: string, locationData?: LocationData) => {
+                      setLocation(value);
+                      setLocationCoordinates(locationData?.coordinates || null);
+                    }}
                     placeholder="City, Country"
                   />
                 </div>

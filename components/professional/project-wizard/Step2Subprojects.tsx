@@ -62,6 +62,7 @@ interface ISubproject {
   materialsIncluded: boolean
   materials?: IMaterial[]
   deliveryPreparation: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
     value: number
     unit: 'hours' | 'days'
@@ -96,6 +97,7 @@ interface ProjectData {
   category?: string
   service?: string
   areaOfWork?: string
+  timeMode?: 'hours' | 'days'
   priceModel?: string
 }
 
@@ -136,8 +138,14 @@ const PREDEFINED_INCLUDED_ITEMS = {
 }
 
 export default function Step2Subprojects({ data, onChange, onValidate }: Step2Props) {
-  const [subprojects, setSubprojects] = useState<ISubproject[]>(
-    data.subprojects || []
+  const defaultTimeMode = data.timeMode === 'hours' ? 'hours' : 'days'
+  const resolvePreparationUnit = (subproject?: ISubproject) =>
+    (subproject?.deliveryPreparationUnit || defaultTimeMode) as 'hours' | 'days'
+  const [subprojects, setSubprojects] = useState<ISubproject[]>(() =>
+    (data.subprojects || []).map((sub) => ({
+      ...sub,
+      deliveryPreparationUnit: sub.deliveryPreparationUnit || defaultTimeMode
+    }))
   )
 
   // NEW: Dynamic fields from backend
@@ -224,6 +232,16 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subprojects])
 
+  useEffect(() => {
+    setSubprojects(prev =>
+      prev.map(sub =>
+        sub.deliveryPreparationUnit
+          ? sub
+          : { ...sub, deliveryPreparationUnit: defaultTimeMode }
+      )
+    )
+  }, [defaultTimeMode])
+
   const validateForm = () => {
     const isValid = subprojects.length > 0 && subprojects.every(sub =>
       sub.name &&
@@ -262,6 +280,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
       materialsIncluded: false,
       materials: [],
       deliveryPreparation: 1,
+      deliveryPreparationUnit: defaultTimeMode,
       executionDuration: {
         value: 1,
         unit: 'hours'
@@ -1146,24 +1165,46 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label>Preparation Time (days) *</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={subproject.deliveryPreparation}
-                        onChange={(e) => updateSubproject(subproject.id, {
-                          deliveryPreparation: parseInt(e.target.value) || 0
-                        })}
-                      />
+                      <Label>Preparation Time *</Label>
+                      <div className="flex space-x-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={subproject.deliveryPreparation}
+                          onChange={(e) => {
+                            const parsed = parseFloat(e.target.value)
+                            updateSubproject(subproject.id, {
+                              deliveryPreparation: Number.isNaN(parsed) ? 0 : parsed
+                            })
+                          }}
+                        />
+                        <Select
+                          value={resolvePreparationUnit(subproject)}
+                          onValueChange={(value: 'hours' | 'days') =>
+                            updateSubproject(subproject.id, {
+                              deliveryPreparationUnit: value
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hours">Hours</SelectItem>
+                            <SelectItem value="days">Days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        Time needed before starting work
+                        Time needed before starting work ({resolvePreparationUnit(subproject)})
                       </p>
                     </div>
 
                     {subproject.pricing.type === 'rfq' ? (
                       <>
                         <div>
-                          <Label>Minimum (days) *</Label>
+                          <Label>Minimum *</Label>
                           <Input
                             type="number"
                             min="1"
@@ -1181,7 +1222,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                           />
                         </div>
                         <div>
-                          <Label>Maximum (days) *</Label>
+                          <Label>Maximum *</Label>
                           <Input
                             type="number"
                             min="1"
