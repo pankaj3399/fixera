@@ -57,18 +57,40 @@ export default function AddressAutocomplete({
 
     autocompleteRef.current.addListener('place_changed', () => {
       const place = autocompleteRef.current?.getPlace();
-      if (place?.formatted_address) {
-        console.log('✅ Address selected from dropdown:', place.formatted_address);
+        if (place?.formatted_address) {
+          console.log('✅ Address selected from dropdown:', place.formatted_address);
 
-        // Extract coordinates and address components
-        const placeData: PlaceData = {
-          formatted_address: place.formatted_address,
-          coordinates: place.geometry?.location ? {
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng()
-          } : undefined,
-          address_components: place.address_components
-        };
+          let coordinates: { lat: number; lng: number } | undefined;
+          if (place.geometry?.location) {
+            const location = place.geometry.location;
+            const resolveCoordinate = (
+              value: number | (() => number) | undefined
+            ): number | undefined => {
+              if (typeof value === 'function') {
+                return value();
+              }
+              if (typeof value === 'number') {
+                return value;
+              }
+              return undefined;
+            };
+
+            const latValue = resolveCoordinate(location.lat);
+            const lngValue = resolveCoordinate(location.lng);
+
+            if (latValue !== undefined && lngValue !== undefined) {
+              coordinates = {
+                lat: latValue,
+                lng: lngValue
+              };
+            }
+          }
+
+          const placeData: PlaceData = {
+            formatted_address: place.formatted_address,
+            coordinates,
+            address_components: place.address_components
+          };
 
         // Call onChange with both parameters (second parameter is optional for backward compatibility)
         onChange(place.formatted_address, placeData);

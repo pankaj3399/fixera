@@ -4,6 +4,7 @@ export interface FilterOptions {
   services: string[];
   projectTypes: string[];
   includedItems: string[];
+  areasOfWork: string[];
   priceModels: Array<{ value: string; label: string }>;
   categories: string[];
 }
@@ -21,6 +22,7 @@ export const useFilterOptions = ({
     services: [],
     projectTypes: [],
     includedItems: [],
+    areasOfWork: [],
     priceModels: [
       { value: 'fixed', label: 'Fixed Price' },
       { value: 'unit', label: 'Unit Based' },
@@ -103,6 +105,7 @@ export const useFilterOptions = ({
           services,
           projectTypes: commonProjectTypes,
           includedItems: commonIncludedItems,
+          areasOfWork: [],
           priceModels: [
             { value: 'fixed', label: 'Fixed Price' },
             { value: 'unit', label: 'Unit Based' },
@@ -127,6 +130,7 @@ export const useFilterOptions = ({
             'Materials', 'Labor', 'Permits', 'Cleanup', 'Disposal', 'Tools & Equipment',
             'Transportation', 'Design Services', 'Consultation', 'Warranty'
           ],
+          areasOfWork: [],
           priceModels: [
             { value: 'fixed', label: 'Fixed Price' },
             { value: 'unit', label: 'Unit Based' },

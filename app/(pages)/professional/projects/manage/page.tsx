@@ -453,7 +453,7 @@ export default function ManageProjectsPage() {
         setDuplicateDialogOpen(false)
         setSelectedProject(null)
         // Optionally redirect to edit the duplicated project
-        router.push(`/projects/create?id=${duplicatedProject._id}`)
+        router.push(`/professional/projects/${duplicatedProject._id}/edit`)
       } else {
         const errorData = await response.json()
         alert(errorData.error || 'Failed to duplicate project')
@@ -519,7 +519,7 @@ export default function ManageProjectsPage() {
     // The backend will automatically handle status change to pending_approval on save
     setEditWarningDialogOpen(false)
     setSelectedProject(null)
-    router.push(`/projects/create?id=${projectId}`)
+    router.push(`/professional/projects/${projectId}/edit`)
   }
 
   // Since filtering is now handled server-side, we use projects directly
@@ -583,7 +583,7 @@ export default function ManageProjectsPage() {
           </DropdownMenuItem>
 
           {canEdit && (
-            <DropdownMenuItem onClick={() => router.push(`/projects/create?id=${project._id}`)}>
+            <DropdownMenuItem onClick={() => router.push(`/professional/projects/${project._id}/edit`)}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Project
             </DropdownMenuItem>
@@ -1277,21 +1277,21 @@ export default function ManageProjectsPage() {
                 <AlertCircle className="h-5 w-5 text-orange-500" />
                 Edit Published Project
               </DialogTitle>
-              <DialogDescription className="space-y-3">
-                <p>
-                  You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProjectStatus === 'published' ? 'published and visible to customers' : 'on hold'}.
-                </p>
+              <DialogDescription>
+                You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProjectStatus === 'published' ? 'published and visible to customers' : 'on hold'}.
+              </DialogDescription>
+              <div className="space-y-3 mt-3">
                 <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-orange-800">
                       <p className="font-medium mb-1">Important Notice:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• When you save any changes, the project will automatically move to &quot;Pending Approval&quot; status</li>
-                        <li>• Every change will need to be re-approved by our admin team</li>
-                        <li>• The approval process typically takes up to 48 hours</li>
-                        <li>• The project will not be visible to customers until re-approved</li>
-                        <li>• Previous approval fields will be cleared and submittedAt will be updated</li>
+                      <ul className="space-y-1 text-xs list-disc pl-4">
+                        <li>The project will move to &quot;Pending Approval&quot; status when changes are saved</li>
+                        <li>Every change requires re-approval by our admin team</li>
+                        <li>Approvals may take up to 48 hours</li>
+                        <li>The project stays hidden from customers until re-approved</li>
+                        <li>Previous approval data is cleared and submittedAt is updated</li>
                       </ul>
                     </div>
                   </div>
@@ -1299,7 +1299,7 @@ export default function ManageProjectsPage() {
                 <p className="text-sm">
                   Do you want to proceed with editing this project?
                 </p>
-              </DialogDescription>
+              </div>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditWarningDialogOpen(false)}>
