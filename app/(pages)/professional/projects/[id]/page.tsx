@@ -106,6 +106,7 @@ interface ISubproject {
   included: IIncludedItem[]
   materialsIncluded: boolean
   deliveryPreparation: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: IExecutionDuration
   buffer?: IBuffer
   intakeDuration?: IIntakeDuration
@@ -595,7 +596,10 @@ const submitProject = async () => {
                         </div>
                         <div>
                           <span className="font-medium text-gray-600">Preparation:</span>
-                          <p>{subproject.deliveryPreparation} days</p>
+                          <p>
+                            {subproject.deliveryPreparation}{' '}
+                            {subproject.deliveryPreparationUnit || 'days'}
+                          </p>
                         </div>
                         {subproject.intakeDuration && (
                           <div>

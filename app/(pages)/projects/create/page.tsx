@@ -37,6 +37,7 @@ interface ISubproject {
   included: IIncludedItem[]
   materialsIncluded: boolean
   deliveryPreparation: number
+  deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
     value: number
     unit: 'hours' | 'days'
@@ -109,6 +110,10 @@ interface ProjectData {
     useCompanyAddress: boolean
     maxKmRange: number
     noBorders: boolean
+    coordinates?: {
+      latitude: number
+      longitude: number
+    }
   }
   resources?: string[]
   intakeMeeting?: {
@@ -199,57 +204,90 @@ export default function ProjectCreatePage() {
       const loadProject = async () => {
         setIsLoading(true)
         try {
+          console.log('🔄 Loading project:', projectId)
+          const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+          }
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`
+          }
           const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}`, {
-            credentials: 'include'
+            credentials: 'include',
+            headers
           })
 
-          if (response.ok) {
-            const project = await response.json()
-            console.log('Loaded project data:', project)
-            console.log('Project status:', project.status)
-            setProjectData({
-              id: project._id,
-              status: project.status,
-              currentStep: project.currentStep || 1,
-              timeMode: project.timeMode || 'days',
-              category: project.category,
-              service: project.service,
-              areaOfWork: project.areaOfWork,
-              intakeMeeting: project.intakeMeeting || { enabled: false, resources: [] },
-              renovationPlanning: project.renovationPlanning || { fixeraManaged: false, resources: [] },
-              distance: project.distance || {
-                address: '',
-                useCompanyAddress: false,
-                maxKmRange: 50,
-                noBorders: false
-              },
-              media: project.media || { images: [] },
-              keywords: project.keywords || [],
-              projectType: project.projectType || [],
-              subprojects: project.subprojects || [],
-              extraOptions: project.extraOptions || [],
-              termsConditions: project.termsConditions || [],
-              faq: project.faq || [],
-              rfqQuestions: project.rfqQuestions || [],
-              postBookingQuestions: project.postBookingQuestions || [],
-              resources: project.resources,
-               minResources: project.minResources,
-               minOverlapPercentage: project.minOverlapPercentage,
-               preparationDuration: project.preparationDuration,
-               executionDuration: project.executionDuration,
-               bufferDuration: project.bufferDuration,
-              description: project.description,
-              priceModel: project.priceModel,
-              title: project.title,
-              customConfirmationMessage: project.customConfirmationMessage
+          console.log('📡 Project fetch response:', response.status, response.statusText)
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            console.error('❌ Failed to load project:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
             })
-            setCurrentStep(project.currentStep || 1)
-            // Enable all steps for existing projects
-            setStepValidation(new Array(8).fill(true))
-            setCanProceed(true)
-          } else {
-            toast.error('Failed to load project data')
+
+            if (response.status === 401) {
+              toast.error('Please log in to edit this project')
+              router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search))
+              return
+            } else if (response.status === 404) {
+              toast.error('Project not found')
+              router.push('/professional/projects/manage')
+              return
+            } else if (response.status === 403) {
+              toast.error('You do not have permission to edit this project')
+              router.push('/professional/projects/manage')
+              return
+            }
+
+            throw new Error(errorData.msg || 'Failed to load project')
           }
+
+          const project = await response.json()
+          console.log('✅ Loaded project data:', project)
+          console.log('📊 Project status:', project.status)
+
+          setProjectData({
+            id: project._id,
+            status: project.status,
+            currentStep: project.currentStep || 1,
+            timeMode: project.timeMode || 'days',
+            category: project.category,
+            service: project.service,
+            areaOfWork: project.areaOfWork,
+            intakeMeeting: project.intakeMeeting || { enabled: false, resources: [] },
+            renovationPlanning: project.renovationPlanning || { fixeraManaged: false, resources: [] },
+            distance: project.distance || {
+              address: '',
+              useCompanyAddress: false,
+              maxKmRange: 50,
+              noBorders: false
+            },
+            media: project.media || { images: [] },
+            keywords: project.keywords || [],
+            projectType: project.projectType || [],
+            subprojects: project.subprojects || [],
+            extraOptions: project.extraOptions || [],
+            termsConditions: project.termsConditions || [],
+            faq: project.faq || [],
+            rfqQuestions: project.rfqQuestions || [],
+            postBookingQuestions: project.postBookingQuestions || [],
+            resources: project.resources,
+            minResources: project.minResources,
+            minOverlapPercentage: project.minOverlapPercentage,
+            preparationDuration: project.preparationDuration,
+            executionDuration: project.executionDuration,
+            bufferDuration: project.bufferDuration,
+            description: project.description,
+            priceModel: project.priceModel,
+            title: project.title,
+            customConfirmationMessage: project.customConfirmationMessage
+          })
+          setCurrentStep(project.currentStep || 1)
+          // Enable all steps for existing projects
+          setStepValidation(new Array(8).fill(true))
+          setCanProceed(true)
         } catch (error) {
           console.error('Failed to load project:', error)
           toast.error('Failed to load project data')

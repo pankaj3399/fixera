@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
-import { Upload, X, MapPin, FileText, Star, Users } from "lucide-react"
+import { Upload, X, MapPin, FileText, Star, Users, Calendar } from "lucide-react"
 import { toast } from 'sonner'
-import AddressAutocomplete from "./AddressAutocomplete"
+import AddressAutocomplete, { type PlaceData } from "./AddressAutocomplete"
 import CertificationManager from "./CertificationManager"
 
 interface IServiceSelection {
@@ -33,6 +34,10 @@ interface ProjectData {
     useCompanyAddress: boolean
     maxKmRange: number
     noBorders: boolean
+    coordinates?: {
+      latitude: number
+      longitude: number
+    }
   }
   resources?: string[]
   intakeMeeting?: {
@@ -453,7 +458,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     setFormData(prev => ({ ...prev, ...updates }))
   }
 
-  const updateDistance = (updates: Partial<{ address: string; useCompanyAddress: boolean; maxKmRange: number; noBorders: boolean }>) => {
+  const updateDistance = (updates: Partial<{
+    address: string
+    useCompanyAddress: boolean
+    maxKmRange: number
+    noBorders: boolean
+    coordinates?: { latitude: number; longitude: number }
+  }>) => {
     setFormData(prev => ({
       ...prev,
       distance: {
@@ -461,6 +472,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         useCompanyAddress: prev.distance?.useCompanyAddress || false,
         maxKmRange: prev.distance?.maxKmRange || 50,
         noBorders: prev.distance?.noBorders || false,
+        coordinates: prev.distance?.coordinates,
         ...updates
       }
     }))
@@ -793,7 +805,19 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
           <AddressAutocomplete
             value={formData.distance?.address || ''}
-            onChange={(address) => updateDistance({ address })}
+            onChange={(address, place?: PlaceData) => {
+              if (place?.coordinates) {
+                updateDistance({
+                  address,
+                  coordinates: {
+                    latitude: place.coordinates.lat,
+                    longitude: place.coordinates.lng,
+                  },
+                })
+              } else {
+                updateDistance({ address, coordinates: undefined })
+              }
+            }}
             onValidation={setAddressValid}
             useCompanyAddress={formData.distance?.useCompanyAddress || false}
             companyAddress="[Get from user profile]"
@@ -1114,6 +1138,62 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                   : 'Percentage of time resources must work together'}
               </p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scheduling Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Calendar className="w-5 h-5" />
+            <span>Scheduling Configuration</span>
+          </CardTitle>
+          <CardDescription>
+            Choose how customers will schedule this service
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <Label>Scheduling Mode *</Label>
+            <RadioGroup
+              value={formData.timeMode || 'days'}
+              onValueChange={(value: 'hours' | 'days') => updateFormData({ timeMode: value })}
+            >
+              <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-gray-50"
+                onClick={() => updateFormData({ timeMode: 'days' })}>
+                <RadioGroupItem value="days" id="mode-days" className="mt-1" />
+                <div className="flex-1">
+                  <Label htmlFor="mode-days" className="font-semibold cursor-pointer">
+                    Days Mode
+                  </Label>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Customers select only a start date. Best for multi-day projects or when exact start time doesn&apos;t matter.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-gray-50"
+                onClick={() => updateFormData({ timeMode: 'hours' })}>
+                <RadioGroupItem value="hours" id="mode-hours" className="mt-1" />
+                <div className="flex-1">
+                  <Label htmlFor="mode-hours" className="font-semibold cursor-pointer">
+                    Hours Mode
+                  </Label>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Customers select both date and time slot. Best for same-day services or when specific timing is required.
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
+
+            {formData.timeMode === 'hours' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                <p className="text-sm text-blue-900">
+                  <strong>Note:</strong> In Hours Mode, make sure your subproject execution durations are set in hours and fit within a single working day.
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

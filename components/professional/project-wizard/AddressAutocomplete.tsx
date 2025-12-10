@@ -40,7 +40,7 @@ export default function AddressAutocomplete({
   const validatedAddressRef = useRef<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const { isLoaded, validateAddress } = useGoogleMaps();
+  const { isLoaded, validateAddress, geocodeAddress } = useGoogleMaps();
   const hasInitialized = useRef(false);
 
   // Initialize autocomplete
@@ -57,18 +57,40 @@ export default function AddressAutocomplete({
 
     autocompleteRef.current.addListener('place_changed', () => {
       const place = autocompleteRef.current?.getPlace();
-      if (place?.formatted_address) {
-        console.log('✅ Address selected from dropdown:', place.formatted_address);
+        if (place?.formatted_address) {
+          console.log('✅ Address selected from dropdown:', place.formatted_address);
 
-        // Extract coordinates and address components
-        const placeData: PlaceData = {
-          formatted_address: place.formatted_address,
-          coordinates: place.geometry?.location ? {
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng()
-          } : undefined,
-          address_components: place.address_components
-        };
+          let coordinates: { lat: number; lng: number } | undefined;
+          if (place.geometry?.location) {
+            const location = place.geometry.location;
+            const resolveCoordinate = (
+              value: number | (() => number) | undefined
+            ): number | undefined => {
+              if (typeof value === 'function') {
+                return value();
+              }
+              if (typeof value === 'number') {
+                return value;
+              }
+              return undefined;
+            };
+
+            const latValue = resolveCoordinate(location.lat);
+            const lngValue = resolveCoordinate(location.lng);
+
+            if (latValue !== undefined && lngValue !== undefined) {
+              coordinates = {
+                lat: latValue,
+                lng: lngValue
+              };
+            }
+          }
+
+          const placeData: PlaceData = {
+            formatted_address: place.formatted_address,
+            coordinates,
+            address_components: place.address_components
+          };
 
         // Call onChange with both parameters (second parameter is optional for backward compatibility)
         onChange(place.formatted_address, placeData);
@@ -113,6 +135,30 @@ export default function AddressAutocomplete({
 
     if (valid) {
       validatedAddressRef.current = addressToValidate;
+
+      // Try to geocode the address to get coordinates
+      try {
+        console.log('🌍 Geocoding address to get coordinates...');
+        const coordinates = await geocodeAddress(addressToValidate);
+
+        if (coordinates) {
+          console.log('✅ Geocoded coordinates:', coordinates);
+          // Call onChange with the address and coordinates
+          const placeData: PlaceData = {
+            formatted_address: addressToValidate,
+            coordinates
+          };
+          onChange(addressToValidate, placeData);
+        } else {
+          console.warn('⚠️ Could not geocode address - saving without coordinates');
+          // Still valid address, just without coordinates
+          onChange(addressToValidate);
+        }
+      } catch (geocodeError) {
+        console.error('❌ Geocoding error:', geocodeError);
+        // Still save the address without coordinates
+        onChange(addressToValidate);
+      }
     }
 
     setIsValid(valid);
@@ -125,6 +171,30 @@ export default function AddressAutocomplete({
 
     setValidating(true);
     const valid = await validateAddress(companyAddress);
+
+    if (valid) {
+      // Try to geocode the company address to get coordinates
+      try {
+        const coordinates = await geocodeAddress(companyAddress);
+
+        if (coordinates) {
+          console.log('✅ Geocoded company address:', coordinates);
+          const placeData: PlaceData = {
+            formatted_address: companyAddress,
+            coordinates
+          };
+          onChange(companyAddress, placeData);
+        } else {
+          // Still save the address without coordinates
+          onChange(companyAddress);
+        }
+      } catch (geocodeError) {
+        console.error('❌ Geocoding error for company address:', geocodeError);
+        // Still save the address without coordinates
+        onChange(companyAddress);
+      }
+    }
+
     setIsValid(valid);
     onValidation(valid);
     setValidating(false);

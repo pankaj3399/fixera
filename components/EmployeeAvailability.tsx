@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, MouseEvent } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
  
@@ -12,6 +12,13 @@ import { Calendar, User, Loader2, Save, RefreshCw, X, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
 import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
+import WeeklyTimeBlocker from "@/components/calendar/WeeklyTimeBlocker"
+
+interface BlockedRange {
+  startDate: string
+  endDate: string
+  reason?: string
+}
 
 interface EmployeeAvailabilityProps {
   className?: string
@@ -82,8 +89,8 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           }
           if (data.data.blockedRanges) {
             setBlockedRanges(data.data.blockedRanges.map((item: { startDate: string; endDate: string; reason?: string }) => ({
-              startDate: new Date(item.startDate).toISOString().split('T')[0],
-              endDate: new Date(item.endDate).toISOString().split('T')[0],
+              startDate: new Date(item.startDate).toISOString(),
+              endDate: new Date(item.endDate).toISOString(),
               reason: item.reason
             })))
           }
@@ -106,7 +113,10 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
   }
 
   // Save blocked dates (employees follow company weekly schedule)
-  const saveBlockedDates = async () => {
+  const saveBlockedDates = async (
+    customDates: { date: string; reason?: string }[] = blockedDates,
+    customRanges: BlockedRange[] = blockedRanges
+  ) => {
     try {
       setSaving(true)
 
@@ -117,8 +127,8 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         },
         credentials: 'include',
         body: JSON.stringify({
-          blockedDates,
-          blockedRanges
+          blockedDates: customDates,
+          blockedRanges: customRanges
         })
       })
 
@@ -138,9 +148,14 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     } catch (error) {
       console.error('❌ Error updating blocked dates:', error)
       toast.error('Failed to update blocked dates')
-    } finally {
-      setSaving(false)
+      } finally {
+        setSaving(false)
+      }
     }
+
+  const handleSaveBlockedDates = async (event?: MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault()
+    await saveBlockedDates()
   }
 
   // Add blocked date
@@ -162,16 +177,16 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
   // Add blocked range
   const addBlockedRange = () => {
     if (!newRangeStart || !newRangeEnd) {
-      toast.error('Please select both start and end dates')
+      toast.error('Please select both start and end times')
       return
     }
     if (new Date(newRangeStart) > new Date(newRangeEnd)) {
-      toast.error('Start date must be before end date')
+      toast.error('Start must be before end time')
       return
     }
     setBlockedRanges(prev => [...prev, {
-      startDate: newRangeStart,
-      endDate: newRangeEnd,
+      startDate: new Date(newRangeStart).toISOString(),
+      endDate: new Date(newRangeEnd).toISOString(),
       reason: newRangeReason || undefined
     }])
     setNewRangeStart('')
@@ -241,15 +256,34 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
               const exists = blockedDates.some(d => d.date === dateStr)
               const updated = exists ? blockedDates.filter(d => d.date !== dateStr) : [...blockedDates, { date: dateStr }]
               setBlockedDates(updated)
-              await saveBlockedDates()
+              await saveBlockedDates(updated, blockedRanges)
             }}
             onAddRange={async (startDate, endDate) => {
-              const updated = [...blockedRanges, { startDate, endDate }]
+              const startIso = new Date(`${startDate}T00:00:00`).toISOString()
+              const endIso = new Date(`${endDate}T23:59:00`).toISOString()
+              const updated = [...blockedRanges, { startDate: startIso, endDate: endIso }]
               setBlockedRanges(updated)
-              await saveBlockedDates()
+              await saveBlockedDates(blockedDates, updated)
             }}
           />
         )}
+
+        <WeeklyTimeBlocker
+          blockedRanges={blockedRanges}
+          onAddBlockedRange={async (start, end, reason) => {
+            const startIso = new Date(start).toISOString()
+            const endIso = new Date(end).toISOString()
+            const updated = [...blockedRanges, { startDate: startIso, endDate: endIso, reason }]
+            setBlockedRanges(updated)
+            await saveBlockedDates(blockedDates, updated)
+          }}
+          onRemoveBlockedRange={async (index) => {
+            const updated = blockedRanges.filter((_, i) => i !== index)
+            setBlockedRanges(updated)
+            await saveBlockedDates(blockedDates, updated)
+          }}
+          description="Use this weekly planner to mark personal hours as unavailable."
+        />
         {/* Company Schedule Display */}
         {availabilityData && (
           <div className="space-y-3">
@@ -368,14 +402,14 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           <div className="space-y-2">
             <div className="flex gap-2">
               <Input
-                type="date"
+                type="datetime-local"
                 value={newRangeStart}
                 onChange={(e) => setNewRangeStart(e.target.value)}
                 placeholder="Start date"
                 className="flex-1"
               />
               <Input
-                type="date"
+                type="datetime-local"
                 value={newRangeEnd}
                 onChange={(e) => setNewRangeEnd(e.target.value)}
                 placeholder="End date"
@@ -400,40 +434,42 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           {/* List of blocked ranges */}
           {blockedRanges.length > 0 && (
             <div className="space-y-2">
-              {blockedRanges.map((range, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">
-                      {new Date(range.startDate).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })} - {new Date(range.endDate).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </p>
-                    {range.reason && (
-                      <p className="text-sm text-muted-foreground">{range.reason}</p>
-                    )}
+              {blockedRanges.map((range, index) => {
+                const startLabel = new Date(range.startDate).toLocaleString('en-US', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short'
+                })
+                const endLabel = new Date(range.endDate).toLocaleString('en-US', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short'
+                })
+                return (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">
+                        {startLabel} → {endLabel}
+                      </p>
+                      {range.reason && (
+                        <p className="text-sm text-muted-foreground">{range.reason}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeBlockedRange(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeBlockedRange(index)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
 
         {/* Save Button */}
         <div className="flex justify-end pt-4">
-          <Button onClick={saveBlockedDates} disabled={saving}>
+          <Button onClick={handleSaveBlockedDates} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             <Save className="h-4 w-4 mr-2" />
             Save Blocked Dates
