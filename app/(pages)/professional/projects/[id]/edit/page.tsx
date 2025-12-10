@@ -125,6 +125,7 @@ export interface Project {
   service: string;
   areaOfWork?: string;
   status: string;
+  timeMode?: 'hours' | 'days';
   media: Media;
   distance?: Distance;
   resources?: string[];
@@ -164,6 +165,24 @@ export default function ProjectEditPage() {
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [hasShownWarning, setHasShownWarning] = useState(false);
 
+  const buildAuthHeaders = useCallback(
+    (headers: Record<string, string> = {}) => {
+      if (typeof window === 'undefined') {
+        return headers;
+      }
+      const token = window.localStorage.getItem('authToken');
+      if (!token) {
+        return headers;
+      }
+
+      return {
+        ...headers,
+        Authorization: `Bearer ${token}`,
+      };
+    },
+    []
+  );
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push('/login');
@@ -179,6 +198,7 @@ export default function ProjectEditPage() {
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${params.id}`,
         {
           credentials: 'include',
+          headers: buildAuthHeaders(),
         }
       );
 
@@ -194,7 +214,7 @@ export default function ProjectEditPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [params.id]);
+  }, [params.id, buildAuthHeaders]);
 
   useEffect(() => {
     if (user?.role === 'professional' && params.id) {
@@ -260,9 +280,9 @@ export default function ProjectEditPage() {
       console.log('Saving project changes...');
       const saveResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/draft`, {
         method: 'POST',
-        headers: {
+        headers: buildAuthHeaders({
           'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({
           ...project,
           // Ensure priceModel is always set when saving edits
@@ -284,9 +304,9 @@ export default function ProjectEditPage() {
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`,
         {
           method: 'POST',
-          headers: {
+          headers: buildAuthHeaders({
             'Content-Type': 'application/json',
-          },
+          }),
           credentials: 'include',
         }
       );
@@ -366,24 +386,26 @@ export default function ProjectEditPage() {
               </div>
               <DialogTitle className='text-xl'>Reapproval Required</DialogTitle>
             </div>
-            <DialogDescription className='text-base pt-2 space-y-3'>
-              <p className='text-gray-700 font-medium'>
-                You are editing a {project?.status === 'published' ? 'published' : 'on-hold'} project.
-              </p>
-              <div className='bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2'>
-                <p className='text-sm text-gray-700'>
-                  <strong>Important:</strong> Editing this project will move it back to
-                  <span className='font-semibold'> pending</span> status.
+            <DialogDescription asChild>
+              <div className='text-base pt-2 space-y-3'>
+                <p className='text-gray-700 font-medium'>
+                  You are editing a {project?.status === 'published' ? 'published' : 'on-hold'} project.
                 </p>
-                <p className='text-sm text-gray-700'>
-                  All changes require admin reapproval and may take up to{' '}
-                  <strong className='text-amber-700'>48 hours</strong>.
+                <div className='bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2'>
+                  <p className='text-sm text-gray-700'>
+                    <strong>Important:</strong> Editing this project will move it back to
+                    <span className='font-semibold'> pending</span> status.
+                  </p>
+                  <p className='text-sm text-gray-700'>
+                    All changes require admin reapproval and may take up to{' '}
+                    <strong className='text-amber-700'>48 hours</strong>.
+                  </p>
+                </div>
+                <p className='text-sm text-gray-600'>
+                  During this time, your project will not be visible to customers until it is
+                  re-approved by our admin team.
                 </p>
               </div>
-              <p className='text-sm text-gray-600'>
-                During this time, your project will not be visible to customers until it is
-                re-approved by our admin team.
-              </p>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className='gap-2 sm:gap-0'>
@@ -589,6 +611,25 @@ export default function ProjectEditPage() {
                 onChange={(e) => updateField('priceModel', e.target.value)}
                 placeholder='Price model'
               />
+            </div>
+
+            <div>
+              <label className='block text-sm font-medium text-gray-700 mb-2'>
+                Scheduling Mode <span className='text-red-500'>*</span>
+              </label>
+              <select
+                value={project.timeMode || 'days'}
+                onChange={(e) => updateField('timeMode', e.target.value)}
+                className='w-full p-2 border border-gray-300 rounded-md'
+              >
+                <option value='days'>Days Mode - Customer selects date only</option>
+                <option value='hours'>Hours Mode - Customer selects date and time</option>
+              </select>
+              <p className='text-xs text-gray-500 mt-1'>
+                {project.timeMode === 'hours'
+                  ? 'Customers will select specific time slots when booking'
+                  : 'Customers will select only the start date when booking'}
+              </p>
             </div>
 
             <div>

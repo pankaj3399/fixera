@@ -248,7 +248,7 @@ export default function BookingDetailPage() {
                     <div className="flex items-center gap-2">
                       <Calendar className="h-3 w-3 text-emerald-500" />
                       <span>
-                        Scheduled start:{" "}
+                        Start Date:{" "}
                         <span className="font-medium">
                           {new Date(booking.scheduledStartDate).toLocaleDateString()}
                         </span>
@@ -257,9 +257,9 @@ export default function BookingDetailPage() {
                   )}
                   {booking.scheduledEndDate && (
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-emerald-500" />
+                      <Calendar className="h-3 w-3 text-blue-500" />
                       <span>
-                        Scheduled end:{" "}
+                        Completion Date:{" "}
                         <span className="font-medium">
                           {new Date(booking.scheduledEndDate).toLocaleDateString()}
                         </span>

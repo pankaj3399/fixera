@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, Suspense, ComponentProps } from 'react';
+import React, { useState, useEffect, Suspense, ComponentProps, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, AlertCircle, Search as SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProfessionalCard from '@/components/search/ProfessionalCard';
 import ProjectCard from '@/components/search/ProjectCard';
-import SearchFilters, { type SearchFiltersState } from '@/components/search/SearchFilters';
+import SearchFilters, { type SearchFiltersState, type ProjectFacetCounts } from '@/components/search/SearchFilters';
 import { useFilterOptions } from '@/hooks/useFilterOptions';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
@@ -21,6 +21,131 @@ type PaginationState = {
   totalPages: number;
 };
 
+const normalizeText = (value?: string | null) => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  return trimmed;
+};
+
+const incrementFacetCount = (target: Record<string, number>, rawValue?: string | null) => {
+  const normalized = normalizeText(rawValue);
+  if (!normalized) return;
+  target[normalized] = (target[normalized] || 0) + 1;
+};
+
+const buildProjectFacets = (projects: ProjectResult[]): ProjectFacetCounts => {
+  const facets: ProjectFacetCounts = {
+    categories: {},
+    services: {},
+    areasOfWork: {},
+    priceModels: {},
+    projectTypes: {},
+    includedItems: {},
+  };
+
+  projects.forEach((project) => {
+    const subprojects = project.subprojects && project.subprojects.length > 0
+      ? project.subprojects
+      : [];
+
+    // For projects without subprojects
+    if (subprojects.length === 0) {
+      incrementFacetCount(facets.categories, project.category);
+      incrementFacetCount(facets.services, project.service);
+      incrementFacetCount(facets.areasOfWork, project.areaOfWork);
+      return;
+    }
+
+    // Use Sets to track unique values per project (so each project is only counted once)
+    const projectCategories = new Set<string>();
+    const projectServices = new Set<string>();
+    const projectAreasOfWork = new Set<string>();
+    const projectPriceModels = new Set<string>();
+    const projectProjectTypes = new Set<string>();
+    const projectIncludedItems = new Set<string>();
+
+    subprojects.forEach((subproject) => {
+      // Collect unique categories and services
+      const category = normalizeText(project.category);
+      if (category) projectCategories.add(category);
+
+      const service = normalizeText(project.service);
+      if (service) projectServices.add(service);
+
+      // Collect unique areas of work
+      const projectArea = normalizeText(project.areaOfWork);
+      if (projectArea) {
+        projectAreasOfWork.add(projectArea);
+      }
+
+      const serviceSelection = project.services;
+      if (Array.isArray(serviceSelection)) {
+        serviceSelection.forEach((serviceItem) => {
+          const areaName = normalizeText(serviceItem?.areaOfWork);
+          if (areaName) {
+            projectAreasOfWork.add(areaName);
+          }
+        });
+      }
+
+      // Collect unique price models
+      const priceType = subproject?.pricing?.type
+        ? subproject.pricing.type.toLowerCase()
+        : undefined;
+      const priceModel = normalizeText(priceType);
+      if (priceModel) projectPriceModels.add(priceModel);
+
+      // Collect unique project types
+      const projectTypes = subproject.projectType;
+      if (Array.isArray(projectTypes)) {
+        projectTypes.forEach((type) => {
+          const normalized = normalizeText(type);
+          if (normalized) projectProjectTypes.add(normalized);
+        });
+      }
+
+      // Collect unique included items
+      const includedItems = subproject.included;
+      if (Array.isArray(includedItems)) {
+        includedItems.forEach((item) => {
+          const itemName = normalizeText(item?.name);
+          if (itemName) projectIncludedItems.add(itemName);
+        });
+      }
+    });
+
+    // Now increment facet counts once per unique value per project
+    projectCategories.forEach((value) => incrementFacetCount(facets.categories, value));
+    projectServices.forEach((value) => incrementFacetCount(facets.services, value));
+    projectAreasOfWork.forEach((value) => incrementFacetCount(facets.areasOfWork, value));
+    projectPriceModels.forEach((value) => incrementFacetCount(facets.priceModels, value));
+    projectProjectTypes.forEach((value) => incrementFacetCount(facets.projectTypes, value));
+    projectIncludedItems.forEach((value) => incrementFacetCount(facets.includedItems, value));
+  });
+
+  return facets;
+};
+
+const extractLocationDetails = (raw?: string | null) => {
+  if (!raw) {
+    return { city: undefined, country: undefined, address: undefined };
+  }
+
+  const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) {
+    return { city: undefined, country: undefined, address: undefined };
+  }
+
+  const city = parts[0] || undefined;
+  const country = parts.length > 1 ? parts[parts.length - 1] : undefined;
+
+  return {
+    city,
+    country,
+    address: raw.trim(),
+  };
+};
+
 function SearchPageContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
@@ -29,6 +154,7 @@ function SearchPageContent() {
 
   const [searchType, setSearchType] = useState<'professionals' | 'projects'>(initialType);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [serverFacets, setServerFacets] = useState<ProjectFacetCounts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -52,17 +178,41 @@ function SearchPageContent() {
     priceModel: [],
     projectTypes: [],
     includedItems: [],
+    areasOfWork: [],
     startDateFrom: undefined,
     startDateTo: undefined,
   });
 
+  // Store location coordinates separately
+  const [locationCoordinates, setLocationCoordinates] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+
   const [categories, setCategories] = useState<string[]>([]);
 
   // Fetch dynamic filter options using the custom hook
-  const { filterOptions, isLoading: isLoadingFilters } = useFilterOptions({ country: 'BE' });
+  const { filterOptions } = useFilterOptions({ country: 'BE' });
 
   const professionalResults = results as ProfessionalResult[];
   const projectResults = results as ProjectResult[];
+  const projectFacets = useMemo(() => {
+    if (searchType !== 'projects') {
+      return null;
+    }
+    // Always prefer server facets (which represent ALL matching projects in the database)
+    if (serverFacets) {
+      console.log('Using server facets (from ALL database projects)');
+      return serverFacets;
+    }
+    // Fallback to client-side facets only if server didn't provide them
+    // Note: This fallback only represents the current page of results, not all database projects
+    if (projectResults.length === 0) {
+      return null;
+    }
+    console.warn('Using client-side facets (only current page results) - server facets not available');
+    return buildProjectFacets(projectResults);
+  }, [projectResults, searchType, serverFacets]);
 
   // Fetch categories on mount (kept for backward compatibility)
   useEffect(() => {
@@ -90,9 +240,11 @@ function SearchPageContent() {
     filters.priceModel,
     filters.projectTypes,
     filters.includedItems,
+    filters.areasOfWork,
     filters.startDateFrom,
     filters.startDateTo,
-    pagination.page
+    pagination.page,
+    locationCoordinates
   ]);
 
   const fetchCategories = async () => {
@@ -136,8 +288,23 @@ function SearchPageContent() {
       if (filters.priceModel.length > 0) params.append('priceModel', filters.priceModel.join(','));
       if (filters.projectTypes.length > 0) params.append('projectTypes', filters.projectTypes.join(','));
       if (filters.includedItems.length > 0) params.append('includedItems', filters.includedItems.join(','));
+      if (filters.areasOfWork.length > 0) params.append('areaOfWork', filters.areasOfWork.join(','));
       if (filters.startDateFrom) params.append('startDateFrom', filters.startDateFrom.toISOString());
       if (filters.startDateTo) params.append('startDateTo', filters.startDateTo.toISOString());
+
+      if (searchType === 'projects' && (filters.location || filters.geographicArea)) {
+        const locationDetails = extractLocationDetails(filters.location || filters.geographicArea);
+        if (locationDetails.city) params.append('customerCity', locationDetails.city);
+        if (locationDetails.country) params.append('customerCountry', locationDetails.country);
+        if (locationDetails.address) params.append('customerAddress', locationDetails.address);
+
+        // Send GPS coordinates if available (for accurate distance filtering)
+        if (locationCoordinates) {
+          params.append('customerLat', locationCoordinates.lat.toString());
+          params.append('customerLon', locationCoordinates.lng.toString());
+          console.log('📍 Sending customer coordinates for distance filtering:', locationCoordinates);
+        }
+      }
 
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
       const searchUrl = `${backendUrl}/api/search?${params.toString()}`;
@@ -155,11 +322,19 @@ function SearchPageContent() {
       const data = (await response.json()) as {
         results?: SearchResult[];
         pagination?: PaginationState;
+        facets?: ProjectFacetCounts | null;
       };
       console.log('Search response:', data);
       console.log('Results count:', data.results?.length || 0);
+      console.log('Server facets received:', data.facets);
       setResults(data.results ?? []);
       setPagination((prev) => data.pagination ?? prev);
+      if (searchType === 'projects') {
+        console.log('Setting server facets for projects:', data.facets);
+        setServerFacets(data.facets ?? null);
+      } else {
+        setServerFacets(null);
+      }
     } catch (err) {
       console.error('Search error:', err);
       const message =
@@ -190,6 +365,7 @@ function SearchPageContent() {
       priceModel: [],
       projectTypes: [],
       includedItems: [],
+      areasOfWork: [],
       startDateFrom: undefined,
       startDateTo: undefined,
     });
@@ -205,6 +381,7 @@ function SearchPageContent() {
     setSearchType(newType);
     // Reset to page 1 when changing search type
     setPagination((prev) => ({ ...prev, page: 1 }));
+    setServerFacets(null);
     // Clear results to show loading state
     setResults([]);
   };
@@ -245,6 +422,8 @@ function SearchPageContent() {
                 searchType={searchType}
                 categories={categories}
                 filterOptions={filterOptions}
+                facets={projectFacets}
+                onLocationCoordinatesChange={setLocationCoordinates}
               />
             </div>
           </aside>
