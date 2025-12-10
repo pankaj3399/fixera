@@ -956,10 +956,9 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
           console.log('[BOOKING] Success! Booking created:', data.booking?._id)
           toast.success('Booking request submitted successfully!')
 
-          setTimeout(() => {
-            console.log('[BOOKING] Redirecting to dashboard...')
-            router.push('/dashboard')
-          }, 2000)
+          console.log('[BOOKING] Redirecting to dashboard...')
+          // Use window.location for reliable redirect
+          window.location.href = '/dashboard'
         } else {
           console.error('[BOOKING] Request failed')
           console.error('[BOOKING] Status:', response.status)
