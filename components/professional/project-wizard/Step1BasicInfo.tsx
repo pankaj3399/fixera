@@ -1150,62 +1150,6 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         </CardContent>
       </Card>
 
-      {/* Scheduling Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5" />
-            <span>Scheduling Configuration</span>
-          </CardTitle>
-          <CardDescription>
-            Choose how customers will schedule this service
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <Label>Scheduling Mode *</Label>
-            <RadioGroup
-              value={formData.timeMode || 'days'}
-              onValueChange={(value: 'hours' | 'days') => updateFormData({ timeMode: value })}
-            >
-              <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-gray-50"
-                onClick={() => updateFormData({ timeMode: 'days' })}>
-                <RadioGroupItem value="days" id="mode-days" className="mt-1" />
-                <div className="flex-1">
-                  <Label htmlFor="mode-days" className="font-semibold cursor-pointer">
-                    Days Mode
-                  </Label>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Customers select only a start date. Best for multi-day projects or when exact start time doesn&apos;t matter.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-gray-50"
-                onClick={() => updateFormData({ timeMode: 'hours' })}>
-                <RadioGroupItem value="hours" id="mode-hours" className="mt-1" />
-                <div className="flex-1">
-                  <Label htmlFor="mode-hours" className="font-semibold cursor-pointer">
-                    Hours Mode
-                  </Label>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Customers select both date and time slot. Best for same-day services or when specific timing is required.
-                  </p>
-                </div>
-              </div>
-            </RadioGroup>
-
-            {formData.timeMode === 'hours' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
-                <p className="text-sm text-blue-900">
-                  <strong>Note:</strong> In Hours Mode, make sure your subproject execution durations are set in hours and fit within a single working day.
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Description & Pricing */}
       <Card>
         <CardHeader>
