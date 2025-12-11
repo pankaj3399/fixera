@@ -521,8 +521,7 @@ export default function ManageProjectsPage() {
     setEditWarningDialogOpen(false)
     setSelectedProject(null)
 
-    // Use window.location for navigation to ensure it works
-    window.location.href = `/professional/projects/${projectId}/edit`
+    router.push(`/professional/projects/${projectId}/edit`)
   }
 
   // Since filtering is now handled server-side, we use projects directly
