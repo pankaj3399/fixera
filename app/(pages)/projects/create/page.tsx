@@ -229,15 +229,15 @@ export default function ProjectCreatePage() {
 
             if (response.status === 401) {
               toast.error('Please log in to edit this project')
-              router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search))
+              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)            
               return
             } else if (response.status === 404) {
               toast.error('Project not found')
-              router.push('/professional/projects/manage')
+              router.replace('/professional/projects/manage')
               return
             } else if (response.status === 403) {
               toast.error('You do not have permission to edit this project')
-              router.push('/professional/projects/manage')
+              router.replace('/professional/projects/manage')
               return
             }
 
@@ -463,9 +463,7 @@ export default function ProjectCreatePage() {
           if (currentProject.status === 'pending_approval') {
             console.log('Project already pending approval, redirecting...')
             toast.success('Project is already submitted and pending approval!')
-            setTimeout(() => {
-              router.push('/professional/projects/manage')
-            }, 500)
+            router.replace('/professional/projects/manage')
             return
           }
 
@@ -526,9 +524,7 @@ export default function ProjectCreatePage() {
         }
 
         toast.success('Project submitted for approval!')
-        setTimeout(() => {
-          router.push('/professional/projects/manage')
-        }, 500)
+        router.replace('/professional/projects/manage')
       } else {
         const error = await response.json()
         console.error('Submission failed:', error)

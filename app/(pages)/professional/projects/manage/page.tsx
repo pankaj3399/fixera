@@ -517,8 +517,10 @@ export default function ManageProjectsPage() {
   const editProjectWithWarning = (projectId: string) => {
     // Close dialog and redirect to edit page
     // The backend will automatically handle status change to pending_approval on save
+    console.log('[ManageProjects] Editing project with warning:', projectId)
     setEditWarningDialogOpen(false)
     setSelectedProject(null)
+
     router.push(`/professional/projects/${projectId}/edit`)
   }
 
@@ -583,7 +585,10 @@ export default function ManageProjectsPage() {
           </DropdownMenuItem>
 
           {canEdit && (
-            <DropdownMenuItem onClick={() => router.push(`/professional/projects/${project._id}/edit`)}>
+            <DropdownMenuItem onClick={() => {
+              console.log('[ManageProjects] Editing project:', project._id)
+              router.push(`/professional/projects/${project._id}/edit`);
+            }}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Project
             </DropdownMenuItem>

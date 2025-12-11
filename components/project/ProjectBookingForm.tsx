@@ -953,13 +953,8 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
         console.log('[BOOKING] Response data:', data)
 
         if (response.ok && data.success) {
-          console.log('[BOOKING] Success! Booking created:', data.booking?._id)
-          toast.success('Booking request submitted successfully!')
-
-          setTimeout(() => {
-            console.log('[BOOKING] Redirecting to dashboard...')
-            router.push('/dashboard')
-          }, 2000)
+          router.replace('/dashboard');
+          return;
         } else {
           console.error('[BOOKING] Request failed')
           console.error('[BOOKING] Status:', response.status)
