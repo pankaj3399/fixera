@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { format, addDays, parseISO, startOfDay, differenceInCalendarDays } from 'date-fns'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Project {
   _id: string
@@ -73,6 +74,17 @@ interface Project {
     options?: string[]
     isRequired: boolean
   }>
+  distance?: {
+    address?: string
+    maxKmRange?: number
+    useCompanyAddress?: boolean
+    noBorders?: boolean
+    borderLevel?: 'none' | 'country' | 'province'
+    coordinates?: {
+      latitude: number
+      longitude: number
+    }
+  }
 }
 
 interface ProjectBookingFormProps {
@@ -146,6 +158,7 @@ const hasDurationRange = (
 
 export default function ProjectBookingForm({ project, onBack, selectedSubprojectIndex }: ProjectBookingFormProps) {
   const router = useRouter()
+  const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [blockedDates, setBlockedDates] = useState<BlockedDates>({ blockedDates: [], blockedRanges: [] })
@@ -904,7 +917,17 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     return true
   }
 
+  const guardOutsideServiceArea = () => {
+    if (!isOutsideServiceArea) {
+      return true
+    }
+
+    toast.error(getOutsideServiceMessage())
+    return false
+  }
+
   const handleNext = () => {
+    if (!guardOutsideServiceArea()) return
     if (!validateStep()) return
 
     if (currentStep < 4) {
@@ -925,6 +948,11 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     console.log('[BOOKING] Current step:', currentStep)
     console.log('[BOOKING] Selected package index:', selectedPackageIndex)
     console.log('[BOOKING] Selected date:', selectedDate)
+
+    if (!guardOutsideServiceArea()) {
+      console.error('[BOOKING] Submission blocked due to service radius limits')
+      return
+    }
 
     if (!validateStep()) {
       console.error('[BOOKING] Validation failed')
@@ -1131,6 +1159,92 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     selectedPackage?.pricing.amount && shouldCollectUsage(selectedPackage.pricing.type)
   )
 
+  const userCoordinates = user?.location?.coordinates
+  const customerLat = typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null
+  const customerLon = typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null
+  const serviceLat = project.distance?.coordinates?.latitude ?? null
+  const serviceLon = project.distance?.coordinates?.longitude ?? null
+  const maxServiceRadius = project.distance?.maxKmRange ?? null
+
+  const calculateDistanceKm = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRad = (value: number) => (value * Math.PI) / 180
+    const R = 6371
+    const dLat = toRad(lat2 - lat1)
+    const dLon = toRad(lon2 - lon1)
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  const distanceToServiceArea = useMemo(() => {
+    if (
+      customerLat === null ||
+      customerLon === null ||
+      serviceLat === null ||
+      serviceLon === null
+    ) {
+      return null
+    }
+    return calculateDistanceKm(customerLat, customerLon, serviceLat, serviceLon)
+  }, [customerLat, customerLon, serviceLat, serviceLon])
+
+  const isOutsideServiceArea = Boolean(
+    maxServiceRadius &&
+    distanceToServiceArea !== null &&
+    distanceToServiceArea > maxServiceRadius
+  )
+  const roundedMaxRadius = typeof maxServiceRadius === 'number' ? Math.round(maxServiceRadius) : null
+  const roundedDistanceAway =
+    distanceToServiceArea !== null ? Math.round(distanceToServiceArea) : null
+
+  const getOutsideServiceMessage = () => {
+    if (!roundedMaxRadius) {
+      return 'This service is not available in your current location.'
+    }
+
+    if (roundedDistanceAway !== null) {
+      return `This service is only available within ${roundedMaxRadius}km. You are approximately ${roundedDistanceAway}km away from the service area.`
+    }
+
+    return `This service is only available within ${roundedMaxRadius}km.`
+  }
+
+  const getConsecutiveDates = (start: Date, end: Date) => {
+    const days: Date[] = []
+    let cursor = start
+    while (cursor <= end) {
+      days.push(cursor)
+      cursor = addDays(cursor, 1)
+    }
+    return days
+  }
+
+  const shortestWindowDates = shortestThroughputDetails
+    ? getConsecutiveDates(shortestThroughputDetails.startDate, shortestThroughputDetails.endDate)
+    : []
+
+  const handleApplyShortestWindow = () => {
+    if (!shortestThroughputDetails) return
+    const start = format(shortestThroughputDetails.startDate, 'yyyy-MM-dd')
+    if (isDateBlocked(start)) {
+      toast.error('The shortest window start date is currently unavailable.')
+      return
+    }
+    setHasUserSelectedDate(true)
+    setSelectedDate(start)
+    if (showCalendar) {
+      setShowCalendar(false)
+    }
+  }
+
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
       return `${selectedPackage.deliveryPreparation} ${selectedPackage.deliveryPreparationUnit || 'days'}`
@@ -1191,6 +1305,16 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
           <h1 className="text-3xl font-bold text-gray-900">Book: {project.title}</h1>
           <p className="text-gray-600 mt-2">Complete the booking process in 4 simple steps</p>
         </div>
+
+        {isOutsideServiceArea && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="font-semibold text-red-800">Outside service area</p>
+            <p className="text-sm text-red-700 mt-1">{getOutsideServiceMessage()}</p>
+            <p className="text-xs text-red-600 mt-2">
+              Please update your profile location or choose another project closer to you.
+            </p>
+          </div>
+        )}
 
         {/* Progress Steps */}
         <div className="mb-8">
@@ -1634,14 +1758,38 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                           </>
                         )}
                         {project.timeMode === 'days' && shortestThroughputDetails && (
-                          <div className="border-t border-blue-300 pt-3 space-y-1">
-                            <p className="text-sm text-blue-900">
-                              <strong>Shortest Consecutive Window:</strong>{' '}
-                              {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
-                            </p>
-                            <p className="text-xs text-blue-700">
-                              {shortestThroughputDetails.totalDays} working {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'} without interruptions.
-                            </p>
+                          <div className="border-t border-blue-300 pt-3 space-y-3">
+                            <div className="flex flex-col gap-1">
+                              <p className="text-sm text-blue-900 font-semibold">
+                                <strong>Shortest Consecutive Window</strong>{' '}
+                                <span className="text-xs font-normal">
+                                  ({shortestThroughputDetails.totalDays}{' '}
+                                  {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'})
+                                </span>
+                              </p>
+                              <p className="text-xs text-blue-700">
+                                {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {shortestWindowDates.map((day) => (
+                                <span
+                                  key={day.toISOString()}
+                                  className="px-3 py-1 text-xs rounded-full bg-white border border-blue-200 text-blue-800"
+                                >
+                                  {format(day, 'MMM d')}
+                                </span>
+                              ))}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="self-start text-xs"
+                              onClick={handleApplyShortestWindow}
+                            >
+                              Use this window
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -1911,14 +2059,29 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                       </>
                     )}
                     {project.timeMode === 'days' && shortestThroughputDetails && (
-                      <div className="border-t border-gray-300 pt-3 space-y-1">
-                        <p className="text-sm">
-                          <strong>Shortest Consecutive Window:</strong>{' '}
-                          {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          {shortestThroughputDetails.totalDays} working {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'} without pauses between sessions.
-                        </p>
+                      <div className="border-t border-gray-300 pt-3 space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm font-semibold">
+                            <strong>Shortest Consecutive Window</strong>{' '}
+                            <span className="text-xs font-normal">
+                              ({shortestThroughputDetails.totalDays}{' '}
+                              {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'})
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {shortestWindowDates.map((day) => (
+                            <span
+                              key={day.toISOString()}
+                              className="px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800"
+                            >
+                              {format(day, 'MMM d')}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2025,11 +2188,13 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
           </Button>
 
           {currentStep < 4 ? (
-            <Button onClick={handleNext}>Next Step</Button>
+            <Button onClick={handleNext} disabled={isOutsideServiceArea}>
+              Next Step
+            </Button>
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || isOutsideServiceArea}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (

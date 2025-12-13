@@ -792,6 +792,7 @@ export default function ProjectDetailPage() {
                 <SubprojectComparisonTable
                   subprojects={project.subprojects}
                   onSelectPackage={handleSelectPackage}
+                  priceModel={project.priceModel}
                 />
               </div>
             )}

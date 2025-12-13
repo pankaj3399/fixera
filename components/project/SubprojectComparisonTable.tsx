@@ -33,6 +33,7 @@ interface Subproject {
 interface SubprojectComparisonTableProps {
   subprojects: Subproject[]
   onSelectPackage: (index: number) => void
+  priceModel?: string
 }
 
 const formatCurrency = (value?: number) =>
@@ -40,7 +41,7 @@ const formatCurrency = (value?: number) =>
     ? new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
     : null
 
-export default function SubprojectComparisonTable({ subprojects, onSelectPackage }: SubprojectComparisonTableProps) {
+export default function SubprojectComparisonTable({ subprojects, onSelectPackage, priceModel }: SubprojectComparisonTableProps) {
   const [selectedTab, setSelectedTab] = useState(0)
 
   if (!subprojects || subprojects.length === 0) {
@@ -103,7 +104,9 @@ export default function SubprojectComparisonTable({ subprojects, onSelectPackage
                     ) : currentSubproject.pricing.type === 'unit' ? (
                       <>
                         {formatCurrency(currentSubproject.pricing.amount)}
-                        <span className="text-lg font-normal text-gray-500 ml-2">/unit</span>
+                        <span className="text-lg font-normal text-gray-500 ml-2">
+                          /{priceModel || 'unit'}
+                        </span>
                       </>
                     ) : (
                       formatCurrency(currentSubproject.pricing.amount)
