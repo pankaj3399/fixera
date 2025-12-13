@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, Loader2, Upload, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { format, addDays, parseISO, startOfDay } from 'date-fns'
+import { format, addDays, parseISO, startOfDay, differenceInCalendarDays } from 'date-fns'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
 
@@ -363,6 +363,53 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     }
 
     return !projectPriceModel.includes('total')
+  }
+
+  const getBufferDuration = () => {
+    if (selectedPackage?.buffer?.value && selectedPackage.buffer.value > 0) {
+      return {
+        value: selectedPackage.buffer.value,
+        unit: selectedPackage.buffer.unit || 'days'
+      }
+    }
+
+    if (project.bufferDuration?.value && project.bufferDuration.value > 0) {
+      return project.bufferDuration
+    }
+
+    return null
+  }
+
+  const getBufferDurationDays = () => {
+    const buffer = getBufferDuration()
+    if (!buffer) return 0
+    return Math.ceil(convertDurationToDays(buffer))
+  }
+
+  const getBufferDurationHours = () => {
+    const buffer = getBufferDuration()
+    if (!buffer?.value || buffer.value <= 0) return 0
+    return buffer.unit === 'hours' ? buffer.value : buffer.value * 24
+  }
+
+  const advanceWorkingDays = (startDate: Date, workingDays: number) => {
+    if (workingDays <= 0) {
+      return startDate
+    }
+
+    let cursor = startDate
+    let addedDays = 0
+
+    while (addedDays < workingDays) {
+      cursor = addDays(cursor, 1)
+      const cursorStr = format(cursor, 'yyyy-MM-dd')
+
+      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
+        addedDays++
+      }
+    }
+
+    return cursor
   }
 
   const formatCurrency = (value?: number) =>
@@ -743,43 +790,40 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     return duration.unit === 'days' ? value : value / 24
   }
 
-  const calculateCompletionDate = (): Date | null => {
+  const calculateCompletionDate = (includeBuffer = false): Date | null => {
     if (!selectedDate) return null
 
     const executionSource: AnyExecutionDuration | undefined =
       selectedPackage?.executionDuration || project.executionDuration
     const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined
-    const executionDays = convertDurationToDays(executionSource, preferRange)
-    const totalWorkingDays = Math.ceil(executionDays)
+    const executionDays = Math.ceil(convertDurationToDays(executionSource, preferRange))
 
-    if (totalWorkingDays <= 0) {
-      return parseISO(selectedDate)
+    const startingPoint = parseISO(selectedDate)
+    const completionWithoutBuffer =
+      executionDays > 0 ? advanceWorkingDays(startingPoint, executionDays) : startingPoint
+
+    if (!includeBuffer) {
+      return completionWithoutBuffer
     }
 
-    let addedDays = 0
-    let cursor = parseISO(selectedDate)
-
-    // Count working days based on professional's availability
-    while (addedDays < totalWorkingDays) {
-      cursor = addDays(cursor, 1)
-      const cursorStr = format(cursor, 'yyyy-MM-dd')
-
-      // Only count days when professional is working and not blocked
-      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
-        addedDays++
-      }
+    const bufferDays = getBufferDurationDays()
+    if (bufferDays > 0) {
+      return advanceWorkingDays(completionWithoutBuffer, bufferDays)
     }
 
-    return cursor
+    return completionWithoutBuffer
   }
 
-  const calculateCompletionDateTime = (): Date | null => {
+  const calculateCompletionDateTime = (includeBuffer = false): Date | null => {
     if (project.timeMode !== 'hours' || !selectedDate || !selectedTime) {
       return null
     }
 
     const executionHours = getExecutionDurationHours()
-    if (executionHours <= 0) {
+    const bufferHours = includeBuffer ? getBufferDurationHours() : 0
+    const totalHours = executionHours + bufferHours
+
+    if (totalHours <= 0) {
       return null
     }
 
@@ -787,7 +831,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     const startDate = parseISO(selectedDate)
     startDate.setHours(hours, minutes, 0, 0)
     const completion = new Date(startDate)
-    completion.setHours(completion.getHours() + executionHours)
+    completion.setHours(completion.getHours() + totalHours)
     return completion
   }
 
@@ -1029,16 +1073,24 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     }
   }
 
+  const getEffectivePackagePrice = (): number | null => {
+    if (!selectedPackage?.pricing.amount || selectedPackage.pricing.type === 'rfq') {
+      return null
+    }
+
+    const multiplier = shouldCollectUsage(selectedPackage.pricing.type) ? estimatedUsage : 1
+    return multiplier * selectedPackage.pricing.amount
+  }
+
   const calculateTotal = (): number => {
     let total = 0
 
     if (selectedPackage) {
-      if (selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount) {
+      const packagePrice = getEffectivePackagePrice()
+      if (typeof packagePrice === 'number') {
+        total += packagePrice
+      } else if (selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount) {
         total += selectedPackage.pricing.amount
-      }
-
-      if (selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount) {
-        total += estimatedUsage * selectedPackage.pricing.amount
       }
     }
 
@@ -1054,6 +1106,30 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
 
   const projectedCompletionDate = calculateCompletionDate()
   const projectedCompletionDateTime = calculateCompletionDateTime()
+
+  const shortestThroughputDetails = (() => {
+    if (
+      proposals?.mode !== 'days' ||
+      !proposals.shortestThroughputProposal?.start ||
+      !proposals.shortestThroughputProposal?.end
+    ) {
+      return null
+    }
+
+    try {
+      const startDate = parseISO(proposals.shortestThroughputProposal.start)
+      const endDate = parseISO(proposals.shortestThroughputProposal.end)
+      const totalDays = Math.max(1, differenceInCalendarDays(endDate, startDate) + 1)
+      return { startDate, endDate, totalDays }
+    } catch {
+      return null
+    }
+  })()
+
+  const effectivePackagePrice = getEffectivePackagePrice()
+  const shouldShowUsageBreakdown = Boolean(
+    selectedPackage?.pricing.amount && shouldCollectUsage(selectedPackage.pricing.type)
+  )
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
@@ -1408,7 +1484,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                           <div className="mt-4 space-y-2 text-xs text-gray-600">
                             <p className="font-semibold text-gray-700">Suggested dates</p>
                             <div className="flex flex-wrap gap-2">
-                              {proposals.mode === 'days' && proposals.shortestThroughputProposal && (
+                              {shortestThroughputDetails && (
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -1423,9 +1499,8 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                                     }
                                   }}
                                 >
-                                  Shortest throughput:{' '}
-                                  {proposals.shortestThroughputProposal.start &&
-                                    format(parseISO(proposals.shortestThroughputProposal.start), 'MMM d, yyyy')}
+                                  Shortest consecutive window:{' '}
+                                  {`${format(shortestThroughputDetails.startDate, 'MMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'MMM d, yyyy')}`}
                                 </Button>
                               )}
 
@@ -1558,6 +1633,17 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                             </p>
                           </>
                         )}
+                        {project.timeMode === 'days' && shortestThroughputDetails && (
+                          <div className="border-t border-blue-300 pt-3 space-y-1">
+                            <p className="text-sm text-blue-900">
+                              <strong>Shortest Consecutive Window:</strong>{' '}
+                              {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
+                            </p>
+                            <p className="text-xs text-blue-700">
+                              {shortestThroughputDetails.totalDays} working {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'} without interruptions.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1622,11 +1708,11 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-gray-700">Package Price:</span>
                           <span className="font-semibold">
-                            {selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount
-                              ? formatCurrency(selectedPackage.pricing.amount)
-                              : selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount
-                              ? formatCurrency(estimatedUsage * selectedPackage.pricing.amount)
-                              : 'Quote Required'}
+                          {selectedPackage.pricing.type === 'rfq'
+                            ? 'Quote Required'
+                            : typeof effectivePackagePrice === 'number'
+                            ? formatCurrency(effectivePackagePrice)
+                            : 'Quote Required'}
                           </span>
                         </div>
 
@@ -1665,7 +1751,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                           </div>
                         )}
 
-                        {selectedPackage.pricing.type === 'unit' && (
+                        {shouldShowUsageBreakdown && (
                           <p className="text-xs text-gray-600 pt-2">
                             Based on {estimatedUsage} {project.priceModel || 'units'} at {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'}
                           </p>
@@ -1824,6 +1910,17 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                         </p>
                       </>
                     )}
+                    {project.timeMode === 'days' && shortestThroughputDetails && (
+                      <div className="border-t border-gray-300 pt-3 space-y-1">
+                        <p className="text-sm">
+                          <strong>Shortest Consecutive Window:</strong>{' '}
+                          {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {shortestThroughputDetails.totalDays} working {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'} without pauses between sessions.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1836,15 +1933,15 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-gray-700">Package Price:</span>
                         <span className="font-semibold">
-                          {selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount
-                            ? formatCurrency(selectedPackage.pricing.amount)
-                            : selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount
-                            ? formatCurrency(estimatedUsage * selectedPackage.pricing.amount)
+                          {selectedPackage.pricing.type === 'rfq'
+                            ? 'Quote Required'
+                            : typeof effectivePackagePrice === 'number'
+                            ? formatCurrency(effectivePackagePrice)
                             : 'Quote Required'}
                         </span>
                       </div>
 
-                      {selectedPackage.pricing.type === 'unit' && estimatedUsage && selectedPackage.pricing.amount && (
+                      {shouldShowUsageBreakdown && (
                         <p className="text-xs text-gray-600">
                           ({estimatedUsage} {project.priceModel || 'units'} × {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'})
                         </p>
