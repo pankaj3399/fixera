@@ -167,11 +167,11 @@ const SearchFilters = ({
     : buildOptions(undefined, categoriesList);
 
   const dynamicPriceModels = searchType === 'projects'
-    ? (facets?.priceModels
+    ? (facets?.priceModels && Object.keys(facets.priceModels).length > 0
         ? Object.entries(facets.priceModels)
             .sort((a, b) => b[1] - a[1])
             .map(([value, count]) => ({ value, count }))
-        : [])
+        : priceModelsList.map(model => ({ value: model.value, count: undefined })))
     : priceModelsList.map(model => ({ value: model.value, count: undefined }));
 
   const getPriceModelLabel = (value: string) =>
