@@ -128,19 +128,24 @@ const buildProjectFacets = (projects: ProjectResult[]): ProjectFacetCounts => {
 
 const extractLocationDetails = (raw?: string | null) => {
   if (!raw) {
-    return { city: undefined, country: undefined, address: undefined };
+    return { city: undefined, state: undefined, country: undefined, address: undefined };
   }
 
   const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
   if (parts.length === 0) {
-    return { city: undefined, country: undefined, address: undefined };
+    return { city: undefined, state: undefined, country: undefined, address: undefined };
   }
 
-  const city = parts[0] || undefined;
   const country = parts.length > 1 ? parts[parts.length - 1] : undefined;
+  const state = parts.length > 2 ? parts[parts.length - 2] : parts.length === 2 ? parts[1] : undefined;
+  const city =
+    parts.length >= 3
+      ? parts[parts.length - 3]
+      : parts[0] || undefined;
 
   return {
     city,
+    state,
     country,
     address: raw.trim(),
   };
@@ -362,6 +367,7 @@ function SearchPageContent() {
       if (searchType === 'projects' && (filters.location || filters.geographicArea)) {
         const locationDetails = extractLocationDetails(filters.location || filters.geographicArea);
         if (locationDetails.city) params.append('customerCity', locationDetails.city);
+        if (locationDetails.state) params.append('customerState', locationDetails.state);
         if (locationDetails.country) params.append('customerCountry', locationDetails.country);
         if (locationDetails.address) params.append('customerAddress', locationDetails.address);
 
@@ -399,6 +405,13 @@ function SearchPageContent() {
       if (searchType === 'projects') {
         console.log('Setting server facets for projects:', data.facets);
         setServerFacets(data.facets ?? null);
+        if (data.results?.length) {
+          const priceModelsOnPage = data.results.map((project) => {
+            const projectData = project as ProjectResult;
+            return projectData?.priceModel || 'unknown';
+          });
+          console.log('Project price models on page:', priceModelsOnPage);
+        }
       } else {
         setServerFacets(null);
       }

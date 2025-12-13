@@ -12,6 +12,7 @@ export interface LocationData {
     lng: number
   }
   city?: string
+  state?: string
   country?: string
 }
 
@@ -48,22 +49,24 @@ export default function LocationAutocomplete({
 
       let city = ''
       let country = ''
+      let stateOrRegion = ''
 
       if (place.address_components) {
         for (const component of place.address_components) {
           if (component.types.includes('locality')) {
             city = component.long_name
           }
+          if (component.types.includes('administrative_area_level_1')) {
+            stateOrRegion = component.long_name
+          }
           if (component.types.includes('country')) {
             country = component.long_name
-          }
-          if (!city && component.types.includes('administrative_area_level_1')) {
-            city = component.long_name
           }
         }
       }
 
-      const formattedLocation = city && country ? `${city}, ${country}` : place.formatted_address
+      const parts = [city, stateOrRegion, country].filter(Boolean)
+      const formattedLocation = parts.length > 0 ? parts.join(', ') : place.formatted_address
 
       // Extract coordinates from geometry with proper null checks
       let coordinates: { lat: number; lng: number } | undefined;
@@ -101,6 +104,7 @@ export default function LocationAutocomplete({
         formattedAddress: formattedLocation,
         coordinates,
         city,
+        state: stateOrRegion,
         country
       }
 
