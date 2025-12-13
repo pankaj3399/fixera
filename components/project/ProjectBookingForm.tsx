@@ -62,28 +62,17 @@ interface Project {
     isRequired: boolean;
   }>;
   extraOptions: Array<{
-    name: string;
-    description?: string;
-    price: number;
-  }>;
+    name: string
+    description?: string
+    price: number
+  }>
   postBookingQuestions?: Array<{
-    id?: string;
-    question: string;
-    type: 'text' | 'multiple_choice' | 'attachment';
-    options?: string[];
-    isRequired: boolean;
-  }>;
-  distance?: {
-    address?: string;
-    maxKmRange?: number;
-    useCompanyAddress?: boolean;
-    noBorders?: boolean;
-    borderLevel?: 'none' | 'country' | 'province';
-    location?: {
-      type: 'Point';
-      coordinates: [number, number];
-    };
-  };
+    id?: string
+    question: string
+    type: 'text' | 'multiple_choice' | 'attachment'
+    options?: string[]
+    isRequired: boolean
+  }>
 }
 
 interface ProjectBookingFormProps {
@@ -1305,7 +1294,13 @@ export default function ProjectBookingForm({
         console.log('[BOOKING] Response data:', data)
 
         if (response.ok && data.success) {
-          router.replace('/dashboard');
+          // Check if project has post-booking questions
+          if (project.postBookingQuestions && project.postBookingQuestions.length > 0 && data.booking?._id) {
+            // Redirect to booking detail page with post-booking questions flag
+            router.replace(`/bookings/${data.booking._id}?postBookingQuestions=true`);
+          } else {
+            router.replace('/dashboard');
+          }
           return;
         } else {
           console.error('[BOOKING] Request failed')
@@ -1546,7 +1541,7 @@ export default function ProjectBookingForm({
                               <div>
                                 <p className="text-2xl font-bold text-blue-600">
                                   {formatCurrency(selectedPackage.pricing.amount)}
-                                  <span className="text-sm font-normal text-gray-500 ml-1">/unit</span>
+                                  <span className="text-sm font-normal text-gray-500 ml-1">/{project.priceModel || 'unit'}</span>
                                 </p>
                                 {selectedPackage.pricing.minProjectValue && (
                                   <p className="text-xs text-gray-500 mt-1">
@@ -1566,21 +1561,30 @@ export default function ProjectBookingForm({
                     {shouldCollectUsage(selectedPackage.pricing.type) && (
                       <div className="space-y-4">
                         <div>
-                          <Label htmlFor="estimated-usage">Estimated Usage *</Label>
-                          <Input
-                            id="estimated-usage"
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={estimatedUsage}
-                            onChange={(e) => {
-                              const value = Number(e.target.value)
-                              setEstimatedUsage(Number.isNaN(value) ? 1 : Math.max(1, value))
-                            }}
-                            className="text-lg mt-2"
-                          />
+                          <Label htmlFor="estimated-usage">
+                            Estimated Usage {project.priceModel ? `(${project.priceModel})` : ''} *
+                          </Label>
+                          <div className="relative mt-2">
+                            <Input
+                              id="estimated-usage"
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={estimatedUsage}
+                              onChange={(e) => {
+                                const value = Number(e.target.value)
+                                setEstimatedUsage(Number.isNaN(value) ? 1 : Math.max(1, value))
+                              }}
+                              className="text-lg pr-16"
+                            />
+                            {project.priceModel && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none">
+                                {project.priceModel}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 mt-1">
-                            Provide your best estimate so we can calculate an indicative price.
+                            Provide your best estimate{project.priceModel ? ` in ${project.priceModel}` : ''} so we can calculate an indicative price.
                           </p>
                         </div>
 
@@ -1591,7 +1595,7 @@ export default function ProjectBookingForm({
                               {formatCurrency(estimatedUsage * (selectedPackage.pricing.amount || 0))}
                             </p>
                             <p className="text-sm text-gray-500">
-                              {estimatedUsage} units x {formatCurrency(selectedPackage.pricing.amount)}/unit
+                              {estimatedUsage} {project.priceModel || 'units'} x {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'}
                             </p>
                             {selectedPackage.pricing.minProjectValue &&
                               estimatedUsage * (selectedPackage.pricing.amount || 0) <
@@ -2220,7 +2224,7 @@ export default function ProjectBookingForm({
 
                         {selectedPackage.pricing.type === 'unit' && (
                           <p className="text-xs text-gray-600 pt-2">
-                            Based on {estimatedUsage} units at {formatCurrency(selectedPackage.pricing.amount)}/unit
+                            Based on {estimatedUsage} {project.priceModel || 'units'} at {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'}
                           </p>
                         )}
                       </div>
@@ -2322,7 +2326,7 @@ export default function ProjectBookingForm({
                         {selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount && (
                           <span className="font-semibold text-blue-600">
                             {formatCurrency(selectedPackage.pricing.amount)}
-                            <span className="text-xs font-normal text-gray-500 ml-1">/unit</span>
+                            <span className="text-xs font-normal text-gray-500 ml-1">/{project.priceModel || 'unit'}</span>
                           </span>
                         )}
                         {selectedPackage.pricing.type === 'rfq' && (
@@ -2399,7 +2403,7 @@ export default function ProjectBookingForm({
 
                       {selectedPackage.pricing.type === 'unit' && estimatedUsage && selectedPackage.pricing.amount && (
                         <p className="text-xs text-gray-600">
-                          ({estimatedUsage} units × {formatCurrency(selectedPackage.pricing.amount)}/unit)
+                          ({estimatedUsage} {project.priceModel || 'units'} × {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'})
                         </p>
                       )}
 
