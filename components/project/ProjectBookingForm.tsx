@@ -1769,6 +1769,15 @@ export default function ProjectBookingForm({
     return false;
   };
 
+  const guardOutsideServiceArea = () => {
+    if (!isOutsideServiceArea) {
+      return true
+    }
+
+    toast.error(getOutsideServiceMessage())
+    return false
+  }
+
   const handleNext = () => {
     if (!guardOutsideServiceArea()) return;
     if (!validateStep()) return;
@@ -1797,6 +1806,11 @@ export default function ProjectBookingForm({
         '[BOOKING] Submission blocked due to service radius limits'
       );
       return;
+    }
+
+    if (!guardOutsideServiceArea()) {
+      console.error('[BOOKING] Submission blocked due to service radius limits')
+      return
     }
 
     if (!validateStep()) {
@@ -2205,6 +2219,92 @@ export default function ProjectBookingForm({
   const shouldShowUsageBreakdown = Boolean(
     selectedPackage?.pricing.amount && shouldCollectUsage(selectedPackage.pricing.type)
   )
+
+  const userCoordinates = user?.location?.coordinates
+  const customerLat = typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null
+  const customerLon = typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null
+  const serviceLat = project.distance?.coordinates?.latitude ?? null
+  const serviceLon = project.distance?.coordinates?.longitude ?? null
+  const maxServiceRadius = project.distance?.maxKmRange ?? null
+
+  const calculateDistanceKm = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRad = (value: number) => (value * Math.PI) / 180
+    const R = 6371
+    const dLat = toRad(lat2 - lat1)
+    const dLon = toRad(lon2 - lon1)
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  const distanceToServiceArea = useMemo(() => {
+    if (
+      customerLat === null ||
+      customerLon === null ||
+      serviceLat === null ||
+      serviceLon === null
+    ) {
+      return null
+    }
+    return calculateDistanceKm(customerLat, customerLon, serviceLat, serviceLon)
+  }, [customerLat, customerLon, serviceLat, serviceLon])
+
+  const isOutsideServiceArea = Boolean(
+    maxServiceRadius &&
+    distanceToServiceArea !== null &&
+    distanceToServiceArea > maxServiceRadius
+  )
+  const roundedMaxRadius = typeof maxServiceRadius === 'number' ? Math.round(maxServiceRadius) : null
+  const roundedDistanceAway =
+    distanceToServiceArea !== null ? Math.round(distanceToServiceArea) : null
+
+  const getOutsideServiceMessage = () => {
+    if (!roundedMaxRadius) {
+      return 'This service is not available in your current location.'
+    }
+
+    if (roundedDistanceAway !== null) {
+      return `This service is only available within ${roundedMaxRadius}km. You are approximately ${roundedDistanceAway}km away from the service area.`
+    }
+
+    return `This service is only available within ${roundedMaxRadius}km.`
+  }
+
+  const getConsecutiveDates = (start: Date, end: Date) => {
+    const days: Date[] = []
+    let cursor = start
+    while (cursor <= end) {
+      days.push(cursor)
+      cursor = addDays(cursor, 1)
+    }
+    return days
+  }
+
+  const shortestWindowDates = shortestThroughputDetails
+    ? getConsecutiveDates(shortestThroughputDetails.startDate, shortestThroughputDetails.endDate)
+    : []
+
+  const handleApplyShortestWindow = () => {
+    if (!shortestThroughputDetails) return
+    const start = format(shortestThroughputDetails.startDate, 'yyyy-MM-dd')
+    if (isDateBlocked(start)) {
+      toast.error('The shortest window start date is currently unavailable.')
+      return
+    }
+    setHasUserSelectedDate(true)
+    setSelectedDate(start)
+    if (showCalendar) {
+      setShowCalendar(false)
+    }
+  }
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
