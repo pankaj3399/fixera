@@ -1113,6 +1113,53 @@ export default function ProjectBookingForm({
     return !projectPriceModel.includes('total')
   }
 
+  const getBufferDuration = () => {
+    if (selectedPackage?.buffer?.value && selectedPackage.buffer.value > 0) {
+      return {
+        value: selectedPackage.buffer.value,
+        unit: selectedPackage.buffer.unit || 'days'
+      }
+    }
+
+    if (project.bufferDuration?.value && project.bufferDuration.value > 0) {
+      return project.bufferDuration
+    }
+
+    return null
+  }
+
+  const getBufferDurationDays = () => {
+    const buffer = getBufferDuration()
+    if (!buffer) return 0
+    return Math.ceil(convertDurationToDays(buffer))
+  }
+
+  const getBufferDurationHours = () => {
+    const buffer = getBufferDuration()
+    if (!buffer?.value || buffer.value <= 0) return 0
+    return buffer.unit === 'hours' ? buffer.value : buffer.value * 24
+  }
+
+  const advanceWorkingDays = (startDate: Date, workingDays: number) => {
+    if (workingDays <= 0) {
+      return startDate
+    }
+
+    let cursor = startDate
+    let addedDays = 0
+
+    while (addedDays < workingDays) {
+      cursor = addDays(cursor, 1)
+      const cursorStr = format(cursor, 'yyyy-MM-dd')
+
+      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
+        addedDays++
+      }
+    }
+
+    return cursor
+  }
+
   const formatCurrency = (value?: number) =>
     typeof value === 'number'
       ? new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
@@ -1618,13 +1665,16 @@ export default function ProjectBookingForm({
     return completion;
   };
 
-  const calculateCompletionDateTime = (): Date | null => {
+  const calculateCompletionDateTime = (includeBuffer = false): Date | null => {
     if (project.timeMode !== 'hours' || !selectedDate || !selectedTime) {
       return null
     }
 
     const executionHours = getExecutionDurationHours()
-    if (executionHours <= 0) {
+    const bufferHours = includeBuffer ? getBufferDurationHours() : 0
+    const totalHours = executionHours + bufferHours
+
+    if (totalHours <= 0) {
       return null
     }
 
@@ -1632,7 +1682,7 @@ export default function ProjectBookingForm({
     const startDate = parseISO(selectedDate)
     startDate.setHours(hours, minutes, 0, 0)
     const completion = new Date(startDate)
-    completion.setHours(completion.getHours() + executionHours)
+    completion.setHours(completion.getHours() + totalHours)
     return completion
   }
 
@@ -1948,6 +1998,15 @@ export default function ProjectBookingForm({
     return multiplier * selectedPackage.pricing.amount;
   };
 
+  const getEffectivePackagePrice = (): number | null => {
+    if (!selectedPackage?.pricing.amount || selectedPackage.pricing.type === 'rfq') {
+      return null
+    }
+
+    const multiplier = shouldCollectUsage(selectedPackage.pricing.type) ? estimatedUsage : 1
+    return multiplier * selectedPackage.pricing.amount
+  }
+
   const calculateTotal = (): number => {
     let total = 0;
 
@@ -2122,6 +2181,30 @@ export default function ProjectBookingForm({
 
   const projectedCompletionDate = calculateCompletionDate()
   const projectedCompletionDateTime = calculateCompletionDateTime()
+
+  const shortestThroughputDetails = (() => {
+    if (
+      proposals?.mode !== 'days' ||
+      !proposals.shortestThroughputProposal?.start ||
+      !proposals.shortestThroughputProposal?.end
+    ) {
+      return null
+    }
+
+    try {
+      const startDate = parseISO(proposals.shortestThroughputProposal.start)
+      const endDate = parseISO(proposals.shortestThroughputProposal.end)
+      const totalDays = Math.max(1, differenceInCalendarDays(endDate, startDate) + 1)
+      return { startDate, endDate, totalDays }
+    } catch {
+      return null
+    }
+  })()
+
+  const effectivePackagePrice = getEffectivePackagePrice()
+  const shouldShowUsageBreakdown = Boolean(
+    selectedPackage?.pricing.amount && shouldCollectUsage(selectedPackage.pricing.type)
+  )
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
