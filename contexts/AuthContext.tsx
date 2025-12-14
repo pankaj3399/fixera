@@ -365,23 +365,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initializeAuth = async () => {
       setLoading(true)
-      
-      // Always check auth status on route change, except for certain paths
-      const skipAuthCheck = isPublicRoute(pathname)
-      
+
+      // Always check auth on first load to properly show user state in navbar
+      // On subsequent navigations to public routes, we can skip if already initialized
+      const skipAuthCheck = isInitialized && isPublicRoute(pathname)
+
       let currentUser = user
-      
+
       if (!skipAuthCheck) {
         currentUser = await checkAuth()
       } else {
         setLoading(false)
       }
 
-      // Apply route protection logic
-      if (!skipAuthCheck) {
+      // Apply route protection logic for non-public routes
+      if (!isPublicRoute(pathname)) {
         await handleRouteProtection(currentUser)
       }
-      
+
       setIsInitialized(true)
     }
 
