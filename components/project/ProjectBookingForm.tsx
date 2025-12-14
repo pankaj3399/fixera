@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -12,9 +12,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, Loader2, Upload, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { format, addDays, parseISO, startOfDay } from 'date-fns'
+import { format, addDays, parseISO, startOfDay, differenceInCalendarDays } from 'date-fns'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Project {
   _id: string
@@ -66,6 +67,24 @@ interface Project {
     description?: string
     price: number
   }>
+  postBookingQuestions?: Array<{
+    id?: string
+    question: string
+    type: 'text' | 'multiple_choice' | 'attachment'
+    options?: string[]
+    isRequired: boolean
+  }>
+  distance?: {
+    address?: string
+    maxKmRange?: number
+    useCompanyAddress?: boolean
+    noBorders?: boolean
+    borderLevel?: 'none' | 'country' | 'province'
+    coordinates?: {
+      latitude: number
+      longitude: number
+    }
+  }
 }
 
 interface ProjectBookingFormProps {
@@ -139,6 +158,7 @@ const hasDurationRange = (
 
 export default function ProjectBookingForm({ project, onBack, selectedSubprojectIndex }: ProjectBookingFormProps) {
   const router = useRouter()
+  const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [blockedDates, setBlockedDates] = useState<BlockedDates>({ blockedDates: [], blockedRanges: [] })
@@ -356,6 +376,53 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     }
 
     return !projectPriceModel.includes('total')
+  }
+
+  const getBufferDuration = () => {
+    if (selectedPackage?.buffer?.value && selectedPackage.buffer.value > 0) {
+      return {
+        value: selectedPackage.buffer.value,
+        unit: selectedPackage.buffer.unit || 'days'
+      }
+    }
+
+    if (project.bufferDuration?.value && project.bufferDuration.value > 0) {
+      return project.bufferDuration
+    }
+
+    return null
+  }
+
+  const getBufferDurationDays = () => {
+    const buffer = getBufferDuration()
+    if (!buffer) return 0
+    return Math.ceil(convertDurationToDays(buffer))
+  }
+
+  const getBufferDurationHours = () => {
+    const buffer = getBufferDuration()
+    if (!buffer?.value || buffer.value <= 0) return 0
+    return buffer.unit === 'hours' ? buffer.value : buffer.value * 24
+  }
+
+  const advanceWorkingDays = (startDate: Date, workingDays: number) => {
+    if (workingDays <= 0) {
+      return startDate
+    }
+
+    let cursor = startDate
+    let addedDays = 0
+
+    while (addedDays < workingDays) {
+      cursor = addDays(cursor, 1)
+      const cursorStr = format(cursor, 'yyyy-MM-dd')
+
+      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
+        addedDays++
+      }
+    }
+
+    return cursor
   }
 
   const formatCurrency = (value?: number) =>
@@ -736,43 +803,40 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     return duration.unit === 'days' ? value : value / 24
   }
 
-  const calculateCompletionDate = (): Date | null => {
+  const calculateCompletionDate = (includeBuffer = false): Date | null => {
     if (!selectedDate) return null
 
     const executionSource: AnyExecutionDuration | undefined =
       selectedPackage?.executionDuration || project.executionDuration
     const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined
-    const executionDays = convertDurationToDays(executionSource, preferRange)
-    const totalWorkingDays = Math.ceil(executionDays)
+    const executionDays = Math.ceil(convertDurationToDays(executionSource, preferRange))
 
-    if (totalWorkingDays <= 0) {
-      return parseISO(selectedDate)
+    const startingPoint = parseISO(selectedDate)
+    const completionWithoutBuffer =
+      executionDays > 0 ? advanceWorkingDays(startingPoint, executionDays) : startingPoint
+
+    if (!includeBuffer) {
+      return completionWithoutBuffer
     }
 
-    let addedDays = 0
-    let cursor = parseISO(selectedDate)
-
-    // Count working days based on professional's availability
-    while (addedDays < totalWorkingDays) {
-      cursor = addDays(cursor, 1)
-      const cursorStr = format(cursor, 'yyyy-MM-dd')
-
-      // Only count days when professional is working and not blocked
-      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
-        addedDays++
-      }
+    const bufferDays = getBufferDurationDays()
+    if (bufferDays > 0) {
+      return advanceWorkingDays(completionWithoutBuffer, bufferDays)
     }
 
-    return cursor
+    return completionWithoutBuffer
   }
 
-  const calculateCompletionDateTime = (): Date | null => {
+  const calculateCompletionDateTime = (includeBuffer = false): Date | null => {
     if (project.timeMode !== 'hours' || !selectedDate || !selectedTime) {
       return null
     }
 
     const executionHours = getExecutionDurationHours()
-    if (executionHours <= 0) {
+    const bufferHours = includeBuffer ? getBufferDurationHours() : 0
+    const totalHours = executionHours + bufferHours
+
+    if (totalHours <= 0) {
       return null
     }
 
@@ -780,7 +844,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     const startDate = parseISO(selectedDate)
     startDate.setHours(hours, minutes, 0, 0)
     const completion = new Date(startDate)
-    completion.setHours(completion.getHours() + executionHours)
+    completion.setHours(completion.getHours() + totalHours)
     return completion
   }
 
@@ -853,7 +917,17 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     return true
   }
 
+  const guardOutsideServiceArea = () => {
+    if (!isOutsideServiceArea) {
+      return true
+    }
+
+    toast.error(getOutsideServiceMessage())
+    return false
+  }
+
   const handleNext = () => {
+    if (!guardOutsideServiceArea()) return
     if (!validateStep()) return
 
     if (currentStep < 4) {
@@ -874,6 +948,11 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     console.log('[BOOKING] Current step:', currentStep)
     console.log('[BOOKING] Selected package index:', selectedPackageIndex)
     console.log('[BOOKING] Selected date:', selectedDate)
+
+    if (!guardOutsideServiceArea()) {
+      console.error('[BOOKING] Submission blocked due to service radius limits')
+      return
+    }
 
     if (!validateStep()) {
       console.error('[BOOKING] Validation failed')
@@ -953,7 +1032,13 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
         console.log('[BOOKING] Response data:', data)
 
         if (response.ok && data.success) {
-          router.replace('/dashboard');
+          // Check if project has post-booking questions
+          if (project.postBookingQuestions && project.postBookingQuestions.length > 0 && data.booking?._id) {
+            // Redirect to booking detail page with post-booking questions flag
+            router.replace(`/bookings/${data.booking._id}?postBookingQuestions=true`);
+          } else {
+            router.replace('/dashboard');
+          }
           return;
         } else {
           console.error('[BOOKING] Request failed')
@@ -1016,16 +1101,24 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     }
   }
 
+  const getEffectivePackagePrice = (): number | null => {
+    if (!selectedPackage?.pricing.amount || selectedPackage.pricing.type === 'rfq') {
+      return null
+    }
+
+    const multiplier = shouldCollectUsage(selectedPackage.pricing.type) ? estimatedUsage : 1
+    return multiplier * selectedPackage.pricing.amount
+  }
+
   const calculateTotal = (): number => {
     let total = 0
 
     if (selectedPackage) {
-      if (selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount) {
+      const packagePrice = getEffectivePackagePrice()
+      if (typeof packagePrice === 'number') {
+        total += packagePrice
+      } else if (selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount) {
         total += selectedPackage.pricing.amount
-      }
-
-      if (selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount) {
-        total += estimatedUsage * selectedPackage.pricing.amount
       }
     }
 
@@ -1041,6 +1134,116 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
 
   const projectedCompletionDate = calculateCompletionDate()
   const projectedCompletionDateTime = calculateCompletionDateTime()
+
+  const shortestThroughputDetails = (() => {
+    if (
+      proposals?.mode !== 'days' ||
+      !proposals.shortestThroughputProposal?.start ||
+      !proposals.shortestThroughputProposal?.end
+    ) {
+      return null
+    }
+
+    try {
+      const startDate = parseISO(proposals.shortestThroughputProposal.start)
+      const endDate = parseISO(proposals.shortestThroughputProposal.end)
+      const totalDays = Math.max(1, differenceInCalendarDays(endDate, startDate) + 1)
+      return { startDate, endDate, totalDays }
+    } catch {
+      return null
+    }
+  })()
+
+  const effectivePackagePrice = getEffectivePackagePrice()
+  const shouldShowUsageBreakdown = Boolean(
+    selectedPackage?.pricing.amount && shouldCollectUsage(selectedPackage.pricing.type)
+  )
+
+  const userCoordinates = user?.location?.coordinates
+  const customerLat = typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null
+  const customerLon = typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null
+  const serviceLat = project.distance?.coordinates?.latitude ?? null
+  const serviceLon = project.distance?.coordinates?.longitude ?? null
+  const maxServiceRadius = project.distance?.maxKmRange ?? null
+
+  const calculateDistanceKm = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRad = (value: number) => (value * Math.PI) / 180
+    const R = 6371
+    const dLat = toRad(lat2 - lat1)
+    const dLon = toRad(lon2 - lon1)
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  const distanceToServiceArea = useMemo(() => {
+    if (
+      customerLat === null ||
+      customerLon === null ||
+      serviceLat === null ||
+      serviceLon === null
+    ) {
+      return null
+    }
+    return calculateDistanceKm(customerLat, customerLon, serviceLat, serviceLon)
+  }, [customerLat, customerLon, serviceLat, serviceLon])
+
+  const isOutsideServiceArea = Boolean(
+    maxServiceRadius &&
+    distanceToServiceArea !== null &&
+    distanceToServiceArea > maxServiceRadius
+  )
+  const roundedMaxRadius = typeof maxServiceRadius === 'number' ? Math.round(maxServiceRadius) : null
+  const roundedDistanceAway =
+    distanceToServiceArea !== null ? Math.round(distanceToServiceArea) : null
+
+  const getOutsideServiceMessage = () => {
+    if (!roundedMaxRadius) {
+      return 'This service is not available in your current location.'
+    }
+
+    if (roundedDistanceAway !== null) {
+      return `This service is only available within ${roundedMaxRadius}km. You are approximately ${roundedDistanceAway}km away from the service area.`
+    }
+
+    return `This service is only available within ${roundedMaxRadius}km.`
+  }
+
+  const getConsecutiveDates = (start: Date, end: Date) => {
+    const days: Date[] = []
+    let cursor = start
+    while (cursor <= end) {
+      days.push(cursor)
+      cursor = addDays(cursor, 1)
+    }
+    return days
+  }
+
+  const shortestWindowDates = shortestThroughputDetails
+    ? getConsecutiveDates(shortestThroughputDetails.startDate, shortestThroughputDetails.endDate)
+    : []
+
+  const handleApplyShortestWindow = () => {
+    if (!shortestThroughputDetails) return
+    const start = format(shortestThroughputDetails.startDate, 'yyyy-MM-dd')
+    if (isDateBlocked(start)) {
+      toast.error('The shortest window start date is currently unavailable.')
+      return
+    }
+    setHasUserSelectedDate(true)
+    setSelectedDate(start)
+    if (showCalendar) {
+      setShowCalendar(false)
+    }
+  }
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
@@ -1102,6 +1305,16 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
           <h1 className="text-3xl font-bold text-gray-900">Book: {project.title}</h1>
           <p className="text-gray-600 mt-2">Complete the booking process in 4 simple steps</p>
         </div>
+
+        {isOutsideServiceArea && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="font-semibold text-red-800">Outside service area</p>
+            <p className="text-sm text-red-700 mt-1">{getOutsideServiceMessage()}</p>
+            <p className="text-xs text-red-600 mt-2">
+              Please update your profile location or choose another project closer to you.
+            </p>
+          </div>
+        )}
 
         {/* Progress Steps */}
         <div className="mb-8">
@@ -1194,7 +1407,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                               <div>
                                 <p className="text-2xl font-bold text-blue-600">
                                   {formatCurrency(selectedPackage.pricing.amount)}
-                                  <span className="text-sm font-normal text-gray-500 ml-1">/unit</span>
+                                  <span className="text-sm font-normal text-gray-500 ml-1">/{project.priceModel || 'unit'}</span>
                                 </p>
                                 {selectedPackage.pricing.minProjectValue && (
                                   <p className="text-xs text-gray-500 mt-1">
@@ -1214,21 +1427,30 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                     {shouldCollectUsage(selectedPackage.pricing.type) && (
                       <div className="space-y-4">
                         <div>
-                          <Label htmlFor="estimated-usage">Estimated Usage *</Label>
-                          <Input
-                            id="estimated-usage"
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={estimatedUsage}
-                            onChange={(e) => {
-                              const value = Number(e.target.value)
-                              setEstimatedUsage(Number.isNaN(value) ? 1 : Math.max(1, value))
-                            }}
-                            className="text-lg mt-2"
-                          />
+                          <Label htmlFor="estimated-usage">
+                            Estimated Usage {project.priceModel ? `(${project.priceModel})` : ''} *
+                          </Label>
+                          <div className="relative mt-2">
+                            <Input
+                              id="estimated-usage"
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={estimatedUsage}
+                              onChange={(e) => {
+                                const value = Number(e.target.value)
+                                setEstimatedUsage(Number.isNaN(value) ? 1 : Math.max(1, value))
+                              }}
+                              className="text-lg pr-16"
+                            />
+                            {project.priceModel && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none">
+                                {project.priceModel}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 mt-1">
-                            Provide your best estimate so we can calculate an indicative price.
+                            Provide your best estimate{project.priceModel ? ` in ${project.priceModel}` : ''} so we can calculate an indicative price.
                           </p>
                         </div>
 
@@ -1239,7 +1461,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                               {formatCurrency(estimatedUsage * (selectedPackage.pricing.amount || 0))}
                             </p>
                             <p className="text-sm text-gray-500">
-                              {estimatedUsage} units x {formatCurrency(selectedPackage.pricing.amount)}/unit
+                              {estimatedUsage} {project.priceModel || 'units'} x {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'}
                             </p>
                             {selectedPackage.pricing.minProjectValue &&
                               estimatedUsage * (selectedPackage.pricing.amount || 0) <
@@ -1386,7 +1608,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                           <div className="mt-4 space-y-2 text-xs text-gray-600">
                             <p className="font-semibold text-gray-700">Suggested dates</p>
                             <div className="flex flex-wrap gap-2">
-                              {proposals.mode === 'days' && proposals.shortestThroughputProposal && (
+                              {shortestThroughputDetails && (
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -1401,9 +1623,8 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                                     }
                                   }}
                                 >
-                                  Shortest throughput:{' '}
-                                  {proposals.shortestThroughputProposal.start &&
-                                    format(parseISO(proposals.shortestThroughputProposal.start), 'MMM d, yyyy')}
+                                  Shortest consecutive window:{' '}
+                                  {`${format(shortestThroughputDetails.startDate, 'MMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'MMM d, yyyy')}`}
                                 </Button>
                               )}
 
@@ -1422,7 +1643,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                                     }
                                   }}
                                 >
-                                  Earliest possible:{' '}
+                                  First Available Date :{' '}
                                   {proposals.earliestProposal.start &&
                                     format(parseISO(proposals.earliestProposal.start), 'MMM d, yyyy')}
                                 </Button>
@@ -1536,6 +1757,41 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                             </p>
                           </>
                         )}
+                        {project.timeMode === 'days' && shortestThroughputDetails && (
+                          <div className="border-t border-blue-300 pt-3 space-y-3">
+                            <div className="flex flex-col gap-1">
+                              <p className="text-sm text-blue-900 font-semibold">
+                                <strong>Shortest Consecutive Window</strong>{' '}
+                                <span className="text-xs font-normal">
+                                  ({shortestThroughputDetails.totalDays}{' '}
+                                  {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'})
+                                </span>
+                              </p>
+                              <p className="text-xs text-blue-700">
+                                {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {shortestWindowDates.map((day) => (
+                                <span
+                                  key={day.toISOString()}
+                                  className="px-3 py-1 text-xs rounded-full bg-white border border-blue-200 text-blue-800"
+                                >
+                                  {format(day, 'MMM d')}
+                                </span>
+                              ))}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="self-start text-xs"
+                              onClick={handleApplyShortestWindow}
+                            >
+                              Use this window
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1600,11 +1856,11 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-gray-700">Package Price:</span>
                           <span className="font-semibold">
-                            {selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount
-                              ? formatCurrency(selectedPackage.pricing.amount)
-                              : selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount
-                              ? formatCurrency(estimatedUsage * selectedPackage.pricing.amount)
-                              : 'Quote Required'}
+                          {selectedPackage.pricing.type === 'rfq'
+                            ? 'Quote Required'
+                            : typeof effectivePackagePrice === 'number'
+                            ? formatCurrency(effectivePackagePrice)
+                            : 'Quote Required'}
                           </span>
                         </div>
 
@@ -1643,9 +1899,9 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                           </div>
                         )}
 
-                        {selectedPackage.pricing.type === 'unit' && (
+                        {shouldShowUsageBreakdown && (
                           <p className="text-xs text-gray-600 pt-2">
-                            Based on {estimatedUsage} units at {formatCurrency(selectedPackage.pricing.amount)}/unit
+                            Based on {estimatedUsage} {project.priceModel || 'units'} at {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'}
                           </p>
                         )}
                       </div>
@@ -1747,7 +2003,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                         {selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount && (
                           <span className="font-semibold text-blue-600">
                             {formatCurrency(selectedPackage.pricing.amount)}
-                            <span className="text-xs font-normal text-gray-500 ml-1">/unit</span>
+                            <span className="text-xs font-normal text-gray-500 ml-1">/{project.priceModel || 'unit'}</span>
                           </span>
                         )}
                         {selectedPackage.pricing.type === 'rfq' && (
@@ -1802,6 +2058,32 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                         </p>
                       </>
                     )}
+                    {project.timeMode === 'days' && shortestThroughputDetails && (
+                      <div className="border-t border-gray-300 pt-3 space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm font-semibold">
+                            <strong>Shortest Consecutive Window</strong>{' '}
+                            <span className="text-xs font-normal">
+                              ({shortestThroughputDetails.totalDays}{' '}
+                              {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'})
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {`${format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}`}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {shortestWindowDates.map((day) => (
+                            <span
+                              key={day.toISOString()}
+                              className="px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800"
+                            >
+                              {format(day, 'MMM d')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1814,17 +2096,17 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-gray-700">Package Price:</span>
                         <span className="font-semibold">
-                          {selectedPackage.pricing.type === 'fixed' && selectedPackage.pricing.amount
-                            ? formatCurrency(selectedPackage.pricing.amount)
-                            : selectedPackage.pricing.type === 'unit' && selectedPackage.pricing.amount
-                            ? formatCurrency(estimatedUsage * selectedPackage.pricing.amount)
+                          {selectedPackage.pricing.type === 'rfq'
+                            ? 'Quote Required'
+                            : typeof effectivePackagePrice === 'number'
+                            ? formatCurrency(effectivePackagePrice)
                             : 'Quote Required'}
                         </span>
                       </div>
 
-                      {selectedPackage.pricing.type === 'unit' && estimatedUsage && selectedPackage.pricing.amount && (
+                      {shouldShowUsageBreakdown && (
                         <p className="text-xs text-gray-600">
-                          ({estimatedUsage} units × {formatCurrency(selectedPackage.pricing.amount)}/unit)
+                          ({estimatedUsage} {project.priceModel || 'units'} × {formatCurrency(selectedPackage.pricing.amount)}/{project.priceModel || 'unit'})
                         </p>
                       )}
 
@@ -1906,11 +2188,13 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
           </Button>
 
           {currentStep < 4 ? (
-            <Button onClick={handleNext}>Next Step</Button>
+            <Button onClick={handleNext} disabled={isOutsideServiceArea}>
+              Next Step
+            </Button>
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || isOutsideServiceArea}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (

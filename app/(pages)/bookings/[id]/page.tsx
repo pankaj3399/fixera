@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useState } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, Loader2, ClipboardCheck, Upload } from "lucide-react"
+import { toast } from "sonner"
 
 type BookingStatus =
   | "rfq"
@@ -21,6 +26,20 @@ type BookingStatus =
   | "dispute"
   | "refunded"
   | string
+
+interface PostBookingQuestion {
+  id?: string
+  question: string
+  type: "text" | "multiple_choice" | "attachment"
+  options?: string[]
+  isRequired: boolean
+}
+
+interface PostBookingAnswer {
+  questionId: string
+  question: string
+  answer: string
+}
 
 interface BookingDetail {
   _id: string
@@ -41,12 +60,14 @@ interface BookingDetail {
   scheduledEndDate?: string
   createdAt?: string
   updatedAt?: string
+  postBookingData?: PostBookingAnswer[]
   project?: {
     _id: string
     title?: string
     category?: string
     service?: string
     description?: string
+    postBookingQuestions?: PostBookingQuestion[]
   }
   professional?: {
     _id: string
@@ -96,11 +117,16 @@ export default function BookingDetailPage() {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const bookingId = (params?.id || params?.bookingId) as string | undefined
+  const showPostBookingQuestions = searchParams?.get("postBookingQuestions") === "true"
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [postBookingAnswers, setPostBookingAnswers] = useState<Record<number, string>>({})
+  const [submittingAnswers, setSubmittingAnswers] = useState(false)
+  const [answersSubmitted, setAnswersSubmitted] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -136,6 +162,66 @@ export default function BookingDetailPage() {
 
     fetchBooking()
   }, [bookingId, isAuthenticated])
+
+  // Check if post-booking questions need to be answered
+  const postBookingQuestions = booking?.project?.postBookingQuestions || []
+  const hasPostBookingQuestions = postBookingQuestions.length > 0
+  const alreadyAnswered = (booking?.postBookingData?.length || 0) > 0
+  const shouldShowPostBookingForm = showPostBookingQuestions && hasPostBookingQuestions && !alreadyAnswered && !answersSubmitted
+
+  const handleAnswerChange = (index: number, answer: string) => {
+    setPostBookingAnswers(prev => ({ ...prev, [index]: answer }))
+  }
+
+  const handleSubmitPostBookingAnswers = async () => {
+    if (!booking || !bookingId) return
+
+    // Validate required answers
+    const missingRequired = postBookingQuestions.some((q, index) =>
+      q.isRequired && !postBookingAnswers[index]?.trim()
+    )
+
+    if (missingRequired) {
+      toast.error("Please answer all required questions")
+      return
+    }
+
+    setSubmittingAnswers(true)
+
+    try {
+      const answers = postBookingQuestions.map((q, index) => ({
+        questionId: q.id || `q-${index}`,
+        question: q.question,
+        answer: postBookingAnswers[index] || ""
+      })).filter(a => a.answer.trim())
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/post-booking-answers`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ answers })
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        toast.success("Thank you! Your answers have been submitted.")
+        setAnswersSubmitted(true)
+        // Update the local booking state
+        setBooking(prev => prev ? { ...prev, postBookingData: answers } : prev)
+      } else {
+        toast.error(data.msg || "Failed to submit answers. Please try again.")
+      }
+    } catch (err) {
+      console.error("Failed to submit post-booking answers:", err)
+      toast.error("Failed to submit answers. Please try again.")
+    } finally {
+      setSubmittingAnswers(false)
+    }
+  }
 
   if (loading || isLoading) {
     return (
@@ -178,6 +264,115 @@ export default function BookingDetailPage() {
           <Card className="bg-rose-50 border border-rose-100">
             <CardContent className="py-4 text-sm text-rose-700">
               {error}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Post-Booking Questions Form */}
+        {!error && booking && shouldShowPostBookingForm && (
+          <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+                <div>
+                  <CardTitle className="text-lg text-green-800">Booking Confirmed!</CardTitle>
+                  <CardDescription className="text-green-700">
+                    Please answer the following questions to help the service provider prepare for your appointment.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {postBookingQuestions.map((question, index) => (
+                <div key={index} className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-900">
+                    {question.question}
+                    {question.isRequired && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+
+                  {question.type === "text" && (
+                    <Textarea
+                      placeholder="Your answer..."
+                      value={postBookingAnswers[index] || ""}
+                      onChange={(e) => handleAnswerChange(index, e.target.value)}
+                      rows={3}
+                      className="bg-white"
+                    />
+                  )}
+
+                  {question.type === "multiple_choice" && question.options && (
+                    <RadioGroup
+                      value={postBookingAnswers[index] || ""}
+                      onValueChange={(value) => handleAnswerChange(index, value)}
+                    >
+                      {question.options.map((option, optIdx) => (
+                        <div key={optIdx} className="flex items-center space-x-2">
+                          <RadioGroupItem value={option} id={`q${index}-opt${optIdx}`} />
+                          <Label htmlFor={`q${index}-opt${optIdx}`} className="font-normal cursor-pointer">
+                            {option}
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  )}
+
+                  {question.type === "attachment" && (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-white">
+                      <Upload className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">File upload coming soon</p>
+                      <Input
+                        type="text"
+                        placeholder="For now, please describe or provide a link"
+                        value={postBookingAnswers[index] || ""}
+                        onChange={(e) => handleAnswerChange(index, e.target.value)}
+                        className="mt-2"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  onClick={handleSubmitPostBookingAnswers}
+                  disabled={submittingAnswers}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {submittingAnswers ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Submit Answers
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/dashboard")}
+                >
+                  Skip for Now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Success message after submitting answers */}
+        {!error && booking && answersSubmitted && (
+          <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200">
+            <CardContent className="py-8 text-center">
+              <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-green-800 mb-2">Thank You!</h3>
+              <p className="text-green-700 mb-4">
+                Your answers have been submitted successfully. The service provider will review them shortly.
+              </p>
+              <Button onClick={() => router.push("/dashboard")} className="bg-green-600 hover:bg-green-700">
+                Go to Dashboard
+              </Button>
             </CardContent>
           </Card>
         )}
