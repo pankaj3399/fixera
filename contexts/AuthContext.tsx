@@ -407,9 +407,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initializeAuth = async () => {
       setLoading(true)
 
+      // Check if this route has role restrictions (takes priority over public routes)
+      const allowedRoles = getAllowedRoles(pathname)
+      const isRoleRestrictedRoute = allowedRoles.length > 0
+      const needsProtection = isRoleRestrictedRoute || isProtectedRoute(pathname) || !isPublicRoute(pathname)
+
       // Always check auth on first load to properly show user state in navbar
-      // On subsequent navigations to public routes, we can skip if already initialized
-      const skipAuthCheck = isInitialized && isPublicRoute(pathname)
+      // On subsequent navigations to truly public routes, we can skip if already initialized
+      const skipAuthCheck = isInitialized && !needsProtection
 
       let currentUser = user
 
@@ -419,8 +424,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false)
       }
 
-      // Apply route protection logic for non-public routes
-      if (!isPublicRoute(pathname)) {
+      // Apply route protection logic for protected/role-restricted routes
+      if (needsProtection) {
         await handleRouteProtection(currentUser)
       }
 
