@@ -1144,16 +1144,26 @@ export default function ProjectBookingForm({
     if (workingDays <= 0) {
       return startDate
     }
+    if (workingDays === 1) {
+      return startDate
+    }
 
     let cursor = startDate
-    let addedDays = 0
+    let countedDays = 0
 
-    while (addedDays < workingDays) {
+    // First, check if startDate itself is a working day and count it
+    const startStr = format(startDate, 'yyyy-MM-dd')
+    if (isProfessionalWorkingDay(startDate) && !isDateBlocked(startStr)) {
+      countedDays = 1
+    }
+
+    // Now find remaining working days
+    while (countedDays < workingDays) {
       cursor = addDays(cursor, 1)
       const cursorStr = format(cursor, 'yyyy-MM-dd')
 
       if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
-        addedDays++
+        countedDays++
       }
     }
 
@@ -1266,6 +1276,58 @@ export default function ProjectBookingForm({
     return intervals
   }
 
+  const shouldBlockDayForIntervals = (date: Date, intervals: Array<{ start: Date; end: Date }>) => {
+    if (intervals.length === 0) {
+      return false
+    }
+
+    const { startTime, endTime } = getWorkingHoursForDate(date)
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
+
+    const workingStart = new Date(date)
+    workingStart.setHours(startHour, startMin, 0, 0)
+    const workingEnd = new Date(date)
+    workingEnd.setHours(endHour, endMin, 0, 0)
+
+    if (workingEnd <= workingStart) {
+      return true
+    }
+
+    const clamped = intervals
+      .map(interval => {
+        const start = Math.max(interval.start.getTime(), workingStart.getTime())
+        const end = Math.min(interval.end.getTime(), workingEnd.getTime())
+        return { start, end }
+      })
+      .filter(interval => interval.end > interval.start)
+      .sort((a, b) => a.start - b.start)
+
+    if (clamped.length === 0) {
+      return false
+    }
+
+    let totalMinutes = 0
+    let currentStart = clamped[0].start
+    let currentEnd = clamped[0].end
+
+    for (let i = 1; i < clamped.length; i++) {
+      const interval = clamped[i]
+      if (interval.start <= currentEnd) {
+        currentEnd = Math.max(currentEnd, interval.end)
+      } else {
+        totalMinutes += (currentEnd - currentStart) / (1000 * 60)
+        currentStart = interval.start
+        currentEnd = interval.end
+      }
+    }
+
+    totalMinutes += (currentEnd - currentStart) / (1000 * 60)
+
+    // Block the day if 4 or more hours are blocked (matches backend logic)
+    return totalMinutes / 60 >= PARTIAL_BLOCK_THRESHOLD_HOURS
+  }
+
   const generateTimeSlotsForDate = (date: Date): string[] => {
     const slots: string[] = []
     if (project.timeMode !== 'hours') {
@@ -1303,6 +1365,10 @@ export default function ProjectBookingForm({
     const executionMinutes = executionHours * 60
     const lastSlotMinutes = closingTimeMinutes - executionMinutes
     const blockedIntervals = getBlockedIntervalsForDate(date)
+
+    // NOTE: For hours mode, we do NOT use shouldBlockDayForIntervals (4-hour threshold)
+    // because we want customers to be able to book any remaining available slots
+    // The per-slot overlap check below handles blocking individual time slots
 
     // Generate slots from start to last available slot
     let currentMinutes = startHour * 60 + startMin
@@ -1513,6 +1579,9 @@ export default function ProjectBookingForm({
     return [...disabledMatchers, nonWorkingDayMatcher];
   };
 
+  // Matcher for weekend days (unselectable but styled differently from blocked)
+  const getWeekendMatcher = () => isWeekend
+
   const getMinDate = (): string | null => {
     console.log('[getMinDate] Starting calculation...');
     console.log('[getMinDate] Project timeMode:', projectMode);
@@ -1684,6 +1753,84 @@ export default function ProjectBookingForm({
     const completion = new Date(startDate)
     completion.setHours(completion.getHours() + totalHours)
     return completion
+  }
+
+  const getSelectedStartPoint = (): Date | null => {
+    if (project.timeMode === 'hours') {
+      if (selectedDate && selectedTime) {
+        const [hours, minutes] = selectedTime.split(':').map(Number)
+        const start = parseISO(selectedDate)
+        start.setHours(hours, minutes, 0, 0)
+        return start
+      }
+      if (proposals?.earliestProposal?.start) {
+        return parseISO(proposals.earliestProposal.start)
+      }
+      if (proposals?.earliestBookableDate) {
+        return parseISO(proposals.earliestBookableDate)
+      }
+      return null
+    }
+
+    if (selectedDate) {
+      return parseISO(selectedDate)
+    }
+    if (proposals?.earliestProposal?.start) {
+      return parseISO(proposals.earliestProposal.start)
+    }
+    if (proposals?.earliestBookableDate) {
+      return parseISO(proposals.earliestBookableDate)
+    }
+    return null
+  }
+
+  const getEstimatedCompletionPoint = (): Date | null => {
+    if (project.timeMode === 'hours') {
+      const completion = calculateCompletionDateTime(true)
+      if (completion) {
+        return completion
+      }
+      if (proposals?.earliestProposal?.end) {
+        return parseISO(proposals.earliestProposal.end)
+      }
+      return null
+    }
+
+    const completion = calculateCompletionDate(true)
+    if (completion) {
+      return completion
+    }
+    if (proposals?.earliestProposal?.end) {
+      return parseISO(proposals.earliestProposal.end)
+    }
+    if (proposals?.shortestThroughputProposal?.end) {
+      return parseISO(proposals.shortestThroughputProposal.end)
+    }
+    return null
+  }
+
+  const formatSchedulePointLabel = (point: Date | null) => {
+    if (!point) {
+      return null
+    }
+    return project.timeMode === 'hours'
+      ? format(point, 'EEEE, MMMM d, yyyy h:mm a')
+      : format(point, 'EEEE, MMMM d, yyyy')
+  }
+
+  const getBufferSummaryLabel = () => {
+    if (project.timeMode === 'hours') {
+      const bufferHours = getBufferDurationHours()
+      if (bufferHours > 0) {
+        return `Includes ${bufferHours} ${bufferHours === 1 ? 'hour' : 'hours'} of buffer time`
+      }
+    } else {
+      const bufferDays = getBufferDurationDays()
+      if (bufferDays > 0) {
+        return `Includes ${bufferDays} ${bufferDays === 1 ? 'day' : 'days'} of buffer time`
+      }
+    }
+    return null
   }
 
   const handleRFQAnswerChange = (index: number, answer: string) => {
@@ -2305,6 +2452,12 @@ export default function ProjectBookingForm({
       setShowCalendar(false)
     }
   }
+
+  const scheduleStartPoint = getSelectedStartPoint()
+  const scheduleEndPoint = getEstimatedCompletionPoint()
+  const scheduleStartLabel = formatSchedulePointLabel(scheduleStartPoint)
+  const scheduleEndLabel = formatSchedulePointLabel(scheduleEndPoint)
+  const bufferSummary = getBufferSummaryLabel()
 
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {

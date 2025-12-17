@@ -331,6 +331,13 @@ export default function ProjectDetailPage() {
     viewerTimeZone,
     includeTime
   );
+  const firstAvailableWindow = proposals?.earliestProposal || null;
+  const firstAvailableWindowLabel = formatWindowRangeLabel(firstAvailableWindow, projectTimezone);
+  const estimatedCompletionLabel = formatDateInZone(firstAvailableWindow?.end, projectTimezone);
+  const shortestThroughputLabel = formatWindowRangeLabel(
+    proposals?.shortestThroughputProposal,
+    projectTimezone
+  );
 
   const priceModelLabel = project.priceModel
     ? formatPriceModelLabel(project.priceModel)
