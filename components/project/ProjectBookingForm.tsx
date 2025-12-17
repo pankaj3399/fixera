@@ -166,6 +166,7 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   const [loadingWorkingHours, setLoadingWorkingHours] = useState(true)
   const [proposals, setProposals] = useState<ScheduleProposalsResponse['proposals'] | null>(null)
   const [professionalAvailability, setProfessionalAvailability] = useState<ProfessionalAvailability | null>(null)
+  const PARTIAL_BLOCK_THRESHOLD_HOURS = 4
 
 
   // Form state
@@ -409,16 +410,26 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     if (workingDays <= 0) {
       return startDate
     }
+    if (workingDays === 1) {
+      return startDate
+    }
 
     let cursor = startDate
-    let addedDays = 0
+    let countedDays = 0
 
-    while (addedDays < workingDays) {
+    // First, check if startDate itself is a working day and count it
+    const startStr = format(startDate, 'yyyy-MM-dd')
+    if (isProfessionalWorkingDay(startDate) && !isDateBlocked(startStr)) {
+      countedDays = 1
+    }
+
+    // Now find remaining working days
+    while (countedDays < workingDays) {
       cursor = addDays(cursor, 1)
       const cursorStr = format(cursor, 'yyyy-MM-dd')
 
       if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
-        addedDays++
+        countedDays++
       }
     }
 
@@ -531,6 +542,58 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     return intervals
   }
 
+  const shouldBlockDayForIntervals = (date: Date, intervals: Array<{ start: Date; end: Date }>) => {
+    if (intervals.length === 0) {
+      return false
+    }
+
+    const { startTime, endTime } = getWorkingHoursForDate(date)
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
+
+    const workingStart = new Date(date)
+    workingStart.setHours(startHour, startMin, 0, 0)
+    const workingEnd = new Date(date)
+    workingEnd.setHours(endHour, endMin, 0, 0)
+
+    if (workingEnd <= workingStart) {
+      return true
+    }
+
+    const clamped = intervals
+      .map(interval => {
+        const start = Math.max(interval.start.getTime(), workingStart.getTime())
+        const end = Math.min(interval.end.getTime(), workingEnd.getTime())
+        return { start, end }
+      })
+      .filter(interval => interval.end > interval.start)
+      .sort((a, b) => a.start - b.start)
+
+    if (clamped.length === 0) {
+      return false
+    }
+
+    let totalMinutes = 0
+    let currentStart = clamped[0].start
+    let currentEnd = clamped[0].end
+
+    for (let i = 1; i < clamped.length; i++) {
+      const interval = clamped[i]
+      if (interval.start <= currentEnd) {
+        currentEnd = Math.max(currentEnd, interval.end)
+      } else {
+        totalMinutes += (currentEnd - currentStart) / (1000 * 60)
+        currentStart = interval.start
+        currentEnd = interval.end
+      }
+    }
+
+    totalMinutes += (currentEnd - currentStart) / (1000 * 60)
+
+    // Block the day if 4 or more hours are blocked (matches backend logic)
+    return totalMinutes / 60 >= PARTIAL_BLOCK_THRESHOLD_HOURS
+  }
+
   const generateTimeSlotsForDate = (date: Date): string[] => {
     const slots: string[] = []
     if (project.timeMode !== 'hours') {
@@ -568,6 +631,10 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     const executionMinutes = executionHours * 60
     const lastSlotMinutes = closingTimeMinutes - executionMinutes
     const blockedIntervals = getBlockedIntervalsForDate(date)
+
+    // NOTE: For hours mode, we do NOT use shouldBlockDayForIntervals (4-hour threshold)
+    // because we want customers to be able to book any remaining available slots
+    // The per-slot overlap check below handles blocking individual time slots
 
     // Generate slots from start to last available slot
     let currentMinutes = startHour * 60 + startMin
@@ -727,12 +794,21 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
       })
     }
 
+    // Only include non-weekday working days (not weekends) in the blocked style
+    // Weekends are handled separately with the "weekend" modifier for different styling
     const nonWorkingDayMatcher = (date: Date) => {
+      // If it's a weekend, don't mark as disabled here (weekend modifier handles it)
+      if (isWeekend(date)) {
+        return false
+      }
       return !isProfessionalWorkingDay(date)
     }
 
     return [...disabledMatchers, nonWorkingDayMatcher]
   }
+
+  // Matcher for weekend days (unselectable but styled differently from blocked)
+  const getWeekendMatcher = () => isWeekend
 
   const getMinDate = (): string | null => {
     console.log('[getMinDate] Starting calculation...')
@@ -846,6 +922,84 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     const completion = new Date(startDate)
     completion.setHours(completion.getHours() + totalHours)
     return completion
+  }
+
+  const getSelectedStartPoint = (): Date | null => {
+    if (project.timeMode === 'hours') {
+      if (selectedDate && selectedTime) {
+        const [hours, minutes] = selectedTime.split(':').map(Number)
+        const start = parseISO(selectedDate)
+        start.setHours(hours, minutes, 0, 0)
+        return start
+      }
+      if (proposals?.earliestProposal?.start) {
+        return parseISO(proposals.earliestProposal.start)
+      }
+      if (proposals?.earliestBookableDate) {
+        return parseISO(proposals.earliestBookableDate)
+      }
+      return null
+    }
+
+    if (selectedDate) {
+      return parseISO(selectedDate)
+    }
+    if (proposals?.earliestProposal?.start) {
+      return parseISO(proposals.earliestProposal.start)
+    }
+    if (proposals?.earliestBookableDate) {
+      return parseISO(proposals.earliestBookableDate)
+    }
+    return null
+  }
+
+  const getEstimatedCompletionPoint = (): Date | null => {
+    if (project.timeMode === 'hours') {
+      const completion = calculateCompletionDateTime(true)
+      if (completion) {
+        return completion
+      }
+      if (proposals?.earliestProposal?.end) {
+        return parseISO(proposals.earliestProposal.end)
+      }
+      return null
+    }
+
+    const completion = calculateCompletionDate(true)
+    if (completion) {
+      return completion
+    }
+    if (proposals?.earliestProposal?.end) {
+      return parseISO(proposals.earliestProposal.end)
+    }
+    if (proposals?.shortestThroughputProposal?.end) {
+      return parseISO(proposals.shortestThroughputProposal.end)
+    }
+    return null
+  }
+
+  const formatSchedulePointLabel = (point: Date | null) => {
+    if (!point) {
+      return null
+    }
+    return project.timeMode === 'hours'
+      ? format(point, 'EEEE, MMMM d, yyyy h:mm a')
+      : format(point, 'EEEE, MMMM d, yyyy')
+  }
+
+  const getBufferSummaryLabel = () => {
+    if (project.timeMode === 'hours') {
+      const bufferHours = getBufferDurationHours()
+      if (bufferHours > 0) {
+        return `Includes ${bufferHours} ${bufferHours === 1 ? 'hour' : 'hours'} of buffer time`
+      }
+    } else {
+      const bufferDays = getBufferDurationDays()
+      if (bufferDays > 0) {
+        return `Includes ${bufferDays} ${bufferDays === 1 ? 'day' : 'days'} of buffer time`
+      }
+    }
+    return null
   }
 
   const handleRFQAnswerChange = (index: number, answer: string) => {
@@ -1245,6 +1399,12 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
     }
   }
 
+  const scheduleStartPoint = getSelectedStartPoint()
+  const scheduleEndPoint = getEstimatedCompletionPoint()
+  const scheduleStartLabel = formatSchedulePointLabel(scheduleStartPoint)
+  const scheduleEndLabel = formatSchedulePointLabel(scheduleEndPoint)
+  const bufferSummary = getBufferSummaryLabel()
+
   const getPreparationDurationLabel = () => {
     if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
       return `${selectedPackage.deliveryPreparation} ${selectedPackage.deliveryPreparationUnit || 'days'}`
@@ -1495,6 +1655,32 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                   </p>
                 </div>
 
+                {(scheduleStartLabel || scheduleEndLabel) && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-gray-700">
+                    <p className="font-semibold text-gray-900 mb-1">Estimated schedule</p>
+                    {scheduleStartLabel && (
+                      <p>
+                        Start: <span className="font-medium text-gray-900">{scheduleStartLabel}</span>
+                      </p>
+                    )}
+                    {scheduleEndLabel && (
+                      <p>
+                        Estimated completion:{' '}
+                        <span className="font-medium text-gray-900">{scheduleEndLabel}</span>
+                      </p>
+                    )}
+                    {bufferSummary && (
+                      <p className="text-xs text-gray-600 mt-1">{bufferSummary}</p>
+                    )}
+                    {shortestThroughputDetails && (
+                      <p className="text-xs text-gray-600 mt-2">
+                        Shortest consecutive window available:{' '}
+                        {`${format(shortestThroughputDetails.startDate, 'MMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'MMM d, yyyy')}`}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {(loadingAvailability || loadingWorkingHours) ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -1522,6 +1708,24 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                               selected={selectedDate ? parseISO(selectedDate) : undefined}
                                 onSelect={(date) => {
                                   if (date) {
+                                    // Prevent selection of weekends
+                                    if (isWeekend(date)) {
+                                      toast.error('Weekends are not available for booking')
+                                      return
+                                    }
+                                    // Prevent selection of other non-working days
+                                    if (!isProfessionalWorkingDay(date)) {
+                                      toast.error('This day is not a working day')
+                                      return
+                                    }
+                                    // For hours mode, check if there are available time slots
+                                    if (project.timeMode === 'hours') {
+                                      const dateStr = format(date, 'yyyy-MM-dd')
+                                      if (isDateBlocked(dateStr)) {
+                                        toast.error('No available time slots on this day')
+                                        return
+                                      }
+                                    }
                                     setHasUserSelectedDate(true)
                                     setSelectedDate(format(date, 'yyyy-MM-dd'))
                                     setShowCalendar(false)
@@ -1537,8 +1741,9 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                                 ...getDisabledDays()
                               ]}
                               modifiers={{
-                                weekend: isWeekend,
-                                blocked: (date) => isDateBlocked(format(date, 'yyyy-MM-dd'))
+                                weekend: isWeekend, // Style weekends differently from blocked (gray, not red)
+                                blocked: (date) => isDateBlocked(format(date, 'yyyy-MM-dd')),
+                                nonWorking: (date) => !isProfessionalWorkingDay(date) && !isWeekend(date)
                               }}
                               styles={{
                                 months: { width: '100%' },
@@ -1567,8 +1772,16 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                                   color: '#991b1b'
                                 },
                                 weekend: {
-                                  backgroundColor: '#f3f4f6',
-                                  color: '#6b7280'
+                                  backgroundColor: '#e5e7eb',
+                                  color: '#6b7280',
+                                  cursor: 'not-allowed',
+                                  opacity: 0.7
+                                },
+                                nonWorking: {
+                                  backgroundColor: '#fef3c7',
+                                  color: '#92400e',
+                                  cursor: 'not-allowed',
+                                  opacity: 0.5
                                 },
                                 blocked: {
                                   backgroundColor: '#fee2e2',
@@ -1585,12 +1798,12 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
                             {/* Legend */}
                             <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-2 text-xs">
                               <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 bg-gray-100 border rounded"></div>
-                                <span>Weekend</span>
+                                <div className="w-6 h-6 bg-gray-200 border rounded opacity-70"></div>
+                                <span>Weekend (non-working)</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 bg-red-100 border rounded line-through text-center text-red-900">X</div>
-                                <span>Blocked/Unavailable</span>
+                                <div className="w-6 h-6 bg-red-100 border rounded line-through text-center text-red-900 opacity-50">X</div>
+                                <span>Blocked/Booked</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 bg-blue-500 border rounded"></div>

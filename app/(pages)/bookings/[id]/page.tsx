@@ -28,6 +28,7 @@ type BookingStatus =
   | string
 
 interface PostBookingQuestion {
+  _id?: string
   id?: string
   question: string
   type: "text" | "multiple_choice" | "attachment"
@@ -190,7 +191,7 @@ export default function BookingDetailPage() {
 
     try {
       const answers = postBookingQuestions.map((q, index) => ({
-        questionId: q.id || `q-${index}`,
+        questionId: q._id || q.id || `q-${index}`,
         question: q.question,
         answer: postBookingAnswers[index] || ""
       })).filter(a => a.answer.trim())
