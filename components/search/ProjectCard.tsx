@@ -77,6 +77,14 @@ interface ProjectCardProps {
       }>;
     }>;
     firstAvailableDate?: string | null;
+    firstAvailableWindow?: {
+      start: string;
+      end: string;
+    } | null;
+    shortestThroughputWindow?: {
+      start: string;
+      end: string;
+    } | null;
   };
 }
 
@@ -184,6 +192,28 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     } catch (error) {
       return 'Contact for availability';
     }
+  };
+
+  const formatDisplayDate = (dateString?: string | null) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatWindowRange = (window?: { start?: string; end?: string } | null) => {
+    if (!window?.start) return null;
+    const startLabel = formatDisplayDate(window.start);
+    const endLabel = formatDisplayDate(window.end);
+    if (!startLabel && !endLabel) return null;
+    if (startLabel && endLabel) {
+      return `${startLabel} → ${endLabel}`;
+    }
+    return startLabel || endLabel;
   };
 
   const formatSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
@@ -311,11 +341,46 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           </div>
         </div>
 
-        {/* Project Duration */}
-        {getProjectDuration() && (
-          <div className="flex items-center gap-2 mb-3 text-sm text-gray-700">
-            <Clock className="w-4 h-4 text-blue-600" />
-            <span className="font-medium">Duration: {getProjectDuration()}</span>
+        {/* Project Duration & Availability */}
+        {(getProjectDuration() || project.firstAvailableWindow || project.shortestThroughputWindow) && (
+          <div className="space-y-2 mb-3 text-sm text-gray-700">
+            {getProjectDuration() && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-600" />
+                <span className="font-medium">Duration: {getProjectDuration()}</span>
+              </div>
+            )}
+            {project.firstAvailableWindow && (
+              <div className="flex items-start gap-2">
+                <Calendar className="w-4 h-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-gray-900">First Available Slot</p>
+                  <p className="text-gray-600">
+                    {formatWindowRange(project.firstAvailableWindow) || formatAvailableDate(project.firstAvailableDate)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {!project.firstAvailableWindow && project.firstAvailableDate && (
+              <div className="flex items-start gap-2">
+                <Calendar className="w-4 h-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-gray-900">First Available Slot</p>
+                  <p className="text-gray-600">{formatAvailableDate(project.firstAvailableDate)}</p>
+                </div>
+              </div>
+            )}
+            {project.shortestThroughputWindow && (
+              <div className="flex items-start gap-2">
+                <Calendar className="w-4 h-4 text-emerald-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-gray-900">Shortest Throughput</p>
+                  <p className="text-gray-600">
+                    {formatWindowRange(project.shortestThroughputWindow)}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
