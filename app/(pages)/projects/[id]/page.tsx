@@ -184,6 +184,32 @@ const formatFirstAvailableLabel = (
   return datePart;
 };
 
+const formatDateInZone = (dateString?: string, timeZone?: string | null) => {
+  if (!dateString) return null;
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const zone = timeZone || DEFAULT_TIMEZONE;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: zone,
+  }).format(parsed);
+};
+
+const formatWindowRangeLabel = (
+  window?: { start?: string; end?: string } | null,
+  timeZone?: string | null
+) => {
+  if (!window?.start) return null;
+  const startLabel = formatDateInZone(window.start, timeZone);
+  const endLabel = formatDateInZone(window.end, timeZone);
+  if (startLabel && endLabel) {
+    return `${startLabel} → ${endLabel}`;
+  }
+  return startLabel || endLabel;
+};
+
 const formatWarrantyLabel = (warranty?: {
   value?: number;
   unit?: 'months' | 'years';
@@ -336,6 +362,13 @@ export default function ProjectDetailPage() {
   const firstAvailableLabel = formatFirstAvailableLabel(
     derivedFirstAvailableDate,
     project.timeMode,
+    projectTimezone
+  );
+  const firstAvailableWindow = proposals?.earliestProposal || null;
+  const firstAvailableWindowLabel = formatWindowRangeLabel(firstAvailableWindow, projectTimezone);
+  const estimatedCompletionLabel = formatDateInZone(firstAvailableWindow?.end, projectTimezone);
+  const shortestThroughputLabel = formatWindowRangeLabel(
+    proposals?.shortestThroughputProposal,
     projectTimezone
   );
 
@@ -518,6 +551,31 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {(firstAvailableWindowLabel || estimatedCompletionLabel || shortestThroughputLabel) && (
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t'>
+                    {firstAvailableWindowLabel && (
+                      <div className='space-y-1'>
+                        <p className='text-sm text-gray-500'>First Available Window</p>
+                        <p className='font-medium text-gray-900'>{firstAvailableWindowLabel}</p>
+                        {estimatedCompletionLabel && (
+                          <p className='text-xs text-gray-500'>
+                            Estimated completion: {estimatedCompletionLabel}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {shortestThroughputLabel && (
+                      <div className='space-y-1'>
+                        <p className='text-sm text-gray-500'>Shortest Throughput</p>
+                        <p className='font-medium text-gray-900'>{shortestThroughputLabel}</p>
+                        <p className='text-xs text-gray-500'>
+                          Based on minimum overlap and resource availability
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Project Timeline */}
                 {project.executionDuration && (
