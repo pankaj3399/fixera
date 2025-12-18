@@ -157,9 +157,19 @@ export default function DashboardPage() {
       setBookingsLoading(true)
       setBookingsError(null)
       try {
+        // Get token from localStorage for Authorization header fallback
+        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?limit=50`,
-          { credentials: "include" }
+          {
+            credentials: "include",
+            headers: Object.keys(headers).length ? headers : undefined
+          }
         )
         const data = await response.json()
 
@@ -182,11 +192,11 @@ export default function DashboardPage() {
   const fetchAdminData = async () => {
     setIsLoadingStats(true)
     try {
-      // Get token for Authorization header fallback
-      const token = getAuthToken()
+      // Get token from localStorage for Authorization header fallback
+      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
       const fetchOptions: RequestInit = {
         credentials: 'include',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
       }
 
       const [loyaltyResponse, approvalResponse, projectsResponse] = await Promise.all([
@@ -810,11 +820,11 @@ export default function DashboardPage() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        const token = getAuthToken()
+                        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
                         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/recalculate`, {
                           method: 'POST',
                           credentials: 'include',
-                          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
                         }).then(() => fetchAdminData())
                       }}
                       className="w-full"
