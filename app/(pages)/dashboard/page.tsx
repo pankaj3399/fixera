@@ -156,9 +156,19 @@ export default function DashboardPage() {
       setBookingsLoading(true)
       setBookingsError(null)
       try {
+        // Get token from localStorage for Authorization header fallback
+        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?limit=50`,
-          { credentials: "include" }
+          {
+            credentials: "include",
+            headers: Object.keys(headers).length ? headers : undefined
+          }
         )
         const data = await response.json()
 
@@ -181,16 +191,17 @@ export default function DashboardPage() {
   const fetchAdminData = async () => {
     setIsLoadingStats(true)
     try {
+      // Get token from localStorage for Authorization header fallback
+      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+      const fetchOptions: RequestInit = {
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+      }
+
       const [loyaltyResponse, approvalResponse, projectsResponse] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/analytics`, {
-          credentials: 'include'
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats/approvals`, {
-          credentials: 'include'
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/pending`, {
-          credentials: 'include'
-        }),
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/analytics`, fetchOptions),
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats/approvals`, fetchOptions),
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/pending`, fetchOptions),
       ])
 
       if (loyaltyResponse.ok) {
@@ -805,12 +816,14 @@ export default function DashboardPage() {
                     <Button onClick={() => window.open('/admin/loyalty/config', '_blank')} className="w-full">
                       Configure Loyalty Tiers
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => {
+                        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
                         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/recalculate`, {
                           method: 'POST',
-                          credentials: 'include'
+                          credentials: 'include',
+                          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
                         }).then(() => fetchAdminData())
                       }}
                       className="w-full"

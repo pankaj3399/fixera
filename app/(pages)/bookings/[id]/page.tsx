@@ -142,9 +142,15 @@ export default function BookingDetailPage() {
       setIsLoading(true)
       setError(null)
       try {
+        // Get token from localStorage for Authorization header fallback
+        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}`,
-          { credentials: "include" }
+          {
+            credentials: "include",
+            headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+          }
         )
         const data = await response.json()
 
@@ -196,11 +202,18 @@ export default function BookingDetailPage() {
         answer: postBookingAnswers[index] || ""
       })).filter(a => a.answer.trim())
 
+      // Get token from localStorage for Authorization header fallback
+      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/post-booking-answers`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           credentials: "include",
           body: JSON.stringify({ answers })
         }
