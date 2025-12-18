@@ -846,6 +846,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 onCheckedChange={(checked) => updateDistance({ noBorders: checked as boolean })}
               />
               <Label htmlFor="noBorders">Don&apos;t cross country borders</Label>
+              
             </div>
           </div>
         </CardContent>
