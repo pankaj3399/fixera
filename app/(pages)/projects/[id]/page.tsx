@@ -36,6 +36,11 @@ import {
   getCertificateGradient,
   isQualityCertificate,
 } from '@/lib/projectHighlights';
+import {
+  formatUtcViewerLabel,
+  formatWindowUtcViewer,
+  getViewerTimezone,
+} from '@/lib/timezoneDisplay';
 
 interface Project {
   _id: string;
@@ -150,66 +155,6 @@ interface ScheduleProposalsResponse {
   };
 }
 
-const DEFAULT_TIMEZONE = 'Europe/Brussels';
-
-const formatFirstAvailableLabel = (
-  dateString?: string | null,
-  timeMode?: 'hours' | 'days',
-  timeZone?: string | null
-) => {
-  if (!dateString) return null;
-  const parsed = new Date(dateString);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const zone = timeZone || DEFAULT_TIMEZONE;
-
-  const dateFormatter = new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: zone,
-  });
-  const datePart = dateFormatter.format(parsed);
-
-  if (timeMode === 'hours') {
-    const timeFormatter = new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: zone,
-    });
-    const timePart = timeFormatter.format(parsed);
-    return `${datePart} · ${timePart} (${zone})`;
-  }
-
-  return datePart;
-};
-
-const formatDateInZone = (dateString?: string, timeZone?: string | null) => {
-  if (!dateString) return null;
-  const parsed = new Date(dateString);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const zone = timeZone || DEFAULT_TIMEZONE;
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: zone,
-  }).format(parsed);
-};
-
-const formatWindowRangeLabel = (
-  window?: { start?: string; end?: string } | null,
-  timeZone?: string | null
-) => {
-  if (!window?.start) return null;
-  const startLabel = formatDateInZone(window.start, timeZone);
-  const endLabel = formatDateInZone(window.end, timeZone);
-  if (startLabel && endLabel) {
-    return `${startLabel} → ${endLabel}`;
-  }
-  return startLabel || endLabel;
-};
-
 const formatWarrantyLabel = (warranty?: {
   value?: number;
   unit?: 'months' | 'years';
@@ -255,6 +200,7 @@ export default function ProjectDetailPage() {
   const [proposals, setProposals] = useState<
     ScheduleProposalsResponse['proposals'] | null
   >(null);
+  const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('nl-NL', {
       style: 'currency',
@@ -262,6 +208,10 @@ export default function ProjectDetailPage() {
     }).format(value);
 
   const projectId = params.id as string;
+
+  useEffect(() => {
+    setViewerTimeZone(getViewerTimezone());
+  }, []);
 
   useEffect(() => {
     setCurrentImageIndex(0);
@@ -353,23 +303,20 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const projectTimezone =
-    project.professionalId?.businessInfo?.timezone || DEFAULT_TIMEZONE;
+  // Compute first available date from proposals or project data
   const derivedFirstAvailableDate =
     proposals?.earliestProposal?.start ||
     proposals?.earliestBookableDate ||
     project.firstAvailableDate;
-  const firstAvailableLabel = formatFirstAvailableLabel(
-    derivedFirstAvailableDate,
-    project.timeMode,
-    projectTimezone
-  );
   const firstAvailableWindow = proposals?.earliestProposal || null;
-  const firstAvailableWindowLabel = formatWindowRangeLabel(firstAvailableWindow, projectTimezone);
-  const estimatedCompletionLabel = formatDateInZone(firstAvailableWindow?.end, projectTimezone);
-  const shortestThroughputLabel = formatWindowRangeLabel(
+
+  // Format dates with UTC + viewer timezone
+  const firstAvailableDateLabels = formatUtcViewerLabel(derivedFirstAvailableDate, viewerTimeZone);
+  const firstAvailableWindowLabels = formatWindowUtcViewer(firstAvailableWindow, viewerTimeZone);
+  const estimatedCompletionLabels = formatUtcViewerLabel(firstAvailableWindow?.end, viewerTimeZone);
+  const shortestThroughputLabels = formatWindowUtcViewer(
     proposals?.shortestThroughputProposal,
-    projectTimezone
+    viewerTimeZone
   );
 
   const priceModelLabel = project.priceModel
@@ -552,23 +499,51 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
 
-                {(firstAvailableWindowLabel || estimatedCompletionLabel || shortestThroughputLabel) && (
+                {(firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels) && (
                   <div className='grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t'>
-                    {firstAvailableWindowLabel && (
+                    {(firstAvailableWindowLabels || firstAvailableDateLabels) && (
                       <div className='space-y-1'>
-                        <p className='text-sm text-gray-500'>First Available Window</p>
-                        <p className='font-medium text-gray-900'>{firstAvailableWindowLabel}</p>
-                        {estimatedCompletionLabel && (
-                          <p className='text-xs text-gray-500'>
-                            Estimated completion: {estimatedCompletionLabel}
-                          </p>
+                        <p className='text-sm text-gray-500'>First Available</p>
+                        {firstAvailableWindowLabels ? (
+                          <>
+                            <p className='font-medium text-gray-900'>
+                              UTC: {firstAvailableWindowLabels.utcLabel}
+                            </p>
+                            <p className='text-xs text-gray-500'>
+                              {viewerTimeZone}: {firstAvailableWindowLabels.viewerLabel}
+                            </p>
+                          </>
+                        ) : firstAvailableDateLabels ? (
+                          <>
+                            <p className='font-medium text-gray-900'>
+                              UTC: {firstAvailableDateLabels.utcLabel}
+                            </p>
+                            <p className='text-xs text-gray-500'>
+                              {viewerTimeZone}: {firstAvailableDateLabels.viewerLabel}
+                            </p>
+                          </>
+                        ) : null}
+                        {estimatedCompletionLabels && (
+                          <div className='mt-2'>
+                            <p className='text-xs text-gray-500'>
+                              Completion (UTC): {estimatedCompletionLabels.utcLabel}
+                            </p>
+                            <p className='text-xs text-gray-500'>
+                              Completion ({viewerTimeZone}): {estimatedCompletionLabels.viewerLabel}
+                            </p>
+                          </div>
                         )}
                       </div>
                     )}
-                    {shortestThroughputLabel && (
+                    {shortestThroughputLabels && (
                       <div className='space-y-1'>
                         <p className='text-sm text-gray-500'>Shortest Throughput</p>
-                        <p className='font-medium text-gray-900'>{shortestThroughputLabel}</p>
+                        <p className='font-medium text-gray-900'>
+                          UTC: {shortestThroughputLabels.utcLabel}
+                        </p>
+                        <p className='text-xs text-gray-500'>
+                          {viewerTimeZone}: {shortestThroughputLabels.viewerLabel}
+                        </p>
                         <p className='text-xs text-gray-500'>
                           Based on minimum overlap and resource availability
                         </p>
@@ -582,20 +557,6 @@ export default function ProjectDetailPage() {
                   <div className='pt-4 border-t'>
                     <h4 className='font-semibold mb-3'>Project Timeline</h4>
                     <div className='grid grid-cols-2 gap-4'>
-                      {project.preparationDuration && (
-                        <div className='flex items-start gap-2'>
-                          <Calendar className='h-5 w-5 text-blue-600 mt-0.5' />
-                          <div>
-                            <p className='text-sm text-gray-500'>
-                              Preparation Time
-                            </p>
-                            <p className='font-medium'>
-                              {project.preparationDuration.value}{' '}
-                              {project.preparationDuration.unit}
-                            </p>
-                          </div>
-                        </div>
-                      )}
                       <div className='flex items-start gap-2'>
                         <Calendar className='h-5 w-5 text-blue-600 mt-0.5' />
                         <div>

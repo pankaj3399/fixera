@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Euro, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { MapPin, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } from '@/lib/projectHighlights';
+import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
 
 interface ProjectCardProps {
   project: {
@@ -90,6 +91,7 @@ interface ProjectCardProps {
 
 const ProjectCard = ({ project }: ProjectCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
   const professional = project.professionalId;
   const professionalName = professional?.businessInfo?.companyName || professional?.name || 'Professional';
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]
@@ -100,61 +102,22 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
   const images = project.media?.images || [];
   const hasMultipleImages = images.length > 1;
 
+  useEffect(() => {
+    setViewerTimeZone(getViewerTimezone());
+  }, []);
+
+  // Pre-compute timezone labels for first available date and windows
+  const firstAvailableDateLabels = formatUtcViewerLabel(project.firstAvailableDate, viewerTimeZone);
+  const firstAvailableWindowLabels = formatWindowUtcViewer(project.firstAvailableWindow, viewerTimeZone);
+  const shortestThroughputLabels = formatWindowUtcViewer(project.shortestThroughputWindow, viewerTimeZone);
+
   const getProjectDuration = () => {
     if (project.executionDuration) {
       const exec = project.executionDuration;
       const buffer = project.bufferDuration;
-      const total = exec.value + (buffer?.value || 0);
       return `${exec.value}${buffer?.value ? `+${buffer.value}` : ''} ${exec.unit}`;
     }
     return null;
-  };
-
-  const formatAvailableDate = (dateString: string | null | undefined) => {
-    if (!dateString) {
-      return 'Contact for availability';
-    }
-
-    try {
-      const date = new Date(dateString);
-
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return 'Contact for availability';
-      }
-
-      // Format date as "MMM DD, YYYY" (e.g., "Dec 15, 2025")
-      const options: Intl.DateTimeFormatOptions = {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      };
-      return date.toLocaleDateString('en-US', options);
-    } catch (error) {
-      return 'Contact for availability';
-    }
-  };
-
-  const formatDisplayDate = (dateString?: string | null) => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return null;
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatWindowRange = (window?: { start?: string; end?: string } | null) => {
-    if (!window?.start) return null;
-    const startLabel = formatDisplayDate(window.start);
-    const endLabel = formatDisplayDate(window.end);
-    if (!startLabel && !endLabel) return null;
-    if (startLabel && endLabel) {
-      return `${startLabel} → ${endLabel}`;
-    }
-    return startLabel || endLabel;
   };
 
   const formatSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
@@ -283,7 +246,7 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
         </div>
 
         {/* Project Duration & Availability */}
-        {(getProjectDuration() || project.firstAvailableWindow || project.shortestThroughputWindow) && (
+        {(getProjectDuration() || firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels) && (
           <div className="space-y-2 mb-3 text-sm text-gray-700">
             {getProjectDuration() && (
               <div className="flex items-center gap-2">
@@ -291,33 +254,39 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                 <span className="font-medium">Duration: {getProjectDuration()}</span>
               </div>
             )}
-            {project.firstAvailableWindow && (
+            {(firstAvailableWindowLabels || firstAvailableDateLabels) && (
               <div className="flex items-start gap-2">
                 <Calendar className="w-4 h-4 text-blue-600 mt-0.5" />
                 <div>
-                  <p className="font-medium text-gray-900">First Available Slot</p>
-                  <p className="text-gray-600">
-                    {formatWindowRange(project.firstAvailableWindow) || formatAvailableDate(project.firstAvailableDate)}
-                  </p>
+                  <p className="font-medium text-gray-900">First Available</p>
+                  {firstAvailableWindowLabels ? (
+                    <>
+                      <p className="text-gray-700 text-xs">UTC: {firstAvailableWindowLabels.utcLabel}</p>
+                      <p className="text-gray-500 text-xs">
+                        {viewerTimeZone}: {firstAvailableWindowLabels.viewerLabel}
+                      </p>
+                    </>
+                  ) : firstAvailableDateLabels ? (
+                    <>
+                      <p className="text-gray-700 text-xs">UTC: {firstAvailableDateLabels.utcLabel}</p>
+                      <p className="text-gray-500 text-xs">
+                        {viewerTimeZone}: {firstAvailableDateLabels.viewerLabel}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-gray-600">Contact for availability</p>
+                  )}
                 </div>
               </div>
             )}
-            {!project.firstAvailableWindow && project.firstAvailableDate && (
-              <div className="flex items-start gap-2">
-                <Calendar className="w-4 h-4 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-gray-900">First Available Slot</p>
-                  <p className="text-gray-600">{formatAvailableDate(project.firstAvailableDate)}</p>
-                </div>
-              </div>
-            )}
-            {project.shortestThroughputWindow && (
+            {shortestThroughputLabels && (
               <div className="flex items-start gap-2">
                 <Calendar className="w-4 h-4 text-emerald-600 mt-0.5" />
                 <div>
                   <p className="font-medium text-gray-900">Shortest Throughput</p>
-                  <p className="text-gray-600">
-                    {formatWindowRange(project.shortestThroughputWindow)}
+                  <p className="text-gray-700 text-xs">UTC: {shortestThroughputLabels.utcLabel}</p>
+                  <p className="text-gray-500 text-xs">
+                    {viewerTimeZone}: {shortestThroughputLabels.viewerLabel}
                   </p>
                 </div>
               </div>
