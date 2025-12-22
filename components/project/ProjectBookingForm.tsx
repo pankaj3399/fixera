@@ -822,20 +822,27 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
       return generateTimeSlotsForDate(dateObj).length === 0
     }
 
+    // For days mode, check if explicitly blocked
     if (blockedDates.blockedDates.includes(dateString)) {
       return true
     }
 
-    return blockedDates.blockedRanges.some((range) => {
+    const dayStart = startOfDay(dateObj)
+    const dayEnd = addDays(dayStart, 1)
+
+    const intervals: Array<{ start: Date; end: Date }> = []
+    blockedDates.blockedRanges.forEach((range) => {
       const rangeStart = parseISO(range.startDate)
       const rangeEnd = parseISO(range.endDate)
       if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
-        return false
+        return
       }
-      const dayStart = startOfDay(dateObj)
-      const dayEnd = addDays(dayStart, 1)
-      return rangeStart < dayEnd && rangeEnd > dayStart
+      if (rangeStart < dayEnd && rangeEnd > dayStart) {
+        intervals.push({ start: rangeStart, end: rangeEnd })
+      }
     })
+
+    return shouldBlockDayForIntervals(dateObj, intervals)
   }
 
   const getDisabledDays = () => {
@@ -845,14 +852,37 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
       disabledMatchers.push(parseISO(dateStr))
     })
 
+    // For days mode, use a function matcher that applies the 4-hour threshold
+    // instead of disabling entire ranges
     if (project.timeMode !== 'hours') {
-      blockedDates.blockedRanges.forEach(range => {
-        const from = parseISO(range.startDate)
-        const to = parseISO(range.endDate)
-        if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())) {
-          disabledMatchers.push({ from, to })
+      // Create a function matcher that checks each day using the 4-hour threshold
+      const rangeBlockMatcher = (date: Date) => {
+        const dateStr = format(date, 'yyyy-MM-dd')
+        // Already handled by explicit blocked dates
+        if (blockedDates.blockedDates.includes(dateStr)) {
+          return false // Already disabled above
         }
-      })
+
+        const dayStart = startOfDay(date)
+        const dayEnd = addDays(dayStart, 1)
+
+        // Build intervals from blocked ranges that overlap this day
+        const intervals: Array<{ start: Date; end: Date }> = []
+        blockedDates.blockedRanges.forEach((range) => {
+          const rangeStart = parseISO(range.startDate)
+          const rangeEnd = parseISO(range.endDate)
+          if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+            return
+          }
+          if (rangeStart < dayEnd && rangeEnd > dayStart) {
+            intervals.push({ start: rangeStart, end: rangeEnd })
+          }
+        })
+
+        // Use the 4-hour threshold check
+        return shouldBlockDayForIntervals(date, intervals)
+      }
+      disabledMatchers.push(rangeBlockMatcher)
     }
 
     // Only include non-weekday working days (not weekends) in the blocked style
