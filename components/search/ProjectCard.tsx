@@ -184,53 +184,6 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     return null;
   };
 
-  const formatAvailableDate = (dateString: string | null | undefined) => {
-    if (!dateString) {
-      return 'Contact for availability';
-    }
-
-    try {
-      const date = new Date(dateString);
-
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return 'Contact for availability';
-      }
-
-      // Format date as "MMM DD, YYYY" (e.g., "Dec 15, 2025")
-      const options: Intl.DateTimeFormatOptions = {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      };
-      return date.toLocaleDateString('en-US', options);
-    } catch (error) {
-      return 'Contact for availability';
-    }
-  };
-
-  const formatDisplayDate = (dateString?: string | null) => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return null;
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatWindowRange = (window?: { start?: string; end?: string } | null) => {
-    if (!window?.start) return null;
-    const startLabel = formatDisplayDate(window.start);
-    const endLabel = formatDisplayDate(window.end);
-    if (!startLabel && !endLabel) return null;
-    if (startLabel && endLabel) {
-      return `${startLabel} → ${endLabel}`;
-    }
-    return startLabel || endLabel;
-  };
-
   const formatSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
     if (pricing.type === 'fixed' && pricing.amount) {
       return `€${pricing.amount.toLocaleString()}`;

@@ -1089,7 +1089,9 @@ export default function ProjectBookingForm({
       console.log('[BOOKING] Working hours response:', data)
       if (data.success && data.availability) {
         console.log('[BOOKING] Professional availability set:', data.availability)
+        console.log('[BOOKING] Professional timezone:', data.timezone)
         setProfessionalAvailability(data.availability)
+        setProfessionalTimezone(data.timezone || 'UTC')
       } else {
         console.warn('[BOOKING] No working hours data received or request failed')
       }
@@ -1465,6 +1467,57 @@ export default function ProjectBookingForm({
     }
 
     return `${formatTime(startTime)} - ${formatTime(endTime)} (${durationLabel})`
+  }
+
+  /**
+   * Convert a time slot from professional's timezone to UTC and viewer's timezone
+   * Returns formatted strings for display
+   */
+  const convertTimeSlotToTimezones = (timeSlot: string): { utc: string; viewer: string; professional: string } => {
+    if (!selectedDate || !timeSlot) {
+      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot }
+    }
+
+    try {
+      // Create a date in UTC (since backend works in UTC)
+      const dateStr = selectedDate // yyyy-MM-dd format
+      const utcDateTime = new Date(`${dateStr}T${timeSlot}:00Z`)
+
+      // Format for display
+      const formatTimeOnly = (date: Date, tz: string) => {
+        try {
+          return formatInTimeZone(date, tz, 'h:mm a')
+        } catch {
+          return timeSlot
+        }
+      }
+
+      // Format times for display
+      const utcTime = formatTimeOnly(utcDateTime, 'UTC')
+      const viewerTime = formatTimeOnly(utcDateTime, viewerTimeZone)
+      const professionalTime = professionalTimezone !== 'UTC'
+        ? formatTimeOnly(utcDateTime, professionalTimezone)
+        : utcTime
+
+      return { utc: utcTime, viewer: viewerTime, professional: professionalTime }
+    } catch (error) {
+      console.error('Error converting timezone:', error)
+      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot }
+    }
+  }
+
+  /**
+   * Format time slot for display showing UTC and viewer's local time
+   */
+  const formatTimeSlotDisplay = (timeSlot: string): string => {
+    const times = convertTimeSlotToTimezones(timeSlot)
+
+    // If all timezones show the same time, just show the slot
+    if (times.utc === times.viewer) {
+      return timeSlot
+    }
+
+    return `${timeSlot} (${times.viewer} your time)`
   }
 
   // Check if a time slot is in the past for today's date
@@ -2459,18 +2512,6 @@ export default function ProjectBookingForm({
   const scheduleEndLabel = formatSchedulePointLabel(scheduleEndPoint)
   const bufferSummary = getBufferSummaryLabel()
 
-  const getPreparationDurationLabel = () => {
-    if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
-      return `${selectedPackage.deliveryPreparation} ${selectedPackage.deliveryPreparationUnit || 'days'}`
-    }
-
-    if (project.preparationDuration?.value && project.preparationDuration.value > 0) {
-      return `${project.preparationDuration.value} ${project.preparationDuration.unit}`
-    }
-
-    return null
-  }
-
   const getExecutionDurationLabel = () => {
     const duration = selectedPackage?.executionDuration || project.executionDuration
     if (!duration) return null
@@ -2487,7 +2528,6 @@ export default function ProjectBookingForm({
     return `${duration.value} ${duration.unit}`
   }
 
-  const preparationLabel = getPreparationDurationLabel()
   const executionLabel = getExecutionDurationLabel()
 
   useEffect(() => {

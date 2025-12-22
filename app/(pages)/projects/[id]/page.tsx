@@ -332,11 +332,14 @@ export default function ProjectDetailPage() {
     includeTime
   );
   const firstAvailableWindow = proposals?.earliestProposal || null;
-  const firstAvailableWindowLabel = formatWindowRangeLabel(firstAvailableWindow, projectTimezone);
-  const estimatedCompletionLabel = formatDateInZone(firstAvailableWindow?.end, projectTimezone);
-  const shortestThroughputLabel = formatWindowRangeLabel(
+
+  // Format dates with UTC + viewer timezone
+  const firstAvailableDateLabels = formatUtcViewerLabel(derivedFirstAvailableDate, viewerTimeZone);
+  const firstAvailableWindowLabels = formatWindowUtcViewer(firstAvailableWindow, viewerTimeZone);
+  const estimatedCompletionLabels = formatUtcViewerLabel(firstAvailableWindow?.end, viewerTimeZone);
+  const shortestThroughputLabels = formatWindowUtcViewer(
     proposals?.shortestThroughputProposal,
-    projectTimezone
+    viewerTimeZone
   );
 
   const priceModelLabel = project.priceModel
