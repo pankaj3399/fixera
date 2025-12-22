@@ -13,9 +13,11 @@ import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, Loader2, Upload, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, addDays, parseISO, startOfDay, differenceInCalendarDays } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
 import { useAuth } from '@/contexts/AuthContext'
+import { getViewerTimezone } from '@/lib/timezoneDisplay'
 
 interface Project {
   _id: string
@@ -164,6 +166,7 @@ interface ProfessionalAvailability {
 interface WorkingHoursResponse {
   success: boolean
   availability?: ProfessionalAvailability
+  timezone?: string
 }
 
 type ProjectExecutionDuration = NonNullable<Project['executionDuration']>
@@ -185,6 +188,8 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   const [loadingWorkingHours, setLoadingWorkingHours] = useState(true)
   const [proposals, setProposals] = useState<ScheduleProposalsResponse['proposals'] | null>(null)
   const [professionalAvailability, setProfessionalAvailability] = useState<ProfessionalAvailability | null>(null)
+  const [professionalTimezone, setProfessionalTimezone] = useState<string>('UTC')
+  const [viewerTimeZone, setViewerTimeZone] = useState<string>('UTC')
   const PARTIAL_BLOCK_THRESHOLD_HOURS = 4
 
 
@@ -210,6 +215,9 @@ export default function ProjectBookingForm({ project, onBack, selectedSubproject
   }, [selectedSubprojectIndex])
 
   useEffect(() => {
+    // Set viewer's timezone on mount
+    setViewerTimeZone(getViewerTimezone())
+
     fetchTeamAvailability()
     fetchProfessionalWorkingHours()
 
@@ -689,7 +697,9 @@ export default function ProjectBookingForm({
       console.log('[BOOKING] Working hours response:', data)
       if (data.success && data.availability) {
         console.log('[BOOKING] Professional availability set:', data.availability)
+        console.log('[BOOKING] Professional timezone:', data.timezone)
         setProfessionalAvailability(data.availability)
+        setProfessionalTimezone(data.timezone || 'UTC')
       } else {
         console.warn('[BOOKING] No working hours data received or request failed')
       }
@@ -1065,6 +1075,57 @@ export default function ProjectBookingForm({
     }
 
     return `${formatTime(startTime)} - ${formatTime(endTime)} (${durationLabel})`
+  }
+
+  /**
+   * Convert a time slot from professional's timezone to UTC and viewer's timezone
+   * Returns formatted strings for display
+   */
+  const convertTimeSlotToTimezones = (timeSlot: string): { utc: string; viewer: string; professional: string } => {
+    if (!selectedDate || !timeSlot) {
+      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot }
+    }
+
+    try {
+      // Create a date in UTC (since backend works in UTC)
+      const dateStr = selectedDate // yyyy-MM-dd format
+      const utcDateTime = new Date(`${dateStr}T${timeSlot}:00Z`)
+
+      // Format for display
+      const formatTimeOnly = (date: Date, tz: string) => {
+        try {
+          return formatInTimeZone(date, tz, 'h:mm a')
+        } catch {
+          return timeSlot
+        }
+      }
+
+      // Format times for display
+      const utcTime = formatTimeOnly(utcDateTime, 'UTC')
+      const viewerTime = formatTimeOnly(utcDateTime, viewerTimeZone)
+      const professionalTime = professionalTimezone !== 'UTC'
+        ? formatTimeOnly(utcDateTime, professionalTimezone)
+        : utcTime
+
+      return { utc: utcTime, viewer: viewerTime, professional: professionalTime }
+    } catch (error) {
+      console.error('Error converting timezone:', error)
+      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot }
+    }
+  }
+
+  /**
+   * Format time slot for display showing UTC and viewer's local time
+   */
+  const formatTimeSlotDisplay = (timeSlot: string): string => {
+    const times = convertTimeSlotToTimezones(timeSlot)
+
+    // If all timezones show the same time, just show the slot
+    if (times.utc === times.viewer) {
+      return timeSlot
+    }
+
+    return `${timeSlot} (${times.viewer} your time)`
   }
 
   // Check if a time slot is in the past for today's date
@@ -1739,18 +1800,6 @@ export default function ProjectBookingForm({
   const scheduleEndLabel = formatSchedulePointLabel(scheduleEndPoint)
   const bufferSummary = getBufferSummaryLabel()
 
-  const getPreparationDurationLabel = () => {
-    if (typeof selectedPackage?.deliveryPreparation === 'number' && selectedPackage.deliveryPreparation > 0) {
-      return `${selectedPackage.deliveryPreparation} ${selectedPackage.deliveryPreparationUnit || 'days'}`
-    }
-
-    if (project.preparationDuration?.value && project.preparationDuration.value > 0) {
-      return `${project.preparationDuration.value} ${project.preparationDuration.unit}`
-    }
-
-    return null
-  }
-
   const getExecutionDurationLabel = () => {
     const duration = selectedPackage?.executionDuration || project.executionDuration
     if (!duration) return null
@@ -1767,7 +1816,6 @@ export default function ProjectBookingForm({
     return `${duration.value} ${duration.unit}`
   }
 
-  const preparationLabel = getPreparationDurationLabel()
   const executionLabel = getExecutionDurationLabel()
 
   useEffect(() => {
@@ -1988,32 +2036,6 @@ export default function ProjectBookingForm({
                     Select when you&apos;d like the work to begin. Dates when team members are unavailable are disabled.
                   </p>
                 </div>
-
-                {(scheduleStartLabel || scheduleEndLabel) && (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-gray-700">
-                    <p className="font-semibold text-gray-900 mb-1">Estimated schedule</p>
-                    {scheduleStartLabel && (
-                      <p>
-                        Start: <span className="font-medium text-gray-900">{scheduleStartLabel}</span>
-                      </p>
-                    )}
-                    {scheduleEndLabel && (
-                      <p>
-                        Estimated completion:{' '}
-                        <span className="font-medium text-gray-900">{scheduleEndLabel}</span>
-                      </p>
-                    )}
-                    {bufferSummary && (
-                      <p className="text-xs text-gray-600 mt-1">{bufferSummary}</p>
-                    )}
-                    {shortestThroughputDetails && (
-                      <p className="text-xs text-gray-600 mt-2">
-                        Shortest consecutive window available:{' '}
-                        {`${format(shortestThroughputDetails.startDate, 'MMM d, yyyy')} - ${format(shortestThroughputDetails.endDate, 'MMM d, yyyy')}`}
-                      </p>
-                    )}
-                  </div>
-                )}
 
                 {(loadingAvailability || loadingWorkingHours) ? (
                   <div className="flex items-center justify-center py-12">
@@ -2391,15 +2413,18 @@ export default function ProjectBookingForm({
                       <div className="space-y-4">
                         <div>
                           <Label className="text-base font-semibold">Select Time Slot *</Label>
-                          <p className="text-sm text-gray-600 mt-1 mb-4">
-                            Choose your preferred start time. Times shown are based on company working hours.
+                          <p className="text-sm text-gray-600 mt-1 mb-2">
+                            Choose your preferred start time.
                           </p>
+                          <div className="text-xs text-gray-500 space-y-1">
+                            <p>Times shown in UTC{viewerTimeZone !== 'UTC' && ` (your timezone: ${viewerTimeZone})`}</p>
+                          </div>
                         </div>
 
                         {generateTimeSlots().length === 0 ? (
                           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                             <p className="text-sm text-red-900 font-semibold mb-2">
-                              ⚠️ No Time Slots Available
+                              No Time Slots Available
                             </p>
                             <p className="text-sm text-red-800">
                               This project&apos;s execution time ({selectedPackage?.executionDuration?.value || project.executionDuration?.value}{' '}
@@ -2411,10 +2436,12 @@ export default function ProjectBookingForm({
                             </p>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-4 gap-2">
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                             {generateTimeSlots().map((timeSlot) => {
                               const isPast = isTimeSlotPast(timeSlot)
                               const isSelected = selectedTime === timeSlot
+                              const times = convertTimeSlotToTimezones(timeSlot)
+                              const showLocalTime = viewerTimeZone !== 'UTC' && times.viewer !== times.utc
 
                               return (
                                 <button
@@ -2422,8 +2449,9 @@ export default function ProjectBookingForm({
                                   type="button"
                                   onClick={() => !isPast && setSelectedTime(timeSlot)}
                                   disabled={isPast}
+                                  title={showLocalTime ? `${times.viewer} in your timezone` : undefined}
                                   className={`
-                                    px-3 py-2 rounded-lg border text-sm font-medium transition-all
+                                    px-2 py-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center
                                     ${isSelected
                                       ? 'bg-blue-600 text-white border-blue-600 shadow-md'
                                       : isPast
@@ -2432,7 +2460,12 @@ export default function ProjectBookingForm({
                                     }
                                   `}
                                 >
-                                  {timeSlot}
+                                  <span>{timeSlot}</span>
+                                  {showLocalTime && (
+                                    <span className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
+                                      ({times.viewer})
+                                    </span>
+                                  )}
                                 </button>
                               )
                             })}
@@ -2440,10 +2473,15 @@ export default function ProjectBookingForm({
                         )}
 
                         {selectedTime && (
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
                             <p className="text-sm text-green-900">
-                              <strong>Selected Time:</strong> {formatTimeRange(selectedTime)}
+                              <strong>Selected Time (UTC):</strong> {formatTimeRange(selectedTime)}
                             </p>
+                            {viewerTimeZone !== 'UTC' && (
+                              <p className="text-xs text-green-700">
+                                <strong>Your timezone ({viewerTimeZone}):</strong> {convertTimeSlotToTimezones(selectedTime).viewer}
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2457,20 +2495,7 @@ export default function ProjectBookingForm({
                             <span className="ml-2 font-bold">{formatTimeRange(selectedTime)}</span>
                           )}
                         </p>
-                        {(preparationLabel || executionLabel) && (
-                          <div className="border-t border-blue-300 pt-3 space-y-2">
-                            {preparationLabel && (
-                              <p className="text-sm text-blue-900">
-                                <strong>Preparation Time:</strong> {preparationLabel}
-                              </p>
-                            )}
-                            {executionLabel && (
-                              <p className="text-sm text-blue-900">
-                                <strong>Execution Duration:</strong> {executionLabel}
-                              </p>
-                            )}
-                          </div>
-                        )}
+              
                         {(project.timeMode === 'hours' ? projectedCompletionDateTime : projectedCompletionDate) && (
                           <>
                             <p className="text-sm text-blue-900 font-semibold pt-2 border-t border-blue-300">
@@ -2758,20 +2783,6 @@ export default function ProjectBookingForm({
                         <span className="ml-2 font-semibold">{formatTimeRange(selectedTime)}</span>
                       )}
                     </p>
-                    {(preparationLabel || executionLabel) && (
-                      <div className="border-t border-gray-300 pt-3 space-y-2">
-                        {preparationLabel && (
-                          <p className="text-sm">
-                            <strong>Preparation Time:</strong> {preparationLabel}
-                          </p>
-                        )}
-                        {executionLabel && (
-                          <p className="text-sm">
-                            <strong>Execution Duration:</strong> {executionLabel}
-                          </p>
-                        )}
-                      </div>
-                    )}
                     {(project.timeMode === 'hours' ? projectedCompletionDateTime : projectedCompletionDate) && (
                       <>
                         <p className="text-sm font-semibold pt-2 border-t border-gray-300">
