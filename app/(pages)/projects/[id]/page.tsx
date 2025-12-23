@@ -37,8 +37,9 @@ import {
   isQualityCertificate,
 } from '@/lib/projectHighlights';
 import {
-  formatUtcViewerLabel,
-  formatWindowUtcViewer,
+  formatProfessionalViewerLabel,
+  formatWindowProfessionalViewer,
+  formatDateOnlyProfessionalViewer,
   getViewerTimezone,
 } from '@/lib/timezoneDisplay';
 
@@ -310,13 +311,23 @@ export default function ProjectDetailPage() {
     project.firstAvailableDate;
   const firstAvailableWindow = proposals?.earliestProposal || null;
 
-  // Format dates with UTC + viewer timezone
-  const firstAvailableDateLabels = formatUtcViewerLabel(derivedFirstAvailableDate, viewerTimeZone);
-  const firstAvailableWindowLabels = formatWindowUtcViewer(firstAvailableWindow, viewerTimeZone);
-  const estimatedCompletionLabels = formatUtcViewerLabel(firstAvailableWindow?.end, viewerTimeZone);
-  const shortestThroughputLabels = formatWindowUtcViewer(
+  // Format dates with professional's timezone + viewer's timezone
+  // For "hours" mode, include time. For "days" mode, just show date.
+  const includeTime = project.timeMode === 'hours';
+  const professionalTimeZone = project.professionalId?.businessInfo?.timezone || 'UTC';
+
+  const firstAvailableDateLabels = includeTime
+    ? formatProfessionalViewerLabel(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone)
+    : formatDateOnlyProfessionalViewer(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone);
+  const firstAvailableWindowLabels = formatWindowProfessionalViewer(firstAvailableWindow, professionalTimeZone, viewerTimeZone, includeTime);
+  const estimatedCompletionLabels = includeTime
+    ? formatProfessionalViewerLabel(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone)
+    : formatDateOnlyProfessionalViewer(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone);
+  const shortestThroughputLabels = formatWindowProfessionalViewer(
     proposals?.shortestThroughputProposal,
-    viewerTimeZone
+    professionalTimeZone,
+    viewerTimeZone,
+    includeTime
   );
 
   const priceModelLabel = project.priceModel
@@ -507,29 +518,29 @@ export default function ProjectDetailPage() {
                         {firstAvailableWindowLabels ? (
                           <>
                             <p className='font-medium text-gray-900'>
-                              UTC: {firstAvailableWindowLabels.utcLabel}
+                              Professional ({firstAvailableWindowLabels.professionalZone}): {firstAvailableWindowLabels.professionalLabel}
                             </p>
                             <p className='text-xs text-gray-500'>
-                              {viewerTimeZone}: {firstAvailableWindowLabels.viewerLabel}
+                              Your time ({firstAvailableWindowLabels.viewerZone}): {firstAvailableWindowLabels.viewerLabel}
                             </p>
                           </>
                         ) : firstAvailableDateLabels ? (
                           <>
                             <p className='font-medium text-gray-900'>
-                              UTC: {firstAvailableDateLabels.utcLabel}
+                              Professional ({firstAvailableDateLabels.professionalZone}): {firstAvailableDateLabels.professionalLabel}
                             </p>
                             <p className='text-xs text-gray-500'>
-                              {viewerTimeZone}: {firstAvailableDateLabels.viewerLabel}
+                              Your time ({firstAvailableDateLabels.viewerZone}): {firstAvailableDateLabels.viewerLabel}
                             </p>
                           </>
                         ) : null}
                         {estimatedCompletionLabels && (
                           <div className='mt-2'>
                             <p className='text-xs text-gray-500'>
-                              Completion (UTC): {estimatedCompletionLabels.utcLabel}
+                              Completion (Professional): {estimatedCompletionLabels.professionalLabel}
                             </p>
                             <p className='text-xs text-gray-500'>
-                              Completion ({viewerTimeZone}): {estimatedCompletionLabels.viewerLabel}
+                              Completion (Your time): {estimatedCompletionLabels.viewerLabel}
                             </p>
                           </div>
                         )}
@@ -539,10 +550,10 @@ export default function ProjectDetailPage() {
                       <div className='space-y-1'>
                         <p className='text-sm text-gray-500'>Shortest Throughput</p>
                         <p className='font-medium text-gray-900'>
-                          UTC: {shortestThroughputLabels.utcLabel}
+                          Professional ({shortestThroughputLabels.professionalZone}): {shortestThroughputLabels.professionalLabel}
                         </p>
                         <p className='text-xs text-gray-500'>
-                          {viewerTimeZone}: {shortestThroughputLabels.viewerLabel}
+                          Your time ({shortestThroughputLabels.viewerZone}): {shortestThroughputLabels.viewerLabel}
                         </p>
                         <p className='text-xs text-gray-500'>
                           Based on minimum overlap and resource availability
