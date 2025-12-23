@@ -532,7 +532,7 @@ export default function ProjectBookingForm({
     }
   }, [
     selectedDate,
-    project.timeMode,
+    projectMode,
     blockedDates,
     professionalAvailability,
     selectedPackage,
@@ -1426,7 +1426,7 @@ export default function ProjectBookingForm({
 
   const generateTimeSlotsForDate = (date: Date): string[] => {
     const slots: string[] = [];
-    if (project.timeMode !== 'hours') {
+    if (projectMode !== 'hours') {
       return slots;
     }
 
@@ -1469,6 +1469,10 @@ export default function ProjectBookingForm({
     // because we want customers to be able to book any remaining available slots
     // The per-slot overlap check below handles blocking individual time slots
 
+    // Check if date is today - if so, we need to filter out past slots
+    const now = new Date();
+    const isToday = startOfDay(date).getTime() === startOfDay(now).getTime();
+
     // Generate slots from start to last available slot
     let currentMinutes = startHour * 60 + startMin;
 
@@ -1482,6 +1486,12 @@ export default function ProjectBookingForm({
       slotStart.setHours(hours, minutes, 0, 0);
       const slotEnd = new Date(slotStart);
       slotEnd.setMinutes(slotEnd.getMinutes() + executionMinutes);
+
+      // Skip past slots for today
+      if (isToday && slotStart <= now) {
+        currentMinutes += 30;
+        continue;
+      }
 
       const overlapsBlocked = blockedIntervals.some(
         (interval) => slotStart < interval.end && slotEnd > interval.start
@@ -1926,7 +1936,7 @@ export default function ProjectBookingForm({
   };
 
   const getSelectedStartPoint = (): Date | null => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       if (selectedDate && selectedTime) {
         const [hours, minutes] = selectedTime.split(':').map(Number);
         const start = parseISO(selectedDate);
@@ -1955,7 +1965,7 @@ export default function ProjectBookingForm({
   };
 
   const getEstimatedCompletionPoint = (): Date | null => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       const completion = calculateCompletionDateTime(true);
       if (completion) {
         return completion;
@@ -1983,13 +1993,13 @@ export default function ProjectBookingForm({
     if (!point) {
       return null;
     }
-    return project.timeMode === 'hours'
+    return projectMode === 'hours'
       ? format(point, 'EEEE, MMMM d, yyyy h:mm a')
       : format(point, 'EEEE, MMMM d, yyyy');
   };
 
   const getBufferSummaryLabel = () => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       const bufferHours = getBufferDurationHours();
       if (bufferHours > 0) {
         return `Includes ${bufferHours} ${
@@ -2687,10 +2697,10 @@ export default function ProjectBookingForm({
   }, [selectedPackage]);
 
   useEffect(() => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       setSelectedTime('');
     }
-  }, [project.timeMode, selectedDate]);
+  }, [projectMode, selectedDate]);
 
   return (
     <div className='min-h-screen bg-gray-50 py-8'>
