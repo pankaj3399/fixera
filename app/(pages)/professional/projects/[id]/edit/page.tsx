@@ -955,6 +955,7 @@ export default function ProjectEditPage() {
 
             <Button
               onClick={() => {
+                const currentTimeMode = project.timeMode === 'hours' ? 'hours' : 'days';
                 const newSubproject: Subproject = {
                   id: `sub-${Date.now()}`,
                   name: '',
@@ -963,8 +964,8 @@ export default function ProjectEditPage() {
                   included: [],
                   materialsIncluded: false,
                   deliveryPreparation: 0,
-                  deliveryPreparationUnit: project.timeMode === 'hours' ? 'hours' : 'days',
-                  executionDuration: { value: 1, unit: 'days' },
+                  deliveryPreparationUnit: currentTimeMode,
+                  executionDuration: { value: 1, unit: currentTimeMode },
                   warrantyPeriod: 0,
                 };
                 updateField('subprojects', [
