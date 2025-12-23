@@ -265,6 +265,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
     const isRenovation = data.category?.toLowerCase() === 'renovation'
     const defaultPricingType = isRenovation ? 'rfq' : 'fixed'
 
+    const currentTimeMode = data.timeMode || 'days'
     const newSubproject: ISubproject = {
       id: Date.now().toString(),
       name: '',
@@ -282,7 +283,7 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
       deliveryPreparationUnit: 'days',
       executionDuration: {
         value: 1,
-        unit: 'hours'
+        unit: currentTimeMode
       },
       warrantyPeriod: { value: 0, unit: 'years' }
     }

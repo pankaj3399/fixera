@@ -978,6 +978,7 @@ export default function ProjectEditPage() {
 
             <Button
               onClick={() => {
+                const currentTimeMode = project.timeMode === 'hours' ? 'hours' : 'days';
                 const newSubproject: Subproject = {
                   id: `sub-${Date.now()}`,
                   name: '',
