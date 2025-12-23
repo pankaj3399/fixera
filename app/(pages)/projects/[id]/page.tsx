@@ -339,7 +339,9 @@ export default function ProjectDetailPage() {
   const estimatedCompletionLabels = formatUtcViewerLabel(firstAvailableWindow?.end, viewerTimeZone);
   const shortestThroughputLabels = formatWindowUtcViewer(
     proposals?.shortestThroughputProposal,
-    viewerTimeZone
+    professionalTimeZone,
+    viewerTimeZone,
+    includeTime
   );
 
   const priceModelLabel = project.priceModel

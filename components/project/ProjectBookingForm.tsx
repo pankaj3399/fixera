@@ -120,9 +120,9 @@ interface BlockedRange {
 }
 
 interface BlockedRange {
-  startDate: string
-  endDate: string
-  reason?: string
+  startDate: string;
+  endDate: string;
+  reason?: string;
 }
 
 interface BlockedDates {
@@ -401,97 +401,143 @@ export default function ProjectBookingForm({
   ]);
 
   useEffect(() => {
-    fetchScheduleProposals(typeof selectedPackageIndex === 'number' ? selectedPackageIndex : undefined)
-    setHasUserSelectedDate(false)
-  }, [selectedPackageIndex])
+    fetchScheduleProposals(
+      typeof selectedPackageIndex === 'number'
+        ? selectedPackageIndex
+        : undefined
+    );
+    setHasUserSelectedDate(false);
+  }, [selectedPackageIndex]);
 
   const getFormattedDate = (dateStr?: string | null) => {
-    if (!dateStr) return null
-    const parsed = parseISO(dateStr)
-    if (Number.isNaN(parsed.getTime())) return null
-    return format(parsed, 'yyyy-MM-dd')
-  }
+    if (!dateStr) return null;
+    const parsed = parseISO(dateStr);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return format(parsed, 'yyyy-MM-dd');
+  };
 
   useEffect(() => {
     if (!proposals) {
-      return
+      return;
     }
 
-    const proposalDate = getFormattedDate(proposals.earliestProposal?.start)
-    const fallbackDate = getFormattedDate(proposals.earliestBookableDate)
-    const initialDate = proposalDate || fallbackDate
+    const proposalDate = getFormattedDate(proposals.earliestProposal?.start);
+    const fallbackDate = getFormattedDate(proposals.earliestBookableDate);
+    const initialDate = proposalDate || fallbackDate;
 
     if (
       initialDate &&
-      (!selectedDate || (!hasUserSelectedDate && selectedDate !== initialDate)) &&
+      (!selectedDate ||
+        (!hasUserSelectedDate && selectedDate !== initialDate)) &&
       !isDateBlocked(initialDate)
     ) {
-      setSelectedDate(initialDate)
+      setSelectedDate(initialDate);
     }
-  }, [proposals, selectedDate, hasUserSelectedDate])
+  }, [proposals, selectedDate, hasUserSelectedDate]);
 
   useEffect(() => {
     if (selectedDate || hasUserSelectedDate) {
-      return
+      return;
     }
 
     if (!loadingAvailability && !loadingWorkingHours) {
-      console.log('[BOOKING FORM] All data loaded, selecting default preferred start date...')
-      console.log('[BOOKING FORM] Professional availability:', professionalAvailability)
+      console.log(
+        '[BOOKING FORM] All data loaded, selecting default preferred start date...'
+      );
+      console.log(
+        '[BOOKING FORM] Professional availability:',
+        professionalAvailability
+      );
 
-      let defaultDate: string | null = null
-      const earliestProposal = getFormattedDate(proposals?.earliestProposal?.start)
-      const earliestBookable = getFormattedDate(proposals?.earliestBookableDate)
+      let defaultDate: string | null = null;
+      const earliestProposal = getFormattedDate(
+        proposals?.earliestProposal?.start
+      );
+      const earliestBookable = getFormattedDate(
+        proposals?.earliestBookableDate
+      );
 
       if (earliestProposal && !isDateBlocked(earliestProposal)) {
-        defaultDate = earliestProposal
-        console.log('[BOOKING FORM] Using earliest proposal date:', defaultDate)
+        defaultDate = earliestProposal;
+        console.log(
+          '[BOOKING FORM] Using earliest proposal date:',
+          defaultDate
+        );
       } else if (earliestBookable && !isDateBlocked(earliestBookable)) {
-        defaultDate = earliestBookable
-        console.log('[BOOKING FORM] Using earliest bookable date:', defaultDate)
+        defaultDate = earliestBookable;
+        console.log(
+          '[BOOKING FORM] Using earliest bookable date:',
+          defaultDate
+        );
       } else {
-        defaultDate = getMinDate()
+        defaultDate = getMinDate();
       }
 
       if (defaultDate) {
-        setSelectedDate(defaultDate)
+        setSelectedDate(defaultDate);
 
         if (project.firstAvailableDate) {
-          const projectAvailableDate = format(parseISO(project.firstAvailableDate), 'yyyy-MM-dd')
+          const projectAvailableDate = format(
+            parseISO(project.firstAvailableDate),
+            'yyyy-MM-dd'
+          );
           if (projectAvailableDate !== defaultDate) {
-            console.warn('[BOOKING FORM] Date discrepancy detected!')
-            console.warn('[BOOKING FORM] Search/Project page showed:', projectAvailableDate)
-            console.warn('[BOOKING FORM] Actual first available date:', defaultDate)
-            console.warn('[BOOKING FORM] This may be due to bookings made after viewing the search results')
+            console.warn('[BOOKING FORM] Date discrepancy detected!');
+            console.warn(
+              '[BOOKING FORM] Search/Project page showed:',
+              projectAvailableDate
+            );
+            console.warn(
+              '[BOOKING FORM] Actual first available date:',
+              defaultDate
+            );
+            console.warn(
+              '[BOOKING FORM] This may be due to bookings made after viewing the search results'
+            );
           } else {
-            console.log('[BOOKING FORM] Available dates match:', defaultDate)
+            console.log('[BOOKING FORM] Available dates match:', defaultDate);
           }
         }
       }
     }
-  }, [loadingAvailability, loadingWorkingHours, blockedDates, professionalAvailability, proposals, selectedDate, hasUserSelectedDate])
+  }, [
+    loadingAvailability,
+    loadingWorkingHours,
+    blockedDates,
+    professionalAvailability,
+    proposals,
+    selectedDate,
+    hasUserSelectedDate,
+  ]);
 
   useEffect(() => {
     if (project.timeMode !== 'hours') {
-      return
+      return;
     }
     if (!selectedDate) {
-      setSelectedTime('')
-      return
+      setSelectedTime('');
+      return;
     }
-    const dateObj = parseISO(selectedDate)
+    const dateObj = parseISO(selectedDate);
     if (Number.isNaN(dateObj.getTime())) {
-      return
+      return;
     }
-    const slots = generateTimeSlotsForDate(dateObj)
+    const slots = generateTimeSlotsForDate(dateObj);
     if (slots.length === 0) {
-      setSelectedTime('')
-      return
+      setSelectedTime('');
+      return;
     }
     if (!selectedTime || !slots.includes(selectedTime)) {
-      setSelectedTime(slots[0])
+      setSelectedTime(slots[0]);
     }
-  }, [selectedDate, project.timeMode, blockedDates, professionalAvailability, selectedPackage, selectedTime])
+  }, [
+    selectedDate,
+    project.timeMode,
+    blockedDates,
+    professionalAvailability,
+    selectedPackage,
+    selectedTime,
+  ]);
 
   const fetchTeamAvailability = async () => {
     try {
@@ -508,9 +554,9 @@ export default function ProjectBookingForm({
       console.log('[BOOKING] Blocked dates:', data.blockedDates);
       console.log('[BOOKING] Blocked ranges:', data.blockedRanges);
 
-      console.log('[BOOKING] Availability data received:', data)
-      console.log('[BOOKING] Blocked dates:', data.blockedDates)
-      console.log('[BOOKING] Blocked ranges:', data.blockedRanges)
+      console.log('[BOOKING] Availability data received:', data);
+      console.log('[BOOKING] Blocked dates:', data.blockedDates);
+      console.log('[BOOKING] Blocked ranges:', data.blockedRanges);
 
       if (data.success) {
         // Normalize dates to yyyy-MM-dd format
@@ -1079,364 +1125,419 @@ export default function ProjectBookingForm({
 
   const fetchProfessionalWorkingHours = async () => {
     try {
-      console.log('[BOOKING] Fetching working hours for project:', project._id)
-      setLoadingWorkingHours(true)
+      console.log('[BOOKING] Fetching working hours for project:', project._id);
+      setLoadingWorkingHours(true);
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
-      )
-      const data: WorkingHoursResponse = await response.json()
+      );
+      const data: WorkingHoursResponse = await response.json();
 
-      console.log('[BOOKING] Working hours response:', data)
+      console.log('[BOOKING] Working hours response:', data);
       if (data.success && data.availability) {
-        console.log('[BOOKING] Professional availability set:', data.availability)
-        console.log('[BOOKING] Professional timezone:', data.timezone)
-        setProfessionalAvailability(data.availability)
-        setProfessionalTimezone(data.timezone || 'UTC')
+        console.log(
+          '[BOOKING] Professional availability set:',
+          data.availability
+        );
+        console.log('[BOOKING] Professional timezone:', data.timezone);
+        setProfessionalAvailability(data.availability);
+        setProfessionalTimezone(normalizeTimezone(data.timezone));
       } else {
-        console.warn('[BOOKING] No working hours data received or request failed')
+        console.warn(
+          '[BOOKING] No working hours data received or request failed'
+        );
       }
     } catch (error) {
-      console.error('[BOOKING] Error fetching professional working hours:', error)
+      console.error(
+        '[BOOKING] Error fetching professional working hours:',
+        error
+      );
     } finally {
-      setLoadingWorkingHours(false)
+      setLoadingWorkingHours(false);
     }
-  }
+  };
 
-  const shouldCollectUsage = (pricingType: 'fixed' | 'unit' | 'rfq'): boolean => {
+  const shouldCollectUsage = (
+    pricingType: 'fixed' | 'unit' | 'rfq'
+  ): boolean => {
     if (pricingType === 'unit') {
-      return true
+      return true;
     }
 
-    const projectPriceModel = (project.priceModel || '').toLowerCase()
+    const projectPriceModel = (project.priceModel || '').toLowerCase();
     if (!projectPriceModel) {
-      return false
+      return false;
     }
 
-    return !projectPriceModel.includes('total')
-  }
+    return !projectPriceModel.includes('total');
+  };
 
   const getBufferDuration = () => {
     if (selectedPackage?.buffer?.value && selectedPackage.buffer.value > 0) {
       return {
         value: selectedPackage.buffer.value,
-        unit: selectedPackage.buffer.unit || 'days'
-      }
+        unit: selectedPackage.buffer.unit || 'days',
+      };
     }
 
     if (project.bufferDuration?.value && project.bufferDuration.value > 0) {
-      return project.bufferDuration
+      return project.bufferDuration;
     }
 
-    return null
-  }
+    return null;
+  };
 
   const getBufferDurationDays = () => {
-    const buffer = getBufferDuration()
-    if (!buffer) return 0
-    return Math.ceil(convertDurationToDays(buffer))
-  }
+    const buffer = getBufferDuration();
+    if (!buffer) return 0;
+    return Math.ceil(convertDurationToDays(buffer));
+  };
 
   const getBufferDurationHours = () => {
-    const buffer = getBufferDuration()
-    if (!buffer?.value || buffer.value <= 0) return 0
-    return buffer.unit === 'hours' ? buffer.value : buffer.value * 24
-  }
+    const buffer = getBufferDuration();
+    if (!buffer?.value || buffer.value <= 0) return 0;
+    return buffer.unit === 'hours' ? buffer.value : buffer.value * 24;
+  };
 
   const advanceWorkingDays = (startDate: Date, workingDays: number) => {
     if (workingDays <= 0) {
-      return startDate
+      return startDate;
     }
     if (workingDays === 1) {
-      return startDate
+      return startDate;
     }
 
-    let cursor = startDate
-    let countedDays = 0
+    let cursor = startDate;
+    let countedDays = 0;
 
     // First, check if startDate itself is a working day and count it
-    const startStr = format(startDate, 'yyyy-MM-dd')
+    const startStr = format(startDate, 'yyyy-MM-dd');
     if (isProfessionalWorkingDay(startDate) && !isDateBlocked(startStr)) {
-      countedDays = 1
+      countedDays = 1;
     }
 
     // Now find remaining working days
     while (countedDays < workingDays) {
-      cursor = addDays(cursor, 1)
-      const cursorStr = format(cursor, 'yyyy-MM-dd')
+      cursor = addDays(cursor, 1);
+      const cursorStr = format(cursor, 'yyyy-MM-dd');
 
       if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
-        countedDays++
+        countedDays++;
       }
     }
 
-    return cursor
-  }
+    return cursor;
+  };
 
   const formatCurrency = (value?: number) =>
     typeof value === 'number'
-      ? new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
-      : null
+      ? new Intl.NumberFormat('nl-NL', {
+          style: 'currency',
+          currency: 'EUR',
+        }).format(value)
+      : null;
 
   // Check if a date is a weekend (Saturday or Sunday)
   const isWeekend = (date: Date): boolean => {
-    const day = date.getDay()
-    return day === 0 || day === 6 // Sunday = 0, Saturday = 6
-  }
+    const day = date.getDay();
+    return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+  };
 
   // Check if professional works on this date (based on their availability)
   const isProfessionalWorkingDay = (date: Date): boolean => {
     if (!professionalAvailability) {
       // This should only happen during initial load before working hours are fetched
-      console.warn('[BOOKING] ⚠️ isProfessionalWorkingDay called before working hours loaded! Date:', format(date, 'yyyy-MM-dd'))
-      console.warn('[BOOKING] Loading states - availability:', loadingAvailability, 'workingHours:', loadingWorkingHours)
-      return true // Default to available while loading
+      console.warn(
+        '[BOOKING] ⚠️ isProfessionalWorkingDay called before working hours loaded! Date:',
+        format(date, 'yyyy-MM-dd')
+      );
+      console.warn(
+        '[BOOKING] Loading states - availability:',
+        loadingAvailability,
+        'workingHours:',
+        loadingWorkingHours
+      );
+      return true; // Default to available while loading
     }
 
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
-    const dayAvailability = professionalAvailability[dayName]
+    const dayNames = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ];
+    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability;
+    const dayAvailability = professionalAvailability[dayName];
 
     if (!dayAvailability) {
-      return true
+      return true;
     }
 
     if (typeof dayAvailability.available === 'boolean') {
-      return dayAvailability.available
+      return dayAvailability.available;
     }
 
     if (dayAvailability.startTime || dayAvailability.endTime) {
-      return true
+      return true;
     }
 
-    return true
-  }
+    return true;
+  };
 
   // Get working hours for the selected date
-  const getWorkingHoursForDate = (date: Date): { startTime: string; endTime: string } => {
-    const defaultHours = { startTime: '09:00', endTime: '17:00' }
+  const getWorkingHoursForDate = (
+    date: Date
+  ): { startTime: string; endTime: string } => {
+    const defaultHours = { startTime: '09:00', endTime: '17:00' };
 
-    if (!professionalAvailability) return defaultHours
+    if (!professionalAvailability) return defaultHours;
 
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability
-    const dayAvailability = professionalAvailability[dayName]
+    const dayNames = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ];
+    const dayName = dayNames[date.getDay()] as keyof ProfessionalAvailability;
+    const dayAvailability = professionalAvailability[dayName];
 
-    if (!dayAvailability || !dayAvailability.available) return defaultHours
+    if (!dayAvailability || !dayAvailability.available) return defaultHours;
 
     return {
       startTime: dayAvailability.startTime || '09:00',
-      endTime: dayAvailability.endTime || '17:00'
-    }
-  }
+      endTime: dayAvailability.endTime || '17:00',
+    };
+  };
 
   const getExecutionDurationHours = (): number => {
     const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration
+      selectedPackage?.executionDuration || project.executionDuration;
 
     if (!executionSource) {
-      return 0
+      return 0;
     }
 
     if (executionSource.unit === 'hours') {
-      return executionSource.value || 0
+      return executionSource.value || 0;
     }
 
-    return (executionSource.value || 0) * 24
-  }
+    return (executionSource.value || 0) * 24;
+  };
 
   const getBlockedIntervalsForDate = (date: Date) => {
-    const intervals: Array<{ start: Date; end: Date }> = []
-    const dayStart = startOfDay(date)
-    const dayEnd = addDays(dayStart, 1)
-    const dateKey = format(dayStart, 'yyyy-MM-dd')
+    const intervals: Array<{ start: Date; end: Date }> = [];
+    const dayStart = startOfDay(date);
+    const dayEnd = addDays(dayStart, 1);
+    const dateKey = format(dayStart, 'yyyy-MM-dd');
 
     if (blockedDates.blockedDates.includes(dateKey)) {
-      intervals.push({ start: dayStart, end: dayEnd })
+      intervals.push({ start: dayStart, end: dayEnd });
     }
 
     blockedDates.blockedRanges.forEach((range) => {
       try {
-        const rangeStart = parseISO(range.startDate)
-        const rangeEnd = parseISO(range.endDate)
+        const rangeStart = parseISO(range.startDate);
+        const rangeEnd = parseISO(range.endDate);
 
-        if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
-          return
+        if (
+          Number.isNaN(rangeStart.getTime()) ||
+          Number.isNaN(rangeEnd.getTime())
+        ) {
+          return;
         }
 
         if (rangeEnd <= dayStart || rangeStart >= dayEnd) {
-          return
+          return;
         }
 
-        const start = rangeStart > dayStart ? rangeStart : dayStart
-        const end = rangeEnd < dayEnd ? rangeEnd : dayEnd
-        intervals.push({ start, end })
+        const start = rangeStart > dayStart ? rangeStart : dayStart;
+        const end = rangeEnd < dayEnd ? rangeEnd : dayEnd;
+        intervals.push({ start, end });
       } catch (error) {
         // Ignore malformed entries
       }
-    })
+    });
 
-    return intervals
-  }
+    return intervals;
+  };
 
-  const shouldBlockDayForIntervals = (date: Date, intervals: Array<{ start: Date; end: Date }>) => {
+  const shouldBlockDayForIntervals = (
+    date: Date,
+    intervals: Array<{ start: Date; end: Date }>
+  ) => {
     if (intervals.length === 0) {
-      return false
+      return false;
     }
 
-    const { startTime, endTime } = getWorkingHoursForDate(date)
-    const [startHour, startMin] = startTime.split(':').map(Number)
-    const [endHour, endMin] = endTime.split(':').map(Number)
+    const { startTime, endTime } = getWorkingHoursForDate(date);
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
 
-    const workingStart = new Date(date)
-    workingStart.setHours(startHour, startMin, 0, 0)
-    const workingEnd = new Date(date)
-    workingEnd.setHours(endHour, endMin, 0, 0)
+    const workingStart = new Date(date);
+    workingStart.setHours(startHour, startMin, 0, 0);
+    const workingEnd = new Date(date);
+    workingEnd.setHours(endHour, endMin, 0, 0);
 
     if (workingEnd <= workingStart) {
-      return true
+      return true;
     }
 
     const clamped = intervals
-      .map(interval => {
-        const start = Math.max(interval.start.getTime(), workingStart.getTime())
-        const end = Math.min(interval.end.getTime(), workingEnd.getTime())
-        return { start, end }
+      .map((interval) => {
+        const start = Math.max(
+          interval.start.getTime(),
+          workingStart.getTime()
+        );
+        const end = Math.min(interval.end.getTime(), workingEnd.getTime());
+        return { start, end };
       })
-      .filter(interval => interval.end > interval.start)
-      .sort((a, b) => a.start - b.start)
+      .filter((interval) => interval.end > interval.start)
+      .sort((a, b) => a.start - b.start);
 
     if (clamped.length === 0) {
-      return false
+      return false;
     }
 
-    let totalMinutes = 0
-    let currentStart = clamped[0].start
-    let currentEnd = clamped[0].end
+    let totalMinutes = 0;
+    let currentStart = clamped[0].start;
+    let currentEnd = clamped[0].end;
 
     for (let i = 1; i < clamped.length; i++) {
-      const interval = clamped[i]
+      const interval = clamped[i];
       if (interval.start <= currentEnd) {
-        currentEnd = Math.max(currentEnd, interval.end)
+        currentEnd = Math.max(currentEnd, interval.end);
       } else {
-        totalMinutes += (currentEnd - currentStart) / (1000 * 60)
-        currentStart = interval.start
-        currentEnd = interval.end
+        totalMinutes += (currentEnd - currentStart) / (1000 * 60);
+        currentStart = interval.start;
+        currentEnd = interval.end;
       }
     }
 
-    totalMinutes += (currentEnd - currentStart) / (1000 * 60)
+    totalMinutes += (currentEnd - currentStart) / (1000 * 60);
 
     // Block the day if 4 or more hours are blocked (matches backend logic)
-    return totalMinutes / 60 >= PARTIAL_BLOCK_THRESHOLD_HOURS
-  }
+    return totalMinutes / 60 >= PARTIAL_BLOCK_THRESHOLD_HOURS;
+  };
 
   const generateTimeSlotsForDate = (date: Date): string[] => {
-    const slots: string[] = []
+    const slots: string[] = [];
     if (project.timeMode !== 'hours') {
-      return slots
+      return slots;
     }
 
-    const executionHours = getExecutionDurationHours()
+    const executionHours = getExecutionDurationHours();
     if (executionHours <= 0) {
-      return slots
+      return slots;
     }
 
-    let workingStart = '09:00'
-    let workingEnd = '17:00'
+    let workingStart = '09:00';
+    let workingEnd = '17:00';
 
-    const workingHours = getWorkingHoursForDate(date)
-    workingStart = workingHours.startTime
-    workingEnd = workingHours.endTime
+    const workingHours = getWorkingHoursForDate(date);
+    workingStart = workingHours.startTime;
+    workingEnd = workingHours.endTime;
 
     // Parse start and end times
-    const [startHour, startMin] = workingStart.split(':').map(Number)
-    const [endHour, endMin] = workingEnd.split(':').map(Number)
+    const [startHour, startMin] = workingStart.split(':').map(Number);
+    const [endHour, endMin] = workingEnd.split(':').map(Number);
 
     // Calculate working hours per day
-    const workingHoursPerDay = (endHour * 60 + endMin - (startHour * 60 + startMin)) / 60
+    const workingHoursPerDay =
+      (endHour * 60 + endMin - (startHour * 60 + startMin)) / 60;
 
     // If execution time exceeds one working day, return empty array
     // This indicates the project should be in days mode instead
     if (executionHours > workingHoursPerDay) {
-      console.warn(`Execution time (${executionHours}h) exceeds working hours per day (${workingHoursPerDay}h). This project should use days mode.`)
-      return []
+      console.warn(
+        `Execution time (${executionHours}h) exceeds working hours per day (${workingHoursPerDay}h). This project should use days mode.`
+      );
+      return [];
     }
 
     // Calculate last available slot: closing time - execution time
-    const closingTimeMinutes = endHour * 60 + endMin
-    const executionMinutes = executionHours * 60
-    const lastSlotMinutes = closingTimeMinutes - executionMinutes
-    const blockedIntervals = getBlockedIntervalsForDate(date)
+    const closingTimeMinutes = endHour * 60 + endMin;
+    const executionMinutes = executionHours * 60;
+    const lastSlotMinutes = closingTimeMinutes - executionMinutes;
+    const blockedIntervals = getBlockedIntervalsForDate(date);
 
     // NOTE: For hours mode, we do NOT use shouldBlockDayForIntervals (4-hour threshold)
     // because we want customers to be able to book any remaining available slots
     // The per-slot overlap check below handles blocking individual time slots
 
     // Generate slots from start to last available slot
-    let currentMinutes = startHour * 60 + startMin
+    let currentMinutes = startHour * 60 + startMin;
 
     while (currentMinutes <= lastSlotMinutes) {
-      const hours = Math.floor(currentMinutes / 60)
-      const minutes = currentMinutes % 60
-      const slotLabel = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
-      const slotStart = new Date(date)
-      slotStart.setHours(hours, minutes, 0, 0)
-      const slotEnd = new Date(slotStart)
-      slotEnd.setMinutes(slotEnd.getMinutes() + executionMinutes)
+      const hours = Math.floor(currentMinutes / 60);
+      const minutes = currentMinutes % 60;
+      const slotLabel = `${hours.toString().padStart(2, '0')}:${minutes
+        .toString()
+        .padStart(2, '0')}`;
+      const slotStart = new Date(date);
+      slotStart.setHours(hours, minutes, 0, 0);
+      const slotEnd = new Date(slotStart);
+      slotEnd.setMinutes(slotEnd.getMinutes() + executionMinutes);
 
       const overlapsBlocked = blockedIntervals.some(
         (interval) => slotStart < interval.end && slotEnd > interval.start
-      )
+      );
 
       if (!overlapsBlocked) {
-        slots.push(slotLabel)
+        slots.push(slotLabel);
       }
 
-      currentMinutes += 30
+      currentMinutes += 30;
     }
 
-    return slots
-  }
+    return slots;
+  };
 
   const generateTimeSlots = (): string[] => {
     if (!selectedDate) {
-      return []
+      return [];
     }
 
-    const dateObj = parseISO(selectedDate)
+    const dateObj = parseISO(selectedDate);
     if (Number.isNaN(dateObj.getTime())) {
-      return []
+      return [];
     }
 
-    return generateTimeSlotsForDate(dateObj)
-  }
+    return generateTimeSlotsForDate(dateObj);
+  };
 
   // Calculate end time for a given start time (hours mode)
   const calculateEndTime = (startTime: string): string => {
-    if (!startTime) return ''
+    if (!startTime) return '';
 
     // Get execution duration in hours
     const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration
+      selectedPackage?.executionDuration || project.executionDuration;
 
-    let executionHours = 0
+    let executionHours = 0;
     if (executionSource) {
       if (executionSource.unit === 'hours') {
-        executionHours = executionSource.value || 0
+        executionHours = executionSource.value || 0;
       } else {
-        executionHours = (executionSource.value || 0) * 24
+        executionHours = (executionSource.value || 0) * 24;
       }
     }
 
-    const [hours, minutes] = startTime.split(':').map(Number)
-    const startMinutes = hours * 60 + minutes
-    const endMinutes = startMinutes + (executionHours * 60)
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startMinutes = hours * 60 + minutes;
+    const endMinutes = startMinutes + executionHours * 60;
 
-    const endHours = Math.floor(endMinutes / 60)
-    const endMins = endMinutes % 60
+    const endHours = Math.floor(endMinutes / 60);
+    const endMins = endMinutes % 60;
 
-    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
-  }
+    return `${endHours.toString().padStart(2, '0')}:${endMins
+      .toString()
+      .padStart(2, '0')}`;
+  };
 
   /**
    * Format time range for display (e.g., "9:00 AM - 11:00 AM (2 hours)")
@@ -1445,98 +1546,114 @@ export default function ProjectBookingForm({
    * This helps customers understand the full booking window
    */
   const formatTimeRange = (startTime: string): string => {
-    if (!startTime) return ''
+    if (!startTime) return '';
 
-    const endTime = calculateEndTime(startTime)
+    const endTime = calculateEndTime(startTime);
 
     // Get execution duration
     const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration
+      selectedPackage?.executionDuration || project.executionDuration;
 
-    let durationLabel = ''
+    let durationLabel = '';
     if (executionSource) {
-      durationLabel = `${executionSource.value} ${executionSource.unit}`
+      durationLabel = `${executionSource.value} ${executionSource.unit}`;
     }
 
     // Format times to AM/PM
     const formatTime = (time: string) => {
-      const [hours, minutes] = time.split(':').map(Number)
-      const period = hours >= 12 ? 'PM' : 'AM'
-      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours
-      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
-    }
+      const [hours, minutes] = time.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    };
 
-    return `${formatTime(startTime)} - ${formatTime(endTime)} (${durationLabel})`
-  }
+    return `${formatTime(startTime)} - ${formatTime(
+      endTime
+    )} (${durationLabel})`;
+  };
 
   /**
    * Convert a time slot from professional's timezone to UTC and viewer's timezone
    * Returns formatted strings for display
    */
-  const convertTimeSlotToTimezones = (timeSlot: string): { utc: string; viewer: string; professional: string } => {
+  const convertTimeSlotToTimezones = (
+    timeSlot: string
+  ): { utc: string; viewer: string; professional: string } => {
     if (!selectedDate || !timeSlot) {
-      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot }
+      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot };
     }
+
+    const baseTimezone = normalizeTimezone(professionalTimezone);
 
     try {
-      // Create a date in UTC (since backend works in UTC)
-      const dateStr = selectedDate // yyyy-MM-dd format
-      const utcDateTime = new Date(`${dateStr}T${timeSlot}:00Z`)
+      const localDateTime = `${selectedDate}T${timeSlot}:00`;
+      const utcDateTime =
+        baseTimezone === 'UTC'
+          ? new Date(`${localDateTime}Z`)
+          : fromZonedTime(localDateTime, baseTimezone);
 
-      // Format for display
       const formatTimeOnly = (date: Date, tz: string) => {
         try {
-          return formatInTimeZone(date, tz, 'h:mm a')
+          return formatInTimeZone(date, tz, 'h:mm a');
         } catch {
-          return timeSlot
+          return timeSlot;
         }
-      }
+      };
 
-      // Format times for display
-      const utcTime = formatTimeOnly(utcDateTime, 'UTC')
-      const viewerTime = formatTimeOnly(utcDateTime, viewerTimeZone)
-      const professionalTime = professionalTimezone !== 'UTC'
-        ? formatTimeOnly(utcDateTime, professionalTimezone)
-        : utcTime
+      const utcTime = formatTimeOnly(utcDateTime, 'UTC');
+      const viewerTime = formatTimeOnly(utcDateTime, viewerTimeZone);
+      const professionalTime = formatTimeOnly(utcDateTime, baseTimezone);
 
-      return { utc: utcTime, viewer: viewerTime, professional: professionalTime }
+      return {
+        utc: utcTime,
+        viewer: viewerTime,
+        professional: professionalTime,
+      };
     } catch (error) {
-      console.error('Error converting timezone:', error)
-      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot }
+      console.error('Error converting timezone:', error);
+      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot };
     }
-  }
+  };
+
+  const selectedTimeConversion = useMemo(() => {
+    if (!selectedTime) {
+      return null;
+    }
+
+    return convertTimeSlotToTimezones(selectedTime);
+  }, [selectedTime, selectedDate, professionalTimezone, viewerTimeZone]);
 
   /**
    * Format time slot for display showing UTC and viewer's local time
    */
   const formatTimeSlotDisplay = (timeSlot: string): string => {
-    const times = convertTimeSlotToTimezones(timeSlot)
+    const times = convertTimeSlotToTimezones(timeSlot);
 
     // If all timezones show the same time, just show the slot
     if (times.utc === times.viewer) {
-      return timeSlot
+      return timeSlot;
     }
 
-    return `${timeSlot} (${times.viewer} your time)`
-  }
+    return `${timeSlot} (${times.viewer} your time)`;
+  };
 
   // Check if a time slot is in the past for today's date
   const isTimeSlotPast = (timeSlot: string): boolean => {
-    if (!selectedDate) return false
+    if (!selectedDate) return false;
 
-    const selectedDateObj = parseISO(selectedDate)
-    const today = startOfDay(new Date())
+    const selectedDateObj = parseISO(selectedDate);
+    const today = startOfDay(new Date());
 
     // Only check if selected date is today
-    if (selectedDateObj.getTime() !== today.getTime()) return false
+    if (selectedDateObj.getTime() !== today.getTime()) return false;
 
-    const [hours, minutes] = timeSlot.split(':').map(Number)
-    const now = new Date()
-    const slotTime = new Date()
-    slotTime.setHours(hours, minutes, 0, 0)
+    const [hours, minutes] = timeSlot.split(':').map(Number);
+    const now = new Date();
+    const slotTime = new Date();
+    slotTime.setHours(hours, minutes, 0, 0);
 
-    return slotTime < now
-  }
+    return slotTime < now;
+  };
 
   const isDateBlocked = (dateString: string): boolean => {
     const dateObj = parseISO(dateString);
@@ -1633,7 +1750,7 @@ export default function ProjectBookingForm({
   };
 
   // Matcher for weekend days (unselectable but styled differently from blocked)
-  const getWeekendMatcher = () => isWeekend
+  const getWeekendMatcher = () => isWeekend;
 
   const getMinDate = (): string | null => {
     console.log('[getMinDate] Starting calculation...');
@@ -1789,102 +1906,106 @@ export default function ProjectBookingForm({
 
   const calculateCompletionDateTime = (includeBuffer = false): Date | null => {
     if (project.timeMode !== 'hours' || !selectedDate || !selectedTime) {
-      return null
+      return null;
     }
 
-    const executionHours = getExecutionDurationHours()
-    const bufferHours = includeBuffer ? getBufferDurationHours() : 0
-    const totalHours = executionHours + bufferHours
+    const executionHours = getExecutionDurationHours();
+    const bufferHours = includeBuffer ? getBufferDurationHours() : 0;
+    const totalHours = executionHours + bufferHours;
 
     if (totalHours <= 0) {
-      return null
+      return null;
     }
 
-    const [hours, minutes] = selectedTime.split(':').map(Number)
-    const startDate = parseISO(selectedDate)
-    startDate.setHours(hours, minutes, 0, 0)
-    const completion = new Date(startDate)
-    completion.setHours(completion.getHours() + totalHours)
-    return completion
-  }
+    const [hours, minutes] = selectedTime.split(':').map(Number);
+    const startDate = parseISO(selectedDate);
+    startDate.setHours(hours, minutes, 0, 0);
+    const completion = new Date(startDate);
+    completion.setHours(completion.getHours() + totalHours);
+    return completion;
+  };
 
   const getSelectedStartPoint = (): Date | null => {
     if (project.timeMode === 'hours') {
       if (selectedDate && selectedTime) {
-        const [hours, minutes] = selectedTime.split(':').map(Number)
-        const start = parseISO(selectedDate)
-        start.setHours(hours, minutes, 0, 0)
-        return start
+        const [hours, minutes] = selectedTime.split(':').map(Number);
+        const start = parseISO(selectedDate);
+        start.setHours(hours, minutes, 0, 0);
+        return start;
       }
       if (proposals?.earliestProposal?.start) {
-        return parseISO(proposals.earliestProposal.start)
+        return parseISO(proposals.earliestProposal.start);
       }
       if (proposals?.earliestBookableDate) {
-        return parseISO(proposals.earliestBookableDate)
+        return parseISO(proposals.earliestBookableDate);
       }
-      return null
+      return null;
     }
 
     if (selectedDate) {
-      return parseISO(selectedDate)
+      return parseISO(selectedDate);
     }
     if (proposals?.earliestProposal?.start) {
-      return parseISO(proposals.earliestProposal.start)
+      return parseISO(proposals.earliestProposal.start);
     }
     if (proposals?.earliestBookableDate) {
-      return parseISO(proposals.earliestBookableDate)
+      return parseISO(proposals.earliestBookableDate);
     }
-    return null
-  }
+    return null;
+  };
 
   const getEstimatedCompletionPoint = (): Date | null => {
     if (project.timeMode === 'hours') {
-      const completion = calculateCompletionDateTime(true)
+      const completion = calculateCompletionDateTime(true);
       if (completion) {
-        return completion
+        return completion;
       }
       if (proposals?.earliestProposal?.end) {
-        return parseISO(proposals.earliestProposal.end)
+        return parseISO(proposals.earliestProposal.end);
       }
-      return null
+      return null;
     }
 
-    const completion = calculateCompletionDate(true)
+    const completion = calculateCompletionDate(true);
     if (completion) {
-      return completion
+      return completion;
     }
     if (proposals?.earliestProposal?.end) {
-      return parseISO(proposals.earliestProposal.end)
+      return parseISO(proposals.earliestProposal.end);
     }
     if (proposals?.shortestThroughputProposal?.end) {
-      return parseISO(proposals.shortestThroughputProposal.end)
+      return parseISO(proposals.shortestThroughputProposal.end);
     }
-    return null
-  }
+    return null;
+  };
 
   const formatSchedulePointLabel = (point: Date | null) => {
     if (!point) {
-      return null
+      return null;
     }
     return project.timeMode === 'hours'
       ? format(point, 'EEEE, MMMM d, yyyy h:mm a')
-      : format(point, 'EEEE, MMMM d, yyyy')
-  }
+      : format(point, 'EEEE, MMMM d, yyyy');
+  };
 
   const getBufferSummaryLabel = () => {
     if (project.timeMode === 'hours') {
-      const bufferHours = getBufferDurationHours()
+      const bufferHours = getBufferDurationHours();
       if (bufferHours > 0) {
-        return `Includes ${bufferHours} ${bufferHours === 1 ? 'hour' : 'hours'} of buffer time`
+        return `Includes ${bufferHours} ${
+          bufferHours === 1 ? 'hour' : 'hours'
+        } of buffer time`;
       }
     } else {
-      const bufferDays = getBufferDurationDays()
+      const bufferDays = getBufferDurationDays();
       if (bufferDays > 0) {
-        return `Includes ${bufferDays} ${bufferDays === 1 ? 'day' : 'days'} of buffer time`
+        return `Includes ${bufferDays} ${
+          bufferDays === 1 ? 'day' : 'days'
+        } of buffer time`;
       }
     }
-    return null
-  }
+    return null;
+  };
 
   const handleRFQAnswerChange = (index: number, answer: string) => {
     setRFQAnswers((prev) => {
@@ -1971,12 +2092,12 @@ export default function ProjectBookingForm({
 
   const guardOutsideServiceArea = () => {
     if (!isOutsideServiceArea) {
-      return true
+      return true;
     }
 
-    toast.error(getOutsideServiceMessage())
-    return false
-  }
+    toast.error(getOutsideServiceMessage());
+    return false;
+  };
 
   const handleNext = () => {
     if (!guardOutsideServiceArea()) return;
@@ -2009,8 +2130,10 @@ export default function ProjectBookingForm({
     }
 
     if (!guardOutsideServiceArea()) {
-      console.error('[BOOKING] Submission blocked due to service radius limits')
-      return
+      console.error(
+        '[BOOKING] Submission blocked due to service radius limits'
+      );
+      return;
     }
 
     if (!validateStep()) {
@@ -2213,13 +2336,18 @@ export default function ProjectBookingForm({
   };
 
   const getEffectivePackagePrice = (): number | null => {
-    if (!selectedPackage?.pricing.amount || selectedPackage.pricing.type === 'rfq') {
-      return null
+    if (
+      !selectedPackage?.pricing.amount ||
+      selectedPackage.pricing.type === 'rfq'
+    ) {
+      return null;
     }
 
-    const multiplier = shouldCollectUsage(selectedPackage.pricing.type) ? estimatedUsage : 1
-    return multiplier * selectedPackage.pricing.amount
-  }
+    const multiplier = shouldCollectUsage(selectedPackage.pricing.type)
+      ? estimatedUsage
+      : 1;
+    return multiplier * selectedPackage.pricing.amount;
+  };
 
   const calculateTotal = (): number => {
     let total = 0;
@@ -2393,39 +2521,44 @@ export default function ProjectBookingForm({
     }
   }, [projectMode, selectedDate]);
 
-  const projectedCompletionDate = calculateCompletionDate()
-  const projectedCompletionDateTime = calculateCompletionDateTime()
+  const projectedCompletionDate = calculateCompletionDate();
+  const projectedCompletionDateTime = calculateCompletionDateTime();
 
   const shortestThroughputDetails = (() => {
     if (
-      proposals?.mode !== 'days' ||
-      !proposals.shortestThroughputProposal?.start ||
+      !proposals?.shortestThroughputProposal?.start ||
       !proposals.shortestThroughputProposal?.end
     ) {
-      return null
+      return null;
     }
 
     try {
-      const startDate = parseISO(proposals.shortestThroughputProposal.start)
-      const endDate = parseISO(proposals.shortestThroughputProposal.end)
-      const totalDays = Math.max(1, differenceInCalendarDays(endDate, startDate) + 1)
-      return { startDate, endDate, totalDays }
+      const startDate = parseISO(proposals.shortestThroughputProposal.start);
+      const endDate = parseISO(proposals.shortestThroughputProposal.end);
+      const totalDays = Math.max(
+        1,
+        differenceInCalendarDays(endDate, startDate) + 1
+      );
+      return { startDate, endDate, totalDays };
     } catch {
-      return null
+      return null;
     }
-  })()
+  })();
 
-  const effectivePackagePrice = getEffectivePackagePrice()
+  const effectivePackagePrice = getEffectivePackagePrice();
   const shouldShowUsageBreakdown = Boolean(
-    selectedPackage?.pricing.amount && shouldCollectUsage(selectedPackage.pricing.type)
-  )
+    selectedPackage?.pricing.amount &&
+      shouldCollectUsage(selectedPackage.pricing.type)
+  );
 
-  const userCoordinates = user?.location?.coordinates
-  const customerLat = typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null
-  const customerLon = typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null
-  const serviceLat = project.distance?.coordinates?.latitude ?? null
-  const serviceLon = project.distance?.coordinates?.longitude ?? null
-  const maxServiceRadius = project.distance?.maxKmRange ?? null
+  const userCoordinates = user?.location?.coordinates;
+  const customerLat =
+    typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null;
+  const customerLon =
+    typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null;
+  const serviceLat = project.distance?.coordinates?.latitude ?? null;
+  const serviceLon = project.distance?.coordinates?.longitude ?? null;
+  const maxServiceRadius = project.distance?.maxKmRange ?? null;
 
   const calculateDistanceKm = (
     lat1: number,
@@ -2433,17 +2566,19 @@ export default function ProjectBookingForm({
     lat2: number,
     lon2: number
   ) => {
-    const toRad = (value: number) => (value * Math.PI) / 180
-    const R = 6371
-    const dLat = toRad(lat2 - lat1)
-    const dLon = toRad(lon2 - lon1)
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-  }
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   const distanceToServiceArea = useMemo(() => {
     if (
@@ -2452,100 +2587,110 @@ export default function ProjectBookingForm({
       serviceLat === null ||
       serviceLon === null
     ) {
-      return null
+      return null;
     }
-    return calculateDistanceKm(customerLat, customerLon, serviceLat, serviceLon)
-  }, [customerLat, customerLon, serviceLat, serviceLon])
+    return calculateDistanceKm(
+      customerLat,
+      customerLon,
+      serviceLat,
+      serviceLon
+    );
+  }, [customerLat, customerLon, serviceLat, serviceLon]);
 
   const isOutsideServiceArea = Boolean(
     maxServiceRadius &&
-    distanceToServiceArea !== null &&
-    distanceToServiceArea > maxServiceRadius
-  )
-  const roundedMaxRadius = typeof maxServiceRadius === 'number' ? Math.round(maxServiceRadius) : null
+      distanceToServiceArea !== null &&
+      distanceToServiceArea > maxServiceRadius
+  );
+  const roundedMaxRadius =
+    typeof maxServiceRadius === 'number' ? Math.round(maxServiceRadius) : null;
   const roundedDistanceAway =
-    distanceToServiceArea !== null ? Math.round(distanceToServiceArea) : null
+    distanceToServiceArea !== null ? Math.round(distanceToServiceArea) : null;
 
   const getOutsideServiceMessage = () => {
     if (!roundedMaxRadius) {
-      return 'This service is not available in your current location.'
+      return 'This service is not available in your current location.';
     }
 
     if (roundedDistanceAway !== null) {
-      return `This service is only available within ${roundedMaxRadius}km. You are approximately ${roundedDistanceAway}km away from the service area.`
+      return `This service is only available within ${roundedMaxRadius}km. You are approximately ${roundedDistanceAway}km away from the service area.`;
     }
 
-    return `This service is only available within ${roundedMaxRadius}km.`
-  }
+    return `This service is only available within ${roundedMaxRadius}km.`;
+  };
 
   const getConsecutiveDates = (start: Date, end: Date) => {
-    const days: Date[] = []
-    let cursor = start
+    const days: Date[] = [];
+    let cursor = start;
     while (cursor <= end) {
-      days.push(cursor)
-      cursor = addDays(cursor, 1)
+      days.push(cursor);
+      cursor = addDays(cursor, 1);
     }
-    return days
-  }
+    return days;
+  };
 
   const shortestWindowDates = shortestThroughputDetails
-    ? getConsecutiveDates(shortestThroughputDetails.startDate, shortestThroughputDetails.endDate)
-    : []
+    ? getConsecutiveDates(
+        shortestThroughputDetails.startDate,
+        shortestThroughputDetails.endDate
+      )
+    : [];
 
   const handleApplyShortestWindow = () => {
-    if (!shortestThroughputDetails) return
-    const start = format(shortestThroughputDetails.startDate, 'yyyy-MM-dd')
+    if (!shortestThroughputDetails) return;
+    const start = format(shortestThroughputDetails.startDate, 'yyyy-MM-dd');
     if (isDateBlocked(start)) {
-      toast.error('The shortest window start date is currently unavailable.')
-      return
+      toast.error('The shortest window start date is currently unavailable.');
+      return;
     }
-    setHasUserSelectedDate(true)
-    setSelectedDate(start)
+    setHasUserSelectedDate(true);
+    setSelectedDate(start);
     if (showCalendar) {
-      setShowCalendar(false)
+      setShowCalendar(false);
     }
-  }
+  };
 
-  const scheduleStartPoint = getSelectedStartPoint()
-  const scheduleEndPoint = getEstimatedCompletionPoint()
-  const scheduleStartLabel = formatSchedulePointLabel(scheduleStartPoint)
-  const scheduleEndLabel = formatSchedulePointLabel(scheduleEndPoint)
-  const bufferSummary = getBufferSummaryLabel()
+  const scheduleStartPoint = getSelectedStartPoint();
+  const scheduleEndPoint = getEstimatedCompletionPoint();
+  const scheduleStartLabel = formatSchedulePointLabel(scheduleStartPoint);
+  const scheduleEndLabel = formatSchedulePointLabel(scheduleEndPoint);
+  const bufferSummary = getBufferSummaryLabel();
 
   const getExecutionDurationLabel = () => {
-    const duration = selectedPackage?.executionDuration || project.executionDuration
-    if (!duration) return null
+    const duration =
+      selectedPackage?.executionDuration || project.executionDuration;
+    if (!duration) return null;
 
     if (selectedPackage?.pricing.type === 'rfq' && hasDurationRange(duration)) {
-      const min = duration.range.min
-      const max = duration.range.max
-      if (min && max) return `${min} - ${max} ${duration.unit}`
-      if (max) return `${max} ${duration.unit}`
-      if (min) return `${min} ${duration.unit}`
+      const min = duration.range.min;
+      const max = duration.range.max;
+      if (min && max) return `${min} - ${max} ${duration.unit}`;
+      if (max) return `${max} ${duration.unit}`;
+      if (min) return `${min} ${duration.unit}`;
     }
 
-    if (!duration.value || duration.value <= 0) return null
-    return `${duration.value} ${duration.unit}`
-  }
+    if (!duration.value || duration.value <= 0) return null;
+    return `${duration.value} ${duration.unit}`;
+  };
 
-  const executionLabel = getExecutionDurationLabel()
+  const executionLabel = getExecutionDurationLabel();
 
   useEffect(() => {
     if (!selectedPackage) {
-      setEstimatedUsage(1)
-      return
+      setEstimatedUsage(1);
+      return;
     }
 
     if (!shouldCollectUsage(selectedPackage.pricing.type)) {
-      setEstimatedUsage(1)
+      setEstimatedUsage(1);
     }
-  }, [selectedPackage])
+  }, [selectedPackage]);
 
   useEffect(() => {
     if (project.timeMode === 'hours') {
-      setSelectedTime('')
+      setSelectedTime('');
     }
-  }, [project.timeMode, selectedDate])
+  }, [project.timeMode, selectedDate]);
 
   return (
     <div className='min-h-screen bg-gray-50 py-8'>
