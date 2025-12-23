@@ -65,30 +65,39 @@ export default function CertificationManager({
       return;
     }
 
-    const result = await uploadFile(file, 'certification', {
-      projectId,
-      certificationType: type
-    });
+    try {
+      const result = await uploadFile(file, 'certification', {
+        projectId,
+        certificationType: type
+      });
 
-    if (result) {
-      const newCertification: ICertification = {
-        name: type,
-        fileUrl: result.url,
-        uploadedAt: new Date(),
-        isRequired: required
-      };
+      if (result && result.url) {
+        const newCertification: ICertification = {
+          name: type,
+          fileUrl: result.url,
+          uploadedAt: new Date(),
+          isRequired: required
+        };
 
-      // Update or add certification
-      const existingIndex = certifications.findIndex(c => c.name === type);
-      if (existingIndex >= 0) {
-        const updated = [...certifications];
-        updated[existingIndex] = newCertification;
-        onChange(updated);
+        // Update or add certification
+        const existingIndex = certifications.findIndex(c => c.name === type);
+        if (existingIndex >= 0) {
+          const updated = [...certifications];
+          updated[existingIndex] = newCertification;
+          onChange(updated);
+        } else {
+          onChange([...certifications, newCertification]);
+        }
+
+        toast.success(`${type} certification uploaded`);
       } else {
-        onChange([...certifications, newCertification]);
+        console.error('Certification upload failed - no result URL returned');
+        toast.error(`Failed to upload ${type} certification. Please check your connection and try again.`);
       }
-
-      toast.success(`${type} certification uploaded`);
+    } catch (error) {
+      console.error('Certification upload error:', error);
+      const message = error instanceof Error ? error.message : `Failed to upload ${type} certification. Please try again.`;
+      toast.error(message);
     }
   };
 
