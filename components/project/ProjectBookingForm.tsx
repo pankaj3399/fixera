@@ -222,6 +222,12 @@ export default function ProjectBookingForm({
       ? project.subprojects[selectedPackageIndex]
       : null;
 
+  // Derive mode from execution duration unit (replaces root-level timeMode)
+  const projectMode: 'hours' | 'days' =
+    selectedPackage?.executionDuration?.unit ||
+    project.executionDuration?.unit ||
+    'days';
+
   useEffect(() => {
     if (typeof selectedSubprojectIndex === 'number') {
       setSelectedPackageIndex(selectedSubprojectIndex);
@@ -358,7 +364,7 @@ export default function ProjectBookingForm({
   ]);
 
   useEffect(() => {
-    if (project.timeMode !== 'hours') {
+    if (projectMode !== 'hours') {
       return;
     }
     if (!selectedDate) {
@@ -379,7 +385,7 @@ export default function ProjectBookingForm({
     }
   }, [
     selectedDate,
-    project.timeMode,
+    projectMode,
     blockedDates,
     professionalAvailability,
     selectedPackage,
@@ -747,7 +753,7 @@ export default function ProjectBookingForm({
 
   const generateTimeSlotsForDate = (date: Date): string[] => {
     const slots: string[] = [];
-    if (project.timeMode !== 'hours') {
+    if (projectMode !== 'hours') {
       return slots;
     }
 
@@ -790,6 +796,10 @@ export default function ProjectBookingForm({
     // because we want customers to be able to book any remaining available slots
     // The per-slot overlap check below handles blocking individual time slots
 
+    // Check if date is today - if so, we need to filter out past slots
+    const now = new Date();
+    const isToday = startOfDay(date).getTime() === startOfDay(now).getTime();
+
     // Generate slots from start to last available slot
     let currentMinutes = startHour * 60 + startMin;
 
@@ -803,6 +813,12 @@ export default function ProjectBookingForm({
       slotStart.setHours(hours, minutes, 0, 0);
       const slotEnd = new Date(slotStart);
       slotEnd.setMinutes(slotEnd.getMinutes() + executionMinutes);
+
+      // Skip past slots for today
+      if (isToday && slotStart <= now) {
+        currentMinutes += 30;
+        continue;
+      }
 
       const overlapsBlocked = blockedIntervals.some(
         (interval) => slotStart < interval.end && slotEnd > interval.start
@@ -982,7 +998,7 @@ export default function ProjectBookingForm({
       return true;
     }
 
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       return generateTimeSlotsForDate(dateObj).length === 0;
     }
 
@@ -1023,7 +1039,7 @@ export default function ProjectBookingForm({
 
     // For days mode, use a function matcher that applies the 4-hour threshold
     // instead of disabling entire ranges
-    if (project.timeMode !== 'hours') {
+    if (projectMode !== 'hours') {
       // Create a function matcher that checks each day using the 4-hour threshold
       const rangeBlockMatcher = (date: Date) => {
         const dateStr = format(date, 'yyyy-MM-dd');
@@ -1075,7 +1091,7 @@ export default function ProjectBookingForm({
 
   const getMinDate = (): string | null => {
     console.log('[getMinDate] Starting calculation...');
-    console.log('[getMinDate] Project timeMode:', project.timeMode);
+    console.log('[getMinDate] Project timeMode:', projectMode);
     console.log(
       '[getMinDate] Proposals earliestBookableDate:',
       proposals?.earliestBookableDate
@@ -1105,7 +1121,7 @@ export default function ProjectBookingForm({
 
       const dateStr = format(checkDate, 'yyyy-MM-dd');
 
-      if (project.timeMode === 'hours') {
+      if (projectMode === 'hours') {
         const slots = generateTimeSlotsForDate(checkDate);
         console.log(`[getMinDate] ${dateStr} - Available slots:`, slots.length);
         if (slots.length > 0) {
@@ -1180,7 +1196,7 @@ export default function ProjectBookingForm({
   };
 
   const calculateCompletionDateTime = (includeBuffer = false): Date | null => {
-    if (project.timeMode !== 'hours' || !selectedDate || !selectedTime) {
+    if (projectMode !== 'hours' || !selectedDate || !selectedTime) {
       return null;
     }
 
@@ -1201,7 +1217,7 @@ export default function ProjectBookingForm({
   };
 
   const getSelectedStartPoint = (): Date | null => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       if (selectedDate && selectedTime) {
         const [hours, minutes] = selectedTime.split(':').map(Number);
         const start = parseISO(selectedDate);
@@ -1230,7 +1246,7 @@ export default function ProjectBookingForm({
   };
 
   const getEstimatedCompletionPoint = (): Date | null => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       const completion = calculateCompletionDateTime(true);
       if (completion) {
         return completion;
@@ -1258,13 +1274,13 @@ export default function ProjectBookingForm({
     if (!point) {
       return null;
     }
-    return project.timeMode === 'hours'
+    return projectMode === 'hours'
       ? format(point, 'EEEE, MMMM d, yyyy h:mm a')
       : format(point, 'EEEE, MMMM d, yyyy');
   };
 
   const getBufferSummaryLabel = () => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       const bufferHours = getBufferDurationHours();
       if (bufferHours > 0) {
         return `Includes ${bufferHours} ${
@@ -1330,7 +1346,7 @@ export default function ProjectBookingForm({
       }
 
       // Check time selection for hourly projects
-      if (project.timeMode === 'hours' && !selectedTime) {
+      if (projectMode === 'hours' && !selectedTime) {
         toast.error('Please select a time slot for your booking');
         return false;
       }
@@ -1428,7 +1444,7 @@ export default function ProjectBookingForm({
         projectId: project._id,
         preferredStartDate: selectedDate,
         preferredStartTime:
-          project.timeMode === 'hours' && selectedTime
+          projectMode === 'hours' && selectedTime
             ? selectedTime
             : undefined,
         selectedSubprojectIndex: selectedPackageIndex,
@@ -1441,7 +1457,7 @@ export default function ProjectBookingForm({
           answers: rfqAnswers,
           preferredStartDate: selectedDate,
           preferredStartTime:
-            project.timeMode === 'hours' && selectedTime
+            projectMode === 'hours' && selectedTime
               ? selectedTime
               : undefined,
           budget: totalPrice > 0 ? totalPrice : undefined,
@@ -1782,10 +1798,10 @@ export default function ProjectBookingForm({
   }, [selectedPackage]);
 
   useEffect(() => {
-    if (project.timeMode === 'hours') {
+    if (projectMode === 'hours') {
       setSelectedTime('');
     }
-  }, [project.timeMode, selectedDate]);
+  }, [projectMode, selectedDate]);
 
   return (
     <div className='min-h-screen bg-gray-50 py-8'>
@@ -2108,7 +2124,7 @@ export default function ProjectBookingForm({
                                     return;
                                   }
                                   // For hours mode, check if there are available time slots
-                                  if (project.timeMode === 'hours') {
+                                  if (projectMode === 'hours') {
                                     const dateStr = format(date, 'yyyy-MM-dd');
                                     if (isDateBlocked(dateStr)) {
                                       toast.error(
@@ -2221,7 +2237,7 @@ export default function ProjectBookingForm({
                     </div>
 
                     {/* Time Slot Picker for Hourly Projects */}
-                    {selectedDate && project.timeMode === 'hours' && (
+                    {selectedDate && projectMode === 'hours' && (
                       <div className='space-y-4'>
                         <div>
                           <Label className='text-base font-semibold'>
@@ -2412,20 +2428,20 @@ export default function ProjectBookingForm({
                         <p className='text-sm text-blue-900'>
                           <strong>Selected Start Date:</strong>{' '}
                           {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
-                          {project.timeMode === 'hours' && selectedTime && (
+                          {projectMode === 'hours' && selectedTime && (
                             <span className='ml-2 font-bold'>
                               {formatTimeRange(selectedTime)}
                             </span>
                           )}
                         </p>
 
-                        {(project.timeMode === 'hours'
+                        {(projectMode === 'hours'
                           ? projectedCompletionDateTime
                           : projectedCompletionDate) && (
                           <>
                             <p className='text-sm text-blue-900 font-semibold pt-2 border-t border-blue-300'>
                               <strong>Projected Completion:</strong>{' '}
-                              {project.timeMode === 'hours' &&
+                              {projectMode === 'hours' &&
                               projectedCompletionDateTime
                                 ? `${format(
                                     projectedCompletionDateTime,
@@ -2450,7 +2466,7 @@ export default function ProjectBookingForm({
                             </p>
                           </>
                         )}
-                        {project.timeMode === 'days' &&
+                        {projectMode === 'days' &&
                           shortestThroughputDetails && (
                             <div className='border-t border-blue-300 pt-3 space-y-3'>
                               <div className='flex flex-col gap-1'>
@@ -2803,19 +2819,19 @@ export default function ProjectBookingForm({
                     <p className='text-sm'>
                       <strong>Start Date:</strong>{' '}
                       {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
-                      {project.timeMode === 'hours' && selectedTime && (
+                      {projectMode === 'hours' && selectedTime && (
                         <span className='ml-2 font-semibold'>
                           {formatTimeRange(selectedTime)}
                         </span>
                       )}
                     </p>
-                    {(project.timeMode === 'hours'
+                    {(projectMode === 'hours'
                       ? projectedCompletionDateTime
                       : projectedCompletionDate) && (
                       <>
                         <p className='text-sm font-semibold pt-2 border-t border-gray-300'>
                           <strong>Expected Completion:</strong>{' '}
-                          {project.timeMode === 'hours' &&
+                          {projectMode === 'hours' &&
                           projectedCompletionDateTime
                             ? `${format(
                                 projectedCompletionDateTime,
@@ -2840,7 +2856,7 @@ export default function ProjectBookingForm({
                         </p>
                       </>
                     )}
-                    {project.timeMode === 'days' &&
+                    {projectMode === 'days' &&
                       shortestThroughputDetails && (
                         <div className='border-t border-gray-300 pt-3 space-y-3'>
                           <div className='flex flex-col gap-1'>
