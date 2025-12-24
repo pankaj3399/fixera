@@ -148,10 +148,12 @@ interface ScheduleProposalsResponse {
     earliestProposal?: {
       start: string;
       end: string;
+      executionEnd: string;
     };
     shortestThroughputProposal?: {
       start: string;
       end: string;
+      executionEnd: string;
     };
   };
 }
