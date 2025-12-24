@@ -89,6 +89,65 @@ interface ProjectCardProps {
   };
 }
 
+const toHours = (duration?: { value: number; unit: 'hours' | 'days' } | null) => {
+  if (!duration || typeof duration.value !== 'number') {
+    return 0;
+  }
+  return duration.unit === 'hours' ? duration.value : duration.value * 24;
+};
+
+const getResolvedShortestThroughputWindow = (project: ProjectCardProps['project']) => {
+  const hasCompleteWindow = (window?: { start?: string; end?: string } | null) => {
+    return Boolean(window?.start && window?.end);
+  };
+
+  if (hasCompleteWindow(project.shortestThroughputWindow)) {
+    return project.shortestThroughputWindow;
+  }
+
+  if (hasCompleteWindow(project.firstAvailableWindow)) {
+    return project.firstAvailableWindow;
+  }
+
+  if (!project.firstAvailableDate || !project.executionDuration?.value) {
+    return null;
+  }
+
+  const startDate = new Date(project.firstAvailableDate);
+  if (Number.isNaN(startDate.getTime())) {
+    return null;
+  }
+
+  const executionHours = toHours(project.executionDuration);
+  if (!executionHours) {
+    return null;
+  }
+
+  const bufferHours = toHours(project.bufferDuration);
+  const effectiveMode = project.timeMode || project.executionDuration.unit;
+
+  if (effectiveMode === 'hours') {
+    const endDate = new Date(startDate);
+    endDate.setHours(endDate.getHours() + executionHours);
+    return {
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+    };
+  }
+
+  const executionDays = Math.max(1, Math.ceil(executionHours / 24));
+  const bufferDays = Math.ceil(bufferHours / 24);
+  const completionDate = new Date(startDate);
+  completionDate.setDate(completionDate.getDate() + Math.max(0, executionDays - 1));
+  const endDate = new Date(completionDate);
+  endDate.setDate(endDate.getDate() + bufferDays + 1);
+
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+  };
+};
+
 const ProjectCard = ({ project }: ProjectCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
@@ -109,7 +168,8 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
   // Pre-compute timezone labels for first available date and windows
   const firstAvailableDateLabels = formatUtcViewerLabel(project.firstAvailableDate, viewerTimeZone);
   const firstAvailableWindowLabels = formatWindowUtcViewer(project.firstAvailableWindow, viewerTimeZone);
-  const shortestThroughputLabels = formatWindowUtcViewer(project.shortestThroughputWindow, viewerTimeZone);
+  const resolvedShortestThroughputWindow = getResolvedShortestThroughputWindow(project);
+  const shortestThroughputLabels = formatWindowUtcViewer(resolvedShortestThroughputWindow, viewerTimeZone);
 
   const getProjectDuration = () => {
     if (project.executionDuration) {
