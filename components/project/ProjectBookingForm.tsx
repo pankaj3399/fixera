@@ -2551,7 +2551,8 @@ export default function ProjectBookingForm({
 
     try {
       const startDate = parseISO(proposals.shortestThroughputProposal.start);
-      const endDate = parseISO(proposals.shortestThroughputProposal.end);
+      // Use executionEnd for customer display (excludes buffer time)
+      const endDate = parseISO(proposals.shortestThroughputProposal.executionEnd);
       const totalDays = Math.max(
         1,
         differenceInCalendarDays(endDate, startDate) + 1
