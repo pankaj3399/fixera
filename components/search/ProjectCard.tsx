@@ -168,7 +168,8 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
   // Pre-compute timezone labels for first available date and windows
   const firstAvailableDateLabels = formatUtcViewerLabel(project.firstAvailableDate, viewerTimeZone);
   const firstAvailableWindowLabels = formatWindowUtcViewer(project.firstAvailableWindow, viewerTimeZone);
-  const shortestThroughputLabels = formatWindowUtcViewer(project.shortestThroughputWindow, viewerTimeZone);
+  const resolvedShortestThroughputWindow = getResolvedShortestThroughputWindow(project);
+  const shortestThroughputLabels = formatWindowUtcViewer(resolvedShortestThroughputWindow, viewerTimeZone);
 
   const getProjectDuration = () => {
     if (project.executionDuration) {
