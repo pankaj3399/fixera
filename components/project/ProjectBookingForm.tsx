@@ -132,10 +132,12 @@ interface ScheduleProposalsResponse {
     earliestProposal?: {
       start: string;
       end: string;
+      executionEnd: string;
     };
     shortestThroughputProposal?: {
       start: string;
       end: string;
+      executionEnd: string;
     };
   };
 }
@@ -1645,14 +1647,15 @@ export default function ProjectBookingForm({
   const shortestThroughputDetails = (() => {
     if (
       !proposals?.shortestThroughputProposal?.start ||
-      !proposals.shortestThroughputProposal?.end
+      !proposals.shortestThroughputProposal?.executionEnd
     ) {
       return null;
     }
 
     try {
       const startDate = parseISO(proposals.shortestThroughputProposal.start);
-      const endDate = parseISO(proposals.shortestThroughputProposal.end);
+      // Use executionEnd for customer display (excludes buffer time)
+      const endDate = parseISO(proposals.shortestThroughputProposal.executionEnd);
       const totalDays = Math.max(
         1,
         differenceInCalendarDays(endDate, startDate) + 1
