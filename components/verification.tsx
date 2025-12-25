@@ -8,6 +8,7 @@ import { Mail, Phone, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 
+
 interface VerificationComponentProps {
   email: string
   phone: string
