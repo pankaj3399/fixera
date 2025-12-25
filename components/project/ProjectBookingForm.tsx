@@ -1095,19 +1095,12 @@ export default function ProjectBookingForm({
     console.log('[getMinDate] Starting calculation...');
     console.log('[getMinDate] Project timeMode:', projectMode);
     console.log(
-      '[getMinDate] Proposals earliestProposal.start:',
-      proposals?.earliestProposal?.start
-    );
-    console.log(
-      '[getMinDate] Proposals earliestBookableDate (fallback):',
+      '[getMinDate] Proposals earliestBookableDate:',
       proposals?.earliestBookableDate
     );
 
-    // Use earliestProposal.start which respects throughput constraints (throughput ≤ execution × 2)
-    // Fall back to earliestBookableDate only if earliestProposal is not available
-    const earliestDateStr = proposals?.earliestProposal?.start || proposals?.earliestBookableDate;
-    const earliest = earliestDateStr
-      ? parseISO(earliestDateStr)
+    const earliest = proposals?.earliestBookableDate
+      ? parseISO(proposals.earliestBookableDate)
       : addDays(new Date(), 1);
 
     console.log('[getMinDate] Starting from:', format(earliest, 'yyyy-MM-dd'));
@@ -2150,17 +2143,11 @@ export default function ProjectBookingForm({
                               }}
                               disabled={[
                                 {
-                                  // Use earliestProposal.start which respects throughput constraints (throughput ≤ execution × 2)
-                                  // Fall back to earliestBookableDate only if earliestProposal is not available
-                                  before: proposals?.earliestProposal?.start
+                                  before: proposals?.earliestBookableDate
                                     ? startOfDay(
-                                        parseISO(proposals.earliestProposal.start)
+                                        parseISO(proposals.earliestBookableDate)
                                       )
-                                    : proposals?.earliestBookableDate
-                                      ? startOfDay(
-                                          parseISO(proposals.earliestBookableDate)
-                                        )
-                                      : addDays(startOfDay(new Date()), 1),
+                                    : addDays(startOfDay(new Date()), 1),
                                 },
                                 { after: addDays(startOfDay(new Date()), 180) },
                                 ...getDisabledDays(),
