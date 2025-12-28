@@ -172,7 +172,7 @@ ${personalizedMessage}`
 
       setCustomMessage(personalizedMessage)
       toast.success('Confirmation message generated!')
-    } catch (error) {
+    } catch {
       toast.error('Failed to generate message')
     }
     setIsGenerating(false)

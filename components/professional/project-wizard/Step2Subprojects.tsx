@@ -388,18 +388,6 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
     })
   }
 
-  const updateMaterial = (subprojectId: string, materialIndex: number, updates: Partial<IMaterial>) => {
-    const subproject = subprojects.find(s => s.id === subprojectId)
-    if (!subproject) return
-
-    const updatedMaterials = [...(subproject.materials || [])]
-    updatedMaterials[materialIndex] = { ...updatedMaterials[materialIndex], ...updates }
-
-    updateSubproject(subprojectId, {
-      materials: updatedMaterials
-    })
-  }
-
   const calculateTotalPrice = () => {
     return subprojects.reduce((total, sub) => {
       if (sub.pricing.type === 'fixed' && sub.pricing.amount) {

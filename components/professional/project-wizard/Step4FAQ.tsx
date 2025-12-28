@@ -185,7 +185,7 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
 
       setFaqs(generatedFAQs)
       toast.success('FAQs generated successfully!')
-    } catch (error) {
+    } catch {
       toast.error('Failed to generate FAQs')
     }
     setIsGenerating(false)

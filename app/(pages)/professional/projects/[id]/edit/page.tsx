@@ -62,6 +62,7 @@ interface Subproject {
   pricing: Pricing;
   included?: IncludedItem[];
   materialsIncluded?: boolean;
+  preparationDuration?: { value: number; unit: 'hours' | 'days' };
   deliveryPreparation?: number;
   deliveryPreparationUnit?: 'hours' | 'days';
   executionDuration?: ExecutionDuration;
@@ -165,6 +166,29 @@ export default function ProjectEditPage() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [hasShownWarning, setHasShownWarning] = useState(false);
+
+  const normalizePreparationDuration = (subprojects: Subproject[]) =>
+    subprojects.map((subproject) => {
+      const preparationValue =
+        subproject.preparationDuration?.value ?? subproject.deliveryPreparation;
+      if (preparationValue == null) {
+        return subproject;
+      }
+
+      const preparationUnit =
+        subproject.preparationDuration?.unit ??
+        subproject.deliveryPreparationUnit ??
+        subproject.executionDuration?.unit ??
+        'days';
+
+      return {
+        ...subproject,
+        preparationDuration: {
+          value: preparationValue,
+          unit: preparationUnit,
+        },
+      };
+    });
 
   const buildAuthHeaders = useCallback(
     (headers: Record<string, string> = {}) => {
@@ -286,6 +310,7 @@ export default function ProjectEditPage() {
         }),
         body: JSON.stringify({
           ...project,
+          subprojects: normalizePreparationDuration(project.subprojects),
           // Ensure priceModel is always set when saving edits
           priceModel: (project.priceModel && project.priceModel.trim()) || ((project.category || '').toLowerCase() === 'renovation' ? 'rfq' : (project.subprojects?.some(s => s.pricing?.type === 'rfq') ? 'rfq' : 'fixed')),
           id: project._id,

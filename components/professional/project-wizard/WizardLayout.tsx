@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -94,7 +94,7 @@ export default function WizardLayout({
   isEditing = false,
   projectStatus
 }: WizardLayoutProps) {
-  const [steps, setSteps] = useState(WIZARD_STEPS)
+  const [steps] = useState(WIZARD_STEPS)
   const progress = (currentStep / 8) * 100
 
   const handleStepClick = (stepId: number) => {

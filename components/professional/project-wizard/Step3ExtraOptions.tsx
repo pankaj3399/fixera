@@ -194,14 +194,6 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     onValidate(isValid)
   }
 
-  const showValidationErrors = () => {
-    if (validationErrors.length > 0) {
-      validationErrors.forEach(error => {
-        toast.error(error)
-      })
-    }
-  }
-
   const getPredefinedExtraOptions = () => {
     if (configExtraOptions.length > 0) {
       // Backend does not supply price; default to 0 and let professional edit
