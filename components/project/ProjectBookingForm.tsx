@@ -1358,7 +1358,7 @@ export default function ProjectBookingForm({
         const start = rangeStart > dayStart ? rangeStart : dayStart;
         const end = rangeEnd < dayEnd ? rangeEnd : dayEnd;
         intervals.push({ start, end });
-      } catch (error) {
+      } catch {
         // Ignore malformed entries
       }
     });
@@ -1633,20 +1633,6 @@ export default function ProjectBookingForm({
     return convertTimeSlotToTimezones(selectedTime);
   }, [selectedTime, selectedDate, professionalTimezone, viewerTimeZone]);
 
-  /**
-   * Format time slot for display showing UTC and viewer's local time
-   */
-  const formatTimeSlotDisplay = (timeSlot: string): string => {
-    const times = convertTimeSlotToTimezones(timeSlot);
-
-    // If all timezones show the same time, just show the slot
-    if (times.utc === times.viewer) {
-      return timeSlot;
-    }
-
-    return `${timeSlot} (${times.viewer} your time)`;
-  };
-
   // Check if a time slot is in the past for today's date
   const isTimeSlotPast = (timeSlot: string): boolean => {
     if (!selectedDate) return false;
@@ -1758,9 +1744,6 @@ export default function ProjectBookingForm({
 
     return [...disabledMatchers, nonWorkingDayMatcher];
   };
-
-  // Matcher for weekend days (unselectable but styled differently from blocked)
-  const getWeekendMatcher = () => isWeekend;
 
   const getMinDate = (): string | null => {
     console.log('[getMinDate] Starting calculation...');
@@ -1930,91 +1913,36 @@ export default function ProjectBookingForm({
     const [hours, minutes] = selectedTime.split(':').map(Number);
     const startDate = parseISO(selectedDate);
     startDate.setHours(hours, minutes, 0, 0);
-    const completion = new Date(startDate);
-    completion.setHours(completion.getHours() + totalHours);
-    return completion;
-  };
+    const executionEnd = new Date(startDate);
+    executionEnd.setHours(executionEnd.getHours() + executionHours);
 
-  const getSelectedStartPoint = (): Date | null => {
-    if (projectMode === 'hours') {
-      if (selectedDate && selectedTime) {
-        const [hours, minutes] = selectedTime.split(':').map(Number);
-        const start = parseISO(selectedDate);
-        start.setHours(hours, minutes, 0, 0);
-        return start;
-      }
-      if (proposals?.earliestProposal?.start) {
-        return parseISO(proposals.earliestProposal.start);
-      }
-      if (proposals?.earliestBookableDate) {
-        return parseISO(proposals.earliestBookableDate);
-      }
-      return null;
+    if (!includeBuffer) {
+      return executionEnd;
     }
 
-    if (selectedDate) {
-      return parseISO(selectedDate);
-    }
-    if (proposals?.earliestProposal?.start) {
-      return parseISO(proposals.earliestProposal.start);
-    }
-    if (proposals?.earliestBookableDate) {
-      return parseISO(proposals.earliestBookableDate);
-    }
-    return null;
-  };
-
-  const getEstimatedCompletionPoint = (): Date | null => {
-    if (projectMode === 'hours') {
-      const completion = calculateCompletionDateTime(true);
-      if (completion) {
-        return completion;
-      }
-      if (proposals?.earliestProposal?.end) {
-        return parseISO(proposals.earliestProposal.end);
-      }
-      return null;
+    const buffer = getBufferDuration();
+    if (!buffer || !buffer.value || buffer.value <= 0) {
+      return executionEnd;
     }
 
-    const completion = calculateCompletionDate(true);
-    if (completion) {
+    if (buffer.unit === 'hours') {
+      const completion = new Date(executionEnd);
+      completion.setHours(completion.getHours() + buffer.value);
       return completion;
     }
-    if (proposals?.earliestProposal?.end) {
-      return parseISO(proposals.earliestProposal.end);
-    }
-    if (proposals?.shortestThroughputProposal?.end) {
-      return parseISO(proposals.shortestThroughputProposal.end);
-    }
-    return null;
-  };
 
-  const formatSchedulePointLabel = (point: Date | null) => {
-    if (!point) {
-      return null;
+    const bufferDays = Math.ceil(convertDurationToDays(buffer));
+    if (bufferDays <= 0) {
+      return executionEnd;
     }
-    return projectMode === 'hours'
-      ? format(point, 'EEEE, MMMM d, yyyy h:mm a')
-      : format(point, 'EEEE, MMMM d, yyyy');
-  };
 
-  const getBufferSummaryLabel = () => {
-    if (projectMode === 'hours') {
-      const bufferHours = getBufferDurationHours();
-      if (bufferHours > 0) {
-        return `Includes ${bufferHours} ${
-          bufferHours === 1 ? 'hour' : 'hours'
-        } of buffer time`;
-      }
-    } else {
-      const bufferDays = getBufferDurationDays();
-      if (bufferDays > 0) {
-        return `Includes ${bufferDays} ${
-          bufferDays === 1 ? 'day' : 'days'
-        } of buffer time`;
-      }
-    }
-    return null;
+    const bufferStart = addDays(startOfDay(executionEnd), 1);
+    const bufferEndDate = advanceWorkingDays(bufferStart, bufferDays);
+    const { endTime } = getWorkingHoursForDate(bufferEndDate);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    const completion = new Date(bufferEndDate);
+    completion.setHours(endHour, endMin, 0, 0);
+    return completion;
   };
 
   const handleRFQAnswerChange = (index: number, answer: string) => {
