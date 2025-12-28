@@ -98,6 +98,7 @@ interface Subproject {
     type?: string
     amount?: number
   }
+  preparationDuration?: { value?: number; unit?: string }
   deliveryPreparation?: number
   deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration?: {
@@ -299,6 +300,7 @@ export default function ProjectApprovalPage() {
         toast.error('Failed to suspend project')
       }
     } catch (e) {
+      
       console.error('Error deactivating project:', e)
       toast.error('Failed to suspend project')
     }
@@ -769,11 +771,20 @@ export default function ProjectApprovalPage() {
                               <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
                             )}
                             <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
-                              {sp.deliveryPreparation != null && (
-                                <div>
-                                  Preparation: {sp.deliveryPreparation} {sp.deliveryPreparationUnit || 'days'}
-                                </div>
-                              )}
+                              {(() => {
+                                const preparationValue = sp.preparationDuration?.value ?? sp.deliveryPreparation;
+                                if (preparationValue == null) return null;
+                                const preparationUnit =
+                                  sp.preparationDuration?.unit ??
+                                  sp.deliveryPreparationUnit ??
+                                  sp.executionDuration?.unit ??
+                                  'days';
+                                return (
+                                  <div>
+                                    Preparation: {preparationValue} {preparationUnit}
+                                  </div>
+                                );
+                              })()}
                               {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
                               {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
                               {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}

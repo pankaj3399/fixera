@@ -169,7 +169,6 @@ function SearchPageContent() {
 
   const [searchType, setSearchType] = useState<'professionals' | 'projects'>(initialType);
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [serverFacets, setServerFacets] = useState<ProjectFacetCounts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -218,19 +217,11 @@ function SearchPageContent() {
     if (searchType !== 'projects') {
       return null;
     }
-    // Always prefer server facets (which represent ALL matching projects in the database)
-    if (serverFacets) {
-      console.log('Using server facets (from ALL database projects)');
-      return serverFacets;
-    }
-    // Fallback to client-side facets only if server didn't provide them
-    // Note: This fallback only represents the current page of results, not all database projects
     if (projectResults.length === 0) {
       return null;
     }
-    console.warn('Using client-side facets (only current page results) - server facets not available');
     return buildProjectFacets(projectResults);
-  }, [projectResults, searchType, serverFacets]);
+  }, [projectResults, searchType]);
 
   // Fetch categories on mount (kept for backward compatibility)
   useEffect(() => {
@@ -395,25 +386,17 @@ function SearchPageContent() {
       const data = (await response.json()) as {
         results?: SearchResult[];
         pagination?: PaginationState;
-        facets?: ProjectFacetCounts | null;
       };
       console.log('Search response:', data);
       console.log('Results count:', data.results?.length || 0);
-      console.log('Server facets received:', data.facets);
       setResults(data.results ?? []);
       setPagination((prev) => data.pagination ?? prev);
-      if (searchType === 'projects') {
-        console.log('Setting server facets for projects:', data.facets);
-        setServerFacets(data.facets ?? null);
-        if (data.results?.length) {
-          const priceModelsOnPage = data.results.map((project) => {
-            const projectData = project as ProjectResult;
-            return projectData?.priceModel || 'unknown';
-          });
-          console.log('Project price models on page:', priceModelsOnPage);
-        }
-      } else {
-        setServerFacets(null);
+      if (searchType === 'projects' && data.results?.length) {
+        const priceModelsOnPage = data.results.map((project) => {
+          const projectData = project as ProjectResult;
+          return projectData?.priceModel || 'unknown';
+        });
+        console.log('Project price models on page:', priceModelsOnPage);
       }
     } catch (err) {
       console.error('Search error:', err);
@@ -462,7 +445,6 @@ function SearchPageContent() {
     setSearchType(newType);
     // Reset to page 1 when changing search type
     setPagination((prev) => ({ ...prev, page: 1 }));
-    setServerFacets(null);
     // Clear results to show loading state
     setResults([]);
   };

@@ -36,6 +36,10 @@ interface ISubproject {
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
+  preparationDuration?: {
+    value: number
+    unit: 'hours' | 'days'
+  }
   deliveryPreparation: number
   deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
@@ -198,6 +202,27 @@ export default function ProjectCreatePage() {
   const [canProceed, setCanProceed] = useState(false)
   const [stepValidation, setStepValidation] = useState<boolean[]>(new Array(8).fill(false))
 
+  const normalizePreparationDuration = (subprojects?: ISubproject[]) => {
+    if (!Array.isArray(subprojects)) return subprojects
+    return subprojects.map((subproject) => {
+      const preparationValue =
+        subproject.preparationDuration?.value ?? subproject.deliveryPreparation
+      if (preparationValue == null) return subproject
+      const preparationUnit =
+        subproject.preparationDuration?.unit ??
+        subproject.deliveryPreparationUnit ??
+        subproject.executionDuration?.unit ??
+        'days'
+      return {
+        ...subproject,
+        preparationDuration: {
+          value: preparationValue,
+          unit: preparationUnit
+        }
+      }
+    })
+  }
+
   // Load existing project data if editing
   useEffect(() => {
     if (projectId) {
@@ -320,6 +345,7 @@ export default function ProjectCreatePage() {
 
       const dataToSave = {
         ...projectData,
+        subprojects: normalizePreparationDuration(projectData.subprojects),
         priceModel: computedPriceModel,
         currentStep
       }
