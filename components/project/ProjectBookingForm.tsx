@@ -1469,7 +1469,7 @@ export default function ProjectBookingForm({
             projectMode === 'hours' && selectedTime
               ? selectedTime
               : undefined,
-          budget: totalPrice > 0 ? totalPrice : undefined,
+          budget: totalPrice > 0 ? { min: totalPrice, max: totalPrice, currency: 'EUR' } : undefined,
         },
         urgency: 'medium',
       };

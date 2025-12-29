@@ -52,6 +52,11 @@ interface User {
     endDate: string;
     reason?: string;
   }[]
+  bookingBlockedRanges?: {
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }[]
   // Company availability
   companyAvailability?: {
     monday?: { available: boolean; startTime?: string; endTime?: string }

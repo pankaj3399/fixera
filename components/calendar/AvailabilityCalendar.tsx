@@ -60,6 +60,8 @@ interface Props {
   personalBlockedRanges?: BlockedRange[];
   companyBlockedDates?: (BlockedDate & { isHoliday?: boolean })[];
   companyBlockedRanges?: BlockedRange[];
+  readonlyBlockedDates?: BlockedDate[];
+  readonlyBlockedRanges?: BlockedRange[];
   mode?: 'professional' | 'employee';
   onToggleDay?: (date: string) => void;
   onAddRange?: (s: string, e: string) => void;
@@ -85,6 +87,8 @@ export default function AvailabilityCalendar({
   personalBlockedRanges = [],
   companyBlockedDates = [],
   companyBlockedRanges = [],
+  readonlyBlockedDates = [],
+  readonlyBlockedRanges = [],
   onToggleDay,
   onAddRange,
   disabledPast = true,
@@ -98,6 +102,11 @@ export default function AvailabilityCalendar({
     personalBlockedDates.forEach((d) => s.add(d.date));
     return s;
   }, [personalBlockedDates]);
+  const rSet = useMemo(() => {
+    const s = new Set<string>();
+    readonlyBlockedDates.forEach((d) => s.add(d.date));
+    return s;
+  }, [readonlyBlockedDates]);
   const cMap = useMemo(() => {
     const m = new Map<string, { isHoliday?: boolean; reason?: string }>();
     companyBlockedDates.forEach((d) =>
@@ -128,8 +137,105 @@ export default function AvailabilityCalendar({
       isWithinInterval(d, { start: toD(r.startDate), end: toD(r.endDate) })
     );
   };
+  // Threshold for considering a day as fully blocked (4 hours)
+  const BLOCK_THRESHOLD_HOURS = 4;
+
+  const isReadonlyBlocked = (d: Date) => {
+    if (rSet.has(ymd(d))) return true;
+
+    const dayStart = startOfDay(d);
+    const dayEnd = addDays(dayStart, 1);
+
+    // Calculate total blocked hours on this day from all ranges
+    let totalBlockedMinutes = 0;
+
+    for (const range of readonlyBlockedRanges) {
+      const rangeStart = new Date(range.startDate);
+      const rangeEnd = new Date(range.endDate);
+
+      // Check if range overlaps with this day
+      if (rangeStart >= dayEnd || rangeEnd <= dayStart) continue;
+
+      // For multi-day executions, fully block
+      if (range.reason === 'booking') {
+        const execStartDay = startOfDay(rangeStart);
+        const execEndDay = startOfDay(rangeEnd);
+        if (execEndDay.getTime() > execStartDay.getTime()) {
+          return true; // Multi-day execution = fully blocked
+        }
+      }
+
+      // Calculate overlap with this day
+      const overlapStart = rangeStart > dayStart ? rangeStart : dayStart;
+      const overlapEnd = rangeEnd < dayEnd ? rangeEnd : dayEnd;
+      const overlapMinutes = (overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60);
+      totalBlockedMinutes += overlapMinutes;
+    }
+
+    // If total blocked time >= 4 hours, fully block the day
+    return totalBlockedMinutes >= BLOCK_THRESHOLD_HOURS * 60;
+  };
+
+  // Check if a day has a partial booking (< 4 hours blocked)
+  const hasPartialBookingOnDay = (d: Date) => {
+    if (isReadonlyBlocked(d)) return false; // If fully blocked, not partial
+
+    const dayStart = startOfDay(d);
+    const dayEnd = addDays(dayStart, 1);
+
+    return readonlyBlockedRanges.some((range) => {
+      const rangeStart = new Date(range.startDate);
+      const rangeEnd = new Date(range.endDate);
+
+      // Must overlap this day
+      if (rangeStart >= dayEnd || rangeEnd <= dayStart) return false;
+
+      // Any booking overlap means partial (since we already checked it's not fully blocked)
+      return range.reason === 'booking';
+    });
+  };
+
   const isPB = (d: Date) =>
     pSet.has(ymd(d)) || inRanges(d, personalBlockedRanges);
+
+  // Get booking details for a specific day (for hover tooltip)
+  const getBookingDetailsForDay = (d: Date): string[] => {
+    const details: string[] = [];
+    const dayStart = startOfDay(d);
+    const dayEnd = addDays(dayStart, 1);
+
+    readonlyBlockedRanges.forEach((range) => {
+      const rangeStart = new Date(range.startDate);
+      const rangeEnd = new Date(range.endDate);
+
+      // Check if range overlaps with this day
+      if (rangeStart < dayEnd && rangeEnd > dayStart) {
+        const start = new Date(range.startDate);
+        const end = new Date(range.endDate);
+
+        // Format the time
+        const startTime = format(start, 'HH:mm');
+        const endTime = format(end, 'HH:mm');
+        const startDate = format(start, 'MMM d');
+        const endDate = format(end, 'MMM d');
+
+        if (range.reason === 'booking') {
+          // Same day booking - show time range
+          if (format(start, 'yyyy-MM-dd') === format(end, 'yyyy-MM-dd')) {
+            details.push(`Booked: ${startTime} - ${endTime}`);
+          } else {
+            details.push(`Booked: ${startDate} ${startTime} - ${endDate} ${endTime}`);
+          }
+        } else if (range.reason === 'booking-buffer') {
+          details.push(`Buffer: ${startDate} - ${endDate}`);
+        } else {
+          details.push(`Blocked: ${startTime} - ${endTime}`);
+        }
+      }
+    });
+
+    return details;
+  };
   const isWork = (d: Date) => {
     const idx = d.getDay();
     const key: WeekdayKey = [
@@ -144,9 +250,14 @@ export default function AvailabilityCalendar({
     return !!weeklySchedule?.[key]?.available;
   };
 
+  // Check if calendar is interactive (has callbacks)
+  const isInteractive = !!(onToggleDay || onAddRange);
+
   const click = (d: Date) => {
+    // If no callbacks, calendar is read-only
+    if (!isInteractive) return;
     if (disabledPast && isBefore(d, today)) return;
-    if (isCompanyBlocked(d)) return;
+    if (isCompanyBlocked(d) || isReadonlyBlocked(d)) return;
     if (!rs) {
       setRs(d);
       return;
@@ -164,18 +275,22 @@ export default function AvailabilityCalendar({
   const grad = (d: Date) =>
     isCompanyBlocked(d)
       ? 'from-amber-200 to-orange-200'
+      : isReadonlyBlocked(d)
+      ? 'from-indigo-200 to-sky-200'
       : isPB(d)
       ? 'from-rose-200 to-red-200'
       : isWork(d)
-      ? 'from-emerald-200 to-teal-200'
+      ? (hasPartialBookingOnDay(d) ? 'from-emerald-200 to-indigo-200' : 'from-emerald-200 to-teal-200')
       : 'from-slate-200 to-gray-200';
   const label = (d: Date) =>
     isCompanyBlocked(d)
       ? 'Company Block'
+      : isReadonlyBlocked(d)
+      ? 'Booked'
       : isPB(d)
       ? 'Blocked'
       : isWork(d)
-      ? 'Available'
+      ? (hasPartialBookingOnDay(d) ? 'Partial' : 'Available')
       : 'Off';
   const cellHeight = 'h-20';
   const borderPad = 'p-0';
@@ -227,6 +342,10 @@ export default function AvailabilityCalendar({
             const out = !isSameMonth(d, cur);
             const past = disabledPast && isBefore(d, today);
             const lb = label(d);
+            const bookingDetails = getBookingDetailsForDay(d);
+            const tooltipText = bookingDetails.length > 0
+              ? `${format(d, 'PPP')}\n${bookingDetails.join('\n')}`
+              : `${format(d, 'PPP')} - ${lb}`;
             let inTmp = false;
             if (rs) {
               const s = rs <= d ? rs : d;
@@ -240,16 +359,17 @@ export default function AvailabilityCalendar({
               <button
                 key={k}
                 onClick={() => click(d)}
-                disabled={past || isCompanyBlocked(d)}
+                disabled={!isInteractive || past || isCompanyBlocked(d) || isReadonlyBlocked(d)}
                 className={cn(
                   'relative',
                   cellHeight,
-                  'rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400',
+                  'rounded-xl transition-all',
+                  isInteractive && 'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400',
                   out && 'opacity-40',
-                  (past || isCompanyBlocked(d)) && 'cursor-not-allowed'
+                  !isInteractive ? 'cursor-default' : (past || isCompanyBlocked(d) || isReadonlyBlocked(d)) && 'cursor-not-allowed'
                 )}
-                aria-label={`${format(d, 'PPP')} - ${lb}`}
-                title={`${format(d, 'PPP')} - ${lb}`}
+                aria-label={tooltipText}
+                title={tooltipText}
               >
                 <div
                   className={cn(
@@ -265,8 +385,10 @@ export default function AvailabilityCalendar({
                       innerPad,
                       'border',
                       isCompanyBlocked(d) && 'border-orange-300',
-                      isPB(d) && 'border-rose-300',
+                      isReadonlyBlocked(d) && !isCompanyBlocked(d) && 'border-indigo-300',
+                      isPB(d) && !isCompanyBlocked(d) && !isReadonlyBlocked(d) && 'border-rose-300',
                       !isCompanyBlocked(d) &&
+                        !isReadonlyBlocked(d) &&
                         !isPB(d) &&
                         (isWork(d) ? 'border-emerald-300' : 'border-slate-300')
                     )}
@@ -281,12 +403,20 @@ export default function AvailabilityCalendar({
                       className={cn(
                         'text-[10px] px-2 py-0.5 rounded-full',
                         isCompanyBlocked(d) && 'bg-orange-100 text-orange-700',
-                        isPB(d) && 'bg-rose-100 text-rose-700',
+                        isReadonlyBlocked(d) && !isCompanyBlocked(d) && 'bg-indigo-100 text-indigo-700',
+                        isPB(d) && !isCompanyBlocked(d) && !isReadonlyBlocked(d) && 'bg-rose-100 text-rose-700',
                         !isCompanyBlocked(d) &&
+                          !isReadonlyBlocked(d) &&
                           !isPB(d) &&
-                          (isWork(d)
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-slate-100 text-slate-700')
+                          isWork(d) &&
+                          (hasPartialBookingOnDay(d)
+                            ? 'bg-gradient-to-r from-emerald-100 to-indigo-100 text-indigo-700'
+                            : 'bg-emerald-100 text-emerald-700'),
+                        !isCompanyBlocked(d) &&
+                          !isReadonlyBlocked(d) &&
+                          !isPB(d) &&
+                          !isWork(d) &&
+                          'bg-slate-100 text-slate-700'
                       )}
                     >
                       {lb}
@@ -299,6 +429,16 @@ export default function AvailabilityCalendar({
         </div>
         <div className='mt-4 flex flex-wrap gap-3 text-xs'>
           <LegendDot
+            className='from-indigo-200 to-sky-200'
+            label='Fully Booked'
+            chipClass='bg-indigo-100 text-indigo-700'
+          />
+          <LegendDot
+            className='from-emerald-200 to-indigo-200'
+            label='Partial Booking'
+            chipClass='bg-gradient-to-r from-emerald-100 to-indigo-100 text-indigo-700'
+          />
+          <LegendDot
             className='from-amber-200 to-orange-200'
             label='Company Block'
             chipClass='bg-orange-100 text-orange-700'
@@ -310,7 +450,7 @@ export default function AvailabilityCalendar({
           />
           <LegendDot
             className='from-emerald-200 to-teal-200'
-            label='Working Day'
+            label='Available'
             chipClass='bg-emerald-100 text-emerald-700'
           />
           <LegendDot
@@ -319,10 +459,17 @@ export default function AvailabilityCalendar({
             chipClass='bg-slate-100 text-slate-700'
           />
         </div>
-        <div className='mt-2 text-[11px] text-muted-foreground'>
-          Tip: Click once to start a range, click another day to end it. Click
-          the same day twice to toggle a single-day block.
-        </div>
+        {isInteractive && (
+          <div className='mt-2 text-[11px] text-muted-foreground'>
+            Tip: Click once to start a range, click another day to end it. Click
+            the same day twice to toggle a single-day block.
+          </div>
+        )}
+        {!isInteractive && (
+          <div className='mt-2 text-[11px] text-muted-foreground'>
+            Hover over days to see booking details.
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -582,24 +582,7 @@ export default function ProjectDetailPage() {
                           </p>
                         </div>
                       </div>
-                      {project.bufferDuration &&
-                        project.bufferDuration.value > 0 && (
-                          <div className='flex items-start gap-2'>
-                            <Calendar className='h-5 w-5 text-yellow-600 mt-0.5' />
-                            <div>
-                              <p className='text-sm text-gray-500'>
-                                Buffer Time
-                              </p>
-                              <p className='font-medium'>
-                                {project.bufferDuration.value}{' '}
-                                {project.bufferDuration.unit}
-                              </p>
-                              <p className='text-xs text-gray-500'>
-                                Reserved for quality assurance
-                              </p>
-                            </div>
-                          </div>
-                        )}
+                      {/* Buffer time is intentionally hidden from customers - it only blocks professional's calendar */}
                       {project.timeMode && (
                         <div className='flex items-start gap-2'>
                           <CheckCircle className='h-5 w-5 text-green-600 mt-0.5' />

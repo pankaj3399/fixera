@@ -38,6 +38,11 @@ interface AvailabilityData {
     endDate: string;
     reason?: string;
   }>
+  bookingBlockedRanges?: Array<{
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }>
   companyBlockedDates: Array<{ date: string; reason?: string; isHoliday?: boolean }>
   companyBlockedRanges: Array<{
     startDate: string;
@@ -52,6 +57,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
   const [, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [availabilityData, setAvailabilityData] = useState<AvailabilityData | null>(null)
+  const [bookingBlockedRanges, setBookingBlockedRanges] = useState<BlockedRange[]>([])
 
   // Blocked dates and ranges states
   const [blockedDates, setBlockedDates] = useState<{ date: string; reason?: string }[]>([])
@@ -93,6 +99,15 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
               endDate: new Date(item.endDate).toISOString(),
               reason: item.reason
             })))
+          }
+          if (data.data.bookingBlockedRanges) {
+            setBookingBlockedRanges(data.data.bookingBlockedRanges.map((item: { startDate: string; endDate: string; reason?: string }) => ({
+              startDate: new Date(item.startDate).toISOString(),
+              endDate: new Date(item.endDate).toISOString(),
+              reason: item.reason
+            })))
+          } else {
+            setBookingBlockedRanges([])
           }
 
           console.log('✅ Company schedule and blocked dates loaded')
@@ -248,6 +263,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
             weeklySchedule={availabilityData.availability}
             personalBlockedDates={blockedDates}
             personalBlockedRanges={blockedRanges}
+            readonlyBlockedRanges={bookingBlockedRanges}
             companyBlockedDates={availabilityData.companyBlockedDates}
             companyBlockedRanges={availabilityData.companyBlockedRanges}
             mode="employee"

@@ -76,6 +76,15 @@ interface ProjectCardProps {
         name?: string;
         description?: string;
       }>;
+      firstAvailableDate?: string | null;
+      firstAvailableWindow?: {
+        start: string;
+        end: string;
+      } | null;
+      shortestThroughputWindow?: {
+        start: string;
+        end: string;
+      } | null;
     }>;
     firstAvailableDate?: string | null;
     firstAvailableWindow?: {
@@ -174,8 +183,8 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
   const getProjectDuration = () => {
     if (project.executionDuration) {
       const exec = project.executionDuration;
-      const buffer = project.bufferDuration;
-      return `${exec.value}${buffer?.value ? `+${buffer.value}` : ''} ${exec.unit}`;
+      // Buffer is intentionally hidden from customers - it only blocks professional's calendar
+      return `${exec.value} ${exec.unit}`;
     }
     return null;
   };
@@ -306,49 +315,12 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
         </div>
 
         {/* Project Duration & Availability */}
-        {(getProjectDuration() || firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels) && (
+        {(getProjectDuration() || firstAvailableDateLabels || firstAvailableWindowLabels) && (
           <div className="space-y-2 mb-3 text-sm text-gray-700">
             {getProjectDuration() && (
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-blue-600" />
                 <span className="font-medium">Duration: {getProjectDuration()}</span>
-              </div>
-            )}
-            {(firstAvailableWindowLabels || firstAvailableDateLabels) && (
-              <div className="flex items-start gap-2">
-                <Calendar className="w-4 h-4 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-gray-900">First Available</p>
-                  {firstAvailableWindowLabels ? (
-                    <>
-                      <p className="text-gray-700 text-xs">UTC: {firstAvailableWindowLabels.utcLabel}</p>
-                      <p className="text-gray-500 text-xs">
-                        {viewerTimeZone}: {firstAvailableWindowLabels.viewerLabel}
-                      </p>
-                    </>
-                  ) : firstAvailableDateLabels ? (
-                    <>
-                      <p className="text-gray-700 text-xs">UTC: {firstAvailableDateLabels.utcLabel}</p>
-                      <p className="text-gray-500 text-xs">
-                        {viewerTimeZone}: {firstAvailableDateLabels.viewerLabel}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-gray-600">Contact for availability</p>
-                  )}
-                </div>
-              </div>
-            )}
-            {shortestThroughputLabels && (
-              <div className="flex items-start gap-2">
-                <Calendar className="w-4 h-4 text-emerald-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-gray-900">Shortest Throughput</p>
-                  <p className="text-gray-700 text-xs">UTC: {shortestThroughputLabels.utcLabel}</p>
-                  <p className="text-gray-500 text-xs">
-                    {viewerTimeZone}: {shortestThroughputLabels.viewerLabel}
-                  </p>
-                </div>
               </div>
             )}
           </div>
@@ -359,26 +331,36 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           <div className="mb-4">
             <p className="text-xs font-semibold text-gray-700 mb-2">Available Packages:</p>
             <div className="space-y-2">
-              {project.subprojects.slice(0, 3).map((subproject, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs border border-gray-200">
-                  <div className="flex-1 min-w-0 mr-2">
-                    <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
-                    {subproject.executionDuration && (
-                      <p className="text-gray-500 text-[10px]">
-                        {subproject.executionDuration.value} {subproject.executionDuration.unit}
-                      </p>
-                    )}
-                    {subproject.warrantyPeriod && (
-                      <p className="text-gray-500 text-[10px]">
-                        {subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty
-                      </p>
-                    )}
+              {project.subprojects.slice(0, 3).map((subproject, idx) => {
+                const subprojectAvailability = formatWindowUtcViewer(subproject.firstAvailableWindow, viewerTimeZone);
+
+                return (
+                  <div key={idx} className="p-2 bg-gray-50 rounded text-xs border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0 mr-2">
+                        <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                          {subproject.executionDuration && (
+                            <span className="text-gray-500 text-[10px] flex items-center gap-0.5">
+                              <Clock className="w-2.5 h-2.5" />
+                              {subproject.executionDuration.value} {subproject.executionDuration.unit}
+                            </span>
+                          )}
+                          {subprojectAvailability && (
+                            <span className="text-emerald-600 text-[10px] flex items-center gap-0.5">
+                              <Calendar className="w-2.5 h-2.5" />
+                              {subprojectAvailability.viewerLabel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant={subproject.pricing.type === 'rfq' ? 'outline' : 'default'} className="text-[10px] px-2 py-0.5 shrink-0">
+                        {formatSubprojectPrice(subproject.pricing)}
+                      </Badge>
+                    </div>
                   </div>
-                  <Badge variant={subproject.pricing.type === 'rfq' ? 'outline' : 'default'} className="text-[10px] px-2 py-0.5 shrink-0">
-                    {formatSubprojectPrice(subproject.pricing)}
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
               {project.subprojects.length > 3 && (
                 <p className="text-[10px] text-gray-500 text-center">
                   +{project.subprojects.length - 3} more package{project.subprojects.length - 3 > 1 ? 's' : ''}

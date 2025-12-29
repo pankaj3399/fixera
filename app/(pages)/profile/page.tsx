@@ -76,6 +76,7 @@ export default function ProfilePage() {
   const [newBlockedDate, setNewBlockedDate] = useState({date: '', reason: ''})
   const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
   const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
+  const [bookingBlockedRanges, setBookingBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
   const [blockingMode, setBlockingMode] = useState<'single' | 'range'>('range')
 
   // Company availability (for team members to inherit)
@@ -199,6 +200,20 @@ export default function ProfilePage() {
           };
         });
         setBlockedRanges(formattedRanges);
+      }
+      if (user.bookingBlockedRanges) {
+        const formattedBookingRanges = user.bookingBlockedRanges.map((range: { startDate: string | Date; endDate: string | Date; reason?: string }) => {
+          const startDateStr = typeof range.startDate === 'string' ? range.startDate : range.startDate.toISOString();
+          const endDateStr = typeof range.endDate === 'string' ? range.endDate : range.endDate.toISOString();
+          return {
+            startDate: startDateStr,
+            endDate: endDateStr,
+            reason: range.reason || ''
+          };
+        });
+        setBookingBlockedRanges(formattedBookingRanges);
+      } else {
+        setBookingBlockedRanges([]);
       }
 
       // Load company availability
@@ -1348,311 +1363,19 @@ export default function ProfilePage() {
 
             {/* Personal Availability Tab */}
             <TabsContent value="personal-availability" className="space-y-6">
-              {/* Calendar View */}
+              {/* Read-only Calendar View - shows bookings on hover */}
               <AvailabilityCalendar
-                title="Personal Availability"
-                description="Month view with working days, company blocks and your blocks"
+                title="My Schedule"
+                description="View your bookings and availability. Hover over days to see booking details."
                 weeklySchedule={availability}
-                personalBlockedDates={blockedDates}
-                personalBlockedRanges={blockedRanges}
+                personalBlockedDates={[]}
+                personalBlockedRanges={[]}
+                readonlyBlockedRanges={bookingBlockedRanges}
                 companyBlockedDates={companyBlockedDates}
                 companyBlockedRanges={companyBlockedRanges}
                 mode="professional"
-                onToggleDay={toggleBlockedDateFromCalendar}
-                onAddRange={addBlockedRangeFromCalendar}
-                compact
+                disabledPast={false}
               />
-
-              <WeeklyTimeBlocker
-                blockedRanges={blockedRanges}
-                onAddBlockedRange={(start, end, reason) => addBlockedRangeEntry(start, end, reason)}
-                onRemoveBlockedRange={removeBlockedRange}
-                description="Block specific hours right from this weekly planner."
-              />
-
-              {/* Personal Weekly Schedule */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Personal Working Hours
-                  </CardTitle>
-                  <CardDescription>
-                    Set your personal weekly schedule and working hours
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {Object.entries(availability).map(([day, schedule]) => (
-                    <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
-                      <div className="w-20 text-sm font-medium capitalize">{day}</div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={schedule.available}
-                          onChange={(e) => {
-                            setAvailability(prev => ({
-                              ...prev,
-                              [day]: { ...prev[day as keyof typeof prev], available: e.target.checked }
-                            }))
-                          }}
-                          className="rounded"
-                        />
-                        <span className="text-sm">Available</span>
-                      </div>
-                      {schedule.available && (
-                        <>
-                          <Input
-                            type="time"
-                            value={schedule.startTime}
-                            onChange={(e) => {
-                              setAvailability(prev => ({
-                                ...prev,
-                                [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
-                              }))
-                            }}
-                            className="w-32"
-                          />
-                          <span className="text-sm">to</span>
-                          <Input
-                            type="time"
-                            value={schedule.endTime}
-                            onChange={(e) => {
-                              setAvailability(prev => ({
-                                ...prev,
-                                [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
-                              }))
-                            }}
-                            className="w-32"
-                          />
-                        </>
-                      )}
-                    </div>
-                  ))}
-
-                  <Button
-                    onClick={saveBusinessInfo}
-                    disabled={profileSaving}
-                    className="w-full mt-6"
-                  >
-                    {profileSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Personal Schedule'
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* PHASE 4: Enhanced Date Blocking Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CalendarX className="h-5 w-5" />
-                    Date Blocking
-                  </CardTitle>
-                  <CardDescription>
-                    Block single dates or date ranges when you&apos;re not available for work
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* PHASE 4: Blocking Mode Toggle */}
-                  <div className="flex items-center gap-4">
-                    <Label className="text-sm font-medium">Blocking Mode:</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant={blockingMode === 'single' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setBlockingMode('single')}
-                      >
-                        Single Dates
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={blockingMode === 'range' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setBlockingMode('range')}
-                      >
-                        Date Ranges
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Single Date Blocking */}
-                  {blockingMode === 'single' && (
-                    <div className="space-y-4">
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="newBlockedDate">Select Date to Block</Label>
-                          <Input
-                            id="newBlockedDate"
-                            type="date"
-                            value={newBlockedDate.date}
-                            onChange={(e) => setNewBlockedDate(prev => ({ ...prev, date: e.target.value }))}
-                            min={new Date().toISOString().split('T')[0]}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="space-y-2 md:col-span-2">
-                          <Label htmlFor="blockReason">Reason (Optional)</Label>
-                          <Input
-                            id="blockReason"
-                            type="text"
-                            placeholder="e.g., Personal appointment, Vacation, etc."
-                            value={newBlockedDate.reason}
-                            onChange={(e) => setNewBlockedDate(prev => ({ ...prev, reason: e.target.value }))}
-                            maxLength={200}
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button 
-                          onClick={addBlockedDate}
-                          disabled={!newBlockedDate.date}
-                          variant="outline"
-                        >
-                          <CalendarX className="h-4 w-4 mr-2" />
-                          Block Date
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PHASE 4: Date Range Blocking */}
-                  {blockingMode === 'range' && (
-                    <div className="space-y-4">
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="startDate">Start Date</Label>
-                          <Input
-                            id="startDate"
-                            type="datetime-local"
-                            value={newBlockedRange.startDate}
-                            onChange={(e) => setNewBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="endDate">End Date</Label>
-                          <Input
-                            id="endDate"
-                            type="datetime-local"
-                            value={newBlockedRange.endDate}
-                            onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="reason">Reason (Optional)</Label>
-                          <Input
-                            id="reason"
-                            placeholder="Vacation, Holiday, etc."
-                            value={newBlockedRange.reason}
-                            onChange={(e) => setNewBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button 
-                          onClick={addBlockedRange}
-                          disabled={!newBlockedRange.startDate || !newBlockedRange.endDate}
-                          variant="outline"
-                        >
-                          <CalendarX className="h-4 w-4 mr-2" />
-                          Block Period
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Current Blocked Items */}
-                  {(blockedDates.length > 0 || blockedRanges.length > 0) && (
-                    <div className="space-y-4">
-                      <Label>Currently Blocked Periods</Label>
-                      
-                      {/* Blocked Ranges */}
-                      {blockedRanges.map((range, index) => (
-                        <div key={`range-${index}`} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <CalendarX className="h-4 w-4 text-red-600" />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-red-800">
-                                {new Date(range.startDate).toLocaleDateString('en-US', {
-                                  weekday: 'long',
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                })} - {new Date(range.endDate).toLocaleDateString('en-US', {
-                                  weekday: 'long',
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                })}
-                              </span>
-                              {range.reason && (
-                                <span className="text-xs text-red-600">
-                                  {range.reason}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => removeBlockedRange(index)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      
-                      {/* Individual Blocked Dates */}
-                      {blockedDates.map((blockedDate) => (
-                        <div key={blockedDate.date} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <CalendarX className="h-4 w-4 text-red-600" />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-red-800">
-                                {new Date(blockedDate.date).toLocaleDateString('en-US', {
-                                  weekday: 'long',
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                })}
-                              </span>
-                              {blockedDate.reason && (
-                                <span className="text-xs text-red-600">
-                                  {blockedDate.reason}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => removeBlockedDate(blockedDate.date)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {blockedDates.length === 0 && blockedRanges.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <CalendarX className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No blocked periods set</p>
-                      <p className="text-xs">Add dates or date ranges when you&apos;re not available for work</p>
-                    </div>
-                  )}
-
-                </CardContent>
-              </Card>
             </TabsContent>
 
             {/* Company Availability Tab */}
