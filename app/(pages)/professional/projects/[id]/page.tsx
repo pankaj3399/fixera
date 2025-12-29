@@ -105,6 +105,7 @@ interface ISubproject {
   pricing: IPricing
   included: IIncludedItem[]
   materialsIncluded: boolean
+  preparationDuration?: { value: number; unit: 'hours' | 'days' }
   deliveryPreparation: number
   deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: IExecutionDuration
@@ -597,8 +598,16 @@ const submitProject = async () => {
                         <div>
                           <span className="font-medium text-gray-600">Preparation:</span>
                           <p>
-                            {subproject.deliveryPreparation}{' '}
-                            {subproject.deliveryPreparationUnit || 'days'}
+                            {(() => {
+                              const preparationValue =
+                                subproject.preparationDuration?.value ?? subproject.deliveryPreparation;
+                              const preparationUnit =
+                                subproject.preparationDuration?.unit ??
+                                subproject.deliveryPreparationUnit ??
+                                subproject.executionDuration?.unit ??
+                                'days';
+                              return `${preparationValue} ${preparationUnit}`;
+                            })()}
                           </p>
                         </div>
                         {subproject.intakeDuration && (

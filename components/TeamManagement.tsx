@@ -65,11 +65,7 @@ interface Employee {
   }[]
 }
 
-interface EmployeeManagementProps {
-  companyName: string
-}
-
-export default function EmployeeManagement({ companyName: _ }: EmployeeManagementProps) {
+export default function EmployeeManagement() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
@@ -94,15 +90,6 @@ export default function EmployeeManagement({ companyName: _ }: EmployeeManagemen
   // Availability management states
   const [availabilityDialog, setAvailabilityDialog] = useState<Employee | null>(null)
   const [savingAvailability, setSavingAvailability] = useState(false)
-const [availability, setAvailability] = useState<WeeklyAvailability>({
-  monday: { available: false, startTime: '09:00', endTime: '17:00' },
-  tuesday: { available: false, startTime: '09:00', endTime: '17:00' },
-  wednesday: { available: false, startTime: '09:00', endTime: '17:00' },
-  thursday: { available: false, startTime: '09:00', endTime: '17:00' },
-  friday: { available: false, startTime: '09:00', endTime: '17:00' },
-  saturday: { available: false, startTime: '09:00', endTime: '17:00' },
-  sunday: { available: false, startTime: '09:00', endTime: '17:00' },
-});
 
   const [blockedDates, setBlockedDates] = useState<{date: string, reason?: string}[]>([])
   const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
@@ -265,17 +252,6 @@ const [availability, setAvailability] = useState<WeeklyAvailability>({
     if (employee.blockedRanges) {
       setBlockedRanges(employee.blockedRanges)
     }
-  }
-
-  // Update availability day
-  const updateAvailability = (day: string, field: string, value: boolean | string) => {
-    setAvailability(prev => ({
-      ...prev,
-      [day]: {
-        ...prev[day as keyof typeof prev],
-        [field]: value
-      }
-    }))
   }
 
   // Add blocked date

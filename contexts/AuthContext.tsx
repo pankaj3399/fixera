@@ -30,6 +30,7 @@ interface User {
     city?: string
     country?: string
     postalCode?: string
+    timezone?: string
   }
   hourlyRate?: number
   currency?: string

@@ -120,7 +120,7 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
         }
 
         setTeamMembers(members)
-      } catch (e) {
+      } catch {
         toast.error('Failed to load team members')
       }
     })()
@@ -169,7 +169,7 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
         } else {
           toast.error('Failed to load availability')
         }
-      } catch (e) {
+      } catch {
         toast.error('Failed to load team availability')
       } finally {
         setLoadingAvailability(false)
@@ -263,7 +263,7 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
       } else {
         toast.error('Failed to create meeting')
       }
-    } catch (e) {
+    } catch {
       toast.error('Failed to create meeting')
     } finally { setCreating(false) }
   }

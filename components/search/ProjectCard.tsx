@@ -76,6 +76,7 @@ interface ProjectCardProps {
         name?: string;
         description?: string;
       }>;
+      firstAvailableDate?: string | null;
     }>;
     firstAvailableDate?: string | null;
     firstAvailableWindow?: {
@@ -226,6 +227,17 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           {project.category}
         </Badge>
 
+        {/* First Available Date Badge */}
+        {project.firstAvailableDate && (
+          <Badge className="absolute top-3 left-3 bg-emerald-600 text-white flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            {new Date(project.firstAvailableDate).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+            })}
+          </Badge>
+        )}
+
         {/* Navigation Arrows - Only show if there are multiple images */}
         {hasMultipleImages && (
           <>
@@ -314,43 +326,6 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                 <span className="font-medium">Duration: {getProjectDuration()}</span>
               </div>
             )}
-            {(firstAvailableWindowLabels || firstAvailableDateLabels) && (
-              <div className="flex items-start gap-2">
-                <Calendar className="w-4 h-4 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-gray-900">First Available</p>
-                  {firstAvailableWindowLabels ? (
-                    <>
-                      <p className="text-gray-700 text-xs">UTC: {firstAvailableWindowLabels.utcLabel}</p>
-                      <p className="text-gray-500 text-xs">
-                        {viewerTimeZone}: {firstAvailableWindowLabels.viewerLabel}
-                      </p>
-                    </>
-                  ) : firstAvailableDateLabels ? (
-                    <>
-                      <p className="text-gray-700 text-xs">UTC: {firstAvailableDateLabels.utcLabel}</p>
-                      <p className="text-gray-500 text-xs">
-                        {viewerTimeZone}: {firstAvailableDateLabels.viewerLabel}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-gray-600">Contact for availability</p>
-                  )}
-                </div>
-              </div>
-            )}
-            {shortestThroughputLabels && (
-              <div className="flex items-start gap-2">
-                <Calendar className="w-4 h-4 text-emerald-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-gray-900">Shortest Throughput</p>
-                  <p className="text-gray-700 text-xs">UTC: {shortestThroughputLabels.utcLabel}</p>
-                  <p className="text-gray-500 text-xs">
-                    {viewerTimeZone}: {shortestThroughputLabels.viewerLabel}
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -363,14 +338,25 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                 <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs border border-gray-200">
                   <div className="flex-1 min-w-0 mr-2">
                     <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
-                    {subproject.executionDuration && (
-                      <p className="text-gray-500 text-[10px]">
-                        {subproject.executionDuration.value} {subproject.executionDuration.unit}
-                      </p>
-                    )}
-                    {subproject.warrantyPeriod && (
-                      <p className="text-gray-500 text-[10px]">
-                        {subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty
+                    <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-gray-500">
+                      {subproject.executionDuration && (
+                        <span>
+                          {subproject.executionDuration.value} {subproject.executionDuration.unit}
+                        </span>
+                      )}
+                      {subproject.warrantyPeriod && (
+                        <span>
+                          {subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty
+                        </span>
+                      )}
+                    </div>
+                    {subproject.firstAvailableDate && (
+                      <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3 h-3" />
+                        Available: {new Date(subproject.firstAvailableDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
                       </p>
                     )}
                   </div>

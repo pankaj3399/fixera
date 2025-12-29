@@ -8,12 +8,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
-import { Upload, X, MapPin, FileText, Star, Users, Calendar } from "lucide-react"
+import { Upload, X, MapPin, FileText, Star, Users } from "lucide-react"
 import { toast } from 'sonner'
 import AddressAutocomplete, { type PlaceData } from "./AddressAutocomplete"
 import CertificationManager from "./CertificationManager"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface IServiceSelection {
   category: string
@@ -103,6 +103,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const [keywordInput, setKeywordInput] = useState('')
   const [suggestedTitle, setSuggestedTitle] = useState('')
   const [addressValid, setAddressValid] = useState(false)
+  const { user } = useAuth()
   const [serviceConfig, setServiceConfig] = useState<{
     pricingModel?: string;
     certificationRequired?: boolean;
@@ -115,6 +116,14 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   // Derived flags
   const isRenovationCategory = (formData.category || '').toLowerCase() === 'renovation'
   const selectedResourceCount = formData.resources?.length ?? 0
+  const companyAddress = [
+    user?.businessInfo?.address,
+    user?.businessInfo?.postalCode,
+    user?.businessInfo?.city,
+    user?.businessInfo?.country,
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   // Backend data
   const [categories, setCategories] = useState<string[]>([])
@@ -133,7 +142,6 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       minOverlapPercentage: prev.minOverlapPercentage ?? 70,
       ...prev
     }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
 
@@ -361,8 +369,6 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
     const hasExecutionResources = Array.isArray(formData.resources) && formData.resources.length > 0
     const hasIntakeResources = Array.isArray(formData.intakeMeeting?.resources) && (formData.intakeMeeting?.resources.length || 0) > 0
-    const planningEnabled = !!formData.renovationPlanning?.fixeraManaged
-
     const isResourcesValid = isRenovation
       ? (hasIntakeResources && hasExecutionResources)
       : hasExecutionResources
@@ -820,7 +826,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             }}
             onValidation={setAddressValid}
             useCompanyAddress={formData.distance?.useCompanyAddress || false}
-            companyAddress="[Get from user profile]"
+            companyAddress={companyAddress}
             label="Service Address"
             required
           />

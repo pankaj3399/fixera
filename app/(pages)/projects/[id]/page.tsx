@@ -226,13 +226,19 @@ export default function ProjectDetailPage() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) return;
-    fetchScheduleProposals(
-      typeof selectedSubprojectIndex === 'number'
-        ? selectedSubprojectIndex
-        : undefined
-    );
-  }, [projectId, selectedSubprojectIndex]);
+    if (!projectId || !project) return;
+
+    // Determine which subproject index to use
+    // If no main execution duration but has subprojects, default to index 0
+    const hasMainDuration = project.executionDuration?.value;
+    const effectiveIndex = typeof selectedSubprojectIndex === 'number'
+      ? selectedSubprojectIndex
+      : (!hasMainDuration && project.subprojects?.length)
+        ? 0
+        : undefined;
+
+    fetchScheduleProposals(effectiveIndex);
+  }, [projectId, selectedSubprojectIndex, project]);
 
   const fetchProject = async () => {
     try {

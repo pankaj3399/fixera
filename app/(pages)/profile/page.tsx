@@ -13,10 +13,13 @@ import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
 import WeeklyTimeBlocker from "@/components/calendar/WeeklyTimeBlocker"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { addDays, format, parseISO } from "date-fns"
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getViewerTimezone, normalizeTimezone } from "@/lib/timezoneDisplay"
 import { 
   validateVATFormat, 
   validateVATWithAPI, 
@@ -93,6 +96,7 @@ export default function ProfilePage() {
   const [companyBlockedRanges, setCompanyBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string, isHoliday?: boolean}[]>([])
   const [newCompanyBlockedRange, setNewCompanyBlockedRange] = useState({startDate: '', endDate: '', reason: '', isHoliday: false})
   const [companyBlockingMode, setCompanyBlockingMode] = useState<'single' | 'range'>('range')
+  const [bookingBlockedDates, setBookingBlockedDates] = useState<{date: string, reason?: string}[]>([])
   const [profileSaving, setProfileSaving] = useState(false)
   const [showAutoPopulateDialog, setShowAutoPopulateDialog] = useState(false)
   const [pendingVatData, setPendingVatData] = useState<{
@@ -261,6 +265,137 @@ export default function ProfilePage() {
       }
     }
   }, [user])
+
+  useEffect(() => {
+    if (loading || !isAuthenticated || user?.role !== 'professional') {
+      return
+    }
+
+    const fetchBookingBlocks = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings`, {
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+        })
+        const result = await response.json()
+
+        if (!response.ok || !result.success) {
+          return
+        }
+
+        const professionalTimeZone = normalizeTimezone(
+          user?.businessInfo?.timezone,
+          getViewerTimezone()
+        )
+        const minutesByDay = new Map<string, number>()
+
+        const parseTimeToMinutes = (value?: string) => {
+          if (!value) return null
+          const [hours, minutes] = value.split(':').map(Number)
+          if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
+          return hours * 60 + minutes
+        }
+
+        const getWorkingWindowUtc = (dateStr: string) => {
+          const dayStartUtc = fromZonedTime(`${dateStr}T00:00:00`, professionalTimeZone)
+          const weekday = formatInTimeZone(dayStartUtc, professionalTimeZone, 'eeee').toLowerCase() as keyof typeof companyAvailability
+          const daySchedule = companyAvailability[weekday]
+
+          if (daySchedule?.available === false) {
+            return null
+          }
+
+          const startTime = daySchedule?.startTime || '09:00'
+          const endTime = daySchedule?.endTime || '17:00'
+          const startMinutes = parseTimeToMinutes(startTime)
+          const endMinutes = parseTimeToMinutes(endTime)
+
+          if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+            return null
+          }
+
+          const workStartUtc = fromZonedTime(`${dateStr}T${startTime}:00`, professionalTimeZone)
+          const workEndUtc = fromZonedTime(`${dateStr}T${endTime}:00`, professionalTimeZone)
+          if (workEndUtc <= workStartUtc) {
+            return null
+          }
+
+          return { workStartUtc, workEndUtc }
+        }
+
+        interface BookingData {
+          scheduledStartDate?: string | Date | null;
+          scheduledExecutionEndDate?: string | Date | null;
+          scheduledBufferStartDate?: string | Date | null;
+          scheduledBufferEndDate?: string | Date | null;
+          status?: string;
+        }
+
+        const activeBookings = (result.bookings || []).filter((booking: BookingData) =>
+          booking?.scheduledStartDate &&
+          (booking?.scheduledExecutionEndDate || booking?.scheduledBufferEndDate) &&
+          !['completed', 'cancelled', 'refunded'].includes(booking?.status || '')
+        )
+
+        activeBookings.forEach((booking: BookingData) => {
+          const parseDate = (value?: string | Date | null) => {
+            if (!value) return null
+            const date = new Date(value)
+            return Number.isNaN(date.getTime()) ? null : date
+          }
+
+          const scheduledStart = parseDate(booking.scheduledStartDate)
+          const executionEnd = parseDate(booking.scheduledExecutionEndDate)
+          const bufferStart = parseDate(booking.scheduledBufferStartDate)
+          const scheduledEnd = parseDate(booking.scheduledBufferEndDate)
+
+          const intervals: Array<{ start: Date; end: Date }> = []
+
+          if (scheduledStart && executionEnd && executionEnd > scheduledStart) {
+            intervals.push({ start: scheduledStart, end: executionEnd })
+          } else if (scheduledStart && scheduledEnd && scheduledEnd > scheduledStart) {
+            intervals.push({ start: scheduledStart, end: scheduledEnd })
+          }
+
+          if (bufferStart && scheduledEnd && scheduledEnd > bufferStart) {
+            intervals.push({ start: bufferStart, end: scheduledEnd })
+          }
+
+          intervals.forEach((interval) => {
+            const startDateKey = formatInTimeZone(interval.start, professionalTimeZone, 'yyyy-MM-dd')
+            const endDateKey = formatInTimeZone(interval.end, professionalTimeZone, 'yyyy-MM-dd')
+            let cursor = parseISO(startDateKey)
+            const endCursor = parseISO(endDateKey)
+
+            while (cursor <= endCursor) {
+              const dateKey = format(cursor, 'yyyy-MM-dd')
+              const workingWindow = getWorkingWindowUtc(dateKey)
+              if (workingWindow) {
+                const overlapStart = Math.max(workingWindow.workStartUtc.getTime(), interval.start.getTime())
+                const overlapEnd = Math.min(workingWindow.workEndUtc.getTime(), interval.end.getTime())
+                if (overlapEnd > overlapStart) {
+                  const minutes = (overlapEnd - overlapStart) / (1000 * 60)
+                  minutesByDay.set(dateKey, (minutesByDay.get(dateKey) || 0) + minutes)
+                }
+              }
+              cursor = addDays(cursor, 1)
+            }
+          })
+        })
+
+        const blocked = Array.from(minutesByDay.entries())
+          .filter(([, minutes]) => minutes >= 240)
+          .map(([date]) => ({ date, reason: 'Booking' }))
+
+        setBookingBlockedDates(blocked)
+      } catch (error) {
+        console.error('Failed to load booking blocks:', error)
+      }
+    }
+
+    fetchBookingBlocks()
+  }, [loading, isAuthenticated, user?.role, user?.businessInfo?.timezone, companyAvailability])
 
   const handleVatNumberChange = (value: string) => {
     setVatNumber(value)
@@ -1353,7 +1488,7 @@ export default function ProfilePage() {
                 title="Personal Availability"
                 description="Month view with working days, company blocks and your blocks"
                 weeklySchedule={availability}
-                personalBlockedDates={blockedDates}
+                personalBlockedDates={[...blockedDates, ...bookingBlockedDates]}
                 personalBlockedRanges={blockedRanges}
                 companyBlockedDates={companyBlockedDates}
                 companyBlockedRanges={companyBlockedRanges}
@@ -1960,7 +2095,7 @@ export default function ProfilePage() {
 
             {/* Employees Tab */}
             <TabsContent value="employees" className="space-y-6">
-              <EmployeeManagement companyName={user?.businessInfo?.companyName || user?.name || ''} />
+              <EmployeeManagement />
             </TabsContent>
 
             {/* Security Tab */}
