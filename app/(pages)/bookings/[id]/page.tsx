@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, Loader2, Upload } from "lucide-react"
 import { toast } from "sonner"
+import { getAuthToken } from "@/lib/utils"
 
 type BookingStatus =
   | "rfq"
@@ -142,14 +143,18 @@ export default function BookingDetailPage() {
       setIsLoading(true)
       setError(null)
       try {
-        // Get token from localStorage for Authorization header fallback
-        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+        // Get token for Authorization header fallback
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}`,
           {
             credentials: "include",
-            headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+            headers
           }
         )
         const data = await response.json()
@@ -184,12 +189,12 @@ export default function BookingDetailPage() {
     if (!booking || !bookingId) return
 
     // Validate required answers
-    const missingRequired = postBookingQuestions.some((q, index) =>
-      q.isRequired && !postBookingAnswers[index]?.trim()
-    )
+    const missingRequired = postBookingQuestions
+      .map((q, index) => (q.isRequired && !postBookingAnswers[index]?.trim() ? index + 1 : null))
+      .filter((index): index is number => index != null)
 
-    if (missingRequired) {
-      toast.error("Please answer all required questions")
+    if (missingRequired.length > 0) {
+      toast.error(`Please answer required questions: ${missingRequired.join(', ')}`)
       return
     }
 
@@ -202,8 +207,8 @@ export default function BookingDetailPage() {
         answer: postBookingAnswers[index] || ""
       })).filter(a => a.answer.trim())
 
-      // Get token from localStorage for Authorization header fallback
-      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+      // Get token for Authorization header fallback
+      const token = getAuthToken()
       const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (token) {
         headers['Authorization'] = `Bearer ${token}`

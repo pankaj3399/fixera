@@ -11,6 +11,7 @@ import Step5RFQQuestions from '@/components/professional/project-wizard/Step5RFQ
 import Step6PostBookingQuestions from '@/components/professional/project-wizard/Step6PostBookingQuestions'
 import Step7CustomMessage from '@/components/professional/project-wizard/Step7CustomMessage'
 import { toast } from 'sonner'
+import { getAuthToken } from '@/lib/utils'
 
 interface IIncludedItem {
   name: string
@@ -226,7 +227,7 @@ export default function ProjectCreatePage() {
         setIsLoading(true)
         try {
           console.log('🔄 Loading project:', projectId)
-          const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+          const token = getAuthToken()
           const headers: Record<string, string> = {
             'Content-Type': 'application/json'
           }

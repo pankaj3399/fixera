@@ -298,7 +298,6 @@ export default function ProjectApprovalPage() {
         toast.error('Failed to suspend project')
       }
     } catch (e) {
-      
       console.error('Error deactivating project:', e)
       toast.error('Failed to suspend project')
     }
@@ -737,61 +736,59 @@ export default function ProjectApprovalPage() {
                         <span>Subprojects ({selectedProject.subprojects.length})</span>
                       </h4>
                       <div className="space-y-3">
-                        {selectedProject.subprojects.map((sp: Subproject, idx: number) => (
-                          <div key={idx} className="p-3 rounded-lg border bg-gray-50">
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium">{sp.name}</div>
-                              <div>{sp.pricing?.type && (
-                                <Badge variant="outline" className="text-xs">
-                                  {sp.pricing.type}{sp.pricing?.amount ? ` • ${sp.pricing.amount}` : ''}
-                                </Badge>
-                              )}</div>
-                            </div>
-                            {sp.description && (
-                              <p className="text-sm text-gray-700 mt-1">{sp.description}</p>
-                            )}
-                            {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
-                              <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
-                            )}
-                            {Array.isArray(sp.included) && sp.included.length > 0 && (
-                              <div className="mt-2">
-                                <Label className="text-xs font-medium">Included Items</Label>
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {sp.included.map((it: SubprojectIncludedItem, i: number) => (
-                                    <Badge key={i} variant="outline" className={`text-[10px] ${it.isDynamicField ? 'bg-purple-100' : ''}`}>
-                                      {it.name}
+                        {selectedProject.subprojects.map((sp: Subproject, idx: number) => {
+                          const preparationValue = sp.preparationDuration?.value
+                          const preparationUnit = sp.preparationDuration?.unit ?? sp.executionDuration?.unit ?? 'days'
+                          return (
+                            <div key={idx} className="p-3 rounded-lg border bg-gray-50">
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium">{sp.name}</div>
+                                <div>
+                                  {sp.pricing?.type && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {sp.pricing.type}{sp.pricing?.amount ? ` • ${sp.pricing.amount}` : ''}
                                     </Badge>
-                                  ))}
+                                  )}
                                 </div>
                               </div>
-                            )}
-                            {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
-                              <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
-                            )}
-                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
-                              {(() => {
-                                const preparationValue = sp.preparationDuration?.value;
-                                if (preparationValue == null) return null;
-                                const preparationUnit =
-                                  sp.preparationDuration?.unit ??
-                                  sp.executionDuration?.unit ??
-                                  'days';
-                                return (
+                              {sp.description && (
+                                <p className="text-sm text-gray-700 mt-1">{sp.description}</p>
+                              )}
+                              {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
+                                <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
+                              )}
+                              {Array.isArray(sp.included) && sp.included.length > 0 && (
+                                <div className="mt-2">
+                                  <Label className="text-xs font-medium">Included Items</Label>
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {sp.included.map((it: SubprojectIncludedItem, i: number) => (
+                                      <Badge key={i} variant="outline" className={`text-[10px] ${it.isDynamicField ? 'bg-purple-100' : ''}`}>
+                                        {it.name}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
+                                <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
+                              )}
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
+                                {preparationValue != null && (
                                   <div>
                                     Preparation: {preparationValue} {preparationUnit}
                                   </div>
-                                );
-                              })()}
-                              {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
-                              {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
-                              {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
-                              {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
+                                )}
+                                {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
+                                {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
+                                {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
+                                {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
+                              </div>
+                              {sp.warrantyPeriod && (
+                                <div className="mt-2 text-xs text-gray-700">Warranty: {sp.warrantyPeriod.value} {sp.warrantyPeriod.unit}</div>
+                              )}
                             </div>
-                            {sp.warrantyPeriod && (
-                              <div className="mt-2 text-xs text-gray-700">Warranty: {sp.warrantyPeriod.value} {sp.warrantyPeriod.unit}</div>
-                            )}
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}

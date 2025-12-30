@@ -125,7 +125,7 @@ export default function CustomerSignupPage() {
     // If we have place data from autocomplete dropdown, use it directly
     if (placeData?.coordinates && placeData?.address_components) {
       console.log(
-        '?o. Using place data from autocomplete - no API call needed'
+        'Using place data from autocomplete - no API call needed'
       );
 
       const components = placeData.address_components;
@@ -160,34 +160,44 @@ export default function CustomerSignupPage() {
 
   // Auto-populate business info from VAT validation
   useEffect(() => {
-    if (
-      vatValidation.valid &&
-      vatValidation.companyName &&
-      formData.customerType === 'business'
-    ) {
-      // Auto-fill company name if empty
-      if (!formData.companyName && vatValidation.companyName) {
-        handleInputChange('companyName', vatValidation.companyName);
+    if (!vatValidation.valid || formData.customerType !== 'business') {
+      return;
+    }
+
+    setFormData((prev) => {
+      let next = prev;
+
+      const applyUpdate = (patch: Partial<FormData>) => {
+        if (next === prev) {
+          next = { ...prev, ...patch };
+        } else {
+          next = { ...next, ...patch };
+        }
+      };
+
+      if (!prev.companyName && vatValidation.companyName) {
+        applyUpdate({ companyName: vatValidation.companyName });
       }
 
-      // Auto-fill address fields from parsed address
       if (vatValidation.parsedAddress) {
         const parsed = vatValidation.parsedAddress;
-        if (parsed.streetAddress && !formData.address) {
-          handleInputChange('address', parsed.streetAddress);
+        if (parsed.streetAddress && !prev.address) {
+          applyUpdate({ address: parsed.streetAddress });
         }
-        if (parsed.city && !formData.city) {
-          handleInputChange('city', parsed.city);
+        if (parsed.city && !prev.city) {
+          applyUpdate({ city: parsed.city });
         }
-        if (parsed.postalCode && !formData.postalCode) {
-          handleInputChange('postalCode', parsed.postalCode);
+        if (parsed.postalCode && !prev.postalCode) {
+          applyUpdate({ postalCode: parsed.postalCode });
         }
-        if (parsed.country && !formData.country) {
-          handleInputChange('country', parsed.country);
+        if (parsed.country && !prev.country) {
+          applyUpdate({ country: parsed.country });
         }
       }
-    }
-  }, [vatValidation]);
+
+      return next;
+    });
+  }, [vatValidation, formData.customerType]);
 
   const validateVatNumber = async () => {
     if (!formData.vatNumber.trim()) {

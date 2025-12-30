@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
+import { getAuthToken } from "@/lib/utils"
 
 interface LoyaltyStats {
   tierDistribution: Array<{
@@ -86,6 +87,7 @@ const BOOKING_STATUS_STYLES: Record<string, string> = {
   rfq: "bg-indigo-50 text-indigo-700 border border-indigo-100",
   quoted: "bg-blue-50 text-blue-700 border border-blue-100",
   quote_accepted: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+  quote_rejected: "bg-rose-50 text-rose-700 border border-rose-100",
   payment_pending: "bg-amber-50 text-amber-700 border border-amber-100",
   booked: "bg-emerald-50 text-emerald-700 border border-emerald-100",
   in_progress: "bg-sky-50 text-sky-700 border border-sky-100",
@@ -93,21 +95,44 @@ const BOOKING_STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-rose-50 text-rose-700 border border-rose-100",
   refunded: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100",
   dispute: "bg-red-50 text-red-700 border border-red-100",
+  unknown: "bg-slate-50 text-slate-700 border border-slate-100",
 }
 
 const STATUS_FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "All" },
   { id: "rfq", label: "RFQ" },
   { id: "quoted", label: "Quoted" },
+  { id: "quote_accepted", label: "Quote accepted" },
+  { id: "quote_rejected", label: "Quote rejected" },
+  { id: "payment_pending", label: "Payment pending" },
   { id: "booked", label: "Booked" },
   { id: "in_progress", label: "In progress" },
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
+  { id: "dispute", label: "Dispute" },
+  { id: "refunded", label: "Refunded" },
 ]
 
 const isPastBooking = (booking: Booking): boolean => {
-  const pastStatuses = new Set<BookingStatus>(["completed", "cancelled", "refunded"])
+  const pastStatuses = new Set<BookingStatus>([
+    "completed",
+    "cancelled",
+    "refunded",
+    "quote_rejected",
+    "dispute",
+  ])
   return pastStatuses.has(booking.status)
+}
+
+const getBookingStatusMeta = (status?: BookingStatus) => {
+  const rawStatus = status || "unknown"
+  return {
+    rawStatus,
+    label: rawStatus.replace(/_/g, " "),
+    className:
+      BOOKING_STATUS_STYLES[rawStatus] ||
+      "bg-slate-50 text-slate-700 border border-slate-100"
+  }
 }
 
 const formatBudget = (booking: Booking): string | null => {
@@ -156,8 +181,8 @@ export default function DashboardPage() {
       setBookingsLoading(true)
       setBookingsError(null)
       try {
-        // Get token from localStorage for Authorization header fallback
-        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+        // Get token for Authorization header fallback
+        const token = getAuthToken()
         const headers: Record<string, string> = {}
         if (token) {
           headers['Authorization'] = `Bearer ${token}`
@@ -167,7 +192,7 @@ export default function DashboardPage() {
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?limit=50`,
           {
             credentials: "include",
-            headers: Object.keys(headers).length ? headers : undefined
+            headers
           }
         )
         const data = await response.json()
@@ -191,11 +216,11 @@ export default function DashboardPage() {
   const fetchAdminData = async () => {
     setIsLoadingStats(true)
     try {
-      // Get token from localStorage for Authorization header fallback
-      const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+      // Get token for Authorization header fallback
+      const token = getAuthToken()
       const fetchOptions: RequestInit = {
         credentials: 'include',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       }
 
       const [loyaltyResponse, approvalResponse, projectsResponse] = await Promise.all([
@@ -402,10 +427,7 @@ export default function DashboardPage() {
                   booking.rfqData?.serviceType ||
                   "Booking"
 
-                const statusLabel = booking.status.replace(/_/g, " ")
-                const statusClasses =
-                  BOOKING_STATUS_STYLES[booking.status] ||
-                  "bg-slate-50 text-slate-700 border border-slate-100"
+                const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(booking.status)
 
                 const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
                 const preferredStart = booking.rfqData?.preferredStartDate
@@ -523,10 +545,7 @@ export default function DashboardPage() {
                   booking.rfqData?.serviceType ||
                   "Booking"
 
-                const statusLabel = booking.status.replace(/_/g, " ")
-                const statusClasses =
-                  BOOKING_STATUS_STYLES[booking.status] ||
-                  "bg-slate-50 text-slate-700 border border-slate-100"
+                const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(booking.status)
 
                 const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
                 const preferredStart = booking.rfqData?.preferredStartDate
@@ -819,11 +838,11 @@ export default function DashboardPage() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+                        const token = getAuthToken()
                         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/recalculate`, {
                           method: 'POST',
                           credentials: 'include',
-                          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+                          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                         }).then(() => fetchAdminData())
                       }}
                       className="w-full"

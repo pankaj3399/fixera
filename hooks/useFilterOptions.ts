@@ -69,11 +69,6 @@ export const useFilterOptions = ({
         });
         const services = Array.from(servicesSet).sort();
 
-        // Fetch additional filter options from service configurations
-        // This could be enhanced with a dedicated endpoint in the future
-        const projectTypesSet = new Set<string>();
-        const includedItemsSet = new Set<string>();
-
         // For now, we'll use common values as fallback
         // These could be fetched from a dedicated filter options endpoint
         const commonProjectTypes = [

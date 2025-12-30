@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { getAuthToken, setAuthToken } from '@/lib/utils'
 
 interface User {
   _id: string
@@ -105,8 +106,6 @@ interface SignupData {
   password: string
   role?: 'customer' | 'professional'
 }
-
-const AUTH_TOKEN_KEY = 'authToken'
 
 // Route Configuration
 const ROUTE_CONFIG = {
@@ -218,28 +217,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter()
   const pathname = usePathname()
 
-  const getStoredToken = () => {
-    if (typeof window === 'undefined') {
-      return null
-    }
-    return window.localStorage.getItem(AUTH_TOKEN_KEY)
-  }
-
   const persistToken = (token?: string | null) => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    if (token) {
-      window.localStorage.setItem(AUTH_TOKEN_KEY, token)
-    } else {
-      window.localStorage.removeItem(AUTH_TOKEN_KEY)
-    }
+    setAuthToken(token)
   }
 
   const checkAuth = async () => {
     try {
-      const token = getStoredToken()
+      const token = getAuthToken()
       const headers: Record<string, string> = {}
 
       if (token) {
@@ -248,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/me`, {
         credentials: 'include',
-        headers: Object.keys(headers).length ? headers : undefined
+        headers
       })
       if (response.ok) {
         const data = await response.json()

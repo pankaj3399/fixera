@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getViewerTimezone, normalizeTimezone } from "@/lib/timezoneDisplay"
+import { getAuthToken } from "@/lib/utils"
 import { 
   validateVATFormat, 
   validateVATWithAPI, 
@@ -239,10 +240,10 @@ export default function ProfilePage() {
 
     const fetchBookingBlocks = async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+        const token = getAuthToken()
         const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings`, {
           credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
         })
         const result = await response.json()
 

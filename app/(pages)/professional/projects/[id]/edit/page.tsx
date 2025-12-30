@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { ArrowLeft, Save, AlertTriangle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAuthToken } from '@/lib/utils';
 
 // -------------------------------------------
 // STANDALONE TYPES (NO BACKEND IMPORTS)
@@ -188,10 +189,7 @@ export default function ProjectEditPage() {
 
   const buildAuthHeaders = useCallback(
     (headers: Record<string, string> = {}) => {
-      if (typeof window === 'undefined') {
-        return headers;
-      }
-      const token = window.localStorage.getItem('authToken');
+      const token = getAuthToken();
       if (!token) {
         return headers;
       }

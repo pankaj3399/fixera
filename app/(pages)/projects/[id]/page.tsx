@@ -238,7 +238,12 @@ export default function ProjectDetailPage() {
         : undefined;
 
     fetchScheduleProposals(effectiveIndex);
-  }, [projectId, selectedSubprojectIndex, project]);
+  }, [
+    projectId,
+    selectedSubprojectIndex,
+    project?.executionDuration?.value,
+    project?.subprojects?.length,
+  ]);
 
   const fetchProject = async () => {
     try {

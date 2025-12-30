@@ -5,12 +5,69 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+const AUTH_TOKEN_KEY = 'authToken'
+const AUTH_TOKEN_ISSUED_AT_KEY = 'authTokenIssuedAt'
+const FALLBACK_TOKEN_TTL_MS = 1000 * 60 * 60 * 24
+
+const parseJwtExpiry = (token: string): number | null => {
+  if (typeof window === 'undefined') return null
+  const payload = token.split('.')[1]
+  if (!payload) return null
+
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    const decoded = atob(padded)
+    const parsed = JSON.parse(decoded) as { exp?: number }
+    return typeof parsed.exp === 'number' ? parsed.exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+const clearAuthToken = () => {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_TOKEN_ISSUED_AT_KEY)
+}
+
 /**
  * Get the auth token from localStorage
  */
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem('authToken')
+  const token = localStorage.getItem(AUTH_TOKEN_KEY)
+  if (!token) return null
+
+  const jwtExpiry = parseJwtExpiry(token)
+  if (jwtExpiry && Date.now() >= jwtExpiry) {
+    clearAuthToken()
+    return null
+  }
+
+  const issuedAtRaw = localStorage.getItem(AUTH_TOKEN_ISSUED_AT_KEY)
+  const issuedAt = issuedAtRaw ? Number(issuedAtRaw) : NaN
+  if (!jwtExpiry && !Number.isFinite(issuedAt)) {
+    localStorage.setItem(AUTH_TOKEN_ISSUED_AT_KEY, String(Date.now()))
+    return token
+  }
+  if (Number.isFinite(issuedAt) && Date.now() - issuedAt > FALLBACK_TOKEN_TTL_MS) {
+    clearAuthToken()
+    return null
+  }
+
+  return token
+}
+
+export function setAuthToken(token?: string | null) {
+  if (typeof window === 'undefined') return
+  if (!token) {
+    clearAuthToken()
+    return
+  }
+
+  localStorage.setItem(AUTH_TOKEN_KEY, token)
+  localStorage.setItem(AUTH_TOKEN_ISSUED_AT_KEY, String(Date.now()))
 }
 
 /**
@@ -27,7 +84,7 @@ export function getAuthFetchOptions(additionalHeaders?: Record<string, string>):
 
   return {
     credentials: 'include' as RequestCredentials,
-    headers: Object.keys(headers).length > 0 ? headers : undefined
+    headers
   }
 }
 
@@ -61,6 +118,6 @@ export async function authFetch(url: string, options?: RequestInit): Promise<Res
   return fetch(url, {
     ...options,
     credentials: 'include',
-    headers: Object.keys(headers).length > 0 ? headers : undefined
+    headers
   })
 }

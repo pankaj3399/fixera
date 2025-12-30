@@ -12,6 +12,9 @@ export const useGoogleMaps = (): GoogleMapsHook => {
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
+    let checkInterval: ReturnType<typeof setInterval> | null = null
+    let checkTimeout: ReturnType<typeof setTimeout> | null = null
+
     // Check if Google Maps is already loaded
     if ((window as any).google?.maps?.places) {
       setIsLoaded(true)
@@ -25,16 +28,32 @@ export const useGoogleMaps = (): GoogleMapsHook => {
 
     if (existingScript) {
       // Script is already loading, wait for it
-      const checkInterval = setInterval(() => {
+      checkInterval = setInterval(() => {
         if ((window as any).google?.maps?.places) {
           setIsLoaded(true)
-          clearInterval(checkInterval)
+          if (checkInterval) {
+            clearInterval(checkInterval)
+            checkInterval = null
+          }
         }
       }, 100)
 
       // Clear interval after 10 seconds
-      setTimeout(() => clearInterval(checkInterval), 10000)
-      return
+      checkTimeout = setTimeout(() => {
+        if (checkInterval) {
+          clearInterval(checkInterval)
+          checkInterval = null
+        }
+      }, 10000)
+
+      return () => {
+        if (checkInterval) {
+          clearInterval(checkInterval)
+        }
+        if (checkTimeout) {
+          clearTimeout(checkTimeout)
+        }
+      }
     }
 
     const loadGoogleMapsScript = async () => {
