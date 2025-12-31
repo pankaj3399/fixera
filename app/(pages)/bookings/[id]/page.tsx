@@ -182,7 +182,7 @@ export default function BookingDetailPage() {
           setError(data.msg || "Failed to load booking details.")
         }
       } catch (err) {
-        console.error("Failed to fetch booking:", err)
+        console.error("Failed to fetch booking:", err instanceof Error ? err.message : err)
         setError("Failed to load booking details.")
       } finally {
         setIsLoading(false)

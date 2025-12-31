@@ -1608,7 +1608,7 @@ export default function ProfilePage() {
                           type="datetime-local"
                           value={newBlockedRange.endDate}
                           onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
-                          min={new Date().toISOString().slice(0, 16)}
+                          min={newBlockedRange.startDate || new Date().toISOString().slice(0, 16)}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1622,9 +1622,13 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <div className="flex justify-end">
-                      <Button 
+                      <Button
                         onClick={addBlockedRange}
-                        disabled={!newBlockedRange.startDate || !newBlockedRange.endDate}
+                        disabled={
+                          !newBlockedRange.startDate ||
+                          !newBlockedRange.endDate ||
+                          newBlockedRange.endDate < newBlockedRange.startDate
+                        }
                         variant="outline"
                       >
                         <CalendarX className="h-4 w-4 mr-2" />
