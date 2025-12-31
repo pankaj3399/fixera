@@ -49,25 +49,36 @@ export function getWorkingWindowUtc(
   professionalTimeZone: string,
   companyAvailability: CompanyAvailability
 ): { workStartUtc: Date; workEndUtc: Date } | null {
-  const dayStartUtc = fromZonedTime(`${dateStr}T00:00:00`, professionalTimeZone)
-  const weekday = formatInTimeZone(dayStartUtc, professionalTimeZone, 'eeee').toLowerCase() as WeekdayKey
-  const daySchedule = companyAvailability[weekday]
-
-  if (daySchedule?.available === false) {
+  // Validate dateStr format (yyyy-MM-dd)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    console.error(`Invalid dateStr format: ${dateStr}`)
     return null
   }
 
-  const startTime = daySchedule?.startTime || '09:00'
-  const endTime = daySchedule?.endTime || '17:00'
-  const startMinutes = parseTimeToMinutes(startTime)
-  const endMinutes = parseTimeToMinutes(endTime)
+  try {
+    const dayStartUtc = fromZonedTime(`${dateStr}T00:00:00`, professionalTimeZone)
+    const weekday = formatInTimeZone(dayStartUtc, professionalTimeZone, 'eeee').toLowerCase() as WeekdayKey
+    const daySchedule = companyAvailability[weekday]
 
-  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    if (daySchedule?.available === false) {
+      return null
+    }
+
+    const startTime = daySchedule?.startTime || '09:00'
+    const endTime = daySchedule?.endTime || '17:00'
+    const startMinutes = parseTimeToMinutes(startTime)
+    const endMinutes = parseTimeToMinutes(endTime)
+
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+      return null
+    }
+
+    const workStartUtc = fromZonedTime(`${dateStr}T${startTime}:00`, professionalTimeZone)
+    const workEndUtc = fromZonedTime(`${dateStr}T${endTime}:00`, professionalTimeZone)
+
+    return { workStartUtc, workEndUtc }
+  } catch (error) {
+    console.error(`Error processing timezone conversion: ${error}`)
     return null
   }
-
-  const workStartUtc = fromZonedTime(`${dateStr}T${startTime}:00`, professionalTimeZone)
-  const workEndUtc = fromZonedTime(`${dateStr}T${endTime}:00`, professionalTimeZone)
-
-  return { workStartUtc, workEndUtc }
 }
