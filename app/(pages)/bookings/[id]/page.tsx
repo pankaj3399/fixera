@@ -26,7 +26,6 @@ type BookingStatus =
   | "cancelled"
   | "dispute"
   | "refunded"
-  | string
 
 interface PostBookingQuestion {
   _id?: string

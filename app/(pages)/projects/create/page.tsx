@@ -320,7 +320,7 @@ export default function ProjectCreatePage() {
 
       loadProject()
     }
-  }, [projectId])
+  }, [projectId, router])
 
   // Manual save function for draft
   const saveProjectDraft = async (options?: { silent?: boolean }) => {

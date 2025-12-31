@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Check, Clock, Shield, ArrowRight } from 'lucide-react'
+import { formatCurrency } from '@/lib/formatters'
 
 interface SubprojectPricing {
   type: 'fixed' | 'unit' | 'rfq'
@@ -35,11 +36,6 @@ interface SubprojectComparisonTableProps {
   onSelectPackage: (index: number) => void
   priceModel?: string
 }
-
-const formatCurrency = (value?: number) =>
-  typeof value === 'number'
-    ? new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value)
-    : null
 
 export default function SubprojectComparisonTable({ subprojects, onSelectPackage, priceModel }: SubprojectComparisonTableProps) {
   const [selectedTab, setSelectedTab] = useState(0)

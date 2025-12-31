@@ -243,7 +243,8 @@ export default function CustomerSignupPage() {
         // Don't show error toast - just update the state
         // VAT validation is optional, so errors shouldn't block the user
       }
-    } catch {
+    } catch (error) {
+      console.error('VAT validation error:', error);
       setVatValidation({
         valid: false,
         error:

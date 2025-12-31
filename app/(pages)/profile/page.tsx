@@ -13,22 +13,23 @@ import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { addDays, format, parseISO } from "date-fns"
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getViewerTimezone, normalizeTimezone } from "@/lib/timezoneDisplay"
 import { getAuthToken } from "@/lib/utils"
-import { 
-  validateVATFormat, 
-  validateVATWithAPI, 
+import { getWorkingWindowUtc } from "@/lib/scheduleUtils"
+import {
+  validateVATFormat,
+  validateVATWithAPI,
   updateUserVAT,
   validateAndPopulateVAT,
   submitForVerification,
-  isEUVatNumber, 
+  isEUVatNumber,
   getVATCountryName,
-  formatVATNumber 
+  formatVATNumber
 } from "@/lib/vatValidation"
 
 const BOOKING_BLOCK_THRESHOLD_MINUTES = 240
@@ -262,40 +263,6 @@ export default function ProfilePage() {
         )
         const minutesByDay = new Map<string, number>()
 
-        const parseTimeToMinutes = (value?: string) => {
-          if (!value) return null
-          const [hours, minutes] = value.split(':').map(Number)
-          if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
-          return hours * 60 + minutes
-        }
-
-        const getWorkingWindowUtc = (dateStr: string) => {
-          const dayStartUtc = fromZonedTime(`${dateStr}T00:00:00`, professionalTimeZone)
-          const weekday = formatInTimeZone(dayStartUtc, professionalTimeZone, 'eeee').toLowerCase() as keyof typeof companyAvailability
-          const daySchedule = companyAvailability[weekday]
-
-          if (daySchedule?.available === false) {
-            return null
-          }
-
-          const startTime = daySchedule?.startTime || '09:00'
-          const endTime = daySchedule?.endTime || '17:00'
-          const startMinutes = parseTimeToMinutes(startTime)
-          const endMinutes = parseTimeToMinutes(endTime)
-
-          if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
-            return null
-          }
-
-          const workStartUtc = fromZonedTime(`${dateStr}T${startTime}:00`, professionalTimeZone)
-          const workEndUtc = fromZonedTime(`${dateStr}T${endTime}:00`, professionalTimeZone)
-          if (workEndUtc <= workStartUtc) {
-            return null
-          }
-
-          return { workStartUtc, workEndUtc }
-        }
-
         interface BookingData {
           scheduledStartDate?: string | Date | null;
           scheduledExecutionEndDate?: string | Date | null;
@@ -346,7 +313,7 @@ export default function ProfilePage() {
 
             while (cursor <= endCursor) {
               const dateKey = format(cursor, 'yyyy-MM-dd')
-              const workingWindow = getWorkingWindowUtc(dateKey)
+              const workingWindow = getWorkingWindowUtc(dateKey, professionalTimeZone, companyAvailability)
               if (workingWindow) {
                 const overlapStart = Math.max(workingWindow.workStartUtc.getTime(), interval.start.getTime())
                 const overlapEnd = Math.min(workingWindow.workEndUtc.getTime(), interval.end.getTime())

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FilterOptions, DEFAULT_PRICE_MODELS } from '@/types/filters';
+import { logError } from '@/lib/logger';
 
 export type { FilterOptions } from '@/types/filters';
 
@@ -36,8 +37,13 @@ export const useFilterOptions = ({
       setError(null);
 
       try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+        if (!backendUrl) {
+          throw new Error('NEXT_PUBLIC_BACKEND_URL is not configured');
+        }
+
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=${country}`,
+          `${backendUrl}/api/service-categories/active?country=${country}`,
           { credentials: 'include' }
         );
 
@@ -94,7 +100,12 @@ export const useFilterOptions = ({
           categories,
         });
       } catch (err) {
-        console.error('Failed to fetch filter options:', err);
+        logError(err, 'Failed to fetch filter options', {
+          endpoint: '/api/service-categories/active',
+          params: { country },
+          component: 'useFilterOptions',
+          action: 'fetchFilterOptions',
+        });
         setError(err instanceof Error ? err : new Error('Unknown error'));
 
         // Set fallback values on error

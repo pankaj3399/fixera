@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { formatCurrency } from '@/lib/formatters';
 import Image from 'next/image';
 import ProjectBookingForm from '@/components/project/ProjectBookingForm';
 import SubprojectComparisonTable from '@/components/project/SubprojectComparisonTable';
@@ -204,11 +205,6 @@ export default function ProjectDetailPage() {
     ScheduleProposalsResponse['proposals'] | null
   >(null);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('nl-NL', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(value);
 
   const projectId = params.id as string;
 

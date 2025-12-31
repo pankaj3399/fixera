@@ -30,6 +30,7 @@ import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { useAuth } from '@/contexts/AuthContext';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
+import { formatCurrency } from '@/lib/formatters';
 
 interface Project {
   _id: string;
@@ -552,14 +553,6 @@ export default function ProjectBookingForm({
 
     return cursor;
   };
-
-  const formatCurrency = (value?: number) =>
-    typeof value === 'number'
-      ? new Intl.NumberFormat('nl-NL', {
-          style: 'currency',
-          currency: 'EUR',
-        }).format(value)
-      : null;
 
   // Check if a date is a weekend (Saturday or Sunday)
   const isWeekend = (date: Date): boolean => {
