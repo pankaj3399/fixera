@@ -118,7 +118,7 @@ export default function ProfilePage() {
 
   const addBlockedRangeFromCalendar = async (startDate: string, endDate: string) => {
     const startIso = new Date(`${startDate}T00:00:00`).toISOString()
-    const endIso = new Date(`${endDate}T23:59:00`).toISOString()
+    const endIso = new Date(`${endDate}T23:59:59`).toISOString()
     await addBlockedRangeEntry(startIso, endIso, undefined, true)
   }
 
@@ -1637,8 +1637,13 @@ export default function ProfilePage() {
                 {/* Current Blocked Items */}
                 {(blockedDates.length > 0 || blockedRanges.length > 0) && (
                   <div className="space-y-4">
-                    <Label>Currently Blocked Periods</Label>
-                      
+                    <Label>Currently Blocked Periods (Manual)</Label>
+                    {bookingBlockedDates.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Note: {bookingBlockedDates.length} additional day(s) are blocked due to existing bookings (shown in calendar).
+                      </p>
+                    )}
+
                       {/* Blocked Ranges */}
                       {blockedRanges.map((range, index) => (
                         <div key={`range-${index}`} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">

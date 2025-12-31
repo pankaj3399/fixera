@@ -224,6 +224,7 @@ const SearchFilters = ({
         </div>
         <Button
           variant="ghost"
+          type="button"
           size="sm"
           onClick={onClearFilters}
           className="text-gray-600 hover:text-gray-900"
@@ -454,6 +455,7 @@ const SearchFilters = ({
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
+                      type="button"
                       className="w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -465,6 +467,7 @@ const SearchFilters = ({
                       mode="single"
                       selected={filters.startDateFrom}
                       onSelect={(date) => onFilterChange('startDateFrom', date)}
+                      disabled={filters.startDateTo ? (date: Date) => date > filters.startDateTo! : undefined}
                       initialFocus
                     />
                   </PopoverContent>
@@ -475,6 +478,7 @@ const SearchFilters = ({
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
+                      type="button"
                       variant="outline"
                       className="w-full justify-start text-left font-normal"
                     >
@@ -487,6 +491,7 @@ const SearchFilters = ({
                       mode="single"
                       selected={filters.startDateTo}
                       onSelect={(date) => onFilterChange('startDateTo', date)}
+                      disabled={filters.startDateFrom ? (date: Date) => date < filters.startDateFrom! : undefined}
                       initialFocus
                     />
                   </PopoverContent>
