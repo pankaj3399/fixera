@@ -9,6 +9,12 @@ export interface FilterOptions {
   categories: string[];
 }
 
+const DEFAULT_PRICE_MODELS: FilterOptions["priceModels"] = [
+  { value: 'fixed', label: 'Fixed Price' },
+  { value: 'unit', label: 'Unit Based' },
+  { value: 'rfq', label: 'Request for Quote' }
+];
+
 interface ServiceCategoryResponse {
   name: string;
   services: Array<{ name: string }>;
@@ -28,11 +34,7 @@ export const useFilterOptions = ({
     projectTypes: [],
     includedItems: [],
     areasOfWork: [],
-    priceModels: [
-      { value: 'fixed', label: 'Fixed Price' },
-      { value: 'unit', label: 'Unit Based' },
-      { value: 'rfq', label: 'Request for Quote' }
-    ],
+    priceModels: DEFAULT_PRICE_MODELS,
     categories: [],
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -100,11 +102,7 @@ export const useFilterOptions = ({
           projectTypes: commonProjectTypes,
           includedItems: commonIncludedItems,
           areasOfWork: [],
-          priceModels: [
-            { value: 'fixed', label: 'Fixed Price' },
-            { value: 'unit', label: 'Unit Based' },
-            { value: 'rfq', label: 'Request for Quote' }
-          ],
+          priceModels: DEFAULT_PRICE_MODELS,
           categories,
         });
       } catch (err) {
@@ -125,11 +123,7 @@ export const useFilterOptions = ({
             'Transportation', 'Design Services', 'Consultation', 'Warranty'
           ],
           areasOfWork: [],
-          priceModels: [
-            { value: 'fixed', label: 'Fixed Price' },
-            { value: 'unit', label: 'Unit Based' },
-            { value: 'rfq', label: 'Request for Quote' }
-          ],
+          priceModels: DEFAULT_PRICE_MODELS,
           categories: [],
         });
       } finally {

@@ -115,6 +115,18 @@ const formatCurrencyRange = (booking: BookingDetail): string | null => {
   return `${currency}${value.toLocaleString()}`
 }
 
+type BookingApiResponse = {
+  success: boolean
+  booking?: BookingDetail
+  msg?: string
+}
+
+const isBookingApiResponse = (value: unknown): value is BookingApiResponse => {
+  if (!value || typeof value !== "object") return false
+  const record = value as Record<string, unknown>
+  return typeof record.success === "boolean"
+}
+
 export default function BookingDetailPage() {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -129,6 +141,7 @@ export default function BookingDetailPage() {
   const [postBookingAnswers, setPostBookingAnswers] = useState<Record<number, string>>({})
   const [submittingAnswers, setSubmittingAnswers] = useState(false)
   const [answersSubmitted, setAnswersSubmitted] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<number[]>([])
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -158,8 +171,12 @@ export default function BookingDetailPage() {
           }
         )
         const data = await response.json()
+        if (!isBookingApiResponse(data)) {
+          setError("Unexpected response from server.")
+          return
+        }
 
-        if (response.ok && data.success) {
+        if (response.ok && data.success && data.booking) {
           setBooking(data.booking)
         } else {
           setError(data.msg || "Failed to load booking details.")
@@ -184,6 +201,7 @@ export default function BookingDetailPage() {
 
   const handleAnswerChange = (index: number, answer: string) => {
     setPostBookingAnswers(prev => ({ ...prev, [index]: answer }))
+    setValidationErrors(prev => prev.filter((item) => item !== index))
   }
 
   const handleSubmitPostBookingAnswers = async () => {
@@ -191,13 +209,20 @@ export default function BookingDetailPage() {
 
     // Validate required answers
     const missingRequired = postBookingQuestions
-      .map((q, index) => (q.isRequired && !postBookingAnswers[index]?.trim() ? index + 1 : null))
+      .map((q, index) => (q.isRequired && !postBookingAnswers[index]?.trim() ? index : null))
       .filter((index): index is number => index != null)
 
     if (missingRequired.length > 0) {
-      toast.error(`Please answer required questions: ${missingRequired.join(', ')}`)
+      setValidationErrors(missingRequired)
+      const firstMissing = missingRequired[0]
+      const focusId = postBookingQuestions[firstMissing]?.type === "multiple_choice"
+        ? `q${firstMissing}-opt0`
+        : `q${firstMissing}-field`
+      setTimeout(() => document.getElementById(focusId)?.focus(), 0)
+      toast.error(`Please answer required questions: ${missingRequired.map((index) => index + 1).join(', ')}`)
       return
     }
+    setValidationErrors([])
 
     setSubmittingAnswers(true)
 
@@ -225,7 +250,7 @@ export default function BookingDetailPage() {
         }
       )
 
-      const data = await response.json()
+      const data = await response.json() as { success?: boolean; postBookingData?: PostBookingAnswer[]; msg?: string }
 
       if (response.ok && data.success) {
         toast.success("Thank you! Your answers have been submitted.")
@@ -303,8 +328,11 @@ export default function BookingDetailPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {postBookingQuestions.map((question, index) => (
-                <div key={index} className="space-y-2">
+              {postBookingQuestions.map((question, index) => {
+                const hasError = validationErrors.includes(index)
+                const errorId = hasError ? `q${index}-error` : undefined
+                return (
+                  <div key={index} className="space-y-2">
                   <Label className="text-sm font-medium text-gray-900">
                     {question.question}
                     {question.isRequired && <span className="text-red-500 ml-1">*</span>}
@@ -312,11 +340,15 @@ export default function BookingDetailPage() {
 
                   {question.type === "text" && (
                     <Textarea
+                      id={`q${index}-field`}
                       placeholder="Your answer..."
                       value={postBookingAnswers[index] || ""}
                       onChange={(e) => handleAnswerChange(index, e.target.value)}
                       rows={3}
                       className="bg-white"
+                      aria-invalid={hasError}
+                      aria-describedby={errorId}
+                      aria-required={question.isRequired}
                     />
                   )}
 
@@ -324,6 +356,9 @@ export default function BookingDetailPage() {
                     <RadioGroup
                       value={postBookingAnswers[index] || ""}
                       onValueChange={(value) => handleAnswerChange(index, value)}
+                      aria-invalid={hasError}
+                      aria-describedby={errorId}
+                      aria-required={question.isRequired}
                     >
                       {question.options.map((option, optIdx) => (
                         <div key={optIdx} className="flex items-center space-x-2">
@@ -341,16 +376,26 @@ export default function BookingDetailPage() {
                       <Upload className="h-6 w-6 text-gray-400 mx-auto mb-2" />
                       <p className="text-sm text-gray-600">File upload coming soon</p>
                       <Input
+                        id={`q${index}-field`}
                         type="text"
                         placeholder="For now, please describe or provide a link"
                         value={postBookingAnswers[index] || ""}
                         onChange={(e) => handleAnswerChange(index, e.target.value)}
                         className="mt-2"
+                        aria-invalid={hasError}
+                        aria-describedby={errorId}
+                        aria-required={question.isRequired}
                       />
                     </div>
                   )}
+                  {hasError && (
+                    <p id={errorId} role="alert" className="text-xs text-red-600">
+                      This question is required.
+                    </p>
+                  )}
                 </div>
-              ))}
+                )
+              })}
 
               <div className="flex gap-3 pt-4 border-t">
                 <Button

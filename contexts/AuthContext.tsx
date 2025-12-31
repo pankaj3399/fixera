@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
@@ -214,6 +214,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
+  const userRef = useRef<User | null>(null)
+  const isInitializedRef = useRef(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -375,6 +377,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  useEffect(() => {
+    isInitializedRef.current = isInitialized
+  }, [isInitialized])
+
   // Initial auth check and route protection
   useEffect(() => {
     const initializeAuth = async () => {
@@ -387,9 +397,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Always check auth on first load to properly show user state in navbar
       // On subsequent navigations to truly public routes, we can skip if already initialized
-      const skipAuthCheck = isInitialized && !needsProtection
+      const skipAuthCheck = isInitializedRef.current && !needsProtection
 
-      let currentUser = user
+      let currentUser = userRef.current
 
       if (!skipAuthCheck) {
         currentUser = await checkAuth()

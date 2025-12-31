@@ -201,7 +201,6 @@ export default function ProfilePage() {
         }
       }
       if (user.companyBlockedDates) {
-        console.log('📥 Frontend: Loading companyBlockedDates from user:', user.companyBlockedDates);
         const formattedDates = user.companyBlockedDates.map((item: string | { date: string | Date; reason?: string; isHoliday?: boolean }) => {
           if (typeof item === 'string') {
             // Strip time portion if present
@@ -217,7 +216,6 @@ export default function ProfilePage() {
           }
           return { date: String(item).split('T')[0], isHoliday: false };
         });
-        console.log('📥 Frontend: Formatted companyBlockedDates:', formattedDates);
         setCompanyBlockedDates(formattedDates);
       }
       if (user.companyBlockedRanges) {
@@ -322,14 +320,18 @@ export default function ProfilePage() {
 
           const intervals: Array<{ start: Date; end: Date }> = []
 
-          if (scheduledStart && executionEnd && executionEnd > scheduledStart) {
-            intervals.push({ start: scheduledStart, end: executionEnd })
-          } else if (scheduledStart && scheduledEnd && scheduledEnd > scheduledStart) {
-            intervals.push({ start: scheduledStart, end: scheduledEnd })
+          const primaryEnd = executionEnd || scheduledEnd
+
+          if (scheduledStart && primaryEnd && primaryEnd > scheduledStart) {
+            intervals.push({ start: scheduledStart, end: primaryEnd })
           }
 
           if (bufferStart && scheduledEnd && scheduledEnd > bufferStart) {
-            intervals.push({ start: bufferStart, end: scheduledEnd })
+            const bufferIntervalStart =
+              primaryEnd && bufferStart < primaryEnd ? primaryEnd : bufferStart
+            if (bufferIntervalStart < scheduledEnd) {
+              intervals.push({ start: bufferIntervalStart, end: scheduledEnd })
+            }
           }
 
           intervals.forEach((interval) => {
@@ -361,6 +363,7 @@ export default function ProfilePage() {
         setBookingBlockedDates(blocked)
       } catch (error) {
         console.error('Failed to load booking blocks:', error)
+        toast.error('Failed to load booking blocks. Please refresh to try again.')
       }
     }
 
@@ -749,8 +752,6 @@ export default function ProfilePage() {
       isHoliday: newCompanyBlockedDate.isHoliday || false
     }
     const updatedDates = [...companyBlockedDates, newEntry].sort((a, b) => a.date.localeCompare(b.date))
-    console.log('🎯 Frontend: Adding company blocked date:', newEntry)
-    console.log('🎯 Frontend: Updated dates array:', updatedDates)
     setCompanyBlockedDates(updatedDates)
     setNewCompanyBlockedDate({date: '', reason: '', isHoliday: false})
 
@@ -1576,6 +1577,7 @@ export default function ProfilePage() {
                           type="datetime-local"
                           value={newBlockedRange.startDate}
                           onChange={(e) => setNewBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
+                          min={new Date().toISOString().slice(0, 16)}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1585,6 +1587,7 @@ export default function ProfilePage() {
                           type="datetime-local"
                           value={newBlockedRange.endDate}
                           onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
+                          min={new Date().toISOString().slice(0, 16)}
                         />
                       </div>
                       <div className="space-y-2">
