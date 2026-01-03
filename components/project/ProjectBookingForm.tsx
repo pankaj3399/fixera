@@ -783,7 +783,6 @@ export default function ProjectBookingForm({
     let cursor = new Date(startDate);
     const maxIterations = 366 * 3;
     let iterations = 0;
-
     while (remainingMinutes > 0 && iterations < maxIterations) {
       iterations += 1;
       const dayStart = startOfDay(cursor);
@@ -791,13 +790,11 @@ export default function ProjectBookingForm({
         cursor = addDays(dayStart, 1);
         continue;
       }
-
       const { startTime, endTime } = getWorkingHoursForDate(dayStart);
       const [startHour, startMin] = startTime.split(':').map(Number);
       const [endHour, endMin] = endTime.split(':').map(Number);
       const startMinutes = startHour * 60 + startMin;
       const endMinutes = endHour * 60 + endMin;
-
       if (Number.isNaN(startMinutes) || Number.isNaN(endMinutes)) {
         cursor = addDays(dayStart, 1);
         continue;
@@ -806,7 +803,6 @@ export default function ProjectBookingForm({
         cursor = addDays(dayStart, 1);
         continue;
       }
-
       let currentMinutes = cursor.getHours() * 60 + cursor.getMinutes();
       if (currentMinutes < startMinutes) {
         currentMinutes = startMinutes;
@@ -815,7 +811,6 @@ export default function ProjectBookingForm({
         cursor = addDays(dayStart, 1);
         continue;
       }
-
       const availableMinutes = endMinutes - currentMinutes;
       if (remainingMinutes <= availableMinutes) {
         const result = new Date(dayStart);
@@ -828,15 +823,19 @@ export default function ProjectBookingForm({
         );
         return result;
       }
-
       remainingMinutes -= availableMinutes;
       cursor = addDays(dayStart, 1);
     }
-
+    console.warn(
+      '[addWorkingHoursForBuffer] Max iterations reached; buffer end may be inaccurate'
+    );
     return cursor;
   };
 
-  const advanceWorkingDaysForBuffer = (startDate: Date, workingDays: number) => {
+  const advanceWorkingDaysForBuffer = (
+    startDate: Date,
+    workingDays: number
+  ) => {
     if (workingDays <= 0) {
       return startDate;
     }
@@ -952,7 +951,9 @@ export default function ProjectBookingForm({
       // Create slot times in professional's timezone, then convert to UTC for comparison
       const slotTimeStr = `${dateStr}T${slotLabel}:00`;
       const slotStart = fromZonedTime(slotTimeStr, tz);
-      const slotEnd = new Date(slotStart.getTime() + executionMinutes * 60 * 1000);
+      const slotEnd = new Date(
+        slotStart.getTime() + executionMinutes * 60 * 1000
+      );
 
       // Skip past slots for today
       if (isToday && slotStart <= now) {
@@ -968,9 +969,10 @@ export default function ProjectBookingForm({
         currentMinutes += 30;
         continue;
       }
-
       if (buffer && buffer.value && buffer.value > 0) {
         const bufferUnit = buffer.unit || 'days';
+        // Convert slot times to professional's timezone for buffer calculations,
+        // then convert the resulting buffer window back to UTC for range comparison
         const slotStartZoned = toZonedTime(slotStart, tz);
         const slotEndZoned = new Date(
           slotStartZoned.getTime() + executionMinutes * 60 * 1000
@@ -979,7 +981,6 @@ export default function ProjectBookingForm({
           value: buffer.value,
           unit: bufferUnit,
         });
-
         if (bufferWindow && bufferWindow.end > bufferWindow.start) {
           const bufferStartUtc = fromZonedTime(bufferWindow.start, tz);
           const bufferEndUtc = fromZonedTime(bufferWindow.end, tz);
@@ -989,7 +990,6 @@ export default function ProjectBookingForm({
           }
         }
       }
-
       slots.push(slotLabel);
 
       currentMinutes += 30;
@@ -1530,31 +1530,27 @@ export default function ProjectBookingForm({
         projectId: project._id,
         preferredStartDate: selectedDate,
         preferredStartTime:
-          projectMode === 'hours' && selectedTime
-            ? selectedTime
-            : undefined,
+          projectMode === 'hours' && selectedTime ? selectedTime : undefined,
         selectedSubprojectIndex: selectedPackageIndex,
         estimatedUsage: usageRequired ? estimatedUsage : undefined,
         selectedExtraOptions:
           selectedExtraOptions.length > 0 ? selectedExtraOptions : undefined,
-          rfqData: {
-            serviceType: project.title,
-            description: serviceDescription,
-            answers: rfqAnswers,
-            preferredStartDate: selectedDate,
-            preferredStartTime:
-              projectMode === 'hours' && selectedTime
-                ? selectedTime
-                : undefined,
-            budget:
-              totalPrice > 0
-                ? {
-                    min: totalPrice,
-                    max: totalPrice,
-                    currency: 'EUR',
-                  }
-                : undefined,
-          },
+        rfqData: {
+          serviceType: project.title,
+          description: serviceDescription,
+          answers: rfqAnswers,
+          preferredStartDate: selectedDate,
+          preferredStartTime:
+            projectMode === 'hours' && selectedTime ? selectedTime : undefined,
+          budget:
+            totalPrice > 0
+              ? {
+                  min: totalPrice,
+                  max: totalPrice,
+                  currency: 'EUR',
+                }
+              : undefined,
+        },
         urgency: 'medium',
       };
 
@@ -1739,7 +1735,9 @@ export default function ProjectBookingForm({
     try {
       const startDate = parseISO(proposals.shortestThroughputProposal.start);
       // Use executionEnd for customer display (excludes buffer time)
-      const endDate = parseISO(proposals.shortestThroughputProposal.executionEnd);
+      const endDate = parseISO(
+        proposals.shortestThroughputProposal.executionEnd
+      );
       const totalDays = Math.max(
         1,
         differenceInCalendarDays(endDate, startDate) + 1
@@ -2928,42 +2926,41 @@ export default function ProjectBookingForm({
                         </p>
                       </>
                     )}
-                    {projectMode === 'days' &&
-                      shortestThroughputDetails && (
-                        <div className='border-t border-gray-300 pt-3 space-y-3'>
-                          <div className='flex flex-col gap-1'>
-                            <p className='text-sm font-semibold'>
-                              <strong>Shortest Consecutive Window</strong>{' '}
-                              <span className='text-xs font-normal'>
-                                ({shortestThroughputDetails.totalDays}{' '}
-                                {shortestThroughputDetails.totalDays === 1
-                                  ? 'day'
-                                  : 'days'}
-                                )
-                              </span>
-                            </p>
-                            <p className='text-xs text-gray-600'>
-                              {`${format(
-                                shortestThroughputDetails.startDate,
-                                'EEEE, MMMM d, yyyy'
-                              )} - ${format(
-                                shortestThroughputDetails.endDate,
-                                'EEEE, MMMM d, yyyy'
-                              )}`}
-                            </p>
-                          </div>
-                          <div className='flex flex-wrap gap-2'>
-                            {shortestWindowDates.map((day) => (
-                              <span
-                                key={day.toISOString()}
-                                className='px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800'
-                              >
-                                {format(day, 'MMM d')}
-                              </span>
-                            ))}
-                          </div>
+                    {projectMode === 'days' && shortestThroughputDetails && (
+                      <div className='border-t border-gray-300 pt-3 space-y-3'>
+                        <div className='flex flex-col gap-1'>
+                          <p className='text-sm font-semibold'>
+                            <strong>Shortest Consecutive Window</strong>{' '}
+                            <span className='text-xs font-normal'>
+                              ({shortestThroughputDetails.totalDays}{' '}
+                              {shortestThroughputDetails.totalDays === 1
+                                ? 'day'
+                                : 'days'}
+                              )
+                            </span>
+                          </p>
+                          <p className='text-xs text-gray-600'>
+                            {`${format(
+                              shortestThroughputDetails.startDate,
+                              'EEEE, MMMM d, yyyy'
+                            )} - ${format(
+                              shortestThroughputDetails.endDate,
+                              'EEEE, MMMM d, yyyy'
+                            )}`}
+                          </p>
                         </div>
-                      )}
+                        <div className='flex flex-wrap gap-2'>
+                          {shortestWindowDates.map((day) => (
+                            <span
+                              key={day.toISOString()}
+                              className='px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800'
+                            >
+                              {format(day, 'MMM d')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

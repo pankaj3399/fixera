@@ -389,7 +389,7 @@ function SearchPageContent() {
       };
       console.log('Search response:', data);
       console.log('Results count:', data.results?.length || 0);
-      if (searchType === 'projects' && Array.isArray(data.results)) {
+       if (searchType === 'projects' && Array.isArray(data.results)) {
         const availabilityDebug = data.results
           .map((project) => {
             const projectData = project as ProjectResult;
@@ -415,10 +415,12 @@ function SearchPageContent() {
           })
           .filter(Boolean);
         if (availabilityDebug.length > 0) {
-          console.warn(
-            '[SEARCH] Missing subproject availability data:',
-            availabilityDebug
-          );
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(
+              '[SEARCH] Missing subproject availability data:',
+              availabilityDebug
+            );
+          }
         }
       }
       setResults(data.results ?? []);
