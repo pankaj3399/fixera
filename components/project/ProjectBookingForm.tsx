@@ -774,6 +774,9 @@ export default function ProjectBookingForm({
       return true;
     }
 
+    return false;
+  };
+
   const addWorkingHoursForBuffer = (startDate: Date, hoursToAdd: number) => {
     let remainingMinutes = hoursToAdd * 60;
     let cursor = new Date(startDate);
