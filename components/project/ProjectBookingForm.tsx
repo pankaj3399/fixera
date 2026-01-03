@@ -842,8 +842,11 @@ export default function ProjectBookingForm({
 
     let cursor = startDate;
     let counted = 0;
+    const maxIterations = 366 * 3;
+    let iterations = 0;
 
-    while (counted < workingDays) {
+    while (counted < workingDays && iterations < maxIterations) {
+      iterations += 1;
       if (!isBufferDayBlocked(cursor)) {
         counted += 1;
         if (counted >= workingDays) {
@@ -853,6 +856,11 @@ export default function ProjectBookingForm({
       cursor = addDays(cursor, 1);
     }
 
+    if (iterations >= maxIterations) {
+      console.warn(
+        '[advanceWorkingDaysForBuffer] Max iterations reached; buffer end may be inaccurate'
+      );
+    }
     return cursor;
   };
 
