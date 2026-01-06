@@ -647,11 +647,37 @@ export default function ProjectBookingForm({
     return (executionSource.value || 0) * 24;
   };
 
+  const adjustRangeEndForMidnightUtc = (
+    rangeEnd: Date,
+    targetDate: Date,
+    tz: string,
+    dayEndOverride?: Date
+  ): Date => {
+    const isExactMidnightUTC =
+      rangeEnd.getUTCHours() === 0 &&
+      rangeEnd.getUTCMinutes() === 0 &&
+      rangeEnd.getUTCSeconds() === 0;
+
+    if (!isExactMidnightUTC) {
+      return rangeEnd;
+    }
+
+    const rangeEndDateInTz = formatInTimeZone(rangeEnd, tz, 'yyyy-MM-dd');
+    const targetDateInTz = formatInTimeZone(targetDate, tz, 'yyyy-MM-dd');
+
+    if (rangeEndDateInTz !== targetDateInTz) {
+      return rangeEnd;
+    }
+
+    return dayEndOverride || addDays(startOfDay(targetDate), 1);
+  };
+
   const getBlockedIntervalsForDate = (date: Date) => {
     const intervals: Array<{ start: Date; end: Date }> = [];
     const dayStart = startOfDay(date);
     const dayEnd = addDays(dayStart, 1);
     const dateKey = format(dayStart, 'yyyy-MM-dd');
+    const tz = normalizeTimezone(professionalTimezone);
 
     if (blockedDates.blockedDates.includes(dateKey)) {
       intervals.push({ start: dayStart, end: dayEnd });
@@ -669,21 +695,7 @@ export default function ProjectBookingForm({
           return;
         }
 
-        // If range ends at exactly midnight UTC, treat it as inclusive of that day
-        // (to match how the professional's calendar interprets ranges)
-        const isExactMidnightUTC =
-          rangeEnd.getUTCHours() === 0 &&
-          rangeEnd.getUTCMinutes() === 0 &&
-          rangeEnd.getUTCSeconds() === 0;
-
-        const tz = normalizeTimezone(professionalTimezone);
-        const rangeEndDateInTz = formatInTimeZone(rangeEnd, tz, 'yyyy-MM-dd');
-        const checkDateInTz = formatInTimeZone(date, tz, 'yyyy-MM-dd');
-
-        // If range ends at midnight UTC of this day, extend to end of day
-        if (isExactMidnightUTC && rangeEndDateInTz === checkDateInTz) {
-          rangeEnd = dayEnd;
-        }
+        rangeEnd = adjustRangeEndForMidnightUtc(rangeEnd, date, tz, dayEnd);
 
         if (rangeEnd <= dayStart || rangeStart >= dayEnd) {
           return;
@@ -711,6 +723,7 @@ export default function ProjectBookingForm({
     const { startTime, endTime } = getWorkingHoursForDate(date);
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);
+    const dayEnd = addDays(startOfDay(date), 1);
 
     // Create working hours in professional's timezone, then convert to UTC for comparison
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -724,27 +737,12 @@ export default function ProjectBookingForm({
 
     const clamped = intervals
       .map((interval) => {
-        // If the range ends exactly at midnight UTC (00:00:00Z), treat it as inclusive of that day
-        // This matches how the professional's calendar interprets ranges (using isWithinInterval)
-        // e.g., range ending at "2026-01-13T00:00:00Z" should block Jan 13
-        let intervalEnd = interval.end.getTime();
-        const endDate = new Date(intervalEnd);
-        const isExactMidnightUTC =
-          endDate.getUTCHours() === 0 &&
-          endDate.getUTCMinutes() === 0 &&
-          endDate.getUTCSeconds() === 0;
-
-        // Get the date string in professional's timezone for comparison
-        const endDateInTz = formatInTimeZone(endDate, tz, 'yyyy-MM-dd');
-        const checkDateInTz = formatInTimeZone(date, tz, 'yyyy-MM-dd');
-
-        // If range ends at midnight UTC and corresponds to this day in professional's timezone,
-        // extend to end of working hours to block the full day
-        if (isExactMidnightUTC && endDateInTz === checkDateInTz) {
-          intervalEnd = workingEnd.getTime();
-        }
-
-        
+        const intervalEnd = adjustRangeEndForMidnightUtc(
+          interval.end,
+          date,
+          tz,
+          dayEnd
+        ).getTime();
         const start = Math.max(
           interval.start.getTime(),
           workingStart.getTime()
@@ -787,6 +785,8 @@ export default function ProjectBookingForm({
     if (windowEnd <= windowStart) {
       return false;
     }
+    const tz = normalizeTimezone(professionalTimezone);
+    const dayEnd = addDays(startOfDay(windowStart), 1);
 
     return blockedDates.blockedRanges.some((range) => {
       const rangeStart = parseISO(range.startDate);
@@ -797,20 +797,12 @@ export default function ProjectBookingForm({
       ) {
         return false;
       }
-      const isExactMidnightUtc =
-        rangeEnd.getUTCHours() === 0 &&
-        rangeEnd.getUTCMinutes() === 0 &&
-        rangeEnd.getUTCSeconds() === 0;
-
-      if (isExactMidnightUtc) {
-        const tz = normalizeTimezone(professionalTimezone);
-        const endDateKey = formatInTimeZone(rangeEnd, tz, 'yyyy-MM-dd');
-        const nextDateKey = format(
-          addDays(parseISO(endDateKey), 1),
-          'yyyy-MM-dd'
-        );
-        rangeEnd = fromZonedTime(`${nextDateKey}T00:00:00`, tz);
-      }
+      rangeEnd = adjustRangeEndForMidnightUtc(
+        rangeEnd,
+        windowStart,
+        tz,
+        dayEnd
+      );
       return windowStart < rangeEnd && windowEnd > rangeStart;
     });
   };
