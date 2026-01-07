@@ -57,7 +57,8 @@ interface Project {
       type: 'fixed' | 'unit' | 'rfq';
       amount?: number;
       priceRange?: { min: number; max: number };
-      minQuantity?: number; // Fixed: max qty included in price | Unit: min order qty
+      includedQuantity?: number; // Fixed pricing: max quantity covered by price
+      minOrderQuantity?: number; // Unit pricing: minimum order quantity
       minProjectValue?: number;
     };
     preparationDuration?: {
@@ -227,16 +228,22 @@ export default function ProjectBookingForm({
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
       : null;
-  // minQuantity has different meanings based on pricing type:
-  // - Fixed pricing: max quantity included in the fixed price (cap)
-  // - Unit pricing: minimum order quantity required (floor)
-  const quantityLimit =
-    typeof selectedPackage?.pricing?.minQuantity === 'number' &&
-    selectedPackage.pricing.minQuantity > 0
-      ? selectedPackage.pricing.minQuantity
-      : undefined;
   const isFixedPricing = selectedPackage?.pricing?.type === 'fixed';
   const isUnitPricing = selectedPackage?.pricing?.type === 'unit';
+  // Fixed pricing: max quantity included in price (cap)
+  const includedQuantity =
+    isFixedPricing &&
+    typeof selectedPackage?.pricing?.includedQuantity === 'number' &&
+    selectedPackage.pricing.includedQuantity > 0
+      ? selectedPackage.pricing.includedQuantity
+      : undefined;
+  // Unit pricing: minimum order quantity (floor)
+  const minOrderQuantity =
+    isUnitPricing &&
+    typeof selectedPackage?.pricing?.minOrderQuantity === 'number' &&
+    selectedPackage.pricing.minOrderQuantity > 0
+      ? selectedPackage.pricing.minOrderQuantity
+      : undefined;
 
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
@@ -1453,14 +1460,14 @@ export default function ProjectBookingForm({
         return false;
       }
 
-      // For fixed pricing: quantityLimit is a cap (max included in price)
-      if (isFixedPricing && quantityLimit && estimatedUsage > quantityLimit) {
-        toast.error(`Estimated usage cannot exceed ${quantityLimit} (included in fixed price).`);
+      // Fixed pricing: cannot exceed included quantity
+      if (includedQuantity && estimatedUsage > includedQuantity) {
+        toast.error(`Estimated usage cannot exceed ${includedQuantity} (included in fixed price).`);
         return false;
       }
-      // For unit pricing: quantityLimit is a floor (minimum order)
-      if (isUnitPricing && quantityLimit && estimatedUsage < quantityLimit) {
-        toast.error(`Minimum order quantity is ${quantityLimit}.`);
+      // Unit pricing: must meet minimum order quantity
+      if (minOrderQuantity && estimatedUsage < minOrderQuantity) {
+        toast.error(`Minimum order quantity is ${minOrderQuantity}.`);
         return false;
       }
     }
@@ -1910,16 +1917,14 @@ export default function ProjectBookingForm({
       return;
     }
 
-    if (quantityLimit) {
-      if (isFixedPricing) {
-        // Cap at max included quantity
-        setEstimatedUsage((prev) => Math.min(Math.max(1, prev || 1), quantityLimit));
-      } else if (isUnitPricing) {
-        // Set to minimum order quantity if below
-        setEstimatedUsage((prev) => Math.max(quantityLimit, prev || quantityLimit));
-      }
+    if (includedQuantity) {
+      // Cap at max included quantity for fixed pricing
+      setEstimatedUsage((prev) => Math.min(Math.max(1, prev || 1), includedQuantity));
+    } else if (minOrderQuantity) {
+      // Set to minimum order quantity for unit pricing
+      setEstimatedUsage((prev) => Math.max(minOrderQuantity, prev || minOrderQuantity));
     }
-  }, [selectedPackage, quantityLimit, isFixedPricing, isUnitPricing]);
+  }, [selectedPackage, includedQuantity, minOrderQuantity]);
 
   useEffect(() => {
     if (projectMode === 'hours') {
@@ -2116,18 +2121,18 @@ export default function ProjectBookingForm({
                             <Input
                               id='estimated-usage'
                               type='number'
-                              min={isUnitPricing && quantityLimit ? quantityLimit : 1}
-                              max={isFixedPricing ? quantityLimit : undefined}
+                              min={minOrderQuantity || 1}
+                              max={includedQuantity}
                               step='1'
                               value={estimatedUsage}
                               onChange={(e) => {
                                 const value = Number(e.target.value);
                                 let normalized = Number.isNaN(value) ? 1 : value;
                                 // Apply min/max constraints based on pricing type
-                                if (isFixedPricing && quantityLimit) {
-                                  normalized = Math.min(Math.max(1, normalized), quantityLimit);
-                                } else if (isUnitPricing && quantityLimit) {
-                                  normalized = Math.max(quantityLimit, normalized);
+                                if (includedQuantity) {
+                                  normalized = Math.min(Math.max(1, normalized), includedQuantity);
+                                } else if (minOrderQuantity) {
+                                  normalized = Math.max(minOrderQuantity, normalized);
                                 } else {
                                   normalized = Math.max(1, normalized);
                                 }

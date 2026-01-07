@@ -57,7 +57,8 @@ interface ISubproject {
     amount?: number
     priceRange?: { min: number; max: number }
     minProjectValue?: number
-    minQuantity?: number
+    includedQuantity?: number // Fixed pricing: max quantity covered by price
+    minOrderQuantity?: number // Unit pricing: minimum order quantity
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
@@ -679,9 +680,9 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                               type="number"
                               min="1"
                               step="1"
-                              value={subproject.pricing.minQuantity || ''}
+                              value={subproject.pricing.includedQuantity || ''}
                               onChange={(e) => updateSubproject(subproject.id, {
-                                pricing: { ...subproject.pricing, minQuantity: parseInt(e.target.value) || undefined }
+                                pricing: { ...subproject.pricing, includedQuantity: parseInt(e.target.value) || undefined }
                               })}
                               placeholder="1"
                             />
@@ -714,9 +715,9 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                             type="number"
                             min="1"
                             step="1"
-                            value={subproject.pricing.minQuantity || ''}
+                            value={subproject.pricing.minOrderQuantity || ''}
                             onChange={(e) => updateSubproject(subproject.id, {
-                              pricing: { ...subproject.pricing, minQuantity: parseInt(e.target.value) || undefined }
+                              pricing: { ...subproject.pricing, minOrderQuantity: parseInt(e.target.value) || undefined }
                             })}
                             placeholder="1"
                           />
