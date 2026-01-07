@@ -57,6 +57,7 @@ interface Project {
       type: 'fixed' | 'unit' | 'rfq';
       amount?: number;
       priceRange?: { min: number; max: number };
+      minQuantity?: number;
       minProjectValue?: number;
     };
     preparationDuration?: {
@@ -226,6 +227,11 @@ export default function ProjectBookingForm({
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
       : null;
+  const maxUsage =
+    typeof selectedPackage?.pricing?.minQuantity === 'number' &&
+    selectedPackage.pricing.minQuantity > 0
+      ? selectedPackage.pricing.minQuantity
+      : undefined;
 
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
@@ -1441,6 +1447,11 @@ export default function ProjectBookingForm({
         toast.error('Please provide an estimated usage amount');
         return false;
       }
+
+      if (maxUsage && estimatedUsage > maxUsage) {
+        toast.error(`Estimated usage cannot exceed ${maxUsage}.`);
+        return false;
+      }
     }
 
     if (currentStep === 2) {
@@ -1885,8 +1896,13 @@ export default function ProjectBookingForm({
 
     if (!shouldCollectUsage(selectedPackage.pricing.type)) {
       setEstimatedUsage(1);
+      return;
     }
-  }, [selectedPackage]);
+
+    if (maxUsage) {
+      setEstimatedUsage((prev) => Math.min(Math.max(1, prev || 1), maxUsage));
+    }
+  }, [selectedPackage, maxUsage]);
 
   useEffect(() => {
     if (projectMode === 'hours') {
@@ -2079,23 +2095,29 @@ export default function ProjectBookingForm({
                               : ''}{' '}
                             *
                           </Label>
-                          <div className='relative mt-2'>
+                          <div className='mt-2 flex items-center gap-2'>
                             <Input
                               id='estimated-usage'
                               type='number'
                               min='1'
+                              max={maxUsage}
                               step='1'
                               value={estimatedUsage}
                               onChange={(e) => {
                                 const value = Number(e.target.value);
+                                const normalized = Number.isNaN(value)
+                                  ? 1
+                                  : Math.max(1, value);
                                 setEstimatedUsage(
-                                  Number.isNaN(value) ? 1 : Math.max(1, value)
+                                  maxUsage
+                                    ? Math.min(normalized, maxUsage)
+                                    : normalized
                                 );
                               }}
-                              className='text-lg pr-16'
+                              className='text-lg'
                             />
                             {project.priceModel && (
-                              <span className='absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none'>
+                              <span className='text-sm text-gray-500 whitespace-nowrap'>
                                 {project.priceModel}
                               </span>
                             )}

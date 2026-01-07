@@ -140,7 +140,21 @@ const PREDEFINED_INCLUDED_ITEMS = {
   ]
 }
 
+const isTotalPriceModel = (priceModel?: string) => {
+  const normalized = (priceModel || '').trim().toLowerCase()
+  if (!normalized) return false
+  if (!normalized.includes('total')) return false
+  const hasAlternateUnit =
+    normalized.includes(' or ') ||
+    normalized.includes('/') ||
+    normalized.includes('per ') ||
+    normalized.includes('unit')
+  return !hasAlternateUnit
+}
+
 export default function Step2Subprojects({ data, onChange, onValidate }: Step2Props) {
+  const showMinQuantity = data.priceModel && !isTotalPriceModel(data.priceModel)
+
   const normalizePreparationDuration = (subproject?: ISubproject) => {
     const value =
       typeof subproject?.preparationDuration?.value === 'number'
@@ -639,19 +653,36 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                   </div>
 
                     {subproject.pricing.type === 'fixed' && (
-                      <div>
-                        <Label>Total Price (EUR) *</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={subproject.pricing.amount || ''}
-                          onChange={(e) => updateSubproject(subproject.id, {
-                            pricing: { ...subproject.pricing, amount: parseFloat(e.target.value) }
-                          })}
-                          placeholder="0.00"
-                        />
-                      </div>
+                      <>
+                        <div>
+                          <Label>Total Price (EUR) *</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={subproject.pricing.amount || ''}
+                            onChange={(e) => updateSubproject(subproject.id, {
+                              pricing: { ...subproject.pricing, amount: parseFloat(e.target.value) }
+                            })}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        {showMinQuantity && (
+                          <div>
+                            <Label>Minimum Order Quantity</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={subproject.pricing.minQuantity || ''}
+                              onChange={(e) => updateSubproject(subproject.id, {
+                                pricing: { ...subproject.pricing, minQuantity: parseInt(e.target.value) || undefined }
+                              })}
+                              placeholder="1"
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {subproject.pricing.type === 'unit' && (
