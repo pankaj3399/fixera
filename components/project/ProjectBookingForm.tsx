@@ -57,7 +57,7 @@ interface Project {
       type: 'fixed' | 'unit' | 'rfq';
       amount?: number;
       priceRange?: { min: number; max: number };
-      minQuantity?: number;
+      minQuantity?: number; // "Included quantity" - max quantity covered by fixed price
       minProjectValue?: number;
     };
     preparationDuration?: {
@@ -227,6 +227,7 @@ export default function ProjectBookingForm({
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
       : null;
+  // Note: minQuantity field represents "included quantity" - the max quantity covered by the fixed price
   const maxUsage =
     typeof selectedPackage?.pricing?.minQuantity === 'number' &&
     selectedPackage.pricing.minQuantity > 0
@@ -1449,7 +1450,7 @@ export default function ProjectBookingForm({
       }
 
       if (maxUsage && estimatedUsage > maxUsage) {
-        toast.error(`Estimated usage cannot exceed ${maxUsage}.`);
+        toast.error(`Estimated usage cannot exceed ${maxUsage} (included in fixed price).`);
         return false;
       }
     }

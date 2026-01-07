@@ -140,20 +140,26 @@ const PREDEFINED_INCLUDED_ITEMS = {
   ]
 }
 
-const isTotalPriceModel = (priceModel?: string) => {
-  const normalized = (priceModel || '').trim().toLowerCase()
-  if (!normalized) return false
-  if (!normalized.includes('total')) return false
-  const hasAlternateUnit =
-    normalized.includes(' or ') ||
-    normalized.includes('/') ||
-    normalized.includes('per ') ||
-    normalized.includes('unit')
-  return !hasAlternateUnit
+// Price models that represent a total/flat price (no per-unit quantity)
+const TOTAL_PRICE_MODELS = [
+  'total',
+  'total price',
+  'fixed price (total)',
+  'flat rate',
+  'flat price',
+  'project total',
+  'lump sum'
+]
+
+const isTotalPriceModel = (priceModel?: string): boolean => {
+  if (!priceModel) return false
+  const normalized = priceModel.trim().toLowerCase()
+  return TOTAL_PRICE_MODELS.some(model => normalized === model || normalized.startsWith(model + ' '))
 }
 
 export default function Step2Subprojects({ data, onChange, onValidate }: Step2Props) {
-  const showMinQuantity = data.priceModel && !isTotalPriceModel(data.priceModel)
+  // Show included quantity field for unit-based price models (e.g., "per m²", "per hour")
+  const showIncludedQuantity = data.priceModel && !isTotalPriceModel(data.priceModel)
 
   const normalizePreparationDuration = (subproject?: ISubproject) => {
     const value =
@@ -667,9 +673,9 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                             placeholder="0.00"
                           />
                         </div>
-                        {showMinQuantity && (
+                        {showIncludedQuantity && (
                           <div>
-                            <Label>Minimum Order Quantity</Label>
+                            <Label>Included Quantity</Label>
                             <Input
                               type="number"
                               min="1"
@@ -680,6 +686,9 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                               })}
                               placeholder="1"
                             />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Maximum quantity included in this fixed price
+                            </p>
                           </div>
                         )}
                       </>
