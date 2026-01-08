@@ -55,8 +55,11 @@ interface ISubproject {
   pricing: {
     type: 'fixed' | 'unit' | 'rfq'
     amount?: number
-    priceRange?: { min: number; max: number }
+    priceRange?: { min?: number; max?: number }
     minOrderQuantity?: number // Unit pricing: minimum order quantity
+  }
+  errors?: {
+    priceRange?: string
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
@@ -303,18 +306,31 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
   }, [data.priceModel, data.category])
 
   const validateForm = () => {
-    const isValid = subprojects.length > 0 && subprojects.every(sub =>
-      sub.name &&
-      sub.description &&
-      sub.pricing.type &&
-      (sub.pricing.type === 'rfq' || sub.pricing.amount) &&
-      sub.included.length >= 3 &&
-      sub.preparationDuration &&
-      typeof sub.preparationDuration.value === 'number' &&
-      sub.executionDuration.value > 0 &&
-      // Materials validation: if materialsIncluded is true, must have at least one material
-      (!sub.materialsIncluded || (sub.materials && sub.materials.length > 0))
-    )
+    const isValid = subprojects.length > 0 && subprojects.every(sub => {
+      // Check for any validation errors
+      if (sub.errors?.priceRange) return false
+
+      // For RFQ pricing, validate price range if both values are provided
+      if (sub.pricing.type === 'rfq') {
+        const { min, max } = sub.pricing.priceRange || {}
+        if (min !== undefined && max !== undefined && min > max) {
+          return false
+        }
+      }
+
+      return (
+        sub.name &&
+        sub.description &&
+        sub.pricing.type &&
+        (sub.pricing.type === 'rfq' || sub.pricing.amount) &&
+        sub.included.length >= 3 &&
+        sub.preparationDuration &&
+        typeof sub.preparationDuration.value === 'number' &&
+        sub.executionDuration.value > 0 &&
+        // Materials validation: if materialsIncluded is true, must have at least one material
+        (!sub.materialsIncluded || (sub.materials && sub.materials.length > 0))
+      )
+    })
     onValidate(isValid)
   }
 
@@ -755,36 +771,62 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                               type="number"
                               min="0"
                               step="0.01"
-                              value={subproject.pricing.priceRange?.min || ''}
-                              onChange={(e) => updateSubproject(subproject.id, {
-                                pricing: {
-                                  ...subproject.pricing,
-                                  priceRange: {
-                                    min: parseFloat(e.target.value),
-                                    max: subproject.pricing.priceRange?.max || 0
+                              value={subproject.pricing.priceRange?.min ?? ''}
+                              onChange={(e) => {
+                                const newMin = e.target.value === '' ? undefined : parseFloat(e.target.value)
+                                const currentMax = subproject.pricing.priceRange?.max
+                                const hasError = newMin !== undefined && currentMax !== undefined && newMin > currentMax
+                                updateSubproject(subproject.id, {
+                                  pricing: {
+                                    ...subproject.pricing,
+                                    priceRange: {
+                                      min: newMin,
+                                      max: currentMax
+                                    }
+                                  },
+                                  errors: {
+                                    ...subproject.errors,
+                                    priceRange: hasError ? 'Min price must be less than or equal to max price' : undefined
                                   }
-                                }
-                              })}
+                                })
+                              }}
                               placeholder="Min price"
+                              className={subproject.errors?.priceRange ? 'border-red-500' : ''}
                             />
                             <span className="self-center">to</span>
                             <Input
                               type="number"
                               min="0"
                               step="0.01"
-                              value={subproject.pricing.priceRange?.max || ''}
-                              onChange={(e) => updateSubproject(subproject.id, {
-                                pricing: {
-                                  ...subproject.pricing,
-                                  priceRange: {
-                                    min: subproject.pricing.priceRange?.min || 0,
-                                    max: parseFloat(e.target.value)
+                              value={subproject.pricing.priceRange?.max ?? ''}
+                              onChange={(e) => {
+                                const newMax = e.target.value === '' ? undefined : parseFloat(e.target.value)
+                                const currentMin = subproject.pricing.priceRange?.min
+                                const hasError = newMax !== undefined && currentMin !== undefined && currentMin > newMax
+                                updateSubproject(subproject.id, {
+                                  pricing: {
+                                    ...subproject.pricing,
+                                    priceRange: {
+                                      min: currentMin,
+                                      max: newMax
+                                    }
+                                  },
+                                  errors: {
+                                    ...subproject.errors,
+                                    priceRange: hasError ? 'Min price must be less than or equal to max price' : undefined
                                   }
-                                }
-                              })}
+                                })
+                              }}
                               placeholder="Max price"
+                              className={subproject.errors?.priceRange ? 'border-red-500' : ''}
                             />
                           </div>
+                          {subproject.errors?.priceRange && (
+                            <p className="text-xs text-red-500 mt-1 flex items-center">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              {subproject.errors.priceRange}
+                            </p>
+                          )}
                         </div>
                       </>
                     )}

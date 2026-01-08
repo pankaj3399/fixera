@@ -44,7 +44,7 @@ interface ISubproject {
   pricing: {
     type: 'fixed' | 'unit' | 'rfq'
     amount?: number
-    priceRange?: { min: number; max: number }
+    priceRange?: { min?: number; max?: number }
     minProjectValue?: number
   }
   included: IIncludedItem[]
