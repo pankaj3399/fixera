@@ -155,7 +155,7 @@ const getUnitLabel = (priceModel?: string): string => {
   if (normalized.includes('day')) return 'day'
   if (normalized.includes('meter')) return 'meter'
   if (normalized.includes('room')) return 'room'
-  return priceModel // Return original if no match
+  return 'unit' // Return safe default if no match
 }
 
 type PricingType = 'fixed' | 'unit' | 'rfq'
