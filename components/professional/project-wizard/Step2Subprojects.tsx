@@ -60,6 +60,7 @@ interface ISubproject {
   }
   errors?: {
     priceRange?: string
+    executionDurationRange?: string
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
@@ -1309,34 +1310,52 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                               type="number"
                               min="1"
                               value={subproject.executionDuration.range?.min || ''}
-                              onChange={(e) => updateSubproject(subproject.id, {
-                                executionDuration: {
-                                  ...subproject.executionDuration,
-                                  range: {
-                                    min: parseInt(e.target.value) || 1,
-                                    max: subproject.executionDuration.range?.max || 1
+                              onChange={(e) => {
+                                const newMin = parseInt(e.target.value) || 1
+                                const currentMax = subproject.executionDuration.range?.max || 1
+                                const hasError = newMin > currentMax
+                                updateSubproject(subproject.id, {
+                                  executionDuration: {
+                                    ...subproject.executionDuration,
+                                    range: {
+                                      min: newMin,
+                                      max: currentMax
+                                    }
+                                  },
+                                  errors: {
+                                    ...subproject.errors,
+                                    executionDurationRange: hasError ? 'Min duration must be less than or equal to max duration' : undefined
                                   }
-                                }
-                              })}
+                                })
+                              }}
                               placeholder="Min"
-                              className="w-20"
+                              className={`w-20 ${subproject.errors?.executionDurationRange ? 'border-red-500' : ''}`}
                             />
                             <span className="self-center text-gray-500">to</span>
                             <Input
                               type="number"
                               min="1"
                               value={subproject.executionDuration.range?.max || ''}
-                              onChange={(e) => updateSubproject(subproject.id, {
-                                executionDuration: {
-                                  ...subproject.executionDuration,
-                                  range: {
-                                    min: subproject.executionDuration.range?.min || 1,
-                                    max: parseInt(e.target.value) || 1
+                              onChange={(e) => {
+                                const newMax = parseInt(e.target.value) || 1
+                                const currentMin = subproject.executionDuration.range?.min || 1
+                                const hasError = currentMin > newMax
+                                updateSubproject(subproject.id, {
+                                  executionDuration: {
+                                    ...subproject.executionDuration,
+                                    range: {
+                                      min: currentMin,
+                                      max: newMax
+                                    }
+                                  },
+                                  errors: {
+                                    ...subproject.errors,
+                                    executionDurationRange: hasError ? 'Min duration must be less than or equal to max duration' : undefined
                                   }
-                                }
-                              })}
+                                })
+                              }}
                               placeholder="Max"
-                              className="w-20"
+                              className={`w-20 ${subproject.errors?.executionDurationRange ? 'border-red-500' : ''}`}
                             />
                             <Select
                               value={subproject.executionDuration.unit}
@@ -1358,6 +1377,12 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                               </SelectContent>
                             </Select>
                           </div>
+                          {subproject.errors?.executionDurationRange && (
+                            <p className="text-xs text-red-500 mt-1 flex items-center">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              {subproject.errors.executionDurationRange}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-500 mt-1">
                             Estimated execution time range
                           </p>
