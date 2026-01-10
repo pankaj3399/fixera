@@ -57,6 +57,12 @@ interface PartialBookingDate {
   minutes: number;
 }
 
+export interface BookingBlockedRange {
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}
+
 interface Props {
   title?: string;
   description?: string;
@@ -65,6 +71,7 @@ interface Props {
   personalBlockedRanges?: BlockedRange[];
   companyBlockedDates?: (BlockedDate & { isHoliday?: boolean })[];
   companyBlockedRanges?: BlockedRange[];
+  bookingBlockedRanges?: BookingBlockedRange[];
   partialBookingDates?: PartialBookingDate[];
   mode?: 'professional' | 'employee';
   onToggleDay?: (date: string) => void;
@@ -92,6 +99,7 @@ export default function AvailabilityCalendar({
   personalBlockedRanges = [],
   companyBlockedDates = [],
   companyBlockedRanges = [],
+  bookingBlockedRanges = [],
   partialBookingDates = [],
   onToggleDay,
   onAddRange,
@@ -146,6 +154,7 @@ export default function AvailabilityCalendar({
   };
   const isPB = (d: Date) =>
     pSet.has(ymd(d)) || inRanges(d, personalBlockedRanges);
+  const isBookingBlocked = (d: Date) => inRanges(d, bookingBlockedRanges);
   const isPartial = (d: Date) => partialMap.has(ymd(d));
   const isWork = (d: Date) => {
     const idx = d.getDay();
@@ -184,6 +193,8 @@ export default function AvailabilityCalendar({
       ? 'from-amber-200 to-orange-200'
       : isPB(d)
       ? 'from-rose-200 to-red-200'
+      : isBookingBlocked(d)
+      ? 'from-blue-200 to-indigo-200'
       : isPartial(d)
       ? 'from-yellow-200 to-amber-200'
       : isWork(d)
@@ -192,6 +203,7 @@ export default function AvailabilityCalendar({
   const label = (d: Date) => {
     if (isCompanyBlocked(d)) return 'Company Block';
     if (isPB(d)) return 'Blocked';
+    if (isBookingBlocked(d)) return 'Booked';
     if (isPartial(d)) {
       return `Partially booked`;
     }

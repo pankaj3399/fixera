@@ -1303,40 +1303,104 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                     {subproject.pricing.type === 'rfq' ? (
                       <>
                         <div>
-                          <Label>Minimum *</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={subproject.executionDuration.range?.min || ''}
-                            onChange={(e) => updateSubproject(subproject.id, {
-                              executionDuration: {
-                                ...subproject.executionDuration,
-                                range: {
-                                  min: parseInt(e.target.value) || 1,
-                                  max: subproject.executionDuration.range?.max || 1
+                          <Label>Execution Duration (Range) *</Label>
+                          <div className="flex space-x-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={subproject.executionDuration.range?.min || ''}
+                              onChange={(e) => updateSubproject(subproject.id, {
+                                executionDuration: {
+                                  ...subproject.executionDuration,
+                                  range: {
+                                    min: parseInt(e.target.value) || 1,
+                                    max: subproject.executionDuration.range?.max || 1
+                                  }
                                 }
+                              })}
+                              placeholder="Min"
+                              className="w-20"
+                            />
+                            <span className="self-center text-gray-500">to</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={subproject.executionDuration.range?.max || ''}
+                              onChange={(e) => updateSubproject(subproject.id, {
+                                executionDuration: {
+                                  ...subproject.executionDuration,
+                                  range: {
+                                    min: subproject.executionDuration.range?.min || 1,
+                                    max: parseInt(e.target.value) || 1
+                                  }
+                                }
+                              })}
+                              placeholder="Max"
+                              className="w-20"
+                            />
+                            <Select
+                              value={subproject.executionDuration.unit}
+                              onValueChange={(value: 'hours' | 'days') =>
+                                updateSubproject(subproject.id, {
+                                  executionDuration: {
+                                    ...subproject.executionDuration,
+                                    unit: value
+                                  }
+                                })
                               }
-                            })}
-                            placeholder="Min duration"
-                          />
+                            >
+                              <SelectTrigger className="w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="hours">Hours</SelectItem>
+                                <SelectItem value="days">Days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Estimated execution time range
+                          </p>
                         </div>
+
                         <div>
-                          <Label>Maximum *</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={subproject.executionDuration.range?.max || ''}
-                            onChange={(e) => updateSubproject(subproject.id, {
-                              executionDuration: {
-                                ...subproject.executionDuration,
-                                range: {
-                                  min: subproject.executionDuration.range?.min || 1,
-                                  max: parseInt(e.target.value) || 1
-                                }
+                          <Label>Buffer Time (optional)</Label>
+                          <div className="flex space-x-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={subproject.buffer?.value || ''}
+                              onChange={(e) => updateSubproject(subproject.id, {
+                                buffer: e.target.value ? {
+                                  value: parseInt(e.target.value),
+                                  unit: subproject.buffer?.unit || 'hours'
+                                } : undefined
+                              })}
+                              placeholder="0"
+                            />
+                            <Select
+                              value={subproject.buffer?.unit || 'hours'}
+                              onValueChange={(value: 'hours' | 'days') =>
+                                updateSubproject(subproject.id, {
+                                  buffer: subproject.buffer ? {
+                                    ...subproject.buffer,
+                                    unit: value
+                                  } : { value: 0, unit: value }
+                                })
                               }
-                            })}
-                            placeholder="Max duration"
-                          />
+                            >
+                              <SelectTrigger className="w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="hours">Hours</SelectItem>
+                                <SelectItem value="days">Days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Extra time to avoid delays
+                          </p>
                         </div>
                       </>
                     ) : (
@@ -1526,7 +1590,11 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                         )}
                       </td>
                       <td className="p-2">
-                        {sub.executionDuration.value} {sub.executionDuration.unit}
+                        {sub.pricing.type === 'rfq' && sub.executionDuration.range ? (
+                          `${sub.executionDuration.range.min}-${sub.executionDuration.range.max} ${sub.executionDuration.unit}`
+                        ) : (
+                          `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                        )}
                       </td>
                       <td className="p-2">
                         {sub.warrantyPeriod.value === 0 ? 'No warranty' : `${sub.warrantyPeriod.value} ${sub.warrantyPeriod.unit}`}

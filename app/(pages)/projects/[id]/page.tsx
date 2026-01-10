@@ -79,6 +79,8 @@ interface Project {
     fileUrl?: string;
   }>;
   resources: string[];
+  minResources?: number;
+  minOverlapPercentage?: number;
   subprojects: Array<{
     name: string;
     description: string;
@@ -515,6 +517,11 @@ export default function ProjectDetailPage() {
                       <p className='font-medium'>
                         {project.resources.length} members
                       </p>
+                      {project.minResources && project.minResources > 1 && (
+                        <p className='text-xs text-blue-600'>
+                          {project.minResources} required ({project.minOverlapPercentage || 90}% overlap)
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

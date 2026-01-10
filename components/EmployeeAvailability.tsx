@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, MouseEvent } from "react"
+import { useState, useEffect, MouseEvent, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
- 
+
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -12,6 +12,7 @@ import { Calendar, User, Loader2, Save, RefreshCw, X, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
 import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
+import { addDays, format, parseISO, startOfDay, isWithinInterval } from "date-fns"
 
 interface BlockedRange {
   startDate: string
@@ -37,6 +38,11 @@ interface AvailabilityData {
     endDate: string;
     reason?: string;
   }>
+  bookingBlockedRanges: Array<{
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }>
   companyBlockedDates: Array<{ date: string; reason?: string; isHoliday?: boolean }>
   companyBlockedRanges: Array<{
     startDate: string;
@@ -55,6 +61,31 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
   // Blocked dates and ranges states
   const [blockedDates, setBlockedDates] = useState<{ date: string; reason?: string }[]>([])
   const [blockedRanges, setBlockedRanges] = useState<{ startDate: string; endDate: string; reason?: string }[]>([])
+
+  // Convert booking blocked ranges to individual dates (like professional UI does)
+  const bookingBlockedDates = useMemo(() => {
+    if (!availabilityData?.bookingBlockedRanges?.length) return []
+
+    const dates: { date: string; reason?: string }[] = []
+    const seenDates = new Set<string>()
+
+    availabilityData.bookingBlockedRanges.forEach((range) => {
+      const start = startOfDay(parseISO(range.startDate))
+      const end = startOfDay(parseISO(range.endDate))
+
+      let current = start
+      while (current <= end) {
+        const dateStr = format(current, 'yyyy-MM-dd')
+        if (!seenDates.has(dateStr)) {
+          seenDates.add(dateStr)
+          dates.push({ date: dateStr, reason: 'Booking' })
+        }
+        current = addDays(current, 1)
+      }
+    })
+
+    return dates
+  }, [availabilityData?.bookingBlockedRanges])
   const [newBlockedDate, setNewBlockedDate] = useState('')
   const [newBlockedDateReason, setNewBlockedDateReason] = useState('')
   const [newRangeStart, setNewRangeStart] = useState('')
@@ -243,9 +274,9 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         {availabilityData && (
           <AvailabilityCalendar
             title="Availability Calendar"
-            description="Month view with company schedule, company blocks and your blocks"
+            description="Month view with company schedule, company blocks, bookings and your blocks"
             weeklySchedule={availabilityData.availability}
-            personalBlockedDates={blockedDates}
+            personalBlockedDates={[...blockedDates, ...bookingBlockedDates]}
             personalBlockedRanges={blockedRanges}
             companyBlockedDates={availabilityData.companyBlockedDates}
             companyBlockedRanges={availabilityData.companyBlockedRanges}
@@ -265,6 +296,13 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
               await saveBlockedDates(blockedDates, updated)
             }}
           />
+        )}
+
+        {/* Booking blocked dates note */}
+        {bookingBlockedDates.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Note: {bookingBlockedDates.length} day(s) are blocked due to existing bookings (shown in red on calendar).
+          </p>
         )}
 
         {/* Company Schedule Display */}
