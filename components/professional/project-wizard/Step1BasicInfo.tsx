@@ -139,7 +139,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   useEffect(() => {
     setFormData(prev => ({
       minResources: prev.minResources || 1,
-      minOverlapPercentage: prev.minOverlapPercentage ?? 70,
+      minOverlapPercentage: prev.minOverlapPercentage ?? 90,
       ...prev
     }))
   }, [])
@@ -1129,12 +1129,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               <Label>Minimum Overlap Between Resources (%)</Label>
               <Input
                 type="number"
-                min={0}
+                min={10}
                 max={100}
-                value={formData.minOverlapPercentage ?? 70}
+                value={formData.minOverlapPercentage ?? 90}
                 onChange={(e) => {
                   const value = Number(e.target.value)
-                  const clamped = Math.min(100, Math.max(0, isNaN(value) ? 70 : value))
+                  const clamped = Math.min(100, Math.max(10, isNaN(value) ? 90 : value))
                   updateFormData({ minOverlapPercentage: clamped })
                 }}
                 disabled={(formData.minResources ?? 1) <= 1}

@@ -46,6 +46,34 @@ const getUnitLabel = (priceModel?: string): string => {
   return priceModel; // Return original if no match
 };
 
+// Check if priceModel is a "total price" type (fixed pricing - no usage collection needed)
+const isTotalPriceModel = (priceModel?: string): boolean => {
+  if (!priceModel) return false;
+  const normalized = priceModel.toLowerCase().trim();
+  return normalized === 'total price' || normalized === 'total' || normalized === 'fixed price' || normalized === 'fixed';
+};
+
+// Check if priceModel is unit-based (requires usage collection)
+const isUnitBasedPriceModel = (priceModel?: string): boolean => {
+  if (!priceModel) return false;
+  const normalized = priceModel.toLowerCase().trim();
+  // Check for unit-based models
+  if (normalized.includes('m²') || normalized.includes('m2')) return true;
+  if (normalized.includes('hour') && !normalized.includes('total')) return true;
+  if (normalized.includes('day') && !normalized.includes('total')) return true;
+  if (normalized.includes('meter')) return true;
+  if (normalized.includes('room')) return true;
+  if (normalized.includes('per ')) return true; // "per hour", "per m²", etc.
+  // If it's not total price and not rfq, assume unit-based for old projects
+  if (!isTotalPriceModel(priceModel) && !normalized.includes('rfq')) {
+    // Check if it looks like a unit description
+    return normalized.includes('surface') || normalized.includes('area') ||
+           normalized.includes('floor') || normalized.includes('roof') ||
+           normalized.includes('façade') || normalized.includes('window');
+  }
+  return false;
+};
+
 interface Project {
   _id: string;
   title: string;
@@ -136,9 +164,16 @@ interface BlockedRange {
   reason?: string;
 }
 
+interface ResourcePolicy {
+  minResources: number;
+  minOverlapPercentage: number;
+  totalResources: number;
+}
+
 interface BlockedDates {
   blockedDates: string[];
   blockedRanges: BlockedRange[];
+  resourcePolicy?: ResourcePolicy;
 }
 
 interface ScheduleProposalsResponse {
@@ -240,15 +275,19 @@ export default function ProjectBookingForm({
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
       : null;
-  const isUnitPricing = selectedPackage?.pricing?.type === 'unit';
+
+  // Check if unit pricing - either explicit type or inferred from priceModel for old projects
+  const isUnitPricing = selectedPackage?.pricing?.type === 'unit' ||
+    (!selectedPackage?.pricing?.type && isUnitBasedPriceModel(project.priceModel));
 
   // Unit pricing: minimum order quantity (customer must order at least this)
+  // For old projects without minOrderQuantity, default to 1
   const minOrderQuantity =
     isUnitPricing &&
     typeof selectedPackage?.pricing?.minOrderQuantity === 'number' &&
     selectedPackage.pricing.minOrderQuantity > 0
       ? selectedPackage.pricing.minOrderQuantity
-      : undefined;
+      : (isUnitPricing ? 1 : undefined);
 
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
@@ -448,8 +487,10 @@ export default function ProjectBookingForm({
               reason: range.reason,
             })
           ),
+          resourcePolicy: data.resourcePolicy,
         };
         console.log('[BOOKING] Normalized data:', normalizedData);
+        console.log('[BOOKING] Resource policy:', data.resourcePolicy);
         setBlockedDates(normalizedData);
       }
     } catch (error) {
@@ -511,9 +552,19 @@ export default function ProjectBookingForm({
     }
   };
 
+  // Determine if we should collect usage (estimated quantity) from customer
+  // Handles both new projects (with pricing.type) and old projects (just priceModel)
   const shouldCollectUsage = (
-    pricingType: 'fixed' | 'unit' | 'rfq'
-  ): boolean => pricingType === 'unit';
+    pricingType?: 'fixed' | 'unit' | 'rfq'
+  ): boolean => {
+    // If subproject has explicit pricing type, use it
+    if (pricingType) {
+      return pricingType === 'unit';
+    }
+    // For old projects without pricing.type, check project.priceModel
+    // If priceModel is unit-based (m², meter, hour, etc.), collect usage
+    return isUnitBasedPriceModel(project.priceModel);
+  };
 
   const getBufferDuration = () => {
     if (selectedPackage?.buffer?.value && selectedPackage.buffer.value > 0) {
@@ -2134,7 +2185,7 @@ export default function ProjectBookingForm({
                           </p>
                         </div>
 
-                        {selectedPackage.pricing.type !== 'rfq' &&selectedPackage.pricing.amount && (
+                        {selectedPackage.pricing.type !== 'rfq' && selectedPackage.pricing.amount && (
                           <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-2'>
                             <p className='text-sm text-gray-600'>
                               Estimated Price:
@@ -2174,10 +2225,23 @@ export default function ProjectBookingForm({
                   <h2 className='text-xl font-semibold mb-2'>
                     Choose Preferred Start Date
                   </h2>
-                  <p className='text-gray-600 text-sm mb-6'>
+                  <p className='text-gray-600 text-sm mb-4'>
                     Select when you&apos;d like the work to begin. Dates when
                     team members are unavailable are disabled.
                   </p>
+                  {blockedDates.resourcePolicy &&
+                    blockedDates.resourcePolicy.minResources > 1 && (
+                      <div className='bg-blue-50 border border-blue-200 rounded-md p-3 mb-4'>
+                        <p className='text-sm text-blue-800'>
+                          <span className='font-medium'>Team requirement:</span>{' '}
+                          {blockedDates.resourcePolicy.minResources} of{' '}
+                          {blockedDates.resourcePolicy.totalResources} team
+                          members must be available for at least{' '}
+                          {blockedDates.resourcePolicy.minOverlapPercentage}% of
+                          the scheduled time.
+                        </p>
+                      </div>
+                    )}
                 </div>
 
                 {loadingAvailability || loadingWorkingHours ? (

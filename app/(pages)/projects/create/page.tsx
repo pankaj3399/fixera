@@ -192,7 +192,7 @@ export default function ProjectCreatePage() {
     keywords: [],
     projectType: [],
     minResources: 1,
-    minOverlapPercentage: 70,
+    minOverlapPercentage: 90,
     subprojects: [],
     extraOptions: [],
     termsConditions: [],
