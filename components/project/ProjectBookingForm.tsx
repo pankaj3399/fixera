@@ -50,7 +50,12 @@ const getUnitLabel = (priceModel?: string): string => {
 const isTotalPriceModel = (priceModel?: string): boolean => {
   if (!priceModel) return false;
   const normalized = priceModel.toLowerCase().trim();
-  return normalized === 'total price' || normalized === 'total' || normalized === 'fixed price' || normalized === 'fixed';
+  return (
+    normalized === 'total price' ||
+    normalized === 'total' ||
+    normalized === 'fixed price' ||
+    normalized === 'fixed'
+  );
 };
 
 // Check if priceModel is unit-based (requires usage collection)
@@ -67,9 +72,14 @@ const isUnitBasedPriceModel = (priceModel?: string): boolean => {
   // If it's not total price and not rfq, assume unit-based for old projects
   if (!isTotalPriceModel(priceModel) && !normalized.includes('rfq')) {
     // Check if it looks like a unit description
-    return normalized.includes('surface') || normalized.includes('area') ||
-           normalized.includes('floor') || normalized.includes('roof') ||
-           normalized.includes('façade') || normalized.includes('window');
+    return (
+      normalized.includes('surface') ||
+      normalized.includes('area') ||
+      normalized.includes('floor') ||
+      normalized.includes('roof') ||
+      normalized.includes('façade') ||
+      normalized.includes('window')
+    );
   }
   return false;
 };
@@ -277,8 +287,10 @@ export default function ProjectBookingForm({
       : null;
 
   // Check if unit pricing - either explicit type or inferred from priceModel for old projects
-  const isUnitPricing = selectedPackage?.pricing?.type === 'unit' ||
-    (!selectedPackage?.pricing?.type && isUnitBasedPriceModel(project.priceModel));
+  const isUnitPricing =
+    selectedPackage?.pricing?.type === 'unit' ||
+    (!selectedPackage?.pricing?.type &&
+      isUnitBasedPriceModel(project.priceModel));
 
   // Unit pricing: minimum order quantity (customer must order at least this)
   // For old projects without minOrderQuantity, default to 1
@@ -287,7 +299,9 @@ export default function ProjectBookingForm({
     typeof selectedPackage?.pricing?.minOrderQuantity === 'number' &&
     selectedPackage.pricing.minOrderQuantity > 0
       ? selectedPackage.pricing.minOrderQuantity
-      : (isUnitPricing ? 1 : undefined);
+      : isUnitPricing
+      ? 1
+      : undefined;
 
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
@@ -1957,11 +1971,9 @@ export default function ProjectBookingForm({
       return;
     }
 
-    if (minOrderQuantity) {
-      setEstimatedUsage((prev) =>
-        Math.max(minOrderQuantity, prev || minOrderQuantity)
-      );
-    }
+    // Always set to at least minOrderQuantity (or 1 if not set)
+    const minQty = minOrderQuantity ?? 1;
+    setEstimatedUsage((prev) => Math.max(minQty, prev || minQty));
   }, [selectedPackage, minOrderQuantity]);
 
   useEffect(() => {
@@ -2185,25 +2197,26 @@ export default function ProjectBookingForm({
                           </p>
                         </div>
 
-                        {selectedPackage.pricing.type !== 'rfq' && selectedPackage.pricing.amount && (
-                          <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-2'>
-                            <p className='text-sm text-gray-600'>
-                              Estimated Price:
-                            </p>
-                            <p className='text-4xl font-bold text-blue-600'>
-                              {formatCurrency(
-                                estimatedUsage *
-                                  (selectedPackage.pricing.amount || 0)
-                              )}
-                            </p>
-                            <p className='text-sm text-gray-500'>
-                              {estimatedUsage}{' '}
-                              {getUnitLabel(project.priceModel)} x{' '}
-                              {formatCurrency(selectedPackage.pricing.amount)}/
-                              {getUnitLabel(project.priceModel)}
-                            </p>
-                          </div>
-                        )}
+                        {selectedPackage.pricing.type !== 'rfq' &&
+                          selectedPackage.pricing.amount && (
+                            <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-2'>
+                              <p className='text-sm text-gray-600'>
+                                Estimated Price:
+                              </p>
+                              <p className='text-4xl font-bold text-blue-600'>
+                                {formatCurrency(
+                                  estimatedUsage *
+                                    (selectedPackage.pricing.amount || 0)
+                                )}
+                              </p>
+                              <p className='text-sm text-gray-500'>
+                                {estimatedUsage}{' '}
+                                {getUnitLabel(project.priceModel)} x{' '}
+                                {formatCurrency(selectedPackage.pricing.amount)}
+                                /{getUnitLabel(project.priceModel)}
+                              </p>
+                            </div>
+                          )}
                       </div>
                     )}
 
