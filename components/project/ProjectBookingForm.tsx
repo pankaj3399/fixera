@@ -1999,11 +1999,15 @@ export default function ProjectBookingForm({
     }
 
     try {
-      const startDate = parseISO(proposals.shortestThroughputProposal.start);
-      // Use executionEnd for customer display (excludes buffer time)
-      const endDate = parseISO(
-        proposals.shortestThroughputProposal.executionEnd
-      );
+      // Parse ISO dates and convert to professional's timezone for correct display
+      const tz = normalizeTimezone(professionalTimezone);
+      const startUtc = parseISO(proposals.shortestThroughputProposal.start);
+      const endUtc = parseISO(proposals.shortestThroughputProposal.executionEnd);
+
+      // Convert to professional's timezone to get correct local dates
+      const startDate = toZonedTime(startUtc, tz);
+      const endDate = toZonedTime(endUtc, tz);
+
       const totalDays = Math.max(
         1,
         differenceInCalendarDays(endDate, startDate) + 1
@@ -2110,7 +2114,9 @@ export default function ProjectBookingForm({
 
   const handleApplyShortestWindow = () => {
     if (!shortestThroughputDetails) return;
-    const start = format(shortestThroughputDetails.startDate, 'yyyy-MM-dd');
+    // Format in professional's timezone to get correct date string
+    const tz = normalizeTimezone(professionalTimezone);
+    const start = formatInTimeZone(shortestThroughputDetails.startDate, tz, 'yyyy-MM-dd');
     if (isDateBlocked(start)) {
       toast.error('The shortest window start date is currently unavailable.');
       return;
@@ -2684,29 +2690,16 @@ export default function ProjectBookingForm({
                                   type='button'
                                   variant='outline'
                                   size='sm'
-                                  onClick={() => {
-                                    const start = proposals
-                                      .shortestThroughputProposal?.start
-                                      ? format(
-                                          parseISO(
-                                            proposals.shortestThroughputProposal
-                                              .start
-                                          ),
-                                          'yyyy-MM-dd'
-                                        )
-                                      : '';
-                                    if (start && !isDateBlocked(start)) {
-                                      setHasUserSelectedDate(true);
-                                      setSelectedDate(start);
-                                    }
-                                  }}
+                                  onClick={handleApplyShortestWindow}
                                 >
                                   Shortest consecutive window:{' '}
-                                  {`${format(
+                                  {`${formatInTimeZone(
                                     shortestThroughputDetails.startDate,
+                                    normalizeTimezone(professionalTimezone),
                                     'MMM d, yyyy'
-                                  )} - ${format(
+                                  )} - ${formatInTimeZone(
                                     shortestThroughputDetails.endDate,
+                                    normalizeTimezone(professionalTimezone),
                                     'MMM d, yyyy'
                                   )}`}
                                 </Button>
@@ -2718,12 +2711,11 @@ export default function ProjectBookingForm({
                                   variant='outline'
                                   size='sm'
                                   onClick={() => {
-                                    const start = proposals.earliestProposal
-                                      ?.start
-                                      ? format(
-                                          parseISO(
-                                            proposals.earliestProposal.start
-                                          ),
+                                    const tz = normalizeTimezone(professionalTimezone);
+                                    const start = proposals.earliestProposal?.start
+                                      ? formatInTimeZone(
+                                          parseISO(proposals.earliestProposal.start),
+                                          tz,
                                           'yyyy-MM-dd'
                                         )
                                       : '';
@@ -2735,10 +2727,9 @@ export default function ProjectBookingForm({
                                 >
                                   First Available Date :{' '}
                                   {proposals.earliestProposal.start &&
-                                    format(
-                                      parseISO(
-                                        proposals.earliestProposal.start
-                                      ),
+                                    formatInTimeZone(
+                                      parseISO(proposals.earliestProposal.start),
+                                      normalizeTimezone(professionalTimezone),
                                       'MMM d, yyyy'
                                     )}
                                 </Button>
@@ -2833,11 +2824,13 @@ export default function ProjectBookingForm({
                                   </span>
                                 </p>
                                 <p className='text-xs text-blue-700'>
-                                  {`${format(
+                                  {`${formatInTimeZone(
                                     shortestThroughputDetails.startDate,
+                                    normalizeTimezone(professionalTimezone),
                                     'EEEE, MMMM d, yyyy'
-                                  )} - ${format(
+                                  )} - ${formatInTimeZone(
                                     shortestThroughputDetails.endDate,
+                                    normalizeTimezone(professionalTimezone),
                                     'EEEE, MMMM d, yyyy'
                                   )}`}
                                 </p>
@@ -2848,7 +2841,7 @@ export default function ProjectBookingForm({
                                     key={day.toISOString()}
                                     className='px-3 py-1 text-xs rounded-full bg-white border border-blue-200 text-blue-800'
                                   >
-                                    {format(day, 'MMM d')}
+                                    {formatInTimeZone(day, normalizeTimezone(professionalTimezone), 'MMM d')}
                                   </span>
                                 ))}
                               </div>
@@ -3229,11 +3222,13 @@ export default function ProjectBookingForm({
                             </span>
                           </p>
                           <p className='text-xs text-gray-600'>
-                            {`${format(
+                            {`${formatInTimeZone(
                               shortestThroughputDetails.startDate,
+                              normalizeTimezone(professionalTimezone),
                               'EEEE, MMMM d, yyyy'
-                            )} - ${format(
+                            )} - ${formatInTimeZone(
                               shortestThroughputDetails.endDate,
+                              normalizeTimezone(professionalTimezone),
                               'EEEE, MMMM d, yyyy'
                             )}`}
                           </p>
@@ -3244,7 +3239,7 @@ export default function ProjectBookingForm({
                               key={day.toISOString()}
                               className='px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800'
                             >
-                              {format(day, 'MMM d')}
+                              {formatInTimeZone(day, normalizeTimezone(professionalTimezone), 'MMM d')}
                             </span>
                           ))}
                         </div>
