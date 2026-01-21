@@ -111,6 +111,36 @@ export default function EmployeeManagement() {
   const [blockedRangesPage, setBlockedRangesPage] = useState(1)
   const [bookingBlockedRangesPage, setBookingBlockedRangesPage] = useState(1)
 
+  // Clamp pagination states when list lengths shrink
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(employees.length / EMPLOYEES_PER_PAGE))
+    if (employeesPage > maxPage) {
+      setEmployeesPage(maxPage)
+    }
+  }, [employees.length, employeesPage])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(blockedDates.length / ITEMS_PER_PAGE))
+    if (blockedDatesPage > maxPage) {
+      setBlockedDatesPage(maxPage)
+    }
+  }, [blockedDates.length, blockedDatesPage])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(blockedRanges.length / ITEMS_PER_PAGE))
+    if (blockedRangesPage > maxPage) {
+      setBlockedRangesPage(maxPage)
+    }
+  }, [blockedRanges.length, blockedRangesPage])
+
+  useEffect(() => {
+    const bookingRangesLength = availabilityDialog?.bookingBlockedRanges?.length ?? 0
+    const maxPage = Math.max(1, Math.ceil(bookingRangesLength / ITEMS_PER_PAGE))
+    if (bookingBlockedRangesPage > maxPage) {
+      setBookingBlockedRangesPage(maxPage)
+    }
+  }, [availabilityDialog?.bookingBlockedRanges?.length, bookingBlockedRangesPage])
+
   // Fetch employees
   const fetchEmployees = async () => {
     try {
@@ -816,8 +846,8 @@ export default function EmployeeManagement() {
                 )
                 return (
                   <div className="space-y-2">
-                    {paginatedBlockedDates.map((blocked, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 border rounded">
+                    {paginatedBlockedDates.map((blocked) => (
+                      <div key={blocked.date} className="flex items-center justify-between p-2 border rounded">
                         <div>
                           <span className="text-sm font-medium">
                             {new Date(blocked.date).toLocaleDateString()}
