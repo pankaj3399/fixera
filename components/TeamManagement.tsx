@@ -63,6 +63,11 @@ interface Employee {
     endDate: string;
     reason?: string;
   }[]
+  bookingBlockedRanges?: {
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }[]
 }
 
 export default function EmployeeManagement() {
@@ -820,6 +825,33 @@ export default function EmployeeManagement() {
                 </div>
               )}
             </div>
+
+            {/* Booking Blocked Ranges (read-only, auto-generated from active bookings) */}
+            {availabilityDialog?.bookingBlockedRanges && availabilityDialog.bookingBlockedRanges.length > 0 && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Blocked by Bookings (auto-generated)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  These dates are automatically blocked because the employee is assigned to active bookings.
+                </p>
+                <div className="space-y-2">
+                  {availabilityDialog.bookingBlockedRanges.map((range, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 border rounded bg-blue-50 border-blue-200">
+                      <div>
+                        <span className="text-sm font-medium text-blue-800">
+                          {new Date(range.startDate).toLocaleDateString()} - {new Date(range.endDate).toLocaleDateString()}
+                        </span>
+                        <span className="text-xs text-blue-600 ml-2">
+                          {range.reason === 'booking-buffer' ? 'Buffer period' : 'Booking'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-4">
               <Button

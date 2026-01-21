@@ -21,7 +21,7 @@ interface Meeting {
   attendees: Array<{
     userId: string
     name: string
-    role: 'professional' | 'team_member'
+    role: 'professional' | 'employee'
     status: 'pending' | 'accepted' | 'declined'
   }>
   location?: string
