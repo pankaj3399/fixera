@@ -942,10 +942,10 @@ export default function EmployeeManagement() {
                 return (
                   <div className="space-y-2">
                     {paginatedBlockedRanges.map((range, index) => (
-                      <div key={`${new Date(range.startDate).getTime()}-${new Date(range.endDate).getTime()}${range.reason ? `-${range.reason}` : ''}`} className="flex items-center justify-between p-2 border rounded">
+                      <div key={`${new Date(range.startDate + "T00:00:00").getTime()}-${new Date(range.endDate + "T00:00:00").getTime()}${range.reason ? `-${range.reason}` : ''}`} className="flex items-center justify-between p-2 border rounded">
                         <div>
                           <span className="text-sm font-medium">
-                            {new Date(range.startDate).toLocaleDateString()} - {new Date(range.endDate).toLocaleDateString()}
+                            {new Date(range.startDate + "T00:00:00").toLocaleDateString()} - {new Date(range.endDate + "T00:00:00").toLocaleDateString()}
                           </span>
                           {range.reason && <span className="text-xs text-muted-foreground ml-2">{range.reason}</span>}
                         </div>
