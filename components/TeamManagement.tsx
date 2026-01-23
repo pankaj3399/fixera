@@ -72,6 +72,38 @@ interface Employee {
   }[]
 }
 
+// Safe date formatting helper to handle invalid dates
+// Handles date-only strings (YYYY-MM-DD) as local dates to avoid timezone shift
+const formatDateSafe = (dateStr: string | undefined | null): string => {
+  if (!dateStr) return 'Invalid Date';
+  try {
+    let date: Date;
+
+    // Check if it's a date-only string (YYYY-MM-DD) without time component
+    // These should be parsed as local dates to avoid UTC interpretation shifting the day
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      date = new Date(year, month - 1, day); // month is 0-indexed
+    } else {
+      // Full ISO timestamp or other format - parse normally
+      date = new Date(dateStr);
+    }
+
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleDateString();
+  } catch {
+    return 'Invalid Date';
+  }
+};
+
+// Check if a date range has valid dates
+const isValidDateRange = (range: { startDate: string; endDate: string }): boolean => {
+  if (!range.startDate || !range.endDate) return false;
+  const start = new Date(range.startDate);
+  const end = new Date(range.endDate);
+  return !isNaN(start.getTime()) && !isNaN(end.getTime());
+};
+
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
@@ -995,9 +1027,12 @@ export default function EmployeeManagement() {
 
             {/* Booking Blocked Ranges (read-only, auto-generated from active bookings) */}
             {availabilityDialog?.bookingBlockedRanges && availabilityDialog.bookingBlockedRanges.length > 0 && (() => {
-              const bookingRanges = availabilityDialog.bookingBlockedRanges
-              const totalBookingRangesPages = Math.ceil(bookingRanges.length / ITEMS_PER_PAGE)
-              const paginatedBookingRanges = bookingRanges.slice(
+              const allBookingRanges = availabilityDialog.bookingBlockedRanges
+              // Filter out invalid date ranges
+              const validBookingRanges = allBookingRanges.filter(isValidDateRange)
+              const invalidCount = allBookingRanges.length - validBookingRanges.length
+              const totalBookingRangesPages = Math.ceil(validBookingRanges.length / ITEMS_PER_PAGE)
+              const paginatedBookingRanges = validBookingRanges.slice(
                 (bookingBlockedRangesPage - 1) * ITEMS_PER_PAGE,
                 bookingBlockedRangesPage * ITEMS_PER_PAGE
               )
@@ -1010,12 +1045,18 @@ export default function EmployeeManagement() {
                   <p className="text-xs text-muted-foreground">
                     These dates are automatically blocked because the employee is assigned to active bookings.
                   </p>
+                  {invalidCount > 0 && (
+                    <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-amber-700 text-xs">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <span>{invalidCount} booking(s) have invalid dates and are not shown</span>
+                    </div>
+                  )}
                   <div className="space-y-2">
-                    {paginatedBookingRanges.map((range) => (
-                      <div key={`${new Date(range.startDate).getTime()}-${new Date(range.endDate).getTime()}`} className="flex items-center justify-between p-2 border rounded bg-blue-50 border-blue-200">
+                    {paginatedBookingRanges.map((range, idx) => (
+                      <div key={`booking-${idx}-${range.startDate}-${range.endDate}`} className="flex items-center justify-between p-2 border rounded bg-blue-50 border-blue-200">
                         <div>
                           <span className="text-sm font-medium text-blue-800">
-                            {new Date(range.startDate).toLocaleDateString()} - {new Date(range.endDate).toLocaleDateString()}
+                            {formatDateSafe(range.startDate)} - {formatDateSafe(range.endDate)}
                           </span>
                           <span className="text-xs text-blue-600 ml-2">
                             {range.reason === 'booking-buffer' ? 'Buffer period' : 'Booking'}
@@ -1026,7 +1067,7 @@ export default function EmployeeManagement() {
                     {totalBookingRangesPages > 1 && (
                       <div className="flex items-center justify-between pt-2 border-t">
                         <span className="text-xs text-muted-foreground">
-                          {bookingRanges.length} booking block{bookingRanges.length !== 1 ? 's' : ''}
+                          {validBookingRanges.length} booking block{validBookingRanges.length !== 1 ? 's' : ''}
                         </span>
                         <div className="flex items-center gap-1">
                           <Button

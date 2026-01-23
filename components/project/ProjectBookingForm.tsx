@@ -1999,21 +1999,35 @@ export default function ProjectBookingForm({
     }
 
     try {
-      // Parse ISO dates and convert to professional's timezone for correct display
+      // Parse ISO dates - keep as UTC, formatInTimeZone will handle display conversion
       const tz = normalizeTimezone(professionalTimezone);
       const startUtc = parseISO(proposals.shortestThroughputProposal.start);
       const endUtc = parseISO(proposals.shortestThroughputProposal.executionEnd);
 
-      // Convert to professional's timezone to get correct local dates
-      const startDate = toZonedTime(startUtc, tz);
-      const endDate = toZonedTime(endUtc, tz);
+      // Validate parsed dates to avoid NaN in calculations
+      if (Number.isNaN(startUtc.getTime()) || Number.isNaN(endUtc.getTime())) {
+        console.warn('[shortestThroughputDetails] Invalid date parsed:', {
+          start: proposals.shortestThroughputProposal.start,
+          end: proposals.shortestThroughputProposal.executionEnd,
+          startValid: !Number.isNaN(startUtc.getTime()),
+          endValid: !Number.isNaN(endUtc.getTime()),
+        });
+        return { startDate: startUtc, endDate: endUtc, totalDays: 1 };
+      }
+
+      // Use toZonedTime ONLY for calendar day calculations (not for display)
+      // This ensures differenceInCalendarDays counts days in the professional's timezone
+      const startZoned = toZonedTime(startUtc, tz);
+      const endZoned = toZonedTime(endUtc, tz);
 
       const totalDays = Math.max(
         1,
-        differenceInCalendarDays(endDate, startDate) + 1
+        differenceInCalendarDays(endZoned, startZoned) + 1
       );
-      return { startDate, endDate, totalDays };
-    } catch {
+      // Return UTC dates - formatInTimeZone will convert them correctly for display
+      return { startDate: startUtc, endDate: endUtc, totalDays };
+    } catch (error) {
+      console.error('[shortestThroughputDetails] Error processing dates:', error);
       return null;
     }
   })();
