@@ -108,23 +108,38 @@ const formatDateSafe = (dateStr: string | { $date: string } | undefined | null):
   }
 };
 
-// Helper to extract date string from either plain string or MongoDB Extended JSON format
-const extractDateString = (dateValue: string | { $date: string } | undefined | null): string | null => {
+// Canonical date value extractor - handles string, Date, {$date: string}, null, undefined
+// Returns validated date string or null
+type DateInput = string | Date | { $date: string } | null | undefined;
+
+const getDateValue = (dateValue: DateInput): string | null => {
   if (!dateValue) return null;
+
+  // Handle MongoDB Extended JSON format {$date: "..."}
   if (typeof dateValue === 'object' && dateValue !== null && '$date' in dateValue) {
-    return dateValue.$date;
+    const parsed = new Date(dateValue.$date);
+    return isNaN(parsed.getTime()) ? null : dateValue.$date;
   }
+
+  // Handle Date objects
+  if (dateValue instanceof Date) {
+    return isNaN(dateValue.getTime()) ? null : dateValue.toISOString();
+  }
+
+  // Handle string dates - validate by parsing
   if (typeof dateValue === 'string') {
-    return dateValue;
+    const parsed = new Date(dateValue);
+    return isNaN(parsed.getTime()) ? null : dateValue;
   }
+
   return null;
 };
 
 // Check if a date range has valid dates
-// Handles both plain strings and MongoDB Extended JSON format ({$date: "..."})
-const isValidDateRange = (range: { startDate: string | { $date: string }; endDate: string | { $date: string } }): boolean => {
-  const startStr = extractDateString(range.startDate);
-  const endStr = extractDateString(range.endDate);
+// Handles string, Date, and MongoDB Extended JSON format ({$date: "..."})
+const isValidDateRange = (range: { startDate: DateInput; endDate: DateInput }): boolean => {
+  const startStr = getDateValue(range.startDate);
+  const endStr = getDateValue(range.endDate);
   if (!startStr || !endStr) return false;
   const start = new Date(startStr);
   const end = new Date(endStr);
@@ -343,24 +358,33 @@ export default function EmployeeManagement() {
     }
   }
 
+  // Helper to format Date to local YYYY-MM-DD string (avoids UTC timezone shift)
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Helper to extract date string from various formats (string, Date, {$date: "..."})
+  // Returns local date string to avoid UTC timezone issues with date-only fields
   const extractDateValue = (d: string | Date | { $date: string } | null | undefined): string | null => {
     if (!d) return null;
     // Handle MongoDB Extended JSON format {$date: "..."}
     if (typeof d === 'object' && d !== null && '$date' in d) {
       return d.$date;
     }
-    // Handle string
+    // Handle string - return as-is (preserve original format)
     if (typeof d === 'string') {
       return d;
     }
-    // Handle Date object
+    // Handle Date object - use local date formatting to avoid UTC shift
     if (d instanceof Date && !isNaN(d.getTime())) {
-      return d.toISOString();
+      return formatLocalDate(d);
     }
-    // Try to parse
-    const parsed = new Date(d);
-    return isNaN(parsed.getTime()) ? null : parsed.toISOString();
+    // Try to parse and use local date formatting
+    const parsed = new Date(d as unknown as string);
+    return isNaN(parsed.getTime()) ? null : formatLocalDate(parsed);
   };
 
   // Open availability dialog
