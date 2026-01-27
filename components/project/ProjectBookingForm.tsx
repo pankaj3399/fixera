@@ -362,12 +362,18 @@ export default function ProjectBookingForm({
     'days';
   const professionalTz = normalizeTimezone(professionalTimezone);
   // Calendar-date key (treat Date as a date-only value from the picker)
-  const toProfessionalDateKey = (date: Date) => format(date, 'yyyy-MM-dd');
+  const toProfessionalDateKey = useCallback(
+    (date: Date) => format(date, 'yyyy-MM-dd'),
+    []
+  );
   // Instant key (treat Date as a real UTC instant from the backend)
   const toProfessionalDateKeyFromInstant = (date: Date) =>
     formatInTimeZone(date, professionalTz, 'yyyy-MM-dd');
-  const fromProfessionalDateKey = (dateKey: string) =>
-    fromZonedTime(`${dateKey}T00:00:00`, professionalTz);
+  const fromProfessionalDateKey = useCallback(
+    (dateKey: string) =>
+      fromZonedTime(`${dateKey}T00:00:00`, professionalTz),
+    [professionalTz]
+  );
   const debugProjectId = isDev
     ? process.env.NEXT_PUBLIC_DEBUG_PROJECT_ID?.trim()
     : undefined;
@@ -818,7 +824,7 @@ export default function ProjectBookingForm({
   };
 
   // Check if a date is a weekend (Saturday or Sunday)
-  const isWeekend = (date: Date): boolean => {
+  const isWeekend = useCallback((date: Date): boolean => {
     try {
       const dateStr = toProfessionalDateKey(date);
       const dayStartUtc = fromZonedTime(`${dateStr}T00:00:00`, professionalTz);
@@ -828,10 +834,10 @@ export default function ProjectBookingForm({
       const day = date.getDay();
       return day === 0 || day === 6;
     }
-  };
+  }, [professionalTz, toProfessionalDateKey]);
 
   // Check if professional works on this date (based on their availability)
-  const isProfessionalWorkingDay = (date: Date): boolean => {
+  const isProfessionalWorkingDay = useCallback((date: Date): boolean => {
     if (!professionalAvailability) {
       // This should only happen during initial load before working hours are fetched
       debugWarn?.(
@@ -885,10 +891,17 @@ export default function ProjectBookingForm({
       const fallbackAvailability = professionalAvailability[dayName];
       return fallbackAvailability?.available !== false;
     }
-  };
+  }, [
+    debugWarn,
+    loadingAvailability,
+    loadingWorkingHours,
+    professionalAvailability,
+    professionalTz,
+    toProfessionalDateKey,
+  ]);
 
   // Get working hours for the selected date
-  const getWorkingHoursForDate = (
+  const getWorkingHoursForDate = useCallback((
     date: Date
   ): { startTime: string; endTime: string } => {
     const defaultHours = { startTime: '09:00', endTime: '17:00' };
@@ -921,7 +934,7 @@ export default function ProjectBookingForm({
       startTime: dayAvailability.startTime || '09:00',
       endTime: dayAvailability.endTime || '17:00',
     };
-  };
+  }, [professionalAvailability, professionalTz, toProfessionalDateKey]);
 
   const getExecutionDurationHours = (): number => {
     const executionSource: AnyExecutionDuration | undefined =
@@ -938,7 +951,7 @@ export default function ProjectBookingForm({
     return (executionSource.value || 0) * 24;
   };
 
-  const adjustRangeEndForMidnightUtc = (
+  const adjustRangeEndForMidnightUtc = useCallback((
     rangeEnd: Date,
     targetDate: Date,
     tz: string,
@@ -965,9 +978,9 @@ export default function ProjectBookingForm({
     }
     const targetDateKey = toProfessionalDateKey(targetDate);
     return addDays(fromProfessionalDateKey(targetDateKey), 1);
-  };
+  }, [fromProfessionalDateKey, toProfessionalDateKey]);
 
-  const getBlockedIntervalsForDate = (date: Date) => {
+  const getBlockedIntervalsForDate = useCallback((date: Date) => {
     const intervals: Array<{ start: Date; end: Date }> = [];
     const dateKey = toProfessionalDateKey(date);
     const dayStart = fromProfessionalDateKey(dateKey);
@@ -1005,9 +1018,16 @@ export default function ProjectBookingForm({
     });
 
     return intervals;
-  };
+  }, [
+    adjustRangeEndForMidnightUtc,
+    blockedDates.blockedDates,
+    blockedDates.blockedRanges,
+    fromProfessionalDateKey,
+    professionalTz,
+    toProfessionalDateKey,
+  ]);
 
-  const computeBlockedHoursForIntervals = (
+  const computeBlockedHoursForIntervals = useCallback((
     date: Date,
     intervals: Array<{ start: Date; end: Date }>
   ) => {
@@ -1062,7 +1082,13 @@ export default function ProjectBookingForm({
     totalMinutes += (currentEnd - currentStart) / (1000 * 60);
 
     return { blockedHours: totalMinutes / 60, workingHours };
-  };
+  }, [
+    adjustRangeEndForMidnightUtc,
+    fromProfessionalDateKey,
+    getWorkingHoursForDate,
+    professionalTz,
+    toProfessionalDateKey,
+  ]);
 
   const shouldBlockDayForIntervals = (
     date: Date,
@@ -1575,12 +1601,22 @@ export default function ProjectBookingForm({
     );
     debugTable?.(debugSummary);
   }, [
-    project._id,
-    professionalTz,
-    blockedDates,
+    computeBlockedHoursForIntervals,
+    debugDateKeys,
+    debugLog,
+    debugTable,
+    fromProfessionalDateKey,
+    getBlockedIntervalsForDate,
+    isDebugProject,
+    isProfessionalWorkingDay,
+    isWeekend,
     loadingAvailability,
     loadingWorkingHours,
     professionalAvailability,
+    professionalTz,
+    blockedDates,
+    PARTIAL_BLOCK_THRESHOLD_HOURS,
+    project._id,
   ]);
 
   const getDisabledDays = () => {
@@ -2175,8 +2211,16 @@ export default function ProjectBookingForm({
       return index >= 0 ? dayNames[index] : 'monday';
     };
 
-    const addDaysToDateStr = (dateStr: string, days: number): string =>
-      format(addDays(parseISO(dateStr), days), 'yyyy-MM-dd');
+    const addDaysToDateStr = (dateStr: string, days: number): string => {
+      const dayStartUtc = fromZonedTime(
+        `${dateStr}T00:00:00`,
+        professionalTz
+      );
+      const dayStartZoned = toZonedTime(dayStartUtc, professionalTz);
+      const nextDayZoned = addDays(dayStartZoned, days);
+      const nextDayUtc = fromZonedTime(nextDayZoned, professionalTz);
+      return formatInTimeZone(nextDayUtc, professionalTz, 'yyyy-MM-dd');
+    };
 
     const countWorkingDaysBetween = (
       startDateStr: string,
@@ -2185,6 +2229,9 @@ export default function ProjectBookingForm({
       const start = parseISO(startDateStr);
       const end = parseISO(endDateStr);
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return 0;
+      }
+      if (start.getTime() > end.getTime()) {
         return 0;
       }
 
