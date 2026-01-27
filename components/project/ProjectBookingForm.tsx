@@ -368,25 +368,22 @@ export default function ProjectBookingForm({
     formatInTimeZone(date, professionalTz, 'yyyy-MM-dd');
   const fromProfessionalDateKey = (dateKey: string) =>
     fromZonedTime(`${dateKey}T00:00:00`, professionalTz);
-  const DEBUG_PROJECT_ID = '696916d61b9d0d72eeacac9e';
-  const DEBUG_DATE_KEYS = [
-    '2026-03-13',
-    '2026-03-16',
-    '2026-03-19',
-    '2026-03-20',
-  ];
+  const debugProjectId = isDev
+    ? process.env.NEXT_PUBLIC_DEBUG_PROJECT_ID?.trim()
+    : undefined;
+  const debugDateKeys = isDev
+    ? (process.env.NEXT_PUBLIC_DEBUG_DATE_KEYS ?? '')
+        .split(',')
+        .map((dateKey) => dateKey.trim())
+        .filter(Boolean)
+    : [];
   const debugSignatureRef = useRef('');
-  const isDebugProject = String(project._id) === DEBUG_PROJECT_ID;
-  // Silence generic debug logs; we only want the targeted per-date debug output.
-  const debugLog = (..._args: unknown[]) => {
-    void _args;
-  };
-  const debugWarn = (..._args: unknown[]) => {
-    void _args;
-  };
-  const debugError = (..._args: unknown[]) => {
-    void _args;
-  };
+  const isDebugProject =
+    Boolean(debugProjectId) && String(project._id) === debugProjectId;
+  const debugLog = isDebugProject ? console.log.bind(console) : undefined;
+  const debugWarn = isDebugProject ? console.warn.bind(console) : undefined;
+  const debugError = isDebugProject ? console.error.bind(console) : undefined;
+  const debugTable = isDebugProject ? console.table.bind(console) : undefined;
 
   useEffect(() => {
     if (typeof selectedSubprojectIndex === 'number') {
@@ -404,11 +401,11 @@ export default function ProjectBookingForm({
     fetchProfessionalWorkingHours();
 
     // Log for debugging available date consistency
-    debugLog(
+    debugLog?.(
       '[BOOKING FORM] Initializing booking form for project:',
       project._id
     );
-    debugLog(
+    debugLog?.(
       '[BOOKING FORM] First available date from search/project page:',
       project.firstAvailableDate
     );
@@ -455,10 +452,10 @@ export default function ProjectBookingForm({
     }
 
     if (!loadingAvailability && !loadingWorkingHours) {
-      debugLog(
+      debugLog?.(
         '[BOOKING FORM] All data loaded, selecting default preferred start date...'
       );
-      debugLog(
+      debugLog?.(
         '[BOOKING FORM] Professional availability:',
         professionalAvailability
       );
@@ -473,13 +470,13 @@ export default function ProjectBookingForm({
 
       if (earliestProposal && !isDateBlocked(earliestProposal)) {
         defaultDate = earliestProposal;
-        debugLog(
+        debugLog?.(
           '[BOOKING FORM] Using earliest proposal date:',
           defaultDate
         );
       } else if (earliestBookable && !isDateBlocked(earliestBookable)) {
         defaultDate = earliestBookable;
-        debugLog(
+        debugLog?.(
           '[BOOKING FORM] Using earliest bookable date:',
           defaultDate
         );
@@ -496,20 +493,20 @@ export default function ProjectBookingForm({
             'yyyy-MM-dd'
           );
           if (projectAvailableDate !== defaultDate) {
-            debugWarn('[BOOKING FORM] Date discrepancy detected!');
-            debugWarn(
+            debugWarn?.('[BOOKING FORM] Date discrepancy detected!');
+            debugWarn?.(
               '[BOOKING FORM] Search/Project page showed:',
               projectAvailableDate
             );
-            debugWarn(
+            debugWarn?.(
               '[BOOKING FORM] Actual first available date:',
               defaultDate
             );
-            debugWarn(
+            debugWarn?.(
               '[BOOKING FORM] This may be due to bookings made after viewing the search results'
             );
           } else {
-            debugLog('[BOOKING FORM] Available dates match:', defaultDate);
+            debugLog?.('[BOOKING FORM] Available dates match:', defaultDate);
           }
         }
       }
@@ -563,7 +560,7 @@ export default function ProjectBookingForm({
       if (startTime) {
         url += `&startTime=${startTime}`;
       }
-      debugLog('%c[SCHEDULE WINDOW] Fetching...', 'color: #ff6600; font-weight: bold', {
+      debugLog?.('%c[SCHEDULE WINDOW] Fetching...', 'color: #ff6600; font-weight: bold', {
         url,
         startDate,
         startTime,
@@ -571,26 +568,26 @@ export default function ProjectBookingForm({
       });
       const response = await fetch(url);
       const data = await response.json();
-      debugLog('%c[SCHEDULE WINDOW] Response:', 'color: #ff6600; font-weight: bold', data);
+      debugLog?.('%c[SCHEDULE WINDOW] Response:', 'color: #ff6600; font-weight: bold', data);
       if (data.success && data.window) {
-        debugLog('%c[SCHEDULE WINDOW] Setting scheduleWindow state:', 'color: #00cc00; font-weight: bold', data.window);
+        debugLog?.('%c[SCHEDULE WINDOW] Setting scheduleWindow state:', 'color: #00cc00; font-weight: bold', data.window);
         setScheduleWindow(data.window);
       } else {
-        debugWarn('%c[SCHEDULE WINDOW] Not available:', 'color: #cc0000', data.error);
+        debugWarn?.('%c[SCHEDULE WINDOW] Not available:', 'color: #cc0000', data.error);
         setScheduleWindow(null);
       }
     } catch (error) {
-      debugError('%c[SCHEDULE WINDOW] Error:', 'color: #cc0000', error);
+      debugError?.('%c[SCHEDULE WINDOW] Error:', 'color: #cc0000', error);
       setScheduleWindow(null);
     } finally {
       setLoadingScheduleWindow(false);
-      debugLog('[SCHEDULE WINDOW] Loading complete');
+      debugLog?.('[SCHEDULE WINDOW] Loading complete');
     }
   }, [project._id, selectedPackageIndex]);
 
   // Fetch schedule window from backend when date changes (for days mode)
   useEffect(() => {
-    debugLog('[SCHEDULE WINDOW] useEffect triggered:', {
+    debugLog?.('[SCHEDULE WINDOW] useEffect triggered:', {
       selectedDate,
       projectMode,
       loadingAvailability,
@@ -598,7 +595,7 @@ export default function ProjectBookingForm({
       shouldFetch: selectedDate && projectMode === 'days' && !loadingAvailability
     });
     if (selectedDate && projectMode === 'days' && !loadingAvailability) {
-      debugLog('[SCHEDULE WINDOW] Calling fetchScheduleWindow for date:', selectedDate);
+      debugLog?.('[SCHEDULE WINDOW] Calling fetchScheduleWindow for date:', selectedDate);
       setScheduleWindow(null);
       fetchScheduleWindow(selectedDate);
     }
@@ -606,7 +603,7 @@ export default function ProjectBookingForm({
 
   const fetchTeamAvailability = async (packageIndex?: number) => {
     try {
-      debugLog(
+      debugLog?.(
         '[BOOKING] Fetching team availability for project:',
         project._id,
         'packageIndex:',
@@ -619,13 +616,13 @@ export default function ProjectBookingForm({
       const response = await fetch(url);
       const data: AvailabilityResponse = await response.json();
 
-      debugLog('%c[AVAILABILITY API]', 'color: #00aa00; font-weight: bold', {
+      debugLog?.('%c[AVAILABILITY API]', 'color: #00aa00; font-weight: bold', {
         blockedDatesCount: data.blockedDates?.length || 0,
         blockedRangesCount: data.blockedRanges?.length || 0,
         resourcePolicy: data.resourcePolicy,
       });
       if (isDev && data._debug) {
-        debugLog(
+        debugLog?.(
           '%c[AVAILABILITY DEBUG]',
           'color: #00aa00; font-weight: bold',
           {
@@ -639,17 +636,17 @@ export default function ProjectBookingForm({
             useWindowBasedCheck: data._debug?.useWindowBasedCheck,
           }
         );
-        debugLog(
+        debugLog?.(
           '%c[TEAM MEMBERS]',
           'color: #ff6600; font-weight: bold',
           data._debug?.teamMembers
         );
-        debugLog(
+        debugLog?.(
           '%c[BOOKINGS BLOCKING TEAM]',
           'color: #cc0000; font-weight: bold',
           data._debug?.bookings
         );
-        debugLog(
+        debugLog?.(
           '%c[DATES WITH BLOCKED MEMBERS]',
           'color: #9900cc; font-weight: bold',
           data._debug?.dateBlockedMembers
@@ -677,12 +674,12 @@ export default function ProjectBookingForm({
           ),
           resourcePolicy: data.resourcePolicy,
         };
-        debugLog('[BOOKING] Normalized data:', normalizedData);
-        debugLog('[BOOKING] Resource policy:', data.resourcePolicy);
+        debugLog?.('[BOOKING] Normalized data:', normalizedData);
+        debugLog?.('[BOOKING] Resource policy:', data.resourcePolicy);
         setBlockedDates(normalizedData);
       }
     } catch (error) {
-      debugError('Error fetching availability:', error);
+      debugError?.('Error fetching availability:', error);
       toast.error('Failed to load availability calendar');
     } finally {
       setLoadingAvailability(false);
@@ -700,14 +697,14 @@ export default function ProjectBookingForm({
       const data: ScheduleProposalsResponse = await response.json();
 
       if (isDev) {
-        debugLog('%c[PROPOSALS API]', 'color: #0066cc; font-weight: bold', {
+        debugLog?.('%c[PROPOSALS API]', 'color: #0066cc; font-weight: bold', {
           earliestBookableDate: data.proposals?.earliestBookableDate,
           earliestProposal: data.proposals?.earliestProposal,
           mode: data.proposals?.mode,
           _debug: data.proposals?._debug,
         });
         if (data.proposals?._debug) {
-          debugLog(
+          debugLog?.(
             '%c[PROPOSALS DEBUG]',
             'color: #0066cc',
             data.proposals._debug
@@ -718,35 +715,35 @@ export default function ProjectBookingForm({
         setProposals(data.proposals);
       }
     } catch (error) {
-      debugError('Error fetching schedule proposals:', error);
+      debugError?.('Error fetching schedule proposals:', error);
     }
   };
 
   const fetchProfessionalWorkingHours = async () => {
     try {
-      debugLog('[BOOKING] Fetching working hours for project:', project._id);
+      debugLog?.('[BOOKING] Fetching working hours for project:', project._id);
       setLoadingWorkingHours(true);
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`
       );
       const data: WorkingHoursResponse = await response.json();
 
-      debugLog('[BOOKING] Working hours response:', data);
+      debugLog?.('[BOOKING] Working hours response:', data);
       if (data.success && data.availability) {
-        debugLog(
+        debugLog?.(
           '[BOOKING] Professional availability set:',
           data.availability
         );
-        debugLog('[BOOKING] Professional timezone:', data.timezone);
+        debugLog?.('[BOOKING] Professional timezone:', data.timezone);
         setProfessionalAvailability(data.availability);
         setProfessionalTimezone(normalizeTimezone(data.timezone));
       } else {
-        debugWarn(
+        debugWarn?.(
           '[BOOKING] No working hours data received or request failed'
         );
       }
     } catch (error) {
-      debugError(
+      debugError?.(
         '[BOOKING] Error fetching professional working hours:',
         error
       );
@@ -837,11 +834,11 @@ export default function ProjectBookingForm({
   const isProfessionalWorkingDay = (date: Date): boolean => {
     if (!professionalAvailability) {
       // This should only happen during initial load before working hours are fetched
-      debugWarn(
+      debugWarn?.(
         '[BOOKING] ⚠️ isProfessionalWorkingDay called before working hours loaded! Date:',
         toProfessionalDateKey(date)
       );
-      debugWarn(
+      debugWarn?.(
         '[BOOKING] Loading states - availability:',
         loadingAvailability,
         'workingHours:',
@@ -870,7 +867,7 @@ export default function ProjectBookingForm({
 
       return true;
     } catch (error) {
-      debugWarn('[BOOKING] Failed to evaluate working day with timezone:', {
+      debugWarn?.('[BOOKING] Failed to evaluate working day with timezone:', {
         error,
         timezone: professionalTz,
         date: toProfessionalDateKey(date),
@@ -1178,7 +1175,7 @@ export default function ProjectBookingForm({
       cursor = addDays(dayStart, 1);
     }
 
-    debugWarn(
+    debugWarn?.(
       '[addWorkingHoursForBuffer] Max iterations reached; buffer end may be inaccurate'
     );
     return cursor;
@@ -1209,7 +1206,7 @@ export default function ProjectBookingForm({
     }
 
     if (iterations >= maxIterations) {
-      debugWarn(
+      debugWarn?.(
         '[advanceWorkingDaysForBuffer] Max iterations reached; buffer end may be inaccurate'
       );
     }
@@ -1273,7 +1270,7 @@ export default function ProjectBookingForm({
     // If execution time exceeds one working day, return empty array
     // This indicates the project should be in days mode instead
     if (executionHours > workingHoursPerDay) {
-      debugWarn(
+      debugWarn?.(
         `Execution time (${executionHours}h) exceeds working hours per day (${workingHoursPerDay}h). This project should use days mode.`
       );
       return [];
@@ -1471,7 +1468,7 @@ export default function ProjectBookingForm({
         professional: professionalTime,
       };
     } catch (error) {
-      debugError('Error converting timezone:', error);
+      debugError?.('Error converting timezone:', error);
       return { utc: timeSlot, viewer: timeSlot, professional: timeSlot };
     }
   };
@@ -1543,7 +1540,7 @@ export default function ProjectBookingForm({
     }
     debugSignatureRef.current = signature;
 
-    const debugSummary = DEBUG_DATE_KEYS.map((dateKey) => {
+    const debugSummary = debugDateKeys.map((dateKey) => {
       const dateObj = fromProfessionalDateKey(dateKey);
       const isWorking = isProfessionalWorkingDay(dateObj) && !isWeekend(dateObj);
       const explicitBlocked = blockedDates.blockedDates.includes(dateKey);
@@ -1571,9 +1568,12 @@ export default function ProjectBookingForm({
       };
     });
 
-    console.log('[BOOKING DEBUG] Professional TZ:', professionalTz);
-    console.log('[BOOKING DEBUG] Explicit blockedDates:', blockedDates.blockedDates);
-    console.table(debugSummary);
+    debugLog?.('[BOOKING DEBUG] Professional TZ:', professionalTz);
+    debugLog?.(
+      '[BOOKING DEBUG] Explicit blockedDates:',
+      blockedDates.blockedDates
+    );
+    debugTable?.(debugSummary);
   }, [
     project._id,
     professionalTz,
@@ -1618,9 +1618,9 @@ export default function ProjectBookingForm({
   };
 
   const getMinDate = (): string | null => {
-    debugLog('[getMinDate] Starting calculation...');
-    debugLog('[getMinDate] Project timeMode:', projectMode);
-    debugLog(
+    debugLog?.('[getMinDate] Starting calculation...');
+    debugLog?.('[getMinDate] Project timeMode:', projectMode);
+    debugLog?.(
       '[getMinDate] Proposals earliestBookableDate:',
       proposals?.earliestBookableDate
     );
@@ -1632,14 +1632,14 @@ export default function ProjectBookingForm({
     const earliestKey = proposals?.earliestBookableDate
       ? toProfessionalDateKeyFromInstant(earliest)
       : toProfessionalDateKey(earliest);
-    debugLog('[getMinDate] Starting from:', earliestKey);
+    debugLog?.('[getMinDate] Starting from:', earliestKey);
 
     let checkDate = fromProfessionalDateKey(earliestKey);
 
     for (let i = 0; i < 120; i++) {
       const isWorkingDay = isProfessionalWorkingDay(checkDate);
       const dateStr = toProfessionalDateKey(checkDate);
-      debugLog(
+      debugLog?.(
         `[getMinDate] Checking ${dateStr} - Working day: ${isWorkingDay}`
       );
 
@@ -1650,16 +1650,16 @@ export default function ProjectBookingForm({
 
       if (projectMode === 'hours') {
         const slots = generateTimeSlotsForDate(checkDate);
-        debugLog(`[getMinDate] ${dateStr} - Available slots:`, slots.length);
+        debugLog?.(`[getMinDate] ${dateStr} - Available slots:`, slots.length);
         if (slots.length > 0) {
-          debugLog(`[getMinDate] ✅ Found first available date: ${dateStr}`);
+          debugLog?.(`[getMinDate] ✅ Found first available date: ${dateStr}`);
           return dateStr;
         }
       } else {
         const blocked = isDateBlocked(dateStr);
-        debugLog(`[getMinDate] ${dateStr} - Blocked: ${blocked}`);
+        debugLog?.(`[getMinDate] ${dateStr} - Blocked: ${blocked}`);
         if (!blocked) {
-          debugLog(`[getMinDate] ✅ Found first available date: ${dateStr}`);
+          debugLog?.(`[getMinDate] ✅ Found first available date: ${dateStr}`);
           return dateStr;
         }
       }
@@ -1667,7 +1667,7 @@ export default function ProjectBookingForm({
       checkDate = addDays(checkDate, 1);
     }
 
-    debugWarn('[getMinDate] ⚠️ No available date found in 120 days!');
+    debugWarn?.('[getMinDate] ⚠️ No available date found in 120 days!');
     return null;
   };
 
@@ -1885,20 +1885,20 @@ export default function ProjectBookingForm({
   };
 
   const handleSubmit = async () => {
-    debugLog('[BOOKING] Submit initiated');
-    debugLog('[BOOKING] Current step:', currentStep);
-    debugLog('[BOOKING] Selected package index:', selectedPackageIndex);
-    debugLog('[BOOKING] Selected date:', selectedDate);
+    debugLog?.('[BOOKING] Submit initiated');
+    debugLog?.('[BOOKING] Current step:', currentStep);
+    debugLog?.('[BOOKING] Selected package index:', selectedPackageIndex);
+    debugLog?.('[BOOKING] Selected date:', selectedDate);
 
     if (!guardOutsideServiceArea()) {
-      debugError(
+      debugError?.(
         '[BOOKING] Submission blocked due to service radius limits'
       );
       return;
     }
 
     if (!validateStep()) {
-      debugError('[BOOKING] Validation failed');
+      debugError?.('[BOOKING] Validation failed');
       return;
     }
 
@@ -1907,7 +1907,7 @@ export default function ProjectBookingForm({
       return;
     }
 
-    debugLog('[BOOKING] Validation passed');
+    debugLog?.('[BOOKING] Validation passed');
     setLoading(true);
 
     try {
@@ -1950,19 +1950,19 @@ export default function ProjectBookingForm({
         urgency: 'medium',
       };
 
-      debugLog('[BOOKING] Prepared booking data:', bookingData);
-      debugLog(
+      debugLog?.('[BOOKING] Prepared booking data:', bookingData);
+      debugLog?.(
         '[BOOKING] Backend URL:',
         process.env.NEXT_PUBLIC_BACKEND_URL
       );
-      debugLog('[BOOKING] Sending request...');
+      debugLog?.('[BOOKING] Sending request...');
 
       const startTime = Date.now();
 
       // Create abort controller for timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        debugError('[BOOKING] Request timeout after 30 seconds');
+        debugError?.('[BOOKING] Request timeout after 30 seconds');
         controller.abort();
       }, 30000); // 30 second timeout
 
@@ -1983,12 +1983,12 @@ export default function ProjectBookingForm({
         clearTimeout(timeoutId); // Clear timeout if request completes
 
         const requestTime = Date.now() - startTime;
-        debugLog(`[BOOKING] Response received in ${requestTime}ms`);
-        debugLog('[BOOKING] Response status:', response.status);
-        debugLog('[BOOKING] Response ok:', response.ok);
+        debugLog?.(`[BOOKING] Response received in ${requestTime}ms`);
+        debugLog?.('[BOOKING] Response status:', response.status);
+        debugLog?.('[BOOKING] Response ok:', response.ok);
 
         const data = await response.json();
-        debugLog('[BOOKING] Response data:', data);
+        debugLog?.('[BOOKING] Response data:', data);
 
         if (response.ok && data.success) {
           // Check if project has post-booking questions
@@ -2006,33 +2006,33 @@ export default function ProjectBookingForm({
           }
           return;
         } else {
-          debugError('[BOOKING] Request failed');
-          debugError('[BOOKING] Status:', response.status);
-          debugError('[BOOKING] Error message:', data.msg || data.message);
-          debugError('[BOOKING] Full response:', data);
+          debugError?.('[BOOKING] Request failed');
+          debugError?.('[BOOKING] Status:', response.status);
+          debugError?.('[BOOKING] Error message:', data.msg || data.message);
+          debugError?.('[BOOKING] Full response:', data);
 
           // Handle specific error cases
           if (response.status === 401) {
-            debugError('[BOOKING] Not authenticated');
+            debugError?.('[BOOKING] Not authenticated');
             toast.error('Please log in to submit a booking request');
             setTimeout(() => {
               router.push('/login?redirect=/projects/' + project._id);
             }, 1500);
           } else if (response.status === 403) {
-            debugError('[BOOKING] Permission denied');
+            debugError?.('[BOOKING] Permission denied');
             toast.error(
               data.msg || 'You do not have permission to create bookings'
             );
           } else if (response.status === 400) {
-            debugError('[BOOKING] Bad request - validation error');
+            debugError?.('[BOOKING] Bad request - validation error');
             toast.error(
               data.msg || 'Please check your booking details and try again'
             );
           } else if (response.status === 404) {
-            debugError('[BOOKING] Resource not found');
+            debugError?.('[BOOKING] Resource not found');
             toast.error(data.msg || 'Project not found');
           } else {
-            debugError('[BOOKING] Unknown error status:', response.status);
+            debugError?.('[BOOKING] Unknown error status:', response.status);
             toast.error(
               data.msg ||
                 data.message ||
@@ -2044,7 +2044,7 @@ export default function ProjectBookingForm({
         clearTimeout(timeoutId);
 
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          debugError('[BOOKING] Request was aborted (timeout)');
+          debugError?.('[BOOKING] Request was aborted (timeout)');
           toast.error(
             'Request timed out. The server is taking too long to respond. Please try again.'
           );
@@ -2053,27 +2053,27 @@ export default function ProjectBookingForm({
         }
       }
     } catch (error: unknown) {
-      debugError('[BOOKING] Exception thrown');
+      debugError?.('[BOOKING] Exception thrown');
       const err = error instanceof Error ? error : new Error('Unknown error');
-      debugError('[BOOKING] Error name:', err.name);
-      debugError('[BOOKING] Error message:', err.message);
-      debugError('[BOOKING] Error stack:', err.stack);
+      debugError?.('[BOOKING] Error name:', err.name);
+      debugError?.('[BOOKING] Error message:', err.message);
+      debugError?.('[BOOKING] Error stack:', err.stack);
 
       // Network or other errors
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
-        debugError('[BOOKING] Network/fetch error');
+        debugError?.('[BOOKING] Network/fetch error');
         toast.error(
           'Network error. Please check your connection and try again.'
         );
       } else if (err.name === 'AbortError') {
-        debugError('[BOOKING] Request timeout');
+        debugError?.('[BOOKING] Request timeout');
         toast.error('Request timed out. Please try again.');
       } else {
-        debugError('[BOOKING] Unexpected error type');
+        debugError?.('[BOOKING] Unexpected error type');
         toast.error('An unexpected error occurred. Please try again.');
       }
     } finally {
-      debugLog('[BOOKING] Request completed, resetting loading state');
+      debugLog?.('[BOOKING] Request completed, resetting loading state');
       setLoading(false);
     }
   };
@@ -2221,7 +2221,7 @@ export default function ProjectBookingForm({
   })();
 
   // Debug log for completion date display
-  debugLog('[SCHEDULE WINDOW] Render state:', {
+  debugLog?.('[SCHEDULE WINDOW] Render state:', {
     scheduleWindow,
     loadingScheduleWindow,
     projectedCompletionDate: projectedCompletionDate?.toISOString(),
@@ -2245,7 +2245,7 @@ export default function ProjectBookingForm({
 
       // Validate parsed dates to avoid NaN in calculations
       if (Number.isNaN(startUtc.getTime()) || Number.isNaN(endUtc.getTime())) {
-        debugWarn('[shortestThroughputDetails] Invalid date parsed:', {
+        debugWarn?.('[shortestThroughputDetails] Invalid date parsed:', {
           start: proposals.shortestThroughputProposal.start,
           end: proposals.shortestThroughputProposal.executionEnd,
           startValid: !Number.isNaN(startUtc.getTime()),
@@ -2266,7 +2266,7 @@ export default function ProjectBookingForm({
       // Return UTC dates - formatInTimeZone will convert them correctly for display
       return { startDate: startUtc, endDate: endUtc, totalDays };
     } catch (error) {
-      debugError('[shortestThroughputDetails] Error processing dates:', error);
+      debugError?.('[shortestThroughputDetails] Error processing dates:', error);
       return null;
     }
   })();
