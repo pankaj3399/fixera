@@ -782,7 +782,9 @@ export default function ProjectBookingForm({
         );
         debugLog?.('[BOOKING] Professional timezone:', data.timezone);
         setProfessionalAvailability(data.availability);
-        setProfessionalTimezone(normalizeTimezone(data.timezone));
+        if (data.timezone) {
+          setProfessionalTimezone(normalizeTimezone(data.timezone));
+        }
       } else {
         debugWarn?.(
           '[BOOKING] No working hours data received or request failed'
