@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
+import WeeklyAvailabilityCalendar, { CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import {
   User,
   Mail,
@@ -20,6 +21,7 @@ import {
   Loader2,
   Users,
   Trash2,
+  UserX,
   X,
   Plus,
   ChevronLeft,
@@ -69,44 +71,15 @@ interface Employee {
     startDate: string;
     endDate: string;
     reason?: string;
+    bookingId?: string;
+    location?: {
+      address?: string;
+      city?: string;
+      country?: string;
+      postalCode?: string;
+    };
   }[]
 }
-
-// Safe date formatting helper to handle invalid dates
-// Handles date-only strings (YYYY-MM-DD) as local dates to avoid timezone shift
-// Also handles MongoDB Extended JSON format ({$date: "..."})
-const formatDateSafe = (dateStr: string | { $date: string } | undefined | null): string => {
-  if (!dateStr) return 'Invalid Date';
-  try {
-    let dateValue: string;
-
-    // Handle MongoDB Extended JSON format where date is {$date: "ISO string"}
-    if (typeof dateStr === 'object' && dateStr !== null && '$date' in dateStr) {
-      dateValue = dateStr.$date;
-    } else if (typeof dateStr === 'string') {
-      dateValue = dateStr;
-    } else {
-      return 'Invalid Date';
-    }
-
-    let date: Date;
-
-    // Check if it's a date-only string (YYYY-MM-DD) without time component
-    // These should be parsed as local dates to avoid UTC interpretation shifting the day
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-      const [year, month, day] = dateValue.split('-').map(Number);
-      date = new Date(year, month - 1, day); // month is 0-indexed
-    } else {
-      // Full ISO timestamp or other format - parse normally
-      date = new Date(dateValue);
-    }
-
-    if (isNaN(date.getTime())) return 'Invalid Date';
-    return date.toLocaleDateString();
-  } catch {
-    return 'Invalid Date';
-  }
-};
 
 // Canonical date value extractor - handles string, Date, {$date: string}, null, undefined
 // Returns validated date string or null
@@ -135,17 +108,6 @@ const getDateValue = (dateValue: DateInput): string | null => {
   return null;
 };
 
-// Check if a date range has valid dates
-// Handles string, Date, and MongoDB Extended JSON format ({$date: "..."})
-const isValidDateRange = (range: { startDate: DateInput; endDate: DateInput }): boolean => {
-  const startStr = getDateValue(range.startDate);
-  const endStr = getDateValue(range.endDate);
-  if (!startStr || !endStr) return false;
-  const start = new Date(startStr);
-  const end = new Date(endStr);
-  return !isNaN(start.getTime()) && !isNaN(end.getTime());
-};
-
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
@@ -164,26 +126,35 @@ export default function EmployeeManagement() {
   const [newPassword, setNewPassword] = useState('')
   const [resettingPassword, setResettingPassword] = useState(false)
 
+  // Email update states
+  const [emailDialog, setEmailDialog] = useState<{memberId: string, memberName: string, currentEmail?: string} | null>(null)
+  const [emailValue, setEmailValue] = useState('')
+  const [updatingEmail, setUpdatingEmail] = useState(false)
+
   // Deactivation confirmation states
   const [deactivateDialog, setDeactivateDialog] = useState<{memberId: string, memberName: string} | null>(null)
   const [deactivating, setDeactivating] = useState(false)
+
+  // Removal confirmation states
+  const [removeDialog, setRemoveDialog] = useState<{memberId: string, memberName: string} | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   // Availability management states
   const [availabilityDialog, setAvailabilityDialog] = useState<Employee | null>(null)
   const [savingAvailability, setSavingAvailability] = useState(false)
 
-  const [blockedDates, setBlockedDates] = useState<{date: string, reason?: string}[]>([])
   const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
-  const [newBlockedDate, setNewBlockedDate] = useState({date: '', reason: ''})
   const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
+  const [editingRange, setEditingRange] = useState<{
+    index: number;
+    startValue: string;
+    endValue: string;
+    reason: string;
+  } | null>(null)
 
   // Pagination states
   const EMPLOYEES_PER_PAGE = 10
-  const ITEMS_PER_PAGE = 5
   const [employeesPage, setEmployeesPage] = useState(1)
-  const [blockedDatesPage, setBlockedDatesPage] = useState(1)
-  const [blockedRangesPage, setBlockedRangesPage] = useState(1)
-  const [bookingBlockedRangesPage, setBookingBlockedRangesPage] = useState(1)
 
   // Clamp pagination states when list lengths shrink
   useEffect(() => {
@@ -193,33 +164,12 @@ export default function EmployeeManagement() {
     }
   }, [employees.length, employeesPage])
 
-  useEffect(() => {
-    const maxPage = Math.max(1, Math.ceil(blockedDates.length / ITEMS_PER_PAGE))
-    if (blockedDatesPage > maxPage) {
-      setBlockedDatesPage(maxPage)
-    }
-  }, [blockedDates.length, blockedDatesPage])
-
-  useEffect(() => {
-    const maxPage = Math.max(1, Math.ceil(blockedRanges.length / ITEMS_PER_PAGE))
-    if (blockedRangesPage > maxPage) {
-      setBlockedRangesPage(maxPage)
-    }
-  }, [blockedRanges.length, blockedRangesPage])
-
-  useEffect(() => {
-    const bookingRangesLength = availabilityDialog?.bookingBlockedRanges?.length ?? 0
-    const maxPage = Math.max(1, Math.ceil(bookingRangesLength / ITEMS_PER_PAGE))
-    if (bookingBlockedRangesPage > maxPage) {
-      setBookingBlockedRangesPage(maxPage)
-    }
-  }, [availabilityDialog?.bookingBlockedRanges?.length, bookingBlockedRangesPage])
 
   // Fetch employees
   const fetchEmployees = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/list`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/list?includeInactive=true`, {
         method: 'GET',
         credentials: 'include'
       })
@@ -358,101 +308,159 @@ export default function EmployeeManagement() {
     }
   }
 
-  // Helper to format Date to local YYYY-MM-DD string (avoids UTC timezone shift)
-  const formatLocalDate = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const openEmailDialog = (employee: Employee) => {
+    setEmailDialog({
+      memberId: employee._id,
+      memberName: employee.name,
+      currentEmail: employee.email
+    })
+    setEmailValue(employee.email || '')
+  }
+
+  const updateEmployeeEmail = async () => {
+    if (!emailDialog) return
+    if (!emailValue.trim()) {
+      toast.error('Email is required')
+      return
+    }
+
+    try {
+      setUpdatingEmail(true)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/${emailDialog.memberId}/email`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email: emailValue.trim() })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Employee email updated successfully')
+        setEmailDialog(null)
+        setEmailValue('')
+        fetchEmployees()
+      } else {
+        toast.error(data.msg || 'Failed to update employee email')
+      }
+    } catch (error) {
+      console.error('Error updating employee email:', error)
+      toast.error('Failed to update employee email')
+    } finally {
+      setUpdatingEmail(false)
+    }
+  }
+
+  const handleRemove = (employeeId: string, employeeName: string) => {
+    setRemoveDialog({ memberId: employeeId, memberName: employeeName })
+  }
+
+  const confirmRemove = async () => {
+    if (!removeDialog) return
+
+    try {
+      setRemoving(true)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/employee/${removeDialog.memberId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Employee removed successfully')
+        setRemoveDialog(null)
+        fetchEmployees()
+      } else {
+        toast.error(data.msg || 'Failed to remove employee')
+      }
+    } catch (error) {
+      console.error('Error removing employee:', error)
+      toast.error('Failed to remove employee')
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  const toIsoDateTime = (value: DateInput, isEnd = false): string | null => {
+    const dateStr = getDateValue(value);
+    if (!dateStr) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const suffix = isEnd ? 'T23:59:59' : 'T00:00:00';
+      const parsed = new Date(`${dateStr}${suffix}`);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+    }
+    const parsed = new Date(dateStr);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   };
 
-  // Helper to extract date string from various formats (string, Date, {$date: "..."})
-  // Returns local date string to avoid UTC timezone issues with date-only fields
-  const extractDateValue = (d: string | Date | { $date: string } | null | undefined): string | null => {
-    if (!d) return null;
-    // Handle MongoDB Extended JSON format {$date: "..."}
-    if (typeof d === 'object' && d !== null && '$date' in d) {
-      return d.$date;
-    }
-    // Handle string - return as-is (preserve original format)
-    if (typeof d === 'string') {
-      return d;
-    }
-    // Handle Date object - use local date formatting to avoid UTC shift
-    if (d instanceof Date) {
-      // Handle invalid Date objects explicitly - return null if time is NaN
-      if (isNaN(d.getTime())) {
-        return null;
-      }
-      return formatLocalDate(d);
-    }
-    // All valid cases handled above; return null for any unexpected input
-    return null;
+  const toLocalInputValue = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  };
+
+  const formatDateTimeSafe = (value: DateInput): string => {
+    const dateStr = getDateValue(value);
+    if (!dateStr) return 'Invalid Date';
+    const parsed = new Date(dateStr);
+    if (Number.isNaN(parsed.getTime())) return 'Invalid Date';
+    return parsed.toLocaleString();
   };
 
   // Open availability dialog
   const openAvailabilityDialog = (employee: Employee) => {
     setAvailabilityDialog(employee)
     // Reset pagination pages
-    setBlockedDatesPage(1)
-    setBlockedRangesPage(1)
-    setBookingBlockedRangesPage(1)
-    // Load employee's blocked dates
-    if (employee.blockedDates) {
-      setBlockedDates(employee.blockedDates.map(d => {
-        const dateStr = extractDateValue(d);
-        // Convert to date-only format (YYYY-MM-DD) for the date input
-        const dateOnly = dateStr ? dateStr.split('T')[0] : '';
-        return { date: dateOnly, reason: undefined };
-      }).filter(d => d.date))
-    } else {
-      setBlockedDates([])
-    }
+    const mergedRanges = new Map<string, { startDate: string; endDate: string; reason?: string }>();
+    const addRange = (range: { startDate: string; endDate: string; reason?: string }) => {
+      const key = `${range.startDate}-${range.endDate}-${range.reason || ''}`;
+      if (!mergedRanges.has(key)) {
+        mergedRanges.set(key, range);
+      }
+    };
+
     if (employee.blockedRanges) {
-      // Normalize blocked ranges - convert to date-only format (YYYY-MM-DD) to avoid timezone shifts
-      setBlockedRanges(employee.blockedRanges.map(range => {
-        const startDateStr = extractDateValue(range.startDate);
-        const endDateStr = extractDateValue(range.endDate);
-        // Extract date-only portion to avoid timezone issues with timestamps like "2026-01-24T00:00:00Z"
-        const startDateOnly = startDateStr ? startDateStr.split('T')[0] : '';
-        const endDateOnly = endDateStr ? endDateStr.split('T')[0] : '';
-        return {
-          startDate: startDateOnly,
-          endDate: endDateOnly,
-          reason: range.reason
-        };
-      }).filter(r => r.startDate && r.endDate))
-    } else {
-      setBlockedRanges([])
+      employee.blockedRanges.forEach((range) => {
+        const startDate = toIsoDateTime(range.startDate, false);
+        const endDate = toIsoDateTime(range.endDate, true);
+        if (startDate && endDate) {
+          addRange({ startDate, endDate, reason: range.reason });
+        }
+      });
     }
-  }
 
-  // Add blocked date
-  const addBlockedDate = () => {
-    if (!newBlockedDate.date) {
-      toast.error('Please select a date')
-      return
+    if (employee.blockedDates) {
+      employee.blockedDates.forEach((dateValue) => {
+        const startDate = toIsoDateTime(dateValue, false);
+        const endDate = toIsoDateTime(dateValue, true);
+        if (startDate && endDate) {
+          addRange({ startDate, endDate });
+        }
+      });
     }
-    setBlockedDates(prev => [...prev, newBlockedDate])
-    setNewBlockedDate({date: '', reason: ''})
-  }
 
-  // Remove blocked date
-  const removeBlockedDate = (dateToRemove: string) => {
-    setBlockedDates(prev => prev.filter(d => d.date !== dateToRemove))
+    setBlockedRanges(Array.from(mergedRanges.values()))
   }
 
   // Add blocked range
   const addBlockedRange = () => {
     if (!newBlockedRange.startDate || !newBlockedRange.endDate) {
-      toast.error('Please select both start and end dates')
+      toast.error('Please select both start and end times')
       return
     }
-    if (new Date(newBlockedRange.startDate) > new Date(newBlockedRange.endDate)) {
-      toast.error('Start date must be before end date')
+    if (new Date(newBlockedRange.startDate) >= new Date(newBlockedRange.endDate)) {
+      toast.error('Start time must be before end time')
       return
     }
-    setBlockedRanges(prev => [...prev, newBlockedRange])
+    setBlockedRanges(prev => [...prev, {
+      startDate: new Date(newBlockedRange.startDate).toISOString(),
+      endDate: new Date(newBlockedRange.endDate).toISOString(),
+      reason: newBlockedRange.reason || undefined
+    }])
     setNewBlockedRange({startDate: '', endDate: '', reason: ''})
   }
 
@@ -460,6 +468,93 @@ export default function EmployeeManagement() {
   const removeBlockedRange = (index: number) => {
     setBlockedRanges(prev => prev.filter((_, i) => i !== index))
   }
+
+  const openEditRange = (index: number) => {
+    const range = blockedRanges[index]
+    if (!range) return
+    setEditingRange({
+      index,
+      startValue: toLocalInputValue(range.startDate),
+      endValue: toLocalInputValue(range.endDate),
+      reason: range.reason || ''
+    })
+  }
+
+  const applyEditRange = () => {
+    if (!editingRange) return
+    const { index, startValue, endValue, reason } = editingRange
+    if (!startValue || !endValue) {
+      toast.error('Select start and end values')
+      return
+    }
+    const startDate = new Date(startValue)
+    const endDate = new Date(endValue)
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      toast.error('Please provide valid start and end times')
+      return
+    }
+    if (startDate >= endDate) {
+      toast.error('Start time must be before end time')
+      return
+    }
+    setBlockedRanges(prev =>
+      prev.map((range, idx) =>
+        idx === index
+          ? {
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+              reason: reason || undefined
+            }
+          : range
+      )
+    )
+    setEditingRange(null)
+  }
+
+  const removeEditingRange = () => {
+    if (!editingRange) return
+    setBlockedRanges(prev => prev.filter((_, idx) => idx !== editingRange.index))
+    setEditingRange(null)
+  }
+
+  const calendarEvents = useMemo<CalendarEvent[]>(() => {
+    const events: CalendarEvent[] = []
+
+    blockedRanges.forEach((range, index) => {
+      const start = new Date(range.startDate)
+      const end = new Date(range.endDate)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
+      events.push({
+        id: `personal-${index}`,
+        type: 'personal',
+        title: 'Personal Block',
+        start,
+        end,
+        meta: { note: range.reason, rangeIndex: index }
+      })
+    })
+
+    availabilityDialog?.bookingBlockedRanges?.forEach((range, index) => {
+      const start = new Date(range.startDate)
+      const end = new Date(range.endDate)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
+      const type = range.reason === 'booking-buffer' ? 'booking-buffer' : 'booking'
+      events.push({
+        id: `booking-${range.bookingId || index}`,
+        type,
+        title: type === 'booking-buffer' ? 'Buffer' : 'Booking',
+        start,
+        end,
+        meta: {
+          bookingId: range.bookingId,
+          location: range.location
+        },
+        readOnly: true
+      })
+    })
+
+    return events
+  }, [availabilityDialog?.bookingBlockedRanges, blockedRanges])
 
   // Save employee blocked dates (employees follow company weekly schedule)
   const saveEmployeeAvailability = async () => {
@@ -475,7 +570,7 @@ export default function EmployeeManagement() {
         },
         credentials: 'include',
         body: JSON.stringify({
-          blockedDates,
+          blockedDates: [],
           blockedRanges
         })
       })
@@ -668,7 +763,6 @@ export default function EmployeeManagement() {
                           <TableRow>
                             <TableHead>Name</TableHead>
                             <TableHead>Contact</TableHead>
-                            <TableHead>Availability</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Actions</TableHead>
                           </TableRow>
@@ -705,17 +799,6 @@ export default function EmployeeManagement() {
                         
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm capitalize">
-                              {member.availabilityPreference === 'same_as_company' 
-                                ? 'Same as Company' 
-                                : 'Personal Schedule'}
-                            </span>
-                          </div>
-                        </TableCell>
-                        
-                        <TableCell>
-                          <div className="flex items-center gap-2">
                             {member.isActive ? (
                               <>
                                 <CheckCircle className="h-4 w-4 text-green-500" />
@@ -746,16 +829,27 @@ export default function EmployeeManagement() {
                               <Calendar className="h-4 w-4" />
                             </Button>
 
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEmailDialog(member)}
+                              className="h-8 px-2"
+                              disabled={updatingEmail}
+                              title={member.hasEmail ? 'Change Email' : 'Link Email'}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+
                             {member.isActive ? (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeactivate(member._id, member.name)}
-                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="h-8 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                                 disabled={deactivating}
                                 title="Deactivate"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <UserX className="h-4 w-4" />
                               </Button>
                             ) : (
                               <Button
@@ -770,7 +864,7 @@ export default function EmployeeManagement() {
                               </Button>
                             )}
 
-                            {member.managedByCompany && (
+                            {member.hasEmail && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -781,6 +875,17 @@ export default function EmployeeManagement() {
                                 <RotateCcw className="h-4 w-4" />
                               </Button>
                             )}
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemove(member._id, member.name)}
+                              className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              disabled={removing}
+                              title="Remove"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -835,7 +940,7 @@ export default function EmployeeManagement() {
           <DialogHeader>
             <DialogTitle>Reset Employee Password</DialogTitle>
             <DialogDescription>
-              Set a new password for this company-managed employee
+              Set a new password for this employee
             </DialogDescription>
           </DialogHeader>
           
@@ -872,6 +977,65 @@ export default function EmployeeManagement() {
               >
                 {resettingPassword && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Reset Password
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Update Dialog */}
+      <Dialog
+        open={!!emailDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEmailDialog(null)
+            setEmailValue('')
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {emailDialog?.currentEmail ? 'Change Employee Email' : 'Link Employee Email'}
+            </DialogTitle>
+            <DialogDescription>
+              {emailDialog?.currentEmail
+                ? `Update the email for ${emailDialog?.memberName}.`
+                : `Link an email address for ${emailDialog?.memberName}.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="employeeEmail">Email Address</Label>
+              <Input
+                id="employeeEmail"
+                type="email"
+                value={emailValue}
+                onChange={(e) => setEmailValue(e.target.value)}
+                placeholder="name@company.com"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              After linking an email, you can reset the employee&apos;s password from the actions menu.
+            </p>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEmailDialog(null)
+                  setEmailValue('')
+                }}
+                disabled={updatingEmail}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={updateEmployeeEmail}
+                disabled={!emailValue.trim() || updatingEmail}
+              >
+                {updatingEmail && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save Email
               </Button>
             </div>
           </div>
@@ -925,269 +1089,157 @@ export default function EmployeeManagement() {
         </DialogContent>
       </Dialog>
 
+      {/* Removal Confirmation Dialog */}
+      <Dialog open={!!removeDialog} onOpenChange={() => setRemoveDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Employee</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove <strong>{removeDialog?.memberName}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-red-800">
+                    This will permanently remove the employee
+                  </p>
+                  <p className="text-sm text-red-700 mt-1">
+                    The employee will be deleted from your company and cannot be restored.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setRemoveDialog(null)}
+                disabled={removing}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmRemove}
+                disabled={removing}
+              >
+                {removing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Remove Employee
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Availability Management Dialog */}
       <Dialog open={!!availabilityDialog} onOpenChange={() => setAvailabilityDialog(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Manage Availability - {availabilityDialog?.name}</DialogTitle>
             <DialogDescription>
-              Set blocked dates for this employee. They will follow the company&apos;s weekly schedule.
+              Set blocked periods for this employee. Working hours are fixed to Monday-Friday, 09:00-17:00.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Blocked Dates */}
             <div className="space-y-3">
-              <Label className="text-base font-medium">Blocked Dates</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={newBlockedDate.date}
-                  onChange={(e) => setNewBlockedDate(prev => ({...prev, date: e.target.value}))}
-                  className="flex-1"
-                />
-                <Input
-                  type="text"
-                  placeholder="Reason (optional)"
-                  value={newBlockedDate.reason}
-                  onChange={(e) => setNewBlockedDate(prev => ({...prev, reason: e.target.value}))}
-                  className="flex-1"
-                />
-                <Button onClick={addBlockedDate} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-              </div>
-              {blockedDates.length > 0 && (() => {
-                const totalBlockedDatesPages = Math.ceil(blockedDates.length / ITEMS_PER_PAGE)
-                const paginatedBlockedDates = blockedDates.slice(
-                  (blockedDatesPage - 1) * ITEMS_PER_PAGE,
-                  blockedDatesPage * ITEMS_PER_PAGE
-                )
-                return (
-                  <div className="space-y-2">
-                    {paginatedBlockedDates.map((blocked) => (
-                      <div key={blocked.date} className="flex items-center justify-between p-2 border rounded">
-                        <div>
-                          <span className="text-sm font-medium">
-                            {new Date(blocked.date + 'T00:00:00').toLocaleDateString()}
-                          </span>
-                          {blocked.reason && <span className="text-xs text-muted-foreground ml-2">{blocked.reason}</span>}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeBlockedDate(blocked.date)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    {totalBlockedDatesPages > 1 && (
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <span className="text-xs text-muted-foreground">
-                          {blockedDates.length} blocked date{blockedDates.length !== 1 ? 's' : ''}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setBlockedDatesPage(p => Math.max(1, p - 1))}
-                            disabled={blockedDatesPage === 1}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <span className="text-xs px-2">
-                            {blockedDatesPage}/{totalBlockedDatesPages}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setBlockedDatesPage(p => Math.min(totalBlockedDatesPages, p + 1))}
-                            disabled={blockedDatesPage === totalBlockedDatesPages}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* Blocked Ranges */}
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Blocked Date Ranges</Label>
-              <div className="space-y-2">
-                <div className="flex gap-2">
+              <Label className="text-base font-medium">Manual Blocked Periods</Label>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-1">
+                  <Label htmlFor="employee-range-start">Start</Label>
                   <Input
-                    type="date"
+                    id="employee-range-start"
+                    type="datetime-local"
                     value={newBlockedRange.startDate}
                     onChange={(e) => setNewBlockedRange(prev => ({...prev, startDate: e.target.value}))}
-                    placeholder="Start date"
-                    className="flex-1"
                   />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="employee-range-end">End</Label>
                   <Input
-                    type="date"
+                    id="employee-range-end"
+                    type="datetime-local"
                     value={newBlockedRange.endDate}
                     onChange={(e) => setNewBlockedRange(prev => ({...prev, endDate: e.target.value}))}
-                    placeholder="End date"
-                    className="flex-1"
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="employee-range-reason">Reason (optional)</Label>
                   <Input
-                    type="text"
-                    placeholder="Reason (optional)"
+                    id="employee-range-reason"
                     value={newBlockedRange.reason}
                     onChange={(e) => setNewBlockedRange(prev => ({...prev, reason: e.target.value}))}
-                    className="flex-1"
+                    placeholder="Vacation, appointment, etc."
                   />
-                  <Button onClick={addBlockedRange} size="sm">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Range
-                  </Button>
                 </div>
               </div>
-              {blockedRanges.length > 0 && (() => {
-                const totalBlockedRangesPages = Math.ceil(blockedRanges.length / ITEMS_PER_PAGE)
-                const startIdx = (blockedRangesPage - 1) * ITEMS_PER_PAGE
-                const paginatedBlockedRanges = blockedRanges.slice(
-                  startIdx,
-                  startIdx + ITEMS_PER_PAGE
-                )
-                return (
-                  <div className="space-y-2">
-                    {paginatedBlockedRanges.map((range, index) => (
-                      <div key={`${range.startDate}-${range.endDate}${range.reason ? `-${range.reason}` : ''}-${index}`} className="flex items-center justify-between p-2 border rounded">
-                        <div>
-                          <span className="text-sm font-medium">
-                            {formatDateSafe(range.startDate)} - {formatDateSafe(range.endDate)}
-                          </span>
-                          {range.reason && <span className="text-xs text-muted-foreground ml-2">{range.reason}</span>}
+              <div className="flex justify-end">
+                <Button onClick={addBlockedRange} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Block
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {blockedRanges.length > 0 ? (
+                <div className="space-y-2">
+                  {blockedRanges.map((range, index) => (
+                    <div key={`range-${index}`} className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 p-3">
+                      <div>
+                        <div className="text-sm font-medium text-rose-900">
+                          {formatDateTimeSafe(range.startDate)}{" -> "}{formatDateTimeSafe(range.endDate)}
                         </div>
+                        {range.reason && <div className="text-xs text-rose-700">{range.reason}</div>}
+                      </div>
+                      <div className="flex items-center gap-2">
                         <Button
+                          onClick={() => openEditRange(index)}
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeBlockedRange(startIdx + index)}
+                          className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => removeBlockedRange(index)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
                         >
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
-                    ))}
-                    {totalBlockedRangesPages > 1 && (
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <span className="text-xs text-muted-foreground">
-                          {blockedRanges.length} blocked range{blockedRanges.length !== 1 ? 's' : ''}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setBlockedRangesPage(p => Math.max(1, p - 1))}
-                            disabled={blockedRangesPage === 1}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <span className="text-xs px-2">
-                            {blockedRangesPage}/{totalBlockedRangesPages}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setBlockedRangesPage(p => Math.min(totalBlockedRangesPages, p + 1))}
-                            disabled={blockedRangesPage === totalBlockedRangesPages}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-muted-foreground">
+                  No manual blocks yet.
+                </div>
+              )}
             </div>
 
-            {/* Booking Blocked Ranges (read-only, auto-generated from active bookings) */}
-            {availabilityDialog?.bookingBlockedRanges && availabilityDialog.bookingBlockedRanges.length > 0 && (() => {
-              const allBookingRanges = availabilityDialog.bookingBlockedRanges
-              // Filter out invalid date ranges
-              const validBookingRanges = allBookingRanges.filter(isValidDateRange)
-              const invalidCount = allBookingRanges.length - validBookingRanges.length
-              const totalBookingRangesPages = Math.ceil(validBookingRanges.length / ITEMS_PER_PAGE)
-              const paginatedBookingRanges = validBookingRanges.slice(
-                (bookingBlockedRangesPage - 1) * ITEMS_PER_PAGE,
-                bookingBlockedRangesPage * ITEMS_PER_PAGE
-              )
-              return (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Blocked by Bookings (auto-generated)
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    These dates are automatically blocked because the employee is assigned to active bookings.
-                  </p>
-                  {invalidCount > 0 && (
-                    <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-amber-700 text-xs">
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                      <span>{invalidCount} booking(s) have invalid dates and are not shown</span>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    {paginatedBookingRanges.map((range, idx) => (
-                      <div key={`booking-${idx}-${range.startDate}-${range.endDate}`} className="flex items-center justify-between p-2 border rounded bg-blue-50 border-blue-200">
-                        <div>
-                          <span className="text-sm font-medium text-blue-800">
-                            {formatDateSafe(range.startDate)} - {formatDateSafe(range.endDate)}
-                          </span>
-                          <span className="text-xs text-blue-600 ml-2">
-                            {range.reason === 'booking-buffer' ? 'Buffer period' : 'Booking'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                    {totalBookingRangesPages > 1 && (
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <span className="text-xs text-muted-foreground">
-                          {validBookingRanges.length} booking block{validBookingRanges.length !== 1 ? 's' : ''}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setBookingBlockedRangesPage(p => Math.max(1, p - 1))}
-                            disabled={bookingBlockedRangesPage === 1}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <span className="text-xs px-2">
-                            {bookingBlockedRangesPage}/{totalBookingRangesPages}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setBookingBlockedRangesPage(p => Math.min(totalBookingRangesPages, p + 1))}
-                            disabled={bookingBlockedRangesPage === totalBookingRangesPages}
-                            className="h-7 w-7 p-0"
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })()}
+            <WeeklyAvailabilityCalendar
+              title="Weekly Availability"
+              description="Hover for details. Click personal blocks to edit."
+              events={calendarEvents}
+              onEventClick={(event) => {
+                if (event.type === 'personal' && typeof event.meta?.rangeIndex === 'number') {
+                  openEditRange(event.meta.rangeIndex)
+                }
+              }}
+            />
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              Working hours are fixed to Monday-Friday, 09:00-17:00.
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setAvailabilityDialog(null)}
@@ -1200,8 +1252,77 @@ export default function EmployeeManagement() {
                 disabled={savingAvailability}
               >
                 {savingAvailability && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Save Blocked Dates
+                Save Availability
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Blocked Period Dialog */}
+      <Dialog
+        open={!!editingRange}
+        onOpenChange={(open) => {
+          if (!open) setEditingRange(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Blocked Period</DialogTitle>
+            <DialogDescription>Adjust the time range or remove the block.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="edit-employee-start">Start</Label>
+                <Input
+                  id="edit-employee-start"
+                  type="datetime-local"
+                  value={editingRange?.startValue || ''}
+                  onChange={(e) =>
+                    setEditingRange((prev) =>
+                      prev ? { ...prev, startValue: e.target.value } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-employee-end">End</Label>
+                <Input
+                  id="edit-employee-end"
+                  type="datetime-local"
+                  value={editingRange?.endValue || ''}
+                  onChange={(e) =>
+                    setEditingRange((prev) =>
+                      prev ? { ...prev, endValue: e.target.value } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-employee-reason">Reason (optional)</Label>
+                <Input
+                  id="edit-employee-reason"
+                  value={editingRange?.reason || ''}
+                  onChange={(e) =>
+                    setEditingRange((prev) =>
+                      prev ? { ...prev, reason: e.target.value } : prev
+                    )
+                  }
+                  placeholder="Vacation, appointment, etc."
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <Button variant="destructive" onClick={removeEditingRange}>
+                Remove Block
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setEditingRange(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={applyEditRange}>Save Changes</Button>
+              </div>
             </div>
           </div>
         </DialogContent>
