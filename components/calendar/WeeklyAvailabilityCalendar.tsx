@@ -123,7 +123,7 @@ export default function WeeklyAvailabilityCalendar({
 
   const segmentsByDay = useMemo(() => {
     const dayMap = new Map<number, EventSegment[]>()
-    days.forEach((_, index) => dayMap.set(index, []))
+    days.forEach((_, index) => { dayMap.set(index, []) })
 
     events.forEach((event) => {
       if (!(event.start instanceof Date) || !(event.end instanceof Date)) return

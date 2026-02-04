@@ -545,6 +545,7 @@ export default function ProfilePage() {
       toast.error('Start must be before end time')
       return
     }
+    const previousRanges = blockedRanges
     const updatedRanges = blockedRanges.map((range, rangeIndex) =>
       rangeIndex === index
         ? {
@@ -559,17 +560,22 @@ export default function ProfilePage() {
     if (success) {
       toast.success('Blocked period updated and saved')
       setEditingRange(null)
+    } else {
+      setBlockedRanges(previousRanges)
     }
   }
 
   const deleteBlockedRange = async () => {
     if (!editingRange) return
+    const previousRanges = blockedRanges
     const updatedRanges = blockedRanges.filter((_, index) => index !== editingRange.index)
     setBlockedRanges(updatedRanges)
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
       toast.success('Blocked period removed and saved')
       setEditingRange(null)
+    } else {
+      setBlockedRanges(previousRanges)
     }
   }
 
