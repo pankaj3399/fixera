@@ -141,32 +141,22 @@ const SearchFilters = ({
     return (fallback || []).map(value => ({ value }));
   };
 
-  const dynamicServices = searchType === 'projects'
-    ? buildOptions(facets?.services)
-    : buildOptions(undefined, servicesList);
+  const dynamicServices = buildOptions(searchType === 'projects' ? facets?.services : undefined, servicesList);
 
-  const dynamicProjectTypes = searchType === 'projects'
-    ? buildOptions(facets?.projectTypes)
-    : buildOptions(undefined, projectTypesList);
+  const dynamicProjectTypes = buildOptions(searchType === 'projects' ? facets?.projectTypes : undefined, projectTypesList);
 
-  const dynamicIncludedItems = searchType === 'projects'
-    ? buildOptions(facets?.includedItems)
-    : buildOptions(undefined, includedItemsList);
+  const dynamicIncludedItems = buildOptions(searchType === 'projects' ? facets?.includedItems : undefined, includedItemsList);
 
-  const dynamicAreasOfWork = searchType === 'projects'
-    ? buildOptions(facets?.areasOfWork)
-    : buildOptions(undefined, areasOfWorkList);
+  const dynamicAreasOfWork = buildOptions(searchType === 'projects' ? facets?.areasOfWork : undefined, areasOfWorkList);
 
-  const dynamicCategories = searchType === 'projects'
-    ? buildOptions(facets?.categories)
-    : buildOptions(undefined, categoriesList);
+  const dynamicCategories = buildOptions(searchType === 'projects' ? facets?.categories : undefined, categoriesList);
 
   const dynamicPriceModels = searchType === 'projects'
     ? (facets?.priceModels && Object.keys(facets.priceModels).length > 0
-        ? Object.entries(facets.priceModels)
-            .sort((a, b) => b[1] - a[1])
-            .map(([value, count]) => ({ value, count }))
-        : priceModelsList.map(model => ({ value: model.value, count: undefined })))
+      ? Object.entries(facets.priceModels)
+        .sort((a, b) => b[1] - a[1])
+        .map(([value, count]) => ({ value, count }))
+      : priceModelsList.map(model => ({ value: model.value, count: undefined })))
     : priceModelsList.map(model => ({ value: model.value, count: undefined }));
 
   const getPriceModelLabel = (value: string) =>
@@ -234,8 +224,63 @@ const SearchFilters = ({
         </Button>
       </div>
 
-      {/* Service Filter - Only for projects */}
-      {searchType === 'projects' && dynamicServices.length > 0 && (
+      {/* Sort By */}
+      <div className="space-y-2 border-b pb-4">
+        <Label htmlFor="sortBy" className="text-sm font-semibold text-gray-900">
+          Sort By
+        </Label>
+        <Select value={filters.sortBy} onValueChange={(val) => onFilterChange('sortBy', val as SortOption)}>
+          <SelectTrigger id="sortBy" className="w-full">
+            <SelectValue placeholder="Most Relevant" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="relevant">Most Relevant</SelectItem>
+            <SelectItem value="price_low">Price: Low to High</SelectItem>
+            <SelectItem value="price_high">Price: High to Low</SelectItem>
+            <SelectItem value="newest">Newest First</SelectItem>
+            {searchType === 'projects' && (
+              <SelectItem value="availability">Availability</SelectItem>
+            )}
+            <SelectItem value="popularity" disabled>
+              Popularity (Coming Soon)
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Geographic Area Filter */}
+      <div className="space-y-2 border-b pb-4">
+        <button
+          onClick={() => toggleSection('location')}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
+            Location {(filters.location || filters.geographicArea) && '✓'}
+          </Label>
+          {expandedSections.location ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {expandedSections.location && (
+          <div className="space-y-2 mt-2">
+            <LocationAutocomplete
+              value={filters.geographicArea || filters.location}
+              onChange={(location: string, locationData?: LocationData) => {
+                onFilterChange('geographicArea', location);
+                onFilterChange('location', location);
+
+                // Send coordinates to parent if callback is provided
+                if (onLocationCoordinatesChange) {
+                  onLocationCoordinatesChange(locationData?.coordinates || null);
+                }
+              }}
+              placeholder="City, Region, or Postal Code"
+              className="border rounded-md px-3 py-2"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Service Filter */}
+      {dynamicServices.length > 0 && (
         <div className="space-y-2 border-b pb-4">
           <button
             onClick={() => toggleSection('service')}
@@ -257,9 +302,14 @@ const SearchFilters = ({
                   />
                   <Label
                     htmlFor={`service-${value}`}
-                    className="text-sm font-normal text-gray-700 cursor-pointer"
+                    className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                   >
-                    {renderOptionContent(value, count)}
+                    <span className="flex w-full items-center justify-between">
+                      <Badge variant="secondary" className="font-medium bg-blue-50 text-blue-700 border-blue-200">{value}</Badge>
+                      {typeof count === 'number' && (
+                        <span className="text-xs text-gray-500 ml-2">{count}</span>
+                      )}
+                    </span>
                   </Label>
                 </div>
               ))}
@@ -302,36 +352,7 @@ const SearchFilters = ({
         </div>
       )}
 
-      {/* Geographic Area Filter */}
-      <div className="space-y-2 border-b pb-4">
-        <button
-          onClick={() => toggleSection('location')}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-            Location {(filters.location || filters.geographicArea) && '✓'}
-          </Label>
-          {expandedSections.location ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-        {expandedSections.location && (
-          <div className="space-y-2 mt-2">
-            <LocationAutocomplete
-              value={filters.geographicArea || filters.location}
-              onChange={(location: string, locationData?: LocationData) => {
-                onFilterChange('geographicArea', location);
-                onFilterChange('location', location);
 
-                // Send coordinates to parent if callback is provided
-                if (onLocationCoordinatesChange) {
-                  onLocationCoordinatesChange(locationData?.coordinates || null);
-                }
-              }}
-              placeholder="City, Region, or Postal Code"
-              className="border rounded-md px-3 py-2"
-            />
-          </div>
-        )}
-      </div>
 
       {/* Price Model Filter - Only for projects */}
       {searchType === 'projects' && dynamicPriceModels.length > 0 && (
@@ -356,9 +377,14 @@ const SearchFilters = ({
                   />
                   <Label
                     htmlFor={`priceModel-${value}`}
-                    className="text-sm font-normal text-gray-700 cursor-pointer"
+                    className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                   >
-                    {renderOptionContent(getPriceModelLabel(value), count)}
+                    <span className="flex w-full items-center justify-between">
+                      <Badge variant="outline" className="font-medium text-emerald-700 border-emerald-200 bg-emerald-50">{getPriceModelLabel(value)}</Badge>
+                      {typeof count === 'number' && (
+                        <span className="text-xs text-gray-500 ml-2">{count}</span>
+                      )}
+                    </span>
                   </Label>
                 </div>
               ))}
@@ -390,9 +416,14 @@ const SearchFilters = ({
                   />
                   <Label
                     htmlFor={`projectType-${value}`}
-                    className="text-sm font-normal text-gray-700 cursor-pointer"
+                    className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                   >
-                    {renderOptionContent(value, count)}
+                    <span className="flex w-full items-center justify-between">
+                      <Badge className="font-medium bg-blue-600 hover:bg-blue-700 text-white border-transparent">{value}</Badge>
+                      {typeof count === 'number' && (
+                        <span className="text-xs text-gray-500 ml-2">{count}</span>
+                      )}
+                    </span>
                   </Label>
                 </div>
               ))}
@@ -547,26 +578,7 @@ const SearchFilters = ({
       </div>
 
       {/* Category Filter */}
-      {dynamicCategories.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
-          <Label htmlFor="category" className="text-sm font-semibold text-gray-900">
-            Service Category
-          </Label>
-          <Select value={filters.category || 'all'} onValueChange={(val) => onFilterChange('category', val === 'all' ? '' : val)}>
-            <SelectTrigger id="category" className="w-full">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {dynamicCategories.map(({ value, count }) => (
-                <SelectItem key={value} value={value}>
-                  {renderOptionContent(value, count)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+
 
       {/* Availability Filter - Only for professionals */}
       {searchType === 'professionals' && (
@@ -587,29 +599,7 @@ const SearchFilters = ({
         </div>
       )}
 
-      {/* Sort By */}
-      <div className="space-y-2 pt-4">
-        <Label htmlFor="sortBy" className="text-sm font-semibold text-gray-900">
-          Sort By
-        </Label>
-        <Select value={filters.sortBy} onValueChange={(val) => onFilterChange('sortBy', val as SortOption)}>
-          <SelectTrigger id="sortBy" className="w-full">
-            <SelectValue placeholder="Most Relevant" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="relevant">Most Relevant</SelectItem>
-            <SelectItem value="price_low">Price: Low to High</SelectItem>
-            <SelectItem value="price_high">Price: High to Low</SelectItem>
-            <SelectItem value="newest">Newest First</SelectItem>
-            {searchType === 'projects' && (
-              <SelectItem value="availability">Availability</SelectItem>
-            )}
-            <SelectItem value="popularity" disabled>
-              Popularity (Coming Soon)
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+
     </div>
   );
 };
