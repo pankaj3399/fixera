@@ -251,6 +251,7 @@ const SearchFilters = ({
       {/* Geographic Area Filter */}
       <div className="space-y-2 border-b pb-4">
         <button
+          type="button"
           onClick={() => toggleSection('location')}
           className="flex items-center justify-between w-full text-left"
         >
@@ -264,8 +265,13 @@ const SearchFilters = ({
             <LocationAutocomplete
               value={filters.geographicArea || filters.location}
               onChange={(location: string, locationData?: LocationData) => {
-                onFilterChange('geographicArea', location);
-                onFilterChange('location', location);
+                if (searchType === 'projects') {
+                  onFilterChange('geographicArea', location);
+                  onFilterChange('location', '');
+                } else {
+                  onFilterChange('location', location);
+                  onFilterChange('geographicArea', '');
+                }
 
                 // Send coordinates to parent if callback is provided
                 if (onLocationCoordinatesChange) {
