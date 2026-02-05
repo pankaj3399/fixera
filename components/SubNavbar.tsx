@@ -2,7 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import {
+  Loader2, Hammer, Zap, PaintBucket, Wrench, Palette, Fan, Thermometer,
+  Layers, Sun, Droplet, Wind, Ruler, Shield, Bath, Plug, Flame, TreePine,
+  Flower, Grid, Square, Home, ChefHat, Scissors, Truck, Brush, Sparkles
+} from "lucide-react";
 
 interface Service {
   name: string;
@@ -14,6 +18,30 @@ interface Category {
   slug: string;
   services: Service[];
 }
+
+const getServiceIcon = (slug: string) => {
+  const s = slug.toLowerCase();
+  if (s.includes("plumb")) return Droplet;
+  if (s.includes("electr")) return Zap;
+  if (s.includes("paint")) return PaintBucket;
+  if (s.includes("renov")) return Hammer;
+  if (s.includes("roof")) return Home;
+  if (s.includes("garden") || s.includes("landsc")) return TreePine;
+  if (s.includes("clean")) return Sparkles;
+  if (s.includes("hvac") || s.includes("air")) return Fan;
+  if (s.includes("insul")) return Thermometer;
+  if (s.includes("floor")) return Layers;
+  if (s.includes("tile") || s.includes("tiling")) return Grid;
+  if (s.includes("solar")) return Sun;
+  if (s.includes("design")) return Palette;
+  if (s.includes("kitchen")) return ChefHat;
+  if (s.includes("bath")) return Bath;
+  if (s.includes("carpentry") || s.includes("wood")) return Hammer;
+  if (s.includes("window") || s.includes("door")) return Square;
+  if (s.includes("mov") || s.includes("remov")) return Truck;
+
+  return Wrench; // Default icon
+};
 
 const SubNavbar = () => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -75,8 +103,9 @@ const SubNavbar = () => {
                       <li key={service.slug}>
                         <Link
                           href={`/services/${service.slug}`}
-                          className="block text-gray-700 hover:text-blue-600 hover:bg-gray-50 p-2.5 rounded-md transition-colors"
+                          className="flex items-center gap-3 text-gray-700 hover:text-blue-600 hover:bg-gray-50 p-2.5 rounded-md transition-colors"
                         >
+                          {React.createElement(getServiceIcon(service.slug), { className: "w-4 h-4 text-blue-500" })}
                           {service.name}
                         </Link>
                       </li>
