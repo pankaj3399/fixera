@@ -283,6 +283,7 @@ const SearchFilters = ({
       {dynamicServices.length > 0 && (
         <div className="space-y-2 border-b pb-4">
           <button
+            type="button"
             onClick={() => toggleSection('service')}
             className="flex items-center justify-between w-full text-left"
           >
@@ -322,6 +323,7 @@ const SearchFilters = ({
       {searchType === 'projects' && dynamicAreasOfWork.length > 0 && (
         <div className="space-y-2 border-b pb-4">
           <button
+            type="button"
             onClick={() => toggleSection('areaOfWork')}
             className="flex items-center justify-between w-full text-left"
           >
@@ -358,6 +360,7 @@ const SearchFilters = ({
       {searchType === 'projects' && dynamicPriceModels.length > 0 && (
         <div className="space-y-2 border-b pb-4">
           <button
+            type="button"
             onClick={() => toggleSection('priceModel')}
             className="flex items-center justify-between w-full text-left"
           >
@@ -397,6 +400,7 @@ const SearchFilters = ({
       {searchType === 'projects' && dynamicProjectTypes.length > 0 && (
         <div className="space-y-2 border-b pb-4">
           <button
+            type="button"
             onClick={() => toggleSection('projectType')}
             className="flex items-center justify-between w-full text-left"
           >
@@ -436,6 +440,7 @@ const SearchFilters = ({
       {searchType === 'projects' && dynamicIncludedItems.length > 0 && (
         <div className="space-y-2 border-b pb-4">
           <button
+            type="button"
             onClick={() => toggleSection('includedItems')}
             className="flex items-center justify-between w-full text-left"
           >
@@ -470,6 +475,7 @@ const SearchFilters = ({
       {searchType === 'projects' && (
         <div className="space-y-2 border-b pb-4">
           <button
+            type="button"
             onClick={() => toggleSection('startDate')}
             className="flex items-center justify-between w-full text-left"
           >
@@ -536,6 +542,7 @@ const SearchFilters = ({
       {/* Price Range Filter */}
       <div className="space-y-2 border-b pb-4">
         <button
+          type="button"
           onClick={() => toggleSection('price')}
           className="flex items-center justify-between w-full text-left"
         >
