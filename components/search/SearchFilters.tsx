@@ -104,6 +104,7 @@ const SearchFilters = ({
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     service: true,
     location: true,
+    category: false,
     priceModel: false,
     projectType: false,
     includedItems: false,
@@ -584,8 +585,39 @@ const SearchFilters = ({
       </div>
 
       {/* Category Filter */}
-
-
+      {dynamicCategories.length > 0 && (
+        <div className="space-y-2 border-b pb-4">
+          <button
+            type="button"
+            onClick={() => toggleSection('category')}
+            className="flex items-center justify-between w-full text-left"
+          >
+            <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
+              Category {filters.category && '(1)'}
+            </Label>
+            {expandedSections.category ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {expandedSections.category && (
+            <div className="space-y-2 mt-2 max-h-48 overflow-y-auto">
+              {dynamicCategories.map(({ value, count }) => (
+                <div key={value} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`category-${value}`}
+                    checked={filters.category === value}
+                    onCheckedChange={() => onFilterChange('category', filters.category === value ? '' : value)}
+                  />
+                  <Label
+                    htmlFor={`category-${value}`}
+                    className="text-sm font-normal text-gray-700 cursor-pointer w-full"
+                  >
+                    {renderOptionContent(value, count)}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {/* Availability Filter - Only for professionals */}
       {searchType === 'professionals' && (
         <div className="space-y-2 border-b pb-4">
