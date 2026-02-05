@@ -12,11 +12,14 @@ import { toast } from "sonner"
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import DualVerificationComponent from '@/components/DualVerificationComponent'
+import { EU_COUNTRIES } from '@/lib/countries'
+import { isValidPhoneNumber } from 'libphonenumber-js'
 
 interface FormData {
   name: string
   email: string
   phone: string
+  countryCode: string
   password: string
   confirmPassword: string
   role: 'customer' | 'professional'
@@ -28,6 +31,7 @@ export default function RegisterPage() {
     name: '',
     email: '',
     phone: '',
+    countryCode: '+32',
     password: '',
     confirmPassword: '',
     role: 'customer'
@@ -47,7 +51,7 @@ export default function RegisterPage() {
       return false
     }
 
-    if (!formData.phone.trim() || formData.phone.length < 10) {
+    if (!formData.phone.trim() || !isValidPhoneNumber(formData.countryCode + formData.phone)) {
       toast.error('Please enter a valid phone number')
       return false
     }
@@ -75,7 +79,7 @@ export default function RegisterPage() {
       const success = await signup({
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
+        phone: formData.countryCode + formData.phone.trim(),
         password: formData.password,
         role: formData.role
       })
@@ -91,7 +95,7 @@ export default function RegisterPage() {
   }
   const handleVerificationSuccess = () => {
     toast.success('Account verified successfully!')
-    
+
     // Redirect based on role
     if (formData.role === 'professional') {
       router.push('/profile?welcome=true')
@@ -111,7 +115,7 @@ export default function RegisterPage() {
     return (
       <DualVerificationComponent
         email={formData.email}
-        phone={formData.phone}
+        phone={formData.countryCode + formData.phone}
         onVerificationSuccess={handleVerificationSuccess}
         onBack={() => setCurrentStep('form')}
       />
@@ -201,17 +205,34 @@ export default function RegisterPage() {
               {/* Phone */}
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="Enter your phone number"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="pl-10"
-                    required
-                  />
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.countryCode}
+                    onValueChange={(value) => handleInputChange('countryCode', value)}
+                  >
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EU_COUNTRIES.map((country) => (
+                        <SelectItem key={country.code} value={country.dialCode}>
+                          {country.flag} {country.dialCode}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative flex-1">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter your phone number"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
