@@ -175,14 +175,13 @@ const SearchFilters = ({
   // Calculate active filters count
   const activeFiltersCount = [
     filters.services.length > 0,
-    filters.geographicArea.trim() !== '',
+    (filters.geographicArea || filters.location).trim() !== '',
     filters.priceModel.length > 0,
     filters.projectTypes.length > 0,
     filters.includedItems.length > 0,
     filters.areasOfWork.length > 0,
     filters.startDateFrom !== undefined || filters.startDateTo !== undefined,
     filters.priceMin !== '' || filters.priceMax !== '',
-    filters.location.trim() !== '',
     filters.category.trim() !== '',
     filters.availability,
   ].filter(Boolean).length;
