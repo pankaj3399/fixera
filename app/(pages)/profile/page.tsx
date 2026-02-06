@@ -521,10 +521,23 @@ export default function ProfilePage() {
   }
 
   const getNextDateValue = (value: string) => {
+    // Parse date-only string (YYYY-MM-DD) as local time to avoid UTC off-by-one errors
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split('-').map(Number)
+      const date = new Date(year, month - 1, day)
+      date.setDate(date.getDate() + 1)
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    }
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return ''
     date.setDate(date.getDate() + 1)
-    return date.toISOString().split('T')[0]
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
   }
 
   const openEditRange = (index: number) => {
@@ -1467,7 +1480,7 @@ export default function ProfilePage() {
                           type="datetime-local"
                         value={newBlockedRange.startDate}
                         onChange={(e) => setNewBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
-                        min={new Date().toISOString().slice(0, 16)}
+                        min={toLocalInputValue(new Date().toISOString())}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1477,7 +1490,7 @@ export default function ProfilePage() {
                         type="datetime-local"
                         value={newBlockedRange.endDate}
                         onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
-                        min={newBlockedRange.startDate || new Date().toISOString().slice(0, 16)}
+                        min={newBlockedRange.startDate || toLocalInputValue(new Date().toISOString())}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1697,7 +1710,7 @@ export default function ProfilePage() {
                           type="date"
                           value={newCompanyBlockedRange.startDate}
                           onChange={(e) => setNewCompanyBlockedRange(prev => ({...prev, startDate: e.target.value}))}
-                          min={new Date().toISOString().split('T')[0]}
+                          min={toLocalInputValue(new Date().toISOString()).split('T')[0]}
                         />
                       </div>
                       <div className="md:col-span-3">
@@ -1709,7 +1722,7 @@ export default function ProfilePage() {
                           onChange={(e) => setNewCompanyBlockedRange(prev => ({...prev, endDate: e.target.value}))}
                           min={newCompanyBlockedRange.startDate
                             ? getNextDateValue(newCompanyBlockedRange.startDate)
-                            : new Date().toISOString().split('T')[0]}
+                            : toLocalInputValue(new Date().toISOString()).split('T')[0]}
                         />
                       </div>
                       <div className="md:col-span-4">
