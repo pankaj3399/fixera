@@ -67,8 +67,8 @@ export default function ProfilePage() {
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
-  const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
-  const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
+  const [blockedRanges, setBlockedRanges] = useState<{ startDate: string, endDate: string, reason?: string }[]>([])
+  const [newBlockedRange, setNewBlockedRange] = useState({ startDate: '', endDate: '', reason: '' })
 
   // Company availability (for team members to inherit)
   const [companyAvailability, setCompanyAvailability] = useState({
@@ -80,8 +80,8 @@ export default function ProfilePage() {
     saturday: { available: false, startTime: '09:00', endTime: '17:00' },
     sunday: { available: false, startTime: '09:00', endTime: '17:00' }
   })
-  const [companyBlockedRanges, setCompanyBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string, isHoliday?: boolean}[]>([])
-  const [newCompanyBlockedRange, setNewCompanyBlockedRange] = useState({startDate: '', endDate: '', reason: '', isHoliday: false})
+  const [companyBlockedRanges, setCompanyBlockedRanges] = useState<{ startDate: string, endDate: string, reason?: string, isHoliday?: boolean }[]>([])
+  const [newCompanyBlockedRange, setNewCompanyBlockedRange] = useState({ startDate: '', endDate: '', reason: '', isHoliday: false })
   const [bookingEvents, setBookingEvents] = useState<CalendarEvent[]>([])
   const [profileSaving, setProfileSaving] = useState(false)
   const [showAutoPopulateDialog, setShowAutoPopulateDialog] = useState(false)
@@ -104,6 +104,11 @@ export default function ProfilePage() {
     reason: string;
   } | null>(null)
 
+  // Phone number update state
+  const [isEditingPhone, setIsEditingPhone] = useState(false)
+  const [newPhoneNumber, setNewPhoneNumber] = useState('')
+  const [phoneUpdating, setPhoneUpdating] = useState(false)
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push('/login?redirect=/profile')
@@ -114,7 +119,7 @@ export default function ProfilePage() {
     if (user?.vatNumber) {
       setVatNumber(user.vatNumber)
     }
-    
+
     // Populate professional data
     if (user?.role === 'professional') {
       if (user.businessInfo) {
@@ -359,7 +364,7 @@ export default function ProfilePage() {
     }
 
     const formatted = formatVATNumber(vatNumber)
-    
+
     // Client-side format validation
     const formatValidation = validateVATFormat(formatted)
     if (!formatValidation.valid) {
@@ -416,7 +421,7 @@ export default function ProfilePage() {
     setVatSaving(true)
     try {
       const result = await updateUserVAT(vatNumber)
-      
+
       if (result.success) {
         toast.success(vatNumber ? 'VAT number updated successfully' : 'VAT number removed successfully')
         // Refresh user data
@@ -438,7 +443,7 @@ export default function ProfilePage() {
     setVatSaving(true)
     try {
       const result = await updateUserVAT('')
-      
+
       if (result.success) {
         toast.success('VAT number removed successfully')
         await checkAuth()
@@ -468,7 +473,7 @@ export default function ProfilePage() {
       })
 
       const result = await response.json()
-      
+
       if (result.success) {
         toast.success('ID proof uploaded successfully')
         setIdProofFile(null)
@@ -484,7 +489,7 @@ export default function ProfilePage() {
   }
 
   const saveBlockedRanges = async (
-    customRanges?: {startDate: string, endDate: string, reason?: string}[]
+    customRanges?: { startDate: string, endDate: string, reason?: string }[]
   ) => {
     setProfileSaving(true)
     try {
@@ -501,7 +506,7 @@ export default function ProfilePage() {
       })
 
       const result = await response.json()
-      
+
       if (result.success) {
         await checkAuth() // Refresh user data
         return true
@@ -558,10 +563,10 @@ export default function ProfilePage() {
     const updatedRanges = blockedRanges.map((range, rangeIndex) =>
       rangeIndex === index
         ? {
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-            reason: reason || undefined
-          }
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          reason: reason || undefined
+        }
         : range
     )
     setBlockedRanges(updatedRanges)
@@ -626,8 +631,8 @@ export default function ProfilePage() {
   }
 
   const handleServiceCategoryToggle = (category: string) => {
-    setServiceCategories(prev => 
-      prev.includes(category) 
+    setServiceCategories(prev =>
+      prev.includes(category)
         ? prev.filter(c => c !== category)
         : [...prev, category]
     )
@@ -710,7 +715,7 @@ export default function ProfilePage() {
 
   // Company blocked dates and ranges management
   const saveCompanyBlockedRanges = async (
-    customRanges?: {startDate: string, endDate: string, reason?: string, isHoliday?: boolean}[]
+    customRanges?: { startDate: string, endDate: string, reason?: string, isHoliday?: boolean }[]
   ) => {
     setProfileSaving(true)
     try {
@@ -770,7 +775,7 @@ export default function ProfilePage() {
 
     const updatedRanges = [...companyBlockedRanges, newRange]
     setCompanyBlockedRanges(updatedRanges)
-    setNewCompanyBlockedRange({startDate: '', endDate: '', reason: '', isHoliday: false})
+    setNewCompanyBlockedRange({ startDate: '', endDate: '', reason: '', isHoliday: false })
 
     const success = await saveCompanyBlockedRanges(updatedRanges)
     if (success) {
@@ -799,7 +804,7 @@ export default function ProfilePage() {
     setVatSaving(true)
     try {
       const result = await validateAndPopulateVAT(pendingVatData.vatNumber, true)
-      
+
       if (result.success && result.businessInfo) {
         // Update business info state with populated data
         setBusinessInfo(prev => ({
@@ -810,7 +815,7 @@ export default function ProfilePage() {
           country: result.businessInfo?.parsedAddress?.country || prev.country,
           postalCode: result.businessInfo?.parsedAddress?.postalCode || prev.postalCode,
         }))
-        
+
         toast.success('Business information auto-populated from VAT data!')
         await checkAuth() // Refresh user data
       } else {
@@ -825,13 +830,53 @@ export default function ProfilePage() {
     }
   }
 
+
+  const handleUpdatePhone = async () => {
+    if (!newPhoneNumber || newPhoneNumber.trim() === '') {
+      toast.error('Phone number cannot be empty')
+      return
+    }
+
+    if (newPhoneNumber.length < 10 || newPhoneNumber.length > 15) {
+      toast.error('Invalid phone number format')
+      return
+    }
+
+    setPhoneUpdating(true)
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/phone`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ phone: newPhoneNumber })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        toast.success(result.msg || 'Phone number updated successfully')
+        setIsEditingPhone(false)
+        await checkAuth() // Refresh user data
+      } else {
+        toast.error(result.msg || 'Failed to update phone number')
+      }
+    } catch (error) {
+      console.error('Phone update error:', error)
+      toast.error('Failed to update phone number')
+    } finally {
+      setPhoneUpdating(false)
+    }
+  }
+
   const handleSubmitForVerification = async () => {
     if (!user) return
 
     setVerificationSubmitting(true)
     try {
       const result = await submitForVerification()
-      
+
       if (result.success) {
         toast.success('Thanks for submitting. Your profile will be checked within 48 hours.', {
           duration: 5000,
@@ -914,30 +959,27 @@ export default function ProfilePage() {
           <p className="text-gray-600">Manage your account information and settings</p>
           {isProfessional && (
             <div className="mt-4 space-y-3">
-              <div className={`p-4 border rounded-lg ${
-                user?.professionalStatus === 'approved' ? 'bg-green-50 border-green-200' :
+              <div className={`p-4 border rounded-lg ${user?.professionalStatus === 'approved' ? 'bg-green-50 border-green-200' :
                 user?.professionalStatus === 'pending' ? 'bg-yellow-50 border-yellow-200' :
-                user?.professionalStatus === 'rejected' ? 'bg-red-50 border-red-200' :
-                'bg-gray-50 border-gray-200'
-              }`}>
+                  user?.professionalStatus === 'rejected' ? 'bg-red-50 border-red-200' :
+                    'bg-gray-50 border-gray-200'
+                }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className={`h-4 w-4 ${
-                      user?.professionalStatus === 'approved' ? 'text-green-600' :
+                    <AlertCircle className={`h-4 w-4 ${user?.professionalStatus === 'approved' ? 'text-green-600' :
                       user?.professionalStatus === 'pending' ? 'text-yellow-600' :
-                      user?.professionalStatus === 'rejected' ? 'text-red-600' :
-                      'text-gray-600'
-                    }`} />
-                    <span className={`text-sm font-medium ${
-                      user?.professionalStatus === 'approved' ? 'text-green-800' :
+                        user?.professionalStatus === 'rejected' ? 'text-red-600' :
+                          'text-gray-600'
+                      }`} />
+                    <span className={`text-sm font-medium ${user?.professionalStatus === 'approved' ? 'text-green-800' :
                       user?.professionalStatus === 'pending' ? 'text-yellow-800' :
-                      user?.professionalStatus === 'rejected' ? 'text-red-800' :
-                      'text-gray-800'
-                    }`}>
+                        user?.professionalStatus === 'rejected' ? 'text-red-800' :
+                          'text-gray-800'
+                      }`}>
                       Professional Status: {user?.professionalStatus || 'not submitted'}
                     </span>
                   </div>
-                  
+
                   {(user?.professionalStatus === 'rejected' || !user?.professionalStatus) && (
                     <Button
                       onClick={handleSubmitForVerification}
@@ -956,19 +998,19 @@ export default function ProfilePage() {
                     </Button>
                   )}
                 </div>
-                
+
                 {user?.professionalStatus === 'rejected' && user?.rejectionReason && (
                   <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-700">
                     <strong>Rejection Reason:</strong> {user.rejectionReason}
                   </div>
                 )}
-                
+
                 {user?.professionalStatus === 'pending' && (
                   <div className="mt-2 text-xs text-yellow-700">
                     Your profile is under review. You will be notified within 48 hours.
                   </div>
                 )}
-                
+
                 {user?.professionalStatus === 'approved' && (
                   <div className="mt-2 text-xs text-green-700">
                     Your professional profile has been approved. You can now receive project bookings.
@@ -990,231 +1032,277 @@ export default function ProfilePage() {
               <TabsTrigger value="company-availability">Company Availability</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="profile" className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
-          {/* User Profile Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Profile Information
-              </CardTitle>
-              <CardDescription>Your account details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{user?.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{user?.phone}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-gray-500" />
-                <span className="text-sm capitalize">{user?.role}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Verification Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Verification Status
-              </CardTitle>
-              <CardDescription>Account verification progress</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Email Verification</span>
-                <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
-                  {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Phone Verification</span>
-                <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
-                  {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
-                </span>
-              </div>
-              {(user?.role === 'professional' || user?.role === 'customer') && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">VAT Verification</span>
-                  <span className={`text-sm font-medium ${user?.isVatVerified ? 'text-green-600' : 'text-red-600'}`}>
-                    {user?.isVatVerified ? 'Verified' : 'Not Verified'}
-                  </span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* VAT Number Card - For professionals and customers */}
-          {(user?.role === 'professional' || user?.role === 'customer') && (
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building className="h-5 w-5" />
-                  VAT Information
-                </CardTitle>
-                <CardDescription>
-                  Add your VAT number for EU tax compliance. EU VAT numbers will be verified using VIES.
-                  {user?.role === 'customer' && ' Useful for business customers who need VAT invoices.'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vatNumber">VAT Number</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="vatNumber"
-                      placeholder="e.g., DE123456789"
-                      value={vatNumber}
-                      onChange={(e) => handleVatNumberChange(e.target.value.toUpperCase())}
-                      className="flex-1"
-                    />
-                    <Button 
-                      onClick={validateVatNumber}
-                      disabled={!canValidate || vatValidating}
-                      variant="outline"
-                      className="shrink-0"
-                    >
-                      {vatValidating ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          Validating
-                        </>
+                {/* User Profile Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="h-5 w-5" />
+                      Profile Information
+                    </CardTitle>
+                    <CardDescription>Your account details</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm">{user?.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-gray-500" />
+                      {!isEditingPhone ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{user?.phone}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => {
+                              setNewPhoneNumber(user?.phone || '')
+                              setIsEditingPhone(true)
+                            }}
+                            aria-label="Edit phone number"
+                            title="Edit phone number"
+                          >
+                            <FileText className="h-3 w-3" /> {/* Reusing FileText as edit icon substitute or use correct Icon */}
+                          </Button>
+                        </div>
                       ) : (
-                        'Validate'
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newPhoneNumber}
+                            onChange={(e) => setNewPhoneNumber(e.target.value)}
+                            className="h-7 w-40 text-sm"
+                            placeholder="New phone number"
+                          />
+                          <Button
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={handleUpdatePhone}
+                            disabled={phoneUpdating}
+                            aria-label={phoneUpdating ? "Saving phone number" : "Save phone number"}
+                            title="Save phone number"
+                          >
+                            {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setIsEditingPhone(false)}
+                            disabled={phoneUpdating}
+                            aria-label="Cancel editing phone number"
+                            title="Cancel editing phone number"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
                       )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Format: 2-letter country code + 4-15 characters (e.g., DE123456789, FR12345678901)
-                  </p>
-                </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm capitalize">{user?.role}</span>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                {/* Validation Results */}
-                {vatValidation.valid !== undefined && (
-                  <div className={`p-3 rounded-lg border ${
-                    vatValidation.valid 
-                      ? 'bg-green-50 border-green-200' 
-                      : 'bg-red-50 border-red-200'
-                  }`}>
-                    <div className="flex items-start gap-2">
-                      {vatValidation.valid ? (
-                        <Check className="h-4 w-4 text-green-600 mt-0.5" />
-                      ) : (
-                        <X className="h-4 w-4 text-red-600 mt-0.5" />
+                {/* Verification Status */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5" />
+                      Verification Status
+                    </CardTitle>
+                    <CardDescription>Account verification progress</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Email Verification</span>
+                      <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
+                        {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Phone Verification</span>
+                      <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
+                        {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
+                      </span>
+                    </div>
+                    {(user?.role === 'professional' || user?.role === 'customer') && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">VAT Verification</span>
+                        <span className={`text-sm font-medium ${user?.isVatVerified ? 'text-green-600' : 'text-red-600'}`}>
+                          {user?.isVatVerified ? 'Verified' : 'Not Verified'}
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* VAT Number Card - For professionals and customers */}
+                {(user?.role === 'professional' || user?.role === 'customer') && (
+                  <Card className="md:col-span-2">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building className="h-5 w-5" />
+                        VAT Information
+                      </CardTitle>
+                      <CardDescription>
+                        Add your VAT number for EU tax compliance. EU VAT numbers will be verified using VIES.
+                        {user?.role === 'customer' && ' Useful for business customers who need VAT invoices.'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="vatNumber">VAT Number</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="vatNumber"
+                            placeholder="e.g., DE123456789"
+                            value={vatNumber}
+                            onChange={(e) => handleVatNumberChange(e.target.value.toUpperCase())}
+                            className="flex-1"
+                          />
+                          <Button
+                            onClick={validateVatNumber}
+                            disabled={!canValidate || vatValidating}
+                            variant="outline"
+                            className="shrink-0"
+                          >
+                            {vatValidating ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Validating
+                              </>
+                            ) : (
+                              'Validate'
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Format: 2-letter country code + 4-15 characters (e.g., DE123456789, FR12345678901)
+                        </p>
+                      </div>
+
+                      {/* Validation Results */}
+                      {vatValidation.valid !== undefined && (
+                        <div className={`p-3 rounded-lg border ${vatValidation.valid
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-red-50 border-red-200'
+                          }`}>
+                          <div className="flex items-start gap-2">
+                            {vatValidation.valid ? (
+                              <Check className="h-4 w-4 text-green-600 mt-0.5" />
+                            ) : (
+                              <X className="h-4 w-4 text-red-600 mt-0.5" />
+                            )}
+                            <div className="flex-1 text-sm">
+                              {vatValidation.valid ? (
+                                <div>
+                                  <p className="font-medium text-green-800">VAT number is valid</p>
+                                  {isEUVatNumber(vatNumber) && (
+                                    <p className="text-green-700">
+                                      Country: {getVATCountryName(vatNumber)}
+                                    </p>
+                                  )}
+                                  {vatValidation.companyName && (
+                                    <p className="text-green-700 mt-1">
+                                      <span className="font-medium">Company:</span> {vatValidation.companyName}
+                                    </p>
+                                  )}
+                                  {vatValidation.companyAddress && (
+                                    <p className="text-green-700">
+                                      <span className="font-medium">Address:</span> {vatValidation.companyAddress}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>
+                                  <p className="font-medium text-red-800">Validation failed</p>
+                                  {vatValidation.error && (
+                                    <p className="text-red-700">{vatValidation.error}</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       )}
-                      <div className="flex-1 text-sm">
-                        {vatValidation.valid ? (
-                          <div>
-                            <p className="font-medium text-green-800">VAT number is valid</p>
-                            {isEUVatNumber(vatNumber) && (
-                              <p className="text-green-700">
-                                Country: {getVATCountryName(vatNumber)}
+
+                      {/* Current VAT Status */}
+                      {user?.vatNumber && (
+                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                            <div className="flex-1 text-sm">
+                              <p className="font-medium text-blue-800">Current VAT Number</p>
+                              <p className="text-blue-700">
+                                {user.vatNumber} ({getVATCountryName(user.vatNumber)})
                               </p>
-                            )}
-                            {vatValidation.companyName && (
-                              <p className="text-green-700 mt-1">
-                                <span className="font-medium">Company:</span> {vatValidation.companyName}
+                              <p className="text-blue-700">
+                                Status: {user.isVatVerified ? 'Verified' : 'Not Verified'}
                               </p>
-                            )}
-                            {vatValidation.companyAddress && (
-                              <p className="text-green-700">
-                                <span className="font-medium">Address:</span> {vatValidation.companyAddress}
-                              </p>
-                            )}
+                            </div>
                           </div>
-                        ) : (
-                          <div>
-                            <p className="font-medium text-red-800">Validation failed</p>
-                            {vatValidation.error && (
-                              <p className="text-red-700">{vatValidation.error}</p>
-                            )}
-                          </div>
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={saveVatNumber}
+                          disabled={!hasVatChanges || vatSaving}
+                          className="flex-1"
+                        >
+                          {vatSaving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              Saving...
+                            </>
+                          ) : (
+                            vatNumber ? 'Save VAT Number' : 'Remove VAT Number'
+                          )}
+                        </Button>
+                        {user?.vatNumber && (
+                          <Button
+                            onClick={removeVatNumber}
+                            disabled={vatSaving}
+                            variant="outline"
+                          >
+                            Remove
+                          </Button>
                         )}
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 )}
 
-                {/* Current VAT Status */}
-                {user?.vatNumber && (
-                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                      <div className="flex-1 text-sm">
-                        <p className="font-medium text-blue-800">Current VAT Number</p>
-                        <p className="text-blue-700">
-                          {user.vatNumber} ({getVATCountryName(user.vatNumber)})
-                        </p>
-                        <p className="text-blue-700">
-                          Status: {user.isVatVerified ? 'Verified' : 'Not Verified'}
-                        </p>
-                      </div>
+                {/* Account Stats */}
+                <Card className="md:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Account Stats
+                    </CardTitle>
+                    <CardDescription>Your account activity</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Member Since</span>
+                      <span className="text-sm font-medium">
+                        {new Date(user?.createdAt || '').toLocaleDateString()}
+                      </span>
                     </div>
-                  </div>
-                )}
-
-                {/* Action buttons */}
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={saveVatNumber}
-                    disabled={!hasVatChanges || vatSaving}
-                    className="flex-1"
-                  >
-                    {vatSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      vatNumber ? 'Save VAT Number' : 'Remove VAT Number'
-                    )}
-                  </Button>
-                  {user?.vatNumber && (
-                    <Button 
-                      onClick={removeVatNumber}
-                      disabled={vatSaving}
-                      variant="outline"
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Account Stats */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Account Stats
-              </CardTitle>
-              <CardDescription>Your account activity</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Member Since</span>
-                <span className="text-sm font-medium">
-                  {new Date(user?.createdAt || '').toLocaleDateString()}
-                </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Last Updated</span>
+                      <span className="text-sm font-medium">
+                        {new Date(user?.updatedAt || '').toLocaleDateString()}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Last Updated</span>
-                <span className="text-sm font-medium">
-                  {new Date(user?.updatedAt || '').toLocaleDateString()}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
             </TabsContent>
 
             {/* Business Info Tab */}
@@ -1250,7 +1338,7 @@ export default function ProfilePage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="description">Business Description</Label>
                     <Textarea
@@ -1351,7 +1439,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <Button 
+                  <Button
                     onClick={saveBusinessInfo}
                     disabled={profileSaving}
                     className="w-full"
@@ -1426,7 +1514,7 @@ export default function ProfilePage() {
                     </div>
                   )}
 
-                  <Button 
+                  <Button
                     onClick={handleIdProofUpload}
                     disabled={!idProofFile || uploading}
                     className="w-full"
@@ -1473,45 +1561,45 @@ export default function ProfilePage() {
                         <Input
                           id="startDate"
                           type="datetime-local"
-                        value={newBlockedRange.startDate}
-                        onChange={(e) => setNewBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
-                        min={toLocalInputValue(new Date().toISOString())}
-                      />
+                          value={newBlockedRange.startDate}
+                          onChange={(e) => setNewBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
+                          min={toLocalInputValue(new Date().toISOString())}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="endDate">End Date</Label>
+                        <Input
+                          id="endDate"
+                          type="datetime-local"
+                          value={newBlockedRange.endDate}
+                          onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
+                          min={newBlockedRange.startDate || toLocalInputValue(new Date().toISOString())}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reason">Reason (Optional)</Label>
+                        <Input
+                          id="reason"
+                          placeholder="Vacation, Holiday, etc."
+                          value={newBlockedRange.reason}
+                          onChange={(e) => setNewBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="endDate">End Date</Label>
-                      <Input
-                        id="endDate"
-                        type="datetime-local"
-                        value={newBlockedRange.endDate}
-                        onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
-                        min={newBlockedRange.startDate || toLocalInputValue(new Date().toISOString())}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reason">Reason (Optional)</Label>
-                      <Input
-                        id="reason"
-                        placeholder="Vacation, Holiday, etc."
-                        value={newBlockedRange.reason}
-                        onChange={(e) => setNewBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={addBlockedRange}
-                      disabled={
-                        profileSaving ||
-                        !newBlockedRange.startDate ||
-                        !newBlockedRange.endDate ||
-                        newBlockedRange.endDate <= newBlockedRange.startDate
-                      }
-                      variant="outline"
-                    >
-                      <CalendarX className="h-4 w-4 mr-2" />
-                      Block Period
-                    </Button>
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={addBlockedRange}
+                        disabled={
+                          profileSaving ||
+                          !newBlockedRange.startDate ||
+                          !newBlockedRange.endDate ||
+                          newBlockedRange.endDate <= newBlockedRange.startDate
+                        }
+                        variant="outline"
+                      >
+                        <CalendarX className="h-4 w-4 mr-2" />
+                        Block Period
+                      </Button>
                     </div>
                   </div>
 
@@ -1706,7 +1794,7 @@ export default function ProfilePage() {
                           id="company-range-start"
                           type="date"
                           value={newCompanyBlockedRange.startDate}
-                          onChange={(e) => setNewCompanyBlockedRange(prev => ({...prev, startDate: e.target.value}))}
+                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
                           min={toLocalInputValue(new Date().toISOString()).split('T')[0]}
                         />
                       </div>
@@ -1716,7 +1804,7 @@ export default function ProfilePage() {
                           id="company-range-end"
                           type="date"
                           value={newCompanyBlockedRange.endDate}
-                          onChange={(e) => setNewCompanyBlockedRange(prev => ({...prev, endDate: e.target.value}))}
+                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
                           min={newCompanyBlockedRange.startDate
                             ? getNextDateValue(newCompanyBlockedRange.startDate)
                             : toLocalInputValue(new Date().toISOString()).split('T')[0]}
@@ -1728,7 +1816,7 @@ export default function ProfilePage() {
                           id="company-range-reason"
                           placeholder="Holiday period"
                           value={newCompanyBlockedRange.reason}
-                          onChange={(e) => setNewCompanyBlockedRange(prev => ({...prev, reason: e.target.value}))}
+                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
                         />
                       </div>
                       <div className="md:col-span-2 flex items-end">
@@ -1750,7 +1838,7 @@ export default function ProfilePage() {
                         type="checkbox"
                         id="company-range-is-holiday"
                         checked={newCompanyBlockedRange.isHoliday}
-                        onChange={(e) => setNewCompanyBlockedRange(prev => ({...prev, isHoliday: e.target.checked}))}
+                        onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, isHoliday: e.target.checked }))}
                         className="rounded"
                       />
                       <Label htmlFor="company-range-is-holiday" className="text-sm font-normal cursor-pointer">
@@ -1821,7 +1909,7 @@ export default function ProfilePage() {
                 <TabsTrigger value="availability">Availability</TabsTrigger>
               )}
             </TabsList>
-            
+
             <TabsContent value="profile" className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 {/* User Profile Card */}
@@ -1840,7 +1928,54 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm">{user?.phone?.startsWith('+1000000') ? 'Not provided' : user?.phone}</span>
+                      {!isEditingPhone ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{user?.phone?.startsWith('+1000000') ? 'Not provided' : user?.phone}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => {
+                              setNewPhoneNumber(user?.phone && !user.phone.startsWith('+1000000') ? user.phone : '')
+                              setIsEditingPhone(true)
+                            }}
+                            aria-label="Edit phone number"
+                            title="Edit phone number"
+                          >
+                            <FileText className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newPhoneNumber}
+                            onChange={(e) => setNewPhoneNumber(e.target.value)}
+                            className="h-7 w-40 text-sm"
+                            placeholder="New phone number"
+                          />
+                          <Button
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={handleUpdatePhone}
+                            disabled={phoneUpdating}
+                            aria-label={phoneUpdating ? "Saving phone number" : "Save phone number"}
+                            title="Save phone number"
+                          >
+                            {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setIsEditingPhone(false)}
+                            disabled={phoneUpdating}
+                            aria-label="Cancel editing phone number"
+                            title="Cancel editing phone number"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-gray-500" />
@@ -1965,7 +2100,7 @@ export default function ProfilePage() {
             </div>
           </DialogContent>
         </Dialog>
-        
+
         {/* PHASE 2: Auto-populate Dialog */}
         {showAutoPopulateDialog && pendingVatData && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -2003,13 +2138,13 @@ export default function ProfilePage() {
                     </>
                   )}
                 </div>
-                
+
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <p className="text-xs text-amber-700">
                     Only empty fields will be filled. Your existing data will not be overwritten.
                   </p>
                 </div>
-                
+
                 <div className="flex gap-2">
                   <Button
                     onClick={() => handleAutoPopulate(true)}
