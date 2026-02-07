@@ -1062,6 +1062,8 @@ export default function ProfilePage() {
                               setNewPhoneNumber(user?.phone || '')
                               setIsEditingPhone(true)
                             }}
+                            aria-label="Edit phone number"
+                            title="Edit phone number"
                           >
                             <FileText className="h-3 w-3" /> {/* Reusing FileText as edit icon substitute or use correct Icon */}
                           </Button>
@@ -1079,6 +1081,8 @@ export default function ProfilePage() {
                             className="h-7 px-2"
                             onClick={handleUpdatePhone}
                             disabled={phoneUpdating}
+                            aria-label={phoneUpdating ? "Saving phone number" : "Save phone number"}
+                            title="Save phone number"
                           >
                             {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                           </Button>
@@ -1088,6 +1092,8 @@ export default function ProfilePage() {
                             className="h-7 px-2"
                             onClick={() => setIsEditingPhone(false)}
                             disabled={phoneUpdating}
+                            aria-label="Cancel editing phone number"
+                            title="Cancel editing phone number"
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -1933,6 +1939,8 @@ export default function ProfilePage() {
                               setNewPhoneNumber(user?.phone && !user.phone.startsWith('+1000000') ? user.phone : '')
                               setIsEditingPhone(true)
                             }}
+                            aria-label="Edit phone number"
+                            title="Edit phone number"
                           >
                             <FileText className="h-3 w-3" />
                           </Button>
@@ -1950,6 +1958,8 @@ export default function ProfilePage() {
                             className="h-7 px-2"
                             onClick={handleUpdatePhone}
                             disabled={phoneUpdating}
+                            aria-label={phoneUpdating ? "Saving phone number" : "Save phone number"}
+                            title="Save phone number"
                           >
                             {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                           </Button>
@@ -1959,6 +1969,8 @@ export default function ProfilePage() {
                             className="h-7 px-2"
                             onClick={() => setIsEditingPhone(false)}
                             disabled={phoneUpdating}
+                            aria-label="Cancel editing phone number"
+                            title="Cancel editing phone number"
                           >
                             <X className="h-3 w-3" />
                           </Button>
