@@ -1502,6 +1502,7 @@ export default function ProfilePage() {
                     <Button
                       onClick={addBlockedRange}
                       disabled={
+                        profileSaving ||
                         !newBlockedRange.startDate ||
                         !newBlockedRange.endDate ||
                         newBlockedRange.endDate <= newBlockedRange.startDate
