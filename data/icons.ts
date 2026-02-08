@@ -172,7 +172,7 @@ export const iconTags: Record<string, string[]> = {
   // Cleaning & Maintenance
   Trash: ['delete', 'remove', 'garbage', 'bin'],
   Trash2: ['delete', 'remove', 'garbage', 'bin'],
-  Recycle: ['eco', 'envirnoment', 'reuse', 'cycle'],
+  Recycle: ['eco', 'environment', 'reuse', 'cycle'],
   SprayCan: ['paint', 'clean', 'aerosol', 'graffiti'],
 
   // Security & Safety
