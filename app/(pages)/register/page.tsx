@@ -98,7 +98,7 @@ export default function RegisterPage() {
 
     // Redirect based on role
     if (formData.role === 'professional') {
-      router.push('/profile?welcome=true')
+      router.push('/professional/onboarding?welcome=true')
     } else {
       router.push('/dashboard?welcome=true')
     }

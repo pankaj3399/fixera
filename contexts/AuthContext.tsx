@@ -26,7 +26,7 @@ interface User {
     oldValue: string
     newValue: string
   }[]
-  professionalStatus?: 'pending' | 'approved' | 'rejected' | 'suspended'
+  professionalStatus?: 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended'
   approvedBy?: string
   approvedAt?: string
   rejectionReason?: string
@@ -93,6 +93,7 @@ interface User {
   customerType?: 'individual' | 'business'
   businessName?: string
   profileCompletedAt?: string
+  professionalOnboardingCompletedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -113,6 +114,16 @@ interface SignupData {
   phone: string
   password: string
   role?: 'customer' | 'professional'
+  customerType?: 'individual' | 'business'
+  address?: string
+  city?: string
+  country?: string
+  postalCode?: string
+  latitude?: number
+  longitude?: number
+  companyName?: string
+  vatNumber?: string
+  isVatValidated?: boolean
 }
 
 // Route Configuration
@@ -148,7 +159,7 @@ const ROUTE_CONFIG = {
   // Role-based routes - require specific roles
   ROLE_BASED: {
     admin: ['/admin'],
-    professional: ['/professional', '/projects/create'],
+    professional: ['/professional', '/projects/create', '/professional/onboarding'],
     employee: ['/professional', '/projects/create'],
   } as Record<string, string[]>
   // Note: /professional covers /professional/earnings, /professional/projects/*, etc.
@@ -192,6 +203,10 @@ const isProtectedRoute = (pathname: string): boolean => {
   )
 }
 
+const isProfessionalOnboardingRoute = (pathname: string): boolean => {
+  return pathname.startsWith('/professional/onboarding')
+}
+
 // Returns all roles that have access to this route
 const getAllowedRoles = (pathname: string): string[] => {
   const allowedRoles: string[] = []
@@ -224,6 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isInitialized, setIsInitialized] = useState(false)
   const userRef = useRef<User | null>(null)
   const isInitializedRef = useRef(false)
+  const idExpiryAlertRef = useRef<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -277,15 +293,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAuthToken(data.token)
         toast.success('Login successful!')
         
-        // Handle redirect after successful login
-        const intendedPath = sessionStorage.getItem('redirectAfterAuth')
-        if (intendedPath && intendedPath !== pathname) {
-          sessionStorage.removeItem('redirectAfterAuth')
-          router.push(intendedPath)
+        const needsOnboarding = data.user?.role === 'professional'
+          && !data.user?.professionalOnboardingCompletedAt
+          && (data.user?.professionalStatus === 'draft' || !data.user?.professionalStatus)
+        if (needsOnboarding) {
+          router.push('/professional/onboarding')
         } else {
-          // Default redirect based on role
-          const dashboardPath = '/dashboard'
-          router.push(dashboardPath)
+          // Handle redirect after successful login
+          const intendedPath = sessionStorage.getItem('redirectAfterAuth')
+          if (intendedPath && intendedPath !== pathname) {
+            sessionStorage.removeItem('redirectAfterAuth')
+            router.push(intendedPath)
+          } else {
+            // Default redirect based on role
+            const dashboardPath = '/dashboard'
+            router.push(dashboardPath)
+          }
         }
         
         return true
@@ -349,6 +372,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setUser(null)
       setAuthToken(null)
+      idExpiryAlertRef.current = null
       sessionStorage.removeItem('redirectAfterAuth')
       toast.success('Logged out successfully')
       router.push('/login')
@@ -362,6 +386,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check if this is a role-restricted route
     const allowedRoles = getAllowedRoles(pathname)
     const isRoleRestrictedRoute = allowedRoles.length > 0
+
+    // Force professional onboarding before accessing other pages
+    if (
+      isUserAuthenticated &&
+      currentUser?.role === 'professional' &&
+      !currentUser.professionalOnboardingCompletedAt &&
+      (currentUser?.professionalStatus === 'draft' || !currentUser?.professionalStatus) &&
+      !isProfessionalOnboardingRoute(pathname)
+    ) {
+      router.replace('/professional/onboarding')
+      return
+    }
 
     // Handle protected routes (require authentication)
     if (isProtectedRoute(pathname) || isRoleRestrictedRoute) {
@@ -428,6 +464,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleRouteProtection(user)
     }
   }, [user, isInitialized, loading])
+
+  useEffect(() => {
+    if (!user || user.role !== 'professional' || !user.idExpirationDate) return
+
+    const exp = new Date(user.idExpirationDate)
+    if (Number.isNaN(exp.getTime())) return
+
+    const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    if (daysLeft > 30) return
+
+    const alertKey = `${user._id}-${user.idExpirationDate}`
+    if (idExpiryAlertRef.current === alertKey) return
+    idExpiryAlertRef.current = alertKey
+
+    const message = daysLeft >= 0
+      ? `Your ID expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Please update it.`
+      : 'Your ID has expired. Please update it to keep your profile active.'
+
+    toast.warning(message, { duration: 8000 })
+  }, [user])
 
   const value: AuthContextType = {
     user,

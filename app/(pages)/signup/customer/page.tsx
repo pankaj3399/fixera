@@ -353,9 +353,15 @@ export default function CustomerSignupPage() {
         toast.error('Please enter your company name');
         return false;
       }
-
-      // VAT is completely optional - no validation required
-      // Users can proceed with or without VAT validation
+      if (!formData.vatNumber.trim()) {
+        toast.error('Please enter your VAT number');
+        return false;
+      }
+      const vatFormatValidation = validateVATFormat(formatVATNumber(formData.vatNumber));
+      if (!vatFormatValidation.valid) {
+        toast.error(vatFormatValidation.error || 'Invalid VAT number');
+        return false;
+      }
     }
 
     // Check if we already have coordinates (from autocomplete selection)
@@ -685,7 +691,7 @@ export default function CustomerSignupPage() {
                   {/* VAT Number */}
                   <div className='space-y-2'>
                     <Label htmlFor='vatNumber'>
-                      VAT Number (Optional)
+                      VAT Number *
                       {formData.vatNumber && vatValidation.valid && (
                         <span className='ml-2 text-xs text-green-600'>
                           {getVATCountryName(formData.vatNumber)}
@@ -706,6 +712,7 @@ export default function CustomerSignupPage() {
                           }}
                           onBlur={validateVatNumber}
                           className='pl-10'
+                          required={formData.customerType === 'business'}
                         />
                       </div>
                       <Button
@@ -763,8 +770,8 @@ export default function CustomerSignupPage() {
                     )}
 
                     <p className='text-xs text-gray-500'>
-                      VAT number is optional but recommended for invoicing
-                      purposes. Only EU VAT numbers can be validated.
+                      VAT number is required for business accounts. Validation is optional.
+                      Only EU VAT numbers can be validated.
                     </p>
                   </div>
                 </div>

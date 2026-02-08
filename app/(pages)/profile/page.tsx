@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getAuthToken } from "@/lib/utils"
+import { EU_COUNTRIES } from "@/lib/countries"
 import {
   validateVATFormat,
   validateVATWithAPI,
@@ -67,6 +68,9 @@ export default function ProfilePage() {
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
+  const [serviceCatalog, setServiceCatalog] = useState<Array<{ name: string; services: Array<{ name: string }> }>>([])
+  const [serviceCatalogLoading, setServiceCatalogLoading] = useState(false)
+  const [serviceCatalogError, setServiceCatalogError] = useState<string | null>(null)
   const [blockedRanges, setBlockedRanges] = useState<{startDate: string, endDate: string, reason?: string}[]>([])
   const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
 
@@ -285,6 +289,32 @@ export default function ProfilePage() {
       setCompanyBlockedRanges(Array.from(mergedCompanyRanges.values()))
     }
   }, [user])
+
+  useEffect(() => {
+    const fetchServiceCatalog = async () => {
+      try {
+        setServiceCatalogLoading(true)
+        setServiceCatalogError(null)
+        const country = user?.businessInfo?.country || 'BE'
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=${encodeURIComponent(country)}`,
+          { credentials: 'include' }
+        )
+        if (!response.ok) {
+          throw new Error(`Failed to fetch service categories: ${response.status}`)
+        }
+        const data = await response.json()
+        setServiceCatalog(Array.isArray(data) ? data : [])
+      } catch (error) {
+        console.error('Failed to load service categories:', error)
+        setServiceCatalogError('Failed to load service categories')
+      } finally {
+        setServiceCatalogLoading(false)
+      }
+    }
+
+    fetchServiceCatalog()
+  }, [user?.businessInfo?.country])
 
   useEffect(() => {
     if (loading || !isAuthenticated || user?.role !== 'professional') {
@@ -1062,7 +1092,7 @@ export default function ProfilePage() {
   const hasVatChanges = vatNumber !== (user?.vatNumber || '')
   const canValidate = vatNumber.trim() && vatNumber !== (user?.vatNumber || '')
 
-  const serviceOptions = [
+  const fallbackServiceOptions = [
     'Plumbing', 'Electrical', 'Carpentry', 'Painting', 'Cleaning',
     'IT Support', 'Home Repair', 'Gardening', 'Moving', 'Tutoring'
   ]
@@ -1524,19 +1554,48 @@ export default function ProfilePage() {
                   {/* Service Categories */}
                   <div className="space-y-2">
                     <Label>Service Categories</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {serviceOptions.map((service) => (
-                        <Button
-                          key={service}
-                          type="button"
-                          variant={serviceCategories.includes(service) ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleServiceCategoryToggle(service)}
-                        >
-                          {service}
-                        </Button>
-                      ))}
-                    </div>
+                    {serviceCatalogLoading && (
+                      <div className="text-sm text-muted-foreground">Loading services...</div>
+                    )}
+                    {serviceCatalogError && (
+                      <div className="text-sm text-red-600">{serviceCatalogError}</div>
+                    )}
+                    {serviceCatalog.length > 0 ? (
+                      <div className="space-y-4">
+                        {serviceCatalog.map((category) => (
+                          <div key={category.name} className="space-y-2">
+                            <div className="text-sm font-semibold text-slate-700">{category.name}</div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                              {category.services.map((service) => (
+                                <Button
+                                  key={`${category.name}-${service.name}`}
+                                  type="button"
+                                  variant={serviceCategories.includes(service.name) ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleServiceCategoryToggle(service.name)}
+                                >
+                                  {service.name}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {fallbackServiceOptions.map((service) => (
+                          <Button
+                            key={service}
+                            type="button"
+                            variant={serviceCategories.includes(service) ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handleServiceCategoryToggle(service)}
+                          >
+                            {service}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <Button 
@@ -1638,12 +1697,18 @@ export default function ProfilePage() {
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="idCountryOfIssue">Country of Issue</Label>
-                        <Input
-                          id="idCountryOfIssue"
-                          value={idCountryOfIssue}
-                          onChange={(e) => setIdCountryOfIssue(e.target.value)}
-                          placeholder="e.g., Belgium, Germany"
-                        />
+                        <Select value={idCountryOfIssue} onValueChange={setIdCountryOfIssue}>
+                          <SelectTrigger id="idCountryOfIssue">
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EU_COUNTRIES.map((country) => (
+                              <SelectItem key={country.code} value={country.name}>
+                                {country.flag} {country.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="idExpirationDate">Expiration Date</Label>
