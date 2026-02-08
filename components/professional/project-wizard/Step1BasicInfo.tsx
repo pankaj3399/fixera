@@ -105,6 +105,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const [suggestedTitle, setSuggestedTitle] = useState('')
   const [addressValid, setAddressValid] = useState(false)
   const { user } = useAuth()
+  const companyAddress = user?.businessInfo?.address || user?.location?.address
   const [serviceConfig, setServiceConfig] = useState<{
     pricingModel?: string;
     certificationRequired?: boolean;

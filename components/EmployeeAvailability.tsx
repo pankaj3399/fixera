@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, MouseEvent } from "react"
+import { useState, useEffect, MouseEvent, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
 import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
 import WeeklyTimeBlocker from "@/components/calendar/WeeklyTimeBlocker"
+import { addDays, format, parseISO, startOfDay } from "date-fns"
 
 interface BlockedRange {
   startDate: string

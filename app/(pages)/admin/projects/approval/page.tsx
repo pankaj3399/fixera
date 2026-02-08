@@ -738,8 +738,6 @@ export default function ProjectApprovalPage() {
                       </h4>
                       <div className="space-y-3">
                         {selectedProject.subprojects.map((sp: Subproject, idx: number) => {
-                          const preparationValue = sp.preparationDuration?.value
-                          const preparationUnit = sp.preparationDuration?.unit ?? sp.executionDuration?.unit ?? 'days'
                           return (
                             <div key={idx} className="p-3 rounded-lg border bg-gray-50">
                               <div className="flex items-center justify-between">
@@ -752,7 +750,6 @@ export default function ProjectApprovalPage() {
                                   )}
                                 </div>
                               </div>
-                            )}
                             {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
                               <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
                             )}
@@ -767,6 +764,7 @@ export default function ProjectApprovalPage() {
                               {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
                               {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
                             </div>
+                          </div>
                           )
                         })}
                       </div>

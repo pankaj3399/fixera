@@ -67,12 +67,17 @@ interface ISubproject {
   pricing: {
     type: 'fixed' | 'unit' | 'rfq'
     amount?: number
-    priceRange?: { min: number; max: number }
+    priceRange?: { min?: number; max?: number }
     minProjectValue?: number
+    minOrderQuantity?: number
+  }
+  errors?: {
+    priceRange?: string;
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
   materials?: IMaterial[]
+  preparationDuration?: { value: number; unit?: 'hours' | 'days' }
   deliveryPreparation: number
   deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
@@ -129,6 +134,29 @@ interface IServiceConfigurationIncludedItem {
   };
 }
 
+const getValidPricingTypes = (
+  category?: string,
+  priceModel?: string
+): Array<'fixed' | 'unit' | 'rfq'> => {
+  const isRenovation = (category || '').toLowerCase() === 'renovation';
+  if (isRenovation) {
+    return ['rfq'];
+  }
+  if (priceModel && priceModel.trim()) {
+    return ['fixed', 'rfq'];
+  }
+  return ['fixed', 'unit', 'rfq'];
+};
+
+const getDefaultPricingType = (
+  category?: string,
+  priceModel?: string
+): 'fixed' | 'unit' | 'rfq' => {
+  const validTypes = getValidPricingTypes(category, priceModel);
+  if (validTypes.includes('fixed')) return 'fixed';
+  return validTypes[0] ?? 'rfq';
+};
+
 // Predefined included items by service category
 const PREDEFINED_INCLUDED_ITEMS = {
   plumber: [
@@ -176,6 +204,7 @@ const PREDEFINED_INCLUDED_ITEMS = {
 export default function Step2Subprojects({ data, onChange, onValidate }: Step2Props) {
   const resolvePreparationUnit = (subproject?: ISubproject) =>
     (subproject?.deliveryPreparationUnit || 'days') as 'hours' | 'days'
+  const unitLabel = data.priceModel && data.priceModel.trim() ? data.priceModel : 'units'
   const [subprojects, setSubprojects] = useState<ISubproject[]>(() =>
     (data.subprojects || []).map((sub) => ({
       ...sub,
@@ -870,19 +899,18 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                             Customer must order at least this quantity
                           </p>
                         </div>
-                      </>
+                      </div>
                     )}
 
                     {subproject.pricing.type === 'rfq' && (
-                      <>
-                        <div className='md:col-span-2'>
-                          <Label>Estimated Price Range (EUR)</Label>
-                          <div className='flex space-x-2'>
-                            <Input
-                              type='number'
-                              min='0'
-                              step='0.01'
-                              value={subproject.pricing.priceRange?.min ?? ''}
+                      <div className='md:col-span-2'>
+                        <Label>Estimated Price Range (EUR)</Label>
+                        <div className='flex space-x-2'>
+                          <Input
+                            type='number'
+                            min='0'
+                            step='0.01'
+                            value={subproject.pricing.priceRange?.min ?? ''}
                               onChange={(e) => {
                                 const newMin =
                                   e.target.value === ''
@@ -965,7 +993,6 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                             </p>
                           )}
                         </div>
-                      </>
                     )}
                   </div>
                 </div>
@@ -1708,190 +1735,6 @@ export default function Step2Subprojects({ data, onChange, onValidate }: Step2Pr
                             })}
                             placeholder="Max duration"
                           />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <Label>Execution Duration *</Label>
-                          <div className="flex space-x-2">
-                            <Input
-                              type='number'
-                              min='1'
-                              value={
-                                subproject.executionDuration.range?.min || ''
-                              }
-                              onChange={(e) => {
-                                const raw = e.target.value;
-                                const newMin =
-                                  raw === '' ? undefined : parseInt(raw, 10);
-                                const currentMax =
-                                  subproject.executionDuration.range?.max;
-
-                                const hasError =
-                                  typeof newMin === 'number' &&
-                                  typeof currentMax === 'number' &&
-                                  newMin > currentMax;
-
-                                updateSubproject(subproject.id, {
-                                  executionDuration: {
-                                    ...subproject.executionDuration,
-                                    range:
-                                      newMin === undefined &&
-                                      currentMax === undefined
-                                        ? undefined
-                                        : ({
-                                            ...(newMin !== undefined
-                                              ? { min: newMin }
-                                              : {}),
-                                            ...(currentMax !== undefined
-                                              ? { max: currentMax }
-                                              : {}),
-                                          } as { min: number; max: number }),
-                                  },
-                                  errors: {
-                                    ...subproject.errors,
-                                    executionDurationRange: hasError
-                                      ? 'Min duration must be less than or equal to max duration'
-                                      : undefined,
-                                  },
-                                });
-                              }}
-                              placeholder='Min'
-                              className={`w-20 ${
-                                subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
-                              }`}
-                            />
-                            <span className='self-center text-gray-500'>
-                              to
-                            </span>
-                            <Input
-                              type='number'
-                              min='1'
-                              value={
-                                subproject.executionDuration.range?.max || ''
-                              }
-                              onChange={(e) => {
-                                const raw = e.target.value;
-                                const newMax =
-                                  raw === '' ? undefined : parseInt(raw, 10);
-                                const currentMin =
-                                  subproject.executionDuration.range?.min;
-
-                                const hasError =
-                                  typeof currentMin === 'number' &&
-                                  typeof newMax === 'number' &&
-                                  currentMin > newMax;
-
-                                updateSubproject(subproject.id, {
-                                  executionDuration: {
-                                    ...subproject.executionDuration,
-                                    range:
-                                      currentMin === undefined &&
-                                      newMax === undefined
-                                        ? undefined
-                                        : ({
-                                            ...(currentMin !== undefined
-                                              ? { min: currentMin }
-                                              : {}),
-                                            ...(newMax !== undefined
-                                              ? { max: newMax }
-                                              : {}),
-                                          } as { min: number; max: number }),
-                                  },
-                                  errors: {
-                                    ...subproject.errors,
-                                    executionDurationRange: hasError
-                                      ? 'Min duration must be less than or equal to max duration'
-                                      : undefined,
-                                  },
-                                });
-                              }}
-                              placeholder='Max'
-                              className={`w-20 ${
-                                subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
-                              }`}
-                            />
-                            <Select
-                              value={subproject.executionDuration.unit}
-                              onValueChange={(value: 'hours' | 'days') =>
-                                updateSubproject(subproject.id, {
-                                  executionDuration: {
-                                    ...subproject.executionDuration,
-                                    unit: value,
-                                  },
-                                })
-                              }
-                            >
-                              <SelectTrigger className='w-24'>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value='hours'>Hours</SelectItem>
-                                <SelectItem value='days'>Days</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {subproject.errors?.executionDurationRange && (
-                            <p className='text-xs text-red-500 mt-1 flex items-center'>
-                              <AlertCircle className='w-3 h-3 mr-1' />
-                              {subproject.errors.executionDurationRange}
-                            </p>
-                          )}
-                          <p className='text-xs text-gray-500 mt-1'>
-                            Estimated execution time range
-                          </p>
-                        </div>
-
-                        <div>
-                          <Label>Buffer Time (optional)</Label>
-                          <div className='flex space-x-2'>
-                            <Input
-                              type='number'
-                              min='0'
-                              value={subproject.buffer?.value || ''}
-                              onChange={(e) =>
-                                updateSubproject(subproject.id, {
-                                  buffer: e.target.value
-                                    ? {
-                                        value: parseInt(e.target.value),
-                                        unit:
-                                          subproject.buffer?.unit || 'hours',
-                                      }
-                                    : undefined,
-                                })
-                              }
-                              placeholder='0'
-                            />
-                            <Select
-                              value={subproject.buffer?.unit || 'hours'}
-                              onValueChange={(value: 'hours' | 'days') =>
-                                updateSubproject(subproject.id, {
-                                  buffer: subproject.buffer
-                                    ? {
-                                        ...subproject.buffer,
-                                        unit: value,
-                                      }
-                                    : { value: 0, unit: value },
-                                })
-                              }
-                            >
-                              <SelectTrigger className='w-24'>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value='hours'>Hours</SelectItem>
-                                <SelectItem value='days'>Days</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <p className='text-xs text-gray-500 mt-1'>
-                            Extra time to avoid delays
-                          </p>
                         </div>
                       </>
                     ) : (

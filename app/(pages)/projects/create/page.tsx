@@ -40,6 +40,7 @@ interface ISubproject {
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
+  preparationDuration?: { value: number; unit?: 'hours' | 'days' }
   deliveryPreparation: number
   deliveryPreparationUnit?: 'hours' | 'days'
   executionDuration: {
@@ -450,7 +451,6 @@ export default function ProjectCreatePage() {
   const handleSubmit = async () => {
     if (isLoading) return // Prevent multiple submissions
     setIsLoading(true)
-    let shouldResetLoading = true
     try {
       console.log('Submit called - Current project status:', projectData.status)
       console.log('Full project data:', projectData)
