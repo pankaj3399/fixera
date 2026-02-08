@@ -1,15 +1,7 @@
-import {
-  Home, Hammer, PaintBucket, Zap, TreePine, Shield, Star, Clock, CreditCard,
-  Users, TrendingUp, CheckCircle, Phone, Globe, Facebook, Twitter, Instagram, Linkedin,
-  Palette, Building, Sun, Wrench as WrenchIcon, Search
-} from 'lucide-react';
-import React from 'react';
+import { iconMapData } from './icons';
+import { Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
 
-export const iconMap: { [key: string]: React.ElementType } = {
-  Home, Hammer, Wrench: WrenchIcon, PaintBucket, Zap, TreePine, Shield, Star, Clock,
-  CreditCard, Users, TrendingUp, CheckCircle, Phone, Globe, Facebook, Twitter,
-  Instagram, Linkedin, Palette, Building, Sun, Search
-};
+export const iconMap = iconMapData;
 
 export const serviceCategories = [
   {

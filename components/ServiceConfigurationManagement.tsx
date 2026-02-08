@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,9 +18,12 @@ import {
   X,
   CheckCircle,
   AlertCircle,
-  Package
+  Package,
+  Image as ImageIcon
 } from "lucide-react"
 import { toast } from "sonner"
+import IconPicker from "@/components/IconPicker"
+import { iconMapData } from "@/data/icons"
 
 interface DynamicField {
   fieldName: string
@@ -58,6 +61,7 @@ interface ServiceConfiguration {
   service: string
   areaOfWork?: string
   pricingModel: string
+  icon?: string
   certificationRequired: boolean
   requiredCertifications?: string[]
   projectTypes: string[]
@@ -83,6 +87,7 @@ const EMPTY_FORM: ServiceConfiguration = {
   service: '',
   areaOfWork: '',
   pricingModel: '',
+  icon: '',
   certificationRequired: false,
   requiredCertifications: [],
   projectTypes: [],
@@ -105,7 +110,7 @@ export default function ServiceConfigurationManagement() {
   const [formData, setFormData] = useState<ServiceConfiguration>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  
+
 
   // Fetch all services
   const fetchServices = async () => {
@@ -479,6 +484,7 @@ export default function ServiceConfigurationManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Icon</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Service</TableHead>
                       <TableHead>Area of Work</TableHead>
@@ -490,6 +496,13 @@ export default function ServiceConfigurationManagement() {
                   <TableBody>
                     {services.map((service) => (
                       <TableRow key={service._id}>
+                        <TableCell>
+                          {service.icon && iconMapData[service.icon as keyof typeof iconMapData] ? (
+                            React.createElement(iconMapData[service.icon as keyof typeof iconMapData], { className: "h-5 w-5 text-gray-500" })
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-gray-300" />
+                          )}
+                        </TableCell>
                         <TableCell className="font-medium">{service.category}</TableCell>
                         <TableCell>{service.service}</TableCell>
                         <TableCell>{service.areaOfWork || '-'}</TableCell>
@@ -583,6 +596,15 @@ export default function ServiceConfigurationManagement() {
                     placeholder="e.g., Architect, Plumbing"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Icon</Label>
+                  <IconPicker
+                    value={formData.icon || ''}
+                    onChange={(icon) => setFormData(prev => ({ ...prev, icon }))}
+                  />
+                </div>
+
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -638,7 +660,7 @@ export default function ServiceConfigurationManagement() {
                             setFormData(prev => ({
                               ...prev,
                               requiredCertifications: isChecked
-                                ? [ ...(prev.requiredCertifications || []), type ]
+                                ? [...(prev.requiredCertifications || []), type]
                                 : (prev.requiredCertifications || []).filter(t => t !== type)
                             }))
                           }}
@@ -983,8 +1005,8 @@ export default function ServiceConfigurationManagement() {
                         </div>
                       </div>
                     )}
-                </div>
-              ))}
+                  </div>
+                ))}
                 {formData.includedItems.length === 0 && (
                   <p className="text-sm text-muted-foreground">No included items added yet</p>
                 )}
