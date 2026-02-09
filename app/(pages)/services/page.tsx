@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Shield, Loader2, AlertCircle } from 'lucide-react';
-import { iconMap } from '@/data/content';
+import Icon, { IconName } from '@/components/Icon';
 import { toast } from 'sonner';
 
 interface Service {
@@ -21,47 +21,43 @@ interface ServiceCategory {
   name: string;
   slug: string;
   description?: string;
-  icon?: string;
+  icon?: IconName;
   services: Service[];
 }
 
-// Helper Icon Component
-const Icon = ({ name, className }: { name: string; className?: string }) => {
-  const LucideIcon = iconMap[name];
-  return LucideIcon ? <LucideIcon className={className} /> : null;
-};
+
 
 // Reusable Service Card Component
-const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service; categoryName: string; categoryIcon?: string }) => {
+const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service; categoryName: string; categoryIcon?: IconName }) => {
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col">
-        <div className="relative h-48 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-            <Icon name={categoryIcon || 'Wrench'} className="w-16 h-16 text-blue-400 opacity-50" />
+      <div className="relative h-48 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+        <Icon name={categoryIcon || 'Wrench'} className="w-16 h-16 text-blue-400 opacity-50" />
+      </div>
+      <CardContent className="p-4 flex flex-col flex-grow">
+        <p className="text-sm text-gray-500 font-medium">{categoryName}</p>
+        <h3 className="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors mt-1">
+          {service.name}
+        </h3>
+        {service.description && (
+          <p className="text-sm text-gray-600 mt-2 flex-grow line-clamp-2">
+            {service.description}
+          </p>
+        )}
+        <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">
+          <div className="flex items-center gap-1.5">
+            <Shield className="w-4 h-4 text-green-500" />
+            <span className="text-gray-700 font-medium">Verified Service</span>
+          </div>
         </div>
-        <CardContent className="p-4 flex flex-col flex-grow">
-            <p className="text-sm text-gray-500 font-medium">{categoryName}</p>
-            <h3 className="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors mt-1">
-                {service.name}
-            </h3>
-            {service.description && (
-              <p className="text-sm text-gray-600 mt-2 flex-grow line-clamp-2">
-                  {service.description}
-              </p>
-            )}
-            <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">
-                <div className="flex items-center gap-1.5">
-                    <Shield className="w-4 h-4 text-green-500" />
-                    <span className="text-gray-700 font-medium">Verified Service</span>
-                </div>
-            </div>
-        </CardContent>
-        <div className="p-4 border-t">
-            <Button asChild size="sm" className="w-full">
-                <Link href={`/services/${service.slug}`}>
-                    View Details <ArrowRight className="w-4 h-4 ml-2" />
-                </Link>
-            </Button>
-        </div>
+      </CardContent>
+      <div className="p-4 border-t">
+        <Button asChild size="sm" className="w-full">
+          <Link href={`/services/${service.slug}`}>
+            View Details <ArrowRight className="w-4 h-4 ml-2" />
+          </Link>
+        </Button>
+      </div>
     </Card>
   );
 };
