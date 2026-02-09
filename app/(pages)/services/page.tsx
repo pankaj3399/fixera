@@ -21,18 +21,18 @@ interface ServiceCategory {
   name: string;
   slug: string;
   description?: string;
-  icon?: string;
+  icon?: keyof typeof iconMap;
   services: Service[];
 }
 
 // Helper Icon Component
-const Icon = ({ name, className }: { name: string; className?: string }) => {
-  const LucideIcon = iconMap[name as keyof typeof iconMap];
+const Icon = ({ name, className }: { name: keyof typeof iconMap; className?: string }) => {
+  const LucideIcon = iconMap[name];
   return LucideIcon ? <LucideIcon className={className} /> : null;
 };
 
 // Reusable Service Card Component
-const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service; categoryName: string; categoryIcon?: string }) => {
+const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service; categoryName: string; categoryIcon?: keyof typeof iconMap }) => {
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col">
       <div className="relative h-48 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">

@@ -9,8 +9,8 @@ import { ArrowRight } from 'lucide-react'
 import { serviceCategories, iconMap } from '@/data/content'
 
 // --- Helper Component for Icons ---
-const Icon = ({ name, className }: { name: string; className?: string }) => {
-  const LucideIcon = iconMap[name as keyof typeof iconMap];
+const Icon = ({ name, className }: { name: keyof typeof iconMap; className?: string }) => {
+  const LucideIcon = iconMap[name];
   return LucideIcon ? <LucideIcon className={className} /> : null;
 };
 
