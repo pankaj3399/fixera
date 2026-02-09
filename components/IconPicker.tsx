@@ -123,7 +123,7 @@ export default function IconPicker({ value, onChange, label = 'Select Icon' }: I
                         {filteredIcons.length === 0 && (
                             <div className="col-span-full py-12 text-center text-muted-foreground">
                                 <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                <p>No icons found for "{searchQuery}"</p>
+                                <p>No icons found for &quot;{searchQuery}&quot;</p>
                             </div>
                         )}
                     </div>
