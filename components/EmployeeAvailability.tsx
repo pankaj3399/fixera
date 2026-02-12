@@ -1,18 +1,18 @@
 'use client'
 
-import { useState, useEffect, MouseEvent, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
-import { Calendar, User, Loader2, Save, RefreshCw, X, Plus } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Calendar, CalendarX, Loader2, RefreshCw, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
-import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
-import { addDays, format, parseISO, startOfDay, isWithinInterval } from "date-fns"
+import WeeklyAvailabilityCalendar, { CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
+import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
+import { parseTimeToMinutes, minutesToTime, getScheduleWindow } from "@/lib/scheduleUtils"
 
 interface BlockedRange {
   startDate: string
@@ -27,73 +27,59 @@ interface EmployeeAvailabilityProps {
 interface AvailabilityData {
   availability: {
     [day: string]: {
-      available: boolean;
-      startTime?: string;
-      endTime?: string;
-    };
+      available: boolean
+      startTime?: string
+      endTime?: string
+    }
   }
   blockedDates: Array<{ date: string; reason?: string }>
   blockedRanges: Array<{
-    startDate: string;
-    endDate: string;
-    reason?: string;
+    startDate: string
+    endDate: string
+    reason?: string
   }>
   bookingBlockedRanges: Array<{
-    startDate: string;
-    endDate: string;
-    reason?: string;
+    startDate: string
+    endDate: string
+    reason?: string
+    bookingId?: string
+    location?: {
+      address?: string
+      city?: string
+      country?: string
+      postalCode?: string
+    }
   }>
   companyBlockedDates: Array<{ date: string; reason?: string; isHoliday?: boolean }>
   companyBlockedRanges: Array<{
-    startDate: string;
-    endDate: string;
-    reason?: string;
-    isHoliday?: boolean;
+    startDate: string
+    endDate: string
+    reason?: string
+    isHoliday?: boolean
   }>
 }
 
 export default function EmployeeAvailability({ className }: EmployeeAvailabilityProps) {
   const { user } = useAuth()
-  const [, setLoading] = useState(true)
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [availabilityData, setAvailabilityData] = useState<AvailabilityData | null>(null)
 
-  // Blocked dates and ranges states
-  const [blockedDates, setBlockedDates] = useState<{ date: string; reason?: string }[]>([])
-  const [blockedRanges, setBlockedRanges] = useState<{ startDate: string; endDate: string; reason?: string }[]>([])
+  const [blockedRanges, setBlockedRanges] = useState<BlockedRange[]>([])
+  const [newBlockedRange, setNewBlockedRange] = useState({
+    startDate: '',
+    endDate: '',
+    reason: ''
+  })
+  const [editingRange, setEditingRange] = useState<{
+    index: number
+    startValue: string
+    endValue: string
+    reason: string
+  } | null>(null)
 
-  // Convert booking blocked ranges to individual dates (like professional UI does)
-  const bookingBlockedDates = useMemo(() => {
-    if (!availabilityData?.bookingBlockedRanges?.length) return []
-
-    const dates: { date: string; reason?: string }[] = []
-    const seenDates = new Set<string>()
-
-    availabilityData.bookingBlockedRanges.forEach((range) => {
-      const start = startOfDay(parseISO(range.startDate))
-      const end = startOfDay(parseISO(range.endDate))
-
-      let current = start
-      while (current <= end) {
-        const dateStr = format(current, 'yyyy-MM-dd')
-        if (!seenDates.has(dateStr)) {
-          seenDates.add(dateStr)
-          dates.push({ date: dateStr, reason: 'Booking' })
-        }
-        current = addDays(current, 1)
-      }
-    })
-
-    return dates
-  }, [availabilityData?.bookingBlockedRanges])
-  const [newBlockedDate, setNewBlockedDate] = useState('')
-  const [newBlockedDateReason, setNewBlockedDateReason] = useState('')
-  const [newRangeStart, setNewRangeStart] = useState('')
-  const [newRangeEnd, setNewRangeEnd] = useState('')
-  const [newRangeReason, setNewRangeReason] = useState('')
-
-  // Fetch company schedule and employee blocked dates
-  const fetchAvailability = async () => {
+  const fetchAvailability = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -110,41 +96,60 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         if (data.success) {
           setAvailabilityData(data.data)
 
-          // Load employee's personal blocked dates
-          if (data.data.blockedDates) {
-            setBlockedDates(data.data.blockedDates.map((item: { date: string; reason?: string }) => ({
-              date: new Date(item.date).toISOString().split('T')[0],
-              reason: item.reason
-            })))
-          }
-          if (data.data.blockedRanges) {
-            setBlockedRanges(data.data.blockedRanges.map((item: { startDate: string; endDate: string; reason?: string }) => ({
-              startDate: new Date(item.startDate).toISOString(),
-              endDate: new Date(item.endDate).toISOString(),
-              reason: item.reason
-            })))
+          const mergedRanges = new Map<string, BlockedRange>()
+          const addRange = (range: BlockedRange) => {
+            const key = `${range.startDate}-${range.endDate}-${range.reason || ''}`
+            if (!mergedRanges.has(key)) {
+              mergedRanges.set(key, range)
+            }
           }
 
-          console.log('✅ Company schedule and blocked dates loaded')
+          if (data.data.blockedRanges) {
+            data.data.blockedRanges.forEach((range: BlockedRange) => {
+              const startDate = toIsoDateTime(range.startDate, false)
+              const endDate = toIsoDateTime(range.endDate, true)
+              if (startDate && endDate) {
+                addRange({
+                  startDate,
+                  endDate,
+                  reason: range.reason
+                })
+              }
+            })
+          }
+
+          if (data.data.blockedDates) {
+            data.data.blockedDates.forEach((item: { date: string; reason?: string }) => {
+              const startDate = toIsoDateTime(item.date, false)
+              const endDate = toIsoDateTime(item.date, true)
+              if (startDate && endDate) {
+                addRange({
+                  startDate,
+                  endDate,
+                  reason: item.reason
+                })
+              }
+            })
+          }
+
+          setBlockedRanges(Array.from(mergedRanges.values()))
         } else {
-          console.error('❌ Failed to load availability:', data.msg)
+          console.error('Failed to load availability:', data.msg)
           toast.error(data.msg || 'Failed to load availability')
         }
       } else {
-        console.error('❌ Failed to load availability - server error')
+        console.error('Failed to load availability - server error')
         toast.error('Failed to load availability')
       }
     } catch (error) {
-      console.error('❌ Error loading availability:', error)
+      console.error('Error loading availability:', error)
       toast.error('Failed to load availability')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  // Save blocked dates (employees follow company weekly schedule)
-  const saveBlockedDates = async (
-    customDates: { date: string; reason?: string }[] = blockedDates,
+  const saveBlockedRanges = async (
     customRanges: BlockedRange[] = blockedRanges
   ) => {
     try {
@@ -157,7 +162,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         },
         credentials: 'include',
         body: JSON.stringify({
-          blockedDates: customDates,
+          blockedDates: [],
           blockedRanges: customRanges
         })
       })
@@ -165,76 +170,246 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          toast.success('✅ Blocked dates updated successfully!')
-
-          // Reload to get updated effective availability
           await fetchAvailability()
-        } else {
-          toast.error(data.msg || 'Failed to update blocked dates')
+          return true
         }
-      } else {
-        toast.error('Failed to update blocked dates')
+        toast.error(data.msg || 'Failed to update blocked periods')
+        return false
       }
+      toast.error('Failed to update blocked periods')
+      return false
     } catch (error) {
-      console.error('❌ Error updating blocked dates:', error)
-      toast.error('Failed to update blocked dates')
-      } finally {
-        setSaving(false)
-      }
+      console.error('Error updating blocked periods:', error)
+      toast.error('Failed to update blocked periods')
+      return false
+    } finally {
+      setSaving(false)
     }
-
-  const handleSaveBlockedDates = async (event?: MouseEvent<HTMLButtonElement>) => {
-    event?.preventDefault()
-    await saveBlockedDates()
   }
 
-  // Add blocked date
-  const addBlockedDate = () => {
-    if (!newBlockedDate) {
-      toast.error('Please select a date')
+  const addBlockedRangeEntry = async (startValue: string, endValue: string, reason?: string) => {
+    const startDate = new Date(startValue)
+    const endDate = new Date(endValue)
+    const now = new Date()
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      toast.error('Please provide valid start and end times')
+      return false
+    }
+    if (startDate < now) {
+      toast.error('Cannot block time in the past')
+      return false
+    }
+    if (startDate >= endDate) {
+      toast.error('Start must be before end time')
+      return false
+    }
+
+    const newRange = {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      reason: reason || undefined
+    }
+
+    const previousRanges = blockedRanges
+    const updatedRanges = [...blockedRanges, newRange]
+    setBlockedRanges(updatedRanges)
+
+    const success = await saveBlockedRanges(updatedRanges)
+    if (success) {
+      toast.success('Blocked period saved')
+      return true
+    }
+
+    setBlockedRanges(previousRanges)
+    return false
+  }
+
+  const addBlockedRange = async () => {
+    if (!newBlockedRange.startDate || !newBlockedRange.endDate) {
+      toast.error('Select start and end values')
       return
     }
-    setBlockedDates(prev => [...prev, { date: newBlockedDate, reason: newBlockedDateReason || undefined }])
-    setNewBlockedDate('')
-    setNewBlockedDateReason('')
+    const success = await addBlockedRangeEntry(
+      newBlockedRange.startDate,
+      newBlockedRange.endDate,
+      newBlockedRange.reason
+    )
+    if (success) {
+      setNewBlockedRange({ startDate: '', endDate: '', reason: '' })
+    }
   }
 
-  // Remove blocked date
-  const removeBlockedDate = (index: number) => {
-    setBlockedDates(prev => prev.filter((_, i) => i !== index))
+  const removeBlockedRange = async (index: number) => {
+    const previousRanges = blockedRanges
+    const updatedRanges = blockedRanges.filter((_, i) => i !== index)
+    setBlockedRanges(updatedRanges)
+    const success = await saveBlockedRanges(updatedRanges)
+    if (success) {
+      toast.success('Blocked period removed')
+    } else {
+      setBlockedRanges(previousRanges)
+    }
   }
 
-  // Add blocked range
-  const addBlockedRange = () => {
-    if (!newRangeStart || !newRangeEnd) {
-      toast.error('Please select both start and end times')
+  const openEditRange = (index: number) => {
+    const range = blockedRanges[index]
+    if (!range) return
+    setEditingRange({
+      index,
+      startValue: toLocalInputValue(range.startDate),
+      endValue: toLocalInputValue(range.endDate),
+      reason: range.reason || ''
+    })
+  }
+
+  const updateBlockedRange = async () => {
+    if (!editingRange) return
+    const { index, startValue, endValue, reason } = editingRange
+    if (!startValue || !endValue) {
+      toast.error('Select start and end values')
       return
     }
-    if (new Date(newRangeStart) > new Date(newRangeEnd)) {
+    const startDate = new Date(startValue)
+    const endDate = new Date(endValue)
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      toast.error('Please provide valid start and end times')
+      return
+    }
+    const now = Date.now()
+    if (startDate.getTime() < now) {
+      toast.error('Cannot block time in the past')
+      return
+    }
+    if (endDate.getTime() < now) {
+      toast.error('End time cannot be in the past')
+      return
+    }
+    if (startDate >= endDate) {
       toast.error('Start must be before end time')
       return
     }
-    setBlockedRanges(prev => [...prev, {
-      startDate: new Date(newRangeStart).toISOString(),
-      endDate: new Date(newRangeEnd).toISOString(),
-      reason: newRangeReason || undefined
-    }])
-    setNewRangeStart('')
-    setNewRangeEnd('')
-    setNewRangeReason('')
+
+    const previousRanges = blockedRanges
+    const updatedRanges = blockedRanges.map((range, rangeIndex) =>
+      rangeIndex === index
+        ? {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            reason: reason || undefined
+          }
+        : range
+    )
+    setBlockedRanges(updatedRanges)
+    const success = await saveBlockedRanges(updatedRanges)
+    if (success) {
+      toast.success('Blocked period updated')
+      setEditingRange(null)
+    } else {
+      setBlockedRanges(previousRanges)
+    }
   }
 
-  // Remove blocked range
-  const removeBlockedRange = (index: number) => {
-    setBlockedRanges(prev => prev.filter((_, i) => i !== index))
+  const deleteBlockedRange = async () => {
+    if (!editingRange) return
+    const previousRanges = blockedRanges
+    const updatedRanges = blockedRanges.filter((_, index) => index !== editingRange.index)
+    setBlockedRanges(updatedRanges)
+    const success = await saveBlockedRanges(updatedRanges)
+    if (success) {
+      toast.success('Blocked period removed')
+      setEditingRange(null)
+    } else {
+      setBlockedRanges(previousRanges)
+    }
   }
 
-  // Load availability on mount
   useEffect(() => {
     fetchAvailability()
-  }, [])
+  }, [fetchAvailability])
 
-  // Check if user is an employee
+  const scheduleWindow = useMemo(
+    () => getScheduleWindow(availabilityData?.availability),
+    [availabilityData?.availability]
+  )
+
+  const calendarEvents = useMemo(() => {
+    const events: CalendarEvent[] = []
+
+    const toEventDate = (value: string, isEnd = false) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return new Date(`${value}T${isEnd ? '23:59:59' : '00:00:00'}`)
+      }
+      return new Date(value)
+    }
+
+    blockedRanges.forEach((range, index) => {
+      const start = toEventDate(range.startDate, false)
+      const end = toEventDate(range.endDate, true)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
+      events.push({
+        id: `personal-${index}`,
+        type: 'personal',
+        title: 'Personal Block',
+        start,
+        end,
+        meta: { note: range.reason, rangeIndex: index }
+      })
+    })
+
+    availabilityData?.companyBlockedRanges?.forEach((range, index) => {
+      const start = toEventDate(range.startDate, false)
+      const end = toEventDate(range.endDate, true)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
+      events.push({
+        id: `company-${index}`,
+        type: 'company',
+        title: range.isHoliday ? 'Holiday' : 'Company Closure',
+        start,
+        end,
+        meta: { note: range.reason },
+        readOnly: true
+      })
+    })
+
+    availabilityData?.companyBlockedDates?.forEach((item, index) => {
+      const dateStr = item.date?.toString()
+      if (!dateStr) return
+      const start = toEventDate(dateStr, false)
+      const end = toEventDate(dateStr, true)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
+      events.push({
+        id: `company-date-${index}`,
+        type: 'company',
+        title: item.isHoliday ? 'Holiday' : 'Company Closure',
+        start,
+        end,
+        meta: { note: item.reason },
+        readOnly: true
+      })
+    })
+
+    availabilityData?.bookingBlockedRanges?.forEach((range, index) => {
+      const start = new Date(range.startDate)
+      const end = new Date(range.endDate)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
+      const type = range.reason === 'booking-buffer' ? 'booking-buffer' : 'booking'
+      events.push({
+        id: `booking-${range.bookingId || index}`,
+        type,
+        title: type === 'booking-buffer' ? 'Buffer' : 'Booking',
+        start,
+        end,
+        meta: {
+          bookingId: range.bookingId,
+          location: range.location
+        }
+      })
+    })
+
+    return events
+  }, [availabilityData, blockedRanges])
+
   if (user?.role !== 'employee') {
     return (
       <Card className={className}>
@@ -254,249 +429,287 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     )
   }
 
-  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-  const dayLabels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  if (loading && !availabilityData) {
+    return (
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Your Availability
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            Loading availability...
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const rootClassName = className ? `space-y-6 ${className}` : 'space-y-6'
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Your Availability
-        </CardTitle>
-        <CardDescription>
-          You follow the company&apos;s weekly schedule. Block specific dates when you&apos;re unavailable.
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent className="space-y-6">
-        {/* Calendar View */}
-        {availabilityData && (
-          <AvailabilityCalendar
-            title="Availability Calendar"
-            description="Month view with company schedule, company blocks, bookings and your blocks"
-            weeklySchedule={availabilityData.availability}
-            personalBlockedDates={[...blockedDates, ...bookingBlockedDates]}
-            personalBlockedRanges={blockedRanges}
-            companyBlockedDates={availabilityData.companyBlockedDates}
-            companyBlockedRanges={availabilityData.companyBlockedRanges}
-            mode="employee"
-            compact
-            onToggleDay={async (dateStr) => {
-              const exists = blockedDates.some(d => d.date === dateStr)
-              const updated = exists ? blockedDates.filter(d => d.date !== dateStr) : [...blockedDates, { date: dateStr }]
-              setBlockedDates(updated)
-              await saveBlockedDates(updated, blockedRanges)
-            }}
-            onAddRange={async (startDate, endDate) => {
-              const startIso = new Date(`${startDate}T00:00:00`).toISOString()
-              const endIso = new Date(`${endDate}T23:59:00`).toISOString()
-              const updated = [...blockedRanges, { startDate: startIso, endDate: endIso }]
-              setBlockedRanges(updated)
-              await saveBlockedDates(blockedDates, updated)
-            }}
-          />
-        )}
+    <div className={rootClassName}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Your Availability
+          </CardTitle>
+          <CardDescription>
+            You follow the company schedule. Use blocked periods for time you are unavailable.
+          </CardDescription>
+        </CardHeader>
 
-        {/* Booking blocked dates note */}
-        {bookingBlockedDates.length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Note: {bookingBlockedDates.length} day(s) are blocked due to existing bookings (shown in red on calendar).
-          </p>
-        )}
-
-        {/* Company Schedule Display */}
-        {availabilityData && (
+        <CardContent className="space-y-6">
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-medium">
-                Company Weekly Schedule
-                <Badge variant="outline" className="ml-2">
-                  Read-only
-                </Badge>
-              </Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={fetchAvailability}
-                disabled={saving}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+            <Label className="text-base font-medium">Add Blocked Period</Label>
+            <p className="text-xs text-muted-foreground">
+              Use the same date for start and end to block a single day.
+            </p>
+          </div>
 
-            <div className="bg-muted/30 p-4 rounded-lg">
+          <div className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                {availabilityData.availability ? (
-                  days.map((day, index) => {
-                    const dayData = availabilityData.availability[day]
-                    return (
-                      <div key={day} className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{dayLabels[index]}</span>
-                        {dayData?.available ? (
-                          <span className="text-green-600">
-                            {dayData.startTime} - {dayData.endTime}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Not available</span>
-                        )}
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    No company schedule set
-                  </p>
-                )}
+                <Label htmlFor="employee-start-date">Start Date</Label>
+                <Input
+                  id="employee-start-date"
+                  type="datetime-local"
+                  value={newBlockedRange.startDate}
+                  onChange={(e) => setNewBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
+                  min={toLocalInputValue(new Date().toISOString())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employee-end-date">End Date</Label>
+                <Input
+                  id="employee-end-date"
+                  type="datetime-local"
+                  value={newBlockedRange.endDate}
+                  onChange={(e) => setNewBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
+                  min={newBlockedRange.startDate || toLocalInputValue(new Date().toISOString())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employee-block-reason">Reason (Optional)</Label>
+                <Input
+                  id="employee-block-reason"
+                  placeholder="Vacation, appointment, etc."
+                  value={newBlockedRange.reason}
+                  onChange={(e) => setNewBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
+                />
               </div>
             </div>
-          </div>
-        )}
-
-        <Separator />
-
-        {/* Blocked Dates Section */}
-        <div className="space-y-4">
-          <Label className="text-base font-medium">Blocked Dates</Label>
-          <p className="text-sm text-muted-foreground">Block specific dates when you&apos;re unavailable</p>
-
-          {/* Add new blocked date */}
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={newBlockedDate}
-              onChange={(e) => setNewBlockedDate(e.target.value)}
-              className="flex-1"
-            />
-            <Input
-              type="text"
-              placeholder="Reason (optional)"
-              value={newBlockedDateReason}
-              onChange={(e) => setNewBlockedDateReason(e.target.value)}
-              className="flex-1"
-            />
-            <Button onClick={addBlockedDate} size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
-          </div>
-
-          {/* List of blocked dates */}
-          {blockedDates.length > 0 && (
-            <div className="space-y-2">
-              {blockedDates.map((blocked, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">
-                      {new Date(blocked.date).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </p>
-                    {blocked.reason && (
-                      <p className="text-sm text-muted-foreground">{blocked.reason}</p>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeBlockedDate(index)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <Separator />
-
-        {/* Blocked Ranges Section */}
-        <div className="space-y-4">
-          <Label className="text-base font-medium">Blocked Date Ranges</Label>
-          <p className="text-sm text-muted-foreground">Block date ranges for vacations or extended time off</p>
-
-          {/* Add new blocked range */}
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <Input
-                type="datetime-local"
-                value={newRangeStart}
-                onChange={(e) => setNewRangeStart(e.target.value)}
-                placeholder="Start date"
-                className="flex-1"
-              />
-              <Input
-                type="datetime-local"
-                value={newRangeEnd}
-                onChange={(e) => setNewRangeEnd(e.target.value)}
-                placeholder="End date"
-                className="flex-1"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                placeholder="Reason (optional, e.g., 'Summer Vacation')"
-                value={newRangeReason}
-                onChange={(e) => setNewRangeReason(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={addBlockedRange} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Range
+            <div className="flex justify-end">
+              <Button
+                onClick={addBlockedRange}
+                disabled={
+                  saving ||
+                  !newBlockedRange.startDate ||
+                  !newBlockedRange.endDate ||
+                  newBlockedRange.endDate <= newBlockedRange.startDate
+                }
+                variant="outline"
+              >
+                <CalendarX className="h-4 w-4 mr-2" />
+                Block Period
               </Button>
             </div>
           </div>
 
-          {/* List of blocked ranges */}
-          {blockedRanges.length > 0 && (
-            <div className="space-y-2">
-              {blockedRanges.map((range, index) => {
-                const startLabel = new Date(range.startDate).toLocaleString('en-US', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short'
-                })
-                const endLabel = new Date(range.endDate).toLocaleString('en-US', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short'
-                })
-                return (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="space-y-3">
+            <Label>Manual Blocked Periods</Label>
+            {blockedRanges.length > 0 ? (
+              <div className="space-y-2">
+                {blockedRanges.map((range, index) => (
+                  <div key={`range-${index}`} className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 p-3">
                     <div>
-                      <p className="font-medium text-sm">
-                        {startLabel} → {endLabel}
-                      </p>
+                      <div className="text-sm font-medium text-rose-900">
+                        {new Date(range.startDate).toLocaleString()}{" -> "}{new Date(range.endDate).toLocaleString()}
+                      </div>
                       {range.reason && (
-                        <p className="text-sm text-muted-foreground">{range.reason}</p>
+                        <div className="text-xs text-rose-700">{range.reason}</div>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeBlockedRange(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => openEditRange(index)}
+                        variant="ghost"
+                        size="sm"
+                        disabled={saving}
+                        className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        onClick={() => removeBlockedRange(index)}
+                        variant="ghost"
+                        size="sm"
+                        disabled={saving}
+                        className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
+                        aria-label="Remove blocked period"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-muted-foreground">
+                No blocked periods yet.
+              </div>
+            )}
+          </div>
+
+          {availabilityData && (
+            <WeeklyAvailabilityCalendar
+              title="Weekly Availability"
+              description="Hover for details. Click personal blocks to edit. Click bookings to view."
+              events={calendarEvents}
+              dayStart={scheduleWindow.dayStart}
+              dayEnd={scheduleWindow.dayEnd}
+              onEventClick={(event) => {
+                if (event.type === 'personal' && typeof event.meta?.rangeIndex === 'number') {
+                  openEditRange(event.meta.rangeIndex)
+                }
+                if (
+                  (event.type === 'booking' || event.type === 'booking-buffer') &&
+                  event.meta?.bookingId
+                ) {
+                  router.push(`/bookings/${event.meta.bookingId}`)
+                }
+              }}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Company Working Hours
+              </CardTitle>
+              <CardDescription>
+                Read-only. Working hours follow the company schedule.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchAvailability}
+              disabled={saving}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {availabilityData?.availability ? (
+            <div className="space-y-2">
+              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
+                const dayData = availabilityData.availability[day]
+                const label = day.charAt(0).toUpperCase() + day.slice(1)
+                return (
+                  <div key={day} className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{label}</span>
+                    {dayData?.available ? (
+                      <span className="text-green-600">
+                        {dayData.startTime || '09:00'} - {dayData.endTime || '17:00'}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Not available</span>
+                    )}
                   </div>
                 )
               })}
             </div>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              No company schedule set.
+            </div>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Save Button */}
-        <div className="flex justify-end pt-4">
-          <Button onClick={handleSaveBlockedDates} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            <Save className="h-4 w-4 mr-2" />
-            Save Blocked Dates
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <Dialog
+        open={!!editingRange}
+        onOpenChange={(open) => {
+          if (!open) setEditingRange(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Blocked Period</DialogTitle>
+            <DialogDescription>Adjust the time range or remove the block.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="edit-employee-start">Start</Label>
+                <Input
+                  id="edit-employee-start"
+                  type="datetime-local"
+                  value={editingRange?.startValue || ''}
+                  min={toLocalInputValue(new Date().toISOString())}
+                  onChange={(e) =>
+                    setEditingRange((prev) =>
+                      prev ? { ...prev, startValue: e.target.value } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-employee-end">End</Label>
+                <Input
+                  id="edit-employee-end"
+                  type="datetime-local"
+                  value={editingRange?.endValue || ''}
+                  min={editingRange?.startValue || toLocalInputValue(new Date().toISOString())}
+                  onChange={(e) =>
+                    setEditingRange((prev) =>
+                      prev ? { ...prev, endValue: e.target.value } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-employee-reason">Reason (optional)</Label>
+                <Input
+                  id="edit-employee-reason"
+                  value={editingRange?.reason || ''}
+                  onChange={(e) =>
+                    setEditingRange((prev) =>
+                      prev ? { ...prev, reason: e.target.value } : prev
+                    )
+                  }
+                  placeholder="Vacation, appointment, etc."
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <Button variant="destructive" disabled={saving} onClick={deleteBlockedRange}>
+                Remove Block
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setEditingRange(null)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button onClick={updateBlockedRange} disabled={saving}>
+                  {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

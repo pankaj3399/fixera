@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +29,8 @@ import {
   ChevronRight
 } from "lucide-react"
 import { toast } from "sonner"
-import { toLocalInputValue } from "@/lib/dateUtils"
+import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
+import { parseTimeToMinutes, minutesToTime, getScheduleWindow } from "@/lib/scheduleUtils"
 
 type Day =
   | 'monday'
@@ -48,7 +50,6 @@ interface DayAvailability {
 type WeeklyAvailability = {
   [day in Day]: DayAvailability;
 };
-
 
 interface Employee {
   _id: string
@@ -82,34 +83,8 @@ interface Employee {
   }[]
 }
 
-// Canonical date value extractor - handles string, Date, {$date: string}, null, undefined
-// Returns validated date string or null
-type DateInput = string | Date | { $date: string } | null | undefined;
-
-const getDateValue = (dateValue: DateInput): string | null => {
-  if (!dateValue) return null;
-
-  // Handle MongoDB Extended JSON format {$date: "..."}
-  if (typeof dateValue === 'object' && dateValue !== null && '$date' in dateValue) {
-    const parsed = new Date(dateValue.$date);
-    return isNaN(parsed.getTime()) ? null : dateValue.$date;
-  }
-
-  // Handle Date objects
-  if (dateValue instanceof Date) {
-    return isNaN(dateValue.getTime()) ? null : dateValue.toISOString();
-  }
-
-  // Handle string dates - validate by parsing
-  if (typeof dateValue === 'string') {
-    const parsed = new Date(dateValue);
-    return isNaN(parsed.getTime()) ? null : dateValue;
-  }
-
-  return null;
-};
-
 export default function EmployeeManagement() {
+  const router = useRouter()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
@@ -152,6 +127,11 @@ export default function EmployeeManagement() {
     endValue: string;
     reason: string;
   } | null>(null)
+
+  const scheduleWindow = useMemo(
+    () => getScheduleWindow(availabilityDialog?.availability),
+    [availabilityDialog?.availability]
+  )
 
   // Pagination states
   const EMPLOYEES_PER_PAGE = 10
@@ -385,18 +365,6 @@ export default function EmployeeManagement() {
     }
   }
 
-  const toIsoDateTime = (value: DateInput, isEnd = false): string | null => {
-    const dateStr = getDateValue(value);
-    if (!dateStr) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      const suffix = isEnd ? 'T23:59:59' : 'T00:00:00';
-      const parsed = new Date(`${dateStr}${suffix}`);
-      return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-    }
-    const parsed = new Date(dateStr);
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-  };
-
   const formatDateTimeSafe = (value: DateInput): string => {
     const dateStr = getDateValue(value);
     if (!dateStr) return 'Invalid Date';
@@ -542,8 +510,7 @@ export default function EmployeeManagement() {
         meta: {
           bookingId: range.bookingId,
           location: range.location
-        },
-        readOnly: true
+        }
       })
     })
 
@@ -1135,7 +1102,7 @@ export default function EmployeeManagement() {
           <DialogHeader>
             <DialogTitle>Manage Availability - {availabilityDialog?.name}</DialogTitle>
             <DialogDescription>
-              Set blocked periods for this employee. Working hours are fixed to Monday-Friday, 09:00-17:00.
+              Set blocked periods for this employee. Working hours follow the company schedule and are read-only.
             </DialogDescription>
           </DialogHeader>
 
@@ -1220,17 +1187,25 @@ export default function EmployeeManagement() {
 
             <WeeklyAvailabilityCalendar
               title="Weekly Availability"
-              description="Hover for details. Click personal blocks to edit."
+              description="Hover for details. Click personal blocks to edit. Click bookings to view."
               events={calendarEvents}
+              dayStart={scheduleWindow.dayStart}
+              dayEnd={scheduleWindow.dayEnd}
               onEventClick={(event) => {
                 if (event.type === 'personal' && typeof event.meta?.rangeIndex === 'number') {
                   openEditRange(event.meta.rangeIndex)
+                }
+                if (
+                  (event.type === 'booking' || event.type === 'booking-buffer') &&
+                  event.meta?.bookingId
+                ) {
+                  router.push(`/bookings/${event.meta.bookingId}`)
                 }
               }}
             />
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-              Working hours are fixed to Monday-Friday, 09:00-17:00.
+              Working hours follow the company schedule and are read-only.
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

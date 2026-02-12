@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import AddressAutocomplete from '@/components/professional/project-wizard/AddressAutocomplete';
 import {
   ArrowLeft,
   Calendar,
@@ -360,6 +361,9 @@ export default function ProjectBookingForm({
     []
   );
   const [additionalNotes, setAdditionalNotes] = useState('');
+  const [useProfileAddress, setUseProfileAddress] = useState(true);
+  const [manualAddress, setManualAddress] = useState('');
+  const [isServiceAddressValid, setIsServiceAddressValid] = useState(false);
   const selectedPackage =
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
@@ -1498,57 +1502,6 @@ export default function ProjectBookingForm({
     )} (${durationLabel})`;
   };
 
-  /**
-   * Convert a time slot from professional's timezone to UTC and viewer's timezone
-   * Returns formatted strings for display
-   */
-  const convertTimeSlotToTimezones = (
-    timeSlot: string
-  ): { utc: string; viewer: string; professional: string } => {
-    if (!selectedDate || !timeSlot) {
-      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot };
-    }
-
-    const baseTimezone = normalizeTimezone(professionalTimezone);
-
-    try {
-      const localDateTime = `${selectedDate}T${timeSlot}:00`;
-      const utcDateTime =
-        baseTimezone === 'UTC'
-          ? new Date(`${localDateTime}Z`)
-          : fromZonedTime(localDateTime, baseTimezone);
-
-      const formatTimeOnly = (date: Date, tz: string) => {
-        try {
-          return formatInTimeZone(date, tz, 'h:mm a');
-        } catch {
-          return timeSlot;
-        }
-      };
-
-      const utcTime = formatTimeOnly(utcDateTime, 'UTC');
-      const viewerTime = formatTimeOnly(utcDateTime, viewerTimeZone);
-      const professionalTime = formatTimeOnly(utcDateTime, baseTimezone);
-
-      return {
-        utc: utcTime,
-        viewer: viewerTime,
-        professional: professionalTime,
-      };
-    } catch (error) {
-      debugError?.('Error converting timezone:', error);
-      return { utc: timeSlot, viewer: timeSlot, professional: timeSlot };
-    }
-  };
-
-  const selectedTimeConversion = useMemo(() => {
-    if (!selectedTime) {
-      return null;
-    }
-
-    return convertTimeSlotToTimezones(selectedTime);
-  }, [selectedTime, selectedDate, professionalTimezone, viewerTimeZone]);
-
   // Check if a time slot is in the past for today's date
   const isTimeSlotPast = (timeSlot: string): boolean => {
     if (!selectedDate) return false;
@@ -1610,7 +1563,7 @@ export default function ProjectBookingForm({
 
     const debugSummary = debugDateKeys.map((dateKey) => {
       const dateObj = fromProfessionalDateKey(dateKey);
-      const isWorking = isProfessionalWorkingDay(dateObj) && !isWeekend(dateObj);
+      const isWorking = isProfessionalWorkingDay(dateObj);
       const explicitBlocked = blockedDates.blockedDates.includes(dateKey);
       const intervals = getBlockedIntervalsForDate(dateObj);
       const { blockedHours, workingHours } = computeBlockedHoursForIntervals(
@@ -1682,13 +1635,8 @@ export default function ProjectBookingForm({
       disabledMatchers.push(rangeBlockMatcher);
     }
 
-    // Only include non-weekday working days (not weekends) in the blocked style
-    // Weekends are handled separately with the "weekend" modifier for different styling
+    // Include any non-working day based on professional availability
     const nonWorkingDayMatcher = (date: Date) => {
-      // If it's a weekend, don't mark as disabled here (weekend modifier handles it)
-      if (isWeekend(date)) {
-        return false;
-      }
       return !isProfessionalWorkingDay(date);
     };
 
@@ -1909,6 +1857,22 @@ export default function ProjectBookingForm({
     }
 
     if (currentStep === 4) {
+      if (useProfileAddress) {
+        if (!hasProfileAddress) {
+          toast.error('Please add an address to your profile or enter one.');
+          return false;
+        }
+        if (!isServiceAddressValid) {
+          toast.error('Please confirm your profile address.');
+          return false;
+        }
+      } else if (!manualAddress.trim()) {
+        toast.error('Please enter the service address.');
+        return false;
+      } else if (!isServiceAddressValid) {
+        toast.error('Please select a valid address from the suggestions.');
+        return false;
+      }
     }
 
     return true;
@@ -1974,7 +1938,10 @@ export default function ProjectBookingForm({
       const additionalNotesText = additionalNotes
         ? ` Additional notes: ${additionalNotes}`
         : '';
-      const serviceDescription = `Booking for ${project.title}. Selected package: ${selectedPackage.name}.${usageDetails}${additionalNotesText}`;
+      const addressText = confirmedAddress
+        ? ` Service address: ${confirmedAddress}.`
+        : '';
+      const serviceDescription = `Booking for ${project.title}. Selected package: ${selectedPackage.name}.${usageDetails}${additionalNotesText}${addressText}`;
       const totalPrice = calculateTotal();
 
       const bookingData = {
@@ -2185,6 +2152,71 @@ export default function ProjectBookingForm({
     }
     return parsed;
   })();
+
+  const countWorkingDaysBetweenDates = useCallback(
+    (startDateStr: string, endDateStr: string): number => {
+      const start = parseISO(startDateStr);
+      const end = parseISO(endDateStr);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return 0;
+      }
+      if (start.getTime() > end.getTime()) {
+        return 0;
+      }
+      if (!professionalAvailability) {
+        return Math.max(1, differenceInCalendarDays(end, start) + 1);
+      }
+
+      const dayNames: Array<keyof ProfessionalAvailability> = [
+        'sunday',
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+      ];
+
+      const getWeekdayKey = (dateStr: string): keyof ProfessionalAvailability => {
+        const dayStartUtc = fromZonedTime(`${dateStr}T00:00:00`, professionalTz);
+        const weekdayName = formatInTimeZone(dayStartUtc, professionalTz, 'eeee').toLowerCase();
+        const index = dayNames.indexOf(
+          weekdayName as keyof ProfessionalAvailability
+        );
+        return index >= 0 ? dayNames[index] : 'monday';
+      };
+
+      const addDaysToDateStr = (dateStr: string, days: number): string => {
+        const dayStartUtc = fromZonedTime(
+          `${dateStr}T00:00:00`,
+          professionalTz
+        );
+        const dayStartZoned = toZonedTime(dayStartUtc, professionalTz);
+        const nextDayZoned = addDays(dayStartZoned, days);
+        const nextDayUtc = fromZonedTime(nextDayZoned, professionalTz);
+        return formatInTimeZone(nextDayUtc, professionalTz, 'yyyy-MM-dd');
+      };
+
+      let count = 0;
+      let cursorStr = startDateStr;
+      const maxIterations = 366 * 5;
+      let iterations = 0;
+
+      while (iterations < maxIterations && parseISO(cursorStr) <= end) {
+        const weekdayKey = getWeekdayKey(cursorStr);
+        const dayAvailability = professionalAvailability[weekdayKey];
+        if (dayAvailability?.available !== false) {
+          count += 1;
+        }
+        cursorStr = addDaysToDateStr(cursorStr, 1);
+        iterations += 1;
+      }
+
+      return count;
+    },
+    [professionalAvailability, professionalTz]
+  );
+
   const throughputSuggestion = useMemo(() => {
     if (projectMode !== 'days' || !selectedDate || !professionalAvailability) {
       return null;
@@ -2212,71 +2244,10 @@ export default function ProjectBookingForm({
       'yyyy-MM-dd'
     );
 
-    const dayNames: Array<keyof ProfessionalAvailability> = [
-      'sunday',
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
-    ];
-
-    const getWeekdayKey = (dateStr: string): keyof ProfessionalAvailability => {
-      const dayStartUtc = fromZonedTime(`${dateStr}T00:00:00`, professionalTz);
-      const weekdayName = formatInTimeZone(dayStartUtc, professionalTz, 'eeee').toLowerCase();
-      const index = dayNames.indexOf(
-        weekdayName as keyof ProfessionalAvailability
-      );
-      return index >= 0 ? dayNames[index] : 'monday';
-    };
-
-    const addDaysToDateStr = (dateStr: string, days: number): string => {
-      const dayStartUtc = fromZonedTime(
-        `${dateStr}T00:00:00`,
-        professionalTz
-      );
-      const dayStartZoned = toZonedTime(dayStartUtc, professionalTz);
-      const nextDayZoned = addDays(dayStartZoned, days);
-      const nextDayUtc = fromZonedTime(nextDayZoned, professionalTz);
-      return formatInTimeZone(nextDayUtc, professionalTz, 'yyyy-MM-dd');
-    };
-
-    const countWorkingDaysBetween = (
-      startDateStr: string,
-      endDateStr: string
-    ): number => {
-      const start = parseISO(startDateStr);
-      const end = parseISO(endDateStr);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return 0;
-      }
-      if (start.getTime() > end.getTime()) {
-        return 0;
-      }
-
-      let count = 0;
-      let cursorStr = startDateStr;
-      const maxIterations = 366 * 5;
-      let iterations = 0;
-
-      while (iterations < maxIterations && parseISO(cursorStr) <= end) {
-        const weekdayKey = getWeekdayKey(cursorStr);
-        const dayAvailability = professionalAvailability[weekdayKey];
-        if (dayAvailability?.available !== false) {
-          count += 1;
-        }
-        cursorStr = addDaysToDateStr(cursorStr, 1);
-        iterations += 1;
-      }
-
-      return count;
-    };
-
     const throughputDays =
       typeof scheduleWindow?.throughputDays === 'number'
         ? scheduleWindow.throughputDays
-        : countWorkingDaysBetween(selectedDate, endDateStrInProfessionalTz);
+        : countWorkingDaysBetweenDates(selectedDate, endDateStrInProfessionalTz);
     const suggestionLimit = executionDays * THROUGHPUT_SUGGESTION_MULTIPLIER;
 
     return {
@@ -2295,6 +2266,7 @@ export default function ProjectBookingForm({
     scheduleWindowCompletionDate,
     professionalTz,
     scheduleWindow?.throughputDays,
+    countWorkingDaysBetweenDates,
   ]);
 
   // Debug log for completion date display
@@ -2331,15 +2303,9 @@ export default function ProjectBookingForm({
         return { startDate: startUtc, endDate: endUtc, totalDays: 1 };
       }
 
-      // Use toZonedTime ONLY for calendar day calculations (not for display)
-      // This ensures differenceInCalendarDays counts days in the professional's timezone
-      const startZoned = toZonedTime(startUtc, tz);
-      const endZoned = toZonedTime(endUtc, tz);
-
-      const totalDays = Math.max(
-        1,
-        differenceInCalendarDays(endZoned, startZoned) + 1
-      );
+      const startKey = formatInTimeZone(startUtc, tz, 'yyyy-MM-dd');
+      const endKey = formatInTimeZone(endUtc, tz, 'yyyy-MM-dd');
+      const totalDays = Math.max(1, countWorkingDaysBetweenDates(startKey, endKey));
       // Return UTC dates - formatInTimeZone will convert them correctly for display
       return { startDate: startUtc, endDate: endUtc, totalDays };
     } catch (error) {
@@ -2359,6 +2325,21 @@ export default function ProjectBookingForm({
     typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null;
   const customerLon =
     typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null;
+  const profileAddress = useMemo(() => {
+    if (!user?.location) return '';
+    const parts = [
+      user.location.address,
+      user.location.city,
+      user.location.postalCode,
+      user.location.country,
+    ].filter(Boolean);
+    return parts.join(', ');
+  }, [user]);
+  const hasProfileAddress = Boolean(profileAddress);
+  const confirmedAddress = useMemo(
+    () => (useProfileAddress ? profileAddress : manualAddress.trim()),
+    [useProfileAddress, profileAddress, manualAddress]
+  );
   const serviceLocation = project.distance?.location?.coordinates;
   const serviceLat =
     typeof serviceLocation?.[1] === 'number' ? serviceLocation[1] : null;
@@ -2473,6 +2454,12 @@ export default function ProjectBookingForm({
     const minQty = minOrderQuantity ?? 1;
     setEstimatedUsage((prev) => Math.max(minQty, prev || minQty));
   }, [selectedPackage, minOrderQuantity]);
+
+  useEffect(() => {
+    if (!hasProfileAddress && useProfileAddress) {
+      setUseProfileAddress(false);
+    }
+  }, [hasProfileAddress, useProfileAddress]);
 
   useEffect(() => {
     if (projectMode === 'hours') {
@@ -2790,13 +2777,6 @@ export default function ProjectBookingForm({
                               }
                               onSelect={(date) => {
                                 if (date) {
-                                  // Prevent selection of weekends
-                                  if (isWeekend(date)) {
-                                    toast.error(
-                                      'Weekends are not available for booking'
-                                    );
-                                    return;
-                                  }
                                   // Prevent selection of other non-working days
                                   if (!isProfessionalWorkingDay(date)) {
                                     toast.error(
@@ -2831,7 +2811,8 @@ export default function ProjectBookingForm({
                                 ...getDisabledDays(),
                               ]}
                               modifiers={{
-                                weekend: isWeekend, // Style weekends differently from blocked (gray, not red)
+                                weekend: (date) =>
+                                  isWeekend(date) && !isProfessionalWorkingDay(date),
                                 blocked: (date) =>
                                   isDateBlocked(toLocalDateKey(date)),
                                 nonWorking: (date) =>
@@ -2927,14 +2908,6 @@ export default function ProjectBookingForm({
                           <p className='text-sm text-gray-600 mt-1 mb-2'>
                             Choose your preferred start time.
                           </p>
-                          <div className='text-xs text-gray-500 space-y-1'>
-                            <p>
-                              Times shown in professional&apos;s timezone (
-                              {professionalTimezone})
-                              {viewerTimeZone !== professionalTimezone &&
-                                ` / Your timezone: ${viewerTimeZone}`}
-                            </p>
-                          </div>
                         </div>
 
                         {generateTimeSlots().length === 0 ? (
@@ -2962,10 +2935,6 @@ export default function ProjectBookingForm({
                             {generateTimeSlots().map((timeSlot) => {
                               const isPast = isTimeSlotPast(timeSlot);
                               const isSelected = selectedTime === timeSlot;
-                              const times =
-                                convertTimeSlotToTimezones(timeSlot);
-                              const showLocalTime =
-                                times.viewer !== times.professional;
 
                               return (
                                 <button
@@ -2975,11 +2944,6 @@ export default function ProjectBookingForm({
                                     !isPast && setSelectedTime(timeSlot)
                                   }
                                   disabled={isPast}
-                                  title={
-                                    showLocalTime
-                                      ? `${times.viewer} in your timezone`
-                                      : undefined
-                                  }
                                   className={`
                                     px-2 py-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center
                                     ${
@@ -2992,17 +2956,6 @@ export default function ProjectBookingForm({
                                   `}
                                 >
                                   <span>{timeSlot}</span>
-                                  {showLocalTime && (
-                                    <span
-                                      className={`text-[10px] ${
-                                        isSelected
-                                          ? 'text-blue-100'
-                                          : 'text-gray-400'
-                                      }`}
-                                    >
-                                      ({times.viewer})
-                                    </span>
-                                  )}
                                 </button>
                               );
                             })}
@@ -3015,26 +2968,6 @@ export default function ProjectBookingForm({
                               Suggested dates
                             </p>
                             <div className='flex flex-wrap gap-2'>
-                              {shortestThroughputDetails && (
-                                <Button
-                                  type='button'
-                                  variant='outline'
-                                  size='sm'
-                                  onClick={handleApplyShortestWindow}
-                                >
-                                  Shortest consecutive window:{' '}
-                                  {`${formatInTimeZone(
-                                    shortestThroughputDetails.startDate,
-                                    normalizeTimezone(professionalTimezone),
-                                    'MMM d, yyyy'
-                                  )} - ${formatInTimeZone(
-                                    shortestThroughputDetails.endDate,
-                                    normalizeTimezone(professionalTimezone),
-                                    'MMM d, yyyy'
-                                  )}`}
-                                </Button>
-                              )}
-
                               {proposals.earliestProposal && (
                                 <Button
                                   type='button'
@@ -3042,25 +2975,35 @@ export default function ProjectBookingForm({
                                   size='sm'
                                   onClick={() => {
                                     const tz = normalizeTimezone(professionalTimezone);
-                                    const start = proposals.earliestProposal?.start
+                                    const startInstant = proposals.earliestProposal?.start
                                       ? formatInTimeZone(
                                           parseISO(proposals.earliestProposal.start),
                                           tz,
                                           'yyyy-MM-dd'
                                         )
                                       : '';
-                                    if (start && !isDateBlocked(start)) {
+                                    const startTime = proposals.earliestProposal?.start
+                                      ? formatInTimeZone(
+                                          parseISO(proposals.earliestProposal.start),
+                                          tz,
+                                          'HH:mm'
+                                        )
+                                      : '';
+                                    if (startInstant && !isDateBlocked(startInstant)) {
                                       setHasUserSelectedDate(true);
-                                      setSelectedDate(start);
+                                      setSelectedDate(startInstant);
+                                      if (startTime) {
+                                        setSelectedTime(startTime);
+                                      }
                                     }
                                   }}
                                 >
-                                  First Available Date :{' '}
+                                  First Available Time:{' '}
                                   {proposals.earliestProposal.start &&
                                     formatInTimeZone(
                                       parseISO(proposals.earliestProposal.start),
                                       normalizeTimezone(professionalTimezone),
-                                      'MMM d, yyyy'
+                                      'MMM d, yyyy h:mm a'
                                     )}
                                 </Button>
                               )}
@@ -3070,20 +3013,9 @@ export default function ProjectBookingForm({
                         {selectedTime && (
                           <div className='bg-green-50 border border-green-200 rounded-lg p-3 space-y-1'>
                             <p className='text-sm text-green-900'>
-                              <strong>
-                                Professional&apos;s time ({professionalTimezone}
-                                ):
-                              </strong>{' '}
+                              <strong>Selected time:</strong>{' '}
                               {formatTimeRange(selectedTime)}
                             </p>
-                            {selectedTimeConversion &&
-                              selectedTimeConversion.viewer !==
-                                selectedTimeConversion.professional && (
-                                <p className='text-xs text-green-700'>
-                                  <strong>Your time ({viewerTimeZone}):</strong>{' '}
-                                  {selectedTimeConversion.viewer}
-                                </p>
-                              )}
                           </div>
                         )}
                       </div>
@@ -3129,7 +3061,7 @@ export default function ProjectBookingForm({
                                 : null}
                             </p>
                             <p className='text-xs text-blue-700 italic'>
-                              Weekends and blocked dates are skipped
+                              Non-working days and blocked dates are skipped
                               automatically when calculating this estimate.
                             </p>
                           </>
@@ -3152,6 +3084,7 @@ export default function ProjectBookingForm({
                             </p>
                           )}
                         {projectMode === 'days' &&
+                          !hasUserSelectedDate &&
                           shortestThroughputDetails && (
                             <div className='border-t border-blue-300 pt-3 space-y-3'>
                               <div className='flex flex-col gap-1'>
@@ -3540,7 +3473,7 @@ export default function ProjectBookingForm({
                             : null}
                         </p>
                         <p className='text-xs text-gray-600 italic'>
-                          Weekends and blocked dates are automatically excluded
+                          Non-working days and blocked dates are automatically excluded
                           from this estimate.
                         </p>
                       </>
@@ -3562,7 +3495,9 @@ export default function ProjectBookingForm({
                           suggested).
                         </p>
                       )}
-                    {projectMode === 'days' && shortestThroughputDetails && (
+                    {projectMode === 'days' &&
+                      !hasUserSelectedDate &&
+                      shortestThroughputDetails && (
                       <div className='border-t border-gray-300 pt-3 space-y-3'>
                         <div className='flex flex-col gap-1'>
                           <p className='text-sm font-semibold'>
@@ -3599,6 +3534,39 @@ export default function ProjectBookingForm({
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* Service Address Confirmation */}
+                <div className='space-y-3'>
+                  <h3 className='font-semibold'>Service Address</h3>
+                  <div className='bg-gray-50 p-4 rounded space-y-3'>
+                    <div className='flex items-center space-x-2'>
+                      <Checkbox
+                        id='use-profile-address'
+                        checked={useProfileAddress}
+                        onCheckedChange={(checked) => {
+                          const nextValue = Boolean(checked);
+                          setUseProfileAddress(nextValue);
+                          if (!nextValue && !manualAddress.trim() && profileAddress) {
+                            setManualAddress(profileAddress);
+                          }
+                        }}
+                        disabled={!hasProfileAddress}
+                      />
+                      <Label htmlFor='use-profile-address'>
+                        Same as profile address
+                      </Label>
+                    </div>
+                    <AddressAutocomplete
+                      value={manualAddress}
+                      onChange={(address) => setManualAddress(address)}
+                      onValidation={setIsServiceAddressValid}
+                      useCompanyAddress={useProfileAddress}
+                      companyAddress={profileAddress}
+                      label='Service Address'
+                      required
+                    />
                   </div>
                 </div>
 

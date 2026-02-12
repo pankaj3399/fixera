@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   Loader2, Hammer, Zap, PaintBucket, Wrench, Palette, Fan, Thermometer,
@@ -18,6 +19,10 @@ interface Category {
   slug: string;
   services: Service[];
 }
+
+// Shared constant for dropdown width — used in both the portal style and
+// the viewport-clamping logic inside handleMouseEnter.
+const DROPDOWN_WIDTH = 288; // matches w-72 (18rem × 16px)
 
 const getServiceIcon = (slug: string) => {
   const s = slug.toLowerCase();
@@ -46,9 +51,22 @@ const getServiceIcon = (slug: string) => {
 const SubNavbar = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetchCategories();
+  }, []);
+
+  // Clear any pending hover timeout on unmount to avoid state updates after cleanup
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
   }, []);
 
   const fetchCategories = async () => {
@@ -67,6 +85,45 @@ const SubNavbar = () => {
     }
   };
 
+  const handleMouseEnter = useCallback((categoryName: string) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    const el = categoryRefs.current.get(categoryName);
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const left = Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - 8);
+      setDropdownPos({ top: rect.bottom, left: Math.max(8, left) });
+    }
+    setHoveredCategory(categoryName);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredCategory(null);
+      setDropdownPos(null);
+    }, 150);
+  }, []);
+
+  const handleDropdownEnter = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleDropdownLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredCategory(null);
+      setDropdownPos(null);
+    }, 150);
+  }, []);
+
+  const hoveredCategoryData = categories.find(c => c.name === hoveredCategory);
+
   if (isLoading) {
     return (
       <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky top-16 z-40">
@@ -80,44 +137,77 @@ const SubNavbar = () => {
   }
 
   return (
-    <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky top-16 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-12">
-          {categories.map((category) => (
-            <div
-              key={category.name}
-              className="group relative h-full flex items-center"
-            >
-              <Link
-                href={`/categories/${category.slug}`}
-                className="px-3 text-gray-600 hover:text-blue-600 group  font-medium transition-colors duration-200 h-full flex items-center border-b-2 border-transparent group-hover:border-blue-600"
+    <>
+      <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky top-16 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-auto scrollbar-hide">
+          <div className="flex justify-between items-center h-12 min-w-full">
+            {categories.map((category) => (
+              <div
+                key={category.name}
+                ref={(el) => {
+                  if (el) categoryRefs.current.set(category.name, el);
+                }}
+                role="menuitem"
+                aria-haspopup="true"
+                aria-expanded={hoveredCategory === category.name}
+                className="h-full flex items-center shrink-0"
+                onMouseEnter={() => handleMouseEnter(category.name)}
+                onMouseLeave={handleMouseLeave}
+                onFocus={() => handleMouseEnter(category.name)}
+                onBlur={handleMouseLeave}
               >
-                {category.name}
-              </Link>
-
-              {/* --- Dropdown Menu --- */}
-              <div className="absolute top-full left-0 mt-0 w-72 bg-white rounded-b-lg shadow-2xl border-x border-b group-hover:opacity-100 hidden group-hover:block border-gray-200 opacity-0 z-50 transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 max-h-96 overflow-y-auto">
-                <div className="py-4">
-                  <ul className="px-4 space-y-1">
-                    {category.services.map((service) => (
-                      <li key={service.slug}>
-                        <Link
-                          href={`/services/${service.slug}`}
-                          className="flex items-center gap-3 text-gray-700 hover:text-blue-600 hover:bg-gray-50 p-2.5 rounded-md transition-colors"
-                        >
-                          {React.createElement(getServiceIcon(service.slug), { className: "w-4 h-4 text-blue-500" })}
-                          {service.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <Link
+                  href={`/categories/${category.slug}`}
+                  className={`px-3 text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200 h-full flex items-center border-b-2 whitespace-nowrap ${
+                    hoveredCategory === category.name
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent'
+                  }`}
+                >
+                  {category.name}
+                </Link>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Dropdown rendered via portal to escape overflow clipping */}
+      {hoveredCategoryData && dropdownPos && typeof document !== 'undefined' && createPortal(
+        <div
+          role="menu"
+          className="bg-white rounded-b-lg shadow-2xl border border-t-0 border-gray-200 z-[9999] max-h-96 overflow-y-auto"
+          style={{
+            position: 'fixed',
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: DROPDOWN_WIDTH,
+          }}
+          onMouseEnter={handleDropdownEnter}
+          onMouseLeave={handleDropdownLeave}
+          onFocus={handleDropdownEnter}
+          onBlur={handleDropdownLeave}
+        >
+          <div className="py-4">
+            <ul className="px-4 space-y-1">
+              {hoveredCategoryData.services.map((service) => (
+                <li key={service.slug} role="none">
+                  <Link
+                    role="menuitem"
+                    href={`/services/${service.slug}`}
+                    className="flex items-center gap-3 text-gray-700 hover:text-blue-600 hover:bg-gray-50 p-2.5 rounded-md transition-colors"
+                  >
+                    {React.createElement(getServiceIcon(service.slug), { className: "w-4 h-4 text-blue-500" })}
+                    {service.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 

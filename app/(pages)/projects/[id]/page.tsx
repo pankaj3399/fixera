@@ -334,12 +334,19 @@ export default function ProjectDetailPage() {
   const estimatedCompletionLabels = includeTime
     ? formatProfessionalViewerLabel(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone)
     : formatDateOnlyProfessionalViewer(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone);
-  const shortestThroughputLabels = formatWindowProfessionalViewer(
-    proposals?.shortestThroughputProposal,
-    professionalTimeZone,
-    viewerTimeZone,
-    includeTime
-  );
+  const shortestThroughputLabels = !includeTime
+    ? formatWindowProfessionalViewer(
+        proposals?.shortestThroughputProposal,
+        professionalTimeZone,
+        viewerTimeZone,
+        includeTime
+      )
+    : null;
+  const firstAvailableSingleLabel = includeTime
+    ? (firstAvailableWindowLabels?.professionalLabel ||
+        firstAvailableDateLabels?.professionalLabel ||
+        null)
+    : null;
 
   const priceModelLabel = project.priceModel
     ? formatPriceModelLabel(project.priceModel)
@@ -526,12 +533,16 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
 
-                {(firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels) && (
+                {(firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels || firstAvailableSingleLabel) && (
                   <div className='grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t'>
                     {(firstAvailableWindowLabels || firstAvailableDateLabels) && (
                       <div className='space-y-1'>
                         <p className='text-sm text-gray-500'>First Available</p>
-                        {firstAvailableWindowLabels ? (
+                        {includeTime && firstAvailableSingleLabel ? (
+                          <p className='font-medium text-gray-900'>
+                            {firstAvailableSingleLabel}
+                          </p>
+                        ) : firstAvailableWindowLabels ? (
                           <>
                             <p className='font-medium text-gray-900'>
                               Professional ({firstAvailableWindowLabels.professionalZone}): {firstAvailableWindowLabels.professionalLabel}
@@ -550,13 +561,10 @@ export default function ProjectDetailPage() {
                             </p>
                           </>
                         ) : null}
-                        {estimatedCompletionLabels && (
+                        {!includeTime && estimatedCompletionLabels && (
                           <div className='mt-2'>
                             <p className='text-xs text-gray-500'>
-                              Completion (Professional): {estimatedCompletionLabels.professionalLabel}
-                            </p>
-                            <p className='text-xs text-gray-500'>
-                              Completion (Your time): {estimatedCompletionLabels.viewerLabel}
+                              Completion: {estimatedCompletionLabels.viewerLabel}
                             </p>
                           </div>
                         )}

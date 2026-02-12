@@ -11,8 +11,9 @@ const iconMap: { [key: string]: React.ElementType } = {
   Users, Shield, Clock, Star
 };
 
+// Helper Icon Component
 const Icon = ({ name, className }: { name: string; className?: string }) => {
-  const LucideIcon = iconMap[name];
+  const LucideIcon = iconMap[name as keyof typeof iconMap];
   return LucideIcon ? <LucideIcon className={className} /> : null;
 };
 
@@ -47,9 +48,9 @@ const CTASection = () => {
                 I Need a Service
               </Link>
             </Button>
-            
+
             <div className="text-blue-100 font-medium">or</div>
-            
+
             <Button asChild size="lg" variant="outline" className="border-2 border-white text-blue-400 hover:bg-white hover:text-blue-600 px-10 py-5 text-xl font-bold rounded-full transition-all duration-300 hover:scale-105">
               <Link href="#professionals">
                 <Users className="w-6 h-6 mr-3" />
@@ -62,7 +63,7 @@ const CTASection = () => {
             {quickStats.map((stat) => (
               <div key={stat.text} className="flex flex-col items-center text-center">
                 <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
-                  <Icon name={stat.icon} className="w-6 h-6"/>
+                  <Icon name={stat.icon} className="w-6 h-6" />
                 </div>
                 <span className="text-blue-100 font-medium">{stat.text}</span>
               </div>

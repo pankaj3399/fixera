@@ -2,7 +2,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { companyValues } from '@/data/content';
-import Icon from '@/components/Icon';
+import Icon, { IconName } from '@/components/Icon';
 
 const AboutHero = () => {
   return (
@@ -17,8 +17,8 @@ const AboutHero = () => {
       <div className="max-w-5xl mx-auto mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 px-4">
         {companyValues.map(value => (
           <div key={value.title} className="bg-white/5 p-6 rounded-lg border border-white/10 text-center">
-            <div className="inline-block p-4 bg-blue-500/10 rounded-lg mb-4">
-              <Icon name={value.icon} className="w-8 h-8 text-blue-300" />
+            <div className="inline-block p-4 bg-blue-600/10 rounded-lg mb-4">
+              <Icon name={value.icon as IconName} className="w-8 h-8 text-blue-300" />
             </div>
             <h3 className="text-xl font-semibold text-white">{value.title}</h3>
             <p className="mt-2 text-gray-400">{value.description}</p>

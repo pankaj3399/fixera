@@ -5,6 +5,46 @@
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { logError } from './logger';
 
+/**
+ * Converts total minutes since midnight to an HH:MM time string.
+ */
+export function minutesToTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+}
+
+/**
+ * Computes the earliest start and latest end across weekday availability,
+ * returning an object with dayStart and dayEnd time strings.
+ */
+export function getScheduleWindow(
+  availability?: Record<string, { available?: boolean; startTime?: string; endTime?: string }>
+): { dayStart: string; dayEnd: string } {
+  if (!availability) {
+    return { dayStart: '09:00', dayEnd: '17:00' }
+  }
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+  let min: number | null = null
+  let max: number | null = null
+
+  days.forEach((day) => {
+    const dayData = availability[day]
+    if (!dayData?.available) return
+    const start = parseTimeToMinutes(dayData.startTime || '09:00')
+    const end = parseTimeToMinutes(dayData.endTime || '17:00')
+    if (start === null || end === null || end <= start) return
+    min = min === null ? start : Math.min(min, start)
+    max = max === null ? end : Math.max(max, end)
+  })
+
+  if (min === null || max === null) {
+    return { dayStart: '09:00', dayEnd: '17:00' }
+  }
+
+  return { dayStart: minutesToTime(min), dayEnd: minutesToTime(max) }
+}
+
 // Type for daily availability schedule
 type DaySchedule = {
   available: boolean

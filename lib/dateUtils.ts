@@ -6,6 +6,47 @@ import { format } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 
 /**
+ * Flexible date input type that handles string, Date, MongoDB Extended JSON, null, and undefined.
+ */
+export type DateInput = string | Date | { $date: string } | null | undefined
+
+/**
+ * Canonical date value extractor - handles string, Date, {$date: string}, null, undefined.
+ * Returns validated date string or null.
+ */
+export function getDateValue(dateValue: DateInput): string | null {
+  if (!dateValue) return null
+  if (typeof dateValue === 'object' && dateValue !== null && '$date' in dateValue) {
+    const parsed = new Date(dateValue.$date)
+    return Number.isNaN(parsed.getTime()) ? null : dateValue.$date
+  }
+  if (dateValue instanceof Date) {
+    return Number.isNaN(dateValue.getTime()) ? null : dateValue.toISOString()
+  }
+  if (typeof dateValue === 'string') {
+    const parsed = new Date(dateValue)
+    return Number.isNaN(parsed.getTime()) ? null : dateValue
+  }
+  return null
+}
+
+/**
+ * Converts a DateInput to an ISO datetime string.
+ * For date-only strings (yyyy-MM-dd), appends T00:00:00 or T23:59:59 based on isEnd.
+ */
+export function toIsoDateTime(value: DateInput, isEnd = false): string | null {
+  const dateStr = getDateValue(value)
+  if (!dateStr) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const suffix = isEnd ? 'T23:59:59' : 'T00:00:00'
+    const parsed = new Date(`${dateStr}${suffix}`)
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+  }
+  const parsed = new Date(dateStr)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
+/**
  * Converts an ISO date string to a value suitable for datetime-local input.
  * Uses proper timezone-aware conversion via date-fns-tz to handle DST correctly.
  *

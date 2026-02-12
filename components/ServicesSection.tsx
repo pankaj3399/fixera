@@ -6,24 +6,23 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ArrowRight } from 'lucide-react'
-import { serviceCategories, iconMap } from '@/data/content'
+import { serviceCategories } from '@/data/content'
+import Icon, { IconName } from '@/components/Icon'
 
-// --- Helper Component for Icons ---
-const Icon = ({ name, className }: { name: string; className?: string }) => {
-  const LucideIcon = iconMap[name];
-  return LucideIcon ? <LucideIcon className={className} /> : null;
-};
+
+
+
 
 const ServiceCard = ({ service }: { service: any }) => {  //eslint-disable-line
-    return (
+  return (
     <Link href={`/services/${service.id}`} className="block group">
       <Card className="h-full hover:shadow-2xl transition-all duration-300 border-gray-200 hover:-translate-y-2 cursor-pointer overflow-hidden bg-white">
         <div className="relative">
           <div className="h-48 bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
             <div className="p-6 rounded-full bg-white shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <Icon 
-                name={service.icon || 'Wrench'} // Fallback icon
-                className="w-8 h-8 text-blue-600 group-hover:text-purple-600 transition-colors duration-300" 
+              <Icon
+                name={(service.icon || 'Wrench') as IconName} // Fallback icon
+                className="w-8 h-8 text-blue-600 group-hover:text-purple-600 transition-colors duration-300"
               />
             </div>
           </div>
@@ -56,7 +55,7 @@ const ServiceCard = ({ service }: { service: any }) => {  //eslint-disable-line
 // --- Main ServicesSection Component ---
 const ServicesSection = () => {
   // Create a curated list of featured services from your nested data
-  const featuredServices = serviceCategories.flatMap(cat => 
+  const featuredServices = serviceCategories.flatMap(cat =>
     cat.subCategories.flatMap(sub => sub.services)
   ).slice(0, 6); // Display the first 6 services as featured
 

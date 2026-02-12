@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Search, ArrowRight} from 'lucide-react'
+import { Search, ArrowRight } from 'lucide-react'
 import SearchAutocomplete from './search/SearchAutocomplete'
 import LocationAutocomplete, { type LocationData } from './search/LocationAutocomplete'
 import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { keyBenefits } from '@/data/content'
-import Icon from './Icon'
+import Icon, { IconName } from './Icon'
 
 
 
@@ -188,7 +188,7 @@ const HeroSection = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div className="lg:col-span-2">
                   <Button
                     type="submit"
@@ -232,21 +232,21 @@ const HeroSection = () => {
           </form>
 
           {/* Key Benefits Section */}
-        <div className="mt-10 pt-16 border-t border-gray-200">
+          <div className="mt-10 pt-16 border-t border-gray-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
-                {keyBenefits.map((benefit) => (
-                    <div key={benefit.title} className="flex items-start space-x-4">
-                        <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                           <Icon name={benefit.icon} className="w-6 h-6 text-blue-700"/>
-                        </div>
-                        <div>
-                            <h4 className="text-lg font-semibold text-gray-900">{benefit.title}</h4>
-                            <p className="mt-1 text-gray-600">{benefit.description}</p>
-                        </div>
-                    </div>
-                ))}
+              {keyBenefits.map((benefit) => (
+                <div key={benefit.title} className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Icon name={benefit.icon as IconName} className="w-6 h-6 text-blue-700" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">{benefit.title}</h4>
+                    <p className="mt-1 text-gray-600">{benefit.description}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-        </div>
+          </div>
         </div>
       </div>
     </section>

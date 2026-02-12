@@ -11,15 +11,15 @@ interface ProjectCardProps {
   project: {
     _id: string;
     title: string;
-  description: string;
-  category: string;
-  service: string;
-  areaOfWork?: string;
-  services?: Array<{
-    service?: string;
+    description: string;
+    category: string;
+    service: string;
     areaOfWork?: string;
-  }>;
-  timeMode?: 'hours' | 'days';
+    services?: Array<{
+      service?: string;
+      areaOfWork?: string;
+    }>;
+    timeMode?: 'hours' | 'days';
     executionDuration?: {
       value: number;
       unit: 'hours' | 'days';
@@ -269,11 +269,10 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                   e.stopPropagation();
                   setCurrentImageIndex(idx);
                 }}
-                className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${
-                  idx === currentImageIndex
+                className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${idx === currentImageIndex
                     ? 'bg-white w-4'
                     : 'bg-white/60 hover:bg-white/80'
-                }`}
+                  }`}
                 aria-label={`Go to image ${idx + 1}`}
               />
             ))}
@@ -293,11 +292,11 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
           </p>
 
           <div className="flex flex-wrap gap-2 mb-4">
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="outline" className="text-xs">
               {project.service}
             </Badge>
             {project.priceModel && (
-              <Badge variant="outline" className="text-xs">
+              <Badge className="text-xs bg-gradient-to-r from-blue-600 to-cyan-500 text-white border-0">
                 {formatPriceModelLabel(project.priceModel)}
               </Badge>
             )}
