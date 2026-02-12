@@ -157,6 +157,20 @@ interface UpdateVATResponse {
   user?: unknown;
 }
 
+interface ProfessionalBusinessInfoPayload {
+  companyName: string;
+  address: string;
+  city: string;
+  country: string;
+  postalCode: string;
+}
+
+interface MissingRequirementDetail {
+  code?: string;
+  type?: string;
+  message?: string;
+}
+
 export const validateAndPopulateVAT = async (vatNumber: string, autoPopulate: boolean = false): Promise<UpdateVATResponse & { 
   validationResult?: VatValidationResult;
   businessInfo?: {
@@ -244,9 +258,55 @@ export const updateUserVAT = async (vatNumber: string): Promise<UpdateVATRespons
     };
   }
 };
+
+export const updateProfessionalBusinessProfile = async (
+  vatNumber: string,
+  businessInfo: ProfessionalBusinessInfoPayload
+): Promise<UpdateVATResponse> => {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/professional-profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        vatNumber: vatNumber ? formatVATNumber(vatNumber) : '',
+        businessInfo: {
+          companyName: businessInfo.companyName.trim(),
+          address: businessInfo.address.trim(),
+          city: businessInfo.city.trim(),
+          country: businessInfo.country.trim(),
+          postalCode: businessInfo.postalCode.trim(),
+        }
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      return {
+        success: true,
+        user: data.user
+      };
+    }
+
+    return {
+      success: false,
+      error: data.msg || 'Failed to update professional business profile'
+    };
+  } catch (error) {
+    console.error('Update professional business profile error:', error);
+    return {
+      success: false,
+      error: 'Network error occurred while updating professional business profile'
+    };
+  }
+};
 export const submitForVerification = async (): Promise<UpdateVATResponse & { 
   professionalStatus?: string;
   missingRequirements?: string[];
+  missingRequirementDetails?: MissingRequirementDetail[];
 }> => {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/submit-for-verification`, {
@@ -268,7 +328,8 @@ export const submitForVerification = async (): Promise<UpdateVATResponse & {
       return {
         success: false,
         error: data.msg || 'Failed to submit for verification',
-        missingRequirements: data.data?.missingRequirements
+        missingRequirements: data.data?.missingRequirements,
+        missingRequirementDetails: data.data?.missingRequirementDetails
       };
     }
   } catch (error) {

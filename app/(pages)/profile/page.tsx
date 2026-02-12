@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getAuthToken } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
+import { CompanyAvailability, DEFAULT_COMPANY_AVAILABILITY } from "@/lib/defaults/companyAvailability"
 import {
   validateVATFormat,
   validateVATWithAPI,
@@ -75,15 +76,7 @@ export default function ProfilePage() {
   const [newBlockedRange, setNewBlockedRange] = useState({startDate: '', endDate: '', reason: ''})
 
   // Company availability (for team members to inherit)
-  const [companyAvailability, setCompanyAvailability] = useState({
-    monday: { available: true, startTime: '09:00', endTime: '17:00' },
-    tuesday: { available: true, startTime: '09:00', endTime: '17:00' },
-    wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
-    thursday: { available: true, startTime: '09:00', endTime: '17:00' },
-    friday: { available: true, startTime: '09:00', endTime: '17:00' },
-    saturday: { available: false, startTime: '09:00', endTime: '17:00' },
-    sunday: { available: false, startTime: '09:00', endTime: '17:00' }
-  })
+  const [companyAvailability, setCompanyAvailability] = useState<CompanyAvailability>(DEFAULT_COMPANY_AVAILABILITY)
   const [companyBlockedRanges, setCompanyBlockedRanges] = useState<{ startDate: string, endDate: string, reason?: string, isHoliday?: boolean }[]>([])
   const [newCompanyBlockedRange, setNewCompanyBlockedRange] = useState({ startDate: '', endDate: '', reason: '', isHoliday: false })
   const [bookingEvents, setBookingEvents] = useState<CalendarEvent[]>([])
@@ -162,7 +155,13 @@ export default function ProfilePage() {
 
     // Populate ID metadata for professionals
     if (user?.role === 'professional') {
-      if (user.idCountryOfIssue) setIdCountryOfIssue(user.idCountryOfIssue)
+      if (user.idCountryOfIssue) {
+        const rawCountry = user.idCountryOfIssue
+        const normalizedCountryCode = rawCountry.length === 2
+          ? rawCountry.toUpperCase()
+          : (EU_COUNTRIES.find((country) => country.name.toLowerCase() === rawCountry.toLowerCase())?.code || '')
+        setIdCountryOfIssue(normalizedCountryCode || user.idCountryOfIssue)
+      }
       if (user.idExpirationDate) setIdExpirationDate(user.idExpirationDate.split('T')[0])
     }
 
@@ -1052,7 +1051,10 @@ export default function ProfilePage() {
   }
 
   const hasIdInfoChanges = () => {
-    const currentCountry = user?.idCountryOfIssue || ''
+    const rawCountry = user?.idCountryOfIssue || ''
+    const currentCountry = rawCountry.length === 2
+      ? rawCountry.toUpperCase()
+      : (EU_COUNTRIES.find((country) => country.name.toLowerCase() === rawCountry.toLowerCase())?.code || rawCountry)
     const currentExpiry = user?.idExpirationDate ? user.idExpirationDate.split('T')[0] : ''
     return idCountryOfIssue !== currentCountry || idExpirationDate !== currentExpiry
   }
@@ -1567,41 +1569,43 @@ export default function ProfilePage() {
                     {serviceCatalogError && (
                       <div className="text-sm text-red-600">{serviceCatalogError}</div>
                     )}
-                    {serviceCatalog.length > 0 ? (
-                      <div className="space-y-4">
-                        {serviceCatalog.map((category) => (
-                          <div key={category.name} className="space-y-2">
-                            <div className="text-sm font-semibold text-slate-700">{category.name}</div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {category.services.map((service) => (
-                                <Button
-                                  key={`${category.name}-${service.name}`}
-                                  type="button"
-                                  variant={serviceCategories.includes(service.name) ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => handleServiceCategoryToggle(service.name)}
-                                >
-                                  {service.name}
-                                </Button>
-                              ))}
+                    {!serviceCatalogLoading && (
+                      serviceCatalog.length > 0 ? (
+                        <div className="space-y-4">
+                          {serviceCatalog.map((category) => (
+                            <div key={category.name} className="space-y-2">
+                              <div className="text-sm font-semibold text-slate-700">{category.name}</div>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {category.services.map((service) => (
+                                  <Button
+                                    key={`${category.name}-${service.name}`}
+                                    type="button"
+                                    variant={serviceCategories.includes(service.name) ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => handleServiceCategoryToggle(service.name)}
+                                  >
+                                    {service.name}
+                                  </Button>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {fallbackServiceOptions.map((service) => (
-                          <Button
-                            key={service}
-                            type="button"
-                            variant={serviceCategories.includes(service) ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handleServiceCategoryToggle(service)}
-                          >
-                            {service}
-                          </Button>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {fallbackServiceOptions.map((service) => (
+                            <Button
+                              key={service}
+                              type="button"
+                              variant={serviceCategories.includes(service) ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleServiceCategoryToggle(service)}
+                            >
+                              {service}
+                            </Button>
+                          ))}
+                        </div>
+                      )
                     )}
                   </div>
 
@@ -1710,7 +1714,7 @@ export default function ProfilePage() {
                           </SelectTrigger>
                           <SelectContent>
                             {EU_COUNTRIES.map((country) => (
-                              <SelectItem key={country.code} value={country.name}>
+                              <SelectItem key={country.code} value={country.code}>
                                 {country.flag} {country.name}
                               </SelectItem>
                             ))}

@@ -31,14 +31,14 @@ function getServiceIcon(slug: string): IconName {
   if (s.includes('hvac') || s.includes('air')) return 'Fan'
   if (s.includes('insul')) return 'Thermometer'
   if (s.includes('floor')) return 'Layers'
-  if (s.includes('tile') || s.includes('tiling')) return 'Grid'
+  if (s.includes('tile')) return 'Grid'
   if (s.includes('solar')) return 'Sun'
   if (s.includes('design') || s.includes('3d')) return 'Palette'
   if (s.includes('kitchen')) return 'ChefHat'
   if (s.includes('bath')) return 'Bath'
   if (s.includes('carpentry') || s.includes('wood')) return 'Hammer'
   if (s.includes('window') || s.includes('door')) return 'DoorOpen'
-  if (s.includes('mov') || s.includes('remov')) return 'Truck'
+  if (s.includes('mov')) return 'Truck'
   return 'Wrench'
 }
 

@@ -295,7 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         const needsOnboarding = data.user?.role === 'professional'
           && !data.user?.professionalOnboardingCompletedAt
-          && (data.user?.professionalStatus === 'draft' || !data.user?.professionalStatus)
+          && data.user?.professionalStatus === 'draft'
         if (needsOnboarding) {
           router.push('/professional/onboarding')
         } else {
@@ -392,7 +392,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isUserAuthenticated &&
       currentUser?.role === 'professional' &&
       !currentUser.professionalOnboardingCompletedAt &&
-      (currentUser?.professionalStatus === 'draft' || !currentUser?.professionalStatus) &&
+      currentUser?.professionalStatus === 'draft' &&
       !isProfessionalOnboardingRoute(pathname)
     ) {
       router.replace('/professional/onboarding')

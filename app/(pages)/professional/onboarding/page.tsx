@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Upload, Shield, Building, Calendar as CalendarIcon, Users, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight, Check } from 'lucide-react'
+import { Loader2, Shield, Building, Calendar as CalendarIcon, Users, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight, Check } from 'lucide-react'
 import AddressAutocomplete, { PlaceData } from '@/components/professional/project-wizard/AddressAutocomplete'
 import EmployeeManagement from '@/components/TeamManagement'
 import { EU_COUNTRIES } from '@/lib/countries'
 import { getAuthToken } from '@/lib/utils'
-import { formatVATNumber, getVATCountryName, isEUVatNumber, validateVATFormat, validateVATWithAPI, updateUserVAT, submitForVerification } from '@/lib/vatValidation'
+import { formatVATNumber, getVATCountryName, isEUVatNumber, validateVATFormat, validateVATWithAPI, updateProfessionalBusinessProfile, submitForVerification } from '@/lib/vatValidation'
+import { CompanyAvailability, DayAvailability, DEFAULT_COMPANY_AVAILABILITY } from '@/lib/defaults/companyAvailability'
 
 const STEPS = [
   { id: 1, title: 'ID Upload', icon: Shield, required: true, gradient: 'from-violet-200 via-purple-200 to-fuchsia-200' },
@@ -26,22 +27,112 @@ const STEPS = [
   { id: 6, title: 'Agreements', icon: CheckCircle2, required: true, gradient: 'from-indigo-200 via-blue-200 to-violet-200' },
 ]
 
-const DEFAULT_COMPANY_AVAILABILITY = {
-  monday: { available: true, startTime: '09:00', endTime: '17:00' },
-  tuesday: { available: true, startTime: '09:00', endTime: '17:00' },
-  wednesday: { available: true, startTime: '09:00', endTime: '17:00' },
-  thursday: { available: true, startTime: '09:00', endTime: '17:00' },
-  friday: { available: true, startTime: '09:00', endTime: '17:00' },
-  saturday: { available: false, startTime: '09:00', endTime: '17:00' },
-  sunday: { available: false, startTime: '09:00', endTime: '17:00' },
-}
-
 const AGREEMENTS = [
   'I confirm the information I provide is accurate and up to date.',
   'I understand Fixera will verify my profile before approval.',
   'I will keep my availability and business details updated.',
   'I agree to follow Fixera platform rules and professional standards.',
 ]
+
+type MissingRequirementDetail = {
+  code?: string
+  type?: string
+  message?: string
+}
+
+type MissingRequirementInput = string | MissingRequirementDetail
+
+type MissingRequirementResolution = {
+  step: number
+  messages: string[]
+  originalRequirements: MissingRequirementInput[]
+}
+
+const REQUIREMENT_CODE_TO_STEP: Record<string, number> = {
+  ID_PROOF_MISSING: 1,
+  ID_COUNTRY_OF_ISSUE_MISSING: 1,
+  ID_EXPIRATION_DATE_MISSING: 1,
+  ID_EXPIRATION_DATE_INVALID: 1,
+  VAT_NUMBER_MISSING: 2,
+  COMPANY_NAME_MISSING: 2,
+  COMPANY_ADDRESS_MISSING: 2,
+  COMPANY_AVAILABILITY_MISSING: 3,
+}
+
+const normalizeRequirementText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const mapRequirementToStepByKeywords = (normalizedText: string): number | null => {
+  const step1Keywords = ['id', 'identity', 'document', 'proof', 'expiration', 'expiry', 'country of issue', 'passport', 'license']
+  const step2Keywords = ['vat', 'tax', 'tax id', 'company', 'business', 'address', 'postal']
+  const step3Keywords = ['availability', 'schedule', 'working hour', 'working hours', 'company hour', 'company hours']
+
+  if (step1Keywords.some((keyword) => normalizedText.includes(keyword))) return 1
+  if (step2Keywords.some((keyword) => normalizedText.includes(keyword))) return 2
+  if (step3Keywords.some((keyword) => normalizedText.includes(keyword))) return 3
+
+  return null
+}
+
+const resolveMissingRequirements = (
+  requirements: MissingRequirementInput[]
+): MissingRequirementResolution => {
+  if (!requirements || requirements.length === 0) {
+    return { step: 1, messages: [], originalRequirements: [] }
+  }
+
+  let mappedStep: number | null = null
+  const messages = requirements.map((requirement) => {
+    if (typeof requirement === 'string') {
+      if (!mappedStep) {
+        mappedStep = mapRequirementToStepByKeywords(normalizeRequirementText(requirement))
+      }
+      return requirement
+    }
+
+    const normalizedCode = (requirement.code || requirement.type || '').toUpperCase()
+    if (!mappedStep && normalizedCode && REQUIREMENT_CODE_TO_STEP[normalizedCode]) {
+      mappedStep = REQUIREMENT_CODE_TO_STEP[normalizedCode]
+    }
+
+    if (!mappedStep && requirement.message) {
+      mappedStep = mapRequirementToStepByKeywords(normalizeRequirementText(requirement.message))
+    }
+
+    return requirement.message || requirement.code || requirement.type || 'Missing requirement'
+  })
+
+  if (!mappedStep) {
+    for (const msg of messages) {
+      const mapped = mapRequirementToStepByKeywords(normalizeRequirementText(msg))
+      if (mapped) {
+        mappedStep = mapped
+        break
+      }
+    }
+  }
+
+  return {
+    step: mappedStep || 1,
+    messages,
+    originalRequirements: requirements
+  }
+}
+
+const timeToMinutes = (value: string): number | null => {
+  const match = /^(\d{2}):(\d{2})$/.exec(value)
+  if (!match) return null
+  const hours = Number.parseInt(match[1], 10)
+  const minutes = Number.parseInt(match[2], 10)
+  if (Number.isNaN(hours) || Number.isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null
+  }
+  return (hours * 60) + minutes
+}
 
 // Gradient border wrapper component
 function GradientCard({ gradient, children, className = '' }: { gradient: string, children: React.ReactNode, className?: string }) {
@@ -54,17 +145,585 @@ function GradientCard({ gradient, children, className = '' }: { gradient: string
   )
 }
 
-export default function ProfessionalOnboardingPage() {
-  const { user, loading, isAuthenticated, checkAuth } = useAuth()
-  const router = useRouter()
-  const [currentStep, setCurrentStep] = useState(1)
+function IdVerificationStep({
+  gradient,
+  userHasIdProof,
+  idCountryOfIssue,
+  setIdCountryOfIssue,
+  idExpirationDate,
+  setIdExpirationDate,
+  setIdProofFile,
+  handleStep1Continue,
+  uploading,
+  idInfoSaving,
+}: {
+  gradient: string
+  userHasIdProof: boolean
+  idCountryOfIssue: string
+  setIdCountryOfIssue: (value: string) => void
+  idExpirationDate: string
+  setIdExpirationDate: (value: string) => void
+  setIdProofFile: (file: File | null) => void
+  handleStep1Continue: () => void
+  uploading: boolean
+  idInfoSaving: boolean
+}) {
+  return (
+    <GradientCard gradient={gradient}>
+      <div className="p-6 sm:p-8 space-y-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+              <Shield className="h-5 w-5 text-gray-700" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">ID Upload</h2>
+              <p className="text-sm text-gray-500">Upload your ID proof and provide document details.</p>
+            </div>
+          </div>
+        </div>
 
+        {userHasIdProof && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 text-sm text-green-800">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            ID proof already uploaded.
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="idProof" className="text-sm font-medium text-gray-700">Upload ID Proof</Label>
+          <div className="rounded-xl border-2 border-dashed border-gray-200 hover:border-purple-300 transition-colors p-4">
+            <Input
+              id="idProof"
+              type="file"
+              accept=".jpg,.jpeg,.png,.pdf"
+              onChange={(e) => setIdProofFile(e.target.files?.[0] || null)}
+              className="border-0 p-0 shadow-none"
+            />
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">Country of Issue</Label>
+            <Select value={idCountryOfIssue} onValueChange={setIdCountryOfIssue}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Select country" />
+              </SelectTrigger>
+              <SelectContent>
+                {EU_COUNTRIES.map((country) => (
+                  <SelectItem key={country.code} value={country.code}>
+                    {country.flag} {country.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">Expiration Date</Label>
+            <Input
+              type="date"
+              value={idExpirationDate}
+              onChange={(e) => setIdExpirationDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="rounded-xl"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end pt-2">
+          <Button
+            onClick={handleStep1Continue}
+            disabled={uploading || idInfoSaving}
+            className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 px-6"
+          >
+            {(uploading || idInfoSaving) ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...
+              </>
+            ) : (
+              <>
+                Save & Continue <ArrowRight className="h-4 w-4 ml-2" />
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </GradientCard>
+  )
+}
+
+function BusinessDetailsStep({
+  gradient,
+  businessInfo,
+  setBusinessInfo,
+  vatNumber,
+  setVatNumber,
+  vatValidation,
+  vatValidating,
+  validateVatNumber,
+  handleAddressChange,
+  setIsAddressValid,
+  setCurrentStep,
+  handleStep2Continue,
+  businessSaving,
+}: {
+  gradient: string
+  businessInfo: { companyName: string; address: string; city: string; country: string; postalCode: string }
+  setBusinessInfo: React.Dispatch<React.SetStateAction<{ companyName: string; address: string; city: string; country: string; postalCode: string }>>
+  vatNumber: string
+  setVatNumber: (value: string) => void
+  vatValidation: { valid?: boolean; error?: string }
+  vatValidating: boolean
+  validateVatNumber: () => void
+  handleAddressChange: (fullAddress: string, placeData?: PlaceData) => void
+  setIsAddressValid: (value: boolean) => void
+  setCurrentStep: (step: number) => void
+  handleStep2Continue: () => void
+  businessSaving: boolean
+}) {
+  return (
+    <GradientCard gradient={gradient}>
+      <div className="p-6 sm:p-8 space-y-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+              <Building className="h-5 w-5 text-gray-700" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Business Info</h2>
+              <p className="text-sm text-gray-500">Provide company details and VAT information.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-gray-700">Company Name</Label>
+          <Input
+            value={businessInfo.companyName}
+            onChange={(e) => setBusinessInfo(prev => ({ ...prev, companyName: e.target.value }))}
+            className="rounded-xl"
+            placeholder="Your company name"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-gray-700">
+            VAT Number *
+            {vatNumber && vatValidation.valid && (
+              <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber)}</span>
+            )}
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              value={vatNumber}
+              onChange={(e) => {
+                setVatNumber(e.target.value.toUpperCase())
+              }}
+              onBlur={validateVatNumber}
+              placeholder="e.g., BE0123456789"
+              required
+              className="rounded-xl"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={validateVatNumber}
+              disabled={!vatNumber || vatValidating}
+              className="rounded-xl shrink-0"
+            >
+              {vatValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Validate'}
+            </Button>
+          </div>
+          {vatValidation.valid !== undefined && (
+            <div className={`flex items-center gap-2 text-xs p-2.5 rounded-xl ${vatValidation.valid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {vatValidation.valid ? (
+                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> VAT number validated</>
+              ) : (
+                <>{vatValidation.error}</>
+              )}
+            </div>
+          )}
+        </div>
+
+        <AddressAutocomplete
+          value={businessInfo.address}
+          onChange={handleAddressChange}
+          onValidation={setIsAddressValid}
+          useCompanyAddress={false}
+          label="Street Address"
+          required
+        />
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">City</Label>
+            <Input
+              value={businessInfo.city}
+              onChange={(e) => setBusinessInfo(prev => ({ ...prev, city: e.target.value }))}
+              className="rounded-xl"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">Postal Code</Label>
+            <Input
+              value={businessInfo.postalCode}
+              onChange={(e) => setBusinessInfo(prev => ({ ...prev, postalCode: e.target.value }))}
+              className="rounded-xl"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-gray-700">Country</Label>
+          <Input
+            value={businessInfo.country}
+            onChange={(e) => setBusinessInfo(prev => ({ ...prev, country: e.target.value }))}
+            className="rounded-xl"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <Button variant="outline" onClick={() => setCurrentStep(1)} className="rounded-xl gap-1">
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => setCurrentStep(3)} className="rounded-xl text-gray-500">
+              Skip for now
+            </Button>
+            <Button
+              onClick={handleStep2Continue}
+              disabled={businessSaving}
+              className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 px-6"
+            >
+              {businessSaving ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
+              ) : (
+                <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </GradientCard>
+  )
+}
+
+function CompanyAvailabilityStep({
+  gradient,
+  companyAvailability,
+  setCompanyAvailability,
+  companyAvailabilityErrors,
+  setCompanyAvailabilityErrors,
+  setCurrentStep,
+  handleStep3Continue,
+  companySaving,
+}: {
+  gradient: string
+  companyAvailability: CompanyAvailability
+  setCompanyAvailability: React.Dispatch<React.SetStateAction<CompanyAvailability>>
+  companyAvailabilityErrors: Partial<Record<keyof CompanyAvailability, string>>
+  setCompanyAvailabilityErrors: React.Dispatch<React.SetStateAction<Partial<Record<keyof CompanyAvailability, string>>>>
+  setCurrentStep: (step: number) => void
+  handleStep3Continue: () => void
+  companySaving: boolean
+}) {
+  return (
+    <GradientCard gradient={gradient}>
+      <div className="p-6 sm:p-8 space-y-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+              <CalendarIcon className="h-5 w-5 text-gray-700" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Company Availability</h2>
+              <p className="text-sm text-gray-500">Set your company working hours. At least one day is required.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {Object.entries(companyAvailability).map(([day, schedule]) => (
+            <div
+              key={day}
+              className={`flex items-center gap-4 p-3.5 rounded-xl border transition-colors ${
+                schedule.available ? 'border-green-200 bg-green-50/50' : 'border-gray-200 bg-gray-50/50'
+              }`}
+            >
+              <div className="w-24 text-sm font-semibold capitalize text-gray-700">{day}</div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={schedule.available}
+                  onCheckedChange={(checked) => {
+                    setCompanyAvailability(prev => ({
+                      ...prev,
+                      [day]: { ...prev[day as keyof typeof prev], available: Boolean(checked) }
+                    }))
+                    setCompanyAvailabilityErrors((prev) => {
+                      const next = { ...prev }
+                      delete next[day as keyof CompanyAvailability]
+                      return next
+                    })
+                  }}
+                />
+                <span className="text-sm text-gray-600">Available</span>
+              </div>
+              {schedule.available && (
+                <div className="flex items-center gap-2 ml-auto">
+                  <Input
+                    type="time"
+                    value={schedule.startTime}
+                    onChange={(e) => {
+                      setCompanyAvailability(prev => ({
+                        ...prev,
+                        [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
+                      }))
+                      setCompanyAvailabilityErrors((prev) => {
+                        const next = { ...prev }
+                        delete next[day as keyof CompanyAvailability]
+                        return next
+                      })
+                    }}
+                    className="w-28 rounded-xl"
+                  />
+                  <span className="text-sm text-gray-400">to</span>
+                  <Input
+                    type="time"
+                    value={schedule.endTime}
+                    onChange={(e) => {
+                      setCompanyAvailability(prev => ({
+                        ...prev,
+                        [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
+                      }))
+                      setCompanyAvailabilityErrors((prev) => {
+                        const next = { ...prev }
+                        delete next[day as keyof CompanyAvailability]
+                        return next
+                      })
+                    }}
+                    className="w-28 rounded-xl"
+                  />
+                </div>
+              )}
+              {companyAvailabilityErrors[day as keyof CompanyAvailability] && (
+                <div className="w-full mt-2 text-xs text-red-600">
+                  {companyAvailabilityErrors[day as keyof CompanyAvailability]}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <Button variant="outline" onClick={() => setCurrentStep(2)} className="rounded-xl gap-1">
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+          <Button
+            onClick={handleStep3Continue}
+            disabled={companySaving}
+            className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-6"
+          >
+            {companySaving ? (
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
+            ) : (
+              <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
+            )}
+          </Button>
+        </div>
+      </div>
+    </GradientCard>
+  )
+}
+
+function PersonalAvailabilityStep({ gradient, setCurrentStep }: { gradient: string; setCurrentStep: (step: number) => void }) {
+  return (
+    <GradientCard gradient={gradient}>
+      <div className="p-6 sm:p-8 space-y-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+              <CalendarIcon className="h-5 w-5 text-gray-700" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Personal Availability</h2>
+              <p className="text-sm text-gray-500">Optional for now. You can update this later in your profile.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/50 p-6 text-center">
+          <CalendarIcon className="h-8 w-8 text-amber-400 mx-auto mb-2" />
+          <p className="text-sm text-gray-600">
+            Set personal availability and blocked dates after onboarding if needed.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <Button variant="outline" onClick={() => setCurrentStep(3)} className="rounded-xl gap-1">
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+          <Button
+            onClick={() => setCurrentStep(5)}
+            className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-6"
+          >
+            Continue <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+      </div>
+    </GradientCard>
+  )
+}
+
+function EmployeesStep({ gradient, setCurrentStep }: { gradient: string; setCurrentStep: (step: number) => void }) {
+  return (
+    <GradientCard gradient={gradient}>
+      <div className="p-6 sm:p-8 space-y-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+              <Users className="h-5 w-5 text-gray-700" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Employees</h2>
+              <p className="text-sm text-gray-500">Optional. Invite employees now or skip.</p>
+            </div>
+          </div>
+        </div>
+
+        <EmployeeManagement />
+
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <Button variant="outline" onClick={() => setCurrentStep(4)} className="rounded-xl gap-1">
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+          <Button
+            onClick={() => setCurrentStep(6)}
+            className="rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 px-6"
+          >
+            Continue <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+      </div>
+    </GradientCard>
+  )
+}
+
+function AgreementsStep({
+  gradient,
+  agreements,
+  setAgreements,
+  submitErrors,
+  setCurrentStep,
+  handleSubmit,
+  submitting,
+}: {
+  gradient: string
+  agreements: boolean[]
+  setAgreements: React.Dispatch<React.SetStateAction<boolean[]>>
+  submitErrors: string[]
+  setCurrentStep: (step: number) => void
+  handleSubmit: () => void
+  submitting: boolean
+}) {
+  return (
+    <GradientCard gradient={gradient}>
+      <div className="p-6 sm:p-8 space-y-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+              <CheckCircle2 className="h-5 w-5 text-gray-700" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Agreements</h2>
+              <p className="text-sm text-gray-500">Review and accept all agreements to submit your profile.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {AGREEMENTS.map((text, index) => {
+            const agreementId = `agreement-${index}`
+            return (
+              <label
+                key={text}
+                htmlFor={agreementId}
+                className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+                  agreements[index]
+                    ? 'border-blue-200 bg-blue-50/50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <Checkbox
+                  id={agreementId}
+                  checked={agreements[index]}
+                  onCheckedChange={(checked) => {
+                    setAgreements(prev => prev.map((val, idx) => idx === index ? Boolean(checked) : val))
+                  }}
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-gray-700 leading-relaxed">{text}</span>
+              </label>
+            )
+          })}
+        </div>
+
+        {submitErrors.length > 0 && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p className="font-semibold mb-2">Missing requirements:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              {submitErrors.map((err) => (
+                <li key={err}>{err}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <Button variant="outline" onClick={() => setCurrentStep(5)} className="rounded-xl gap-1">
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 px-8"
+            >
+              {submitting ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Submitting...</>
+              ) : (
+                <>Submit for Verification <ChevronRight className="h-4 w-4 ml-2" /></>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </GradientCard>
+  )
+}
+
+function useIdVerificationState() {
   const [idProofFile, setIdProofFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [idInfoSaving, setIdInfoSaving] = useState(false)
   const [idCountryOfIssue, setIdCountryOfIssue] = useState('')
   const [idExpirationDate, setIdExpirationDate] = useState('')
 
+  return {
+    idProofFile,
+    setIdProofFile,
+    uploading,
+    setUploading,
+    idInfoSaving,
+    setIdInfoSaving,
+    idCountryOfIssue,
+    setIdCountryOfIssue,
+    idExpirationDate,
+    setIdExpirationDate,
+  }
+}
+
+function useBusinessFormState() {
   const [businessInfo, setBusinessInfo] = useState({
     companyName: '',
     address: '',
@@ -88,12 +747,102 @@ export default function ProfessionalOnboardingPage() {
   const [businessSaving, setBusinessSaving] = useState(false)
   const [isAddressValid, setIsAddressValid] = useState(false)
 
-  const [companyAvailability, setCompanyAvailability] = useState<typeof DEFAULT_COMPANY_AVAILABILITY>(DEFAULT_COMPANY_AVAILABILITY)
-  const [companySaving, setCompanySaving] = useState(false)
+  return {
+    businessInfo,
+    setBusinessInfo,
+    vatNumber,
+    setVatNumber,
+    vatValidating,
+    setVatValidating,
+    vatValidation,
+    setVatValidation,
+    businessSaving,
+    setBusinessSaving,
+    isAddressValid,
+    setIsAddressValid,
+  }
+}
 
+function useCompanyAvailabilityState() {
+  const [companyAvailability, setCompanyAvailability] = useState<CompanyAvailability>(DEFAULT_COMPANY_AVAILABILITY)
+  const [companySaving, setCompanySaving] = useState(false)
+  const [companyAvailabilityErrors, setCompanyAvailabilityErrors] = useState<Partial<Record<keyof CompanyAvailability, string>>>({})
+
+  return {
+    companyAvailability,
+    setCompanyAvailability,
+    companySaving,
+    setCompanySaving,
+    companyAvailabilityErrors,
+    setCompanyAvailabilityErrors,
+  }
+}
+
+function useSubmissionState() {
   const [agreements, setAgreements] = useState<boolean[]>(AGREEMENTS.map(() => false))
   const [submitting, setSubmitting] = useState(false)
   const [submitErrors, setSubmitErrors] = useState<string[]>([])
+
+  return {
+    agreements,
+    setAgreements,
+    submitting,
+    setSubmitting,
+    submitErrors,
+    setSubmitErrors,
+  }
+}
+
+export default function ProfessionalOnboardingPage() {
+  const { user, loading, isAuthenticated, checkAuth } = useAuth()
+  const router = useRouter()
+  const [currentStep, setCurrentStep] = useState(1)
+
+  const {
+    idProofFile,
+    setIdProofFile,
+    uploading,
+    setUploading,
+    idInfoSaving,
+    setIdInfoSaving,
+    idCountryOfIssue,
+    setIdCountryOfIssue,
+    idExpirationDate,
+    setIdExpirationDate,
+  } = useIdVerificationState()
+
+  const {
+    businessInfo,
+    setBusinessInfo,
+    vatNumber,
+    setVatNumber,
+    vatValidating,
+    setVatValidating,
+    vatValidation,
+    setVatValidation,
+    businessSaving,
+    setBusinessSaving,
+    isAddressValid,
+    setIsAddressValid,
+  } = useBusinessFormState()
+
+  const {
+    companyAvailability,
+    setCompanyAvailability,
+    companySaving,
+    setCompanySaving,
+    companyAvailabilityErrors,
+    setCompanyAvailabilityErrors,
+  } = useCompanyAvailabilityState()
+
+  const {
+    agreements,
+    setAgreements,
+    submitting,
+    setSubmitting,
+    submitErrors,
+    setSubmitErrors,
+  } = useSubmissionState()
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -108,14 +857,24 @@ export default function ProfessionalOnboardingPage() {
   }, [loading, user?.role, router])
 
   useEffect(() => {
-    if (!loading && user?.role === 'professional' && (user.professionalOnboardingCompletedAt || user.professionalStatus !== 'draft')) {
+    if (
+      !loading &&
+      user?.role === 'professional' &&
+      (user.professionalOnboardingCompletedAt || (user.professionalStatus !== undefined && user.professionalStatus !== 'draft'))
+    ) {
       router.push('/dashboard')
     }
   }, [loading, user, router])
 
   useEffect(() => {
     if (!user) return
-    if (user.idCountryOfIssue) setIdCountryOfIssue(user.idCountryOfIssue)
+    if (user.idCountryOfIssue) {
+      const rawCountry = user.idCountryOfIssue
+      const normalizedCountryCode = rawCountry.length === 2
+        ? rawCountry.toUpperCase()
+        : (EU_COUNTRIES.find((country) => country.name.toLowerCase() === rawCountry.toLowerCase())?.code || '')
+      setIdCountryOfIssue(normalizedCountryCode || user.idCountryOfIssue)
+    }
     if (user.idExpirationDate) setIdExpirationDate(user.idExpirationDate.split('T')[0])
 
     if (user.businessInfo) {
@@ -258,7 +1017,10 @@ export default function ProfessionalOnboardingPage() {
   }
 
   const hasIdInfoChanges = () => {
-    const existingCountry = user?.idCountryOfIssue || ''
+    const rawCountry = user?.idCountryOfIssue || ''
+    const existingCountry = rawCountry.length === 2
+      ? rawCountry.toUpperCase()
+      : (EU_COUNTRIES.find((country) => country.name.toLowerCase() === rawCountry.toLowerCase())?.code || rawCountry)
     const existingDate = user?.idExpirationDate ? user.idExpirationDate.split('T')[0] : ''
     return idCountryOfIssue !== existingCountry || idExpirationDate !== existingDate
   }
@@ -350,29 +1112,15 @@ export default function ProfessionalOnboardingPage() {
 
     setBusinessSaving(true)
     try {
-      const vatResult = await updateUserVAT(vatNumber)
-      if (!vatResult.success) {
-        toast.error(vatResult.error || 'Failed to save VAT number')
-        return
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/professional-profile`, {
-        method: 'PUT',
-        headers: headersWithAuth(),
-        credentials: 'include',
-        body: JSON.stringify({
-          businessInfo: {
-            companyName: businessInfo.companyName.trim(),
-            address: businessInfo.address.trim(),
-            city: businessInfo.city.trim(),
-            country: businessInfo.country.trim(),
-            postalCode: businessInfo.postalCode.trim(),
-          }
-        })
+      const result = await updateProfessionalBusinessProfile(vatNumber, {
+        companyName: businessInfo.companyName,
+        address: businessInfo.address,
+        city: businessInfo.city,
+        country: businessInfo.country,
+        postalCode: businessInfo.postalCode
       })
-      const result = await response.json()
-      if (!response.ok || !result.success) {
-        toast.error(result.msg || 'Failed to save business info')
+      if (!result.success) {
+        toast.error(result.error || 'Failed to save business info')
         return
       }
       toast.success('Business info saved')
@@ -392,6 +1140,24 @@ export default function ProfessionalOnboardingPage() {
       return
     }
 
+    const availabilityErrors: Partial<Record<keyof CompanyAvailability, string>> = {}
+    for (const [day, schedule] of Object.entries(companyAvailability) as Array<[keyof CompanyAvailability, DayAvailability]>) {
+      if (!schedule.available) continue
+
+      const startMinutes = timeToMinutes(schedule.startTime)
+      const endMinutes = timeToMinutes(schedule.endTime)
+      if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
+        availabilityErrors[day] = 'Start time must be earlier than end time'
+      }
+    }
+
+    if (Object.keys(availabilityErrors).length > 0) {
+      setCompanyAvailabilityErrors(availabilityErrors)
+      toast.error('Please fix invalid company availability time ranges')
+      return
+    }
+
+    setCompanyAvailabilityErrors({})
     setCompanySaving(true)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/professional-profile`, {
@@ -432,15 +1198,16 @@ export default function ProfessionalOnboardingPage() {
         await checkAuth()
         router.push('/dashboard?verification=pending')
       } else {
-        if (result.missingRequirements && result.missingRequirements.length > 0) {
-          setSubmitErrors(result.missingRequirements)
-          const step = missingRequirementStep(result.missingRequirements)
-          if (step) {
-            toast.error('Please complete required steps before submitting')
-            setCurrentStep(step)
-          } else {
-            toast.error(result.error || 'Failed to submit for verification')
-          }
+        const combinedRequirements: MissingRequirementInput[] = [
+          ...(result.missingRequirementDetails || []),
+          ...(result.missingRequirements || [])
+        ]
+
+        if (combinedRequirements.length > 0) {
+          const resolution = resolveMissingRequirements(combinedRequirements)
+          setSubmitErrors(resolution.messages)
+          toast.error('Please complete required steps before submitting')
+          setCurrentStep(resolution.step)
         } else {
           toast.error(result.error || 'Failed to submit for verification')
         }
@@ -448,13 +1215,6 @@ export default function ProfessionalOnboardingPage() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const missingRequirementStep = (requirements: string[]) => {
-    if (requirements.some((req) => req.toLowerCase().includes('id'))) return 1
-    if (requirements.some((req) => req.toLowerCase().includes('vat') || req.toLowerCase().includes('company'))) return 2
-    if (requirements.some((req) => req.toLowerCase().includes('availability'))) return 3
-    return null
   }
 
   const progress = useMemo(() => (currentStep / STEPS.length) * 100, [currentStep])
@@ -566,451 +1326,79 @@ export default function ProfessionalOnboardingPage() {
           })}
         </div>
 
-        {/* Step 1: ID Upload */}
         {currentStep === 1 && (
-          <GradientCard gradient={activeStep.gradient}>
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
-                    <Shield className="h-5 w-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">ID Upload</h2>
-                    <p className="text-sm text-gray-500">Upload your ID proof and provide document details.</p>
-                  </div>
-                </div>
-              </div>
-
-              {user.idProofUrl && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 text-sm text-green-800">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  ID proof already uploaded.
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="idProof" className="text-sm font-medium text-gray-700">Upload ID Proof</Label>
-                <div className="rounded-xl border-2 border-dashed border-gray-200 hover:border-purple-300 transition-colors p-4">
-                  <Input
-                    id="idProof"
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    onChange={(e) => setIdProofFile(e.target.files?.[0] || null)}
-                    className="border-0 p-0 shadow-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Country of Issue</Label>
-                  <Select value={idCountryOfIssue} onValueChange={setIdCountryOfIssue}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EU_COUNTRIES.map((country) => (
-                        <SelectItem key={country.code} value={country.name}>
-                          {country.flag} {country.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Expiration Date</Label>
-                  <Input
-                    type="date"
-                    value={idExpirationDate}
-                    onChange={(e) => setIdExpirationDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end pt-2">
-                <Button
-                  onClick={handleStep1Continue}
-                  disabled={uploading || idInfoSaving}
-                  className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 px-6"
-                >
-                  {(uploading || idInfoSaving) ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...
-                    </>
-                  ) : (
-                    <>
-                      Save & Continue <ArrowRight className="h-4 w-4 ml-2" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </GradientCard>
+          <IdVerificationStep
+            gradient={activeStep.gradient}
+            userHasIdProof={Boolean(user.idProofUrl)}
+            idCountryOfIssue={idCountryOfIssue}
+            setIdCountryOfIssue={setIdCountryOfIssue}
+            idExpirationDate={idExpirationDate}
+            setIdExpirationDate={setIdExpirationDate}
+            setIdProofFile={setIdProofFile}
+            handleStep1Continue={handleStep1Continue}
+            uploading={uploading}
+            idInfoSaving={idInfoSaving}
+          />
         )}
 
-        {/* Step 2: Business Info */}
         {currentStep === 2 && (
-          <GradientCard gradient={activeStep.gradient}>
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
-                    <Building className="h-5 w-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Business Info</h2>
-                    <p className="text-sm text-gray-500">Provide company details and VAT information.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Company Name</Label>
-                <Input
-                  value={businessInfo.companyName}
-                  onChange={(e) => setBusinessInfo(prev => ({ ...prev, companyName: e.target.value }))}
-                  className="rounded-xl"
-                  placeholder="Your company name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">
-                  VAT Number *
-                  {vatNumber && vatValidation.valid && (
-                    <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber)}</span>
-                  )}
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={vatNumber}
-                    onChange={(e) => {
-                      setVatNumber(e.target.value.toUpperCase())
-                      setVatValidation({})
-                    }}
-                    onBlur={validateVatNumber}
-                    placeholder="e.g., BE0123456789"
-                    required
-                    className="rounded-xl"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={validateVatNumber}
-                    disabled={!vatNumber || vatValidating}
-                    className="rounded-xl shrink-0"
-                  >
-                    {vatValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Validate'}
-                  </Button>
-                </div>
-                {vatValidation.valid !== undefined && (
-                  <div className={`flex items-center gap-2 text-xs p-2.5 rounded-xl ${vatValidation.valid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                    {vatValidation.valid ? (
-                      <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> VAT number validated</>
-                    ) : (
-                      <>{vatValidation.error}</>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <AddressAutocomplete
-                value={businessInfo.address}
-                onChange={handleAddressChange}
-                onValidation={setIsAddressValid}
-                useCompanyAddress={false}
-                label="Street Address"
-                required
-              />
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">City</Label>
-                  <Input
-                    value={businessInfo.city}
-                    onChange={(e) => setBusinessInfo(prev => ({ ...prev, city: e.target.value }))}
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Postal Code</Label>
-                  <Input
-                    value={businessInfo.postalCode}
-                    onChange={(e) => setBusinessInfo(prev => ({ ...prev, postalCode: e.target.value }))}
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Country</Label>
-                <Input
-                  value={businessInfo.country}
-                  onChange={(e) => setBusinessInfo(prev => ({ ...prev, country: e.target.value }))}
-                  className="rounded-xl"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <Button variant="outline" onClick={() => setCurrentStep(1)} className="rounded-xl gap-1">
-                  <ChevronLeft className="h-4 w-4" /> Back
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" onClick={() => setCurrentStep(3)} className="rounded-xl text-gray-500">
-                    Skip for now
-                  </Button>
-                  <Button
-                    onClick={handleStep2Continue}
-                    disabled={businessSaving}
-                    className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 px-6"
-                  >
-                    {businessSaving ? (
-                      <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
-                    ) : (
-                      <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </GradientCard>
+          <BusinessDetailsStep
+            gradient={activeStep.gradient}
+            businessInfo={businessInfo}
+            setBusinessInfo={setBusinessInfo}
+            vatNumber={vatNumber}
+            setVatNumber={(value) => {
+              setVatNumber(value)
+              setVatValidation({})
+            }}
+            vatValidation={vatValidation}
+            vatValidating={vatValidating}
+            validateVatNumber={validateVatNumber}
+            handleAddressChange={handleAddressChange}
+            setIsAddressValid={setIsAddressValid}
+            setCurrentStep={setCurrentStep}
+            handleStep2Continue={handleStep2Continue}
+            businessSaving={businessSaving}
+          />
         )}
 
-        {/* Step 3: Company Availability */}
         {currentStep === 3 && (
-          <GradientCard gradient={activeStep.gradient}>
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
-                    <CalendarIcon className="h-5 w-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Company Availability</h2>
-                    <p className="text-sm text-gray-500">Set your company working hours. At least one day is required.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {Object.entries(companyAvailability).map(([day, schedule]) => (
-                  <div
-                    key={day}
-                    className={`flex items-center gap-4 p-3.5 rounded-xl border transition-colors ${
-                      schedule.available ? 'border-green-200 bg-green-50/50' : 'border-gray-200 bg-gray-50/50'
-                    }`}
-                  >
-                    <div className="w-24 text-sm font-semibold capitalize text-gray-700">{day}</div>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={schedule.available}
-                        onCheckedChange={(checked) => {
-                          setCompanyAvailability(prev => ({
-                            ...prev,
-                            [day]: { ...prev[day as keyof typeof prev], available: Boolean(checked) }
-                          }))
-                        }}
-                      />
-                      <span className="text-sm text-gray-600">Available</span>
-                    </div>
-                    {schedule.available && (
-                      <div className="flex items-center gap-2 ml-auto">
-                        <Input
-                          type="time"
-                          value={schedule.startTime}
-                          onChange={(e) => {
-                            setCompanyAvailability(prev => ({
-                              ...prev,
-                              [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
-                            }))
-                          }}
-                          className="w-28 rounded-xl"
-                        />
-                        <span className="text-sm text-gray-400">to</span>
-                        <Input
-                          type="time"
-                          value={schedule.endTime}
-                          onChange={(e) => {
-                            setCompanyAvailability(prev => ({
-                              ...prev,
-                              [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
-                            }))
-                          }}
-                          className="w-28 rounded-xl"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between gap-3 pt-2">
-                <Button variant="outline" onClick={() => setCurrentStep(2)} className="rounded-xl gap-1">
-                  <ChevronLeft className="h-4 w-4" /> Back
-                </Button>
-                <Button
-                  onClick={handleStep3Continue}
-                  disabled={companySaving}
-                  className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-6"
-                >
-                  {companySaving ? (
-                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
-                  ) : (
-                    <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </GradientCard>
+          <CompanyAvailabilityStep
+            gradient={activeStep.gradient}
+            companyAvailability={companyAvailability}
+            setCompanyAvailability={setCompanyAvailability}
+            companyAvailabilityErrors={companyAvailabilityErrors}
+            setCompanyAvailabilityErrors={setCompanyAvailabilityErrors}
+            setCurrentStep={setCurrentStep}
+            handleStep3Continue={handleStep3Continue}
+            companySaving={companySaving}
+          />
         )}
 
-        {/* Step 4: Personal Availability */}
         {currentStep === 4 && (
-          <GradientCard gradient={activeStep.gradient}>
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
-                    <CalendarIcon className="h-5 w-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Personal Availability</h2>
-                    <p className="text-sm text-gray-500">Optional for now. You can update this later in your profile.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/50 p-6 text-center">
-                <CalendarIcon className="h-8 w-8 text-amber-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">
-                  Set personal availability and blocked dates after onboarding if needed.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 pt-2">
-                <Button variant="outline" onClick={() => setCurrentStep(3)} className="rounded-xl gap-1">
-                  <ChevronLeft className="h-4 w-4" /> Back
-                </Button>
-                <Button
-                  onClick={() => setCurrentStep(5)}
-                  className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-6"
-                >
-                  Continue <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </div>
-          </GradientCard>
+          <PersonalAvailabilityStep
+            gradient={activeStep.gradient}
+            setCurrentStep={setCurrentStep}
+          />
         )}
 
-        {/* Step 5: Employees */}
         {currentStep === 5 && (
-          <GradientCard gradient={activeStep.gradient}>
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
-                    <Users className="h-5 w-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Employees</h2>
-                    <p className="text-sm text-gray-500">Optional. Invite employees now or skip.</p>
-                  </div>
-                </div>
-              </div>
-
-              <EmployeeManagement />
-
-              <div className="flex items-center justify-between gap-3 pt-2">
-                <Button variant="outline" onClick={() => setCurrentStep(4)} className="rounded-xl gap-1">
-                  <ChevronLeft className="h-4 w-4" /> Back
-                </Button>
-                <Button
-                  onClick={() => setCurrentStep(6)}
-                  className="rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 px-6"
-                >
-                  Continue <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </div>
-          </GradientCard>
+          <EmployeesStep
+            gradient={activeStep.gradient}
+            setCurrentStep={setCurrentStep}
+          />
         )}
 
-        {/* Step 6: Agreements */}
         {currentStep === 6 && (
-          <GradientCard gradient={activeStep.gradient}>
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
-                    <CheckCircle2 className="h-5 w-5 text-gray-700" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Agreements</h2>
-                    <p className="text-sm text-gray-500">Review and accept all agreements to submit your profile.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {AGREEMENTS.map((text, index) => {
-                  const agreementId = `agreement-${index}`
-                  return (
-                  <label
-                    key={text}
-                    htmlFor={agreementId}
-                    className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                      agreements[index]
-                        ? 'border-blue-200 bg-blue-50/50'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
-                    }`}
-                  >
-                    <Checkbox
-                      id={agreementId}
-                      checked={agreements[index]}
-                      onCheckedChange={(checked) => {
-                        setAgreements(prev => prev.map((val, idx) => idx === index ? Boolean(checked) : val))
-                      }}
-                      className="mt-0.5"
-                    />
-                    <span className="text-sm text-gray-700 leading-relaxed">{text}</span>
-                  </label>
-                )})}
-              </div>
-
-              {submitErrors.length > 0 && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  <p className="font-semibold mb-2">Missing requirements:</p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {submitErrors.map((err) => (
-                      <li key={err}>{err}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between gap-3 pt-2">
-                <Button variant="outline" onClick={() => setCurrentStep(5)} className="rounded-xl gap-1">
-                  <ChevronLeft className="h-4 w-4" /> Back
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 px-8"
-                  >
-                    {submitting ? (
-                      <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Submitting...</>
-                    ) : (
-                      <>Submit for Verification <ChevronRight className="h-4 w-4 ml-2" /></>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </GradientCard>
+          <AgreementsStep
+            gradient={activeStep.gradient}
+            agreements={agreements}
+            setAgreements={setAgreements}
+            submitErrors={submitErrors}
+            setCurrentStep={setCurrentStep}
+            handleSubmit={handleSubmit}
+            submitting={submitting}
+          />
         )}
 
       </div>
