@@ -1,29 +1,19 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, User, Mail, Phone, Lock, Briefcase, Building2, FileText, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+import { ArrowLeft, User, Mail, Phone, Lock, Briefcase } from "lucide-react"
 import { toast } from "sonner"
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import DualVerificationComponent from '@/components/DualVerificationComponent'
 import { EU_COUNTRIES } from '@/lib/countries'
 import { isValidPhoneNumber } from 'libphonenumber-js'
-import {
-  validateVATFormat,
-  validateVATWithAPI,
-  formatVATNumber,
-  isEUVatNumber,
-  getVATCountryName,
-} from '@/lib/vatValidation'
-import AddressAutocomplete, {
-  PlaceData,
-} from '@/components/professional/project-wizard/AddressAutocomplete'
 
 interface FormData {
   name: string
@@ -32,29 +22,6 @@ interface FormData {
   countryCode: string
   password: string
   confirmPassword: string
-  // Company fields (optional for professionals)
-  companyName: string
-  vatNumber: string
-  // Location fields
-  address: string
-  city: string
-  country: string
-  postalCode: string
-  latitude?: number
-  longitude?: number
-}
-
-interface VatValidationState {
-  valid?: boolean
-  error?: string
-  companyName?: string
-  companyAddress?: string
-  parsedAddress?: {
-    streetAddress?: string
-    city?: string
-    postalCode?: string
-    country?: string
-  }
 }
 
 export default function RegisterPage() {
@@ -66,174 +33,12 @@ export default function RegisterPage() {
     countryCode: '+32',
     password: '',
     confirmPassword: '',
-    companyName: '',
-    vatNumber: '',
-    address: '',
-    city: '',
-    country: '',
-    postalCode: '',
   })
   const [loading, setLoading] = useState(false)
-  const [vatValidating, setVatValidating] = useState(false)
-  const [vatValidation, setVatValidation] = useState<VatValidationState>({})
-  const [addressValidating, setAddressValidating] = useState(false)
-  const [isAddressValid, setIsAddressValid] = useState(false)
   const { signup } = useAuth()
   const router = useRouter()
 
-  const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
-
-  // Handle address selection from autocomplete
-  const handleAddressChange = (fullAddress: string, placeData?: PlaceData) => {
-    handleInputChange('address', fullAddress)
-
-    if (placeData?.coordinates && placeData?.address_components) {
-      const components = placeData.address_components
-      const cityComponent = components.find(
-        (component) =>
-          component.types.includes('locality') ||
-          component.types.includes('administrative_area_level_2')
-      )
-      const countryComponent = components.find((component) =>
-        component.types.includes('country')
-      )
-      const postalComponent = components.find((component) =>
-        component.types.includes('postal_code')
-      )
-
-      setFormData((prev) => ({
-        ...prev,
-        city: cityComponent?.long_name || prev.city,
-        country: countryComponent?.long_name || prev.country,
-        postalCode: postalComponent?.long_name || prev.postalCode,
-        latitude: placeData.coordinates!.lat,
-        longitude: placeData.coordinates!.lng,
-      }))
-    }
-  }
-
-  // Auto-populate company info from VAT validation
-  useEffect(() => {
-    if (!vatValidation.valid) return
-
-    setFormData((prev) => {
-      let next = prev
-
-      const applyUpdate = (patch: Partial<FormData>) => {
-        if (next === prev) {
-          next = { ...prev, ...patch }
-        } else {
-          next = { ...next, ...patch }
-        }
-      }
-
-      if (!prev.companyName && vatValidation.companyName) {
-        applyUpdate({ companyName: vatValidation.companyName })
-      }
-
-      if (vatValidation.parsedAddress) {
-        const parsed = vatValidation.parsedAddress
-        if (parsed.streetAddress && !prev.address) {
-          applyUpdate({ address: parsed.streetAddress })
-        }
-        if (parsed.city && !prev.city) {
-          applyUpdate({ city: parsed.city })
-        }
-        if (parsed.postalCode && !prev.postalCode) {
-          applyUpdate({ postalCode: parsed.postalCode })
-        }
-        if (parsed.country && !prev.country) {
-          applyUpdate({ country: parsed.country })
-        }
-      }
-
-      return next
-    })
-  }, [vatValidation])
-
-  const validateVatNumber = async () => {
-    if (!formData.vatNumber.trim()) {
-      setVatValidation({})
-      return
-    }
-
-    const formatted = formatVATNumber(formData.vatNumber)
-
-    const formatValidation = validateVATFormat(formatted)
-    if (!formatValidation.valid) {
-      setVatValidation({
-        valid: false,
-        error: formatValidation.error,
-      })
-      return
-    }
-
-    if (!isEUVatNumber(formatted)) {
-      setVatValidation({
-        valid: false,
-        error: 'Only EU VAT numbers can be validated with VIES',
-      })
-      return
-    }
-
-    setVatValidating(true)
-    try {
-      const result = await validateVATWithAPI(formatted)
-      setVatValidation({
-        valid: result.valid,
-        error: result.error,
-        companyName: result.companyName,
-        companyAddress: result.companyAddress,
-        parsedAddress: result.parsedAddress,
-      })
-
-      if (result.valid) {
-        toast.success(`VAT validated: ${result.companyName || 'Valid'}`)
-      }
-    } catch (error) {
-      console.error('VAT validation error:', error)
-      setVatValidation({
-        valid: false,
-        error: 'Failed to validate VAT number. You can still continue without validation.',
-      })
-    } finally {
-      setVatValidating(false)
-    }
-  }
-
-  // Geocode address to get coordinates
-  const geocodeAddress = async (
-    fullAddress: string
-  ): Promise<{ lat: number; lng: number } | null> => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/validate-address`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ address: fullAddress }),
-        }
-      )
-
-      const data = await response.json()
-
-      if (data.success && data.isValid && data.coordinates) {
-        return { lat: data.coordinates.lat, lng: data.coordinates.lng }
-      }
-      return null
-    } catch (error) {
-      console.error('Geocoding error:', error)
-      return null
-    }
-  }
-
-  const validateForm = async (): Promise<boolean> => {
+  const validateForm = (): boolean => {
     if (!formData.name.trim()) {
       toast.error('Please enter your full name')
       return false
@@ -259,109 +64,43 @@ export default function RegisterPage() {
       return false
     }
 
-    // Location validations
-    if (!formData.address.trim()) {
-      toast.error('Please enter your address')
-      return false
-    }
-
-    if (!isAddressValid) {
-      toast.error('Please select a valid address from the suggestions or wait for validation')
-      return false
-    }
-
-    if (!formData.city.trim()) {
-      toast.error('Please enter your city')
-      return false
-    }
-
-    if (!formData.country.trim()) {
-      toast.error('Please enter your country')
-      return false
-    }
-
-    if (!formData.postalCode.trim()) {
-      toast.error('Please enter your postal code')
-      return false
-    }
-
-    // VAT format validation (only if provided - optional for professionals)
-    if (formData.vatNumber.trim()) {
-      const vatFormatValidation = validateVATFormat(formatVATNumber(formData.vatNumber))
-      if (!vatFormatValidation.valid) {
-        toast.error(vatFormatValidation.error || 'Invalid VAT number format')
-        return false
-      }
-    }
-
-    // Geocode if we don't have coordinates yet
-    if (!formData.latitude || !formData.longitude) {
-      setAddressValidating(true)
-      const fullAddress = `${formData.address}, ${formData.city}, ${formData.postalCode}, ${formData.country}`
-      const coordinates = await geocodeAddress(fullAddress)
-      setAddressValidating(false)
-
-      if (!coordinates) {
-        toast.error('Unable to validate your address. Please check and try again.')
-        return false
-      }
-
-      setFormData((prev) => ({
-        ...prev,
-        latitude: coordinates.lat,
-        longitude: coordinates.lng,
-      }))
-    }
-
     return true
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!(await validateForm())) return
+    if (!validateForm()) return
 
     setLoading(true)
     try {
-      const submitData = {
+      const success = await signup({
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         phone: formData.countryCode + formData.phone.trim(),
         password: formData.password,
-        role: 'professional' as const,
-        // Address fields
-        address: formData.address.trim(),
-        city: formData.city.trim(),
-        country: formData.country.trim(),
-        postalCode: formData.postalCode.trim(),
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        // Company fields (only if provided)
-        ...(formData.companyName.trim() && {
-          companyName: formData.companyName.trim(),
-        }),
-        ...(formData.vatNumber.trim() && {
-          vatNumber: formatVATNumber(formData.vatNumber),
-          isVatValidated: vatValidation.valid || false,
-        }),
-      }
-
-      const success = await signup(submitData)
+        role: 'professional'
+      })
 
       if (success) {
         setCurrentStep('verification')
       }
     } catch (error) {
       console.error('Registration error:', error)
-      toast.error('Failed to create account. Please try again.')
     } finally {
       setLoading(false)
     }
   }
-
   const handleVerificationSuccess = () => {
     toast.success('Account verified successfully!')
     router.push('/professional/onboarding?welcome=true')
+  }
+
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
   }
 
   if (currentStep === 'verification') {
@@ -376,8 +115,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4 py-12">
-      <div className="w-full max-w-2xl">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-lg">
         <Link href="/">
           <Button
             variant="ghost"
@@ -402,317 +141,131 @@ export default function RegisterPage() {
             </CardDescription>
           </CardHeader>
 
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Basic Information
-                </h3>
-
-                {/* Full Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name *</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address *</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Phone */}
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <div className="flex gap-2">
-                    <Select
-                      value={formData.countryCode}
-                      onValueChange={(value) => handleInputChange('countryCode', value)}
-                    >
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EU_COUNTRIES.map((country) => (
-                          <SelectItem key={country.code} value={country.dialCode}>
-                            {country.flag} {country.dialCode}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="relative flex-1">
-                      <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="phone"
-                        type="tel"
-                        placeholder="Enter your phone number"
-                        value={formData.phone}
-                        onChange={(e) => handleInputChange('phone', e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password *</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Create a password"
-                      value={formData.password}
-                      onChange={(e) => handleInputChange('password', e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Confirm Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm your password"
-                      value={formData.confirmPassword}
-                      onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Company Information (optional for professionals) */}
-              <div className="space-y-4 pt-2 border-t">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Company Information
-                  <span className="ml-2 text-xs font-normal normal-case text-gray-500">(optional)</span>
-                </h3>
-
-                {/* Company Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name</Label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="companyName"
-                      type="text"
-                      placeholder="Enter company name"
-                      value={formData.companyName}
-                      onChange={(e) => handleInputChange('companyName', e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-
-                {/* VAT Number */}
-                <div className="space-y-2">
-                  <Label htmlFor="vatNumber">
-                    VAT Number
-                    {formData.vatNumber && vatValidation.valid && (
-                      <span className="ml-2 text-xs text-green-600">
-                        {getVATCountryName(formData.vatNumber)}
-                      </span>
-                    )}
-                  </Label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <FileText className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="vatNumber"
-                        type="text"
-                        placeholder="e.g., BE0123456789"
-                        value={formData.vatNumber}
-                        onChange={(e) => {
-                          handleInputChange('vatNumber', e.target.value)
-                          setVatValidation({})
-                        }}
-                        onBlur={validateVatNumber}
-                        className="pl-10"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={validateVatNumber}
-                      disabled={!formData.vatNumber || vatValidating}
-                      className="shrink-0"
-                    >
-                      {vatValidating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        'Validate'
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* VAT Validation Status */}
-                  {vatValidation.valid !== undefined && (
-                    <div
-                      className={`flex items-start gap-2 text-sm p-3 rounded-lg ${
-                        vatValidation.valid
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-red-50 text-red-700 border border-red-200'
-                      }`}
-                    >
-                      {vatValidation.valid ? (
-                        <>
-                          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-medium">VAT Number Validated</p>
-                            {vatValidation.companyName && (
-                              <p className="text-xs mt-1">{vatValidation.companyName}</p>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-medium">Validation Failed</p>
-                            {vatValidation.error && (
-                              <p className="text-xs mt-1">{vatValidation.error}</p>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  <p className="text-xs text-gray-500">
-                    VAT number is optional for professionals. You can add or update it later in your profile.
-                  </p>
-                </div>
-              </div>
-
-              {/* Location Information */}
-              <div className="space-y-4 pt-2 border-t">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Location
-                </h3>
-
-                {/* Address with Autocomplete */}
-                <AddressAutocomplete
-                  value={formData.address}
-                  onChange={handleAddressChange}
-                  onValidation={setIsAddressValid}
-                  useCompanyAddress={false}
-                  label="Street Address"
-                  required={true}
-                />
-
-                {/* City and Postal Code */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">City *</Label>
-                    <Input
-                      id="city"
-                      type="text"
-                      placeholder="City"
-                      value={formData.city}
-                      onChange={(e) => handleInputChange('city', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="postalCode">Postal Code *</Label>
-                    <Input
-                      id="postalCode"
-                      type="text"
-                      placeholder="Postal code"
-                      value={formData.postalCode}
-                      onChange={(e) => handleInputChange('postalCode', e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Country */}
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country *</Label>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Full Name */}
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    id="country"
+                    id="name"
                     type="text"
-                    placeholder="Enter your country"
-                    value={formData.country}
-                    onChange={(e) => handleInputChange('country', e.target.value)}
+                    placeholder="Enter your full name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className="pl-10"
                     required
                   />
                 </div>
+              </div>
 
-                <div className="flex items-start gap-2 text-xs text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                  <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                  <p>
-                    We use your location to match you with nearby customers and projects. Your exact address is never shared publicly.
-                  </p>
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className="pl-10"
+                    required
+                  />
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {/* Phone */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.countryCode}
+                    onValueChange={(value) => handleInputChange('countryCode', value)}
+                  >
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EU_COUNTRIES.map((country) => (
+                        <SelectItem key={country.code} value={country.dialCode}>
+                          {country.flag} {country.dialCode}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative flex-1">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter your phone number"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Create a password"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm your password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700 font-medium">Welcome, Professional!</p>
+                <p className="text-xs text-blue-600 mt-1">
+                  After verification, you&apos;ll complete your business profile including VAT validation and ID verification.
+                </p>
+              </div>
+
               <Button
                 type="submit"
-                disabled={loading || addressValidating}
+                disabled={loading}
                 className="w-full h-11 bg-blue-600 hover:bg-blue-700"
                 size="lg"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating Account...
-                  </>
-                ) : addressValidating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Validating Address...
-                  </>
-                ) : (
-                  'Create Account'
-                )}
+                {loading ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
 
-            <div className="mt-6 text-center text-sm text-gray-600">
+            <div className="text-center text-sm text-gray-600">
               Already have an account?{' '}
               <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-500">
                 Sign in here
-              </Link>
-            </div>
-
-            <div className="mt-4 text-center text-sm text-gray-600">
-              Looking for services?{' '}
-              <Link href="/signup/customer" className="font-semibold text-blue-600 hover:text-blue-500">
-                Sign up as Customer
               </Link>
             </div>
           </CardContent>

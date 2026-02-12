@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Upload, Shield, Building, Calendar as CalendarIcon, Users, CheckCircle2 } from 'lucide-react'
+import { Loader2, Upload, Shield, Building, Calendar as CalendarIcon, Users, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight, Check } from 'lucide-react'
 import AddressAutocomplete, { PlaceData } from '@/components/professional/project-wizard/AddressAutocomplete'
 import EmployeeManagement from '@/components/TeamManagement'
 import { EU_COUNTRIES } from '@/lib/countries'
@@ -18,12 +18,12 @@ import { getAuthToken } from '@/lib/utils'
 import { formatVATNumber, getVATCountryName, isEUVatNumber, validateVATFormat, validateVATWithAPI, updateUserVAT, submitForVerification } from '@/lib/vatValidation'
 
 const STEPS = [
-  { id: 1, title: 'ID Upload', required: true },
-  { id: 2, title: 'Business Info', required: false },
-  { id: 3, title: 'Company Availability', required: true },
-  { id: 4, title: 'Personal Availability', required: false },
-  { id: 5, title: 'Employees', required: false },
-  { id: 6, title: 'Agreements', required: true },
+  { id: 1, title: 'ID Upload', icon: Shield, required: true, gradient: 'from-violet-200 via-purple-200 to-fuchsia-200' },
+  { id: 2, title: 'Business Info', icon: Building, required: false, gradient: 'from-blue-200 via-cyan-200 to-teal-200' },
+  { id: 3, title: 'Company Hours', icon: CalendarIcon, required: true, gradient: 'from-emerald-200 via-green-200 to-lime-200' },
+  { id: 4, title: 'Personal Hours', icon: CalendarIcon, required: false, gradient: 'from-amber-200 via-yellow-200 to-orange-200' },
+  { id: 5, title: 'Employees', icon: Users, required: false, gradient: 'from-rose-200 via-pink-200 to-fuchsia-200' },
+  { id: 6, title: 'Agreements', icon: CheckCircle2, required: true, gradient: 'from-indigo-200 via-blue-200 to-violet-200' },
 ]
 
 const DEFAULT_COMPANY_AVAILABILITY = {
@@ -42,6 +42,17 @@ const AGREEMENTS = [
   'I will keep my availability and business details updated.',
   'I agree to follow Fixera platform rules and professional standards.',
 ]
+
+// Gradient border wrapper component
+function GradientCard({ gradient, children, className = '' }: { gradient: string, children: React.ReactNode, className?: string }) {
+  return (
+    <div className={`rounded-2xl bg-gradient-to-r ${gradient} p-[2px] shadow-lg shadow-black/5 ${className}`}>
+      <div className="rounded-[14px] bg-white h-full">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export default function ProfessionalOnboardingPage() {
   const { user, loading, isAuthenticated, checkAuth } = useAuth()
@@ -447,77 +458,154 @@ export default function ProfessionalOnboardingPage() {
   }
 
   const progress = useMemo(() => (currentStep / STEPS.length) * 100, [currentStep])
+  const activeStep = STEPS.find(s => s.id === currentStep)!
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="rounded-2xl bg-gradient-to-r from-violet-200 via-blue-200 to-cyan-200 p-[2px]">
+          <div className="rounded-[14px] bg-white/80 backdrop-blur px-8 py-6 flex items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+            <span className="text-gray-600 font-medium">Loading your profile...</span>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4">
-      <div className="max-w-5xl mx-auto pt-12 space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">Professional Onboarding</h1>
-          <p className="text-gray-600">Complete these steps to submit your profile for approval.</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-4 pb-16">
+      <div className="max-w-4xl mx-auto pt-10 space-y-8">
+
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 text-sm font-medium text-blue-700">
+            Welcome, {user.name?.split(' ')[0]}
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent">
+            Professional Onboarding
+          </h1>
+          <p className="text-gray-500 max-w-lg mx-auto">
+            Complete these steps to submit your profile for approval.
+          </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Progress</CardTitle>
-            <CardDescription>Step {currentStep} of {STEPS.length}</CardDescription>
-            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} />
-            </div>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {STEPS.map((step) => (
-              <div
-                key={step.id}
-                className={`rounded-lg border p-3 ${currentStep === step.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{step.title}</span>
-                  {step.required && <span className="text-xs text-red-500">Required</span>}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">Step {step.id}</div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        {/* Progress bar */}
+        <div className="px-2">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-gray-600">Step {currentStep} of {STEPS.length}</span>
+            <span className="text-sm font-medium text-blue-600">{Math.round(progress)}% complete</span>
+          </div>
+          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-fuchsia-500 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
 
+        {/* Step indicators */}
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          {STEPS.map((step) => {
+            const isCompleted = step.id < currentStep
+            const isCurrent = step.id === currentStep
+            const StepIcon = step.icon
+            return (
+              <button
+                key={step.id}
+                onClick={() => {
+                  if (step.id < currentStep) setCurrentStep(step.id)
+                }}
+                disabled={step.id > currentStep}
+                className={`
+                  relative rounded-xl p-[2px] transition-all duration-300
+                  ${isCurrent
+                    ? `bg-gradient-to-br ${step.gradient} shadow-md scale-[1.02]`
+                    : isCompleted
+                      ? 'bg-gradient-to-br from-green-200 to-emerald-200 cursor-pointer hover:shadow-md hover:scale-[1.02]'
+                      : 'bg-gray-200'
+                  }
+                `}
+              >
+                <div className={`
+                  rounded-[10px] px-2 py-3 text-center h-full flex flex-col items-center gap-1.5
+                  ${isCurrent ? 'bg-white' : isCompleted ? 'bg-white' : 'bg-gray-50'}
+                `}>
+                  <div className={`
+                    w-8 h-8 rounded-full flex items-center justify-center
+                    ${isCurrent
+                      ? `bg-gradient-to-br ${step.gradient}`
+                      : isCompleted
+                        ? 'bg-green-100'
+                        : 'bg-gray-100'
+                    }
+                  `}>
+                    {isCompleted ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <StepIcon className={`h-4 w-4 ${isCurrent ? 'text-gray-700' : 'text-gray-400'}`} />
+                    )}
+                  </div>
+                  <span className={`text-[11px] font-medium leading-tight ${isCurrent ? 'text-gray-900' : isCompleted ? 'text-green-700' : 'text-gray-400'}`}>
+                    {step.title}
+                  </span>
+                  {step.required && (
+                    <span className={`text-[9px] font-medium ${isCurrent ? 'text-red-500' : isCompleted ? 'text-green-500' : 'text-gray-300'}`}>
+                      {isCompleted ? 'Done' : 'Required'}
+                    </span>
+                  )}
+                  {!step.required && (
+                    <span className={`text-[9px] ${isCompleted ? 'text-green-500 font-medium' : 'text-gray-300'}`}>
+                      {isCompleted ? 'Done' : 'Optional'}
+                    </span>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Step 1: ID Upload */}
         {currentStep === 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" /> ID Upload
-              </CardTitle>
-              <CardDescription>Upload your ID proof and provide document details.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <GradientCard gradient={activeStep.gradient}>
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
+                    <Shield className="h-5 w-5 text-gray-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">ID Upload</h2>
+                    <p className="text-sm text-gray-500">Upload your ID proof and provide document details.</p>
+                  </div>
+                </div>
+              </div>
+
               {user.idProofUrl && (
-                <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 text-sm text-green-800">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
                   ID proof already uploaded.
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="idProof">Upload ID Proof</Label>
-                <Input
-                  id="idProof"
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.pdf"
-                  onChange={(e) => setIdProofFile(e.target.files?.[0] || null)}
-                />
+                <Label htmlFor="idProof" className="text-sm font-medium text-gray-700">Upload ID Proof</Label>
+                <div className="rounded-xl border-2 border-dashed border-gray-200 hover:border-purple-300 transition-colors p-4">
+                  <Input
+                    id="idProof"
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    onChange={(e) => setIdProofFile(e.target.files?.[0] || null)}
+                    className="border-0 p-0 shadow-none"
+                  />
+                </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Country of Issue</Label>
+                  <Label className="text-sm font-medium text-gray-700">Country of Issue</Label>
                   <Select value={idCountryOfIssue} onValueChange={setIdCountryOfIssue}>
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-xl">
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                     <SelectContent>
@@ -530,55 +618,69 @@ export default function ProfessionalOnboardingPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Expiration Date</Label>
+                  <Label className="text-sm font-medium text-gray-700">Expiration Date</Label>
                   <Input
                     type="date"
                     value={idExpirationDate}
                     onChange={(e) => setIdExpirationDate(e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
+                    className="rounded-xl"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2">
-                <Button onClick={handleStep1Continue} disabled={uploading || idInfoSaving}>
+              <div className="flex items-center justify-end pt-2">
+                <Button
+                  onClick={handleStep1Continue}
+                  disabled={uploading || idInfoSaving}
+                  className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 px-6"
+                >
                   {(uploading || idInfoSaving) ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...
                     </>
                   ) : (
                     <>
-                      <Upload className="h-4 w-4 mr-2" /> Save & Continue
+                      Save & Continue <ArrowRight className="h-4 w-4 ml-2" />
                     </>
                   )}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GradientCard>
         )}
 
+        {/* Step 2: Business Info */}
         {currentStep === 2 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="h-5 w-5" /> Business Info
-              </CardTitle>
-              <CardDescription>Provide company details and VAT information. You can skip for now.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <GradientCard gradient={activeStep.gradient}>
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
+                    <Building className="h-5 w-5 text-gray-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Business Info</h2>
+                    <p className="text-sm text-gray-500">Provide company details and VAT information.</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label>Company Name</Label>
+                <Label className="text-sm font-medium text-gray-700">Company Name</Label>
                 <Input
                   value={businessInfo.companyName}
                   onChange={(e) => setBusinessInfo(prev => ({ ...prev, companyName: e.target.value }))}
+                  className="rounded-xl"
+                  placeholder="Your company name"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>
+                <Label className="text-sm font-medium text-gray-700">
                   VAT Number *
                   {vatNumber && vatValidation.valid && (
-                    <span className="ml-2 text-xs text-green-600">{getVATCountryName(vatNumber)}</span>
+                    <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber)}</span>
                   )}
                 </Label>
                 <div className="flex gap-2">
@@ -591,19 +693,25 @@ export default function ProfessionalOnboardingPage() {
                     onBlur={validateVatNumber}
                     placeholder="e.g., BE0123456789"
                     required
+                    className="rounded-xl"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     onClick={validateVatNumber}
                     disabled={!vatNumber || vatValidating}
+                    className="rounded-xl shrink-0"
                   >
                     {vatValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Validate'}
                   </Button>
                 </div>
                 {vatValidation.valid !== undefined && (
-                  <div className={`text-xs ${vatValidation.valid ? 'text-green-700' : 'text-red-700'}`}>
-                    {vatValidation.valid ? 'VAT number validated' : vatValidation.error}
+                  <div className={`flex items-center gap-2 text-xs p-2.5 rounded-xl ${vatValidation.valid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {vatValidation.valid ? (
+                      <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> VAT number validated</>
+                    ) : (
+                      <>{vatValidation.error}</>
+                    )}
                   </div>
                 )}
               </div>
@@ -619,184 +727,257 @@ export default function ProfessionalOnboardingPage() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>City</Label>
+                  <Label className="text-sm font-medium text-gray-700">City</Label>
                   <Input
                     value={businessInfo.city}
                     onChange={(e) => setBusinessInfo(prev => ({ ...prev, city: e.target.value }))}
+                    className="rounded-xl"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Postal Code</Label>
+                  <Label className="text-sm font-medium text-gray-700">Postal Code</Label>
                   <Input
                     value={businessInfo.postalCode}
                     onChange={(e) => setBusinessInfo(prev => ({ ...prev, postalCode: e.target.value }))}
+                    className="rounded-xl"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Country</Label>
+                <Label className="text-sm font-medium text-gray-700">Country</Label>
                 <Input
                   value={businessInfo.country}
                   onChange={(e) => setBusinessInfo(prev => ({ ...prev, country: e.target.value }))}
+                  className="rounded-xl"
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Button variant="outline" onClick={() => setCurrentStep(1)}>Back</Button>
-                <Button variant="outline" onClick={() => setCurrentStep(3)}>
-                  Skip for now
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <Button variant="outline" onClick={() => setCurrentStep(1)} className="rounded-xl gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Back
                 </Button>
-                <Button onClick={handleStep2Continue} disabled={businessSaving}>
-                  {businessSaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...
-                    </>
-                  ) : (
-                    'Save & Continue'
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {currentStep === 3 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" /> Company Availability
-              </CardTitle>
-              <CardDescription>Set your company working hours. At least one day is required.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries(companyAvailability).map(([day, schedule]) => (
-                <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
-                  <div className="w-20 text-sm font-medium capitalize">{day}</div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={schedule.available}
-                      onChange={(e) => {
-                        setCompanyAvailability(prev => ({
-                          ...prev,
-                          [day]: { ...prev[day as keyof typeof prev], available: e.target.checked }
-                        }))
-                      }}
-                      className="rounded"
-                    />
-                    <span className="text-sm">Available</span>
-                  </div>
-                  {schedule.available && (
-                    <>
-                      <Input
-                        type="time"
-                        value={schedule.startTime}
-                        onChange={(e) => {
-                          setCompanyAvailability(prev => ({
-                            ...prev,
-                            [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
-                          }))
-                        }}
-                        className="w-28"
-                      />
-                      <span className="text-sm">to</span>
-                      <Input
-                        type="time"
-                        value={schedule.endTime}
-                        onChange={(e) => {
-                          setCompanyAvailability(prev => ({
-                            ...prev,
-                            [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
-                          }))
-                        }}
-                        className="w-28"
-                      />
-                    </>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" onClick={() => setCurrentStep(3)} className="rounded-xl text-gray-500">
+                    Skip for now
+                  </Button>
+                  <Button
+                    onClick={handleStep2Continue}
+                    disabled={businessSaving}
+                    className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 px-6"
+                  >
+                    {businessSaving ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
+                    ) : (
+                      <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
+                    )}
+                  </Button>
                 </div>
-              ))}
+              </div>
+            </div>
+          </GradientCard>
+        )}
 
-              <div className="flex items-center justify-between gap-2">
-                <Button variant="outline" onClick={() => setCurrentStep(2)}>Back</Button>
-                <Button onClick={handleStep3Continue} disabled={companySaving}>
+        {/* Step 3: Company Availability */}
+        {currentStep === 3 && (
+          <GradientCard gradient={activeStep.gradient}>
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
+                    <CalendarIcon className="h-5 w-5 text-gray-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Company Availability</h2>
+                    <p className="text-sm text-gray-500">Set your company working hours. At least one day is required.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {Object.entries(companyAvailability).map(([day, schedule]) => (
+                  <div
+                    key={day}
+                    className={`flex items-center gap-4 p-3.5 rounded-xl border transition-colors ${
+                      schedule.available ? 'border-green-200 bg-green-50/50' : 'border-gray-200 bg-gray-50/50'
+                    }`}
+                  >
+                    <div className="w-24 text-sm font-semibold capitalize text-gray-700">{day}</div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={schedule.available}
+                        onCheckedChange={(checked) => {
+                          setCompanyAvailability(prev => ({
+                            ...prev,
+                            [day]: { ...prev[day as keyof typeof prev], available: Boolean(checked) }
+                          }))
+                        }}
+                      />
+                      <span className="text-sm text-gray-600">Available</span>
+                    </div>
+                    {schedule.available && (
+                      <div className="flex items-center gap-2 ml-auto">
+                        <Input
+                          type="time"
+                          value={schedule.startTime}
+                          onChange={(e) => {
+                            setCompanyAvailability(prev => ({
+                              ...prev,
+                              [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
+                            }))
+                          }}
+                          className="w-28 rounded-xl"
+                        />
+                        <span className="text-sm text-gray-400">to</span>
+                        <Input
+                          type="time"
+                          value={schedule.endTime}
+                          onChange={(e) => {
+                            setCompanyAvailability(prev => ({
+                              ...prev,
+                              [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
+                            }))
+                          }}
+                          className="w-28 rounded-xl"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button variant="outline" onClick={() => setCurrentStep(2)} className="rounded-xl gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={handleStep3Continue}
+                  disabled={companySaving}
+                  className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-6"
+                >
                   {companySaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...
-                    </>
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
                   ) : (
-                    'Save & Continue'
+                    <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
                   )}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GradientCard>
         )}
 
+        {/* Step 4: Personal Availability */}
         {currentStep === 4 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" /> Personal Availability
-              </CardTitle>
-              <CardDescription>Optional for now. You can update this later in your profile.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Set personal availability and blocked dates after onboarding if needed.
+          <GradientCard gradient={activeStep.gradient}>
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
+                    <CalendarIcon className="h-5 w-5 text-gray-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Personal Availability</h2>
+                    <p className="text-sm text-gray-500">Optional for now. You can update this later in your profile.</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <Button variant="outline" onClick={() => setCurrentStep(3)}>Back</Button>
-                <Button onClick={() => setCurrentStep(5)}>Continue</Button>
+
+              <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/50 p-6 text-center">
+                <CalendarIcon className="h-8 w-8 text-amber-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">
+                  Set personal availability and blocked dates after onboarding if needed.
+                </p>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button variant="outline" onClick={() => setCurrentStep(3)} className="rounded-xl gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={() => setCurrentStep(5)}
+                  className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-6"
+                >
+                  Continue <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </GradientCard>
         )}
 
+        {/* Step 5: Employees */}
         {currentStep === 5 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" /> Employees
-              </CardTitle>
-              <CardDescription>Optional. Invite employees now or skip.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <EmployeeManagement />
-              <div className="flex items-center justify-between gap-2">
-                <Button variant="outline" onClick={() => setCurrentStep(4)}>Back</Button>
-                <Button onClick={() => setCurrentStep(6)}>Continue</Button>
+          <GradientCard gradient={activeStep.gradient}>
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
+                    <Users className="h-5 w-5 text-gray-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Employees</h2>
+                    <p className="text-sm text-gray-500">Optional. Invite employees now or skip.</p>
+                  </div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+
+              <EmployeeManagement />
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button variant="outline" onClick={() => setCurrentStep(4)} className="rounded-xl gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Back
+                </Button>
+                <Button
+                  onClick={() => setCurrentStep(6)}
+                  className="rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 px-6"
+                >
+                  Continue <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </GradientCard>
         )}
 
+        {/* Step 6: Agreements */}
         {currentStep === 6 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5" /> Agreements
-              </CardTitle>
-              <CardDescription>Review and accept all agreements to submit your profile.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <GradientCard gradient={activeStep.gradient}>
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeStep.gradient} flex items-center justify-center`}>
+                    <CheckCircle2 className="h-5 w-5 text-gray-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Agreements</h2>
+                    <p className="text-sm text-gray-500">Review and accept all agreements to submit your profile.</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-3">
                 {AGREEMENTS.map((text, index) => (
-                  <div key={text} className="flex items-start gap-3">
+                  <label
+                    key={text}
+                    className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+                      agreements[index]
+                        ? 'border-blue-200 bg-blue-50/50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
                     <Checkbox
                       checked={agreements[index]}
                       onCheckedChange={(checked) => {
                         setAgreements(prev => prev.map((val, idx) => idx === index ? Boolean(checked) : val))
                       }}
+                      className="mt-0.5"
                     />
-                    <span className="text-sm text-gray-700">{text}</span>
-                  </div>
+                    <span className="text-sm text-gray-700 leading-relaxed">{text}</span>
+                  </label>
                 ))}
               </div>
 
               {submitErrors.length > 0 && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  <p className="font-medium mb-2">Missing requirements:</p>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  <p className="font-semibold mb-2">Missing requirements:</p>
                   <ul className="list-disc pl-5 space-y-1">
                     {submitErrors.map((err) => (
                       <li key={err}>{err}</li>
@@ -805,21 +986,28 @@ export default function ProfessionalOnboardingPage() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between gap-2">
-                <Button variant="outline" onClick={() => setCurrentStep(5)}>Back</Button>
-                <Button onClick={handleSubmit} disabled={submitting}>
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Submitting...
-                    </>
-                  ) : (
-                    'Submit for Verification'
-                  )}
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button variant="outline" onClick={() => setCurrentStep(5)} className="rounded-xl gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Back
                 </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 px-8"
+                  >
+                    {submitting ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Submitting...</>
+                    ) : (
+                      <>Submit for Verification <ChevronRight className="h-4 w-4 ml-2" /></>
+                    )}
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GradientCard>
         )}
+
       </div>
     </div>
   )

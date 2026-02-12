@@ -1,47 +1,67 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowRight } from 'lucide-react'
-import { serviceCategories } from '@/data/content'
+import { ArrowRight, Loader2 } from 'lucide-react'
 import Icon, { IconName } from '@/components/Icon'
 
+interface ApiService {
+  name: string
+  slug: string
+}
 
+interface ApiCategory {
+  name: string
+  slug: string
+  services: ApiService[]
+}
 
+function getServiceIcon(slug: string): IconName {
+  const s = slug.toLowerCase()
+  if (s.includes('plumb')) return 'Droplet'
+  if (s.includes('electr')) return 'Zap'
+  if (s.includes('paint')) return 'PaintBucket'
+  if (s.includes('renov')) return 'Hammer'
+  if (s.includes('roof')) return 'Home'
+  if (s.includes('garden') || s.includes('landsc')) return 'TreePine'
+  if (s.includes('clean')) return 'ShowerHead'
+  if (s.includes('hvac') || s.includes('air')) return 'Fan'
+  if (s.includes('insul')) return 'Thermometer'
+  if (s.includes('floor')) return 'Layers'
+  if (s.includes('tile') || s.includes('tiling')) return 'Grid'
+  if (s.includes('solar')) return 'Sun'
+  if (s.includes('design') || s.includes('3d')) return 'Palette'
+  if (s.includes('kitchen')) return 'ChefHat'
+  if (s.includes('bath')) return 'Bath'
+  if (s.includes('carpentry') || s.includes('wood')) return 'Hammer'
+  if (s.includes('window') || s.includes('door')) return 'DoorOpen'
+  if (s.includes('mov') || s.includes('remov')) return 'Truck'
+  return 'Wrench'
+}
 
-
-const ServiceCard = ({ service }: { service: any }) => {  //eslint-disable-line
+const ServiceCard = ({ service }: { service: ApiService }) => {
   return (
-    <Link href={`/services/${service.id}`} className="block group">
+    <Link href={`/services/${service.slug}`} className="block group">
       <Card className="h-full hover:shadow-2xl transition-all duration-300 border-gray-200 hover:-translate-y-2 cursor-pointer overflow-hidden bg-white">
         <div className="relative">
           <div className="h-48 bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
             <div className="p-6 rounded-full bg-white shadow-lg group-hover:scale-110 transition-transform duration-300">
               <Icon
-                name={(service.icon || 'Wrench') as IconName} // Fallback icon
+                name={getServiceIcon(service.slug)}
                 className="w-8 h-8 text-blue-600 group-hover:text-purple-600 transition-colors duration-300"
               />
             </div>
-          </div>
-          <div className="absolute top-3 left-3">
-            {service.popular && <Badge className="bg-orange-500 border-orange-500 text-white">Popular</Badge>}
           </div>
         </div>
         <CardContent className="p-6 flex flex-col h-full">
           <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
             {service.name}
           </h3>
-          <p className="text-gray-600 mb-4 leading-relaxed flex-grow">
-            {service.description}
-          </p>
           <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
-            <div>
-              <span className="text-sm text-gray-500">More Info</span>
-              <div className="text-lg font-bold text-gray-900">Click to View</div>
-            </div>
+            <span className="text-sm text-gray-500">Learn more</span>
             <div className="px-4 py-2 bg-blue-600 text-white rounded-full font-semibold group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 transition-all duration-300">
               Explore
             </div>
@@ -54,10 +74,30 @@ const ServiceCard = ({ service }: { service: any }) => {  //eslint-disable-line
 
 // --- Main ServicesSection Component ---
 const ServicesSection = () => {
-  // Create a curated list of featured services from your nested data
-  const featuredServices = serviceCategories.flatMap(cat =>
-    cat.subCategories.flatMap(sub => sub.services)
-  ).slice(0, 6); // Display the first 6 services as featured
+  const [services, setServices] = useState<ApiService[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=BE`
+        )
+        if (response.ok) {
+          const data: ApiCategory[] = await response.json()
+          // Flatten all services from all categories, take first 6 as featured
+          const allServices = data.flatMap(cat => cat.services)
+          setServices(allServices.slice(0, 6))
+        }
+      } catch (error) {
+        console.error('Failed to fetch services:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchServices()
+  }, [])
 
   return (
     <section id="services" className="py-24 bg-gray-50">
@@ -79,12 +119,21 @@ const ServicesSection = () => {
           </p>
         </div>
 
-        {/* Display the grid of featured services */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredServices.map((service) => (
-            <ServiceCard key={service.id} service={service} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        ) : services.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {services.map((service) => (
+              <ServiceCard key={service.slug} service={service} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-gray-500 py-12">
+            Services are being updated. Check back soon!
+          </p>
+        )}
 
         {/* The CTA now links to the main services/category page */}
         <div className="text-center mt-16">
