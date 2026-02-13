@@ -959,6 +959,8 @@ export default function ProfilePage() {
       }
       if (customerType === 'business') {
         body.businessName = customerBusinessName
+      } else {
+        body.businessName = ''
       }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/customer-profile`, {

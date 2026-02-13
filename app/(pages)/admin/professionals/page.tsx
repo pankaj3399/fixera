@@ -562,15 +562,23 @@ export default function ProfessionalsAdminPage() {
                                 )}
                                 {!change.oldValue && <span className="text-red-600 italic">(none)</span>}
                                 <span className="text-gray-400">→</span>
-                                <a
-                                  href={professional.idProofUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-green-700 underline hover:text-green-900"
-                                  title="View New Document"
-                                >
-                                  View New
-                                </a>
+                                {(() => {
+                                  const newUrl = change.newValue || professional.idProofUrl
+                                  const isValid = newUrl && (newUrl.startsWith('http://') || newUrl.startsWith('https://'))
+                                  return isValid ? (
+                                    <a
+                                      href={newUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-green-700 underline hover:text-green-900"
+                                      title="View New Document"
+                                    >
+                                      View New
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-400 italic">(none)</span>
+                                  )
+                                })()}
                               </div>
                             ) : (
                               <>
@@ -797,14 +805,22 @@ export default function ProfessionalsAdminPage() {
                               )}
                               {!change.oldValue && <span className="text-red-600 italic">(none)</span>}
                               <span className="text-gray-400">→</span>
-                              <a
-                                href={selectedProfessional.idProofUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-green-700 underline hover:text-green-900 font-medium"
-                              >
-                                View New Document
-                              </a>
+                              {(() => {
+                                const newUrl = change.newValue || selectedProfessional.idProofUrl
+                                const isValid = newUrl && (newUrl.startsWith('http://') || newUrl.startsWith('https://'))
+                                return isValid ? (
+                                  <a
+                                    href={newUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-green-700 underline hover:text-green-900 font-medium"
+                                  >
+                                    View New Document
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-400 italic">(none)</span>
+                                )
+                              })()}
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 text-sm">
