@@ -250,8 +250,7 @@ export default function BookingPaymentPage() {
         router.push(`/bookings/${bookingId}/payment/success`);
       } else {
         // Check if error is about payment already being captured
-        if (data.error?.code === 'payment_intent_unexpected_state' ||
-            data.error?.message?.includes('requires_capture')) {
+        if (data.error?.code === 'payment_intent_unexpected_state') {
           console.log('[PAYMENT PAGE] Payment already authorized, redirecting to success');
           router.push(`/bookings/${bookingId}/payment/success`);
         } else {
@@ -430,7 +429,7 @@ export default function BookingPaymentPage() {
               <div>
                 <p className="text-sm font-medium text-gray-700">Secure Payment</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Your payment is held securely until the service is completed. The professional will only receive payment after you confirm the work is done.
+                  Your payment is charged securely. The professional will only receive payment after you confirm the work is done.
                 </p>
               </div>
             </div>

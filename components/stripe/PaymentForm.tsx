@@ -65,8 +65,8 @@ export function PaymentForm({
 
       // Handle different payment statuses
       switch (paymentIntent.status) {
-        case 'requires_capture':
-          // Success! Payment authorized (escrow mode)
+        case 'succeeded':
+          // Success! Payment charged
           setPaymentStatus('success');
           onSuccess(paymentIntent.id);
           break;
@@ -87,12 +87,6 @@ export function PaymentForm({
           setPaymentStatus('error');
           setErrorMessage('Payment method declined. Please try another card.');
           onError('Payment method declined');
-          break;
-
-        case 'succeeded':
-          // Shouldn't happen with manual capture, but handle it
-          setPaymentStatus('success');
-          onSuccess(paymentIntent.id);
           break;
 
         default:
@@ -165,7 +159,7 @@ export function PaymentForm({
       </button>
 
       <p className="text-xs text-gray-500 text-center">
-        Your payment is secured by Stripe. Funds will be held until service completion.
+        Your payment is secured by Stripe.
       </p>
     </form>
   );
