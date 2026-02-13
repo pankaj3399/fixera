@@ -48,12 +48,12 @@ export default function ProfessionalsAdminPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const status = searchParams.get('status') || 'pending'
-  
+
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [approvalError, setApprovalError] = useState<{professionalId: string, message: string, missingRequirements: string[]} | null>(null)
+  const [approvalError, setApprovalError] = useState<{ professionalId: string, message: string, missingRequirements: string[] } | null>(null)
   const [rejectionModal, setRejectionModal] = useState<{
     isOpen: boolean;
     professionalId: string;
@@ -67,7 +67,7 @@ export default function ProfessionalsAdminPage() {
     reason: '',
     error: null
   })
-  
+
   const [suspensionModal, setSuspensionModal] = useState<{
     isOpen: boolean;
     professionalId: string;
@@ -192,7 +192,7 @@ export default function ProfessionalsAdminPage() {
 
   const handleSuspensionSubmit = () => {
     const { reason, professionalId } = suspensionModal
-    
+
     if (!reason || reason.trim().length < 10) {
       setSuspensionModal(prev => ({
         ...prev,
@@ -207,7 +207,7 @@ export default function ProfessionalsAdminPage() {
 
   const handleRejectionSubmit = () => {
     const { reason, professionalId } = rejectionModal
-    
+
     if (!reason || reason.trim().length < 10) {
       setRejectionModal(prev => ({
         ...prev,
@@ -222,11 +222,11 @@ export default function ProfessionalsAdminPage() {
 
   const handleAction = async (professionalId: string, action: 'approve' | 'reject' | 'suspend' | 'reactivate', reason?: string) => {
     setActionLoading(professionalId)
-    setApprovalError(null)   
+    setApprovalError(null)
     try {
       const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professionals/${professionalId}/${action}`
       const body = reason ? { reason } : undefined
-      
+
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -432,7 +432,7 @@ export default function ProfessionalsAdminPage() {
                         Applied: {new Date(professional.createdAt).toLocaleDateString()}
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       {professional.hourlyRate && (
                         <div className="text-sm">
@@ -546,10 +546,39 @@ export default function ProfessionalsAdminPage() {
                       <div className="space-y-1">
                         {professional.pendingIdChanges.map((change, idx) => (
                           <div key={idx} className="text-xs text-amber-700">
-                            <span className="font-medium">{getFieldLabel(change.field)}:</span>{' '}
-                            <span className="line-through">{change.oldValue || '(empty)'}</span>
-                            {' → '}
-                            <span className="font-medium">{change.newValue || '(empty)'}</span>
+                            <span className="font-medium mr-2">{getFieldLabel(change.field)}:</span>
+                            {change.field === 'idProofDocument' ? (
+                              <div className="inline-flex items-center gap-2">
+                                {change.oldValue && (
+                                  <a
+                                    href={change.oldValue.startsWith('http') ? change.oldValue : '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-red-600 underline hover:text-red-800"
+                                    title="View Old Document"
+                                  >
+                                    View Old
+                                  </a>
+                                )}
+                                {!change.oldValue && <span className="text-red-600 italic">(none)</span>}
+                                <span className="text-gray-400">→</span>
+                                <a
+                                  href={professional.idProofUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-green-700 underline hover:text-green-900"
+                                  title="View New Document"
+                                >
+                                  View New
+                                </a>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="text-red-600 line-through">{change.oldValue || '(empty)'}</span>
+                                {' → '}
+                                <span className="font-medium">{change.newValue || '(empty)'}</span>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -638,7 +667,7 @@ export default function ProfessionalsAdminPage() {
                   </Button>
                 </div>
               </div>
-              
+
               <div className="p-6 space-y-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
@@ -648,7 +677,7 @@ export default function ProfessionalsAdminPage() {
                       <div><span className="font-medium">Email:</span> {selectedProfessional.email}</div>
                       <div><span className="font-medium">Phone:</span> {selectedProfessional.phone}</div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">VAT Number:</span> 
+                        <span className="font-medium">VAT Number:</span>
                         {selectedProfessional.vatNumber ? (
                           <span className="flex items-center gap-1">
                             {selectedProfessional.vatNumber}
@@ -715,9 +744,9 @@ export default function ProfessionalsAdminPage() {
                             <><AlertTriangle className="h-3 w-3 mr-1" />Needs Verification</>
                           )}
                         </Badge>
-                        <a 
-                          href={selectedProfessional.idProofUrl} 
-                          target="_blank" 
+                        <a
+                          href={selectedProfessional.idProofUrl}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm text-blue-600 hover:underline"
                         >
@@ -754,11 +783,36 @@ export default function ProfessionalsAdminPage() {
                       {selectedProfessional.pendingIdChanges.map((change, idx) => (
                         <div key={idx} className="flex items-center gap-4 p-2 bg-white rounded border">
                           <span className="text-sm font-medium w-36">{getFieldLabel(change.field)}</span>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-red-600 line-through">{change.oldValue || '(empty)'}</span>
-                            <span className="text-gray-400">→</span>
-                            <span className="text-green-700 font-medium">{change.newValue || '(empty)'}</span>
-                          </div>
+                          {change.field === 'idProofDocument' ? (
+                            <div className="flex items-center gap-2 text-sm">
+                              {change.oldValue && (
+                                <a
+                                  href={change.oldValue.startsWith('http') ? change.oldValue : '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-red-600 underline hover:text-red-800"
+                                >
+                                  View Old Document
+                                </a>
+                              )}
+                              {!change.oldValue && <span className="text-red-600 italic">(none)</span>}
+                              <span className="text-gray-400">→</span>
+                              <a
+                                href={selectedProfessional.idProofUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-green-700 underline hover:text-green-900 font-medium"
+                              >
+                                View New Document
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-red-600 line-through">{change.oldValue || '(empty)'}</span>
+                              <span className="text-gray-400">→</span>
+                              <span className="text-green-700 font-medium">{change.newValue || '(empty)'}</span>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -838,17 +892,17 @@ export default function ProfessionalsAdminPage() {
                 className="mt-1 flex min-h-[100px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 rows={4}
               />
-              
+
               {rejectionModal.error && (
                 <p className="text-red-600 text-xs mt-1">
                   {rejectionModal.error}
                 </p>
               )}
-              
+
               <p className="text-xs text-gray-400 mt-1">
                 {rejectionModal.reason.length}/10 characters minimum
               </p>
-              
+
               {/* Debug info */}
               <div className="text-xs text-gray-500 mt-1 p-2 bg-gray-50 rounded">
                 <strong>Debug:</strong> Reason length: {rejectionModal.reason.length}, Value: &quot;{rejectionModal.reason}&quot;
@@ -931,13 +985,13 @@ export default function ProfessionalsAdminPage() {
                 className="mt-1 flex min-h-[100px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2"
                 rows={4}
               />
-              
+
               {suspensionModal.error && (
                 <p className="text-red-600 text-xs mt-1">
                   {suspensionModal.error}
                 </p>
               )}
-              
+
               <p className="text-xs text-gray-400 mt-1">
                 {suspensionModal.reason.length}/10 characters minimum
               </p>
