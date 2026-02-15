@@ -119,6 +119,7 @@ export default function ProfilePage() {
     postalCode: ''
   })
   const [customerBusinessName, setCustomerBusinessName] = useState('')
+  const [customerType, setCustomerType] = useState<'individual' | 'business'>('individual')
   const [customerProfileSaving, setCustomerProfileSaving] = useState(false)
 
   // ID metadata state (for professionals)
@@ -126,6 +127,7 @@ export default function ProfilePage() {
   const [idExpirationDate, setIdExpirationDate] = useState('')
   const [idInfoSaving, setIdInfoSaving] = useState(false)
   const [showIdChangeWarning, setShowIdChangeWarning] = useState(false)
+  const [showIdProofWarning, setShowIdProofWarning] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -155,6 +157,9 @@ export default function ProfilePage() {
       }
       if (user.businessName) {
         setCustomerBusinessName(user.businessName)
+      }
+      if (user.customerType) {
+        setCustomerType(user.customerType)
       }
     }
 
@@ -997,9 +1002,12 @@ export default function ProfilePage() {
         city: customerAddress.city,
         country: customerAddress.country,
         postalCode: customerAddress.postalCode,
+        customerType
       }
-      if (user?.customerType === 'business') {
+      if (customerType === 'business') {
         body.businessName = customerBusinessName
+      } else {
+        body.businessName = ''
       }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/customer-profile`, {
@@ -1693,7 +1701,13 @@ export default function ProfilePage() {
                   )}
 
                   <Button
-                    onClick={handleIdProofUpload}
+                    onClick={() => {
+                      if (user?.professionalStatus === 'approved') {
+                        setShowIdProofWarning(true)
+                      } else {
+                        handleIdProofUpload()
+                      }
+                    }}
                     disabled={!idProofFile || uploading}
                     className="w-full"
                   >
@@ -2243,10 +2257,41 @@ export default function ProfilePage() {
                       </CardTitle>
                       <CardDescription>
                         Your address details
-                        {user.customerType === 'business' && ' and business information'}
+                        {customerType === 'business' && ' and business information'}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* Customer Type Toggle */}
+                      <div className="flex flex-col space-y-2 mb-4">
+                        <Label>Account Type</Label>
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="type-individual"
+                              name="customerType"
+                              value="individual"
+                              checked={customerType === 'individual'}
+                              onChange={() => setCustomerType('individual')}
+                              className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <Label htmlFor="type-individual" className="font-normal cursor-pointer">Individual</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="type-business"
+                              name="customerType"
+                              value="business"
+                              checked={customerType === 'business'}
+                              onChange={() => setCustomerType('business')}
+                              className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <Label htmlFor="type-business" className="font-normal cursor-pointer">Business</Label>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="customer-address">Address</Label>
@@ -2286,7 +2331,7 @@ export default function ProfilePage() {
                         </div>
                       </div>
 
-                      {user.customerType === 'business' && (
+                      {customerType === 'business' && (
                         <>
                           <div className="border-t pt-4 mt-4">
                             <h4 className="text-sm font-medium mb-3">Business Information</h4>
@@ -2324,7 +2369,7 @@ export default function ProfilePage() {
 
               {/* VAT for business customers */}
               {
-                user?.role === 'customer' && user.customerType === 'business' && (
+                user?.role === 'customer' && customerType === 'business' && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -2631,6 +2676,46 @@ export default function ProfilePage() {
                   Cancel
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showIdProofWarning} onOpenChange={setShowIdProofWarning}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-700">
+                <AlertTriangle className="h-5 w-5" />
+                Re-verification Required
+              </DialogTitle>
+              <DialogDescription>
+                Uploading a new ID document will require admin re-verification. Your professional status will be set to <strong>pending</strong> and you will not be able to receive new bookings until an admin re-approves your profile.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 justify-end mt-4">
+              <Button
+                onClick={() => setShowIdProofWarning(false)}
+                variant="outline"
+                disabled={uploading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowIdProofWarning(false)
+                  handleIdProofUpload()
+                }}
+                disabled={uploading}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Confirm Upload'
+                )}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
