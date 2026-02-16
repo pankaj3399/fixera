@@ -30,7 +30,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
-import { parseTimeToMinutes, minutesToTime, getScheduleWindow } from "@/lib/scheduleUtils"
+import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
 
 type Day =
   | 'monday'
@@ -74,6 +74,8 @@ interface Employee {
     endDate: string;
     reason?: string;
     bookingId?: string;
+    bookingNumber?: string;
+    customerName?: string;
     location?: {
       address?: string;
       city?: string;
@@ -130,6 +132,10 @@ export default function EmployeeManagement() {
 
   const scheduleWindow = useMemo(
     () => getScheduleWindow(availabilityDialog?.availability),
+    [availabilityDialog?.availability]
+  )
+  const visibleDays = useMemo(
+    () => getVisibleScheduleDays(availabilityDialog?.availability),
     [availabilityDialog?.availability]
   )
 
@@ -509,6 +515,8 @@ export default function EmployeeManagement() {
         end,
         meta: {
           bookingId: range.bookingId,
+          bookingNumber: range.bookingNumber,
+          customerName: range.customerName,
           location: range.location
         }
       })
@@ -1106,9 +1114,9 @@ export default function EmployeeManagement() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Manual Blocked Periods</Label>
+            <div className="space-y-6">
+              <div className="space-y-3">
+              <Label className="text-base font-medium">Add Blocked Period</Label>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="space-y-1">
                   <Label htmlFor="employee-range-start">Start</Label>
@@ -1146,51 +1154,13 @@ export default function EmployeeManagement() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              {blockedRanges.length > 0 ? (
-                <div className="space-y-2">
-                  {blockedRanges.map((range, index) => (
-                    <div key={`range-${index}`} className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 p-3">
-                      <div>
-                        <div className="text-sm font-medium text-rose-900">
-                          {formatDateTimeSafe(range.startDate)}{" -> "}{formatDateTimeSafe(range.endDate)}
-                        </div>
-                        {range.reason && <div className="text-xs text-rose-700">{range.reason}</div>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={() => openEditRange(index)}
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          onClick={() => removeBlockedRange(index)}
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-muted-foreground">
-                  No manual blocks yet.
-                </div>
-              )}
-            </div>
-
             <WeeklyAvailabilityCalendar
               title="Weekly Availability"
-              description="Hover for details. Click personal blocks to edit. Click bookings to view."
+              description="Booking details are shown inside each block. Click personal blocks to edit. Click bookings to view."
               events={calendarEvents}
               dayStart={scheduleWindow.dayStart}
               dayEnd={scheduleWindow.dayEnd}
+              visibleDays={visibleDays}
               onEventClick={(event) => {
                 if (event.type === 'personal' && typeof event.meta?.rangeIndex === 'number') {
                   openEditRange(event.meta.rangeIndex)

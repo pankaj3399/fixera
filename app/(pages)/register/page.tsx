@@ -22,7 +22,6 @@ interface FormData {
   countryCode: string
   password: string
   confirmPassword: string
-  role: 'customer' | 'professional'
 }
 
 export default function RegisterPage() {
@@ -33,8 +32,7 @@ export default function RegisterPage() {
     phone: '',
     countryCode: '+32',
     password: '',
-    confirmPassword: '',
-    role: 'customer'
+    confirmPassword: ''
   })
   const [loading, setLoading] = useState(false)
   const { signup } = useAuth()
@@ -81,7 +79,7 @@ export default function RegisterPage() {
         email: formData.email.trim().toLowerCase(),
         phone: formData.countryCode + formData.phone.trim(),
         password: formData.password,
-        role: formData.role
+        role: 'professional'
       })
 
       if (success) {
@@ -95,13 +93,7 @@ export default function RegisterPage() {
   }
   const handleVerificationSuccess = () => {
     toast.success('Account verified successfully!')
-
-    // Redirect based on role
-    if (formData.role === 'professional') {
-      router.push('/profile?welcome=true')
-    } else {
-      router.push('/dashboard?welcome=true')
-    }
+    router.push('/profile?welcome=true')
   }
 
   const handleInputChange = (field: keyof FormData, value: string) => {
@@ -151,23 +143,6 @@ export default function RegisterPage() {
 
           <CardContent className="space-y-4">
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Role Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="role">I want to join as</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value: 'customer' | 'professional') => handleInputChange('role', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="customer">Customer - Find services</SelectItem>
-                    <SelectItem value="professional">Professional - Offer services</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Full Name */}
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
@@ -271,14 +246,12 @@ export default function RegisterPage() {
               </div>
 
               {/* Professional Info */}
-              {formData.role === 'professional' && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-700 font-medium">Welcome, Professional!</p>
-                  <p className="text-xs text-blue-600 mt-1">
-                    After verification, you&apos;ll complete your business profile including VAT validation and ID verification.
-                  </p>
-                </div>
-              )}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700 font-medium">Welcome, Professional!</p>
+                <p className="text-xs text-blue-600 mt-1">
+                  After verification, you&apos;ll complete your business profile including VAT validation and ID verification.
+                </p>
+              </div>
 
               <Button
                 type="submit"

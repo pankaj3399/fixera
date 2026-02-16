@@ -1,3 +1,5 @@
+import { getAuthToken } from '@/lib/utils'
+
 // EU country codes that support VIES validation
 export const EU_COUNTRIES = [
   'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
@@ -171,10 +173,12 @@ export const validateAndPopulateVAT = async (vatNumber: string, autoPopulate: bo
   };
 }> => {
   try {
+    const token = getAuthToken()
     const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/vat/validate-and-populate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: 'include',
       body: JSON.stringify({ 
@@ -214,10 +218,12 @@ export const validateAndPopulateVAT = async (vatNumber: string, autoPopulate: bo
 
 export const updateUserVAT = async (vatNumber: string): Promise<UpdateVATResponse> => {
   try {
+    const token = getAuthToken()
     const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/vat`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: 'include',
       body: JSON.stringify({ vatNumber: vatNumber ? formatVATNumber(vatNumber) : '' }),
@@ -249,10 +255,12 @@ export const submitForVerification = async (): Promise<UpdateVATResponse & {
   missingRequirements?: string[];
 }> => {
   try {
+    const token = getAuthToken()
     const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/submit-for-verification`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: 'include',
     });

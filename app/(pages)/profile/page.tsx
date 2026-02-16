@@ -10,7 +10,6 @@ import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, L
 import EmployeeManagement from "@/components/TeamManagement"
 import PasswordChange from "@/components/PasswordChange"
 import EmployeeAvailability from "@/components/EmployeeAvailability"
-import AvailabilityCalendar from "@/components/calendar/AvailabilityCalendar"
 import WeeklyAvailabilityCalendar, { CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
@@ -30,6 +29,7 @@ import {
   formatVATNumber
 } from "@/lib/vatValidation"
 import { toLocalInputValue } from "@/lib/dateUtils"
+import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
 
 
 export default function ProfilePage() {
@@ -117,6 +117,12 @@ export default function ProfilePage() {
     postalCode: ''
   })
   const [customerBusinessName, setCustomerBusinessName] = useState('')
+  const [customerCompanyAddress, setCustomerCompanyAddress] = useState({
+    address: '',
+    city: '',
+    country: '',
+    postalCode: ''
+  })
   const [customerProfileSaving, setCustomerProfileSaving] = useState(false)
 
   // ID metadata state (for professionals)
@@ -153,6 +159,14 @@ export default function ProfilePage() {
       }
       if (user.businessName) {
         setCustomerBusinessName(user.businessName)
+      }
+      if (user.companyAddress) {
+        setCustomerCompanyAddress({
+          address: user.companyAddress.address || '',
+          city: user.companyAddress.city || '',
+          country: user.companyAddress.country || '',
+          postalCode: user.companyAddress.postalCode || ''
+        })
       }
     }
 
@@ -309,6 +323,8 @@ export default function ProfilePage() {
 
         interface BookingData {
           _id: string
+          bookingNumber?: string
+          customer?: { name?: string } | string | null
           scheduledStartDate?: string | Date | null
           scheduledExecutionEndDate?: string | Date | null
           scheduledBufferStartDate?: string | Date | null
@@ -341,6 +357,9 @@ export default function ProfilePage() {
           const executionEnd = parseDate(booking.scheduledExecutionEndDate)
           const bufferStart = parseDate(booking.scheduledBufferStartDate)
           const bufferEnd = parseDate(booking.scheduledBufferEndDate)
+          const customerName = typeof booking.customer === 'object'
+            ? booking.customer?.name
+            : undefined
 
           if (scheduledStart && executionEnd && executionEnd > scheduledStart) {
             events.push({
@@ -351,6 +370,8 @@ export default function ProfilePage() {
               end: executionEnd,
               meta: {
                 bookingId: booking._id,
+                bookingNumber: booking.bookingNumber,
+                customerName,
                 location: booking.location
               },
               readOnly: true
@@ -369,6 +390,8 @@ export default function ProfilePage() {
                 end: bufferEnd,
                 meta: {
                   bookingId: booking._id,
+                  bookingNumber: booking.bookingNumber,
+                  customerName,
                   location: booking.location
                 },
                 readOnly: true
@@ -446,6 +469,21 @@ export default function ProfilePage() {
           parsedAddress: result.parsedAddress
         })
         setShowAutoPopulateDialog(true)
+      }
+
+      // Auto-prefill company address for business customers
+      if (result.valid && user?.role === 'customer' && user.customerType === 'business') {
+        if (result.companyName) {
+          setCustomerBusinessName(result.companyName)
+        }
+        if (result.parsedAddress) {
+          setCustomerCompanyAddress(prev => ({
+            address: result.parsedAddress?.streetAddress || prev.address,
+            city: result.parsedAddress?.city || prev.city,
+            country: result.parsedAddress?.country || prev.country,
+            postalCode: result.parsedAddress?.postalCode || prev.postalCode
+          }))
+        }
       }
     } catch {
       setVatValidation({
@@ -795,22 +833,21 @@ export default function ProfilePage() {
 
     const startDate = new Date(newCompanyBlockedRange.startDate)
     const endDate = new Date(newCompanyBlockedRange.endDate)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const now = new Date()
 
-    if (startDate < today) {
-      toast.error('Cannot block dates in the past')
+    if (startDate < now) {
+      toast.error('Cannot block time in the past')
       return
     }
 
-    if (startDate > endDate) {
-      toast.error('End date cannot be before start date')
+    if (startDate >= endDate) {
+      toast.error('End time must be after start time')
       return
     }
 
     const newRange = {
-      startDate: newCompanyBlockedRange.startDate,
-      endDate: newCompanyBlockedRange.endDate,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
       reason: newCompanyBlockedRange.reason || undefined,
       isHoliday: newCompanyBlockedRange.isHoliday || false
     }
@@ -821,8 +858,7 @@ export default function ProfilePage() {
 
     const success = await saveCompanyBlockedRanges(updatedRanges)
     if (success) {
-      const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      toast.success(`Blocked ${days} day${days === 1 ? '' : 's'} from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()} and saved`)
+      toast.success(`Blocked period saved: ${startDate.toLocaleString()} -> ${endDate.toLocaleString()}`)
     }
   }
 
@@ -945,7 +981,8 @@ export default function ProfilePage() {
     setCustomerProfileSaving(true)
     try {
       const token = getAuthToken()
-      const body: Record<string, string> = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: Record<string, any> = {
         address: customerAddress.address,
         city: customerAddress.city,
         country: customerAddress.country,
@@ -953,6 +990,7 @@ export default function ProfilePage() {
       }
       if (user?.customerType === 'business') {
         body.businessName = customerBusinessName
+        body.companyAddress = customerCompanyAddress
       }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/customer-profile`, {
@@ -1047,6 +1085,66 @@ export default function ProfilePage() {
     }))
     return [...companyEvents, ...bookingEvents, ...personalEvents]
   }, [blockedRanges, companyBlockedRanges, bookingEvents])
+
+  const personalScheduleWindow = useMemo(
+    () => getScheduleWindow(companyAvailability),
+    [companyAvailability]
+  )
+  const personalVisibleDays = useMemo(
+    () => getVisibleScheduleDays(companyAvailability),
+    [companyAvailability]
+  )
+  const dayLabelByIndex: Record<number, string> = {
+    0: 'Sun',
+    1: 'Mon',
+    2: 'Tue',
+    3: 'Wed',
+    4: 'Thu',
+    5: 'Fri',
+    6: 'Sat',
+  }
+  const personalVisibleDaysLabel = personalVisibleDays
+    .map((dayIndex) => dayLabelByIndex[dayIndex] || '')
+    .filter(Boolean)
+    .join(', ')
+  const companyScheduleWindow = useMemo(
+    () => getScheduleWindow(companyAvailability),
+    [companyAvailability]
+  )
+  const companyVisibleDays = useMemo(
+    () => getVisibleScheduleDays(companyAvailability),
+    [companyAvailability]
+  )
+  const companyVisibleDaysLabel = companyVisibleDays
+    .map((dayIndex) => dayLabelByIndex[dayIndex] || '')
+    .filter(Boolean)
+    .join(', ')
+  const companyCalendarEvents = useMemo<CalendarEvent[]>(() => {
+    const toEventDate = (value: string, isEnd = false) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return new Date(`${value}T${isEnd ? '23:59:59' : '00:00:00'}`)
+      }
+      return new Date(value)
+    }
+
+    const events: CalendarEvent[] = []
+    companyBlockedRanges.forEach((range, index) => {
+      const start = toEventDate(range.startDate, false)
+      const end = toEventDate(range.endDate, true)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+        return
+      }
+      events.push({
+        id: `company-closure-${index}`,
+        type: 'company',
+        title: range.isHoliday ? 'Holiday' : 'Company Closure',
+        start,
+        end,
+        meta: { note: range.reason, rangeIndex: index }
+      })
+    })
+    return events
+  }, [companyBlockedRanges])
 
   if (loading) {
     return (
@@ -1737,7 +1835,7 @@ export default function ProfilePage() {
                   <div className="space-y-3">
                     <Label className="text-base font-medium">Add Blocked Period</Label>
                     <p className="text-xs text-muted-foreground">
-                      Use the same date for start and end to block a single day.
+                      Choose the exact start and end time for the blocked period.
                     </p>
                   </div>
                   <div className="space-y-4">
@@ -1789,53 +1887,13 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <Label>Manual Blocked Periods</Label>
-                    {blockedRanges.length > 0 ? (
-                      <div className="space-y-2">
-                        {blockedRanges.map((range, index) => (
-                          <div key={`range-${index}`} className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 p-3">
-                            <div>
-                              <div className="text-sm font-medium text-rose-900">
-                                {new Date(range.startDate).toLocaleString()}{" -> "}{new Date(range.endDate).toLocaleString()}
-                              </div>
-                              {range.reason && (
-                                <div className="text-xs text-rose-700">{range.reason}</div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                onClick={() => openEditRange(index)}
-                                variant="ghost"
-                                size="sm"
-                                className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                onClick={() => removeBlockedRange(index)}
-                                variant="ghost"
-                                size="sm"
-                                disabled={profileSaving}
-                                className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-muted-foreground">
-                        No blocked periods yet.
-                      </div>
-                    )}
-                  </div>
-
                   <WeeklyAvailabilityCalendar
                     title="Weekly Availability"
-                    description="Hover for details. Click personal blocks to edit."
+                    description="Booking details are shown inside each block. Click personal blocks to edit."
                     events={calendarEvents}
+                    dayStart={personalScheduleWindow.dayStart}
+                    dayEnd={personalScheduleWindow.dayEnd}
+                    visibleDays={personalVisibleDays}
                     onEventClick={(event) => {
                       if (event.type === 'personal' && typeof event.meta?.rangeIndex === 'number') {
                         openEditRange(event.meta.rangeIndex)
@@ -1853,12 +1911,12 @@ export default function ProfilePage() {
                     Personal Working Hours
                   </CardTitle>
                   <CardDescription>
-                    Read-only. Working hours are fixed to Monday-Friday, 09:00-17:00.
+                    Read-only. Working hours follow the company schedule.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    Working hours are fixed to Monday-Friday, 09:00-17:00.
+                    Calendar window: {personalVisibleDaysLabel || 'Mon-Fri'} - {personalScheduleWindow.dayStart} to {personalScheduleWindow.dayEnd}
                   </div>
                 </CardContent>
               </Card>
@@ -1871,18 +1929,100 @@ export default function ProfilePage() {
                 <p className="text-sm text-muted-foreground">Set company-wide schedule that team members can inherit</p>
               </div>
 
-              {/* Company Calendar View (read-only for company blocks) */}
-              <AvailabilityCalendar
-                title="Company Availability"
-                description="Month view with company working days and company blocks"
-                weeklySchedule={companyAvailability}
-                personalBlockedDates={[]}
-                personalBlockedRanges={[]}
-                companyBlockedDates={[]}
-                companyBlockedRanges={companyBlockedRanges}
-                mode="professional"
-                compact
-              />
+              {/* Company Closures */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarX className="h-5 w-5" />
+                    Company Closures
+                  </CardTitle>
+                  <CardDescription>
+                    Add blocked periods with start and end times. These slots appear directly in the weekly calendar.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium">Add Blocked Period</Label>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid md:grid-cols-12 gap-4">
+                      <div className="md:col-span-3">
+                        <Label htmlFor="company-range-start">Start Date</Label>
+                        <Input
+                          id="company-range-start"
+                          type="datetime-local"
+                          value={newCompanyBlockedRange.startDate}
+                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
+                          min={toLocalInputValue(new Date().toISOString())}
+                        />
+                      </div>
+                      <div className="md:col-span-3">
+                        <Label htmlFor="company-range-end">End Date</Label>
+                        <Input
+                          id="company-range-end"
+                          type="datetime-local"
+                          value={newCompanyBlockedRange.endDate}
+                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
+                          min={newCompanyBlockedRange.startDate
+                            ? newCompanyBlockedRange.startDate
+                            : toLocalInputValue(new Date().toISOString())}
+                        />
+                      </div>
+                      <div className="md:col-span-4">
+                        <Label htmlFor="company-range-reason">Reason</Label>
+                        <Input
+                          id="company-range-reason"
+                          placeholder="Holiday period"
+                          value={newCompanyBlockedRange.reason}
+                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
+                        />
+                      </div>
+                      <div className="md:col-span-2 flex items-end">
+                        <Button
+                          onClick={addCompanyBlockedRange}
+                          disabled={
+                            !newCompanyBlockedRange.startDate ||
+                            !newCompanyBlockedRange.endDate ||
+                            newCompanyBlockedRange.endDate <= newCompanyBlockedRange.startDate
+                          }
+                          className="w-full"
+                        >
+                          Block Period
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="company-range-is-holiday"
+                        checked={newCompanyBlockedRange.isHoliday}
+                        onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, isHoliday: e.target.checked }))}
+                        className="rounded"
+                      />
+                      <Label htmlFor="company-range-is-holiday" className="text-sm font-normal cursor-pointer">
+                        Mark as official company holiday
+                      </Label>
+                    </div>
+                  </div>
+
+                  <WeeklyAvailabilityCalendar
+                    title="Company Weekly Calendar"
+                    description="Blocked periods are shown as timeslots. Click a company slot to remove it."
+                    events={companyCalendarEvents}
+                    dayStart={companyScheduleWindow.dayStart}
+                    dayEnd={companyScheduleWindow.dayEnd}
+                    visibleDays={companyVisibleDays}
+                    onEventClick={(event) => {
+                      if (event.type === 'company' && typeof event.meta?.rangeIndex === 'number') {
+                        const shouldRemove = window.confirm('Remove this company blocked period?')
+                        if (shouldRemove) {
+                          void removeCompanyBlockedRange(event.meta.rangeIndex)
+                        }
+                      }
+                    }}
+                  />
+                </CardContent>
+              </Card>
 
               {/* Company Weekly Schedule */}
               <Card>
@@ -1892,7 +2032,7 @@ export default function ProfilePage() {
                     Company Working Hours
                   </CardTitle>
                   <CardDescription>
-                    Set company office hours for your team
+                    Set company office hours for your team. The weekly calendar window updates automatically.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1943,6 +2083,10 @@ export default function ProfilePage() {
                     </div>
                   ))}
 
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    Calendar window: {companyVisibleDaysLabel || 'Mon-Fri'} - {companyScheduleWindow.dayStart} to {companyScheduleWindow.dayEnd}
+                  </div>
+
                   <Button
                     onClick={saveBusinessInfo}
                     disabled={profileSaving}
@@ -1957,122 +2101,6 @@ export default function ProfilePage() {
                       'Save Company Hours'
                     )}
                   </Button>
-                </CardContent>
-              </Card>
-
-              {/* Company Holidays */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CalendarX className="h-5 w-5" />
-                    Company Holidays & Closures
-                  </CardTitle>
-                  <CardDescription>
-                    Set company-wide closures for one or more days.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="grid md:grid-cols-12 gap-4">
-                      <div className="md:col-span-3">
-                        <Label htmlFor="company-range-start">Start Date</Label>
-                        <Input
-                          id="company-range-start"
-                          type="date"
-                          value={newCompanyBlockedRange.startDate}
-                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, startDate: e.target.value }))}
-                          min={toLocalInputValue(new Date().toISOString()).split('T')[0]}
-                        />
-                      </div>
-                      <div className="md:col-span-3">
-                        <Label htmlFor="company-range-end">End Date</Label>
-                        <Input
-                          id="company-range-end"
-                          type="date"
-                          value={newCompanyBlockedRange.endDate}
-                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, endDate: e.target.value }))}
-                          min={newCompanyBlockedRange.startDate
-                            ? newCompanyBlockedRange.startDate
-                            : toLocalInputValue(new Date().toISOString()).split('T')[0]}
-                        />
-                      </div>
-                      <div className="md:col-span-4">
-                        <Label htmlFor="company-range-reason">Reason</Label>
-                        <Input
-                          id="company-range-reason"
-                          placeholder="Holiday period"
-                          value={newCompanyBlockedRange.reason}
-                          onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
-                        />
-                      </div>
-                      <div className="md:col-span-2 flex items-end">
-                        <Button
-                          onClick={addCompanyBlockedRange}
-                          disabled={
-                            !newCompanyBlockedRange.startDate ||
-                            !newCompanyBlockedRange.endDate ||
-                            newCompanyBlockedRange.endDate < newCompanyBlockedRange.startDate
-                          }
-                          className="w-full"
-                        >
-                          Add Period
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="company-range-is-holiday"
-                        checked={newCompanyBlockedRange.isHoliday}
-                        onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, isHoliday: e.target.checked }))}
-                        className="rounded"
-                      />
-                      <Label htmlFor="company-range-is-holiday" className="text-sm font-normal cursor-pointer">
-                        Mark as official company holiday
-                      </Label>
-                    </div>
-                  </div>
-
-                  {companyBlockedRanges.length > 0 && (
-                    <div className="space-y-3 mt-6">
-                      <Label>Company Closures:</Label>
-                      {companyBlockedRanges.map((range, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <CalendarX className="h-4 w-4 text-orange-600" />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-orange-800">
-                                {new Date(range.startDate).toLocaleDateString() === new Date(range.endDate).toLocaleDateString()
-                                  ? new Date(range.startDate).toLocaleDateString()
-                                  : `${new Date(range.startDate).toLocaleDateString()} - ${new Date(range.endDate).toLocaleDateString()}`}
-                              </span>
-                              {range.reason && (
-                                <span className="text-xs text-orange-600">{range.reason}</span>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => removeCompanyBlockedRange(index)}
-                            variant="ghost"
-                            size="sm"
-                            disabled={profileSaving}
-                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-100"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {companyBlockedRanges.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <CalendarX className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No company holidays set</p>
-                      <p className="text-xs">Add holidays when your company is closed</p>
-                    </div>
-                  )}
-
                 </CardContent>
               </Card>
             </TabsContent >
@@ -2329,6 +2357,49 @@ export default function ProfilePage() {
                           </div>
                         </div>
                       )}
+
+                      {/* Company Address */}
+                      <div className="border-t pt-4 mt-4">
+                        <h4 className="text-sm font-medium mb-3">Company Address</h4>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="company-address">Address</Label>
+                            <Input
+                              id="company-address"
+                              value={customerCompanyAddress.address}
+                              onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, address: e.target.value }))}
+                              placeholder="Company street address"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="company-city">City</Label>
+                            <Input
+                              id="company-city"
+                              value={customerCompanyAddress.city}
+                              onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, city: e.target.value }))}
+                              placeholder="City"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="company-country">Country</Label>
+                            <Input
+                              id="company-country"
+                              value={customerCompanyAddress.country}
+                              onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, country: e.target.value }))}
+                              placeholder="Country"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="company-postalCode">Postal Code</Label>
+                            <Input
+                              id="company-postalCode"
+                              value={customerCompanyAddress.postalCode}
+                              onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, postalCode: e.target.value }))}
+                              placeholder="Postal Code"
+                            />
+                          </div>
+                        </div>
+                      </div>
 
                       <div className="flex gap-2">
                         <Button

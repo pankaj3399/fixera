@@ -92,6 +92,12 @@ interface User {
   }
   customerType?: 'individual' | 'business'
   businessName?: string
+  companyAddress?: {
+    address?: string
+    city?: string
+    country?: string
+    postalCode?: string
+  }
   profileCompletedAt?: string
   createdAt: string
   updatedAt: string

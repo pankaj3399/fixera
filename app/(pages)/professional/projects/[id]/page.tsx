@@ -8,7 +8,7 @@ import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import Image from "next/image"
 import MeetingScheduler from "@/components/professional/meetings/MeetingScheduler"
-import MeetingsList from "@/components/professional/meetings/MeetingsList"
+import WeeklyAvailabilityCalendar, { type CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import {
   ArrowLeft,
   Calendar,
@@ -220,6 +220,10 @@ export default function ProjectDetailPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [showMeetingScheduler, setShowMeetingScheduler] = useState(false)
   const [refreshMeetings, setRefreshMeetings] = useState(0)
+  const [bookingEvents, setBookingEvents] = useState<CalendarEvent[]>([])
+  const [calendarDayStart, setCalendarDayStart] = useState('09:00')
+  const [calendarDayEnd, setCalendarDayEnd] = useState('17:00')
+  const [calendarVisibleDays, setCalendarVisibleDays] = useState<number[]>([1, 2, 3, 4, 5])
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -228,6 +232,118 @@ export default function ProjectDetailPage() {
       router.push('/dashboard')
     }
   }, [isAuthenticated, loading, router, user])
+
+  // Fetch bookings and working hours for the calendar
+  useEffect(() => {
+    if (!project || !user) return
+
+    const fetchBookingsAndHours = async () => {
+      try {
+        // Fetch bookings and working hours in parallel
+        const [bookingsRes, hoursRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?limit=100`, {
+            credentials: 'include'
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`)
+        ])
+
+        // Process bookings into calendar events
+        if (bookingsRes.ok) {
+          const bookingsData = await bookingsRes.json()
+          const bookings = bookingsData.bookings || []
+          const events: CalendarEvent[] = []
+
+          for (const booking of bookings) {
+            if (!booking.scheduledStartDate) continue
+            const projectMatch = booking.project?._id === project._id || String(booking.project) === project._id
+            if (!projectMatch) continue
+
+            const start = new Date(booking.scheduledStartDate)
+            const end = booking.scheduledExecutionEndDate
+              ? new Date(booking.scheduledExecutionEndDate)
+              : booking.scheduledEndDate
+                ? new Date(booking.scheduledEndDate)
+                : new Date(start.getTime() + 8 * 60 * 60 * 1000) // fallback 8h
+
+            if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue
+
+            const customerName = typeof booking.customer === 'object'
+              ? booking.customer?.name
+              : undefined
+            const loc = booking.location
+
+            events.push({
+              id: booking._id,
+              type: 'booking',
+              title: booking.project?.title || project.title || 'Booking',
+              start,
+              end,
+              meta: {
+                bookingId: booking._id,
+                bookingNumber: booking.bookingNumber,
+                customerName,
+                location: loc ? {
+                  address: loc.address,
+                  city: loc.city,
+                  country: loc.country,
+                  postalCode: loc.postalCode,
+                } : undefined,
+              },
+              readOnly: true,
+            })
+
+            // Add buffer as separate event
+            if (booking.scheduledBufferStartDate && booking.scheduledBufferEndDate) {
+              const bufferStart = new Date(booking.scheduledBufferStartDate)
+              const bufferEnd = new Date(booking.scheduledBufferEndDate)
+              if (!Number.isNaN(bufferStart.getTime()) && !Number.isNaN(bufferEnd.getTime())) {
+                events.push({
+                  id: `${booking._id}-buffer`,
+                  type: 'booking-buffer',
+                  title: 'Buffer',
+                  start: bufferStart,
+                  end: bufferEnd,
+                  readOnly: true,
+                })
+              }
+            }
+          }
+          setBookingEvents(events)
+        }
+
+        // Process working hours for dynamic calendar range
+        if (hoursRes.ok) {
+          const hoursData = await hoursRes.json()
+          if (hoursData.success && hoursData.availability) {
+            const avail = hoursData.availability
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+            let earliest = '23:59'
+            let latest = '00:00'
+            const activeDayIndices: number[] = []
+
+            dayNames.forEach((name, index) => {
+              const day = avail[name]
+              if (day?.available && day.startTime && day.endTime) {
+                activeDayIndices.push(index)
+                if (day.startTime < earliest) earliest = day.startTime
+                if (day.endTime > latest) latest = day.endTime
+              }
+            })
+
+            if (activeDayIndices.length > 0) {
+              setCalendarDayStart(earliest)
+              setCalendarDayEnd(latest)
+              setCalendarVisibleDays(activeDayIndices)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch bookings/hours for calendar:', err)
+      }
+    }
+
+    fetchBookingsAndHours()
+  }, [project, user, refreshMeetings])
 
   const fetchProject = useCallback(async () => {
     setIsLoading(true)
@@ -932,9 +1048,13 @@ const submitProject = async () => {
                     }}
                   />
                 )}
-                <MeetingsList
-                  projectId={project._id}
-                  refreshTrigger={refreshMeetings}
+                <WeeklyAvailabilityCalendar
+                  title="Booking Calendar"
+                  description="Bookings and blocks for this project"
+                  events={bookingEvents}
+                  dayStart={calendarDayStart}
+                  dayEnd={calendarDayEnd}
+                  visibleDays={calendarVisibleDays}
                 />
               </CardContent>
             </Card>
