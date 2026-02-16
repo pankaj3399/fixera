@@ -12,7 +12,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
 import WeeklyAvailabilityCalendar, { CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
-import { parseTimeToMinutes, minutesToTime, getScheduleWindow } from "@/lib/scheduleUtils"
+import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
 
 interface BlockedRange {
   startDate: string
@@ -43,6 +43,8 @@ interface AvailabilityData {
     endDate: string
     reason?: string
     bookingId?: string
+    bookingNumber?: string
+    customerName?: string
     location?: {
       address?: string
       city?: string
@@ -332,6 +334,10 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     () => getScheduleWindow(availabilityData?.availability),
     [availabilityData?.availability]
   )
+  const visibleDays = useMemo(
+    () => getVisibleScheduleDays(availabilityData?.availability),
+    [availabilityData?.availability]
+  )
 
   const calendarEvents = useMemo(() => {
     const events: CalendarEvent[] = []
@@ -402,6 +408,8 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         end,
         meta: {
           bookingId: range.bookingId,
+          bookingNumber: range.bookingNumber,
+          customerName: range.customerName,
           location: range.location
         }
       })
@@ -467,7 +475,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           <div className="space-y-3">
             <Label className="text-base font-medium">Add Blocked Period</Label>
             <p className="text-xs text-muted-foreground">
-              Use the same date for start and end to block a single day.
+              Choose the exact start and end time for the blocked period.
             </p>
           </div>
 
@@ -520,58 +528,14 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label>Manual Blocked Periods</Label>
-            {blockedRanges.length > 0 ? (
-              <div className="space-y-2">
-                {blockedRanges.map((range, index) => (
-                  <div key={`range-${index}`} className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 p-3">
-                    <div>
-                      <div className="text-sm font-medium text-rose-900">
-                        {new Date(range.startDate).toLocaleString()}{" -> "}{new Date(range.endDate).toLocaleString()}
-                      </div>
-                      {range.reason && (
-                        <div className="text-xs text-rose-700">{range.reason}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={() => openEditRange(index)}
-                        variant="ghost"
-                        size="sm"
-                        disabled={saving}
-                        className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        onClick={() => removeBlockedRange(index)}
-                        variant="ghost"
-                        size="sm"
-                        disabled={saving}
-                        className="text-rose-700 hover:text-rose-900 hover:bg-rose-100"
-                        aria-label="Remove blocked period"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-muted-foreground">
-                No blocked periods yet.
-              </div>
-            )}
-          </div>
-
           {availabilityData && (
             <WeeklyAvailabilityCalendar
               title="Weekly Availability"
-              description="Hover for details. Click personal blocks to edit. Click bookings to view."
+              description="Booking details are shown inside each block. Click personal blocks to edit. Click bookings to view."
               events={calendarEvents}
               dayStart={scheduleWindow.dayStart}
               dayEnd={scheduleWindow.dayEnd}
+              visibleDays={visibleDays}
               onEventClick={(event) => {
                 if (event.type === 'personal' && typeof event.meta?.rangeIndex === 'number') {
                   openEditRange(event.meta.rangeIndex)

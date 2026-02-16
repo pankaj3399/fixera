@@ -15,7 +15,21 @@ export function minutesToTime(minutes: number): string {
 }
 
 /**
- * Computes the earliest start and latest end across weekday availability,
+ * Day order used across schedule utilities.
+ * Values map to calendar day indices where 0=Sun, 1=Mon, ... 6=Sat.
+ */
+const SCHEDULE_DAY_ORDER: Array<{ key: string; calendarIndex: number }> = [
+  { key: 'monday', calendarIndex: 1 },
+  { key: 'tuesday', calendarIndex: 2 },
+  { key: 'wednesday', calendarIndex: 3 },
+  { key: 'thursday', calendarIndex: 4 },
+  { key: 'friday', calendarIndex: 5 },
+  { key: 'saturday', calendarIndex: 6 },
+  { key: 'sunday', calendarIndex: 0 },
+]
+
+/**
+ * Computes the earliest start and latest end across configured available days,
  * returning an object with dayStart and dayEnd time strings.
  */
 export function getScheduleWindow(
@@ -24,11 +38,10 @@ export function getScheduleWindow(
   if (!availability) {
     return { dayStart: '09:00', dayEnd: '17:00' }
   }
-  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
   let min: number | null = null
   let max: number | null = null
 
-  days.forEach((day) => {
+  SCHEDULE_DAY_ORDER.forEach(({ key: day }) => {
     const dayData = availability[day]
     if (!dayData?.available) return
     const start = parseTimeToMinutes(dayData.startTime || '09:00')
@@ -43,6 +56,24 @@ export function getScheduleWindow(
   }
 
   return { dayStart: minutesToTime(min), dayEnd: minutesToTime(max) }
+}
+
+/**
+ * Returns the configured visible day indices for the weekly calendar.
+ * Falls back to Monday-Friday when no valid available days are configured.
+ */
+export function getVisibleScheduleDays(
+  availability?: Record<string, { available?: boolean; startTime?: string; endTime?: string }>
+): number[] {
+  if (!availability) {
+    return [1, 2, 3, 4, 5]
+  }
+
+  const visibleDays = SCHEDULE_DAY_ORDER
+    .filter(({ key: day }) => availability[day]?.available)
+    .map(({ calendarIndex }) => calendarIndex)
+
+  return visibleDays.length > 0 ? visibleDays : [1, 2, 3, 4, 5]
 }
 
 // Type for daily availability schedule

@@ -11,6 +11,8 @@ export type CalendarEventType = 'booking' | 'booking-buffer' | 'personal' | 'com
 
 export interface CalendarEventMeta {
   bookingId?: string
+  bookingNumber?: string
+  customerName?: string
   location?: {
     address?: string
     city?: string
@@ -44,6 +46,8 @@ interface WeeklyAvailabilityCalendarProps {
   events: CalendarEvent[]
   dayStart?: string
   dayEnd?: string
+  /** Day-of-week indices to show (0=Sun, 1=Mon, ..., 6=Sat). Defaults to Mon-Fri [1,2,3,4,5]. */
+  visibleDays?: number[]
   onEventClick?: (event: CalendarEvent) => void
   className?: string
 }
@@ -101,6 +105,7 @@ export default function WeeklyAvailabilityCalendar({
   events,
   dayStart = '09:00',
   dayEnd = '17:00',
+  visibleDays,
   onEventClick,
   className,
 }: WeeklyAvailabilityCalendarProps) {
@@ -116,10 +121,18 @@ export default function WeeklyAvailabilityCalendar({
   const gridHeight = totalMinutes * minuteHeight
   const hourMarks = Math.ceil(totalMinutes / 60)
 
-  const days = useMemo(
-    () => Array.from({ length: 5 }, (_, index) => addDays(weekStart, index)),
-    [weekStart]
-  )
+  const activeDaysKey = visibleDays ? visibleDays.join(',') : '1,2,3,4,5'
+  const days = useMemo(() => {
+    const dayIndices = visibleDays ?? [1, 2, 3, 4, 5]
+    return dayIndices.map((dayIndex) => {
+      // weekStart is Monday (weekStartsOn: 1), so offset accordingly
+      // dayIndex 0=Sun, 1=Mon ... so Mon=0 offset, Tue=1 offset, etc.
+      // weekStart is Monday, so offset = (dayIndex - 1 + 7) % 7
+      const offset = (dayIndex - 1 + 7) % 7
+      return addDays(weekStart, offset)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart, activeDaysKey])
 
   const segmentsByDay = useMemo(() => {
     const dayMap = new Map<number, EventSegment[]>()
@@ -219,7 +232,7 @@ export default function WeeklyAvailabilityCalendar({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-[90px_repeat(5,1fr)] gap-3">
+        <div className="gap-3" style={{ display: 'grid', gridTemplateColumns: `90px repeat(${days.length}, 1fr)` }}>
           <div />
           {days.map((day) => (
             <div key={day.toISOString()} className="text-sm font-semibold text-slate-700">
@@ -280,17 +293,17 @@ export default function WeeklyAvailabilityCalendar({
 
                   const location = segment.meta?.location
                   const locationLabel = location
-                    ? [location.address, location.city].filter(Boolean).join(', ')
+                    ? [location.address, location.city, location.postalCode, location.country]
+                        .filter(Boolean)
+                        .join(', ')
                     : undefined
-
-                  const hoverLines = [
-                    segment.meta?.bookingId
-                      ? `Booking: ${segment.meta.bookingId}`
-                      : undefined,
-                    locationLabel,
-                    segment.meta?.note,
-                    timeLabel,
-                  ].filter(Boolean) as string[]
+                  const bookingNumber = segment.meta?.bookingNumber
+                  const customerName = segment.meta?.customerName
+                  const isBookingSegment =
+                    segment.type === 'booking' || segment.type === 'booking-buffer'
+                  const tooltipText = isBookingSegment
+                    ? undefined
+                    : (segment.meta?.note || segment.title)
 
                   return (
                     <button
@@ -312,7 +325,7 @@ export default function WeeklyAvailabilityCalendar({
                         left,
                         width,
                       }}
-                      title={hoverLines.join(' | ')}
+                      title={tooltipText}
                     >
                       <div
                         className={cn(
@@ -322,23 +335,23 @@ export default function WeeklyAvailabilityCalendar({
                       >
                         <div
                           className={cn(
-                            'flex h-full w-full flex-col justify-between rounded-[11px] bg-white/90 px-2 py-1 text-[11px] leading-tight backdrop-blur',
+                            'flex h-full w-full flex-col rounded-[11px] bg-white/90 px-2 py-1 text-[11px] leading-tight backdrop-blur overflow-hidden',
                             style.text
                           )}
                         >
-                          <div className="font-semibold">{segment.title}</div>
-                          <div className="text-[10px] opacity-80">{timeLabel}</div>
+                          <div className="font-semibold truncate">{segment.title}</div>
+                          {bookingNumber && (
+                            <div className="text-[10px] opacity-90 truncate">#{bookingNumber}</div>
+                          )}
+                          {customerName && (
+                            <div className="text-[10px] opacity-80 truncate">{customerName}</div>
+                          )}
+                          {locationLabel && (
+                            <div className="text-[10px] opacity-70 truncate">{locationLabel}</div>
+                          )}
+                          <div className="text-[10px] opacity-80 mt-auto">{timeLabel}</div>
                         </div>
                       </div>
-                      {hoverLines.length > 0 && (
-                        <div className="pointer-events-none absolute left-2 top-full z-20 mt-2 w-56 rounded-lg border border-slate-200 bg-white/95 p-2 text-[11px] text-slate-700 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                          {hoverLines.map((line) => (
-                            <div key={line} className="truncate">
-                              {line}
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </button>
                   )
                 })}
