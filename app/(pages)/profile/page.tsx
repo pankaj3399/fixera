@@ -119,6 +119,12 @@ export default function ProfilePage() {
     postalCode: ''
   })
   const [customerBusinessName, setCustomerBusinessName] = useState('')
+  const [customerCompanyAddress, setCustomerCompanyAddress] = useState({
+    address: '',
+    city: '',
+    country: '',
+    postalCode: ''
+  })
   const [customerType, setCustomerType] = useState<'individual' | 'business'>('individual')
   const [customerProfileSaving, setCustomerProfileSaving] = useState(false)
 
@@ -157,6 +163,14 @@ export default function ProfilePage() {
       }
       if (user.businessName) {
         setCustomerBusinessName(user.businessName)
+      }
+      if (user.companyAddress) {
+        setCustomerCompanyAddress({
+          address: user.companyAddress.address || '',
+          city: user.companyAddress.city || '',
+          country: user.companyAddress.country || '',
+          postalCode: user.companyAddress.postalCode || ''
+        })
       }
       if (user.customerType) {
         setCustomerType(user.customerType)
@@ -498,6 +512,24 @@ export default function ProfilePage() {
           parsedAddress: result.parsedAddress
         })
         setShowAutoPopulateDialog(true)
+      }
+
+      // Auto-prefill company info for business customers
+      if (result.valid && user?.role === 'customer' && customerType === 'business') {
+        if (result.companyName && !customerBusinessName) {
+          setCustomerBusinessName(result.companyName)
+        }
+        if (result.parsedAddress) {
+          setCustomerCompanyAddress(prev => ({
+            address: prev.address || result.parsedAddress?.streetAddress || '',
+            city: prev.city || result.parsedAddress?.city || '',
+            country: prev.country || result.parsedAddress?.country || '',
+            postalCode: prev.postalCode || result.parsedAddress?.postalCode || ''
+          }))
+        }
+        if (result.companyName || result.parsedAddress) {
+          toast.success('Business information prefilled from VAT validation')
+        }
       }
     } catch {
       setVatValidation({
@@ -997,7 +1029,7 @@ export default function ProfilePage() {
     setCustomerProfileSaving(true)
     try {
       const token = getAuthToken()
-      const body: Record<string, string> = {
+      const body: Record<string, unknown> = {
         address: customerAddress.address,
         city: customerAddress.city,
         country: customerAddress.country,
@@ -1006,6 +1038,7 @@ export default function ProfilePage() {
       }
       if (customerType === 'business') {
         body.businessName = customerBusinessName
+        body.companyAddress = customerCompanyAddress
       } else {
         body.businessName = ''
       }
@@ -2335,14 +2368,54 @@ export default function ProfilePage() {
                         <>
                           <div className="border-t pt-4 mt-4">
                             <h4 className="text-sm font-medium mb-3">Business Information</h4>
-                            <div className="space-y-2">
-                              <Label htmlFor="customer-businessName">Business Name</Label>
-                              <Input
-                                id="customer-businessName"
-                                value={customerBusinessName}
-                                onChange={(e) => setCustomerBusinessName(e.target.value)}
-                                placeholder="Your business name"
-                              />
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="customer-businessName">Business Name</Label>
+                                <Input
+                                  id="customer-businessName"
+                                  value={customerBusinessName}
+                                  onChange={(e) => setCustomerBusinessName(e.target.value)}
+                                  placeholder="Your business name"
+                                />
+                              </div>
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-address">Company Address</Label>
+                                  <Input
+                                    id="company-address"
+                                    value={customerCompanyAddress.address}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, address: e.target.value }))}
+                                    placeholder="Company street address"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-city">Company City</Label>
+                                  <Input
+                                    id="company-city"
+                                    value={customerCompanyAddress.city}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, city: e.target.value }))}
+                                    placeholder="City"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-country">Company Country</Label>
+                                  <Input
+                                    id="company-country"
+                                    value={customerCompanyAddress.country}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, country: e.target.value }))}
+                                    placeholder="Country"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-postalCode">Company Postal Code</Label>
+                                  <Input
+                                    id="company-postalCode"
+                                    value={customerCompanyAddress.postalCode}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, postalCode: e.target.value }))}
+                                    placeholder="Postal Code"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </>
