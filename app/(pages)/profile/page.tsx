@@ -2365,14 +2365,54 @@ export default function ProfilePage() {
                         <>
                           <div className="border-t pt-4 mt-4">
                             <h4 className="text-sm font-medium mb-3">Business Information</h4>
-                            <div className="space-y-2">
-                              <Label htmlFor="customer-businessName">Business Name</Label>
-                              <Input
-                                id="customer-businessName"
-                                value={customerBusinessName}
-                                onChange={(e) => setCustomerBusinessName(e.target.value)}
-                                placeholder="Your business name"
-                              />
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="customer-businessName">Business Name</Label>
+                                <Input
+                                  id="customer-businessName"
+                                  value={customerBusinessName}
+                                  onChange={(e) => setCustomerBusinessName(e.target.value)}
+                                  placeholder="Your business name"
+                                />
+                              </div>
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-address">Company Address</Label>
+                                  <Input
+                                    id="company-address"
+                                    value={customerCompanyAddress.address}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, address: e.target.value }))}
+                                    placeholder="Company street address"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-city">Company City</Label>
+                                  <Input
+                                    id="company-city"
+                                    value={customerCompanyAddress.city}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, city: e.target.value }))}
+                                    placeholder="City"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-country">Company Country</Label>
+                                  <Input
+                                    id="company-country"
+                                    value={customerCompanyAddress.country}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, country: e.target.value }))}
+                                    placeholder="Country"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="company-postalCode">Company Postal Code</Label>
+                                  <Input
+                                    id="company-postalCode"
+                                    value={customerCompanyAddress.postalCode}
+                                    onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, postalCode: e.target.value }))}
+                                    placeholder="Postal Code"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                           <div className="border-t pt-4 mt-4">
