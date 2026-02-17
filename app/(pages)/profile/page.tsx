@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, CalendarX, Pencil, MapPin, AlertTriangle } from "lucide-react"
 import EmployeeManagement from "@/components/TeamManagement"
@@ -428,8 +429,8 @@ export default function ProfilePage() {
           const bufferStart = parseDate(booking.scheduledBufferStartDate)
           const bufferEnd = parseDate(booking.scheduledBufferEndDate)
 
-          const customerName = typeof booking.customer === 'object'
-            ? booking.customer?.name
+          const customerName = booking.customer && typeof booking.customer === 'object'
+            ? booking.customer.name
             : undefined
 
           if (scheduledStart && executionEnd && executionEnd > scheduledStart) {
@@ -958,9 +959,13 @@ export default function ProfilePage() {
         action: {
           label: 'Undo',
           onClick: async () => {
-            const restoredRanges = [...updatedRanges]
-            restoredRanges.splice(indexToRemove, 0, removedRange)
-            setCompanyBlockedRanges(restoredRanges)
+            let restoredRanges: typeof companyBlockedRanges = []
+            setCompanyBlockedRanges(prev => {
+              const restored = [...prev]
+              restored.splice(indexToRemove, 0, removedRange)
+              restoredRanges = restored
+              return restored
+            })
             await saveCompanyBlockedRanges(restoredRanges)
           }
         }
@@ -2066,12 +2071,10 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         id="company-range-is-holiday"
                         checked={newCompanyBlockedRange.isHoliday}
-                        onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, isHoliday: e.target.checked }))}
-                        className="rounded"
+                        onCheckedChange={(value) => setNewCompanyBlockedRange(prev => ({ ...prev, isHoliday: Boolean(value) }))}
                       />
                       <Label htmlFor="company-range-is-holiday" className="text-sm font-normal cursor-pointer">
                         Mark as official company holiday
@@ -2111,18 +2114,17 @@ export default function ProfilePage() {
                     <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
                       <div className="w-20 text-sm font-medium capitalize">{day}</div>
                       <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
+                        <Checkbox
+                          id={`company-day-${day}`}
                           checked={schedule.available}
-                          onChange={(e) => {
+                          onCheckedChange={(value) => {
                             setCompanyAvailability(prev => ({
                               ...prev,
-                              [day]: { ...prev[day as keyof typeof prev], available: e.target.checked }
+                              [day]: { ...prev[day as keyof typeof prev], available: Boolean(value) }
                             }))
                           }}
-                          className="rounded"
                         />
-                        <span className="text-sm">Available</span>
+                        <Label htmlFor={`company-day-${day}`} className="text-sm font-normal cursor-pointer">Available</Label>
                       </div>
                       {schedule.available && (
                         <>
@@ -2412,47 +2414,6 @@ export default function ProfilePage() {
                                     placeholder="Postal Code"
                                   />
                                 </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="border-t pt-4 mt-4">
-                            <h4 className="text-sm font-medium mb-3">Company Address</h4>
-                            <div className="grid md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="company-address">Address</Label>
-                                <Input
-                                  id="company-address"
-                                  value={customerCompanyAddress.address}
-                                  onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, address: e.target.value }))}
-                                  placeholder="Company street address"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="company-city">City</Label>
-                                <Input
-                                  id="company-city"
-                                  value={customerCompanyAddress.city}
-                                  onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, city: e.target.value }))}
-                                  placeholder="City"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="company-country">Country</Label>
-                                <Input
-                                  id="company-country"
-                                  value={customerCompanyAddress.country}
-                                  onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, country: e.target.value }))}
-                                  placeholder="Country"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="company-postalCode">Postal Code</Label>
-                                <Input
-                                  id="company-postalCode"
-                                  value={customerCompanyAddress.postalCode}
-                                  onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, postalCode: e.target.value }))}
-                                  placeholder="Postal Code"
-                                />
                               </div>
                             </div>
                           </div>
