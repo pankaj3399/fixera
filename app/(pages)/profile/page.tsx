@@ -524,18 +524,21 @@ export default function ProfilePage() {
         setShowAutoPopulateDialog(true)
       }
 
-      // Auto-prefill company address for business customers
-      if (result.valid && user?.role === 'customer' && user.customerType === 'business') {
-        if (result.companyName) {
+      // Auto-prefill company info for business customers
+      if (result.valid && user?.role === 'customer' && customerType === 'business') {
+        if (result.companyName && !customerBusinessName) {
           setCustomerBusinessName(result.companyName)
         }
         if (result.parsedAddress) {
           setCustomerCompanyAddress(prev => ({
-            address: result.parsedAddress?.streetAddress || prev.address,
-            city: result.parsedAddress?.city || prev.city,
-            country: result.parsedAddress?.country || prev.country,
-            postalCode: result.parsedAddress?.postalCode || prev.postalCode
+            address: prev.address || result.parsedAddress?.streetAddress || '',
+            city: prev.city || result.parsedAddress?.city || '',
+            country: prev.country || result.parsedAddress?.country || '',
+            postalCode: prev.postalCode || result.parsedAddress?.postalCode || ''
           }))
+        }
+        if (result.companyName || result.parsedAddress) {
+          toast.success('Business information prefilled from VAT validation')
         }
       }
     } catch {
@@ -1034,8 +1037,7 @@ export default function ProfilePage() {
     setCustomerProfileSaving(true)
     try {
       const token = getAuthToken()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         address: customerAddress.address,
         city: customerAddress.city,
         country: customerAddress.country,
