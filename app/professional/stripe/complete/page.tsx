@@ -12,6 +12,7 @@ interface AccountStatus {
   onboardingCompleted?: boolean;
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
+  payouts_enabled?: boolean;
   detailsSubmitted?: boolean;
 }
 
@@ -36,9 +37,12 @@ export default function StripeCompletePage() {
 
       if (data.success) {
         setAccountStatus(data.data);
+        const payoutsReady = Boolean(data.data.payoutsEnabled ?? data.data.payouts_enabled);
 
-        if (data.data.onboardingCompleted && data.data.chargesEnabled) {
+        if (data.data.onboardingCompleted && data.data.chargesEnabled && payoutsReady) {
           setStatus('success');
+        } else if (data.data.onboardingCompleted && data.data.chargesEnabled && !payoutsReady) {
+          setStatus('incomplete');
         } else {
           setStatus('incomplete');
         }
@@ -75,7 +79,7 @@ export default function StripeCompletePage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-            <svg className="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true" focusable="false">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
@@ -98,13 +102,14 @@ export default function StripeCompletePage() {
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Payouts Enabled:</span>
                 <span className="text-sm font-medium text-green-700">
-                  {accountStatus?.payoutsEnabled ? 'Yes' : 'No'}
+                  {(accountStatus?.payoutsEnabled ?? accountStatus?.payouts_enabled) ? 'Yes' : 'No'}
                 </span>
               </div>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={handleGoToDashboard}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3"
           >
@@ -124,7 +129,7 @@ export default function StripeCompletePage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
-            <svg className="h-10 w-10 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-10 w-10 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true" focusable="false">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
@@ -140,18 +145,19 @@ export default function StripeCompletePage() {
             <p className="text-sm text-yellow-800 mb-2">Missing information:</p>
             <ul className="text-sm text-yellow-700 space-y-1">
               {!accountStatus?.detailsSubmitted && (
-                <li>• Business details not submitted</li>
+                <li>- Business details not submitted</li>
               )}
               {!accountStatus?.chargesEnabled && (
-                <li>• Charges not enabled</li>
+                <li>- Charges not enabled</li>
               )}
-              {!accountStatus?.payoutsEnabled && (
-                <li>• Payouts not enabled</li>
+              {!(accountStatus?.payoutsEnabled ?? accountStatus?.payouts_enabled) && (
+                <li>- Payouts not enabled</li>
               )}
             </ul>
           </div>
 
           <button
+            type="button"
             onClick={handleContinueOnboarding}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3"
           >
@@ -159,6 +165,7 @@ export default function StripeCompletePage() {
           </button>
 
           <button
+            type="button"
             onClick={handleGoToDashboard}
             className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
           >
@@ -174,7 +181,7 @@ export default function StripeCompletePage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
         <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-          <svg className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true" focusable="false">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>
@@ -187,6 +194,7 @@ export default function StripeCompletePage() {
         </p>
 
         <button
+          type="button"
           onClick={handleContinueOnboarding}
           className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3"
         >
@@ -194,6 +202,7 @@ export default function StripeCompletePage() {
         </button>
 
         <button
+          type="button"
           onClick={handleGoToDashboard}
           className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
         >
@@ -203,3 +212,4 @@ export default function StripeCompletePage() {
     </div>
   );
 }
+

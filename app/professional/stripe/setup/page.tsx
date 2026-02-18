@@ -5,8 +5,9 @@
  * Initial page for professionals to connect their Stripe account
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AccountStatus {
   hasAccount?: boolean;
@@ -20,18 +21,14 @@ interface AccountStatus {
 
 export default function StripeSetupPage() {
   const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
-  useEffect(() => {
-    checkAccountStatus();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const checkAccountStatus = async () => {
+  const checkAccountStatus = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/stripe/connect/account-status`, {
         credentials: 'include',
@@ -53,7 +50,25 @@ export default function StripeSetupPage() {
     } finally {
       setCheckingStatus(false);
     }
-  };
+  }, [API_URL]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      router.replace('/login?redirect=/professional/stripe/setup');
+      setCheckingStatus(false);
+      return;
+    }
+
+    if (user?.role !== 'professional') {
+      router.replace('/dashboard');
+      setCheckingStatus(false);
+      return;
+    }
+
+    checkAccountStatus();
+  }, [authLoading, checkAccountStatus, isAuthenticated, router, user?.role]);
 
   const handleConnectStripe = async () => {
     setLoading(true);
@@ -77,6 +92,10 @@ export default function StripeSetupPage() {
           setLoading(false);
           return;
         }
+        setAccountStatus((prev) => ({
+          ...(prev || {}),
+          hasAccount: true,
+        }));
       }
 
       // Get onboarding link
@@ -136,6 +155,10 @@ export default function StripeSetupPage() {
     );
   }
 
+  if (!authLoading && (!isAuthenticated || user?.role !== 'professional')) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
@@ -187,6 +210,7 @@ export default function StripeSetupPage() {
               </div>
 
               <button
+                type="button"
                 onClick={handleGoToDashboard}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700"
               >
@@ -194,6 +218,7 @@ export default function StripeSetupPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => router.push('/dashboard')}
                 className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
               >
@@ -233,6 +258,7 @@ export default function StripeSetupPage() {
               </div>
 
               <button
+                type="button"
                 onClick={handleConnectStripe}
                 disabled={loading}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"

@@ -5,7 +5,7 @@
  * Stripe Elements payment form with 3DS/SCA handling
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { PaymentStatus } from '../../types/stripe';
 
@@ -72,8 +72,25 @@ export function PaymentForm({
           break;
 
         case 'requires_action':
-          // 3DS authentication (Stripe.js handles this automatically)
+          // 3DS authentication needed
           setPaymentStatus('authenticating');
+          if (!paymentIntent.client_secret) {
+            const message = 'Additional authentication is required, but no client secret was returned. Please try again.';
+            setPaymentStatus('error');
+            setErrorMessage(message);
+            onError(message);
+            break;
+          }
+
+          const { error: actionError } = await stripe.handleCardAction(paymentIntent.client_secret);
+          if (actionError) {
+            setPaymentStatus('error');
+            setErrorMessage(actionError.message || '3DS authentication failed');
+            onError(actionError.message || '3DS authentication failed');
+          } else {
+            setPaymentStatus('success');
+            onSuccess(paymentIntent.id);
+          }
           break;
 
         case 'processing':
@@ -102,7 +119,7 @@ export function PaymentForm({
     }
   };
 
-  const cardElementOptions = {
+  const cardElementOptions = useMemo(() => ({
     style: {
       base: {
         fontSize: '16px',
@@ -115,15 +132,15 @@ export function PaymentForm({
         color: '#9e2146',
       },
     },
-  };
+  }), []);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="border rounded-lg p-4 bg-white">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="card-element" className="block text-sm font-medium text-gray-700 mb-2">
           Card Details
         </label>
-        <CardElement options={cardElementOptions} />
+        <CardElement id="card-element" options={cardElementOptions} />
       </div>
 
       {errorMessage && (
@@ -150,7 +167,7 @@ export function PaymentForm({
 
       <button
         type="submit"
-        disabled={!stripe || paymentStatus === 'processing' || paymentStatus === 'success'}
+        disabled={!stripe || paymentStatus === 'processing' || paymentStatus === 'success' || paymentStatus === 'authenticating'}
         className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
         {paymentStatus === 'processing' ? 'Processing...' :

@@ -229,7 +229,7 @@ export default function ProjectCreatePage() {
       const loadProject = async () => {
         setIsLoading(true)
         try {
-          console.log('?? Loading project:', projectId)
+          console.log('[loading] Loading project:', projectId)
           const token = getAuthToken()
           const headers: Record<string, string> = {
             'Content-Type': 'application/json'
@@ -242,7 +242,7 @@ export default function ProjectCreatePage() {
             headers
           })
 
-          console.log('?? Project fetch response:', response.status, response.statusText)
+          console.log('[loading] Project fetch response:', response.status, response.statusText)
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
@@ -271,7 +271,7 @@ export default function ProjectCreatePage() {
 
           const project = await response.json()
           console.log('? Loaded project data:', project)
-          console.log('?? Project status:', project.status)
+          console.log('[ok] Project status:', project.status)
 
           setProjectData({
             id: project._id,

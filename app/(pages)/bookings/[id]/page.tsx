@@ -138,6 +138,22 @@ const isBookingApiResponse = (value: unknown): value is BookingApiResponse => {
   return typeof record.success === "boolean"
 }
 
+const parseResponseBody = async <T,>(response: Response): Promise<{ data: T | null; rawText: string | null }> => {
+  const contentType = response.headers.get("content-type") || ""
+  if (contentType.includes("application/json")) {
+    try {
+      return { data: await response.json() as T, rawText: null }
+    } catch {
+      // fall through to text fallback
+    }
+  }
+  try {
+    return { data: null, rawText: await response.text() }
+  } catch {
+    return { data: null, rawText: null }
+  }
+}
+
 export default function BookingDetailPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -187,9 +203,9 @@ export default function BookingDetailPage() {
             headers
           }
         )
-        const data = await response.json()
-        if (!isBookingApiResponse(data)) {
-          setError("Unexpected response from server.")
+        const { data, rawText } = await parseResponseBody<BookingApiResponse>(response)
+        if (!data || !isBookingApiResponse(data)) {
+          setError(rawText || `Unexpected response from server (${response.status}).`)
           return
         }
 
@@ -267,15 +283,15 @@ export default function BookingDetailPage() {
         }
       )
 
-      const data = await response.json() as { success?: boolean; postBookingData?: PostBookingAnswer[]; msg?: string }
+      const { data, rawText } = await parseResponseBody<{ success?: boolean; postBookingData?: PostBookingAnswer[]; msg?: string }>(response)
 
-      if (response.ok && data.success) {
+      if (response.ok && data?.success) {
         toast.success("Thank you! Your answers have been submitted.")
         setAnswersSubmitted(true)
         // Update the local booking state
         setBooking(prev => prev ? { ...prev, postBookingData: data.postBookingData || answers } : prev)
       } else {
-        toast.error(data.msg || "Failed to submit answers. Please try again.")
+        toast.error(data?.msg || rawText || `Failed to submit answers (${response.status}).`)
       }
     } catch (err) {
       console.error("Failed to submit post-booking answers:", err)
@@ -285,8 +301,31 @@ export default function BookingDetailPage() {
     }
   }
 
+  const refreshBooking = async () => {
+    if (!bookingId) return
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}`,
+        { credentials: "include", headers }
+      )
+      if (!response.ok) return
+      const { data } = await parseResponseBody<BookingApiResponse>(response)
+      if (isBookingApiResponse(data) && data.success && data.booking) {
+        setBooking(data.booking)
+      }
+    } catch {
+      // Silently fail - the page already has stale data
+    }
+  }
+
   const handleSubmitQuote = async () => {
-    if (!quoteAmount || parseFloat(quoteAmount) <= 0) {
+    const parsedAmount = parseFloat(quoteAmount)
+    if (!quoteAmount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       toast.error("Please enter a valid quote amount.")
       return
     }
@@ -307,22 +346,24 @@ export default function BookingDetailPage() {
           headers,
           credentials: "include",
           body: JSON.stringify({
-            amount: parseFloat(quoteAmount),
+            amount: parsedAmount,
             currency: "EUR",
             description: quoteDescription || "Quote for your booking request"
           })
         }
       )
-      const data = await response.json()
-      if (response.ok && data.success) {
+
+      const { data, rawText } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
+
+      if (response.ok && data?.success) {
         toast.success("Quote submitted successfully!")
         setShowQuoteForm(false)
-        window.location.reload()
+        await refreshBooking()
       } else {
-        toast.error(data.msg || "Failed to submit quote.")
+        toast.error(data?.msg || rawText || `Failed to submit quote (${response.status}).`)
       }
     } catch (err) {
-      console.error("Error submitting quote:", err)
+      console.error("Error submitting quote:", err instanceof Error ? err.message : err)
       toast.error("Failed to submit quote. Please try again.")
     } finally {
       setSubmittingQuote(false)
@@ -350,20 +391,56 @@ export default function BookingDetailPage() {
         }
       )
 
-      const data = await response.json()
-      if (response.ok && data.success) {
+      const { data, rawText } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
+
+      if (response.ok && data?.success) {
         if (action === "accept") {
-          toast.success("Quote accepted! Redirecting to payment...")
-          router.push(`/bookings/${bookingId}/payment`)
+          toast.success("Quote accepted! Checking payment readiness...")
+          const POLL_INTERVAL = 1000
+          const POLL_TIMEOUT = 10000
+          const startedAt = Date.now()
+          let isReadyForPayment = false
+
+          while (Date.now() - startedAt < POLL_TIMEOUT) {
+            try {
+              const pollHeaders: Record<string, string> = {}
+              if (token) pollHeaders['Authorization'] = `Bearer ${token}`
+              const pollRes = await fetch(
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}`,
+                { credentials: "include", headers: pollHeaders }
+              )
+              if (pollRes.ok) {
+                const { data: pollData } = await parseResponseBody<BookingApiResponse>(pollRes)
+                if (
+                  isBookingApiResponse(pollData) &&
+                  pollData.booking &&
+                  ["quote_accepted", "payment_pending", "booked"].includes(pollData.booking.status)
+                ) {
+                  isReadyForPayment = true
+                  break
+                }
+              }
+            } catch {
+              break
+            }
+            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL))
+          }
+
+          if (isReadyForPayment) {
+            router.push(`/bookings/${bookingId}/payment`)
+          } else {
+            toast.error("Quote acceptance is still syncing. Please refresh and try again in a moment.")
+            await refreshBooking()
+          }
         } else {
           toast.success("Quote rejected.")
-          window.location.reload()
+          await refreshBooking()
         }
       } else {
-        toast.error(data.msg || `Failed to ${action} quote.`)
+        toast.error(data?.msg || rawText || `Failed to ${action} quote (${response.status}).`)
       }
     } catch (err) {
-      console.error(`Error ${action}ing quote:`, err)
+      console.error(`Error ${action}ing quote:`, err instanceof Error ? err.message : err)
       toast.error(`Failed to ${action} quote. Please try again.`)
     } finally {
       setRespondingToQuote(false)
@@ -394,8 +471,9 @@ export default function BookingDetailPage() {
         }
       )
 
-      const data = await response.json()
-      if (response.ok && data.success) {
+      const { data, rawText } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
+
+      if (response.ok && data?.success) {
         if (newStatus === "completed") {
           toast.success("Booking marked as completed. Payment has been released.")
         } else if (newStatus === "in_progress") {
@@ -403,12 +481,12 @@ export default function BookingDetailPage() {
         } else {
           toast.success("Booking status updated.")
         }
-        window.location.reload()
+        await refreshBooking()
       } else {
-        toast.error(data.msg || "Failed to update booking status.")
+        toast.error(data?.msg || rawText || `Failed to update booking status (${response.status}).`)
       }
     } catch (err) {
-      console.error("Failed to update booking status:", err)
+      console.error("Failed to update booking status:", err instanceof Error ? err.message : err)
       toast.error("Failed to update booking status. Please try again.")
     } finally {
       setUpdatingStatus(false)
@@ -748,7 +826,7 @@ export default function BookingDetailPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Quote Amount:</span>
                         <span className="text-2xl font-bold text-green-600">
-                          {booking.quote.currency || "€"}{booking.quote.amount?.toLocaleString()}
+                          {booking.quote.currency || "€"}{booking.quote.amount != null ? booking.quote.amount.toLocaleString() : "—"}
                         </span>
                       </div>
                       {booking.quote.description && (

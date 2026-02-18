@@ -592,9 +592,10 @@ export default function ProjectDetailPage() {
                   <div className='pt-4 border-t'>
                     <h4 className='font-semibold mb-3'>Project Timeline</h4>
                     <div className='grid grid-cols-2 gap-4'>
-                      {project.preparationDuration && (
+                      {project.preparationDuration &&
+                        project.preparationDuration.value > 0 && (
                         <div className='flex items-start gap-2'>
-                          <Calendar className='h-5 w-5 text-blue-600 mt-0.5' />
+                          <Clock className='h-5 w-5 text-blue-600 mt-0.5' />
                           <div>
                             <p className='text-sm text-gray-500'>
                               Preparation Time
@@ -605,7 +606,7 @@ export default function ProjectDetailPage() {
                             </p>
                           </div>
                         </div>
-                      )}
+                        )}
                       <div className='flex items-start gap-2'>
                         <Calendar className='h-5 w-5 text-blue-600 mt-0.5' />
                         <div>

@@ -248,7 +248,6 @@ export default function DashboardPage() {
 
       if (projectsResponse.ok) {
         const projectsData = await projectsResponse.json()
-        console.log('✅ Pending projects:', projectsData.length)
         setProjectStats({ pendingProjects: projectsData.length })
       }
 
@@ -299,9 +298,7 @@ export default function DashboardPage() {
                 Welcome back, {user?.name}!
               </h1>
               <p className="text-gray-600">
-                {user?.role === 'customer'
-                  ? 'Here you can track all your bookings and project requests.'
-                  : 'Here you can manage all your client bookings and quotes.'}
+                Here you can track all your bookings and project requests.
               </p>
             </div>
             {user?.role === 'customer' && (
@@ -1224,11 +1221,6 @@ export default function DashboardPage() {
 
               {!bookingsLoading && !bookingsError && bookings.length > 0 && (
                 <div className="space-y-3">
-                  {(() => {
-                    console.log('[PROFESSIONAL DASHBOARD] Rendering bookings:', bookings.length)
-                    console.log('[PROFESSIONAL DASHBOARD] First booking:', bookings[0])
-                    return null
-                  })()}
                   {bookings.slice(0, 5).map((booking) => {
                     const isProject = booking.bookingType === "project"
                     const title =

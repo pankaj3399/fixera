@@ -92,6 +92,12 @@ interface ApiResponse {
   stats: Array<{ status: PaymentStatus; count: number; totalVolume?: number }>
 }
 
+const PaymentStatusBadge = ({ status }: { status: PaymentStatus }) => (
+  <Badge variant="outline" className={`text-xs capitalize ${STATUS_STYLES[status] || "bg-slate-100"}`}>
+    {status.replace(/_/g, " ")}
+  </Badge>
+)
+
 export default function AdminPaymentsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -224,6 +230,10 @@ export default function AdminPaymentsPage() {
         if (isNaN(body.amount) || body.amount <= 0) {
           throw new Error("Invalid refund amount")
         }
+        const maxRefundable = refundDialogPayment.totalWithVat ?? refundDialogPayment.amount
+        if (body.amount > maxRefundable) {
+          throw new Error(`Refund amount cannot exceed the original charge of ${maxRefundable.toFixed(2)}`)
+        }
       }
 
       const response = await fetch(
@@ -248,12 +258,6 @@ export default function AdminPaymentsPage() {
       setIsRefunding(false)
     }
   }
-
-  const PaymentStatusBadge = ({ status }: { status: PaymentStatus }) => (
-    <Badge variant="outline" className={`text-xs capitalize ${STATUS_STYLES[status] || "bg-slate-100"}`}>
-      {status.replace(/_/g, " ")}
-    </Badge>
-  )
 
   if (!loading && isAuthenticated && !isAdmin) {
     return (
@@ -401,14 +405,16 @@ export default function AdminPaymentsPage() {
                           <div className="text-xs text-gray-500 capitalize">
                             {payment.booking?.bookingType || "n/a"} &bull; {payment.booking?.status || "unknown"}
                           </div>
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="px-0 text-xs text-indigo-600"
-                            onClick={() => router.push(`/bookings/${payment.booking?._id || ""}`)}
-                          >
-                            View booking
-                          </Button>
+                          {payment.booking?._id && (
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="px-0 text-xs text-indigo-600"
+                              onClick={() => router.push(`/bookings/${payment.booking!._id}`)}
+                            >
+                              View booking
+                            </Button>
+                          )}
                         </td>
                         <td className="px-4 py-4 text-sm">
                           <div className="font-medium text-gray-900">{payment.customer?.name || "\u2014"}</div>

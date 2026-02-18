@@ -8,7 +8,7 @@
 export interface PaymentFormData {
   bookingId: string;
   amount: number;
-  currency: string;
+  currency: SupportedCurrency;
   clientSecret: string;
   vatAmount?: number;
   totalWithVat?: number;
@@ -19,7 +19,14 @@ export type PaymentStatus =
   | 'authenticating'  // 3DS authentication in progress
   | 'processing'      // Payment processing
   | 'success'         // Payment authorized (requires_capture)
-  | 'error';          // Payment failed
+  | 'error'           // Payment failed
+  | 'pending'
+  | 'authorized'
+  | 'completed'
+  | 'failed'
+  | 'refunded'
+  | 'partially_refunded'
+  | 'expired';
 
 export interface PaymentStatusState {
   status: PaymentStatus;
@@ -47,7 +54,7 @@ export interface StripeAccountStatus {
 
 export interface PaymentInfo {
   amount: number;
-  currency: string;
+  currency: SupportedCurrency;
   status: 'pending' | 'authorized' | 'completed' | 'failed' | 'refunded' | 'expired';
   method: 'card' | 'bank_transfer' | 'cash';
 
@@ -86,7 +93,7 @@ export interface ProfessionalEarnings {
   totalEarnings: number;
   pendingPayouts: number;
   completedPayouts: number;
-  currency: string;
+  currency: SupportedCurrency;
   recentTransactions: Transaction[];
 }
 
@@ -94,7 +101,7 @@ export interface Transaction {
   bookingId: string;
   bookingNumber: string;
   amount: number;
-  currency: string;
+  currency: SupportedCurrency;
   status: 'pending' | 'paid' | 'failed';
   date: string;
   customer: {
@@ -140,7 +147,7 @@ export interface PaymentIntentClientResponse {
   clientSecret: string;
   paymentIntentId: string;
   amount: number;
-  currency: string;
+  currency: SupportedCurrency;
   status: string;
 }
 

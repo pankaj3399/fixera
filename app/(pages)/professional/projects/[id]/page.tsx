@@ -34,6 +34,9 @@ import {
   
 } from "lucide-react"
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || ''
+const MAX_BOOKINGS = 100
+
 // Extended interfaces to match the full project model
 interface ICertification {
   name: string
@@ -255,12 +258,12 @@ export default function ProjectDetailPage() {
         // Fetch bookings and working hours in parallel
         const token = getAuthToken()
         const [bookingsRes, hoursRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?limit=100`, {
+          fetch(`${API_BASE_URL}/api/bookings/my-bookings?limit=${MAX_BOOKINGS}`, {
             credentials: 'include',
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             signal
           }),
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/working-hours`, {
+          fetch(`${API_BASE_URL}/api/public/projects/${project._id}/working-hours`, {
             signal
           })
         ])

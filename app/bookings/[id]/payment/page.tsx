@@ -5,7 +5,7 @@
  * Customer payment page for a specific booking
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { StripeProvider } from '@/components/stripe/StripeProvider';
 import { PaymentForm } from '@/components/stripe/PaymentForm';
@@ -56,36 +56,14 @@ export default function BookingPaymentPage() {
   const [clientSecret, setClientSecret] = useState<string>('');
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [paymentRetryAttempt, setPaymentRetryAttempt] = useState(0);
+  const [confirming, setConfirming] = useState(false);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
-  useEffect(() => {
-    loadBookingPaymentDetails();
-    return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingId]);
-
-  // Watch for payment status changes and redirect if already authorized/completed
-  useEffect(() => {
-    if (booking?.payment?.status === 'authorized' || booking?.payment?.status === 'completed') {
-      console.log('[PAYMENT PAGE] Payment status is', booking.payment.status, '- redirecting to success');
-      const timer = setTimeout(() => {
-        router.push(`/bookings/${bookingId}/payment/success`);
-      }, 1500); // Small delay to show the "Payment already completed" message
-
-      return () => clearTimeout(timer);
-    }
-  }, [booking?.payment?.status, bookingId, router]);
-
-  const ensurePaymentIntent = async (currentBooking: Booking | null) => {
-    console.log('[PAYMENT PAGE] Attempting to ensure payment intent exists.');
+  const ensurePaymentIntent = useCallback(async (currentBookingId: string, currentBooking: Booking | null) => {
     setInitializingPayment(true);
     try {
-      const sanitizedId = encodeURIComponent(bookingId);
+      const sanitizedId = encodeURIComponent(currentBookingId);
       const response = await fetch(`${API_URL}/api/bookings/${sanitizedId}/payment-intent`, {
         method: 'POST',
         credentials: 'include',
@@ -93,7 +71,7 @@ export default function BookingPaymentPage() {
       const contentType = response.headers.get('content-type') || '';
       const isJson = contentType.includes('application/json');
       const data = isJson ? await response.json() : null;
-      console.log('[PAYMENT PAGE] ensurePaymentIntent response:', data || response.status);
+      console.log('[PAYMENT PAGE] ensurePaymentIntent status:', response.status);
 
       if (response.ok && data?.success) {
         const nextBooking = data.data?.booking || currentBooking;
@@ -103,7 +81,6 @@ export default function BookingPaymentPage() {
 
         // Check if backend wants us to redirect (payment already processed)
         if (data.data?.shouldRedirect && data.data?.redirectTo) {
-          console.log('[PAYMENT PAGE] Payment already processed, redirecting to:', data.data.redirectTo);
           router.push(data.data.redirectTo);
           return true;
         }
@@ -133,25 +110,23 @@ export default function BookingPaymentPage() {
     } finally {
       setInitializingPayment(false);
     }
-  };
+  }, [API_URL, router]);
 
-  const loadBookingPaymentDetails = async (attempt = 1) => {
+  const loadBookingPaymentDetails = useCallback(async (currentBookingId: string, attempt = 1) => {
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
     }
     setPaymentRetryAttempt(attempt);
     setError('');
-    console.log(`[PAYMENT PAGE] Loading booking payment details (attempt ${attempt}) for booking ${bookingId}`);
     try {
+      const sanitizedId = encodeURIComponent(currentBookingId);
       // Fetch booking details
-      const bookingResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}`, {
+      const bookingResponse = await fetch(`${API_URL}/api/bookings/${sanitizedId}`, {
         credentials: 'include', // Include cookies for authentication
       });
 
       const bookingData = await bookingResponse.json();
-
-      console.log('[PAYMENT PAGE] Booking data:', bookingData);
 
       if (!bookingData.success) {
         setError('Failed to load booking details');
@@ -163,13 +138,9 @@ export default function BookingPaymentPage() {
       setBooking(bookingInfo);
       setLoading(false);
 
-      console.log('[PAYMENT PAGE] Booking info:', bookingInfo);
-      console.log('[PAYMENT PAGE] Payment:', bookingInfo?.payment);
-
       // Check if payment is already authorized or completed
       if (bookingInfo?.payment?.status === 'authorized' || bookingInfo?.payment?.status === 'completed') {
-        console.log('[PAYMENT PAGE] Payment already authorized/completed, redirecting to success page');
-        router.push(`/bookings/${bookingId}/payment/success`);
+        router.push(`/bookings/${currentBookingId}/payment/success`);
         return;
       }
 
@@ -180,19 +151,13 @@ export default function BookingPaymentPage() {
         if (!['failed', 'refunded', 'expired'].includes(paymentStatus)) {
           setClientSecret(bookingInfo.payment.stripeClientSecret);
           setInitializingPayment(false);
-          console.log('[PAYMENT PAGE] Stripe client secret found, ready to render payment form.');
           return;
-        } else {
-          console.log(`[PAYMENT PAGE] Payment status is ${paymentStatus}, will create new payment intent`);
         }
       }
 
-      console.warn(`[PAYMENT PAGE] Payment intent not found on attempt ${attempt}. Booking status: ${bookingInfo?.status}`);
-
       // Try to initialize payment intent on demand
-      const intentCreated = await ensurePaymentIntent(bookingInfo);
+      const intentCreated = await ensurePaymentIntent(currentBookingId, bookingInfo);
       if (intentCreated) {
-        console.log('[PAYMENT PAGE] Payment intent created on demand.');
         return;
       }
 
@@ -202,7 +167,7 @@ export default function BookingPaymentPage() {
           clearTimeout(retryTimeoutRef.current);
         }
         retryTimeoutRef.current = setTimeout(() => {
-          loadBookingPaymentDetails(attempt + 1);
+          void loadBookingPaymentDetails(currentBookingId, attempt + 1);
         }, PAYMENT_RETRY_DELAY_MS);
         return;
       }
@@ -215,18 +180,27 @@ export default function BookingPaymentPage() {
       setError(err instanceof Error ? err.message : 'Failed to load payment details');
       setLoading(false);
     }
-  };
+  }, [API_URL, ensurePaymentIntent, router]);
+
+  useEffect(() => {
+    if (!bookingId) return;
+    void loadBookingPaymentDetails(bookingId);
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, [bookingId, loadBookingPaymentDetails]);
 
   const handlePaymentSuccess = async (paymentIntentId: string) => {
     // Prevent double submission
-    if (loading) {
-      console.log('[PAYMENT PAGE] Already processing, skipping duplicate call');
+    if (confirming) {
       return;
     }
 
     try {
+      setConfirming(true);
       setLoading(true);
-      console.log('[PAYMENT PAGE] Payment successful, confirming with backend:', paymentIntentId);
 
       // Confirm payment on backend
       const response = await fetch(`${API_URL}/api/stripe/payment/confirm`, {
@@ -242,16 +216,13 @@ export default function BookingPaymentPage() {
       });
 
       const data = await response.json();
-      console.log('[PAYMENT PAGE] Confirm response:', data);
 
       if (data.success) {
         // Redirect to success page
-        console.log('[PAYMENT PAGE] Redirecting to success page');
         router.push(`/bookings/${bookingId}/payment/success`);
       } else {
         // Check if error is about payment already being captured
         if (data.error?.code === 'payment_intent_unexpected_state') {
-          console.log('[PAYMENT PAGE] Payment already authorized, redirecting to success');
           router.push(`/bookings/${bookingId}/payment/success`);
         } else {
           setError(data.error?.message || 'Payment confirmation failed');
@@ -263,6 +234,8 @@ export default function BookingPaymentPage() {
       console.error('Error confirming payment:', err);
       setError(err instanceof Error ? err.message : 'Failed to confirm payment');
       setLoading(false);
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -297,6 +270,7 @@ export default function BookingPaymentPage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Error</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <button
+              type="button"
               onClick={() => router.push('/bookings')}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700"
             >
@@ -411,7 +385,8 @@ export default function BookingPaymentPage() {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <p className="text-red-600">{error || 'Unable to initialize payment. Please try again or contact support.'}</p>
                 <button
-                  onClick={() => loadBookingPaymentDetails(1)}
+                  type="button"
+                  onClick={() => void loadBookingPaymentDetails(bookingId, 1)}
                   className="mt-3 inline-flex items-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
                 >
                   Retry initialization
