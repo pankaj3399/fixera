@@ -12,6 +12,7 @@ import {
 interface Service {
   name: string;
   slug: string;
+  icon?: string;
 }
 
 interface Category {
@@ -24,7 +25,14 @@ interface Category {
 // the viewport-clamping logic inside handleMouseEnter.
 const DROPDOWN_WIDTH = 288; // matches w-72 (18rem × 16px)
 
-const getServiceIcon = (slug: string) => {
+import { iconMapData } from "@/data/icons";
+
+const getServiceIcon = (slug: string, customIcon?: string) => {
+  // If a custom icon is configured and exists in our map, use it
+  if (customIcon && iconMapData[customIcon as keyof typeof iconMapData]) {
+    return iconMapData[customIcon as keyof typeof iconMapData];
+  }
+
   const s = slug.toLowerCase();
   if (s.includes("plumb")) return Droplet;
   if (s.includes("electr")) return Zap;
@@ -72,7 +80,8 @@ const SubNavbar = () => {
   const fetchCategories = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=BE`
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=BE`,
+        { cache: 'no-store' }
       );
       if (response.ok) {
         const data = await response.json();
@@ -158,11 +167,10 @@ const SubNavbar = () => {
               >
                 <Link
                   href={`/categories/${category.slug}`}
-                  className={`px-3 text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200 h-full flex items-center border-b-2 whitespace-nowrap ${
-                    hoveredCategory === category.name
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent'
-                  }`}
+                  className={`px-3 text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200 h-full flex items-center border-b-2 whitespace-nowrap ${hoveredCategory === category.name
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent'
+                    }`}
                 >
                   {category.name}
                 </Link>
@@ -197,7 +205,7 @@ const SubNavbar = () => {
                     href={`/services/${service.slug}`}
                     className="flex items-center gap-3 text-gray-700 hover:text-blue-600 hover:bg-gray-50 p-2.5 rounded-md transition-colors"
                   >
-                    {React.createElement(getServiceIcon(service.slug), { className: "w-4 h-4 text-blue-500" })}
+                    {React.createElement(getServiceIcon(service.slug, service.icon), { className: "w-4 h-4 text-blue-500" })}
                     {service.name}
                   </Link>
                 </li>

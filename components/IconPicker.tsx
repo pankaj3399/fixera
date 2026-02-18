@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
-import { Check, Search, X } from 'lucide-react'
+import React, { useState, useMemo, useEffect } from 'react'
+import { Check, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -24,12 +24,20 @@ interface IconPickerProps {
 export default function IconPicker({ value, onChange, label = 'Select Icon' }: IconPickerProps) {
     const [open, setOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [currentPage, setCurrentPage] = useState(1)
+    const iconsPerPage = 48
+
+    // Reset to first page when search query changes
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [searchQuery])
 
     const filteredIcons = useMemo(() => {
         const query = searchQuery.toLowerCase().trim()
-        if (!query) return Object.keys(iconMapData)
+        const allIcons = Object.keys(iconMapData)
+        if (!query) return allIcons
 
-        return Object.keys(iconMapData).filter((key) => {
+        return allIcons.filter((key) => {
             // Check exact name match
             if (key.toLowerCase().includes(query)) return true
 
@@ -40,6 +48,12 @@ export default function IconPicker({ value, onChange, label = 'Select Icon' }: I
             return false
         })
     }, [searchQuery])
+
+    const totalPages = Math.ceil(filteredIcons.length / iconsPerPage)
+    const pagedIcons = useMemo(() => {
+        const start = (currentPage - 1) * iconsPerPage
+        return filteredIcons.slice(start, start + iconsPerPage)
+    }, [filteredIcons, currentPage, iconsPerPage])
 
     const SelectedIcon = value && iconMapData[value as keyof typeof iconMapData]
         ? iconMapData[value as keyof typeof iconMapData]
@@ -90,7 +104,7 @@ export default function IconPicker({ value, onChange, label = 'Select Icon' }: I
                 </DialogHeader>
                 <ScrollArea className="flex-1 p-4">
                     <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                        {filteredIcons.map((iconName) => {
+                        {pagedIcons.map((iconName) => {
                             const Icon = iconMapData[iconName as keyof typeof iconMapData]
                             const isSelected = value === iconName
 
@@ -128,8 +142,35 @@ export default function IconPicker({ value, onChange, label = 'Select Icon' }: I
                         )}
                     </div>
                 </ScrollArea>
-                <div className="p-4 border-t bg-muted/50 text-xs text-muted-foreground text-center">
-                    Showing {filteredIcons.length} icons
+                <div className="p-4 border-t bg-muted/50 flex items-center justify-between text-xs text-muted-foreground">
+                    <div>
+                        Showing {Math.min(filteredIcons.length, iconsPerPage * currentPage)} of {filteredIcons.length} icons
+                    </div>
+                    {totalPages > 1 && (
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="h-8 w-8 p-0"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <span className="min-w-[3rem] text-center">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="h-8 w-8 p-0"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>

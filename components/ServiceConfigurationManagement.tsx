@@ -175,6 +175,7 @@ export default function ServiceConfigurationManagement() {
         setFormData(EMPTY_FORM)
         setEditingId(null)
         await fetchServices()
+        window.location.reload() // Force reload to update navbar
       } else {
         const error = await response.json()
         console.error('Create failed:', error)
@@ -219,6 +220,7 @@ export default function ServiceConfigurationManagement() {
         setFormData(EMPTY_FORM)
         setEditingId(null)
         await fetchServices()
+        window.location.reload() // Force reload to update navbar
       } else {
         const error = await response.json()
         console.error('Update failed:', error)
@@ -251,6 +253,7 @@ export default function ServiceConfigurationManagement() {
         setDeleteDialogOpen(false)
         setDeleteId(null)
         await fetchServices()
+        window.location.reload() // Force reload to update navbar
       } else {
         const error = await response.json()
         console.error('❌ Delete failed:', error)
