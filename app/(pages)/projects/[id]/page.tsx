@@ -336,16 +336,16 @@ export default function ProjectDetailPage() {
     : formatDateOnlyProfessionalViewer(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone);
   const shortestThroughputLabels = !includeTime
     ? formatWindowProfessionalViewer(
-        proposals?.shortestThroughputProposal,
-        professionalTimeZone,
-        viewerTimeZone,
-        includeTime
-      )
+      proposals?.shortestThroughputProposal,
+      professionalTimeZone,
+      viewerTimeZone,
+      includeTime
+    )
     : null;
   const firstAvailableSingleLabel = includeTime
     ? (firstAvailableWindowLabels?.professionalLabel ||
-        firstAvailableDateLabels?.professionalLabel ||
-        null)
+      firstAvailableDateLabels?.professionalLabel ||
+      null)
     : null;
 
   const priceModelLabel = project.priceModel
@@ -443,11 +443,10 @@ export default function ProjectDetailPage() {
                         <button
                           key={idx}
                           onClick={() => setCurrentImageIndex(idx)}
-                          className={`relative h-20 w-20 flex-shrink-0 rounded overflow-hidden border-2 transition-all ${
-                            currentImageIndex === idx
-                              ? 'border-blue-500 ring-2 ring-blue-200'
-                              : 'border-gray-200 hover:border-gray-400'
-                          }`}
+                          className={`relative h-20 w-20 flex-shrink-0 rounded overflow-hidden border-2 transition-all ${currentImageIndex === idx
+                            ? 'border-blue-500 ring-2 ring-blue-200'
+                            : 'border-gray-200 hover:border-gray-400'
+                            }`}
                         >
                           <Image
                             src={img}
@@ -700,6 +699,112 @@ export default function ProjectDetailPage() {
               </Card>
             )}
 
+
+
+            {/* FAQ */}
+            {project.faq.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Frequently Asked Questions</CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  {project.faq.map((item, idx) => (
+                    <div key={idx} className='space-y-2'>
+                      <h4 className='font-semibold'>{item.question}</h4>
+                      <p className='text-gray-600 text-sm'>{item.answer}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Reviews & More From This Professional</CardTitle>
+                <CardDescription>Coming soon in the next phase</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className='text-sm text-gray-600'>
+                  We&apos;re working on surfacing verified reviews and
+                  additional projects from this company. Stay tuned!
+                </p>
+              </CardContent>
+            </Card>
+
+          </div>
+
+          {/* Sidebar */}
+          <div className='space-y-6'>
+            {project.subprojects.length > 0 && (
+              <div className='bg-white rounded-lg shadow-sm p-4'>
+                <SubprojectComparisonTable
+                  subprojects={project.subprojects}
+                  onSelectPackage={handleSelectPackage}
+                  priceModel={project.priceModel}
+                />
+              </div>
+            )}
+
+            {/* Professional Info - Hidden until after booking */}
+            {project.professionalId && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Provided By</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className='space-y-3'>
+                    <div className='flex items-center space-x-2'>
+                      <div className='h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg'>
+                        P
+                      </div>
+                      <div>
+                        <p className='font-semibold text-lg text-gray-900'>
+                          Verified Professional
+                        </p>
+                        <Badge variant='secondary' className='text-xs'>
+                          <CheckCircle className='w-3 h-3 mr-1' />
+                          Verified
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className='text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded p-3'>
+                      <strong>Note:</strong> Contact details will be revealed
+                      after you complete your booking and payment.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Extra Options */}
+            {project.extraOptions.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Add-On Options</CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  {project.extraOptions.map((option, idx) => (
+                    <div
+                      key={idx}
+                      className='flex justify-between items-start text-sm'
+                    >
+                      <div>
+                        <p className='font-medium'>{option.name}</p>
+                        {option.description && (
+                          <p className='text-gray-600 text-xs'>
+                            {option.description}
+                          </p>
+                        )}
+                      </div>
+                      <p className='font-semibold text-blue-600'>
+                        +{formatCurrency(option.price)}
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Company Working Hours & Availability */}
             {project.professionalId.companyAvailability && (
               <Card>
@@ -718,7 +823,7 @@ export default function ProjectDetailPage() {
                     <h4 className='font-semibold mb-3'>
                       Standard Working Days:
                     </h4>
-                    <div className='grid grid-cols-2 gap-2 text-sm'>
+                    <div className='grid grid-cols-1 gap-2 text-sm'>
                       {[
                         'monday',
                         'tuesday',
@@ -807,112 +912,10 @@ export default function ProjectDetailPage() {
                 </CardContent>
               </Card>
             )}
-
-            {/* FAQ */}
-            {project.faq.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Frequently Asked Questions</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  {project.faq.map((item, idx) => (
-                    <div key={idx} className='space-y-2'>
-                      <h4 className='font-semibold'>{item.question}</h4>
-                      <p className='text-gray-600 text-sm'>{item.answer}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Reviews & More From This Professional</CardTitle>
-                <CardDescription>Coming soon in the next phase</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className='text-sm text-gray-600'>
-                  We&apos;re working on surfacing verified reviews and
-                  additional projects from this company. Stay tuned!
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className='space-y-6'>
-            {project.subprojects.length > 0 && (
-              <div className='bg-white rounded-lg shadow-sm p-4'>
-                <SubprojectComparisonTable
-                  subprojects={project.subprojects}
-                  onSelectPackage={handleSelectPackage}
-                  priceModel={project.priceModel}
-                />
-              </div>
-            )}
-
-            {/* Professional Info - Hidden until after booking */}
-            {project.professionalId && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Provided By</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className='space-y-3'>
-                    <div className='flex items-center space-x-2'>
-                      <div className='h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg'>
-                        P
-                      </div>
-                      <div>
-                        <p className='font-semibold text-lg text-gray-900'>
-                          Verified Professional
-                        </p>
-                        <Badge variant='secondary' className='text-xs'>
-                          <CheckCircle className='w-3 h-3 mr-1' />
-                          Verified
-                        </Badge>
-                      </div>
-                    </div>
-                    <p className='text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded p-3'>
-                      <strong>Note:</strong> Contact details will be revealed
-                      after you complete your booking and payment.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Extra Options */}
-            {project.extraOptions.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Add-On Options</CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-3'>
-                  {project.extraOptions.map((option, idx) => (
-                    <div
-                      key={idx}
-                      className='flex justify-between items-start text-sm'
-                    >
-                      <div>
-                        <p className='font-medium'>{option.name}</p>
-                        {option.description && (
-                          <p className='text-gray-600 text-xs'>
-                            {option.description}
-                          </p>
-                        )}
-                      </div>
-                      <p className='font-semibold text-blue-600'>
-                        +{formatCurrency(option.price)}
-                      </p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>
     </div>
   );
 }
+
