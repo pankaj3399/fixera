@@ -702,13 +702,13 @@ export default function ProjectDetailPage() {
 
 
             {/* FAQ */}
-            {project.faq.length > 0 && (
+            {(project.faq?.length || 0) > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Frequently Asked Questions</CardTitle>
                 </CardHeader>
                 <CardContent className='space-y-4'>
-                  {project.faq.map((item, idx) => (
+                  {(project.faq || []).map((item, idx) => (
                     <div key={idx} className='space-y-2'>
                       <h4 className='font-semibold'>{item.question}</h4>
                       <p className='text-gray-600 text-sm'>{item.answer}</p>
