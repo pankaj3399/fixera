@@ -195,7 +195,7 @@ export const howItWorksSteps = [
 
 export const keyBenefits = [
     {
-      icon: 'Shield',
+      icon: 'ShieldCheck',
       title: 'Money Back Guarantee',
       description: 'Not satisfied? Get your money back with our guarantee policy.'
     },

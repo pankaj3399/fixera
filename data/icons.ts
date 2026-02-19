@@ -1,8 +1,8 @@
 
 import {
   // General / Tools
-  Wrench, Hammer, Axe, Briefcase, Calculator, Calendar, Camera, Clipboard, ClipboardList,
-  Compass, Construction, Contact, Disc, Divide, DollarSign, Drill, Droplet, Eraser,
+  Wrench, Hammer, Axe, Briefcase, Calculator, Calendar, Camera, CheckCircle, Clipboard, ClipboardList,
+  Clock, Compass, Construction, Contact, CreditCard, Disc, Divide, DollarSign, Drill, Droplet, Eraser,
   Eye, Factory, File, FileText, Filter, Flag, FlaskConical, Folder, Gauge, Gavel,
   Gem, Glasses, Globe, HardHat, Highlighter, Home, Image, Info, Key, Lamp, Layers,
   Layout, Library, Lightbulb, Link, Lock, Magnet, Map, MapPin, Medal, Megaphone,
@@ -45,8 +45,8 @@ import {
 
 export const iconMapData = {
   // General & Tools
-  Wrench, Hammer, Axe, Briefcase, Calculator, Calendar, Camera, Clipboard, ClipboardList,
-  Compass, Construction, Contact, Disc, Divide, DollarSign, Drill, Droplet, Eraser,
+  Wrench, Hammer, Axe, Briefcase, Calculator, Calendar, Camera, CheckCircle, Clipboard, ClipboardList,
+  Clock, Compass, Construction, Contact, CreditCard, Disc, Divide, DollarSign, Drill, Droplet, Eraser,
   Eye, Factory, File, FileText, Filter, Flag, FlaskConical, Folder, Gauge, Gavel,
   Gem, Glasses, Globe, HardHat, Highlighter, Home, Image, Info, Key, Lamp, Layers,
   Layout, Library, Lightbulb, Link, Lock, Magnet, Map, MapPin, Medal, Megaphone,
