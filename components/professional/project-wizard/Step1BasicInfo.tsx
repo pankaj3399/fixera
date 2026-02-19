@@ -26,7 +26,7 @@ interface ProjectData {
   category?: string
   service?: string
   areaOfWork?: string
-  timeMode?: 'hours' | 'days'
+  timeMode?: 'hours' | 'days' | 'mixed'
   categories?: string[]
   services?: IServiceSelection[]
   distance?: {
@@ -426,13 +426,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }
 
   const resolveTimeModeAfterUnitChange = (
-    previousMode: 'hours' | 'days' | undefined,
+    previousMode: 'hours' | 'days' | 'mixed' | undefined,
     prepUnit: 'hours' | 'days',
     execUnit: 'hours' | 'days',
     bufUnit: 'hours' | 'days'
-  ): 'hours' | 'days' => {
-    const reconciled = reconcileTimeMode(prepUnit, execUnit, bufUnit)
-    return reconciled === 'mixed' ? (previousMode || 'days') : reconciled
+  ): 'hours' | 'days' | 'mixed' => {
+    return reconcileTimeMode(prepUnit, execUnit, bufUnit)
   }
 
   const showValidationErrors = () => {
@@ -1215,6 +1214,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 <SelectContent>
                   <SelectItem value="days">Days</SelectItem>
                   <SelectItem value="hours">Hours</SelectItem>
+                  {formData.timeMode === 'mixed' && (
+                    <SelectItem value="mixed" disabled>Mixed</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1233,18 +1235,18 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     updateFormData({
                       preparationDuration: {
                         value: value >= 0 ? value : 0,
-                        unit: formData.preparationDuration?.unit || formData.timeMode || 'days'
+                        unit: formData.preparationDuration?.unit || (formData.timeMode !== 'mixed' ? formData.timeMode : undefined) || 'days'
                       }
                     })
                   }}
                 />
                 <Select
-                  value={formData.preparationDuration?.unit || formData.timeMode || 'days'}
+                  value={formData.preparationDuration?.unit || (formData.timeMode !== 'mixed' ? formData.timeMode : undefined) || 'days'}
                   onValueChange={(unit) => {
                     setFormData((prev) => {
                       const nextPreparationUnit = unit as 'hours' | 'days'
-                      const nextExecutionUnit = prev.executionDuration?.unit || prev.timeMode || 'days'
-                      const nextBufferUnit = prev.bufferDuration?.unit || prev.timeMode || 'days'
+                      const nextExecutionUnit = prev.executionDuration?.unit || (prev.timeMode !== 'mixed' ? prev.timeMode : undefined) || 'days'
+                      const nextBufferUnit = prev.bufferDuration?.unit || (prev.timeMode !== 'mixed' ? prev.timeMode : undefined) || 'days'
 
                       return {
                         ...prev,
@@ -1285,18 +1287,18 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     updateFormData({
                       executionDuration: {
                         value: value > 0 ? value : 1,
-                        unit: formData.executionDuration?.unit || formData.timeMode || 'days'
+                        unit: formData.executionDuration?.unit || (formData.timeMode !== 'mixed' ? formData.timeMode : undefined) || 'days'
                       }
                     })
                   }}
                 />
                 <Select
-                  value={formData.executionDuration?.unit || formData.timeMode || 'days'}
+                  value={formData.executionDuration?.unit || (formData.timeMode !== 'mixed' ? formData.timeMode : undefined) || 'days'}
                   onValueChange={(unit) => {
                     setFormData((prev) => {
                       const nextExecutionUnit = unit as 'hours' | 'days'
-                      const nextPreparationUnit = prev.preparationDuration?.unit || prev.timeMode || 'days'
-                      const nextBufferUnit = prev.bufferDuration?.unit || prev.timeMode || 'days'
+                      const nextPreparationUnit = prev.preparationDuration?.unit || (prev.timeMode !== 'mixed' ? prev.timeMode : undefined) || 'days'
+                      const nextBufferUnit = prev.bufferDuration?.unit || (prev.timeMode !== 'mixed' ? prev.timeMode : undefined) || 'days'
 
                       return {
                         ...prev,
@@ -1337,18 +1339,18 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     updateFormData({
                       bufferDuration: {
                         value: value >= 0 ? value : 0,
-                        unit: formData.bufferDuration?.unit || formData.timeMode || 'days'
+                        unit: formData.bufferDuration?.unit || (formData.timeMode !== 'mixed' ? formData.timeMode : undefined) || 'days'
                       }
                     })
                   }}
                 />
                 <Select
-                  value={formData.bufferDuration?.unit || formData.timeMode || 'days'}
+                  value={formData.bufferDuration?.unit || (formData.timeMode !== 'mixed' ? formData.timeMode : undefined) || 'days'}
                   onValueChange={(unit) => {
                     setFormData((prev) => {
                       const nextBufferUnit = unit as 'hours' | 'days'
-                      const nextPreparationUnit = prev.preparationDuration?.unit || prev.timeMode || 'days'
-                      const nextExecutionUnit = prev.executionDuration?.unit || prev.timeMode || 'days'
+                      const nextPreparationUnit = prev.preparationDuration?.unit || (prev.timeMode !== 'mixed' ? prev.timeMode : undefined) || 'days'
+                      const nextExecutionUnit = prev.executionDuration?.unit || (prev.timeMode !== 'mixed' ? prev.timeMode : undefined) || 'days'
 
                       return {
                         ...prev,

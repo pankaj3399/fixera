@@ -51,7 +51,7 @@ interface Project {
   category: string;
   service: string;
   priceModel?: string;
-  timeMode?: 'hours' | 'days';
+  timeMode?: 'hours' | 'days' | 'mixed';
   preparationDuration?: {
     value: number;
     unit: 'hours' | 'days';

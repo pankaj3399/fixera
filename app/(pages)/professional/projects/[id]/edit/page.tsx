@@ -126,7 +126,7 @@ export interface Project {
   service: string;
   areaOfWork?: string;
   status: string;
-  timeMode?: 'hours' | 'days';
+  timeMode?: 'hours' | 'days' | 'mixed';
   media: Media;
   distance?: Distance;
   resources?: string[];

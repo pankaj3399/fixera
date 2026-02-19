@@ -19,7 +19,7 @@ interface ProjectCardProps {
       service?: string;
       areaOfWork?: string;
     }>;
-    timeMode?: 'hours' | 'days';
+    timeMode?: 'hours' | 'days' | 'mixed';
     executionDuration?: {
       value: number;
       unit: 'hours' | 'days';

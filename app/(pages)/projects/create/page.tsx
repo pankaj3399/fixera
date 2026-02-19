@@ -107,7 +107,7 @@ interface ProjectData {
   _id?: string
   id?: string
   status?: 'draft' | 'pending_approval' | 'published' | 'rejected' | 'booked' | 'on_hold' | 'completed' | 'cancelled'
-  timeMode?: 'hours' | 'days'
+  timeMode?: 'hours' | 'days' | 'mixed'
   category?: string
   service?: string
   areaOfWork?: string

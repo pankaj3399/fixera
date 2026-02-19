@@ -82,14 +82,24 @@ export function PaymentForm({
             break;
           }
 
-          const { error: actionError } = await stripe.handleCardAction(paymentIntent.client_secret);
+          const { paymentIntent: updatedIntent, error: actionError } = await stripe.handleCardAction(paymentIntent.client_secret);
           if (actionError) {
             setPaymentStatus('error');
             setErrorMessage(actionError.message || '3DS authentication failed');
             onError(actionError.message || '3DS authentication failed');
-          } else {
+          } else if (updatedIntent && (updatedIntent.status === 'succeeded' || updatedIntent.status === 'requires_capture')) {
             setPaymentStatus('success');
-            onSuccess(paymentIntent.id);
+            onSuccess(updatedIntent.id);
+          } else if (updatedIntent && updatedIntent.status === 'requires_confirmation') {
+            // Intent needs server-side confirmation after 3DS
+            setPaymentStatus('error');
+            setErrorMessage('Payment requires additional confirmation. Please try again.');
+            onError('Payment requires additional confirmation');
+          } else {
+            const status = updatedIntent?.status || 'unknown';
+            setPaymentStatus('error');
+            setErrorMessage(`Payment did not complete successfully (status: ${status}). Please try again.`);
+            onError(`Payment incomplete: ${status}`);
           }
           break;
 

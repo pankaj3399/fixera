@@ -115,7 +115,7 @@ interface ProjectData {
   category?: string;
   service?: string;
   areaOfWork?: string;
-  timeMode?: 'hours' | 'days';
+  timeMode?: 'hours' | 'days' | 'mixed';
   priceModel?: string;
 }
 

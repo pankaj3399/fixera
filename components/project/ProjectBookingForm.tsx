@@ -94,7 +94,7 @@ interface Project {
   _id: string;
   title: string;
   priceModel?: string;
-  timeMode?: 'hours' | 'days';
+  timeMode?: 'hours' | 'days' | 'mixed';
   preparationDuration?: {
     value: number;
     unit: 'hours' | 'days';
