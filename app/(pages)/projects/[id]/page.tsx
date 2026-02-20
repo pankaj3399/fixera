@@ -320,26 +320,7 @@ export default function ProjectDetailPage() {
   const includeTime = project.timeMode === 'hours';
   const professionalTimeZone = project.professionalId?.businessInfo?.timezone || 'UTC';
 
-  const firstAvailableDateLabels = includeTime
-    ? formatProfessionalViewerLabel(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone)
-    : formatDateOnlyProfessionalViewer(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone);
-  const firstAvailableWindowLabels = formatWindowProfessionalViewer(firstAvailableWindow, professionalTimeZone, viewerTimeZone, includeTime);
-  const estimatedCompletionLabels = includeTime
-    ? formatProfessionalViewerLabel(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone)
-    : formatDateOnlyProfessionalViewer(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone);
-  const shortestThroughputLabels = !includeTime
-    ? formatWindowProfessionalViewer(
-      proposals?.shortestThroughputProposal,
-      professionalTimeZone,
-      viewerTimeZone,
-      includeTime
-    )
-    : null;
-  const firstAvailableSingleLabel = includeTime
-    ? (firstAvailableWindowLabels?.professionalLabel ||
-      firstAvailableDateLabels?.professionalLabel ||
-      null)
-    : null;
+
 
   const priceModelLabel = project.priceModel
     ? formatPriceModelLabel(project.priceModel)
@@ -350,27 +331,25 @@ export default function ProjectDetailPage() {
     qualityCertificates.length > 0 || warrantySummaries.length > 0;
 
   const getComparisonTableDateLabels = () => {
-    // Simplistic formatting: "MMM d, yyyy" (e.g. Feb 25, 2026) or "MMM d, yyyy HH:mm"
     // We strictly use viewerTimeZone
-
-    // First Available
     let firstAvailable = null;
-    if (firstAvailableWindow) {
-      // It's a window (start/end)
-      const label = includeTime
-        ? formatWindowProfessionalViewer(firstAvailableWindow, professionalTimeZone, viewerTimeZone, true)?.viewerLabel
-        : formatWindowProfessionalViewer(firstAvailableWindow, professionalTimeZone, viewerTimeZone, false)?.viewerLabel;
 
-      firstAvailable = label;
-    } else if (derivedFirstAvailableDate) {
-      // Just a start date
-      const label = includeTime
-        ? formatProfessionalViewerLabel(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone)?.viewerLabel
-        : formatDateOnlyProfessionalViewer(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone)?.viewerLabel;
-      firstAvailable = label;
+    if (includeTime) {
+      // For timemode hours: just show the first available date and time.
+      const dt = firstAvailableWindow?.start || derivedFirstAvailableDate;
+      if (dt) {
+        firstAvailable = formatProfessionalViewerLabel(dt, professionalTimeZone, viewerTimeZone, true)?.viewerLabel || null;
+      }
+    } else {
+      // For timemode days: show window or single date
+      if (firstAvailableWindow) {
+        firstAvailable = formatWindowProfessionalViewer(firstAvailableWindow, professionalTimeZone, viewerTimeZone, false)?.viewerLabel || null;
+      } else if (derivedFirstAvailableDate) {
+        firstAvailable = formatDateOnlyProfessionalViewer(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone)?.viewerLabel || null;
+      }
     }
 
-    // Shortest Throughput
+    // Shortest Throughput is NOT needed for hours timemode (includeTime === true)
     let shortestThroughput = null;
     if (!includeTime && proposals?.shortestThroughputProposal) {
       shortestThroughput = formatWindowProfessionalViewer(
@@ -378,7 +357,12 @@ export default function ProjectDetailPage() {
         professionalTimeZone,
         viewerTimeZone,
         false
-      )?.viewerLabel;
+      )?.viewerLabel || null;
+    }
+
+    // Hide shortest throughput if it provides redundant information
+    if (shortestThroughput === firstAvailable) {
+      shortestThroughput = null;
     }
 
     return { firstAvailable, shortestThroughput };
@@ -562,6 +546,7 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
 
+
                 {/* Project Timeline */}
                 {project.executionDuration && (
                   <div className='pt-4 border-t'>
@@ -726,6 +711,7 @@ export default function ProjectDetailPage() {
 
           {/* Sidebar */}
           <div className='space-y-6'>
+
             {project.subprojects.length > 0 && (
               <div className='bg-white rounded-lg shadow-sm p-4'>
                 <SubprojectComparisonTable

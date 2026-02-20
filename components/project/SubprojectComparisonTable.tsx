@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Check, Clock, Shield, ArrowRight } from 'lucide-react'
+import { Check, Clock, Shield, ArrowRight, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
 
 interface SubprojectPricing {
@@ -134,39 +134,37 @@ export default function SubprojectComparisonTable({
                 </div>
               </div>
 
-              {/* Duration & Warranty */}
-              <div className="flex items-center gap-6 mb-6">
-                {currentSubproject.executionDuration && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Clock className="w-4 h-4 mr-2 text-gray-500" />
-                    <span>{formatDuration(currentSubproject.executionDuration)} delivery</span>
-                  </div>
-                )}
-                {currentSubproject.warrantyPeriod && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Shield className="w-4 h-4 mr-2 text-gray-500" />
-                    <span>{formatWarranty(currentSubproject.warrantyPeriod)} warranty</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Date Availability */}
-              {(dateLabels?.firstAvailable || dateLabels?.shortestThroughput) && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-3 border border-gray-100">
-                  {dateLabels.firstAvailable && (
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500">First Available</span>
-                      <span className="font-medium text-gray-900">{dateLabels.firstAvailable}</span>
+              {/* Duration, Warranty & Dates */}
+              <div className="flex flex-col gap-2 mb-6">
+                <div className="flex items-center gap-6">
+                  {currentSubproject.executionDuration && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Clock className="w-4 h-4 mr-2 text-gray-500" />
+                      <span>{formatDuration(currentSubproject.executionDuration)} delivery</span>
                     </div>
                   )}
-                  {dateLabels.shortestThroughput && (
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500">Shortest Throughput</span>
-                      <span className="font-medium text-gray-900">{dateLabels.shortestThroughput}</span>
+                  {currentSubproject.warrantyPeriod && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Shield className="w-4 h-4 mr-2 text-gray-500" />
+                      <span>{formatWarranty(currentSubproject.warrantyPeriod)} warranty</span>
                     </div>
                   )}
                 </div>
-              )}
+
+                {/* Date Availability (Clean & Simplistic) */}
+                {dateLabels?.firstAvailable && (
+                  <div className="flex items-center text-sm text-gray-600 mt-1">
+                    <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>First Available: <span className="font-medium text-gray-900">{dateLabels.firstAvailable}</span></span>
+                  </div>
+                )}
+                {dateLabels?.shortestThroughput && (
+                  <div className="flex items-center text-sm text-gray-600 mt-1">
+                    <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>Shortest Throughput: <span className="font-medium text-gray-900">{dateLabels.shortestThroughput}</span></span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* What's Included */}
