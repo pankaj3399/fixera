@@ -379,12 +379,12 @@ export default function ProjectBookingForm({
   // For old projects without minOrderQuantity, default to 1
   const minOrderQuantity =
     isUnitPricing &&
-    typeof selectedPackage?.pricing?.minOrderQuantity === 'number' &&
-    selectedPackage.pricing.minOrderQuantity > 0
+      typeof selectedPackage?.pricing?.minOrderQuantity === 'number' &&
+      selectedPackage.pricing.minOrderQuantity > 0
       ? selectedPackage.pricing.minOrderQuantity
       : isUnitPricing
-      ? 1
-      : undefined;
+        ? 1
+        : undefined;
 
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
@@ -411,9 +411,9 @@ export default function ProjectBookingForm({
     : undefined;
   const debugDateKeys = isDev
     ? (process.env.NEXT_PUBLIC_DEBUG_DATE_KEYS ?? '')
-        .split(',')
-        .map((dateKey) => dateKey.trim())
-        .filter(Boolean)
+      .split(',')
+      .map((dateKey) => dateKey.trim())
+      .filter(Boolean)
     : [];
   const debugSignatureRef = useRef('');
   const isDebugProject =
@@ -1964,10 +1964,10 @@ export default function ProjectBookingForm({
           budget:
             totalPrice > 0
               ? {
-                  min: totalPrice,
-                  max: totalPrice,
-                  currency: 'EUR',
-                }
+                min: totalPrice,
+                max: totalPrice,
+                currency: 'EUR',
+              }
               : undefined,
         },
         urgency: 'medium',
@@ -2058,8 +2058,8 @@ export default function ProjectBookingForm({
             debugError?.('[BOOKING] Unknown error status:', response.status);
             toast.error(
               data.msg ||
-                data.message ||
-                'Failed to create booking. Please try again.'
+              data.message ||
+              'Failed to create booking. Please try again.'
             );
           }
         }
@@ -2317,7 +2317,7 @@ export default function ProjectBookingForm({
   const effectivePackagePrice = getEffectivePackagePrice();
   const shouldShowUsageBreakdown = Boolean(
     selectedPackage?.pricing.amount &&
-      shouldCollectUsage(selectedPackage.pricing.type)
+    shouldCollectUsage(selectedPackage.pricing.type)
   );
 
   const userCoordinates = user?.location?.coordinates;
@@ -2360,9 +2360,9 @@ export default function ProjectBookingForm({
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
@@ -2386,8 +2386,8 @@ export default function ProjectBookingForm({
 
   const isOutsideServiceArea = Boolean(
     maxServiceRadius &&
-      distanceToServiceArea !== null &&
-      distanceToServiceArea > maxServiceRadius
+    distanceToServiceArea !== null &&
+    distanceToServiceArea > maxServiceRadius
   );
   const roundedMaxRadius =
     typeof maxServiceRadius === 'number' ? Math.round(maxServiceRadius) : null;
@@ -2418,9 +2418,9 @@ export default function ProjectBookingForm({
 
   const shortestWindowDates = shortestThroughputDetails
     ? getConsecutiveDates(
-        shortestThroughputDetails.startDate,
-        shortestThroughputDetails.endDate
-      )
+      shortestThroughputDetails.startDate,
+      shortestThroughputDetails.endDate
+    )
     : [];
 
   const handleApplyShortestWindow = () => {
@@ -2508,21 +2508,19 @@ export default function ProjectBookingForm({
             ].map((step, idx) => (
               <div key={idx} className='flex items-center'>
                 <div
-                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                    currentStep > idx + 1
+                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep > idx + 1
                       ? 'bg-green-600 border-green-600'
                       : currentStep === idx + 1
-                      ? 'bg-blue-600 border-blue-600'
-                      : 'bg-white border-gray-300'
-                  }`}
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'bg-white border-gray-300'
+                    }`}
                 >
                   {currentStep > idx + 1 ? (
                     <CheckCircle2 className='h-5 w-5 text-white' />
                   ) : (
                     <span
-                      className={`text-sm font-semibold ${
-                        currentStep === idx + 1 ? 'text-white' : 'text-gray-400'
-                      }`}
+                      className={`text-sm font-semibold ${currentStep === idx + 1 ? 'text-white' : 'text-gray-400'
+                        }`}
                     >
                       {idx + 1}
                     </span>
@@ -2530,9 +2528,8 @@ export default function ProjectBookingForm({
                 </div>
                 {idx < 3 && (
                   <div
-                    className={`h-1 w-20 mx-2 ${
-                      currentStep > idx + 1 ? 'bg-green-600' : 'bg-gray-200'
-                    }`}
+                    className={`h-1 w-20 mx-2 ${currentStep > idx + 1 ? 'bg-green-600' : 'bg-gray-200'
+                      }`}
                   />
                 )}
               </div>
@@ -2547,11 +2544,10 @@ export default function ProjectBookingForm({
             ].map((step, idx) => (
               <span
                 key={idx}
-                className={`text-xs ${
-                  currentStep === idx + 1
+                className={`text-xs ${currentStep === idx + 1
                     ? 'font-semibold text-blue-600'
                     : 'text-gray-500'
-                }`}
+                  }`}
               >
                 {step}
               </span>
@@ -2691,7 +2687,7 @@ export default function ProjectBookingForm({
                               <p className='text-4xl font-bold text-blue-600'>
                                 {formatCurrency(
                                   estimatedUsage *
-                                    (selectedPackage.pricing.amount || 0)
+                                  (selectedPackage.pricing.amount || 0)
                                 )}
                               </p>
                               <p className='text-sm text-gray-500'>
@@ -2803,8 +2799,8 @@ export default function ProjectBookingForm({
                                 {
                                   before: proposals?.earliestBookableDate
                                     ? startOfDay(
-                                        parseISO(proposals.earliestBookableDate)
-                                      )
+                                      parseISO(proposals.earliestBookableDate)
+                                    )
                                     : addDays(startOfDay(new Date()), 1),
                                 },
                                 { after: addDays(startOfDay(new Date()), 180) },
@@ -2946,10 +2942,9 @@ export default function ProjectBookingForm({
                                   disabled={isPast}
                                   className={`
                                     px-2 py-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center
-                                    ${
-                                      isSelected
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                                        : isPast
+                                    ${isSelected
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                                      : isPast
                                         ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through'
                                         : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500 hover:bg-blue-50'
                                     }
@@ -2977,17 +2972,17 @@ export default function ProjectBookingForm({
                                     const tz = normalizeTimezone(professionalTimezone);
                                     const startInstant = proposals.earliestProposal?.start
                                       ? formatInTimeZone(
-                                          parseISO(proposals.earliestProposal.start),
-                                          tz,
-                                          'yyyy-MM-dd'
-                                        )
+                                        parseISO(proposals.earliestProposal.start),
+                                        tz,
+                                        'yyyy-MM-dd'
+                                      )
                                       : '';
                                     const startTime = proposals.earliestProposal?.start
                                       ? formatInTimeZone(
-                                          parseISO(proposals.earliestProposal.start),
-                                          tz,
-                                          'HH:mm'
-                                        )
+                                        parseISO(proposals.earliestProposal.start),
+                                        tz,
+                                        'HH:mm'
+                                      )
                                       : '';
                                     if (startInstant && !isDateBlocked(startInstant)) {
                                       setHasUserSelectedDate(true);
@@ -3036,14 +3031,14 @@ export default function ProjectBookingForm({
                         {(projectMode === 'hours'
                           ? projectedCompletionDateTime
                           : scheduleWindowCompletionDate) && (
-                          <>
-                            <p className='text-sm text-blue-900 font-semibold pt-2 border-t border-blue-300'>
-                              <strong>Projected Completion:</strong>{' '}
-                              {loadingScheduleWindow ? (
-                                <span className='text-blue-600'>Calculating...</span>
-                              ) : projectMode === 'hours' &&
-                              projectedCompletionDateTime
-                                ? `${format(
+                            <>
+                              <p className='text-sm text-blue-900 font-semibold pt-2 border-t border-blue-300'>
+                                <strong>Projected Completion:</strong>{' '}
+                                {loadingScheduleWindow ? (
+                                  <span className='text-blue-600'>Calculating...</span>
+                                ) : projectMode === 'hours' &&
+                                  projectedCompletionDateTime
+                                  ? `${format(
                                     projectedCompletionDateTime,
                                     'EEEE, MMMM d, yyyy'
                                   )} at ${projectedCompletionDateTime.toLocaleTimeString(
@@ -3053,19 +3048,19 @@ export default function ProjectBookingForm({
                                       minute: '2-digit',
                                     }
                                   )}`
-                                : scheduleWindowCompletionDate
-                                ? format(
-                                    scheduleWindowCompletionDate,
-                                    'EEEE, MMMM d, yyyy'
-                                  )
-                                : null}
-                            </p>
-                            <p className='text-xs text-blue-700 italic'>
-                              Non-working days and blocked dates are skipped
-                              automatically when calculating this estimate.
-                            </p>
-                          </>
-                        )}
+                                  : scheduleWindowCompletionDate
+                                    ? format(
+                                      scheduleWindowCompletionDate,
+                                      'EEEE, MMMM d, yyyy'
+                                    )
+                                    : null}
+                              </p>
+                              <p className='text-xs text-blue-700 italic'>
+                                Non-working days and blocked dates are skipped
+                                automatically when calculating this estimate.
+                              </p>
+                            </>
+                          )}
                         {projectMode === 'days' &&
                           !loadingScheduleWindow &&
                           selectedDate &&
@@ -3158,11 +3153,10 @@ export default function ProjectBookingForm({
                       {project.extraOptions.map((option, idx) => (
                         <div
                           key={idx}
-                          className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                            selectedExtraOptions.includes(idx)
+                          className={`border rounded-lg p-4 cursor-pointer transition-all ${selectedExtraOptions.includes(idx)
                               ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300'
-                          }`}
+                            }`}
                           onClick={() => handleExtraOptionToggle(idx)}
                         >
                           <div className='flex items-start gap-3'>
@@ -3211,8 +3205,8 @@ export default function ProjectBookingForm({
                             {selectedPackage.pricing.type === 'rfq'
                               ? 'Quote Required'
                               : typeof effectivePackagePrice === 'number'
-                              ? formatCurrency(effectivePackagePrice)
-                              : 'Quote Required'}
+                                ? formatCurrency(effectivePackagePrice)
+                                : 'Quote Required'}
                           </span>
                         </div>
 
@@ -3448,14 +3442,14 @@ export default function ProjectBookingForm({
                     {(projectMode === 'hours'
                       ? projectedCompletionDateTime
                       : scheduleWindowCompletionDate) && (
-                      <>
-                        <p className='text-sm font-semibold pt-2 border-t border-gray-300'>
-                          <strong>Expected Completion:</strong>{' '}
-                          {loadingScheduleWindow ? (
-                            <span className='text-gray-500'>Calculating...</span>
-                          ) : projectMode === 'hours' &&
-                          projectedCompletionDateTime
-                            ? `${format(
+                        <>
+                          <p className='text-sm font-semibold pt-2 border-t border-gray-300'>
+                            <strong>Expected Completion:</strong>{' '}
+                            {loadingScheduleWindow ? (
+                              <span className='text-gray-500'>Calculating...</span>
+                            ) : projectMode === 'hours' &&
+                              projectedCompletionDateTime
+                              ? `${format(
                                 projectedCompletionDateTime,
                                 'EEEE, MMMM d, yyyy'
                               )} at ${projectedCompletionDateTime.toLocaleTimeString(
@@ -3465,19 +3459,19 @@ export default function ProjectBookingForm({
                                   minute: '2-digit',
                                 }
                               )}`
-                            : scheduleWindowCompletionDate
-                            ? format(
-                                scheduleWindowCompletionDate,
-                                'EEEE, MMMM d, yyyy'
-                              )
-                            : null}
-                        </p>
-                        <p className='text-xs text-gray-600 italic'>
-                          Non-working days and blocked dates are automatically excluded
-                          from this estimate.
-                        </p>
-                      </>
-                    )}
+                              : scheduleWindowCompletionDate
+                                ? format(
+                                  scheduleWindowCompletionDate,
+                                  'EEEE, MMMM d, yyyy'
+                                )
+                                : null}
+                          </p>
+                          <p className='text-xs text-gray-600 italic'>
+                            Non-working days and blocked dates are automatically excluded
+                            from this estimate.
+                          </p>
+                        </>
+                      )}
                     {projectMode === 'days' &&
                       !loadingScheduleWindow &&
                       selectedDate &&
@@ -3498,42 +3492,42 @@ export default function ProjectBookingForm({
                     {projectMode === 'days' &&
                       !hasUserSelectedDate &&
                       shortestThroughputDetails && (
-                      <div className='border-t border-gray-300 pt-3 space-y-3'>
-                        <div className='flex flex-col gap-1'>
-                          <p className='text-sm font-semibold'>
-                            <strong>Shortest Consecutive Window</strong>{' '}
-                            <span className='text-xs font-normal'>
-                              ({shortestThroughputDetails.totalDays}{' '}
-                              {shortestThroughputDetails.totalDays === 1
-                                ? 'day'
-                                : 'days'}
-                              )
-                            </span>
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            {`${formatInTimeZone(
-                              shortestThroughputDetails.startDate,
-                              normalizeTimezone(professionalTimezone),
-                              'EEEE, MMMM d, yyyy'
-                            )} - ${formatInTimeZone(
-                              shortestThroughputDetails.endDate,
-                              normalizeTimezone(professionalTimezone),
-                              'EEEE, MMMM d, yyyy'
-                            )}`}
-                          </p>
+                        <div className='border-t border-gray-300 pt-3 space-y-3'>
+                          <div className='flex flex-col gap-1'>
+                            <p className='text-sm font-semibold'>
+                              <strong>Shortest Consecutive Window</strong>{' '}
+                              <span className='text-xs font-normal'>
+                                ({shortestThroughputDetails.totalDays}{' '}
+                                {shortestThroughputDetails.totalDays === 1
+                                  ? 'day'
+                                  : 'days'}
+                                )
+                              </span>
+                            </p>
+                            <p className='text-xs text-gray-600'>
+                              {`${formatInTimeZone(
+                                shortestThroughputDetails.startDate,
+                                normalizeTimezone(professionalTimezone),
+                                'EEEE, MMMM d, yyyy'
+                              )} - ${formatInTimeZone(
+                                shortestThroughputDetails.endDate,
+                                normalizeTimezone(professionalTimezone),
+                                'EEEE, MMMM d, yyyy'
+                              )}`}
+                            </p>
+                          </div>
+                          <div className='flex flex-wrap gap-2'>
+                            {shortestWindowDates.map((day) => (
+                              <span
+                                key={day.toISOString()}
+                                className='px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800'
+                              >
+                                {formatInTimeZone(day, normalizeTimezone(professionalTimezone), 'MMM d')}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <div className='flex flex-wrap gap-2'>
-                          {shortestWindowDates.map((day) => (
-                            <span
-                              key={day.toISOString()}
-                              className='px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800'
-                            >
-                              {formatInTimeZone(day, normalizeTimezone(professionalTimezone), 'MMM d')}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </div>
 
@@ -3582,8 +3576,8 @@ export default function ProjectBookingForm({
                           {selectedPackage.pricing.type === 'rfq'
                             ? 'Quote Required'
                             : typeof effectivePackagePrice === 'number'
-                            ? formatCurrency(effectivePackagePrice)
-                            : 'Quote Required'}
+                              ? formatCurrency(effectivePackagePrice)
+                              : 'Quote Required'}
                         </span>
                       </div>
 

@@ -336,16 +336,16 @@ export default function ProjectDetailPage() {
     : formatDateOnlyProfessionalViewer(firstAvailableWindow?.end, professionalTimeZone, viewerTimeZone);
   const shortestThroughputLabels = !includeTime
     ? formatWindowProfessionalViewer(
-        proposals?.shortestThroughputProposal,
-        professionalTimeZone,
-        viewerTimeZone,
-        includeTime
-      )
+      proposals?.shortestThroughputProposal,
+      professionalTimeZone,
+      viewerTimeZone,
+      includeTime
+    )
     : null;
   const firstAvailableSingleLabel = includeTime
     ? (firstAvailableWindowLabels?.professionalLabel ||
-        firstAvailableDateLabels?.professionalLabel ||
-        null)
+      firstAvailableDateLabels?.professionalLabel ||
+      null)
     : null;
 
   const priceModelLabel = project.priceModel
@@ -443,11 +443,10 @@ export default function ProjectDetailPage() {
                         <button
                           key={idx}
                           onClick={() => setCurrentImageIndex(idx)}
-                          className={`relative h-20 w-20 flex-shrink-0 rounded overflow-hidden border-2 transition-all ${
-                            currentImageIndex === idx
-                              ? 'border-blue-500 ring-2 ring-blue-200'
-                              : 'border-gray-200 hover:border-gray-400'
-                          }`}
+                          className={`relative h-20 w-20 flex-shrink-0 rounded overflow-hidden border-2 transition-all ${currentImageIndex === idx
+                            ? 'border-blue-500 ring-2 ring-blue-200'
+                            : 'border-gray-200 hover:border-gray-400'
+                            }`}
                         >
                           <Image
                             src={img}
@@ -533,35 +532,32 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
 
-                {(firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels || firstAvailableSingleLabel) && (
+                {/* Dates display for 'days' mode - for 'hours' mode, this is moved to the sidebar */}
+                {!includeTime && (firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels) && (
                   <div className='grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t'>
                     {(firstAvailableWindowLabels || firstAvailableDateLabels) && (
                       <div className='space-y-1'>
                         <p className='text-sm text-gray-500'>First Available</p>
-                        {includeTime && firstAvailableSingleLabel ? (
-                          <p className='font-medium text-gray-900'>
-                            {firstAvailableSingleLabel}
-                          </p>
-                        ) : firstAvailableWindowLabels ? (
+                        {firstAvailableWindowLabels ? (
                           <>
                             <p className='font-medium text-gray-900'>
-                              Professional ({firstAvailableWindowLabels.professionalZone}): {firstAvailableWindowLabels.professionalLabel}
+                              {firstAvailableWindowLabels.viewerLabel}
                             </p>
                             <p className='text-xs text-gray-500'>
-                              Your time ({firstAvailableWindowLabels.viewerZone}): {firstAvailableWindowLabels.viewerLabel}
+                              Times shown in your timezone ({firstAvailableWindowLabels.viewerZone})
                             </p>
                           </>
                         ) : firstAvailableDateLabels ? (
                           <>
                             <p className='font-medium text-gray-900'>
-                              Professional ({firstAvailableDateLabels.professionalZone}): {firstAvailableDateLabels.professionalLabel}
+                              {firstAvailableDateLabels.viewerLabel}
                             </p>
                             <p className='text-xs text-gray-500'>
-                              Your time ({firstAvailableDateLabels.viewerZone}): {firstAvailableDateLabels.viewerLabel}
+                              Times shown in your timezone ({firstAvailableDateLabels.viewerZone})
                             </p>
                           </>
                         ) : null}
-                        {!includeTime && estimatedCompletionLabels && (
+                        {estimatedCompletionLabels && (
                           <div className='mt-2'>
                             <p className='text-xs text-gray-500'>
                               Completion: {estimatedCompletionLabels.viewerLabel}
@@ -574,10 +570,10 @@ export default function ProjectDetailPage() {
                       <div className='space-y-1'>
                         <p className='text-sm text-gray-500'>Shortest Throughput</p>
                         <p className='font-medium text-gray-900'>
-                          Professional ({shortestThroughputLabels.professionalZone}): {shortestThroughputLabels.professionalLabel}
+                          {shortestThroughputLabels.viewerLabel}
                         </p>
                         <p className='text-xs text-gray-500'>
-                          Your time ({shortestThroughputLabels.viewerZone}): {shortestThroughputLabels.viewerLabel}
+                          Times shown in your timezone ({shortestThroughputLabels.viewerZone})
                         </p>
                         <p className='text-xs text-gray-500'>
                           Based on minimum overlap and resource availability
@@ -594,18 +590,18 @@ export default function ProjectDetailPage() {
                     <div className='grid grid-cols-2 gap-4'>
                       {project.preparationDuration &&
                         project.preparationDuration.value > 0 && (
-                        <div className='flex items-start gap-2'>
-                          <Clock className='h-5 w-5 text-blue-600 mt-0.5' />
-                          <div>
-                            <p className='text-sm text-gray-500'>
-                              Preparation Time
-                            </p>
-                            <p className='font-medium'>
-                              {project.preparationDuration.value}{' '}
-                              {project.preparationDuration.unit}
-                            </p>
+                          <div className='flex items-start gap-2'>
+                            <Clock className='h-5 w-5 text-blue-600 mt-0.5' />
+                            <div>
+                              <p className='text-sm text-gray-500'>
+                                Preparation Time
+                              </p>
+                              <p className='font-medium'>
+                                {project.preparationDuration.value}{' '}
+                                {project.preparationDuration.unit}
+                              </p>
+                            </div>
                           </div>
-                        </div>
                         )}
                       <div className='flex items-start gap-2'>
                         <Calendar className='h-5 w-5 text-blue-600 mt-0.5' />
@@ -856,6 +852,23 @@ export default function ProjectDetailPage() {
 
           {/* Sidebar */}
           <div className='space-y-6'>
+            {includeTime && (firstAvailableWindowLabels || firstAvailableDateLabels) && (
+              <Card className="border-emerald-100 bg-emerald-50/30">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <Calendar className="h-5 w-5 text-emerald-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-gray-900 text-sm">First Available</h4>
+                    <p className="text-emerald-700 font-medium mt-1">
+                      {firstAvailableWindowLabels?.viewerLabel || firstAvailableDateLabels?.viewerLabel}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Times shown in your timezone ({firstAvailableWindowLabels?.viewerZone || firstAvailableDateLabels?.viewerZone})
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {project.subprojects.length > 0 && (
               <div className='bg-white rounded-lg shadow-sm p-4'>
                 <SubprojectComparisonTable

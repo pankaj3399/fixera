@@ -90,65 +90,6 @@ interface ProjectCardProps {
   };
 }
 
-const toHours = (duration?: { value: number; unit: 'hours' | 'days' } | null) => {
-  if (!duration || typeof duration.value !== 'number') {
-    return 0;
-  }
-  return duration.unit === 'hours' ? duration.value : duration.value * 24;
-};
-
-const getResolvedShortestThroughputWindow = (project: ProjectCardProps['project']) => {
-  const hasCompleteWindow = (window?: { start?: string; end?: string } | null) => {
-    return Boolean(window?.start && window?.end);
-  };
-
-  if (hasCompleteWindow(project.shortestThroughputWindow)) {
-    return project.shortestThroughputWindow;
-  }
-
-  if (hasCompleteWindow(project.firstAvailableWindow)) {
-    return project.firstAvailableWindow;
-  }
-
-  if (!project.firstAvailableDate || !project.executionDuration?.value) {
-    return null;
-  }
-
-  const startDate = new Date(project.firstAvailableDate);
-  if (Number.isNaN(startDate.getTime())) {
-    return null;
-  }
-
-  const executionHours = toHours(project.executionDuration);
-  if (!executionHours) {
-    return null;
-  }
-
-  const bufferHours = toHours(project.bufferDuration);
-  const effectiveMode = project.timeMode || project.executionDuration.unit;
-
-  if (effectiveMode === 'hours') {
-    const endDate = new Date(startDate);
-    endDate.setHours(endDate.getHours() + executionHours);
-    return {
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-    };
-  }
-
-  const executionDays = Math.max(1, Math.ceil(executionHours / 24));
-  const bufferDays = Math.ceil(bufferHours / 24);
-  const completionDate = new Date(startDate);
-  completionDate.setDate(completionDate.getDate() + Math.max(0, executionDays - 1));
-  const endDate = new Date(completionDate);
-  endDate.setDate(endDate.getDate() + bufferDays + 1);
-
-  return {
-    start: startDate.toISOString(),
-    end: endDate.toISOString(),
-  };
-};
-
 const ProjectCard = ({ project }: ProjectCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
@@ -169,8 +110,6 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
   // Pre-compute timezone labels for first available date and windows
   const firstAvailableDateLabels = formatUtcViewerLabel(project.firstAvailableDate, viewerTimeZone);
   const firstAvailableWindowLabels = formatWindowUtcViewer(project.firstAvailableWindow, viewerTimeZone);
-  const resolvedShortestThroughputWindow = getResolvedShortestThroughputWindow(project);
-  const shortestThroughputLabels = formatWindowUtcViewer(resolvedShortestThroughputWindow, viewerTimeZone);
 
   const getProjectDuration = () => {
     if (project.executionDuration) {
@@ -272,8 +211,8 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                   setCurrentImageIndex(idx);
                 }}
                 className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${idx === currentImageIndex
-                    ? 'bg-white w-4'
-                    : 'bg-white/60 hover:bg-white/80'
+                  ? 'bg-white w-4'
+                  : 'bg-white/60 hover:bg-white/80'
                   }`}
                 aria-label={`Go to image ${idx + 1}`}
               />
@@ -319,7 +258,7 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
         </div>
 
         {/* Project Duration & Availability */}
-        {(getProjectDuration() || firstAvailableDateLabels || firstAvailableWindowLabels || shortestThroughputLabels) && (
+        {(getProjectDuration() || firstAvailableDateLabels || firstAvailableWindowLabels) && (
           <div className="space-y-2 mb-3 text-sm text-gray-700">
             {getProjectDuration() && (
               <div className="flex items-center gap-2">
@@ -327,6 +266,7 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                 <span className="font-medium">Duration: {getProjectDuration()}</span>
               </div>
             )}
+            {/* ProjectCard doesn't display First Available explicitly here besides the badge, so we'll just leave it clean */}
           </div>
         )}
 
