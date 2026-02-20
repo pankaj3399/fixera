@@ -777,7 +777,7 @@ export default function ProjectDetailPage() {
                         )}
                       </div>
                       <p className='font-semibold text-blue-600'>
-                        +{formatCurrency(option.price)}
+                        {formatCurrency(option.price) ?? 'N/A'}
                       </p>
                     </div>
                   ))}
