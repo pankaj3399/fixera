@@ -758,9 +758,11 @@ export default function ServiceConfigurationManagement() {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {CERTIFICATION_TYPES.map((type) => {
                         const checked = (formData.requiredCertifications || []).includes(type)
+                        const id = `cert-${type.replace(/\s+/g, '-').toLowerCase()}`
                         return (
                           <div key={type} className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 transition-colors">
                             <Checkbox
+                              id={id}
                               checked={checked}
                               onCheckedChange={(v) => {
                                 const isChecked = Boolean(v)
@@ -772,7 +774,7 @@ export default function ServiceConfigurationManagement() {
                                 }))
                               }}
                             />
-                            <Label className="cursor-pointer text-sm flex-1">{type}</Label>
+                            <Label htmlFor={id} className="cursor-pointer text-sm flex-1">{type}</Label>
                           </div>
                         )
                       })}
