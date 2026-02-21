@@ -20,7 +20,8 @@ import {
   CheckCircle,
   AlertCircle,
   Package,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Copy
 } from "lucide-react"
 import { toast } from "sonner"
 import IconPicker from "@/components/IconPicker"
@@ -112,6 +113,41 @@ export default function ServiceConfigurationManagement() {
   const [formData, setFormData] = useState<ServiceConfiguration>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  const [countryFilter, setCountryFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+
+  // Compute unique countries
+  const uniqueCountries = React.useMemo(() => {
+    const countries = new Set<string>()
+    services.forEach(service => {
+      if (service.activeCountries?.length) {
+        service.activeCountries.forEach(c => countries.add(c))
+      } else if (service.country) {
+        countries.add(service.country)
+      }
+    })
+    return Array.from(countries).sort()
+  }, [services])
+
+  // Compute filtered services
+  const filteredServices = React.useMemo(() => {
+    return services.filter(service => {
+      const serviceCountries = service.activeCountries?.length ? service.activeCountries : (service.country ? [service.country] : [])
+      const matchCountry = countryFilter === 'all' || serviceCountries.includes(countryFilter)
+
+      const matchStatus = statusFilter === 'all' ||
+        (statusFilter === 'active' && service.isActive) ||
+        (statusFilter === 'inactive' && !service.isActive)
+
+      const matchSearch = searchQuery.trim() === '' ||
+        service.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (service.areaOfWork && service.areaOfWork.toLowerCase().includes(searchQuery.toLowerCase()))
+
+      return matchCountry && matchStatus && matchSearch
+    })
+  }, [services, countryFilter, statusFilter, searchQuery])
 
 
   // Fetch all services
@@ -288,6 +324,25 @@ export default function ServiceConfigurationManagement() {
     setEditingId(service._id || null)
     setEditDialogOpen(true)
     console.log('✏️ Edit dialog state set to:', true)
+  }
+
+  // Open dialog for duplicating a service
+  const handleDuplicateClick = (service: ServiceConfiguration) => {
+    console.log('📋 Opening duplicate dialog for:', service)
+    const legacyCountry = service.country
+    const resolvedActiveCountries = Array.isArray(service.activeCountries) && service.activeCountries.length > 0
+      ? service.activeCountries
+      : legacyCountry ? [legacyCountry] : []
+
+    const { _id, createdAt, updatedAt, ...rest } = service
+
+    setFormData({
+      ...rest,
+      service: `${service.service} (Copy)`,
+      activeCountries: resolvedActiveCountries
+    })
+    setEditingId(null)
+    setEditDialogOpen(true)
   }
 
   // Open delete confirmation dialog
@@ -481,8 +536,49 @@ export default function ServiceConfigurationManagement() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                {services.length} service{services.length !== 1 ? 's' : ''} configured
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="text-sm text-muted-foreground whitespace-nowrap">
+                  {filteredServices.length} service{filteredServices.length !== 1 ? 's' : ''} configured {services.length !== filteredServices.length && `(filtered from ${services.length})`}
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-[300px]">
+                    <Input
+                      placeholder="Search service or area of work..."
+                      value={searchQuery || ''}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="country-filter" className="text-sm font-medium">Country:</Label>
+                    <select
+                      id="country-filter"
+                      className="border rounded-md px-3 py-1.5 bg-white text-sm"
+                      value={countryFilter}
+                      onChange={(e) => setCountryFilter(e.target.value)}
+                    >
+                      <option value="all">All Countries</option>
+                      {uniqueCountries.map(country => (
+                        <option key={country} value={country}>{country}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="status-filter" className="text-sm font-medium">Status:</Label>
+                    <select
+                      id="status-filter"
+                      className="border rounded-md px-3 py-1.5 bg-white text-sm"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div className="border-2 border-transparent bg-white rounded-lg overflow-hidden relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-blue-200 before:via-purple-200 before:to-pink-200 before:-z-10">
@@ -494,12 +590,13 @@ export default function ServiceConfigurationManagement() {
                       <TableHead>Service</TableHead>
                       <TableHead>Area of Work</TableHead>
                       <TableHead>Pricing Model</TableHead>
+                      <TableHead>Active Country</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {services.map((service) => (
+                    {filteredServices.map((service) => (
                       <TableRow key={service._id}>
                         <TableCell>
                           {service.icon && iconMapData[service.icon as keyof typeof iconMapData] ? (
@@ -512,6 +609,19 @@ export default function ServiceConfigurationManagement() {
                         <TableCell>{service.service}</TableCell>
                         <TableCell>{service.areaOfWork || '-'}</TableCell>
                         <TableCell className="text-sm">{service.pricingModel}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {service.activeCountries?.length ? (
+                              service.activeCountries.map(c => (
+                                <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
+                              ))
+                            ) : service.country ? (
+                              <Badge variant="outline" className="text-xs">{service.country}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {service.isActive ? (
                             <Badge className="bg-green-100 text-green-800 border-green-200">
@@ -544,6 +654,15 @@ export default function ServiceConfigurationManagement() {
                               title="Delete service"
                             >
                               <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDuplicateClick(service)}
+                              className="h-8 px-2 hover:bg-green-50"
+                              title="Duplicate service"
+                            >
+                              <Copy className="h-4 w-4 text-green-600" />
                             </Button>
                           </div>
                         </TableCell>

@@ -40,7 +40,9 @@ import {
   UtilityPole, Variable, Vault, Vibrate, VideoOff, View, Voicemail, Volume, Volume1,
   VolumeX, Vote, Wallet2, Wallpaper, Wand, Wand2, Warehouse, Watch as WatchIcon, Waves,
   Waypoints, Webcam, Weight, Wheat, WholeWord, WifiOff, Wind, Wine, WrapText,
-  X, XCircle, XOctagon, XSquare, Youtube, ZoomOut
+  X, XCircle, XOctagon, XSquare, Youtube, ZoomOut,
+  PaintRoller, Footprints, ThermometerSun, BatteryCharging,
+  DraftingCompass, PencilRuler, Landmark
 } from 'lucide-react';
 
 export const iconMapData = {
@@ -90,6 +92,11 @@ export const iconMapData = {
   VolumeX, Vote, Wallet2, Wallpaper, Wand, Wand2, Warehouse, WatchIcon, Waves,
   Waypoints, Webcam, Weight, Wheat, WholeWord, WifiOff, Wind, Wine, WrapText,
   WrenchTool: Wrench, 
+  PaintRoller, Footprints, ThermometerSun, BatteryCharging,
+  DraftingCompass, PencilRuler, Landmark,
+  Trowel: Layers, // Fallback for Plastering
+  Asbestos: ShieldAlert, // Fallback/Semantic mapping
+  Demolition: Hammer, // Fallback/Semantic mapping
   X, XCircle, XOctagon, XSquare, Youtube, ZoomOut
 };
 
@@ -109,7 +116,11 @@ export const iconTags: Record<string, string[]> = {
   PaintBucket: ['color', 'design', 'renovate', 'art'],
   Paintbrush: ['art', 'design', 'paint', 'creativity'],
   RollerCoaster: ['paint', 'roll', 'wall', 'decorate'], 
+  PaintRoller: ['paint', 'roll', 'wall', 'decorate', 'renovate'],
   Ruler: ['measure', 'length', 'size', 'design'],
+  DraftingCompass: ['architect', 'design', 'plan', 'structure'],
+  PencilRuler: ['design', 'architect', 'measure', 'sketch'],
+  Landmark: ['architecture', 'building', 'planning', 'government'],
   
   // Electrical & Energy
   Zap: ['electric', 'power', 'energy', 'lightning', 'charge'],
@@ -125,6 +136,7 @@ export const iconTags: Record<string, string[]> = {
   UtilityPole: ['electric', 'grid', 'infrastructure', 'power'],
   Sun: ['solar', 'energy', 'nature', 'day', 'light'],
   Wind: ['energy', 'renewable', 'nature', 'air'],
+  BatteryCharging: ['power', 'energy', 'electric', 'charge', 'battery'],
 
   // Plumbing & Water
   Droplet: ['water', 'liquid', 'plumbing', 'wet'],
@@ -139,11 +151,13 @@ export const iconTags: Record<string, string[]> = {
   Snowflake: ['cold', 'winter', 'freeze', 'cool'],
   Flame: ['fire', 'heat', 'burn', 'hot'],
   Heater: ['warm', 'temperature', 'winter', 'radiator'],
+  ThermometerSun: ['temperature', 'weather', 'heat', 'summer'],
 
   // Gardening & Outdoor
   TreePine: ['nature', 'forest', 'wood', 'plant'],
   TreeDeciduous: ['nature', 'park', 'season', 'growth'],
   Trees: ['forest', 'nature', 'landscape', 'outdoor'],
+  Footprints: ['walk', 'path', 'outdoor', 'steps', 'paving'],
   Leaf: ['nature', 'eco', 'plant', 'organic'],
   Flower: ['garden', 'nature', 'beauty', 'bloom'],
   Flower2: ['garden', 'nature', 'beauty', 'bloom'],
