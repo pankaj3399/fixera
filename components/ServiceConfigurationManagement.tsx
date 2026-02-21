@@ -153,24 +153,24 @@ export default function ServiceConfigurationManagement() {
 
   // Helper to safely compute and validate professional input fields
   const computeProfessionalInputFields = (items: IncludedItem[]): DynamicField[] => {
+    const isCompleteDynamicField = (df?: Partial<DynamicField>): df is DynamicField => {
+      return !!(df?.fieldName && df?.fieldType && df?.label)
+    }
+
     return items
-      .filter((item) => {
-        if (!item.isDynamic || !item.dynamicField) return false
-        const df = item.dynamicField
-        return Boolean(df.fieldName && df.fieldType && df.label)
-      })
+      .filter((item) => item.isDynamic && isCompleteDynamicField(item.dynamicField))
       .map((item) => {
         const df = item.dynamicField!
         return {
           fieldName: df.fieldName!,
           fieldType: df.fieldType!,
           label: df.label!,
-          isRequired: Boolean(df.isRequired),
-          unit: df.unit,
-          placeholder: df.placeholder,
+          isRequired: df.isRequired ?? true,
+          unit: df.unit || '',
+          placeholder: df.placeholder || '',
           min: df.min,
           max: df.max,
-          options: df.options
+          options: df.options || []
         }
       })
   }
@@ -998,6 +998,22 @@ export default function ServiceConfigurationManagement() {
                             placeholder="Label"
                             className="bg-white"
                           />
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id={`req-${index}`}
+                              checked={item.dynamicField?.isRequired ?? true}
+                              onCheckedChange={(checked) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                    ...it,
+                                    dynamicField: { ...(it.dynamicField || {}), isRequired: Boolean(checked) }
+                                  }) : it)
+                                }))
+                              }}
+                            />
+                            <Label htmlFor={`req-${index}`} className="text-xs">Required?</Label>
+                          </div>
                         </>
                       )}
                     </div>
