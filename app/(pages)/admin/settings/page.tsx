@@ -34,6 +34,10 @@ export default function AdminSettingsPage() {
       })
       if (response.ok) {
         const data = await response.json()
+        if (!data?.data) {
+          toast.error('Unexpected response from server')
+          return
+        }
         setCommissionPercent(data.data.commissionPercent)
         setLastModified(data.data.lastModified)
         setVersion(data.data.version)
@@ -71,6 +75,10 @@ export default function AdminSettingsPage() {
 
       if (response.ok) {
         const data = await response.json()
+        if (!data?.data) {
+          toast.error('Unexpected response from server')
+          return
+        }
         setCommissionPercent(data.data.commissionPercent)
         setLastModified(data.data.lastModified)
         setVersion(data.data.version)
