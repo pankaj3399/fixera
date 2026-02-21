@@ -151,6 +151,30 @@ export default function ServiceConfigurationManagement() {
     }
   }
 
+  // Helper to safely compute and validate professional input fields
+  const computeProfessionalInputFields = (items: IncludedItem[]): DynamicField[] => {
+    return items
+      .filter((item) => {
+        if (!item.isDynamic || !item.dynamicField) return false
+        const df = item.dynamicField
+        return Boolean(df.fieldName && df.fieldType && df.label)
+      })
+      .map((item) => {
+        const df = item.dynamicField!
+        return {
+          fieldName: df.fieldName!,
+          fieldType: df.fieldType!,
+          label: df.label!,
+          isRequired: Boolean(df.isRequired),
+          unit: df.unit,
+          placeholder: df.placeholder,
+          min: df.min,
+          max: df.max,
+          options: df.options
+        }
+      })
+  }
+
   // Create new service
   const createService = async (dataOverride?: ServiceConfiguration) => {
     const cleanedActive = (formData.activeCountries || []).filter(Boolean)
@@ -159,9 +183,7 @@ export default function ServiceConfigurationManagement() {
       return
     }
 
-    const computedProfessionalInputFields = formData.includedItems
-      .filter((item) => item.isDynamic && item.dynamicField)
-      .map((item) => item.dynamicField as DynamicField)
+    const computedProfessionalInputFields = computeProfessionalInputFields(formData.includedItems)
 
     const payload = dataOverride || {
       ...formData,
@@ -214,9 +236,7 @@ export default function ServiceConfigurationManagement() {
       return
     }
 
-    const computedProfessionalInputFields = formData.includedItems
-      .filter((item) => item.isDynamic && item.dynamicField)
-      .map((item) => item.dynamicField as DynamicField)
+    const computedProfessionalInputFields = computeProfessionalInputFields(formData.includedItems)
 
     const payload = dataOverride || {
       ...formData,
@@ -1122,7 +1142,14 @@ export default function ServiceConfigurationManagement() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!formData.category || !formData.service || !formData.pricingModelName || !formData.pricingModelType || saving}
+                disabled={
+                  !formData.category ||
+                  !formData.service ||
+                  !formData.pricingModelName ||
+                  !formData.pricingModelType ||
+                  (formData.pricingModelType === 'Price per unit' && !formData.pricingModelUnit) ||
+                  saving
+                }
                 className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
