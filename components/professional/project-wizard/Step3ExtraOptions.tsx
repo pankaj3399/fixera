@@ -26,6 +26,8 @@ interface IExtraOption {
   description?: string
   price: number
   isCustom: boolean
+  isCustomizable?: boolean
+  customText?: string // Extra open text field for customizable options
 }
 
 interface ITermCondition {
@@ -197,7 +199,12 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const getPredefinedExtraOptions = () => {
     if (configExtraOptions.length > 0) {
       // Backend does not supply price; default to 0 and let professional edit
-      return configExtraOptions.map(o => ({ name: o.name, price: 0 }))
+      return configExtraOptions.map(o => ({
+        name: o.name,
+        price: 0,
+        description: o.description,
+        isCustomizable: o.isCustomizable
+      }))
     }
     const service = data.service || 'default'
     return PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] || PREDEFINED_EXTRA_OPTIONS.default
@@ -215,7 +222,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     return PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] || PREDEFINED_TERMS.default
   }
 
-  const addPredefinedExtraOption = (option: { name: string; price: number }) => {
+  const addPredefinedExtraOption = (option: { name: string; price: number; description?: string; isCustomizable?: boolean }) => {
     if (extraOptions.length >= 10) {
       toast.error('Maximum 10 extra options allowed')
       return
@@ -229,8 +236,10 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     const newOption: IExtraOption = {
       id: Date.now().toString(),
       name: option.name,
+      description: option.description || '',
       price: option.price,
-      isCustom: false
+      isCustom: false,
+      isCustomizable: option.isCustomizable
     }
 
     setExtraOptions([...extraOptions, newOption])
@@ -256,7 +265,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       id: Date.now().toString(),
       name: customExtraName.trim(),
       price: parseFloat(customExtraPrice),
-      isCustom: true
+      isCustom: true,
+      isCustomizable: true // Custom options are naturally customizable
     }
 
     setExtraOptions([...extraOptions, newOption])
@@ -479,8 +489,34 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         <Badge variant="outline" className="text-xs">Custom</Badge>
                       )}
                     </div>
-                    {option.description && (
-                      <p className="text-sm text-gray-600 mt-1">{option.description}</p>
+                    {(option.isCustomizable || option.isCustom) ? (
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <Label className="text-xs mb-1 block">Description / Details</Label>
+                          <Textarea
+                            value={option.description || ''}
+                            onChange={(e) => updateExtraOption(option.id, { description: e.target.value })}
+                            placeholder="Add specific details or conditions for this option..."
+                            rows={2}
+                            className="text-sm mt-1"
+                          />
+                        </div>
+                        {option.isCustomizable && (
+                          <div>
+                            <Label className="text-xs mb-1 block">Your Custom Specification</Label>
+                            <Input
+                              value={option.customText || ''}
+                              onChange={(e) => updateExtraOption(option.id, { customText: e.target.value })}
+                              placeholder="Enter your custom specification for this option..."
+                              className="text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      option.description && (
+                        <p className="text-sm text-gray-600 mt-1">{option.description}</p>
+                      )
                     )}
                   </div>
                   <div className="flex items-center space-x-3">

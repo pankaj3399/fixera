@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   Plus,
@@ -29,7 +30,7 @@ import { iconMapData } from "@/data/icons"
 
 interface DynamicField {
   fieldName: string
-  fieldType: 'range' | 'dropdown' | 'number' | 'text'
+  fieldType: 'range' | 'dropdown' | 'number' | 'text' | 'select' | 'slider'
   unit?: string
   label: string
   placeholder?: string
@@ -62,7 +63,9 @@ interface ServiceConfiguration {
   category: string
   service: string
   areaOfWork?: string
-  pricingModel: string
+  pricingModelName: string
+  pricingModelType: 'Fixed price' | 'Price per unit' | '' // empty string for initial state
+  pricingModelUnit?: string
   icon?: string
   certificationRequired: boolean
   requiredCertifications?: string[]
@@ -88,7 +91,9 @@ const EMPTY_FORM: ServiceConfiguration = {
   category: '',
   service: '',
   areaOfWork: '',
-  pricingModel: '',
+  pricingModelName: '',
+  pricingModelType: '',
+  pricingModelUnit: '',
   icon: '',
   certificationRequired: false,
   requiredCertifications: [],
@@ -182,6 +187,70 @@ export default function ServiceConfigurationManagement() {
     }
   }
 
+  // Helper to safely compute and validate professional input fields
+  const computeProfessionalInputFields = (items: IncludedItem[]): DynamicField[] => {
+    return items
+      .filter((item) => {
+        if (!item.isDynamic || !item.dynamicField) return false
+        const df = item.dynamicField
+        // Require at least fieldName and label
+        if (!df.fieldName || !df.label) return false
+
+        const fieldType = df.fieldType || 'text'
+
+        // Type-specific validations
+        if (fieldType === 'dropdown' || (fieldType as string) === 'select') {
+          if (!df.options || df.options.length === 0) {
+            console.warn(`Skipping dynamic field "${df.label}": missing options for ${fieldType} type.`)
+            return false
+          }
+        }
+
+        if (fieldType === 'range' || (fieldType as string) === 'slider') {
+          const hasMin = df.min !== undefined && df.min !== null && !isNaN(Number(df.min))
+          const hasMax = df.max !== undefined && df.max !== null && !isNaN(Number(df.max))
+          if (!hasMin || !hasMax || Number(df.min) >= Number(df.max)) {
+            console.warn(`Skipping dynamic field "${df.label}": invalid min/max range for ${fieldType} type.`)
+            return false
+          }
+        }
+
+        if (fieldType === 'text' || fieldType === 'number') {
+          const hasMin = df.min !== undefined && df.min !== null
+          const hasMax = df.max !== undefined && df.max !== null
+
+          if (hasMin && isNaN(Number(df.min))) {
+            console.warn(`Skipping dynamic field "${df.label}": min value is not numeric for ${fieldType} type.`)
+            return false
+          }
+          if (hasMax && isNaN(Number(df.max))) {
+            console.warn(`Skipping dynamic field "${df.label}": max value is not numeric for ${fieldType} type.`)
+            return false
+          }
+          if (hasMin && hasMax && Number(df.min) >= Number(df.max)) {
+            console.warn(`Skipping dynamic field "${df.label}": min must be less than max for ${fieldType} type.`)
+            return false
+          }
+        }
+
+        return true
+      })
+      .map((item) => {
+        const df = item.dynamicField!
+        return {
+          fieldName: df.fieldName!,
+          fieldType: (df.fieldType || 'text') as DynamicField['fieldType'],
+          label: df.label!,
+          isRequired: df.isRequired ?? true,
+          unit: df.unit || '',
+          placeholder: df.placeholder || '',
+          min: df.min !== undefined && df.min !== null ? Number(df.min) : undefined,
+          max: df.max !== undefined && df.max !== null ? Number(df.max) : undefined,
+          options: df.options || []
+        }
+      })
+  }
+
   // Create new service
   const createService = async (dataOverride?: ServiceConfiguration) => {
     const cleanedActive = (formData.activeCountries || []).filter(Boolean)
@@ -189,7 +258,15 @@ export default function ServiceConfigurationManagement() {
       toast.error('Please select at least one active country')
       return
     }
-    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
+
+    const computedProfessionalInputFields = computeProfessionalInputFields(formData.includedItems)
+
+    const payload = dataOverride || {
+      ...formData,
+      activeCountries: cleanedActive,
+      requiredCertifications: formData.certificationRequired ? formData.requiredCertifications : [],
+      professionalInputFields: computedProfessionalInputFields
+    }
     console.log('Creating service:', payload)
     try {
       setSaving(true)
@@ -234,7 +311,15 @@ export default function ServiceConfigurationManagement() {
       toast.error('Please select at least one active country')
       return
     }
-    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
+
+    const computedProfessionalInputFields = computeProfessionalInputFields(formData.includedItems)
+
+    const payload = dataOverride || {
+      ...formData,
+      activeCountries: cleanedActive,
+      requiredCertifications: formData.certificationRequired ? formData.requiredCertifications : [],
+      professionalInputFields: computedProfessionalInputFields
+    }
     console.log(`Updating service ${id}:`, payload)
     try {
       setSaving(true)
@@ -355,6 +440,11 @@ export default function ServiceConfigurationManagement() {
 
   // Handle save button click
   const handleSave = () => {
+    if (formData.pricingModelType === 'Price per unit' && !formData.pricingModelUnit) {
+      toast.error('Please specify a unit when "Price per unit" is selected.')
+      return
+    }
+
     if (editingId) {
       updateService(editingId)
     } else {
@@ -608,7 +698,7 @@ export default function ServiceConfigurationManagement() {
                         <TableCell className="font-medium">{service.category}</TableCell>
                         <TableCell>{service.service}</TableCell>
                         <TableCell>{service.areaOfWork || '-'}</TableCell>
-                        <TableCell className="text-sm">{service.pricingModel}</TableCell>
+                        <TableCell className="text-sm">{service.pricingModelName}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {service.activeCountries?.length ? (
@@ -742,14 +832,50 @@ export default function ServiceConfigurationManagement() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="pricingModel">Pricing Model *</Label>
-                  <Input
-                    id="pricingModel"
-                    value={formData.pricingModel}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pricingModel: e.target.value }))}
-                    placeholder="e.g., Total price, Per m²"
-                  />
+                <div className="space-y-4 col-span-2 p-4 border rounded-lg bg-gray-50">
+                  <h4 className="font-medium text-sm text-gray-700">Pricing Configuration</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pricingModelName">Pricing Name *</Label>
+                      <Input
+                        id="pricingModelName"
+                        value={formData.pricingModelName}
+                        onChange={(e) => setFormData(prev => ({ ...prev, pricingModelName: e.target.value }))}
+                        placeholder="e.g., Total price, Price per m²"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pricingModelType">Pricing Type *</Label>
+                      <Select
+                        value={formData.pricingModelType}
+                        onValueChange={(val: 'Fixed price' | 'Price per unit') => setFormData(prev => ({
+                          ...prev,
+                          pricingModelType: val,
+                          pricingModelUnit: val === 'Fixed price' ? '' : prev.pricingModelUnit
+                        }))}
+                      >
+                        <SelectTrigger id="pricingModelType" className="bg-white">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999] bg-white">
+                          <SelectItem value="Fixed price">Fixed price</SelectItem>
+                          <SelectItem value="Price per unit">Price per unit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pricingModelUnit">Unit {formData.pricingModelType === 'Fixed price' ? '(Optional)' : '*'}</Label>
+                      <Input
+                        id="pricingModelUnit"
+                        value={formData.pricingModelUnit || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, pricingModelUnit: e.target.value }))}
+                        placeholder="e.g., m², hour, day, room"
+                        disabled={formData.pricingModelType === 'Fixed price'}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -770,30 +896,49 @@ export default function ServiceConfigurationManagement() {
               </div>
 
               {/* Required Certifications */}
-              <div className="space-y-2">
-                <Label>Required Certifications</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {CERTIFICATION_TYPES.map((type) => {
-                    const checked = (formData.requiredCertifications || []).includes(type)
-                    return (
-                      <div key={type} className="flex items-center space-x-2 p-2 border rounded">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => {
-                            const isChecked = Boolean(v)
-                            setFormData(prev => ({
-                              ...prev,
-                              requiredCertifications: isChecked
-                                ? [...(prev.requiredCertifications || []), type]
-                                : (prev.requiredCertifications || []).filter(t => t !== type)
-                            }))
-                          }}
-                        />
-                        <Label className="cursor-pointer text-sm">{type}</Label>
-                      </div>
-                    )
-                  })}
+              <div className="space-y-4 p-4 border rounded-lg bg-white shadow-sm">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="certificationRequired"
+                    checked={formData.certificationRequired || false}
+                    onCheckedChange={(checked) => setFormData(prev => ({
+                      ...prev,
+                      certificationRequired: checked,
+                      ...(checked ? {} : { requiredCertifications: [] })
+                    }))}
+                  />
+                  <Label htmlFor="certificationRequired" className="font-semibold cursor-pointer">Certification Required for this Service</Label>
                 </div>
+
+                {formData.certificationRequired && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label className="text-sm text-muted-foreground">Specific Certifications (Optional)</Label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {CERTIFICATION_TYPES.map((type) => {
+                        const checked = (formData.requiredCertifications || []).includes(type)
+                        const id = `cert-${type.replace(/\s+/g, '-').toLowerCase()}`
+                        return (
+                          <div key={type} className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 transition-colors">
+                            <Checkbox
+                              id={id}
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                const isChecked = Boolean(v)
+                                setFormData(prev => ({
+                                  ...prev,
+                                  requiredCertifications: isChecked
+                                    ? [...(prev.requiredCertifications || []), type]
+                                    : (prev.requiredCertifications || []).filter(t => t !== type)
+                                }))
+                              }}
+                            />
+                            <Label htmlFor={id} className="cursor-pointer text-sm flex-1">{type}</Label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">
@@ -910,14 +1055,18 @@ export default function ServiceConfigurationManagement() {
                         placeholder="Condition or warning text"
                         className="flex-1 bg-white"
                       />
-                      <select
-                        className="border rounded px-2 py-1 bg-white"
+                      <Select
                         value={cw.type}
-                        onChange={(e) => updateConditionWarning(index, 'type', e.target.value as 'condition' | 'warning')}
+                        onValueChange={(val: 'condition' | 'warning') => updateConditionWarning(index, 'type', val)}
                       >
-                        <option value="condition">Condition</option>
-                        <option value="warning">Warning</option>
-                      </select>
+                        <SelectTrigger className="bg-white w-32 relative z-[9999]">
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999] bg-white">
+                          <SelectItem value="condition">Condition</SelectItem>
+                          <SelectItem value="warning">Warning</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button
                         onClick={() => removeConditionWarning(index)}
                         variant="ghost"
@@ -1010,6 +1159,22 @@ export default function ServiceConfigurationManagement() {
                             placeholder="Label"
                             className="bg-white"
                           />
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id={`req-${index}`}
+                              checked={item.dynamicField?.isRequired ?? true}
+                              onCheckedChange={(checked) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  includedItems: prev.includedItems.map((it, i) => i === index ? ({
+                                    ...it,
+                                    dynamicField: { ...(it.dynamicField || {}), isRequired: Boolean(checked) }
+                                  }) : it)
+                                }))
+                              }}
+                            />
+                            <Label htmlFor={`req-${index}`} className="text-xs">Required?</Label>
+                          </div>
                         </>
                       )}
                     </div>
@@ -1017,25 +1182,28 @@ export default function ServiceConfigurationManagement() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
                           <Label className="text-xs">Type</Label>
-                          <select
-                            className="border rounded px-2 py-1 bg-white w-full"
+                          <Select
                             value={item.dynamicField?.fieldType || 'text'}
-                            onChange={(e) => {
-                              const v = e.target.value as DynamicField['fieldType']
+                            onValueChange={(val: DynamicField['fieldType']) => {
                               setFormData(prev => ({
                                 ...prev,
                                 includedItems: prev.includedItems.map((it, i) => i === index ? ({
                                   ...it,
-                                  dynamicField: { ...(it.dynamicField || {}), fieldType: v }
+                                  dynamicField: { ...(it.dynamicField || {}), fieldType: val }
                                 }) : it)
                               }))
                             }}
                           >
-                            <option value="text">Text</option>
-                            <option value="number">Number</option>
-                            <option value="dropdown">Dropdown</option>
-                            <option value="range">Range</option>
-                          </select>
+                            <SelectTrigger className="bg-white w-full relative z-[9999]">
+                              <SelectValue placeholder="Type" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[9999] bg-white">
+                              <SelectItem value="text">Text</SelectItem>
+                              <SelectItem value="number">Number</SelectItem>
+                              <SelectItem value="dropdown">Dropdown</SelectItem>
+                              <SelectItem value="range">Range</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div>
                           <Label className="text-xs">Unit</Label>
@@ -1151,7 +1319,14 @@ export default function ServiceConfigurationManagement() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!formData.category || !formData.service || !formData.pricingModel || saving}
+                disabled={
+                  !formData.category ||
+                  !formData.service ||
+                  !formData.pricingModelName ||
+                  !formData.pricingModelType ||
+                  (formData.pricingModelType === 'Price per unit' && !formData.pricingModelUnit) ||
+                  saving
+                }
                 className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
