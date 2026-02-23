@@ -160,6 +160,7 @@ const ROUTE_CONFIG = {
     '/dashboard',
     '/profile',
     '/bookings',
+    '/chat',
   ],
 
   // Role-based routes - require specific roles
@@ -490,7 +491,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? 'Your ID expires today. Please update it.'
         : 'Your ID has expired. Please update it to keep your profile active.'
 
-    toast.warning(message, { duration: 8000 })
+    toast.warning(message, { duration: Infinity, closeButton: true })
   }, [user])
 
   const value: AuthContextType = {

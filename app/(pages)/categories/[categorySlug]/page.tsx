@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import ProfessionalFilters from '@/components/ProfessionalFilters';
 import { toast } from 'sonner';
 import { useParams } from 'next/navigation';
+import StartChatButton from '@/components/chat/StartChatButton';
 
 interface Professional {
   _id: string;
@@ -87,10 +88,13 @@ const ProfessionalCard = ({ professional }: { professional: Professional }) => {
         </div>
       </CardContent>
       <div className="p-4 border-t flex items-center justify-between">
-        <span className="text-xs text-gray-500 font-semibold tracking-wider">STARTING AT</span>
-        <p className="text-xl font-bold text-gray-900">
-          {professional.currency || 'EUR'} {professional.hourlyRate || 0}/hr
-        </p>
+        <div>
+          <span className="text-xs text-gray-500 font-semibold tracking-wider">STARTING AT</span>
+          <p className="text-xl font-bold text-gray-900">
+            {professional.currency || 'EUR'} {professional.hourlyRate || 0}/hr
+          </p>
+        </div>
+        <StartChatButton professionalId={professional._id} label="Start Chat" />
       </div>
     </Card>
   );
