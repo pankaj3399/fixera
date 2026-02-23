@@ -51,6 +51,8 @@ interface ProjectData {
   projectType?: string[]
   description?: string
   priceModel?: string
+  pricingModelType?: string
+  pricingModelUnit?: string
   keywords?: string[]
   title?: string
   media?: {
@@ -258,9 +260,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             setPricingModels(result.data.pricingModels)
           }
 
-          // Update form data with service configuration ID
+          // Update form data with service configuration ID and new pricing fields
           if (result.data._id) {
-            updateFormData({ serviceConfigurationId: result.data._id })
+            updateFormData({
+              serviceConfigurationId: result.data._id,
+              pricingModelType: result.data.pricingModelType,
+              pricingModelUnit: result.data.pricingModelUnit
+            })
           }
         }
       }
@@ -895,7 +901,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 onCheckedChange={(checked) => updateDistance({ noBorders: checked as boolean })}
               />
               <Label htmlFor="noBorders">Don&apos;t cross country borders</Label>
-              
+
             </div>
           </div>
         </CardContent>
@@ -1636,4 +1642,4 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 Step1BasicInfo.displayName = 'Step1BasicInfo'
 
 export default Step1BasicInfo
- 
+

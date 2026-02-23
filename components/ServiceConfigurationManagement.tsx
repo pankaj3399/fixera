@@ -62,7 +62,10 @@ interface ServiceConfiguration {
   category: string
   service: string
   areaOfWork?: string
-  pricingModel: string
+  pricingModel?: string // Virtual from backend
+  pricingModelName: string
+  pricingModelType: 'Fixed price' | 'Price per unit'
+  pricingModelUnit?: string
   icon?: string
   certificationRequired: boolean
   requiredCertifications?: string[]
@@ -88,7 +91,9 @@ const EMPTY_FORM: ServiceConfiguration = {
   category: '',
   service: '',
   areaOfWork: '',
-  pricingModel: '',
+  pricingModelName: '',
+  pricingModelType: 'Fixed price',
+  pricingModelUnit: '',
   icon: '',
   certificationRequired: false,
   requiredCertifications: [],
@@ -608,7 +613,14 @@ export default function ServiceConfigurationManagement() {
                         <TableCell className="font-medium">{service.category}</TableCell>
                         <TableCell>{service.service}</TableCell>
                         <TableCell>{service.areaOfWork || '-'}</TableCell>
-                        <TableCell className="text-sm">{service.pricingModel}</TableCell>
+                        <TableCell className="text-sm">
+                          {service.pricingModelName}
+                          {service.pricingModelType === 'Price per unit' && (
+                            <div className="text-xs text-muted-foreground">
+                              Type: {service.pricingModelType} ({service.pricingModelUnit})
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {service.activeCountries?.length ? (
@@ -743,14 +755,45 @@ export default function ServiceConfigurationManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="pricingModel">Pricing Model *</Label>
+                  <Label htmlFor="pricingModelName">Pricing Model Name *</Label>
                   <Input
-                    id="pricingModel"
-                    value={formData.pricingModel}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pricingModel: e.target.value }))}
+                    id="pricingModelName"
+                    value={formData.pricingModelName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, pricingModelName: e.target.value }))}
                     placeholder="e.g., Total price, Per m²"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pricingModelType">Pricing Type *</Label>
+                  <select
+                    id="pricingModelType"
+                    className="w-full border rounded-md px-3 py-2 bg-white text-sm"
+                    value={formData.pricingModelType}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      pricingModelType: e.target.value as 'Fixed price' | 'Price per unit',
+                      pricingModelUnit: e.target.value === 'Fixed price' ? '' : prev.pricingModelUnit
+                    }))}
+                  >
+                    <option value="Fixed price">Fixed price</option>
+                    <option value="Price per unit">Price per unit</option>
+                  </select>
+                </div>
+
+                {formData.pricingModelType === 'Price per unit' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pricingModelUnit">Pricing Unit *</Label>
+                    <Input
+                      id="pricingModelUnit"
+                      value={formData.pricingModelUnit || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, pricingModelUnit: e.target.value }))}
+                      placeholder="e.g., m2, hour, day"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Active Countries */}
@@ -1151,7 +1194,7 @@ export default function ServiceConfigurationManagement() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!formData.category || !formData.service || !formData.pricingModel || saving}
+                disabled={!formData.category || !formData.service || !formData.pricingModelName || saving}
                 className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

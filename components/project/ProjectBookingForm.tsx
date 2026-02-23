@@ -34,7 +34,8 @@ import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
 import { formatCurrency } from '@/lib/formatters';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
-const getUnitLabel = (priceModel?: string): string => {
+const getUnitLabel = (priceModel?: string, pricingModelUnit?: string): string => {
+  if (pricingModelUnit) return pricingModelUnit;
   if (!priceModel) return 'unit';
   const normalized = priceModel.toLowerCase().trim();
   if (normalized.includes('m²') || normalized.includes('m2')) return 'm²';
@@ -48,7 +49,10 @@ const getUnitLabel = (priceModel?: string): string => {
 };
 
 // Check if priceModel is a "total price" type (fixed pricing - no usage collection needed)
-const isTotalPriceModel = (priceModel?: string): boolean => {
+const isTotalPriceModel = (priceModel?: string, pricingModelType?: string): boolean => {
+  if (pricingModelType) {
+    return pricingModelType === 'Fixed price';
+  }
   if (!priceModel) return false;
   const normalized = priceModel.toLowerCase().trim();
   return (
@@ -60,7 +64,10 @@ const isTotalPriceModel = (priceModel?: string): boolean => {
 };
 
 // Check if priceModel is unit-based (requires usage collection)
-const isUnitBasedPriceModel = (priceModel?: string): boolean => {
+const isUnitBasedPriceModel = (priceModel?: string, pricingModelType?: string): boolean => {
+  if (pricingModelType) {
+    return pricingModelType === 'Price per unit';
+  }
   if (!priceModel) return false;
   const normalized = priceModel.toLowerCase().trim();
   // Check for unit-based models
@@ -71,7 +78,7 @@ const isUnitBasedPriceModel = (priceModel?: string): boolean => {
   if (normalized.includes('room')) return true;
   if (normalized.includes('per ')) return true; // "per hour", "per m²", etc.
   // If it's not total price and not rfq, assume unit-based for old projects
-  if (!isTotalPriceModel(priceModel) && !normalized.includes('rfq')) {
+  if (!isTotalPriceModel(priceModel, pricingModelType) && !normalized.includes('rfq')) {
     // Check if it looks like a unit description
     return (
       normalized.includes('surface') ||
@@ -94,6 +101,8 @@ interface Project {
   _id: string;
   title: string;
   priceModel?: string;
+  pricingModelType?: string;
+  pricingModelUnit?: string;
   timeMode?: 'hours' | 'days' | 'mixed';
   preparationDuration?: {
     value: number;
@@ -373,7 +382,7 @@ export default function ProjectBookingForm({
   const isUnitPricing =
     selectedPackage?.pricing?.type === 'unit' ||
     (!selectedPackage?.pricing?.type &&
-      isUnitBasedPriceModel(project.priceModel));
+      isUnitBasedPriceModel(project.priceModel, project.pricingModelType));
 
   // Unit pricing: minimum order quantity (customer must order at least this)
   // For old projects without minOrderQuantity, default to 1
@@ -2509,10 +2518,10 @@ export default function ProjectBookingForm({
               <div key={idx} className='flex items-center'>
                 <div
                   className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep > idx + 1
-                      ? 'bg-green-600 border-green-600'
-                      : currentStep === idx + 1
-                        ? 'bg-blue-600 border-blue-600'
-                        : 'bg-white border-gray-300'
+                    ? 'bg-green-600 border-green-600'
+                    : currentStep === idx + 1
+                      ? 'bg-blue-600 border-blue-600'
+                      : 'bg-white border-gray-300'
                     }`}
                 >
                   {currentStep > idx + 1 ? (
@@ -2545,8 +2554,8 @@ export default function ProjectBookingForm({
               <span
                 key={idx}
                 className={`text-xs ${currentStep === idx + 1
-                    ? 'font-semibold text-blue-600'
-                    : 'text-gray-500'
+                  ? 'font-semibold text-blue-600'
+                  : 'text-gray-500'
                   }`}
               >
                 {step}
@@ -2617,7 +2626,7 @@ export default function ProjectBookingForm({
                                       selectedPackage.pricing.amount
                                     )}
                                     <span className='text-sm font-normal text-gray-500 ml-1'>
-                                      /{getUnitLabel(project.priceModel)}
+                                      /{getUnitLabel(project.priceModel, project.pricingModelUnit)}
                                     </span>
                                   </p>
                                 </div>
@@ -2692,9 +2701,9 @@ export default function ProjectBookingForm({
                               </p>
                               <p className='text-sm text-gray-500'>
                                 {estimatedUsage}{' '}
-                                {getUnitLabel(project.priceModel)} x{' '}
+                                {getUnitLabel(project.priceModel, project.pricingModelUnit)} x{' '}
                                 {formatCurrency(selectedPackage.pricing.amount)}
-                                /{getUnitLabel(project.priceModel)}
+                                /{getUnitLabel(project.priceModel, project.pricingModelUnit)}
                               </p>
                             </div>
                           )}
@@ -3154,8 +3163,8 @@ export default function ProjectBookingForm({
                         <div
                           key={idx}
                           className={`border rounded-lg p-4 cursor-pointer transition-all ${selectedExtraOptions.includes(idx)
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
                             }`}
                           onClick={() => handleExtraOptionToggle(idx)}
                         >
@@ -3268,9 +3277,9 @@ export default function ProjectBookingForm({
                         {shouldShowUsageBreakdown && (
                           <p className='text-xs text-gray-600 pt-2'>
                             Based on {estimatedUsage}{' '}
-                            {getUnitLabel(project.priceModel)} at{' '}
+                            {getUnitLabel(project.priceModel, project.pricingModelUnit)} at{' '}
                             {formatCurrency(selectedPackage.pricing.amount)}/
-                            {getUnitLabel(project.priceModel)}
+                            {getUnitLabel(project.priceModel, project.pricingModelUnit)}
                           </p>
                         )}
                       </div>
@@ -3410,7 +3419,7 @@ export default function ProjectBookingForm({
                             <span className='font-semibold text-blue-600'>
                               {formatCurrency(selectedPackage.pricing.amount)}
                               <span className='text-xs font-normal text-gray-500 ml-1'>
-                                /{getUnitLabel(project.priceModel)}
+                                /{getUnitLabel(project.priceModel, project.pricingModelUnit)}
                               </span>
                             </span>
                           )}
@@ -3583,9 +3592,9 @@ export default function ProjectBookingForm({
 
                       {shouldShowUsageBreakdown && (
                         <p className='text-xs text-gray-600'>
-                          ({estimatedUsage} {getUnitLabel(project.priceModel)} ×{' '}
+                          ({estimatedUsage} {getUnitLabel(project.priceModel, project.pricingModelUnit)} ×{' '}
                           {formatCurrency(selectedPackage.pricing.amount)}/
-                          {getUnitLabel(project.priceModel)})
+                          {getUnitLabel(project.priceModel, project.pricingModelUnit)})
                         </p>
                       )}
 

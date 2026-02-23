@@ -133,6 +133,8 @@ interface ProjectData {
   projectType?: string[]
   description?: string
   priceModel?: string
+  pricingModelType?: string
+  pricingModelUnit?: string
   keywords?: string[]
   title?: string
   media?: {
@@ -254,7 +256,7 @@ export default function ProjectCreatePage() {
 
             if (response.status === 401) {
               toast.error('Please log in to edit this project')
-              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)            
+              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
               return
             } else if (response.status === 404) {
               toast.error('Project not found')
@@ -306,6 +308,8 @@ export default function ProjectCreatePage() {
             bufferDuration: project.bufferDuration,
             description: project.description,
             priceModel: project.priceModel,
+            pricingModelType: project.pricingModelType,
+            pricingModelUnit: project.pricingModelUnit,
             title: project.title,
             customConfirmationMessage: project.customConfirmationMessage
           })
@@ -323,7 +327,7 @@ export default function ProjectCreatePage() {
 
       loadProject()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   // Manual save function for draft
@@ -365,14 +369,14 @@ export default function ProjectCreatePage() {
       if (response.ok) {
         const savedProject = await response.json()
 
-        
+
         // Update project data with the saved project info, including status
-        setProjectData(prev => ({ 
-          ...prev, 
+        setProjectData(prev => ({
+          ...prev,
           id: savedProject._id,
           status: savedProject.status // Update status in case it changed
         }))
-        
+
         if (!options?.silent) {
           toast.success('Project draft saved successfully!')
         }
