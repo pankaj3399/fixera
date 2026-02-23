@@ -1125,7 +1125,7 @@ const submitProject = async () => {
               <CardContent className="px-4 md:px-6 space-y-3">
                 {/* Always show edit button */}
                 <Button
-                  onClick={() => router.push(`/professional/projects/${project._id}/edit`)}
+                  onClick={() => router.push(`/projects/create?id=${project._id}`)}
                   className="w-full"
                   variant="outline"
                 >

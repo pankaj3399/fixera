@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import Image from 'next/image'
 import { toast } from 'sonner'
+import ProjectDiffView from '@/components/admin/ProjectDiffView'
 
 interface QualityCheck {
   category: string
@@ -136,6 +137,8 @@ interface Project {
   rfqQuestions?: RFQQuestion[]
   postBookingQuestions?: PostBookingQuestion[]
   subprojects?: Subproject[]
+  isResubmission?: boolean
+  reapprovalType?: string
 }
 
 // Helpers to normalize media/attachment URLs and certification link
@@ -163,6 +166,14 @@ export default function ProjectApprovalPage() {
   const [approvedSearch, setApprovedSearch] = useState('')
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectChanges, setProjectChanges] = useState<{
+    isResubmission: boolean
+    reapprovalType: "full" | "moderation_failed" | "none" | null
+    changes: { field: string; category: "A" | "B" | "none"; oldValue: unknown; newValue: unknown; moderationResult?: { passed: boolean; reasons?: string[] } }[]
+    previousSnapshot: Record<string, unknown> | null
+  } | null>(null)
+  const [changesLoading, setChangesLoading] = useState(false)
+  const [showFullDetails, setShowFullDetails] = useState(false)
 
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -218,6 +229,34 @@ export default function ProjectApprovalPage() {
       toast.error('Failed to fetch approved projects')
     }
     setIsLoading(false)
+  }
+
+  const fetchProjectChanges = async (projectId: string) => {
+    setChangesLoading(true)
+    setProjectChanges(null)
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/${projectId}/changes`,
+        { credentials: 'include' }
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setProjectChanges(data)
+      }
+    } catch (error) {
+      console.error('Error fetching project changes:', error)
+    }
+    setChangesLoading(false)
+  }
+
+  const handleSelectProject = (project: Project) => {
+    setSelectedProject(project)
+    setShowFullDetails(false)
+    setProjectChanges(null)
+    // Fetch changes for pending projects
+    if (activeTab === 'pending') {
+      fetchProjectChanges(project._id)
+    }
   }
 
   const handleApprove = async (projectId: string) => {
@@ -473,7 +512,7 @@ export default function ProjectApprovalPage() {
                             ? 'border-blue-500 bg-blue-50'
                             : 'hover:bg-gray-50'
                         }`}
-                        onClick={() => setSelectedProject(project)}
+                        onClick={() => handleSelectProject(project)}
                       >
                         <CardContent className="p-4">
                           <div className="flex justify-between items-start mb-2">
@@ -548,7 +587,28 @@ export default function ProjectApprovalPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Project Info */}
+                  {/* Diff View for Resubmissions */}
+                  {activeTab === 'pending' && projectChanges?.isResubmission && (
+                    <div className="space-y-3">
+                      {changesLoading ? (
+                        <div className="text-sm text-gray-500 py-2">Loading changes...</div>
+                      ) : (
+                        <ProjectDiffView
+                          changes={projectChanges.changes || []}
+                          reapprovalType={projectChanges.reapprovalType}
+                        />
+                      )}
+                      <button
+                        onClick={() => setShowFullDetails(!showFullDetails)}
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        {showFullDetails ? 'Hide full project details' : 'Show full project details'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Project Info - always show for non-resubmissions, collapsible for resubmissions */}
+                  {(!projectChanges?.isResubmission || activeTab !== 'pending' || showFullDetails) && (<>
                   <div>
                     <h4 className="font-semibold mb-3">Project Information</h4>
                     <div className="space-y-3">
@@ -966,6 +1026,8 @@ export default function ProjectApprovalPage() {
                       </div>
                     </div>
                   )}
+                  {/* End of collapsible full details for resubmissions */}
+                  </>)}
 
                   {activeTab === 'pending' ? (
                     <>
