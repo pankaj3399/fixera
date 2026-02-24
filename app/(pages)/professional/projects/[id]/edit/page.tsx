@@ -11,6 +11,12 @@ export default function EditProjectRedirect() {
     const id = params?.id;
     if (id) {
       router.replace(`/projects/create?id=${id}`);
+    } else {
+      // No project id available — redirect to projects list
+      const timer = setTimeout(() => {
+        router.replace('/projects');
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [params, router]);
 

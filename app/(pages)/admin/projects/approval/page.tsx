@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -173,7 +173,9 @@ export default function ProjectApprovalPage() {
     previousSnapshot: Record<string, unknown> | null
   } | null>(null)
   const [changesLoading, setChangesLoading] = useState(false)
+  const [changesError, setChangesError] = useState<string | null>(null)
   const [showFullDetails, setShowFullDetails] = useState(false)
+  const changesAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -232,27 +234,58 @@ export default function ProjectApprovalPage() {
   }
 
   const fetchProjectChanges = async (projectId: string) => {
+    // Abort any in-flight request to prevent stale responses
+    if (changesAbortRef.current) {
+      changesAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    changesAbortRef.current = controller
+
     setChangesLoading(true)
     setProjectChanges(null)
+    setChangesError(null)
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/${projectId}/changes`,
-        { credentials: 'include' }
+        { credentials: 'include', signal: controller.signal }
       )
+      if (controller.signal.aborted) return
       if (response.ok) {
         const data = await response.json()
-        setProjectChanges(data)
+        if (!controller.signal.aborted) {
+          setProjectChanges(data)
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch project changes' }))
+        if (!controller.signal.aborted) {
+          const msg = errorData?.error || `Failed to fetch changes (${response.status})`
+          setChangesError(msg)
+          toast.error(msg)
+        }
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
       console.error('Error fetching project changes:', error)
+      if (!controller.signal.aborted) {
+        setChangesError('Failed to fetch project changes')
+        toast.error('Failed to fetch project changes')
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setChangesLoading(false)
+      }
     }
-    setChangesLoading(false)
   }
 
   const handleSelectProject = (project: Project) => {
+    // Abort any in-flight changes request for the previous project
+    if (changesAbortRef.current) {
+      changesAbortRef.current.abort()
+    }
     setSelectedProject(project)
     setShowFullDetails(false)
     setProjectChanges(null)
+    setChangesError(null)
     // Fetch changes for pending projects
     if (activeTab === 'pending') {
       fetchProjectChanges(project._id)
@@ -587,17 +620,23 @@ export default function ProjectApprovalPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* Loading indicator for changes */}
+                  {activeTab === 'pending' && changesLoading && (
+                    <div className="text-sm text-gray-500 py-2">Loading changes...</div>
+                  )}
+
+                  {/* Error indicator for changes */}
+                  {activeTab === 'pending' && changesError && !changesLoading && (
+                    <div className="text-sm text-red-500 py-2">{changesError}</div>
+                  )}
+
                   {/* Diff View for Resubmissions */}
-                  {activeTab === 'pending' && projectChanges?.isResubmission && (
+                  {activeTab === 'pending' && !changesLoading && projectChanges?.isResubmission && (
                     <div className="space-y-3">
-                      {changesLoading ? (
-                        <div className="text-sm text-gray-500 py-2">Loading changes...</div>
-                      ) : (
-                        <ProjectDiffView
-                          changes={projectChanges.changes || []}
-                          reapprovalType={projectChanges.reapprovalType}
-                        />
-                      )}
+                      <ProjectDiffView
+                        changes={projectChanges.changes || []}
+                        reapprovalType={projectChanges.reapprovalType}
+                      />
                       <button
                         onClick={() => setShowFullDetails(!showFullDetails)}
                         className="text-sm text-blue-600 hover:underline"

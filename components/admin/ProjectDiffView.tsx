@@ -55,7 +55,7 @@ const FIELD_LABELS: Record<string, string> = {
   minOverlapPercentage: "Min Overlap %",
 }
 
-function getCategoryBadge(category: "A" | "B" | "none") {
+function getCategoryBadge(category: "A" | "B" | "none"): React.ReactElement {
   switch (category) {
     case "A":
       return <Badge className="bg-amber-100 text-amber-800 border-amber-300">Structural Change</Badge>
@@ -63,6 +63,8 @@ function getCategoryBadge(category: "A" | "B" | "none") {
       return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Content Change</Badge>
     case "none":
       return <Badge variant="outline" className="text-gray-500">Config Change</Badge>
+    default:
+      return <Badge variant="outline" className="text-gray-400">Other</Badge>
   }
 }
 
@@ -119,7 +121,7 @@ function formatValue(value: any, field: string): string | React.ReactNode {
 function MediaPreview({ value }: { value: any }) {
   if (!value || typeof value !== "object") return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const images: string[] = (value.images || []).map((img: any) => typeof img === "string" ? img : img?.url || "")
+  const images: string[] = (value.images || []).map((img: any) => typeof img === "string" ? img : img?.url || "").filter((src: string) => src.length > 0)
 
   if (images.length === 0) return null
 
