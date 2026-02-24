@@ -822,9 +822,9 @@ export default function ProjectBookingForm({
     if (pricingType) {
       return pricingType === 'unit';
     }
-    // For old projects without pricing.type, check project.priceModel
-    // If priceModel is unit-based (m², meter, hour, etc.), collect usage
-    return isUnitBasedPriceModel(project.priceModel);
+    // For old projects without pricing.type, check project.pricingModelType (migrated)
+    // and fall back to project.priceModel (old field)
+    return isUnitBasedPriceModel(project.priceModel, project.pricingModelType);
   };
 
   const getBufferDuration = () => {

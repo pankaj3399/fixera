@@ -241,6 +241,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }
 
   const fetchServiceConfigurationId = async (category: string, service: string, areaOfWork?: string) => {
+    // Clear stale pricing metadata
+    updateFormData({
+      pricingModelType: undefined,
+      pricingModelUnit: undefined
+    })
+
     try {
       const params = new URLSearchParams({ category, service })
       if (areaOfWork) params.append('areaOfWork', areaOfWork)

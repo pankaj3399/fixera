@@ -374,7 +374,7 @@ export default function Step2Subprojects({
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.priceModel, data.category]);
+  }, [data.priceModel, data.category, data.pricingModelType]);
 
   const validateForm = () => {
     const isValid =
@@ -1431,8 +1431,8 @@ export default function Step2Subprojects({
                           <div
                             key={index}
                             className={`p-3 rounded border ${item.isDynamicField
-                                ? 'bg-purple-50 border-purple-200'
-                                : 'bg-gray-50 border-gray-200'
+                              ? 'bg-purple-50 border-purple-200'
+                              : 'bg-gray-50 border-gray-200'
                               }`}
                           >
                             <div className='flex items-center justify-between mb-2'>
@@ -1782,8 +1782,8 @@ export default function Step2Subprojects({
                               }}
                               placeholder='Min'
                               className={`w-20 ${subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
+                                ? 'border-red-500'
+                                : ''
                                 }`}
                             />
                             <span className='self-center text-gray-500'>
@@ -1833,8 +1833,8 @@ export default function Step2Subprojects({
                               }}
                               placeholder='Max'
                               className={`w-20 ${subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
+                                ? 'border-red-500'
+                                : ''
                                 }`}
                             />
                             <Select

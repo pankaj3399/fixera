@@ -360,6 +360,10 @@ export default function ServiceConfigurationManagement() {
 
   // Handle save button click
   const handleSave = () => {
+    if (formData.pricingModelType === 'Price per unit' && !formData.pricingModelUnit?.trim()) {
+      toast.error('Pricing unit is required for unit-based pricing')
+      return
+    }
     if (editingId) {
       updateService(editingId)
     } else {
@@ -1194,7 +1198,13 @@ export default function ServiceConfigurationManagement() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!formData.category || !formData.service || !formData.pricingModelName || saving}
+                disabled={
+                  !formData.category ||
+                  !formData.service ||
+                  !formData.pricingModelName ||
+                  (formData.pricingModelType === 'Price per unit' && !formData.pricingModelUnit?.trim()) ||
+                  saving
+                }
                 className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
