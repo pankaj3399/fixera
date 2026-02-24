@@ -152,7 +152,11 @@ function MediaPreview({ value }: { value: any }) {
 }
 
 export default function ProjectDiffView({ changes, reapprovalType }: ProjectDiffViewProps) {
-  if (!changes || changes.length === 0) {
+  // Filter out "none" category changes — these are config/operational fields
+  // that don't require admin review (they would auto-approve on their own)
+  const reviewableChanges = (changes || []).filter((c) => c.category !== "none")
+
+  if (reviewableChanges.length === 0) {
     return (
       <div className="text-sm text-gray-500 py-4 text-center">
         No changes detected
@@ -178,12 +182,12 @@ export default function ProjectDiffView({ changes, reapprovalType }: ProjectDiff
           </Badge>
         )}
         <span className="text-sm text-gray-500">
-          {changes.length} field{changes.length !== 1 ? "s" : ""} changed
+          {reviewableChanges.length} field{reviewableChanges.length !== 1 ? "s" : ""} changed
         </span>
       </div>
 
       {/* Change cards */}
-      {changes.map((change, index) => {
+      {reviewableChanges.map((change, index) => {
         const borderClass =
           change.category === "A"
             ? "border-amber-300 bg-amber-50/50"
