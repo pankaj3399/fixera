@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { getAuthToken } from "@/lib/utils"
+import StartChatButton from "@/components/chat/StartChatButton"
 
 type BookingStatus =
   | "rfq"
@@ -520,14 +521,23 @@ export default function BookingDetailPage() {
               See all the information about this booking.
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => router.back()}
-            className="bg-white/80 backdrop-blur border-indigo-100 hover:border-indigo-300"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+          <div className="flex items-center gap-2">
+            {user?.role === "customer" && booking?.professional?._id && (
+              <StartChatButton
+                professionalId={booking.professional._id}
+                bookingId={booking._id}
+                className="bg-white/80 backdrop-blur border-indigo-100 hover:border-indigo-300"
+              />
+            )}
+            <Button
+              variant="outline"
+              onClick={() => router.back()}
+              className="bg-white/80 backdrop-blur border-indigo-100 hover:border-indigo-300"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          </div>
         </div>
 
         {error && (
