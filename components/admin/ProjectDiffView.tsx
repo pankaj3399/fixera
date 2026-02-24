@@ -19,6 +19,10 @@ interface ChangeEntry {
   moderationResult?: ModerationResult
 }
 
+type ReviewableChangeEntry = ChangeEntry & {
+  category: "A" | "B"
+}
+
 interface ProjectDiffViewProps {
   changes: ChangeEntry[]
   reapprovalType: "full" | "moderation_failed" | "none" | null
@@ -56,16 +60,16 @@ const FIELD_LABELS: Record<string, string> = {
   minOverlapPercentage: "Min Overlap %",
 }
 
-function getCategoryBadge(category: "A" | "B" | "none"): ReactElement {
+function isReviewableChange(change: ChangeEntry): change is ReviewableChangeEntry {
+  return change.category !== "none"
+}
+
+function getCategoryBadge(category: "A" | "B"): ReactElement {
   switch (category) {
     case "A":
       return <Badge className="bg-amber-100 text-amber-800 border-amber-300">Structural Change</Badge>
     case "B":
       return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Content Change</Badge>
-    case "none":
-      return <Badge variant="outline" className="text-gray-500">Config Change</Badge>
-    default:
-      return <Badge variant="outline" className="text-gray-400">Other</Badge>
   }
 }
 
@@ -152,10 +156,22 @@ function MediaPreview({ value }: { value: any }) {
 }
 
 export default function ProjectDiffView({ changes, reapprovalType }: ProjectDiffViewProps) {
-  if (!changes || changes.length === 0) {
+  // Filter out "none" category changes — these are config/operational fields
+  // that don't require admin review (they would auto-approve on their own)
+  const reviewableChanges = changes.filter(isReviewableChange)
+
+  if (changes.length === 0) {
     return (
       <div className="text-sm text-gray-500 py-4 text-center">
         No changes detected
+      </div>
+    )
+  }
+
+  if (reviewableChanges.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 py-4 text-center">
+        Only non-reviewable (config/operational) changes were submitted and auto-approved
       </div>
     )
   }
@@ -178,12 +194,12 @@ export default function ProjectDiffView({ changes, reapprovalType }: ProjectDiff
           </Badge>
         )}
         <span className="text-sm text-gray-500">
-          {changes.length} field{changes.length !== 1 ? "s" : ""} changed
+          {reviewableChanges.length} field{reviewableChanges.length !== 1 ? "s" : ""} changed
         </span>
       </div>
 
       {/* Change cards */}
-      {changes.map((change, index) => {
+      {reviewableChanges.map((change, index) => {
         const borderClass =
           change.category === "A"
             ? "border-amber-300 bg-amber-50/50"
