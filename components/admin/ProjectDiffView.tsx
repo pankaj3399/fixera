@@ -1,8 +1,9 @@
 'use client'
 
+import type { ReactElement, ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { AlertTriangle, ArrowRight } from "lucide-react"
+import { AlertTriangle, ArrowRight, Play } from "lucide-react"
 import Image from "next/image"
 
 interface ModerationResult {
@@ -55,7 +56,7 @@ const FIELD_LABELS: Record<string, string> = {
   minOverlapPercentage: "Min Overlap %",
 }
 
-function getCategoryBadge(category: "A" | "B" | "none"): React.ReactElement {
+function getCategoryBadge(category: "A" | "B" | "none"): ReactElement {
   switch (category) {
     case "A":
       return <Badge className="bg-amber-100 text-amber-800 border-amber-300">Structural Change</Badge>
@@ -69,7 +70,7 @@ function getCategoryBadge(category: "A" | "B" | "none"): React.ReactElement {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatValue(value: any, field: string): string | React.ReactNode {
+function formatValue(value: any, field: string): string | ReactNode {
   if (value === null || value === undefined) return <span className="italic text-gray-400">Not set</span>
 
   if (typeof value === "string") {
@@ -82,8 +83,8 @@ function formatValue(value: any, field: string): string | React.ReactNode {
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className="italic text-gray-400">Empty</span>
 
-    // For simple string arrays
-    if (typeof value[0] === "string") return value.join(", ")
+    // For simple string arrays (check all items, not just the first)
+    if (value.every((v) => typeof v === "string")) return value.join(", ")
 
     // For object arrays (subprojects, FAQ, etc.)
     return (
@@ -91,7 +92,9 @@ function formatValue(value: any, field: string): string | React.ReactNode {
         {value.length} item{value.length !== 1 ? "s" : ""}
         {value.map((item, i) => (
           <span key={i} className="block text-xs text-gray-600 ml-2">
-            {item.name || item.question || item.title || JSON.stringify(item).slice(0, 80)}
+            {item && typeof item === "object"
+              ? (item.name || item.question || item.title || JSON.stringify(item).slice(0, 80))
+              : String(item)}
           </span>
         ))}
       </span>
@@ -122,8 +125,9 @@ function MediaPreview({ value }: { value: any }) {
   if (!value || typeof value !== "object") return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const images: string[] = (value.images || []).map((img: any) => typeof img === "string" ? img : img?.url || "").filter((src: string) => src.length > 0)
+  const hasVideo = !!(value.video || value.videos)
 
-  if (images.length === 0) return null
+  if (images.length === 0 && !hasVideo) return null
 
   return (
     <div className="flex gap-2 mt-1 flex-wrap">
@@ -135,6 +139,12 @@ function MediaPreview({ value }: { value: any }) {
       {images.length > 4 && (
         <div className="w-16 h-16 rounded border flex items-center justify-center bg-gray-50 text-xs text-gray-500">
           +{images.length - 4}
+        </div>
+      )}
+      {hasVideo && (
+        <div className="w-16 h-16 rounded border flex flex-col items-center justify-center bg-gray-100 text-xs text-gray-500">
+          <Play className="w-4 h-4" />
+          <span>Video</span>
         </div>
       )}
     </div>

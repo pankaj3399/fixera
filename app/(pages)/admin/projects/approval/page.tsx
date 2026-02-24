@@ -138,7 +138,7 @@ interface Project {
   postBookingQuestions?: PostBookingQuestion[]
   subprojects?: Subproject[]
   isResubmission?: boolean
-  reapprovalType?: string
+  reapprovalType?: "full" | "moderation_failed" | "none" | null
 }
 
 // Helpers to normalize media/attachment URLs and certification link
@@ -170,12 +170,18 @@ export default function ProjectApprovalPage() {
     isResubmission: boolean
     reapprovalType: "full" | "moderation_failed" | "none" | null
     changes: { field: string; category: "A" | "B" | "none"; oldValue: unknown; newValue: unknown; moderationResult?: { passed: boolean; reasons?: string[] } }[]
-    previousSnapshot: Record<string, unknown> | null
   } | null>(null)
   const [changesLoading, setChangesLoading] = useState(false)
   const [changesError, setChangesError] = useState<string | null>(null)
   const [showFullDetails, setShowFullDetails] = useState(false)
   const changesAbortRef = useRef<AbortController | null>(null)
+
+  // Abort in-flight changes request on unmount
+  useEffect(() => {
+    return () => {
+      changesAbortRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -638,6 +644,7 @@ export default function ProjectApprovalPage() {
                         reapprovalType={projectChanges.reapprovalType}
                       />
                       <button
+                        type="button"
                         onClick={() => setShowFullDetails(!showFullDetails)}
                         className="text-sm text-blue-600 hover:underline"
                       >

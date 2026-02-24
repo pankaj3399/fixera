@@ -10,7 +10,8 @@ export default function EditProjectRedirect() {
   useEffect(() => {
     const id = params?.id;
     if (id) {
-      router.replace(`/projects/create?id=${id}`);
+      const query = new URLSearchParams({ id: String(id) });
+      router.replace(`/projects/create?${query.toString()}`);
     } else {
       // No project id available — redirect to projects list
       const timer = setTimeout(() => {
