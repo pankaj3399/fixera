@@ -57,12 +57,18 @@ interface ConditionWarning {
   type: 'condition' | 'warning'
 }
 
+type PricingModelType = 'Fixed price' | 'Price per unit'
+type PricingModelUnit = 'm2' | 'hour' | 'day' | 'meter' | 'room' | 'unit'
+
 interface ServiceConfiguration {
   _id?: string
   category: string
   service: string
   areaOfWork?: string
-  pricingModel: string
+  pricingModel?: string
+  pricingModelName?: string
+  pricingModelType?: PricingModelType
+  pricingModelUnit?: PricingModelUnit
   icon?: string
   certificationRequired: boolean
   requiredCertifications?: string[]
@@ -89,6 +95,8 @@ const EMPTY_FORM: ServiceConfiguration = {
   service: '',
   areaOfWork: '',
   pricingModel: '',
+  pricingModelName: '',
+  pricingModelType: 'Fixed price',
   icon: '',
   certificationRequired: false,
   requiredCertifications: [],
@@ -99,6 +107,67 @@ const EMPTY_FORM: ServiceConfiguration = {
   conditionsAndWarnings: [],
   isActive: true,
   activeCountries: ['BE']
+}
+
+const derivePricingTypeAndUnit = (rawPricingModelName: string): { pricingModelType: PricingModelType; pricingModelUnit?: PricingModelUnit } => {
+  const normalized = rawPricingModelName.toLowerCase().replace('m²', 'm2').trim()
+  const isUnit =
+    /\bper\b/.test(normalized) ||
+    /\bm2\b/.test(normalized) ||
+    /\bhour\b/.test(normalized) ||
+    /\bday\b/.test(normalized) ||
+    /\bmeter\b/.test(normalized) ||
+    /\broom\b/.test(normalized)
+
+  if (!isUnit) {
+    return { pricingModelType: 'Fixed price' }
+  }
+
+  if (/\bm2\b/.test(normalized)) return { pricingModelType: 'Price per unit', pricingModelUnit: 'm2' }
+  if (/\bhour\b/.test(normalized)) return { pricingModelType: 'Price per unit', pricingModelUnit: 'hour' }
+  if (/\bday\b/.test(normalized)) return { pricingModelType: 'Price per unit', pricingModelUnit: 'day' }
+  if (/\bmeter\b/.test(normalized)) return { pricingModelType: 'Price per unit', pricingModelUnit: 'meter' }
+  if (/\broom\b/.test(normalized)) return { pricingModelType: 'Price per unit', pricingModelUnit: 'room' }
+  return { pricingModelType: 'Price per unit', pricingModelUnit: 'unit' }
+}
+
+const normalizeServiceForForm = (service: ServiceConfiguration): ServiceConfiguration => {
+  const resolvedPricingModelName = (service.pricingModelName || service.pricingModel || '').trim()
+  const derived = derivePricingTypeAndUnit(resolvedPricingModelName)
+  return {
+    ...service,
+    pricingModel: resolvedPricingModelName,
+    pricingModelName: resolvedPricingModelName,
+    pricingModelType: service.pricingModelType || derived.pricingModelType,
+    pricingModelUnit:
+      (service.pricingModelType || derived.pricingModelType) === 'Price per unit'
+        ? (service.pricingModelUnit || derived.pricingModelUnit)
+        : undefined
+  }
+}
+
+const normalizePayloadForApi = (service: ServiceConfiguration): ServiceConfiguration => {
+  const pricingModelName = (service.pricingModelName || service.pricingModel || '').trim()
+  const derived = derivePricingTypeAndUnit(pricingModelName)
+  const pricingModelType = service.pricingModelType || derived.pricingModelType
+  const pricingModelUnit =
+    pricingModelType === 'Price per unit'
+      ? (service.pricingModelUnit || derived.pricingModelUnit || 'unit')
+      : undefined
+
+  const payload: ServiceConfiguration = {
+    ...service,
+    pricingModel: pricingModelName,
+    pricingModelName,
+    pricingModelType,
+    pricingModelUnit,
+  }
+
+  if (pricingModelType === 'Fixed price') {
+    delete payload.pricingModelUnit
+  }
+
+  return payload
 }
 
 export default function ServiceConfigurationManagement() {
@@ -168,7 +237,7 @@ export default function ServiceConfigurationManagement() {
       if (response.ok) {
         const data = await response.json()
         console.log('✅ Services fetched:', data)
-        setServices(data.data || [])
+        setServices((data.data || []).map((service: ServiceConfiguration) => normalizeServiceForForm(service)))
       } else {
         const error = await response.json()
         console.error('❌ Fetch failed:', error)
@@ -189,7 +258,7 @@ export default function ServiceConfigurationManagement() {
       toast.error('Please select at least one active country')
       return
     }
-    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
+    const payload = normalizePayloadForApi(dataOverride || { ...formData, activeCountries: cleanedActive })
     console.log('Creating service:', payload)
     try {
       setSaving(true)
@@ -234,7 +303,7 @@ export default function ServiceConfigurationManagement() {
       toast.error('Please select at least one active country')
       return
     }
-    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
+    const payload = normalizePayloadForApi(dataOverride || { ...formData, activeCountries: cleanedActive })
     console.log(`Updating service ${id}:`, payload)
     try {
       setSaving(true)
@@ -320,7 +389,7 @@ export default function ServiceConfigurationManagement() {
     const resolvedActiveCountries = Array.isArray(service.activeCountries) && service.activeCountries.length > 0
       ? service.activeCountries
       : legacyCountry ? [legacyCountry] : []
-    setFormData({ ...service, activeCountries: resolvedActiveCountries })
+    setFormData(normalizeServiceForForm({ ...service, activeCountries: resolvedActiveCountries }))
     setEditingId(service._id || null)
     setEditDialogOpen(true)
     console.log('✏️ Edit dialog state set to:', true)
@@ -334,13 +403,16 @@ export default function ServiceConfigurationManagement() {
       ? service.activeCountries
       : legacyCountry ? [legacyCountry] : []
 
-    const { _id, createdAt, updatedAt, ...rest } = service
+    const rest = { ...service }
+    delete rest._id
+    delete rest.createdAt
+    delete rest.updatedAt
 
-    setFormData({
+    setFormData(normalizeServiceForForm({
       ...rest,
       service: `${service.service} (Copy)`,
       activeCountries: resolvedActiveCountries
-    })
+    }))
     setEditingId(null)
     setEditDialogOpen(true)
   }
@@ -608,7 +680,7 @@ export default function ServiceConfigurationManagement() {
                         <TableCell className="font-medium">{service.category}</TableCell>
                         <TableCell>{service.service}</TableCell>
                         <TableCell>{service.areaOfWork || '-'}</TableCell>
-                        <TableCell className="text-sm">{service.pricingModel}</TableCell>
+                        <TableCell className="text-sm">{service.pricingModelName || service.pricingModel || '-'}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {service.activeCountries?.length ? (
@@ -743,13 +815,66 @@ export default function ServiceConfigurationManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="pricingModel">Pricing Model *</Label>
+                  <Label htmlFor="pricingModelName">Pricing Model Name *</Label>
                   <Input
-                    id="pricingModel"
-                    value={formData.pricingModel}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pricingModel: e.target.value }))}
-                    placeholder="e.g., Total price, Per m²"
+                    id="pricingModelName"
+                    value={formData.pricingModelName || ''}
+                    onChange={(e) => {
+                      const pricingModelName = e.target.value
+                      const derived = derivePricingTypeAndUnit(pricingModelName)
+                      setFormData(prev => ({
+                        ...prev,
+                        pricingModel: pricingModelName,
+                        pricingModelName,
+                        pricingModelType: prev.pricingModelType || derived.pricingModelType,
+                        pricingModelUnit:
+                          (prev.pricingModelType || derived.pricingModelType) === 'Price per unit'
+                            ? (prev.pricingModelUnit || derived.pricingModelUnit)
+                            : undefined
+                      }))
+                    }}
+                    placeholder="e.g., Total price, Price per m²"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pricingModelType">Pricing Type *</Label>
+                  <select
+                    id="pricingModelType"
+                    className="w-full border rounded-md px-3 py-2 bg-white"
+                    value={formData.pricingModelType || 'Fixed price'}
+                    onChange={(e) => {
+                      const pricingModelType = e.target.value as PricingModelType
+                      setFormData(prev => ({
+                        ...prev,
+                        pricingModelType,
+                        pricingModelUnit: pricingModelType === 'Price per unit' ? (prev.pricingModelUnit || 'unit') : undefined
+                      }))
+                    }}
+                  >
+                    <option value="Fixed price">Fixed price</option>
+                    <option value="Price per unit">Price per unit</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pricingModelUnit">Pricing Unit</Label>
+                  <select
+                    id="pricingModelUnit"
+                    className="w-full border rounded-md px-3 py-2 bg-white disabled:bg-gray-100"
+                    value={formData.pricingModelUnit || 'unit'}
+                    disabled={formData.pricingModelType !== 'Price per unit'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, pricingModelUnit: e.target.value as PricingModelUnit }))}
+                  >
+                    <option value="unit">unit</option>
+                    <option value="m2">m2</option>
+                    <option value="hour">hour</option>
+                    <option value="day">day</option>
+                    <option value="meter">meter</option>
+                    <option value="room">room</option>
+                  </select>
                 </div>
               </div>
 
@@ -1151,7 +1276,7 @@ export default function ServiceConfigurationManagement() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!formData.category || !formData.service || !formData.pricingModel || saving}
+                disabled={!formData.category || !formData.service || !formData.pricingModelName || saving}
                 className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

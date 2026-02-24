@@ -146,7 +146,7 @@ interface Project {
 interface ScheduleProposalsResponse {
   success: boolean;
   proposals?: {
-    mode: 'hours' | 'days';
+    mode: 'hours' | 'days' | 'mixed';
     earliestBookableDate: string;
     earliestProposal?: {
       start: string;
@@ -904,4 +904,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
