@@ -8,7 +8,7 @@ import ProfessionalsSection from '@/components/ProfessionalsSection'
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white ">
       <HeroSection />
       <HowItWorksSection />
       <FeaturesSection />
