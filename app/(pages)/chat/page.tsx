@@ -203,11 +203,9 @@ export default function ChatPage() {
     setSending(true);
 
     try {
-      const uploadedImageUrls: string[] = [];
-      for (const file of files) {
-        const uploadResult = await uploadChatImage(file, selectedConversationId);
-        uploadedImageUrls.push(uploadResult.url);
-      }
+      const uploadedImageUrls = files.length > 0
+        ? (await Promise.all(files.map((file) => uploadChatImage(file, selectedConversationId)))).map((result) => result.url)
+        : [];
 
       await sendConversationMessage(selectedConversationId, {
         text: text.trim() || undefined,

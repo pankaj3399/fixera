@@ -11,6 +11,7 @@ interface ChatThreadProps {
 
 const getSenderId = (message: ChatMessage) => {
   const sender = message.senderId as unknown;
+  if (typeof sender === "string") return sender;
   if (sender && typeof sender === "object" && "_id" in (sender as Record<string, unknown>)) {
     const senderId = (sender as { _id?: string })._id;
     if (senderId) return senderId;

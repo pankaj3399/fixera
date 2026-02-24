@@ -488,7 +488,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const exp = new Date(user.idExpirationDate)
-    if (Number.isNaN(exp.getTime())) return
+    if (Number.isNaN(exp.getTime())) {
+      if (idExpiryToastRef.current !== null) {
+        toast.dismiss(idExpiryToastRef.current)
+        idExpiryToastRef.current = null
+      }
+      idExpiryAlertRef.current = null
+      return
+    }
 
     const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     if (daysLeft > 30) return
