@@ -63,7 +63,7 @@ export default function ChatThread({ messages, currentUserId, loading }: ChatThr
                       key={`${message._id}-image-${index}`}
                       href={imageUrl}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noreferrer noopener"
                       className="block"
                     >
                       <img

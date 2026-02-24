@@ -247,6 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const userRef = useRef<User | null>(null)
   const isInitializedRef = useRef(false)
   const idExpiryAlertRef = useRef<string | null>(null)
+  const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -380,6 +381,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null)
       setAuthToken(null)
       idExpiryAlertRef.current = null
+      if (idExpiryToastRef.current !== null) {
+        toast.dismiss(idExpiryToastRef.current)
+        idExpiryToastRef.current = null
+      }
       sessionStorage.removeItem('redirectAfterAuth')
       toast.success('Logged out successfully')
       router.push('/login')
@@ -473,7 +478,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, isInitialized, loading])
 
   useEffect(() => {
-    if (!user || user.role !== 'professional' || !user.idExpirationDate) return
+    if (!user || user.role !== 'professional' || !user.idExpirationDate) {
+      if (idExpiryToastRef.current !== null) {
+        toast.dismiss(idExpiryToastRef.current)
+        idExpiryToastRef.current = null
+      }
+      idExpiryAlertRef.current = null
+      return
+    }
 
     const exp = new Date(user.idExpirationDate)
     if (Number.isNaN(exp.getTime())) return
@@ -485,13 +497,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (idExpiryAlertRef.current === alertKey) return
     idExpiryAlertRef.current = alertKey
 
+    if (idExpiryToastRef.current !== null) {
+      toast.dismiss(idExpiryToastRef.current)
+    }
+
     const message = daysLeft > 0
       ? `Your ID expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Please update it.`
       : daysLeft === 0
         ? 'Your ID expires today. Please update it.'
         : 'Your ID has expired. Please update it to keep your profile active.'
 
-    toast.warning(message, { duration: Infinity, closeButton: true })
+    idExpiryToastRef.current = toast.warning(message, { duration: Infinity, closeButton: true })
   }, [user])
 
   const value: AuthContextType = {

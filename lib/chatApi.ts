@@ -114,7 +114,7 @@ export const sendConversationMessage = async (
 
 export const markConversationAsRead = async (conversationId: string) => {
   const response = await fetch(`${API_BASE}/conversations/${encodeURIComponent(conversationId)}/read`, {
-    method: "POST",
+    method: "PATCH",
     credentials: "include",
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
   });

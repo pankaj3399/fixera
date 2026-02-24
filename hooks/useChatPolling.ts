@@ -7,6 +7,7 @@ export const useChatPolling = (
   deps: ReadonlyArray<unknown> = []
 ) => {
   const callbackRef = useRef(callback);
+  const isRunningRef = useRef(false);
 
   useEffect(() => {
     callbackRef.current = callback;
@@ -17,20 +18,26 @@ export const useChatPolling = (
       return;
     }
 
-    const run = () => {
+    const run = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") {
         return;
       }
-      void callbackRef.current();
+      if (isRunningRef.current) return;
+      isRunningRef.current = true;
+      try {
+        await callbackRef.current();
+      } finally {
+        isRunningRef.current = false;
+      }
     };
 
-    run();
+    void run();
 
-    const id = window.setInterval(run, intervalMs);
+    const id = window.setInterval(() => void run(), intervalMs);
 
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        run();
+        void run();
       }
     };
 

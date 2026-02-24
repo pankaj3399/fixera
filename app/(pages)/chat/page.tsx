@@ -119,7 +119,10 @@ export default function ChatPage() {
   }, [isAuthenticated, loading, router]);
 
   useEffect(() => {
-    if (!isAuthenticated || !isAllowedRole(userRole)) return;
+    if (!isAuthenticated || !isAllowedRole(userRole)) {
+      setLoadingConversations(false);
+      return;
+    }
     void loadConversationList(true);
   }, [isAuthenticated, userRole, loadConversationList]);
 
