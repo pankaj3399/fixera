@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import Image from 'next/image'
 import { toast } from 'sonner'
+import ProjectDiffView from '@/components/admin/ProjectDiffView'
 
 interface QualityCheck {
   category: string
@@ -136,6 +137,8 @@ interface Project {
   rfqQuestions?: RFQQuestion[]
   postBookingQuestions?: PostBookingQuestion[]
   subprojects?: Subproject[]
+  isResubmission?: boolean
+  reapprovalType?: "full" | "moderation_failed" | "none" | null
 }
 
 // Helpers to normalize media/attachment URLs and certification link
@@ -163,6 +166,22 @@ export default function ProjectApprovalPage() {
   const [approvedSearch, setApprovedSearch] = useState('')
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectChanges, setProjectChanges] = useState<{
+    isResubmission: boolean
+    reapprovalType: "full" | "moderation_failed" | "none" | null
+    changes: { field: string; category: "A" | "B" | "none"; oldValue: unknown; newValue: unknown; moderationResult?: { passed: boolean; reasons?: string[] } }[]
+  } | null>(null)
+  const [changesLoading, setChangesLoading] = useState(false)
+  const [changesError, setChangesError] = useState<string | null>(null)
+  const [showFullDetails, setShowFullDetails] = useState(false)
+  const changesAbortRef = useRef<AbortController | null>(null)
+
+  // Abort in-flight changes request on unmount
+  useEffect(() => {
+    return () => {
+      changesAbortRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -218,6 +237,65 @@ export default function ProjectApprovalPage() {
       toast.error('Failed to fetch approved projects')
     }
     setIsLoading(false)
+  }
+
+  const fetchProjectChanges = async (projectId: string) => {
+    // Abort any in-flight request to prevent stale responses
+    if (changesAbortRef.current) {
+      changesAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    changesAbortRef.current = controller
+
+    setChangesLoading(true)
+    setProjectChanges(null)
+    setChangesError(null)
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/${projectId}/changes`,
+        { credentials: 'include', signal: controller.signal }
+      )
+      if (controller.signal.aborted) return
+      if (response.ok) {
+        const data = await response.json()
+        if (!controller.signal.aborted) {
+          setProjectChanges(data)
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch project changes' }))
+        if (!controller.signal.aborted) {
+          const msg = errorData?.error || `Failed to fetch changes (${response.status})`
+          setChangesError(msg)
+          toast.error(msg)
+        }
+      }
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      console.error('Error fetching project changes:', error)
+      if (!controller.signal.aborted) {
+        setChangesError('Failed to fetch project changes')
+        toast.error('Failed to fetch project changes')
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setChangesLoading(false)
+      }
+    }
+  }
+
+  const handleSelectProject = (project: Project) => {
+    // Abort any in-flight changes request for the previous project
+    if (changesAbortRef.current) {
+      changesAbortRef.current.abort()
+    }
+    setSelectedProject(project)
+    setShowFullDetails(false)
+    setProjectChanges(null)
+    setChangesError(null)
+    // Fetch changes for pending projects
+    if (activeTab === 'pending') {
+      fetchProjectChanges(project._id)
+    }
   }
 
   const handleApprove = async (projectId: string) => {
@@ -473,7 +551,7 @@ export default function ProjectApprovalPage() {
                             ? 'border-blue-500 bg-blue-50'
                             : 'hover:bg-gray-50'
                         }`}
-                        onClick={() => setSelectedProject(project)}
+                        onClick={() => handleSelectProject(project)}
                       >
                         <CardContent className="p-4">
                           <div className="flex justify-between items-start mb-2">
@@ -548,7 +626,35 @@ export default function ProjectApprovalPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Project Info */}
+                  {/* Loading indicator for changes */}
+                  {activeTab === 'pending' && changesLoading && (
+                    <div className="text-sm text-gray-500 py-2">Loading changes...</div>
+                  )}
+
+                  {/* Error indicator for changes */}
+                  {activeTab === 'pending' && changesError && !changesLoading && (
+                    <div className="text-sm text-red-500 py-2">{changesError}</div>
+                  )}
+
+                  {/* Diff View for Resubmissions */}
+                  {activeTab === 'pending' && !changesLoading && projectChanges?.isResubmission && (
+                    <div className="space-y-3">
+                      <ProjectDiffView
+                        changes={projectChanges.changes || []}
+                        reapprovalType={projectChanges.reapprovalType}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowFullDetails(!showFullDetails)}
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        {showFullDetails ? 'Hide full project details' : 'Show full project details'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Project Info - always show for non-resubmissions, collapsible for resubmissions */}
+                  {(!projectChanges?.isResubmission || activeTab !== 'pending' || showFullDetails) && (<>
                   <div>
                     <h4 className="font-semibold mb-3">Project Information</h4>
                     <div className="space-y-3">
@@ -966,6 +1072,8 @@ export default function ProjectApprovalPage() {
                       </div>
                     </div>
                   )}
+                  {/* End of collapsible full details for resubmissions */}
+                  </>)}
 
                   {activeTab === 'pending' ? (
                     <>
