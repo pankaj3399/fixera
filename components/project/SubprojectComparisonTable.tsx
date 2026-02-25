@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Check, Clock, Shield, ArrowRight, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
+import { emitChatWidgetOpen } from '@/lib/chatWidgetEvents'
 
 interface SubprojectPricing {
   type: 'fixed' | 'unit' | 'rfq'
@@ -57,6 +58,7 @@ interface SubprojectComparisonTableProps {
     reason?: string;
     isHoliday?: boolean;
   }>
+  professionalId?: string
 }
 
 export default function SubprojectComparisonTable({
@@ -68,7 +70,8 @@ export default function SubprojectComparisonTable({
   dateLabels,
   timeMode,
   companyAvailability,
-  companyBlockedRanges
+  companyBlockedRanges,
+  professionalId
 }: SubprojectComparisonTableProps) {
 
 
@@ -257,12 +260,15 @@ export default function SubprojectComparisonTable({
             </Button>
 
             {/* Contact Me Button */}
-            <Button
-              variant="outline"
-              className="w-full mt-3 mb-8 h-12 text-base font-medium border-gray-300 hover:bg-gray-50"
-            >
-              Contact me
-            </Button>
+            {professionalId && (
+              <Button
+                variant="outline"
+                className="w-full mt-3 mb-8 h-12 text-base font-medium border-gray-300 hover:bg-gray-50"
+                onClick={() => emitChatWidgetOpen({ open: true, professionalId })}
+              >
+                Contact me
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

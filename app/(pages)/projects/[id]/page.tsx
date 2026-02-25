@@ -118,6 +118,7 @@ interface Project {
     answer: string;
   }>;
   professionalId: {
+    _id: string;
     name: string;
     businessInfo?: {
       companyName?: string;
@@ -724,6 +725,7 @@ export default function ProjectDetailPage() {
                   timeMode={project.timeMode}
                   companyAvailability={project.professionalId?.companyAvailability}
                   companyBlockedRanges={project.professionalId?.companyBlockedRanges}
+                  professionalId={project.professionalId?._id}
                 />
               </div>
             )}
