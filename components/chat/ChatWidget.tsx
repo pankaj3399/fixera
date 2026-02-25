@@ -442,10 +442,9 @@ export default function ChatWidget() {
                     Loading conversations...
                   </div>
                 ) : shouldShowNewChatPanel && userRole === "customer" ? (
-                  <div className="h-full overflow-y-auto p-3 space-y-3">
+                  <div className="h-full overflow-y-auto p-3 space-y-2">
                     <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
-                      <p className="text-sm font-medium text-indigo-900">Start your first conversation</p>
-                      <p className="text-xs text-indigo-700 mt-1">
+                      <p className="text-xs text-indigo-700">
                         Pick a professional below and we will open the chat instantly.
                       </p>
                     </div>
