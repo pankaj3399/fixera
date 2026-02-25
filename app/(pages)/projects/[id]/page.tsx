@@ -37,6 +37,7 @@ import {
   getCertificateGradient,
   isQualityCertificate,
 } from '@/lib/projectHighlights';
+import { emitChatWidgetOpen, PENDING_CHAT_START_KEY } from '@/lib/chatWidgetEvents';
 import {
   formatProfessionalViewerLabel,
   formatWindowProfessionalViewer,
@@ -291,6 +292,28 @@ export default function ProjectDetailPage() {
 
     setSelectedSubprojectIndex(index);
     setShowBookingForm(true);
+  };
+
+  const handleContactProfessional = () => {
+    const profId = project?.professionalId?._id;
+    if (!profId) return;
+
+    if (!isAuthenticated) {
+      sessionStorage.setItem(
+        PENDING_CHAT_START_KEY,
+        JSON.stringify({ open: true, professionalId: profId })
+      );
+      toast.error('Please sign in to contact this professional');
+      router.push(`/login?redirect=/projects/${projectId}`);
+      return;
+    }
+
+    if (user?.role !== 'customer') {
+      toast.error('Only customers can contact professionals');
+      return;
+    }
+
+    emitChatWidgetOpen({ open: true, professionalId: profId });
   };
 
   if (loading || authLoading) {
@@ -723,9 +746,9 @@ export default function ProjectDetailPage() {
                   onSelectIndex={setViewedSubprojectIndex}
                   dateLabels={comparisonTableDateLabels}
                   timeMode={project.timeMode}
-                  companyAvailability={project.professionalId?.companyAvailability}
-                  companyBlockedRanges={project.professionalId?.companyBlockedRanges}
-                  professionalId={project.professionalId?._id}
+                  companyAvailability={project.professionalId.companyAvailability}
+                  companyBlockedRanges={project.professionalId.companyBlockedRanges}
+                  onContactProfessional={handleContactProfessional}
                 />
               </div>
             )}
