@@ -31,7 +31,7 @@ import {
   Award,
   Shield,
   ExternalLink,
-  
+
 } from "lucide-react"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || ''
@@ -458,28 +458,28 @@ export default function ProjectDetailPage() {
     }
   }
 
-const submitProject = async () => {
-  if (!project) return;
+  const submitProject = async () => {
+    if (!project) return;
 
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
-      method: 'POST',
-      credentials: 'include'
-    });
-    
-    if (response.ok) {
-      // Redirect to projects manage page on success
-      router.push('/professional/projects/manage');
-      router.refresh(); // Optional: refresh the manage page data
-    } else {
-      const errorData = await response.json();
-      alert(`${errorData.error || 'Failed to submit project'}`);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        // Redirect to projects manage page on success
+        router.push('/professional/projects/manage');
+        router.refresh(); // Optional: refresh the manage page data
+      } else {
+        const errorData = await response.json();
+        alert(`${errorData.error || 'Failed to submit project'}`);
+      }
+    } catch (error) {
+      console.error('Failed to submit project', error);
+      alert('Failed to submit project');
     }
-  } catch (error) {
-    console.error('Failed to submit project', error);
-    alert('Failed to submit project');
-  }
-};
+  };
 
 
   const formatPricing = (pricing: IPricing) => {
@@ -768,15 +768,15 @@ const submitProject = async () => {
                         <div>
                           <span className="font-medium text-gray-600">Preparation:</span>
                           <p>
-                        {(() => {
-                          const preparationValue = subproject.preparationDuration?.value;
-                          if (preparationValue == null) return null;
-                          const preparationUnit =
-                            subproject.preparationDuration?.unit ??
-                            subproject.executionDuration?.unit ??
-                            'days';
-                          return `${preparationValue} ${preparationUnit}`;
-                        })()}
+                            {(() => {
+                              const preparationValue = subproject.preparationDuration?.value;
+                              if (preparationValue == null) return null;
+                              const preparationUnit =
+                                subproject.preparationDuration?.unit ??
+                                subproject.executionDuration?.unit ??
+                                'days';
+                              return `${preparationValue} ${preparationUnit}`;
+                            })()}
                           </p>
                         </div>
                         {subproject.intakeDuration && (
@@ -850,7 +850,7 @@ const submitProject = async () => {
                         {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
                       </h4>
                       <p className="text-sm text-gray-600 mt-1 break-words">{term.description}</p>
-                      {term.type !== 'warning' && term.additionalCost && (
+                      {term.type !== 'warning' && typeof term.additionalCost === 'number' && term.additionalCost > 0 && (
                         <p className="text-sm font-medium text-orange-600 mt-1">
                           Additional cost: €{term.additionalCost.toLocaleString()}
                         </p>
@@ -1044,28 +1044,25 @@ const submitProject = async () => {
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
                   {project.qualityChecks.map((check, index) => (
-                    <div key={index} className={`flex items-start gap-3 p-3 rounded-lg ${
-                      check.status === 'passed'
+                    <div key={index} className={`flex items-start gap-3 p-3 rounded-lg ${check.status === 'passed'
                         ? 'bg-green-50 border border-green-200'
                         : check.status === 'warning'
-                        ? 'bg-yellow-50 border border-yellow-200'
-                        : 'bg-red-50 border border-red-200'
-                    }`}>
+                          ? 'bg-yellow-50 border border-yellow-200'
+                          : 'bg-red-50 border border-red-200'
+                      }`}>
                       {check.status === 'passed'
                         ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
                         : check.status === 'warning'
-                        ? <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                        : <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                          ? <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          : <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                       }
                       <div className="min-w-0 flex-1">
-                        <h5 className={`font-medium capitalize text-sm ${
-                          check.status === 'passed' ? 'text-green-800' : check.status === 'warning' ? 'text-yellow-800' : 'text-red-800'
-                        }`}>
+                        <h5 className={`font-medium capitalize text-sm ${check.status === 'passed' ? 'text-green-800' : check.status === 'warning' ? 'text-yellow-800' : 'text-red-800'
+                          }`}>
                           {check.category}
                         </h5>
-                        <p className={`text-sm break-words ${
-                          check.status === 'passed' ? 'text-green-700' : check.status === 'warning' ? 'text-yellow-700' : 'text-red-700'
-                        }`}>
+                        <p className={`text-sm break-words ${check.status === 'passed' ? 'text-green-700' : check.status === 'warning' ? 'text-yellow-700' : 'text-red-700'
+                          }`}>
                           {check.message}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">

@@ -32,7 +32,7 @@ interface ProjectData {
   distance?: {
     address: string
     useCompanyAddress: boolean
-    maxKmRange: number
+    maxKmRange?: number
     noBorders: boolean
     location?: {
       type: 'Point'
@@ -504,7 +504,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const updateDistance = (updates: Partial<{
     address: string
     useCompanyAddress: boolean
-    maxKmRange: number
+    maxKmRange?: number
     noBorders: boolean
     location?: { type: 'Point'; coordinates: [number, number] }
   }>) => {
@@ -513,7 +513,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       distance: {
         address: prev.distance?.address || '',
         useCompanyAddress: prev.distance?.useCompanyAddress || false,
-        maxKmRange: prev.distance?.maxKmRange as number,
+        maxKmRange: prev.distance?.maxKmRange,
         noBorders: prev.distance?.noBorders || false,
         location: prev.distance?.location,
         ...updates
@@ -892,7 +892,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 onCheckedChange={(checked) => updateDistance({ noBorders: checked as boolean })}
               />
               <Label htmlFor="noBorders">Don&apos;t cross country borders</Label>
-              
+
             </div>
           </div>
         </CardContent>
@@ -1633,4 +1633,4 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 Step1BasicInfo.displayName = 'Step1BasicInfo'
 
 export default Step1BasicInfo
- 
+

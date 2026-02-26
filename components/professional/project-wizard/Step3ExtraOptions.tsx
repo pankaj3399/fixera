@@ -180,6 +180,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   useEffect(() => {
     onChange({ ...data, extraOptions, termsConditions, customerPresence })
     validateForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extraOptions, termsConditions, customerPresence])
 
   const validateForm = () => {
@@ -204,7 +205,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     return PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] || PREDEFINED_EXTRA_OPTIONS.default
   }
 
-  const getPredefinedTerms = () => {
+  const getPredefinedTerms = (): { name: string; description: string; cost: number; type?: 'condition' | 'warning' }[] => {
     if (configConditions.length > 0) {
       return configConditions.map(c => ({
         name: c.text,
@@ -214,7 +215,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       }))
     }
     const service = data.service || 'default'
-    return PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] || PREDEFINED_TERMS.default
+    const terms = PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] || PREDEFINED_TERMS.default
+    return terms.map(t => ({ ...t, type: 'condition' as const }))
   }
 
   const addPredefinedExtraOption = (option: { name: string; price: number }) => {
@@ -276,7 +278,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     ))
   }
 
-  const addPredefinedTerm = (term: { name: string; cost: number; description: string }) => {
+  const addPredefinedTerm = (term: { name: string; cost: number; description: string; type?: 'condition' | 'warning' }) => {
     if (termsConditions.length >= 5) {
       toast.error('Maximum 5 terms and conditions allowed')
       return
@@ -291,7 +293,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       id: Date.now().toString(),
       name: term.name,
       description: term.description,
-      type: (term as { type?: 'condition' | 'warning' }).type || 'condition',
+      type: term.type || 'condition',
       additionalCost: term.cost > 0 ? term.cost : undefined,
       isCustom: false
     }
@@ -540,19 +542,19 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                 <Button
                   key={index}
                   variant="outline"
-                  className={`justify-between h-auto p-3 text-left ${(term as { type?: string }).type === 'warning' ? 'border-yellow-300 bg-yellow-50' : ''}`}
+                  className={`justify-between h-auto p-3 text-left ${term.type === 'warning' ? 'border-yellow-300 bg-yellow-50' : ''}`}
                   onClick={() => addPredefinedTerm(term)}
                   disabled={termsConditions.some(t => t.name === term.name) || termsConditions.length >= 5}
                 >
                   <div>
                     <div className="font-medium">
                       {term.name}
-                      {(term as { type?: string }).type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                      {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
                     </div>
                     <div className="text-sm text-gray-500">{term.description}</div>
                   </div>
                   <div className="text-right">
-                    {(term as { type?: string }).type !== 'warning' && term.cost > 0 && (
+                    {term.type !== 'warning' && term.cost > 0 && (
                       <div className="text-sm font-medium text-red-600">+€{term.cost}</div>
                     )}
                     <Plus className="w-4 h-4" />

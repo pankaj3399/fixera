@@ -122,7 +122,7 @@ interface ProjectData {
   distance?: {
     address: string
     useCompanyAddress: boolean
-    maxKmRange: number
+    maxKmRange?: number
     noBorders: boolean
     location?: {
       type: 'Point'
@@ -190,7 +190,7 @@ export default function ProjectCreatePage() {
     distance: {
       address: '',
       useCompanyAddress: false,
-      maxKmRange: undefined as unknown as number,
+      maxKmRange: undefined,
       noBorders: false
     },
     media: {
@@ -262,7 +262,7 @@ export default function ProjectCreatePage() {
 
             if (response.status === 401) {
               toast.error('Please log in to edit this project')
-              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)            
+              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
               return
             } else if (response.status === 404) {
               toast.error('Project not found')
@@ -294,7 +294,7 @@ export default function ProjectCreatePage() {
             distance: project.distance || {
               address: '',
               useCompanyAddress: false,
-              maxKmRange: undefined as unknown as number,
+              maxKmRange: undefined,
               noBorders: false
             },
             media: project.media || { images: [] },
@@ -331,7 +331,7 @@ export default function ProjectCreatePage() {
 
       loadProject()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   // Manual save function for draft
@@ -373,14 +373,14 @@ export default function ProjectCreatePage() {
       if (response.ok) {
         const savedProject = await response.json()
 
-        
+
         // Update project data with the saved project info, including status
-        setProjectData(prev => ({ 
-          ...prev, 
+        setProjectData(prev => ({
+          ...prev,
           id: savedProject._id,
           status: savedProject.status // Update status in case it changed
         }))
-        
+
         if (!options?.silent) {
           toast.success('Project draft saved successfully!')
         }
@@ -584,12 +584,17 @@ export default function ProjectCreatePage() {
       } else {
         projectData.subprojects.forEach((sub, index) => {
           const label = sub.name || `Package ${index + 1}`
-          if (!sub.name) toast.error(`${label}: Package name is required`)
-          if (!sub.description || sub.description.length < 10) toast.error(`${label}: Package scope must be at least 10 characters`)
-          if (!sub.pricing?.type) toast.error(`${label}: Pricing type is required`)
-          if (sub.included.length < 3) toast.error(`${label}: At least 3 included items are required`)
-          if (typeof sub.materialsIncluded !== 'boolean') toast.error(`${label}: Please select whether materials are included`)
-          if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) toast.error(`${label}: Execution duration is required`)
+          const errors: string[] = []
+          if (!sub.name) errors.push('Package name is required')
+          if (!sub.description || sub.description.length < 10) errors.push('Package scope must be at least 10 characters')
+          if (!sub.pricing?.type) errors.push('Pricing type is required')
+          if (sub.included.length < 3) errors.push('At least 3 included items are required')
+          if (typeof sub.materialsIncluded !== 'boolean') errors.push('Please select whether materials are included')
+          if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) errors.push('Execution duration is required')
+
+          if (errors.length > 0) {
+            toast.error(`${label}: ${errors.join(', ')}`)
+          }
         })
       }
     } else if (currentStep === 3) {
