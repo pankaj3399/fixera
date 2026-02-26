@@ -233,7 +233,7 @@ export default function ProjectDetailPage() {
   }, [
     projectId,
     viewedSubprojectIndex,
-    project?.executionDuration?.value,
+    project?._id,
   ]);
 
   const fetchProject = async () => {
