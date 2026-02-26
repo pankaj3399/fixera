@@ -312,23 +312,19 @@ export default function ChatWidget() {
       const imageFiles = files.filter((f) => f.type.startsWith("image/"));
       const otherFiles = files.filter((f) => !f.type.startsWith("image/"));
 
-      const images: string[] = [];
-      for (const file of imageFiles) {
-        const uploaded = await uploadChatImage(file, selectedConversationId);
-        images.push(uploaded.url);
-      }
+      const [uploadedImages, uploadedFiles] = await Promise.all([
+        Promise.all(imageFiles.map((file) => uploadChatImage(file, selectedConversationId))),
+        Promise.all(otherFiles.map((file) => uploadChatFile(file, selectedConversationId))),
+      ]);
 
-      const attachments: ChatAttachment[] = [];
-      for (const file of otherFiles) {
-        const uploaded = await uploadChatFile(file, selectedConversationId);
-        attachments.push({
-          url: uploaded.url,
-          fileName: uploaded.fileName,
-          fileType: uploaded.fileType,
-          mimeType: uploaded.mimeType,
-          fileSize: uploaded.fileSize,
-        });
-      }
+      const images = uploadedImages.map((u) => u.url);
+      const attachments: ChatAttachment[] = uploadedFiles.map((u) => ({
+        url: u.url,
+        fileName: u.fileName,
+        fileType: u.fileType,
+        mimeType: u.mimeType,
+        fileSize: u.fileSize,
+      }));
 
       await sendConversationMessage(selectedConversationId, {
         text: text.trim() || undefined,

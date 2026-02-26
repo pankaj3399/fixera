@@ -87,7 +87,7 @@ export default function ChatComposer({ disabled, sending, onSend }: ChatComposer
           <input
             ref={inputRef}
             type="file"
-            accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf,video/mp4,video/quicktime"
+            accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/heic,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,video/mp4,video/quicktime"
             multiple
             className="hidden"
             onChange={onPickFiles}

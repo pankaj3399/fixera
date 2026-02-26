@@ -29,6 +29,30 @@ const toErrorMessage = async (response: Response, fallback: string) => {
 };
 
 const API_BASE = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/chat`;
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+export const PROFESSIONALS_LIMIT = 20;
+
+export interface ProfessionalOption {
+  _id: string;
+  name?: string;
+  businessInfo?: { companyName?: string; city?: string; country?: string };
+}
+
+export const fetchProfessionals = async (limit = PROFESSIONALS_LIMIT): Promise<ProfessionalOption[]> => {
+  const response = await fetch(`${BACKEND_URL}/api/professionals`, {
+    credentials: "include",
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    const msg = await toErrorMessage(response, `Failed to load professionals (${response.status})`);
+    throw new Error(msg);
+  }
+
+  const data: unknown = await response.json();
+  return Array.isArray(data) ? data.slice(0, limit) : [];
+};
 
 export const createOrGetConversation = async (payload: {
   professionalId: string;

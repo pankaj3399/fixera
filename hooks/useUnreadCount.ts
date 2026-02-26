@@ -12,6 +12,9 @@ export const useUnreadCount = () => {
   const userRole = user?.role;
   const enabled = isAuthenticated && isAllowedRole(userRole);
 
+  // Fetches the first 50 conversations to compute unread count.
+  // Users with >50 conversations may see an undercount; a dedicated
+  // server endpoint would be the proper fix if this becomes an issue.
   const poll = useCallback(async () => {
     try {
       const data = await fetchConversations({ page: 1, limit: 50 });

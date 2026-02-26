@@ -15,11 +15,13 @@ import {
   createOrGetConversation,
   fetchConversationMessages,
   fetchConversations,
+  fetchProfessionals,
   markConversationAsRead,
   sendConversationMessage,
   uploadChatImage,
   uploadChatFile,
 } from "@/lib/chatApi";
+import type { ProfessionalOption } from "@/lib/chatApi";
 import type { ChatAttachment, ChatConversation, ChatMessage } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
@@ -45,9 +47,7 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
-  const [professionalOptions, setProfessionalOptions] = useState<
-    Array<{ _id: string; name?: string; businessInfo?: { companyName?: string; city?: string; country?: string } }>
-  >([]);
+  const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
   const [loadingProfessionals, setLoadingProfessionals] = useState(false);
   const [creatingConversation, setCreatingConversation] = useState(false);
 
@@ -126,14 +126,10 @@ export default function ChatPage() {
     if (userRole !== "customer") return;
     setLoadingProfessionals(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/professionals`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to load professionals");
-      const data = await response.json();
-      setProfessionalOptions(Array.isArray(data) ? data.slice(0, 20) : []);
-    } catch {
-      toast.error("Failed to load professionals");
+      const data = await fetchProfessionals();
+      setProfessionalOptions(data);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load professionals");
     } finally {
       setLoadingProfessionals(false);
     }
@@ -206,7 +202,9 @@ export default function ChatPage() {
     void loadMessages(selectedConversationId, true);
     markConversationAsRead(selectedConversationId)
       .then(() => loadConversationList(false))
-      .catch(() => {});
+      .catch((err) => {
+        console.error(`Failed to mark conversation ${selectedConversationId} as read:`, err);
+      });
   }, [selectedConversationId, loadMessages, loadConversationList]);
 
   useChatPolling(

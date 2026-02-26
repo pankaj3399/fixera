@@ -107,6 +107,7 @@ export default function ChatThread({ messages, currentUserId, loading }: ChatThr
                           controls
                           className="max-h-56 w-full rounded-md"
                         >
+                          <track kind="captions" src="" srcLang="en" label="Captions (not available)" />
                           Your browser does not support video playback.
                         </video>
                       );

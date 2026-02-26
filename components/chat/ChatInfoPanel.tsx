@@ -19,6 +19,13 @@ const getOtherParticipant = (conversation: ChatConversation, role?: string) => {
   return conversation.professionalId;
 };
 
+const maskEmail = (email: string): string => {
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  const visiblePrefix = local.length > 0 ? local.charAt(0) : "";
+  return `${visiblePrefix}***@${domain}`;
+};
+
 const StarRating = ({ rating }: { rating: number }) => {
   if (!rating || rating === 0) return <span className="text-xs text-gray-400">No ratings yet</span>;
 
@@ -97,7 +104,9 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
         </Avatar>
         <p className="text-sm font-semibold text-gray-900">{name}</p>
         {other?.email && (
-          <p className="text-xs text-gray-500 mt-0.5">{other.email}</p>
+          <p className="text-xs text-gray-500 mt-0.5" title={other.email}>
+            {maskEmail(other.email)}
+          </p>
         )}
 
         {location && (
