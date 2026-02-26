@@ -590,7 +590,17 @@ export default function ProjectCreatePage() {
           if (!sub.pricing?.type) errors.push('Pricing type is required')
           if (sub.included.length < 3) errors.push('At least 3 included items are required')
           if (typeof sub.materialsIncluded !== 'boolean') errors.push('Please select whether materials are included')
-          if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) errors.push('Execution duration is required')
+
+          if (sub.pricing?.type === 'rfq') {
+            const range = sub.executionDuration?.range
+            if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min > range.max) {
+              errors.push('Valid execution duration range is required for RFQ packages')
+            }
+          } else {
+            if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) {
+              errors.push('Execution duration is required')
+            }
+          }
 
           if (errors.length > 0) {
             toast.error(`${label}: ${errors.join(', ')}`)

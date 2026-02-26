@@ -386,7 +386,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       (isRenovationCategory || (!!formData.priceModel)) &&
       formData.distance?.address &&
       addressValid &&
-      formData.distance?.maxKmRange
+      (formData.distance?.maxKmRange == null || formData.distance.maxKmRange > 0)
     )
     onValidate(isValid)
   }
@@ -486,7 +486,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (!isRenovationCategory && !formData.priceModel) errors.push('Price Model is required')
     if (!formData.distance?.address) errors.push('Service Address is required')
     if (!addressValid) errors.push('Please enter a valid address')
-    if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
+    if (formData.distance?.maxKmRange != null && formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
 
     if (errors.length > 0) {
       errors.forEach(error => toast.error(error))
@@ -559,7 +559,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         `Expert ${serviceTitle} Services - ${formData.areaOfWork || 'Professional Solutions'}`,
         `Quality ${serviceTitle} - ${keywords ? keywords.split(',')[0] : 'Reliable'} & Professional`,
         `Professional ${serviceTitle} - Quality Work You Can Trust`,
-        `${serviceTitle} Expert - ${formData.distance?.maxKmRange ?? ''}km Range - Quality Guaranteed`
+        formData.distance?.maxKmRange != null
+          ? `${serviceTitle} Expert - ${formData.distance.maxKmRange}km Range - Quality Guaranteed`
+          : `${serviceTitle} Expert - Quality Guaranteed`
       ]
 
       let bestTitle = titleVariations[0]
@@ -870,7 +872,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className='space-y-2'>
-              <Label htmlFor="maxKmRange">Maximum Range (km) *</Label>
+              <Label htmlFor="maxKmRange">Maximum Range (km)</Label>
               <Input
                 id="maxKmRange"
                 type="number"

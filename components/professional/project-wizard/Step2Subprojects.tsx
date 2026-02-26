@@ -373,12 +373,16 @@ export default function Step2Subprojects({
       subprojects.length > 0 &&
       subprojects.every((sub) => {
         // Check for any validation errors
-        if (sub.errors?.priceRange) return false;
+        if (sub.errors?.priceRange || sub.errors?.executionDurationRange) return false;
 
         // For RFQ pricing, validate price range if both values are provided
         if (sub.pricing.type === 'rfq') {
           const { min, max } = sub.pricing.priceRange || {};
           if (min !== undefined && max !== undefined && min > max) {
+            return false;
+          }
+          const range = sub.executionDuration.range;
+          if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min > range.max) {
             return false;
           }
         }
@@ -392,7 +396,7 @@ export default function Step2Subprojects({
           sub.included.length >= 3 &&
           sub.preparationDuration &&
           typeof sub.preparationDuration.value === 'number' &&
-          (sub.pricing.type === 'rfq' ? (sub.executionDuration.range && typeof sub.executionDuration.range.min === 'number' && typeof sub.executionDuration.range.max === 'number') : (typeof sub.executionDuration.value === 'number' && sub.executionDuration.value > 0)) &&
+          (sub.pricing.type === 'rfq' || (typeof sub.executionDuration.value === 'number' && sub.executionDuration.value > 0)) &&
           // Materials validation: must be explicitly selected, and if true, must have at least one material
           typeof sub.materialsIncluded === 'boolean' &&
           (!sub.materialsIncluded ||
@@ -1428,8 +1432,8 @@ export default function Step2Subprojects({
                           <div
                             key={index}
                             className={`p-3 rounded border ${item.isDynamicField
-                                ? 'bg-purple-50 border-purple-200'
-                                : 'bg-gray-50 border-gray-200'
+                              ? 'bg-purple-50 border-purple-200'
+                              : 'bg-gray-50 border-gray-200'
                               }`}
                           >
                             <div className='flex items-center justify-between mb-2'>
@@ -1779,8 +1783,8 @@ export default function Step2Subprojects({
                               }}
                               placeholder='Min'
                               className={`w-20 ${subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
+                                ? 'border-red-500'
+                                : ''
                                 }`}
                             />
                             <span className='self-center text-gray-500'>
@@ -1830,8 +1834,8 @@ export default function Step2Subprojects({
                               }}
                               placeholder='Max'
                               className={`w-20 ${subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
+                                ? 'border-red-500'
+                                : ''
                                 }`}
                             />
                             <Select

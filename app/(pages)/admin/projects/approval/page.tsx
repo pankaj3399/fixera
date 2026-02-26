@@ -93,7 +93,7 @@ interface SubprojectMaterial {
 
 interface ProfessionalInputValue {
   fieldName: string
-  value: string | number | { min: number; max: number } | unknown
+  value: string | number | { min: number; max: number }
 }
 
 interface Subproject {
@@ -152,7 +152,7 @@ interface Project {
   professionalId: string
   distance: {
     address: string
-    maxKmRange: number
+    maxKmRange?: number
     noBorders: boolean
   }
   projectType: string[]
@@ -164,11 +164,13 @@ interface Project {
   termsConditions?: TermCondition[]
   faq?: FAQItem[]
   customConfirmationMessage?: string
+  // TODO: customerPresence is intentionally unused for now
   customerPresence?: string
   professional?: Professional
   media?: {
     images?: MediaItem[]
     video?: MediaItem
+    captions?: MediaItem
   }
   certifications?: CertificationItem[]
   rfqQuestions?: RFQQuestion[]
@@ -584,8 +586,8 @@ export default function ProjectApprovalPage() {
                       <Card
                         key={project._id}
                         className={`cursor-pointer transition-colors ${selectedProject?._id === project._id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'hover:bg-gray-50'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'hover:bg-gray-50'
                           }`}
                         onClick={() => handleSelectProject(project)}
                       >
@@ -724,7 +726,9 @@ export default function ProjectApprovalPage() {
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Service Range</Label>
-                            <p className="text-sm text-gray-700">{selectedProject.distance.maxKmRange}km</p>
+                            {selectedProject.distance.maxKmRange != null && (
+                              <p className="text-sm text-gray-700">{selectedProject.distance.maxKmRange}km</p>
+                            )}
                           </div>
                         </div>
 
@@ -864,7 +868,13 @@ export default function ProjectApprovalPage() {
                             controls
                             className="w-full h-full"
                           >
+                            {selectedProject.media.captions ? (
+                              <track kind="captions" src={getUrl(selectedProject.media.captions)} srcLang="en" label="English captions" default />
+                            ) : null}
                             Your browser does not support the video tag.
+                            {!selectedProject.media.captions && (
+                              <span className="sr-only">Video captions unavailable</span>
+                            )}
                           </video>
                         </div>
                       </div>

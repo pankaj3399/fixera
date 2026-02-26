@@ -48,7 +48,7 @@ interface ICertification {
 interface IDistance {
   address: string
   useCompanyAddress: boolean
-  maxKmRange: number
+  maxKmRange?: number
   noBorders: boolean
 }
 
@@ -647,7 +647,7 @@ export default function ProjectDetailPage() {
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Max Range:</span>
-                    <p>{project.distance.noBorders ? 'No borders' : `${project.distance.maxKmRange} km`}</p>
+                    <p>{project.distance.noBorders ? 'No borders' : (project.distance.maxKmRange != null ? `${project.distance.maxKmRange} km` : '—')}</p>
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Company Address:</span>
@@ -1045,10 +1045,10 @@ export default function ProjectDetailPage() {
                 <CardContent className="px-4 md:px-6 space-y-3">
                   {project.qualityChecks.map((check, index) => (
                     <div key={index} className={`flex items-start gap-3 p-3 rounded-lg ${check.status === 'passed'
-                        ? 'bg-green-50 border border-green-200'
-                        : check.status === 'warning'
-                          ? 'bg-yellow-50 border border-yellow-200'
-                          : 'bg-red-50 border border-red-200'
+                      ? 'bg-green-50 border border-green-200'
+                      : check.status === 'warning'
+                        ? 'bg-yellow-50 border border-yellow-200'
+                        : 'bg-red-50 border border-red-200'
                       }`}>
                       {check.status === 'passed'
                         ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
