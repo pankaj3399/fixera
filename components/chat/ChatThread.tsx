@@ -1,7 +1,8 @@
 "use client";
 
-import type { ChatMessage } from "@/types/chat";
+import type { ChatAttachment, ChatMessage } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { FileText, Download } from "lucide-react";
 
 interface ChatThreadProps {
   messages: ChatMessage[];
@@ -74,6 +75,62 @@ export default function ChatThread({ messages, currentUserId, loading }: ChatThr
                       />
                     </a>
                   ))}
+                </div>
+              )}
+
+              {Array.isArray(message.attachments) && message.attachments.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {message.attachments.map((att: ChatAttachment, index: number) => {
+                    if (att.fileType === "image") {
+                      return (
+                        <a
+                          key={`${message._id}-att-${index}`}
+                          href={att.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="block"
+                        >
+                          <img
+                            src={att.url}
+                            alt={att.fileName}
+                            className="max-h-56 w-full rounded-md object-cover"
+                          />
+                        </a>
+                      );
+                    }
+
+                    if (att.fileType === "video") {
+                      return (
+                        <video
+                          key={`${message._id}-att-${index}`}
+                          src={att.url}
+                          controls
+                          className="max-h-56 w-full rounded-md"
+                        >
+                          Your browser does not support video playback.
+                        </video>
+                      );
+                    }
+
+                    return (
+                      <a
+                        key={`${message._id}-att-${index}`}
+                        href={att.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className={cn(
+                          "flex items-center gap-2 rounded-md border px-3 py-2 text-xs",
+                          isMine
+                            ? "border-indigo-400 text-indigo-100 hover:bg-indigo-500"
+                            : "border-slate-200 text-gray-700 hover:bg-slate-50"
+                        )}
+                      >
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="truncate flex-1">{att.fileName}</span>
+                        <Download className="h-3 w-3 shrink-0" />
+                      </a>
+                    );
+                  })}
                 </div>
               )}
 
