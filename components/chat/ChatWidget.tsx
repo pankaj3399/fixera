@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { MessageSquare, X, Minus, ArrowLeft, Loader2, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,13 +17,14 @@ import {
   markConversationAsRead,
   sendConversationMessage,
   uploadChatImage,
+  uploadChatFile,
 } from "@/lib/chatApi";
 import {
   CHAT_WIDGET_OPEN_EVENT,
   PENDING_CHAT_START_KEY,
   type ChatWidgetOpenDetail,
 } from "@/lib/chatWidgetEvents";
-import type { ChatConversation, ChatMessage } from "@/types/chat";
+import type { ChatAttachment, ChatConversation, ChatMessage } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -41,6 +43,7 @@ const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: str
 };
 
 export default function ChatWidget() {
+  const pathname = usePathname();
   const { user, isAuthenticated, loading } = useAuth();
 
   const [open, setOpen] = useState(false);
@@ -306,15 +309,27 @@ export default function ChatWidget() {
 
     setSending(true);
     try {
-      const images: string[] = [];
-      for (const file of files) {
-        const uploaded = await uploadChatImage(file, selectedConversationId);
-        images.push(uploaded.url);
-      }
+      const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+      const otherFiles = files.filter((f) => !f.type.startsWith("image/"));
+
+      const [uploadedImages, uploadedFiles] = await Promise.all([
+        Promise.all(imageFiles.map((file) => uploadChatImage(file, selectedConversationId))),
+        Promise.all(otherFiles.map((file) => uploadChatFile(file, selectedConversationId))),
+      ]);
+
+      const images = uploadedImages.map((u) => u.url);
+      const attachments: ChatAttachment[] = uploadedFiles.map((u) => ({
+        url: u.url,
+        fileName: u.fileName,
+        fileType: u.fileType,
+        mimeType: u.mimeType,
+        fileSize: u.fileSize,
+      }));
 
       await sendConversationMessage(selectedConversationId, {
         text: text.trim() || undefined,
         images,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       await loadMessages(selectedConversationId, false);
@@ -328,7 +343,7 @@ export default function ChatWidget() {
     }
   };
 
-  if (loading || !isAuthenticated || !isAllowedRole(userRole)) {
+  if (loading || !isAuthenticated || !isAllowedRole(userRole) || pathname === "/chat") {
     return null;
   }
 

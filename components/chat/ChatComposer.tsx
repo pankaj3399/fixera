@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Upload } from "lucide-react";
+import { X, Paperclip, FileText, Video, ImageIcon } from "lucide-react";
 
 interface ChatComposerProps {
   disabled?: boolean;
@@ -61,17 +61,24 @@ export default function ChatComposer({ disabled, sending, onSend }: ChatComposer
 
       {files.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {files.map((file, index) => (
-            <div
-              key={`${file.name}-${index}`}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs"
-            >
-              <span className="max-w-40 truncate">{file.name}</span>
-              <button type="button" onClick={() => removeFile(index)} aria-label="Remove image">
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+          {files.map((file, index) => {
+            const isImage = file.type.startsWith("image/");
+            const isVideo = file.type.startsWith("video/");
+            const FileIcon = isImage ? ImageIcon : isVideo ? Video : FileText;
+
+            return (
+              <div
+                key={`${file.name}-${index}`}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs"
+              >
+                <FileIcon className="h-3 w-3 shrink-0 text-gray-500" />
+                <span className="max-w-40 truncate">{file.name}</span>
+                <button type="button" onClick={() => removeFile(index)} aria-label="Remove file">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -80,7 +87,7 @@ export default function ChatComposer({ disabled, sending, onSend }: ChatComposer
           <input
             ref={inputRef}
             type="file"
-            accept="image/png,image/jpeg,image/jpg,image/webp"
+            accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/heic,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,video/mp4,video/quicktime"
             multiple
             className="hidden"
             onChange={onPickFiles}
@@ -93,8 +100,8 @@ export default function ChatComposer({ disabled, sending, onSend }: ChatComposer
             onClick={() => inputRef.current?.click()}
             disabled={disabled || sending || files.length >= 5}
           >
-            <Upload className="mr-2 h-4 w-4" />
-            Add Images
+            <Paperclip className="mr-2 h-4 w-4" />
+            Attach
           </Button>
         </div>
 

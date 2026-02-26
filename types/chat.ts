@@ -4,6 +4,7 @@ export interface ChatUserSummary {
   email?: string;
   role?: "customer" | "professional" | "admin" | "visitor" | "employee" | string;
   profileImage?: string;
+  createdAt?: string;
   businessInfo?: {
     companyName?: string;
     city?: string;
@@ -32,6 +33,14 @@ export interface ChatConversation {
   updatedAt: string;
 }
 
+export interface ChatAttachment {
+  url: string;
+  fileName: string;
+  fileType: "image" | "document" | "video";
+  mimeType: string;
+  fileSize?: number;
+}
+
 export interface ChatMessage {
   _id: string;
   conversationId: string;
@@ -39,8 +48,16 @@ export interface ChatMessage {
   senderRole: "customer" | "professional";
   text?: string;
   images: string[];
+  attachments?: ChatAttachment[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ConversationInfoStats {
+  totalBookings: number;
+  completedBookings: number;
+  avgCustomerRating: number;
+  avgProfessionalRating: number;
 }
 
 export interface ConversationListResponse {
