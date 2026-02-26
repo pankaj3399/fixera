@@ -78,13 +78,13 @@ interface ISubproject {
   materialsIncluded: boolean;
   materials?: IMaterial[];
   preparationDuration?: {
-    value: number;
+    value?: number;
     unit: 'hours' | 'days';
   };
   executionDuration: {
-    value: number;
+    value?: number;
     unit: 'hours' | 'days';
-    range?: { min: number; max: number };
+    range?: { min?: number; max?: number };
   };
   buffer?: {
     value: number;
@@ -105,6 +105,7 @@ interface IDynamicField {
   label: string;
   placeholder?: string;
   isRequired: boolean;
+  isSingleNumber?: boolean;
   options?: string[];
   min?: number;
   max?: number;
@@ -219,6 +220,12 @@ const getDefaultPricingType = (
   priceModel?: string
 ): PricingType => getValidPricingTypes(category, priceModel)[0];
 
+const parseNumericInput = (raw: string): number | undefined => {
+  if (raw === '') return undefined;
+  const parsed = parseFloat(raw);
+  return Number.isNaN(parsed) ? undefined : parsed;
+};
+
 export default function Step2Subprojects({
   data,
   onChange,
@@ -235,7 +242,7 @@ export default function Step2Subprojects({
     const value =
       typeof subproject?.preparationDuration?.value === 'number'
         ? subproject.preparationDuration.value
-        : (undefined as unknown as number);
+        : undefined;
     const unit = (subproject?.preparationDuration?.unit || 'days') as
       | 'hours'
       | 'days';
@@ -281,7 +288,11 @@ export default function Step2Subprojects({
 
       if (response.ok) {
         const result = await response.json();
-        setDynamicFields(result.data.professionalInputFields || []);
+        const inputs = (result.data.professionalInputFields || []).map((f: IDynamicField) => ({
+          ...f,
+          isSingleNumber: f.fieldName.toLowerCase().includes('design') && f.fieldName.toLowerCase().includes('revision'),
+        }));
+        setDynamicFields(inputs);
         setProjectTypes(result.data.projectTypes || []);
       }
     } catch (error) {
@@ -431,9 +442,9 @@ export default function Step2Subprojects({
       included: [],
       materialsIncluded: undefined as unknown as boolean,
       materials: [],
-      preparationDuration: { value: undefined as unknown as number, unit: 'days' },
+      preparationDuration: { value: undefined, unit: 'days' },
       executionDuration: {
-        value: undefined as unknown as number,
+        value: undefined,
         unit: 'days',
       },
       buffer: { value: undefined as unknown as number, unit: 'days' },
@@ -1507,13 +1518,7 @@ export default function Step2Subprojects({
                                 )}
 
                                 {dynamicField.fieldType === 'range' &&
-                                  // Special case: treat 'design revisions' as a single number field
-                                  (dynamicField.fieldName
-                                    .toLowerCase()
-                                    .includes('design') &&
-                                    dynamicField.fieldName
-                                      .toLowerCase()
-                                      .includes('revision') ? (
+                                  (dynamicField.isSingleNumber ? (
                                     <Input
                                       type='number'
                                       min={dynamicField.min}
@@ -1690,18 +1695,19 @@ export default function Step2Subprojects({
 
                   <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                     <div>
-                      <Label>Preparation Time *</Label>
+                      <Label className={subproject.preparationDuration?.value === undefined ? 'text-red-500' : ''}>Preparation Time *</Label>
                       <div className='flex space-x-2'>
                         <Input
                           type='number'
                           min='0'
                           step='0.5'
                           value={subproject.preparationDuration?.value ?? ''}
+                          className={subproject.preparationDuration?.value === undefined ? 'border-red-500' : ''}
                           onChange={(e) => {
                             const raw = e.target.value;
                             updateSubproject(subproject.id, {
                               preparationDuration: {
-                                value: raw === '' ? (undefined as unknown as number) : (Number.isNaN(parseFloat(raw)) ? (undefined as unknown as number) : parseFloat(raw)),
+                                value: parseNumericInput(raw) as number,
                                 unit: resolvePreparationUnit(subproject),
                               },
                             });
@@ -1764,14 +1770,14 @@ export default function Step2Subprojects({
                                       newMin === undefined &&
                                         currentMax === undefined
                                         ? undefined
-                                        : ({
+                                        : {
                                           ...(newMin !== undefined
                                             ? { min: newMin }
                                             : {}),
                                           ...(currentMax !== undefined
                                             ? { max: currentMax }
                                             : {}),
-                                        } as { min: number; max: number }),
+                                        },
                                   },
                                   errors: {
                                     ...subproject.errors,
@@ -1815,14 +1821,14 @@ export default function Step2Subprojects({
                                       currentMin === undefined &&
                                         newMax === undefined
                                         ? undefined
-                                        : ({
+                                        : {
                                           ...(currentMin !== undefined
                                             ? { min: currentMin }
                                             : {}),
                                           ...(newMax !== undefined
                                             ? { max: newMax }
                                             : {}),
-                                        } as { min: number; max: number }),
+                                        },
                                   },
                                   errors: {
                                     ...subproject.errors,
@@ -1930,7 +1936,7 @@ export default function Step2Subprojects({
                                 updateSubproject(subproject.id, {
                                   executionDuration: {
                                     ...subproject.executionDuration,
-                                    value: raw === '' ? (undefined as unknown as number) : (parseInt(raw) || (undefined as unknown as number)),
+                                    value: parseNumericInput(raw) as number,
                                   },
                                 });
                               }}

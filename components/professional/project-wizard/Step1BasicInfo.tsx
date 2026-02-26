@@ -489,7 +489,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (formData.distance?.maxKmRange != null && formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
 
     if (errors.length > 0) {
-      errors.forEach(error => toast.error(error))
+      toast.error(errors.join('. '));
     }
   }
 
@@ -881,7 +881,10 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 value={formData.distance?.maxKmRange ?? ''}
                 onChange={(e) => {
                   const val = e.target.value;
-                  updateDistance({ maxKmRange: val === '' ? (undefined as unknown as number) : (parseInt(val) || (undefined as unknown as number)) });
+                  const parsed = parseInt(val, 10);
+                  updateDistance({
+                    maxKmRange: val === '' || Number.isNaN(parsed) ? undefined : parsed
+                  });
                 }}
                 placeholder="50"
               />

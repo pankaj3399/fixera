@@ -50,13 +50,13 @@ interface ISubproject {
   included: IIncludedItem[]
   materialsIncluded: boolean
   preparationDuration?: {
-    value: number
+    value?: number
     unit: 'hours' | 'days'
   }
   executionDuration: {
-    value: number
+    value?: number
     unit: 'hours' | 'days'
-    range?: { min: number; max: number }
+    range?: { min?: number; max?: number }
   }
   buffer?: {
     value: number

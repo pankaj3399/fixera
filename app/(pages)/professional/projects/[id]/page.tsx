@@ -81,9 +81,9 @@ interface IIncludedItem {
 }
 
 interface IExecutionDuration {
-  value: number
+  value?: number
   unit: 'hours' | 'days'
-  range?: { min: number; max: number }
+  range?: { min?: number; max?: number }
 }
 
 interface IBuffer {
@@ -109,7 +109,7 @@ interface ISubproject {
   pricing: IPricing
   included: IIncludedItem[]
   materialsIncluded: boolean
-  preparationDuration?: { value: number; unit: 'hours' | 'days' }
+  preparationDuration?: { value?: number; unit: 'hours' | 'days' }
   executionDuration: IExecutionDuration
   buffer?: IBuffer
   intakeDuration?: IIntakeDuration
@@ -221,6 +221,7 @@ export default function ProjectDetailPage() {
   const params = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [showMeetingScheduler, setShowMeetingScheduler] = useState(false)
@@ -459,8 +460,9 @@ export default function ProjectDetailPage() {
   }
 
   const submitProject = async () => {
-    if (!project) return;
+    if (!project || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
         method: 'POST',
@@ -478,6 +480,8 @@ export default function ProjectDetailPage() {
     } catch (error) {
       console.error('Failed to submit project', error);
       alert('Failed to submit project');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -850,7 +854,7 @@ export default function ProjectDetailPage() {
                         {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
                       </h4>
                       <p className="text-sm text-gray-600 mt-1 break-words">{term.description}</p>
-                      {term.type !== 'warning' && typeof term.additionalCost === 'number' && term.additionalCost > 0 && (
+                      {term.type !== 'warning' && typeof term.additionalCost === 'number' && term.additionalCost >= 0 && (
                         <p className="text-sm font-medium text-orange-600 mt-1">
                           Additional cost: €{term.additionalCost.toLocaleString()}
                         </p>

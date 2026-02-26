@@ -726,9 +726,13 @@ export default function ProjectApprovalPage() {
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Service Range</Label>
-                            {selectedProject.distance.maxKmRange != null && (
-                              <p className="text-sm text-gray-700">{selectedProject.distance.maxKmRange}km</p>
-                            )}
+                            <p className="text-sm text-gray-700">
+                              {selectedProject.distance.noBorders
+                                ? 'No borders'
+                                : selectedProject.distance.maxKmRange != null
+                                  ? `${selectedProject.distance.maxKmRange}km`
+                                  : 'Not specified'}
+                            </p>
                           </div>
                         </div>
 
@@ -868,13 +872,15 @@ export default function ProjectApprovalPage() {
                             controls
                             className="w-full h-full"
                           >
-                            {selectedProject.media.captions ? (
-                              <track kind="captions" src={getUrl(selectedProject.media.captions)} srcLang="en" label="English captions" default />
-                            ) : null}
+                            <track
+                              kind="captions"
+                              src={selectedProject.media.captions ? getUrl(selectedProject.media.captions) : ''}
+                              srcLang="en"
+                              label={selectedProject.media.captions ? 'English captions' : 'No captions available'}
+                              default
+                              {...(!selectedProject.media.captions ? { 'aria-hidden': true } : {})}
+                            />
                             Your browser does not support the video tag.
-                            {!selectedProject.media.captions && (
-                              <span className="sr-only">Video captions unavailable</span>
-                            )}
                           </video>
                         </div>
                       </div>

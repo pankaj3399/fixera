@@ -148,40 +148,46 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [configConditions, setConfigConditions] = useState<Array<{ text: string; type: 'condition' | 'warning' }>>([])
 
   // Fetch admin-configured items for the selected service
-  const fetchServiceConfiguration = async () => {
-    if (!data.category || !data.service) return
-    try {
-      const params = new URLSearchParams({ category: data.category, service: data.service })
-      if (data.areaOfWork) params.append('areaOfWork', data.areaOfWork)
+  useEffect(() => {
+    const fetchServiceConfiguration = async () => {
+      if (!data.category || !data.service) return
+      try {
+        const params = new URLSearchParams({ category: data.category, service: data.service })
+        if (data.areaOfWork) params.append('areaOfWork', data.areaOfWork)
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`, {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const json = await res.json()
-        setConfigExtraOptions(json?.data?.extraOptions || [])
-        setConfigConditions(json?.data?.conditionsAndWarnings || [])
-      } else {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`, {
+          credentials: 'include'
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setConfigExtraOptions(json?.data?.extraOptions || [])
+          setConfigConditions(json?.data?.conditionsAndWarnings || [])
+        } else {
+          setConfigExtraOptions([])
+          setConfigConditions([])
+        }
+      } catch {
+        // silent fail to avoid noisy toasts on every render
         setConfigExtraOptions([])
         setConfigConditions([])
       }
-    } catch {
-      // silent fail to avoid noisy toasts on every render
-      setConfigExtraOptions([])
-      setConfigConditions([])
     }
-  }
 
-  useEffect(() => {
     fetchServiceConfiguration()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.category, data.service, data.areaOfWork])
 
   useEffect(() => {
     onChange({ ...data, extraOptions, termsConditions, customerPresence })
-    validateForm()
+
+    const errors: string[] = []
+    if (!customerPresence) {
+      errors.push('Customer presence selection is required')
+    }
+    setValidationErrors(errors)
+    onValidate(errors.length === 0)
+    // intentionally excluding onChange and onValidate from dependencies as they might cause loops if not memoized by parent
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extraOptions, termsConditions, customerPresence])
+  }, [extraOptions, termsConditions, customerPresence, data])
 
   const validateForm = () => {
     const errors: string[] = []

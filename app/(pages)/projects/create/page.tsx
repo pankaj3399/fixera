@@ -48,13 +48,13 @@ interface ISubproject {
     description?: string
   }>
   preparationDuration?: {
-    value: number
+    value?: number
     unit: 'hours' | 'days'
   }
   executionDuration: {
-    value: number
+    value?: number
     unit: 'hours' | 'days'
-    range?: { min: number; max: number }
+    range?: { min?: number; max?: number }
   }
   buffer?: {
     value: number
@@ -593,7 +593,7 @@ export default function ProjectCreatePage() {
 
           if (sub.pricing?.type === 'rfq') {
             const range = sub.executionDuration?.range
-            if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min > range.max) {
+            if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min <= 0 || range.max <= 0 || range.min > range.max) {
               errors.push('Valid execution duration range is required for RFQ packages')
             }
           } else {
@@ -701,7 +701,7 @@ export default function ProjectCreatePage() {
                   <strong>Price Model:</strong> {projectData.priceModel || 'Not specified'}
                 </div>
                 <div>
-                  <strong>Service Range:</strong> {projectData.distance?.maxKmRange ? `${projectData.distance.maxKmRange} km` : 'Not specified'}
+                  <strong>Service Range:</strong> {projectData.distance?.maxKmRange != null ? `${projectData.distance.maxKmRange} km` : 'Not specified'}
                 </div>
               </div>
 
@@ -738,8 +738,8 @@ export default function ProjectCreatePage() {
                         <div className="flex justify-between">
                           <span className="text-gray-500">Price:</span>
                           <span className="font-medium">
-                            {sub.pricing.type === 'fixed' && sub.pricing.amount ? `€${sub.pricing.amount}` : ''}
-                            {sub.pricing.type === 'unit' && sub.pricing.amount ? `€${sub.pricing.amount}/unit` : ''}
+                            {sub.pricing.type === 'fixed' && sub.pricing.amount != null ? `€${sub.pricing.amount}` : ''}
+                            {sub.pricing.type === 'unit' && sub.pricing.amount != null ? `€${sub.pricing.amount}/unit` : ''}
                             {sub.pricing.type === 'rfq' ? 'Quote required' : ''}
                             {sub.pricing.type === 'rfq' && sub.pricing.priceRange?.min != null && sub.pricing.priceRange?.max != null && (
                               <span className="text-gray-500 ml-1">(€{sub.pricing.priceRange.min}-{sub.pricing.priceRange.max})</span>
