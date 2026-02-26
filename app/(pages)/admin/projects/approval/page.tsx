@@ -86,6 +86,14 @@ interface SubprojectIncludedItem {
 
 interface SubprojectMaterial {
   name: string
+  quantity?: string
+  unit?: string
+  description?: string
+}
+
+interface ProfessionalInputValue {
+  fieldName: string
+  value: string | number | { min: number; max: number } | unknown
 }
 
 interface Subproject {
@@ -95,9 +103,12 @@ interface Subproject {
   included?: SubprojectIncludedItem[]
   materialsIncluded?: boolean
   materials?: SubprojectMaterial[]
+  professionalInputs?: ProfessionalInputValue[]
   pricing?: {
     type?: string
     amount?: number
+    priceRange?: { min?: number; max?: number }
+    minOrderQuantity?: number
   }
   preparationDuration?: { value?: number; unit?: string }
   executionDuration?: {
@@ -108,6 +119,27 @@ interface Subproject {
   buffer?: { value?: number; unit?: string }
   intakeDuration?: { value?: number; unit?: string }
   warrantyPeriod?: { value?: number; unit?: string }
+}
+
+interface ExtraOption {
+  name: string
+  description?: string
+  price: number
+  isCustom: boolean
+}
+
+interface TermCondition {
+  name: string
+  description: string
+  type?: 'condition' | 'warning'
+  additionalCost?: number
+  isCustom: boolean
+}
+
+interface FAQItem {
+  question: string
+  answer: string
+  isGenerated: boolean
 }
 
 interface Project {
@@ -128,6 +160,11 @@ interface Project {
   status: string
   submittedAt: string
   qualityChecks: QualityCheck[]
+  extraOptions?: ExtraOption[]
+  termsConditions?: TermCondition[]
+  faq?: FAQItem[]
+  customConfirmationMessage?: string
+  customerPresence?: string
   professional?: Professional
   media?: {
     images?: MediaItem[]
@@ -852,7 +889,7 @@ export default function ProjectApprovalPage() {
                                 <div>
                                   {sp.pricing?.type && (
                                     <Badge variant="outline" className="text-xs">
-                                      {sp.pricing.type}{sp.pricing?.amount ? ` • ${sp.pricing.amount}` : ''}
+                                      {sp.pricing.type}{sp.pricing?.amount ? ` • €${sp.pricing.amount}` : ''}
                                     </Badge>
                                   )}
                                 </div>
@@ -863,6 +900,40 @@ export default function ProjectApprovalPage() {
                               {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
                                 <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
                               )}
+
+                              {/* MOQ for unit pricing */}
+                              {sp.pricing?.type === 'unit' && sp.pricing.minOrderQuantity != null && (
+                                <div className="mt-2 text-xs text-gray-700">
+                                  <strong>Min Order Quantity:</strong> {sp.pricing.minOrderQuantity}
+                                </div>
+                              )}
+
+                              {/* Price Range for RFQ */}
+                              {sp.pricing?.type === 'rfq' && sp.pricing.priceRange?.min != null && sp.pricing.priceRange?.max != null && (
+                                <div className="mt-2 text-xs text-gray-700">
+                                  <strong>Price Range:</strong> €{sp.pricing.priceRange.min} - €{sp.pricing.priceRange.max}
+                                </div>
+                              )}
+
+                              {/* Service Parameters / Professional Inputs */}
+                              {Array.isArray(sp.professionalInputs) && sp.professionalInputs.length > 0 && (
+                                <div className="mt-2">
+                                  <Label className="text-xs font-medium">Service Parameters</Label>
+                                  <div className="mt-1 space-y-1">
+                                    {sp.professionalInputs.map((input: ProfessionalInputValue, i: number) => (
+                                      <div key={i} className="flex items-center justify-between text-xs text-gray-700 bg-white px-2 py-1 rounded border">
+                                        <span className="font-medium">{input.fieldName}</span>
+                                        <span>
+                                          {typeof input.value === 'object' && input.value !== null && 'min' in (input.value as Record<string, unknown>) && 'max' in (input.value as Record<string, unknown>)
+                                            ? `${(input.value as { min: number; max: number }).min} - ${(input.value as { min: number; max: number }).max}`
+                                            : String(input.value ?? '')}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
                               {Array.isArray(sp.included) && sp.included.length > 0 && (
                                 <div className="mt-2">
                                   <Label className="text-xs font-medium">Included Items</Label>
@@ -876,7 +947,19 @@ export default function ProjectApprovalPage() {
                                 </div>
                               )}
                               {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
-                                <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
+                                <div className="mt-2">
+                                  <Label className="text-xs font-medium">Materials</Label>
+                                  <div className="mt-1 space-y-1">
+                                    {sp.materials.map((m: SubprojectMaterial, i: number) => (
+                                      <div key={i} className="text-xs text-gray-700 bg-white px-2 py-1 rounded border flex items-center justify-between">
+                                        <span className="font-medium">{m.name}</span>
+                                        <span className="text-gray-500">
+                                          {m.quantity ? `${m.quantity}` : ''}{m.unit ? ` ${m.unit}` : ''}{m.description ? ` — ${m.description}` : ''}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               )}
                               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
                                 {preparationValue != null && (
@@ -1043,6 +1126,91 @@ export default function ProjectApprovalPage() {
                             )}
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Extra Options */}
+                  {selectedProject.extraOptions && selectedProject.extraOptions.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <Package className="w-4 h-4" />
+                        <span>Extra Options ({selectedProject.extraOptions.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedProject.extraOptions.map((opt: ExtraOption, index: number) => (
+                          <div key={index} className="p-3 border rounded-lg bg-gray-50 flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-sm">{opt.name}</div>
+                              {opt.description && <p className="text-xs text-gray-600 mt-0.5">{opt.description}</p>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">€{(opt.price ?? 0).toFixed(2)}</Badge>
+                              {opt.isCustom && <Badge className="text-[10px] bg-purple-100 text-purple-800">Custom</Badge>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Terms & Conditions */}
+                  {selectedProject.termsConditions && selectedProject.termsConditions.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <FileText className="w-4 h-4" />
+                        <span>Terms & Conditions ({selectedProject.termsConditions.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedProject.termsConditions.map((term: TermCondition, index: number) => (
+                          <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                            <div className="flex items-center justify-between">
+                              <div className="font-medium text-sm">{term.name}</div>
+                              <div className="flex items-center gap-2">
+                                {term.type === 'warning' && <Badge className="text-[10px] bg-yellow-100 text-yellow-800">Warning</Badge>}
+                                {term.type !== 'warning' && term.additionalCost != null && term.additionalCost > 0 && (
+                                  <Badge variant="outline" className="text-xs text-red-600 border-red-200">+€{(term.additionalCost ?? 0).toFixed(2)}</Badge>
+                                )}
+                                {term.isCustom && <Badge className="text-[10px] bg-purple-100 text-purple-800">Custom</Badge>}
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1">{term.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* FAQ */}
+                  {selectedProject.faq && selectedProject.faq.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <FileText className="w-4 h-4" />
+                        <span>FAQ ({selectedProject.faq.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedProject.faq.map((item: FAQItem, index: number) => (
+                          <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                            <div className="flex items-start justify-between">
+                              <div className="font-medium text-sm">Q: {item.question}</div>
+                              {item.isGenerated && <Badge className="text-[10px] bg-blue-100 text-blue-800">AI Generated</Badge>}
+                            </div>
+                            <p className="text-sm text-gray-700 mt-1">A: {item.answer}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Custom Confirmation Message */}
+                  {selectedProject.customConfirmationMessage && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                        <Mail className="w-4 h-4" />
+                        <span>Custom Confirmation Message</span>
+                      </h4>
+                      <div className="p-3 border rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProject.customConfirmationMessage}</p>
                       </div>
                     </div>
                   )}

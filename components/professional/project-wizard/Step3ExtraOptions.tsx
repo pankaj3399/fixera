@@ -32,6 +32,7 @@ interface ITermCondition {
   id: string
   name: string
   description: string
+  type?: 'condition' | 'warning'
   additionalCost?: number
   isCustom: boolean
 }
@@ -208,7 +209,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       return configConditions.map(c => ({
         name: c.text,
         description: c.text,
-        cost: 0
+        cost: 0,
+        type: c.type as 'condition' | 'warning'
       }))
     }
     const service = data.service || 'default'
@@ -289,6 +291,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       id: Date.now().toString(),
       name: term.name,
       description: term.description,
+      type: (term as { type?: 'condition' | 'warning' }).type || 'condition',
       additionalCost: term.cost > 0 ? term.cost : undefined,
       isCustom: false
     }
@@ -316,6 +319,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       id: Date.now().toString(),
       name: customTermName.trim(),
       description: customTermDescription.trim(),
+      type: 'condition',
       additionalCost: customTermCost ? parseFloat(customTermCost) : undefined,
       isCustom: true
     }
@@ -536,16 +540,19 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                 <Button
                   key={index}
                   variant="outline"
-                  className="justify-between h-auto p-3 text-left"
+                  className={`justify-between h-auto p-3 text-left ${(term as { type?: string }).type === 'warning' ? 'border-yellow-300 bg-yellow-50' : ''}`}
                   onClick={() => addPredefinedTerm(term)}
                   disabled={termsConditions.some(t => t.name === term.name) || termsConditions.length >= 5}
                 >
                   <div>
-                    <div className="font-medium">{term.name}</div>
+                    <div className="font-medium">
+                      {term.name}
+                      {(term as { type?: string }).type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                    </div>
                     <div className="text-sm text-gray-500">{term.description}</div>
                   </div>
                   <div className="text-right">
-                    {term.cost > 0 && (
+                    {(term as { type?: string }).type !== 'warning' && term.cost > 0 && (
                       <div className="text-sm font-medium text-red-600">+€{term.cost}</div>
                     )}
                     <Plus className="w-4 h-4" />
@@ -606,18 +613,21 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-3">{term.description}</p>
-                      {term.additionalCost && term.additionalCost > 0 && (
+                      {term.type === 'warning' && (
+                        <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-300 bg-yellow-50">Warning</Badge>
+                      )}
+                      {term.type !== 'warning' && (
                         <div className="flex items-center space-x-2">
-                          <Label className="text-xs">Additional cost if not met:</Label>
+                          <Label className="text-xs whitespace-nowrap">Cost if not met (€):</Label>
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
-                            value={term.additionalCost}
-                            onChange={(e) => updateTerm(term.id, { additionalCost: parseFloat(e.target.value) || 0 })}
-                            className="w-20 text-sm"
+                            value={term.additionalCost ?? ''}
+                            onChange={(e) => updateTerm(term.id, { additionalCost: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            className="w-24 text-sm"
+                            placeholder="0"
                           />
-                          <span className="text-xs text-gray-500">€</span>
                         </div>
                       )}
                     </div>
@@ -676,8 +686,11 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     {termsConditions.map((term) => (
                       <div key={term.id} className="text-sm">
                         <div className="flex justify-between">
-                          <span className="font-medium">{term.name}</span>
-                          {term.additionalCost && term.additionalCost > 0 && (
+                          <span className="font-medium">
+                            {term.name}
+                            {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                          </span>
+                          {term.type !== 'warning' && term.additionalCost && term.additionalCost > 0 && (
                             <span className="text-red-600">+€{term.additionalCost}</span>
                           )}
                         </div>

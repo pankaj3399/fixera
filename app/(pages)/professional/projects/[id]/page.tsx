@@ -126,6 +126,7 @@ interface IExtraOption {
 interface ITermCondition {
   name: string
   description: string
+  type?: 'condition' | 'warning'
   additionalCost?: number
   isCustom: boolean
 }
@@ -843,10 +844,13 @@ const submitProject = async () => {
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
                   {project.termsConditions.map((term, index) => (
-                    <div key={index} className="border-l-4 border-blue-200 pl-4">
-                      <h4 className="font-medium text-sm">{term.name}</h4>
+                    <div key={index} className={`border-l-4 ${term.type === 'warning' ? 'border-yellow-300' : 'border-blue-200'} pl-4`}>
+                      <h4 className="font-medium text-sm">
+                        {term.name}
+                        {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                      </h4>
                       <p className="text-sm text-gray-600 mt-1 break-words">{term.description}</p>
-                      {term.additionalCost && (
+                      {term.type !== 'warning' && term.additionalCost && (
                         <p className="text-sm font-medium text-orange-600 mt-1">
                           Additional cost: €{term.additionalCost.toLocaleString()}
                         </p>

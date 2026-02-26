@@ -34,12 +34,19 @@ interface ISubproject {
     amount?: number
     priceRange?: { min?: number; max?: number }
     minProjectValue?: number
+    minOrderQuantity?: number
   }
   errors?: {
     priceRange?: string
   }
   included: IIncludedItem[]
   materialsIncluded: boolean
+  materials?: Array<{
+    name: string
+    quantity?: string
+    unit?: string
+    description?: string
+  }>
   preparationDuration?: {
     value: number
     unit: 'hours' | 'days'
@@ -73,6 +80,7 @@ interface ITermCondition {
   id: string
   name: string
   description: string
+  type?: 'condition' | 'warning'
   additionalCost?: number
   isCustom: boolean
 }
@@ -182,7 +190,7 @@ export default function ProjectCreatePage() {
     distance: {
       address: '',
       useCompanyAddress: false,
-      maxKmRange: 50,
+      maxKmRange: undefined as unknown as number,
       noBorders: false
     },
     media: {
@@ -286,7 +294,7 @@ export default function ProjectCreatePage() {
             distance: project.distance || {
               address: '',
               useCompanyAddress: false,
-              maxKmRange: 50,
+              maxKmRange: undefined as unknown as number,
               noBorders: false
             },
             media: project.media || { images: [] },
@@ -574,12 +582,15 @@ export default function ProjectCreatePage() {
       if (!projectData.subprojects || projectData.subprojects.length === 0) {
         toast.error('At least one subproject/package is required')
       } else {
-        const invalidSubproject = projectData.subprojects.find(sub =>
-          !sub.name || !sub.description || !sub.pricing?.type
-        )
-        if (invalidSubproject) {
-          toast.error('All subprojects must have name, description, and pricing type')
-        }
+        projectData.subprojects.forEach((sub, index) => {
+          const label = sub.name || `Package ${index + 1}`
+          if (!sub.name) toast.error(`${label}: Package name is required`)
+          if (!sub.description || sub.description.length < 10) toast.error(`${label}: Package scope must be at least 10 characters`)
+          if (!sub.pricing?.type) toast.error(`${label}: Pricing type is required`)
+          if (sub.included.length < 3) toast.error(`${label}: At least 3 included items are required`)
+          if (typeof sub.materialsIncluded !== 'boolean') toast.error(`${label}: Please select whether materials are included`)
+          if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) toast.error(`${label}: Execution duration is required`)
+        })
       }
     } else if (currentStep === 3) {
       toast.info('Please specify customer presence requirement')
@@ -661,6 +672,7 @@ export default function ProjectCreatePage() {
               <p className="text-gray-600 mb-6">Review your project and submit for admin approval</p>
             </div>
 
+            {/* Project Summary */}
             <div className="bg-white border rounded-lg p-6">
               <h4 className="font-semibold mb-4">Project Summary</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -674,7 +686,7 @@ export default function ProjectCreatePage() {
                   <strong>Price Model:</strong> {projectData.priceModel || 'Not specified'}
                 </div>
                 <div>
-                  <strong>Service Range:</strong> {projectData.distance?.maxKmRange || 0} km
+                  <strong>Service Range:</strong> {projectData.distance?.maxKmRange ? `${projectData.distance.maxKmRange} km` : 'Not specified'}
                 </div>
               </div>
 
@@ -688,10 +700,182 @@ export default function ProjectCreatePage() {
               {projectData.description && (
                 <div className="mt-4">
                   <strong>Description:</strong>
-                  <p className="mt-1 text-gray-700 break-words whitespace-pre-wrap">{projectData.description.substring(0, 200)}...</p>
+                  <p className="mt-1 text-gray-700 break-words whitespace-pre-wrap">{projectData.description.length > 200 ? `${projectData.description.substring(0, 200)}...` : projectData.description}</p>
                 </div>
               )}
             </div>
+
+            {/* Subprojects side-by-side comparison */}
+            {projectData.subprojects && projectData.subprojects.length > 0 && (
+              <div className="bg-white border rounded-lg p-6">
+                <h4 className="font-semibold mb-4">Service Packages ({projectData.subprojects.length})</h4>
+                <div className={`grid gap-4 ${projectData.subprojects.length === 1 ? 'grid-cols-1' : projectData.subprojects.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+                  {projectData.subprojects.map((sub, idx) => (
+                    <div key={sub.id || idx} className="border rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-semibold text-sm">{sub.name || `Package ${idx + 1}`}</h5>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{sub.pricing.type}</span>
+                      </div>
+                      {sub.description && <p className="text-xs text-gray-600 mb-3">{sub.description}</p>}
+
+                      <div className="space-y-2 text-xs">
+                        {/* Pricing */}
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Price:</span>
+                          <span className="font-medium">
+                            {sub.pricing.type === 'fixed' && sub.pricing.amount ? `€${sub.pricing.amount}` : ''}
+                            {sub.pricing.type === 'unit' && sub.pricing.amount ? `€${sub.pricing.amount}/unit` : ''}
+                            {sub.pricing.type === 'rfq' ? 'Quote required' : ''}
+                            {sub.pricing.type === 'rfq' && sub.pricing.priceRange?.min != null && sub.pricing.priceRange?.max != null && (
+                              <span className="text-gray-500 ml-1">(€{sub.pricing.priceRange.min}-{sub.pricing.priceRange.max})</span>
+                            )}
+                          </span>
+                        </div>
+                        {sub.pricing.type === 'unit' && sub.pricing.minOrderQuantity && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Min order qty:</span>
+                            <span className="font-medium">{sub.pricing.minOrderQuantity}</span>
+                          </div>
+                        )}
+
+                        {/* Timing */}
+                        {sub.preparationDuration?.value != null && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Preparation:</span>
+                            <span>{sub.preparationDuration.value} {sub.preparationDuration.unit}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Execution:</span>
+                          <span>
+                            {sub.pricing.type === 'rfq' && sub.executionDuration.range?.min != null && sub.executionDuration.range?.max != null
+                              ? `${sub.executionDuration.range.min}-${sub.executionDuration.range.max} ${sub.executionDuration.unit}`
+                              : sub.executionDuration.value != null ? `${sub.executionDuration.value} ${sub.executionDuration.unit}` : 'Not set'}
+                          </span>
+                        </div>
+                        {sub.buffer?.value != null && sub.buffer.value > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Buffer:</span>
+                            <span>{sub.buffer.value} {sub.buffer.unit}</span>
+                          </div>
+                        )}
+
+                        {/* Warranty */}
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Warranty:</span>
+                          <span>{sub.warrantyPeriod.value === 0 ? 'None' : `${sub.warrantyPeriod.value} ${sub.warrantyPeriod.unit}`}</span>
+                        </div>
+
+                        {/* Materials */}
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Materials:</span>
+                          <span>{sub.materialsIncluded ? 'Included' : 'Not included'}</span>
+                        </div>
+                        {sub.materialsIncluded && sub.materials && sub.materials.length > 0 && (
+                          <div className="pl-2 border-l-2 border-gray-200">
+                            {sub.materials.map((m, mi) => (
+                              <div key={mi} className="text-gray-600">{m.name}{m.quantity ? ` (${m.quantity}${m.unit ? ` ${m.unit}` : ''})` : ''}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Included items */}
+                        {sub.included.length > 0 && (
+                          <div>
+                            <span className="text-gray-500">Included ({sub.included.length}):</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {sub.included.map((item, ii) => (
+                                <span key={ii} className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded">{item.name}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Professional inputs / service parameters */}
+                        {sub.professionalInputs && sub.professionalInputs.length > 0 && (
+                          <div>
+                            <span className="text-gray-500">Service Parameters:</span>
+                            <div className="mt-1 space-y-0.5">
+                              {sub.professionalInputs.map((input, ii) => (
+                                <div key={ii} className="flex justify-between">
+                                  <span className="text-gray-600">{input.fieldName}:</span>
+                                  <span className="font-medium">
+                                    {typeof input.value === 'object' && input.value !== null && 'min' in input.value && 'max' in input.value
+                                      ? `${input.value.min}-${input.value.max}`
+                                      : String(input.value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Extra Options */}
+            {projectData.extraOptions && projectData.extraOptions.length > 0 && (
+              <div className="bg-white border rounded-lg p-6">
+                <h4 className="font-semibold mb-4">Extra Options ({projectData.extraOptions.length})</h4>
+                <div className="space-y-2 text-sm">
+                  {projectData.extraOptions.map((opt) => (
+                    <div key={opt.id} className="flex justify-between p-2 bg-gray-50 rounded">
+                      <span>{opt.name}</span>
+                      <span className="font-medium">€{(opt.price ?? 0).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Terms & Conditions */}
+            {projectData.termsConditions && projectData.termsConditions.length > 0 && (
+              <div className="bg-white border rounded-lg p-6">
+                <h4 className="font-semibold mb-4">Terms & Conditions ({projectData.termsConditions.length})</h4>
+                <div className="space-y-2 text-sm">
+                  {projectData.termsConditions.map((term) => (
+                    <div key={term.id} className="p-2 bg-gray-50 rounded">
+                      <div className="flex justify-between">
+                        <span className="font-medium">
+                          {term.name}
+                          {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                        </span>
+                        {term.type !== 'warning' && term.additionalCost != null && term.additionalCost > 0 && (
+                          <span className="text-red-600">+€{(term.additionalCost ?? 0).toFixed(2)}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">{term.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* FAQ */}
+            {projectData.faq && projectData.faq.length > 0 && (
+              <div className="bg-white border rounded-lg p-6">
+                <h4 className="font-semibold mb-4">FAQ ({projectData.faq.length})</h4>
+                <div className="space-y-3 text-sm">
+                  {projectData.faq.map((item) => (
+                    <div key={item.id} className="p-3 bg-gray-50 rounded">
+                      <div className="font-medium">Q: {item.question}</div>
+                      <div className="text-gray-600 mt-1">A: {item.answer}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Custom Confirmation Message */}
+            {projectData.customConfirmationMessage && (
+              <div className="bg-white border rounded-lg p-6">
+                <h4 className="font-semibold mb-4">Custom Confirmation Message</h4>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{projectData.customConfirmationMessage}</p>
+              </div>
+            )}
           </div>
         )
       default:

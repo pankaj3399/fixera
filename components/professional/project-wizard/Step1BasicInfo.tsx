@@ -328,13 +328,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     validateForm()
   }, [formData, serviceConfig])
 
-  // Ensure a priceModel is auto-selected for non-renovation when pricing models load
-  useEffect(() => {
-    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
-    if (!isRenovation && !formData.priceModel && pricingModels.length > 0) {
-      updateFormData({ priceModel: pricingModels[0] })
-    }
-  }, [pricingModels])
+  // Price model is left blank so the professional is obliged to choose
 
   useEffect(() => {
     const currentMin = formData.minResources ?? 1
@@ -519,7 +513,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       distance: {
         address: prev.distance?.address || '',
         useCompanyAddress: prev.distance?.useCompanyAddress || false,
-        maxKmRange: prev.distance?.maxKmRange || 50,
+        maxKmRange: prev.distance?.maxKmRange as number,
         noBorders: prev.distance?.noBorders || false,
         location: prev.distance?.location,
         ...updates
@@ -565,7 +559,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         `Expert ${serviceTitle} Services - ${formData.areaOfWork || 'Professional Solutions'}`,
         `Quality ${serviceTitle} - ${keywords ? keywords.split(',')[0] : 'Reliable'} & Professional`,
         `Professional ${serviceTitle} - Quality Work You Can Trust`,
-        `${serviceTitle} Expert - ${formData.distance?.maxKmRange}km Range - Quality Guaranteed`
+        `${serviceTitle} Expert - ${formData.distance?.maxKmRange ?? ''}km Range - Quality Guaranteed`
       ]
 
       let bestTitle = titleVariations[0]
@@ -722,7 +716,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     category: value,
                     service: '',
                     areaOfWork: '',
-                    priceModel: value.toLowerCase() === 'renovation' ? 'rfq' : (formData.priceModel || ''),
+                    priceModel: value.toLowerCase() === 'renovation' ? 'rfq' : '',
                     categories: [value],
                     services: []
                   })
@@ -882,8 +876,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 type="number"
                 min="1"
                 max="200"
-                value={formData.distance?.maxKmRange || ''}
-                onChange={(e) => updateDistance({ maxKmRange: parseInt(e.target.value) })}
+                value={formData.distance?.maxKmRange ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateDistance({ maxKmRange: val === '' ? (undefined as unknown as number) : (parseInt(val) || (undefined as unknown as number)) });
+                }}
                 placeholder="50"
               />
             </div>

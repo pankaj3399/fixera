@@ -235,7 +235,7 @@ export default function Step2Subprojects({
     const value =
       typeof subproject?.preparationDuration?.value === 'number'
         ? subproject.preparationDuration.value
-        : 1;
+        : (undefined as unknown as number);
     const unit = (subproject?.preparationDuration?.unit || 'days') as
       | 'hours'
       | 'days';
@@ -386,13 +386,15 @@ export default function Step2Subprojects({
         return (
           sub.name &&
           sub.description &&
+          sub.description.length >= 10 &&
           sub.pricing.type &&
           (sub.pricing.type === 'rfq' || sub.pricing.amount) &&
           sub.included.length >= 3 &&
           sub.preparationDuration &&
           typeof sub.preparationDuration.value === 'number' &&
           sub.executionDuration.value > 0 &&
-          // Materials validation: if materialsIncluded is true, must have at least one material
+          // Materials validation: must be explicitly selected, and if true, must have at least one material
+          typeof sub.materialsIncluded === 'boolean' &&
           (!sub.materialsIncluded ||
             (sub.materials && sub.materials.length > 0))
         );
@@ -423,13 +425,14 @@ export default function Step2Subprojects({
         amount: 0,
       },
       included: [],
-      materialsIncluded: false,
+      materialsIncluded: undefined as unknown as boolean,
       materials: [],
-      preparationDuration: { value: 1, unit: 'days' },
+      preparationDuration: { value: undefined as unknown as number, unit: 'days' },
       executionDuration: {
-        value: 1,
-        unit: 'hours',
+        value: undefined as unknown as number,
+        unit: 'days',
       },
+      buffer: { value: undefined as unknown as number, unit: 'days' },
       warrantyPeriod: { value: 0, unit: 'years' },
     };
 
@@ -699,14 +702,16 @@ export default function Step2Subprojects({
                           min='1'
                           max='10'
                           value={subproject.warrantyPeriod.value}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const parsed = parseInt(e.target.value) || 1;
+                            const clamped = Math.min(Math.max(parsed, 1), 10);
                             updateSubproject(subproject.id, {
                               warrantyPeriod: {
                                 ...subproject.warrantyPeriod,
-                                value: parseInt(e.target.value) || 1,
+                                value: clamped,
                               },
-                            })
-                          }
+                            });
+                          }}
                           className='w-20'
                         />
                       )}
@@ -727,11 +732,12 @@ export default function Step2Subprojects({
                       })
                     }
                     placeholder="Describe what's included in this package..."
+                    minLength={10}
                     maxLength={300}
                     rows={3}
                   />
-                  <p className='text-sm text-gray-500 mt-1'>
-                    {subproject.description.length}/300 characters
+                  <p className={`text-sm mt-1 ${subproject.description.length < 10 ? 'text-red-500' : 'text-gray-500'}`}>
+                    {subproject.description.length}/300 characters (minimum 10)
                   </p>
                 </div>
 
@@ -1028,7 +1034,7 @@ export default function Step2Subprojects({
                         Materials Included *
                       </Label>
                       <RadioGroup
-                        value={subproject.materialsIncluded ? 'yes' : 'no'}
+                        value={subproject.materialsIncluded === true ? 'yes' : subproject.materialsIncluded === false ? 'no' : ''}
                         onValueChange={(value) => {
                           const materialsIncluded = value === 'yes';
                           updateSubproject(subproject.id, {
@@ -1687,12 +1693,12 @@ export default function Step2Subprojects({
                           type='number'
                           min='0'
                           step='0.5'
-                          value={subproject.preparationDuration?.value ?? 0}
+                          value={subproject.preparationDuration?.value ?? ''}
                           onChange={(e) => {
-                            const parsed = parseFloat(e.target.value);
+                            const raw = e.target.value;
                             updateSubproject(subproject.id, {
                               preparationDuration: {
-                                value: Number.isNaN(parsed) ? 0 : parsed,
+                                value: raw === '' ? (undefined as unknown as number) : (Number.isNaN(parseFloat(raw)) ? (undefined as unknown as number) : parseFloat(raw)),
                                 unit: resolvePreparationUnit(subproject),
                               },
                             });
@@ -1868,14 +1874,14 @@ export default function Step2Subprojects({
                             <Input
                               type='number'
                               min='0'
-                              value={subproject.buffer?.value || ''}
+                              value={subproject.buffer?.value ?? ''}
                               onChange={(e) =>
                                 updateSubproject(subproject.id, {
                                   buffer: e.target.value
                                     ? {
                                         value: parseInt(e.target.value),
                                         unit:
-                                          subproject.buffer?.unit || 'hours',
+                                          subproject.buffer?.unit || 'days',
                                       }
                                     : undefined,
                                 })
@@ -1883,7 +1889,7 @@ export default function Step2Subprojects({
                               placeholder='0'
                             />
                             <Select
-                              value={subproject.buffer?.unit || 'hours'}
+                              value={subproject.buffer?.unit || 'days'}
                               onValueChange={(value: 'hours' | 'days') =>
                                 updateSubproject(subproject.id, {
                                   buffer: subproject.buffer
@@ -1917,15 +1923,16 @@ export default function Step2Subprojects({
                             <Input
                               type='number'
                               min='1'
-                              value={subproject.executionDuration.value}
-                              onChange={(e) =>
+                              value={subproject.executionDuration.value ?? ''}
+                              onChange={(e) => {
+                                const raw = e.target.value;
                                 updateSubproject(subproject.id, {
                                   executionDuration: {
                                     ...subproject.executionDuration,
-                                    value: parseInt(e.target.value) || 1,
+                                    value: raw === '' ? (undefined as unknown as number) : (parseInt(raw) || (undefined as unknown as number)),
                                   },
-                                })
-                              }
+                                });
+                              }}
                             />
                             <Select
                               value={subproject.executionDuration.unit}
@@ -1955,14 +1962,14 @@ export default function Step2Subprojects({
                             <Input
                               type='number'
                               min='0'
-                              value={subproject.buffer?.value || ''}
+                              value={subproject.buffer?.value ?? ''}
                               onChange={(e) =>
                                 updateSubproject(subproject.id, {
                                   buffer: e.target.value
                                     ? {
                                         value: parseInt(e.target.value),
                                         unit:
-                                          subproject.buffer?.unit || 'hours',
+                                          subproject.buffer?.unit || 'days',
                                       }
                                     : undefined,
                                 })
@@ -1970,7 +1977,7 @@ export default function Step2Subprojects({
                               placeholder='0'
                             />
                             <Select
-                              value={subproject.buffer?.unit || 'hours'}
+                              value={subproject.buffer?.unit || 'days'}
                               onValueChange={(value: 'hours' | 'days') =>
                                 updateSubproject(subproject.id, {
                                   buffer: subproject.buffer
@@ -2019,7 +2026,7 @@ export default function Step2Subprojects({
                                     value: parseInt(e.target.value) || 0,
                                     unit:
                                       subproject.intakeDuration?.unit ||
-                                      'hours',
+                                      'days',
                                     buffer: subproject.intakeDuration?.buffer,
                                   },
                                 })
@@ -2027,7 +2034,7 @@ export default function Step2Subprojects({
                               placeholder='0'
                             />
                             <Select
-                              value={subproject.intakeDuration?.unit || 'hours'}
+                              value={subproject.intakeDuration?.unit || 'days'}
                               onValueChange={(value: 'hours' | 'days') =>
                                 updateSubproject(subproject.id, {
                                   intakeDuration: {
@@ -2060,7 +2067,7 @@ export default function Step2Subprojects({
                                 intakeDuration: {
                                   value: subproject.intakeDuration?.value || 0,
                                   unit:
-                                    subproject.intakeDuration?.unit || 'hours',
+                                    subproject.intakeDuration?.unit || 'days',
                                   buffer: parseInt(e.target.value) || undefined,
                                 },
                               })
@@ -2129,8 +2136,10 @@ export default function Step2Subprojects({
                       <td className="p-2">
                         {sub.pricing.type === 'rfq' && sub.executionDuration.range?.min && sub.executionDuration.range?.max ? (
                           `${sub.executionDuration.range.min}-${sub.executionDuration.range.max} ${sub.executionDuration.unit}`
-                        ) : (
+                        ) : sub.executionDuration.value != null ? (
                           `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                        ) : (
+                          <span className='text-gray-400 italic'>Not set</span>
                         )}
                       </td>
                       <td className='p-2'>
