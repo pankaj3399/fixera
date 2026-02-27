@@ -47,7 +47,7 @@ interface IIncludedItem {
 
 interface IProfessionalInput {
   fieldName: string;
-  value: string | number | { min: number; max: number };
+  value: string | number | { min: number; max: number } | undefined;
 }
 
 interface IMaterial {
@@ -75,19 +75,19 @@ interface ISubproject {
     executionDurationRange?: string;
   };
   included: IIncludedItem[];
-  materialsIncluded: boolean;
+  materialsIncluded?: boolean; // Made optional
   materials?: IMaterial[];
   preparationDuration?: {
-    value: number;
+    value?: number;
     unit: 'hours' | 'days';
   };
   executionDuration: {
-    value: number;
+    value?: number;
     unit: 'hours' | 'days';
-    range?: { min: number; max: number };
+    range?: { min?: number; max?: number };
   };
-  buffer?: {
-    value: number;
+  buffer?: { // Made optional
+    value?: number; // Value inside buffer also made optional
     unit: 'hours' | 'days';
   };
   intakeDuration?: {
@@ -105,6 +105,7 @@ interface IDynamicField {
   label: string;
   placeholder?: string;
   isRequired: boolean;
+  isSingleNumber?: boolean;
   options?: string[];
   min?: number;
   max?: number;
@@ -219,6 +220,16 @@ const getDefaultPricingType = (
   priceModel?: string
 ): PricingType => getValidPricingTypes(category, priceModel)[0];
 
+const parseNumericInput = (raw: string): number | undefined => {
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  const parsed = parseFloat(trimmed);
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+};
+
 export default function Step2Subprojects({
   data,
   onChange,
@@ -235,7 +246,7 @@ export default function Step2Subprojects({
     const value =
       typeof subproject?.preparationDuration?.value === 'number'
         ? subproject.preparationDuration.value
-        : 1;
+        : undefined;
     const unit = (subproject?.preparationDuration?.unit || 'days') as
       | 'hours'
       | 'days';
@@ -281,7 +292,11 @@ export default function Step2Subprojects({
 
       if (response.ok) {
         const result = await response.json();
-        setDynamicFields(result.data.professionalInputFields || []);
+        const inputs = (result.data.professionalInputFields || []).map((f: IDynamicField) => ({
+          ...f,
+          isSingleNumber: f.isSingleNumber || false,
+        }));
+        setDynamicFields(inputs);
         setProjectTypes(result.data.projectTypes || []);
       }
     } catch (error) {
@@ -373,7 +388,7 @@ export default function Step2Subprojects({
       subprojects.length > 0 &&
       subprojects.every((sub) => {
         // Check for any validation errors
-        if (sub.errors?.priceRange) return false;
+        if (sub.errors?.priceRange || sub.errors?.executionDurationRange) return false;
 
         // For RFQ pricing, validate price range if both values are provided
         if (sub.pricing.type === 'rfq') {
@@ -381,18 +396,28 @@ export default function Step2Subprojects({
           if (min !== undefined && max !== undefined && min > max) {
             return false;
           }
+          const range = sub.executionDuration.range;
+          const hasMin = typeof range?.min === 'number' && Number.isFinite(range.min);
+          const hasMax = typeof range?.max === 'number' && Number.isFinite(range.max);
+
+          if (!hasMin && !hasMax) return false;
+          if (hasMin && range!.min! <= 0) return false;
+          if (hasMax && range!.max! <= 0) return false;
+          if (hasMin && hasMax && range!.min! > range!.max!) return false;
         }
 
         return (
           sub.name &&
           sub.description &&
+          sub.description.length >= 10 &&
           sub.pricing.type &&
           (sub.pricing.type === 'rfq' || sub.pricing.amount) &&
           sub.included.length >= 3 &&
           sub.preparationDuration &&
           typeof sub.preparationDuration.value === 'number' &&
-          sub.executionDuration.value > 0 &&
-          // Materials validation: if materialsIncluded is true, must have at least one material
+          (sub.pricing.type === 'rfq' || (typeof sub.executionDuration.value === 'number' && sub.executionDuration.value > 0)) &&
+          // Materials validation: must be explicitly selected, and if true, must have at least one material
+          typeof sub.materialsIncluded === 'boolean' &&
           (!sub.materialsIncluded ||
             (sub.materials && sub.materials.length > 0))
         );
@@ -423,13 +448,14 @@ export default function Step2Subprojects({
         amount: 0,
       },
       included: [],
-      materialsIncluded: false,
+      materialsIncluded: undefined,
       materials: [],
-      preparationDuration: { value: 1, unit: 'days' },
+      preparationDuration: { value: undefined, unit: 'days' },
       executionDuration: {
-        value: 1,
-        unit: 'hours',
+        value: undefined,
+        unit: 'days',
       },
+      buffer: { value: undefined, unit: 'days' },
       warrantyPeriod: { value: 0, unit: 'years' },
     };
 
@@ -440,7 +466,7 @@ export default function Step2Subprojects({
   const updateProfessionalInput = (
     subprojectId: string,
     fieldName: string,
-    value: string | number | { min: number; max: number }
+    value: string | number | { min: number; max: number } | undefined
   ) => {
     const subproject = subprojects.find((s) => s.id === subprojectId);
     if (!subproject) return;
@@ -537,7 +563,7 @@ export default function Step2Subprojects({
     const service = data.service || 'default';
     const names =
       PREDEFINED_INCLUDED_ITEMS[
-        service as keyof typeof PREDEFINED_INCLUDED_ITEMS
+      service as keyof typeof PREDEFINED_INCLUDED_ITEMS
       ] || PREDEFINED_INCLUDED_ITEMS.default;
     return names.map((n) => ({ name: n }));
   };
@@ -699,14 +725,16 @@ export default function Step2Subprojects({
                           min='1'
                           max='10'
                           value={subproject.warrantyPeriod.value}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const parsed = parseNumericInput(e.target.value) || 1;
+                            const clamped = Math.min(Math.max(parsed, 1), 10);
                             updateSubproject(subproject.id, {
                               warrantyPeriod: {
                                 ...subproject.warrantyPeriod,
-                                value: parseInt(e.target.value) || 1,
+                                value: clamped,
                               },
-                            })
-                          }
+                            });
+                          }}
                           className='w-20'
                         />
                       )}
@@ -727,11 +755,12 @@ export default function Step2Subprojects({
                       })
                     }
                     placeholder="Describe what's included in this package..."
-                    maxLength={300}
+                    minLength={10}
+                    maxLength={100}
                     rows={3}
                   />
-                  <p className='text-sm text-gray-500 mt-1'>
-                    {subproject.description.length}/300 characters
+                  <p className={`text-sm mt-1 ${subproject.description.length < 10 ? 'text-red-500' : 'text-gray-500'}`}>
+                    {subproject.description.length}/100 characters (minimum 10)
                   </p>
                 </div>
 
@@ -906,7 +935,7 @@ export default function Step2Subprojects({
                                 pricing: {
                                   ...subproject.pricing,
                                   minOrderQuantity:
-                                    parseInt(e.target.value) || undefined,
+                                    parseNumericInput(e.target.value),
                                 },
                               })
                             }
@@ -1028,7 +1057,7 @@ export default function Step2Subprojects({
                         Materials Included *
                       </Label>
                       <RadioGroup
-                        value={subproject.materialsIncluded ? 'yes' : 'no'}
+                        value={subproject.materialsIncluded === true ? 'yes' : subproject.materialsIncluded === false ? 'no' : ''}
                         onValueChange={(value) => {
                           const materialsIncluded = value === 'yes';
                           updateSubproject(subproject.id, {
@@ -1236,7 +1265,7 @@ export default function Step2Subprojects({
 
                         {/* Materials List */}
                         {subproject.materials &&
-                        subproject.materials.length > 0 ? (
+                          subproject.materials.length > 0 ? (
                           <div className='space-y-2 max-h-64 overflow-y-auto'>
                             {subproject.materials.map((material, index) => (
                               <div
@@ -1337,24 +1366,24 @@ export default function Step2Subprojects({
                           onClick={() =>
                             item.fieldName
                               ? addIncludedItem(
-                                  subproject.id,
-                                  item.name,
-                                  false,
-                                  {
-                                    isDynamicField: true,
-                                    fieldName: item.fieldName,
-                                  }
-                                )
+                                subproject.id,
+                                item.name,
+                                false,
+                                {
+                                  isDynamicField: true,
+                                  fieldName: item.fieldName,
+                                }
+                              )
                               : addIncludedItem(subproject.id, item.name)
                           }
                           disabled={
                             item.fieldName
                               ? subproject.included.some(
-                                  (inc) => inc.fieldName === item.fieldName
-                                )
+                                (inc) => inc.fieldName === item.fieldName
+                              )
                               : subproject.included.some(
-                                  (inc) => inc.name === item.name
-                                )
+                                (inc) => inc.name === item.name
+                              )
                           }
                         >
                           {item.name}
@@ -1408,24 +1437,23 @@ export default function Step2Subprojects({
                         const dynamicField =
                           item.isDynamicField && item.fieldName
                             ? dynamicFields.find(
-                                (f) => f.fieldName === item.fieldName
-                              )
+                              (f) => f.fieldName === item.fieldName
+                            )
                             : null;
 
                         const currentValue = dynamicField
                           ? subproject.professionalInputs?.find(
-                              (input) => input.fieldName === item.fieldName
-                            )?.value
+                            (input) => input.fieldName === item.fieldName
+                          )?.value
                           : null;
 
                         return (
                           <div
                             key={index}
-                            className={`p-3 rounded border ${
-                              item.isDynamicField
-                                ? 'bg-purple-50 border-purple-200'
-                                : 'bg-gray-50 border-gray-200'
-                            }`}
+                            className={`p-3 rounded border ${item.isDynamicField
+                              ? 'bg-purple-50 border-purple-200'
+                              : 'bg-gray-50 border-gray-200'
+                              }`}
                           >
                             <div className='flex items-center justify-between mb-2'>
                               <span className='text-sm font-medium'>
@@ -1498,25 +1526,20 @@ export default function Step2Subprojects({
                                 )}
 
                                 {dynamicField.fieldType === 'range' &&
-                                  // Special case: treat 'design revisions' as a single number field
-                                  (dynamicField.fieldName
-                                    .toLowerCase()
-                                    .includes('design') &&
-                                  dynamicField.fieldName
-                                    .toLowerCase()
-                                    .includes('revision') ? (
+                                  (dynamicField.isSingleNumber ? (
                                     <Input
                                       type='number'
                                       min={dynamicField.min}
                                       max={dynamicField.max}
-                                      value={(currentValue as number) || ''}
-                                      onChange={(e) =>
+                                      value={(currentValue as number) ?? ''}
+                                      onChange={(e) => {
+                                        const parsed = parseFloat(e.target.value);
                                         updateProfessionalInput(
                                           subproject.id,
                                           dynamicField.fieldName,
-                                          parseFloat(e.target.value) || 0
-                                        )
-                                      }
+                                          e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : parsed)
+                                        );
+                                      }}
                                       placeholder={
                                         dynamicField.placeholder ||
                                         `Enter ${dynamicField.label}`
@@ -1531,13 +1554,13 @@ export default function Step2Subprojects({
                                         max={dynamicField.max}
                                         value={
                                           typeof currentValue === 'object' &&
-                                          currentValue !== null
+                                            currentValue !== null
                                             ? (
-                                                currentValue as {
-                                                  min: number;
-                                                  max: number;
-                                                }
-                                              ).min
+                                              currentValue as {
+                                                min: number;
+                                                max: number;
+                                              }
+                                            ).min
                                             : ''
                                         }
                                         onChange={(e) => {
@@ -1549,13 +1572,13 @@ export default function Step2Subprojects({
                                             max:
                                               typeof currentValue ===
                                                 'object' &&
-                                              currentValue !== null
+                                                currentValue !== null
                                                 ? (
-                                                    currentValue as {
-                                                      min: number;
-                                                      max: number;
-                                                    }
-                                                  ).max
+                                                  currentValue as {
+                                                    min: number;
+                                                    max: number;
+                                                  }
+                                                ).max
                                                 : dynamicField.max || 0,
                                           };
                                           updateProfessionalInput(
@@ -1576,13 +1599,13 @@ export default function Step2Subprojects({
                                         max={dynamicField.max}
                                         value={
                                           typeof currentValue === 'object' &&
-                                          currentValue !== null
+                                            currentValue !== null
                                             ? (
-                                                currentValue as {
-                                                  min: number;
-                                                  max: number;
-                                                }
-                                              ).max
+                                              currentValue as {
+                                                min: number;
+                                                max: number;
+                                              }
+                                            ).max
                                             : ''
                                         }
                                         onChange={(e) => {
@@ -1590,13 +1613,13 @@ export default function Step2Subprojects({
                                             min:
                                               typeof currentValue ===
                                                 'object' &&
-                                              currentValue !== null
+                                                currentValue !== null
                                                 ? (
-                                                    currentValue as {
-                                                      min: number;
-                                                      max: number;
-                                                    }
-                                                  ).min
+                                                  currentValue as {
+                                                    min: number;
+                                                    max: number;
+                                                  }
+                                                ).min
                                                 : dynamicField.min || 0,
                                             max:
                                               parseFloat(e.target.value) ||
@@ -1620,14 +1643,15 @@ export default function Step2Subprojects({
                                     type='number'
                                     min={dynamicField.min}
                                     max={dynamicField.max}
-                                    value={(currentValue as number) || ''}
-                                    onChange={(e) =>
+                                    value={(currentValue as number) ?? ''}
+                                    onChange={(e) => {
+                                      const parsed = parseFloat(e.target.value);
                                       updateProfessionalInput(
                                         subproject.id,
                                         dynamicField.fieldName,
-                                        parseFloat(e.target.value) || 0
-                                      )
-                                    }
+                                        e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : parsed)
+                                      );
+                                    }}
                                     placeholder={
                                       dynamicField.placeholder ||
                                       `Enter ${dynamicField.label}`
@@ -1681,18 +1705,19 @@ export default function Step2Subprojects({
 
                   <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                     <div>
-                      <Label>Preparation Time *</Label>
+                      <Label className={subproject.preparationDuration?.value === undefined ? 'text-red-500' : ''}>Preparation Time *</Label>
                       <div className='flex space-x-2'>
                         <Input
                           type='number'
                           min='0'
                           step='0.5'
-                          value={subproject.preparationDuration?.value ?? 0}
+                          value={subproject.preparationDuration?.value ?? ''}
+                          className={subproject.preparationDuration?.value === undefined ? 'border-red-500' : ''}
                           onChange={(e) => {
-                            const parsed = parseFloat(e.target.value);
+                            const raw = e.target.value;
                             updateSubproject(subproject.id, {
                               preparationDuration: {
-                                value: Number.isNaN(parsed) ? 0 : parsed,
+                                value: parseNumericInput(raw),
                                 unit: resolvePreparationUnit(subproject),
                               },
                             });
@@ -1738,8 +1763,7 @@ export default function Step2Subprojects({
                               }
                               onChange={(e) => {
                                 const raw = e.target.value;
-                                const newMin =
-                                  raw === '' ? undefined : parseInt(raw, 10);
+                                const newMin = parseNumericInput(raw);
                                 const currentMax =
                                   subproject.executionDuration.range?.max;
 
@@ -1753,16 +1777,16 @@ export default function Step2Subprojects({
                                     ...subproject.executionDuration,
                                     range:
                                       newMin === undefined &&
-                                      currentMax === undefined
+                                        currentMax === undefined
                                         ? undefined
-                                        : ({
-                                            ...(newMin !== undefined
-                                              ? { min: newMin }
-                                              : {}),
-                                            ...(currentMax !== undefined
-                                              ? { max: currentMax }
-                                              : {}),
-                                          } as { min: number; max: number }),
+                                        : {
+                                          ...(newMin !== undefined
+                                            ? { min: newMin }
+                                            : {}),
+                                          ...(currentMax !== undefined
+                                            ? { max: currentMax }
+                                            : {}),
+                                        },
                                   },
                                   errors: {
                                     ...subproject.errors,
@@ -1773,11 +1797,10 @@ export default function Step2Subprojects({
                                 });
                               }}
                               placeholder='Min'
-                              className={`w-20 ${
-                                subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
-                              }`}
+                              className={`w-20 ${subproject.errors?.executionDurationRange
+                                ? 'border-red-500'
+                                : ''
+                                }`}
                             />
                             <span className='self-center text-gray-500'>
                               to
@@ -1790,8 +1813,7 @@ export default function Step2Subprojects({
                               }
                               onChange={(e) => {
                                 const raw = e.target.value;
-                                const newMax =
-                                  raw === '' ? undefined : parseInt(raw, 10);
+                                const newMax = parseNumericInput(raw);
                                 const currentMin =
                                   subproject.executionDuration.range?.min;
 
@@ -1805,16 +1827,16 @@ export default function Step2Subprojects({
                                     ...subproject.executionDuration,
                                     range:
                                       currentMin === undefined &&
-                                      newMax === undefined
+                                        newMax === undefined
                                         ? undefined
-                                        : ({
-                                            ...(currentMin !== undefined
-                                              ? { min: currentMin }
-                                              : {}),
-                                            ...(newMax !== undefined
-                                              ? { max: newMax }
-                                              : {}),
-                                          } as { min: number; max: number }),
+                                        : {
+                                          ...(currentMin !== undefined
+                                            ? { min: currentMin }
+                                            : {}),
+                                          ...(newMax !== undefined
+                                            ? { max: newMax }
+                                            : {}),
+                                        },
                                   },
                                   errors: {
                                     ...subproject.errors,
@@ -1825,11 +1847,10 @@ export default function Step2Subprojects({
                                 });
                               }}
                               placeholder='Max'
-                              className={`w-20 ${
-                                subproject.errors?.executionDurationRange
-                                  ? 'border-red-500'
-                                  : ''
-                              }`}
+                              className={`w-20 ${subproject.errors?.executionDurationRange
+                                ? 'border-red-500'
+                                : ''
+                                }`}
                             />
                             <Select
                               value={subproject.executionDuration.unit}
@@ -1868,29 +1889,29 @@ export default function Step2Subprojects({
                             <Input
                               type='number'
                               min='0'
-                              value={subproject.buffer?.value || ''}
+                              value={subproject.buffer?.value ?? ''}
                               onChange={(e) =>
                                 updateSubproject(subproject.id, {
                                   buffer: e.target.value
                                     ? {
-                                        value: parseInt(e.target.value),
-                                        unit:
-                                          subproject.buffer?.unit || 'hours',
-                                      }
+                                      value: parseNumericInput(e.target.value),
+                                      unit:
+                                        subproject.buffer?.unit || 'days',
+                                    }
                                     : undefined,
                                 })
                               }
                               placeholder='0'
                             />
                             <Select
-                              value={subproject.buffer?.unit || 'hours'}
+                              value={subproject.buffer?.unit || 'days'}
                               onValueChange={(value: 'hours' | 'days') =>
                                 updateSubproject(subproject.id, {
                                   buffer: subproject.buffer
                                     ? {
-                                        ...subproject.buffer,
-                                        unit: value,
-                                      }
+                                      ...subproject.buffer,
+                                      unit: value,
+                                    }
                                     : { value: 0, unit: value },
                                 })
                               }
@@ -1917,15 +1938,16 @@ export default function Step2Subprojects({
                             <Input
                               type='number'
                               min='1'
-                              value={subproject.executionDuration.value}
-                              onChange={(e) =>
+                              value={subproject.executionDuration.value ?? ''}
+                              onChange={(e) => {
+                                const raw = e.target.value;
                                 updateSubproject(subproject.id, {
                                   executionDuration: {
                                     ...subproject.executionDuration,
-                                    value: parseInt(e.target.value) || 1,
+                                    value: parseNumericInput(raw),
                                   },
-                                })
-                              }
+                                });
+                              }}
                             />
                             <Select
                               value={subproject.executionDuration.unit}
@@ -1955,29 +1977,29 @@ export default function Step2Subprojects({
                             <Input
                               type='number'
                               min='0'
-                              value={subproject.buffer?.value || ''}
+                              value={subproject.buffer?.value ?? ''}
                               onChange={(e) =>
                                 updateSubproject(subproject.id, {
                                   buffer: e.target.value
                                     ? {
-                                        value: parseInt(e.target.value),
-                                        unit:
-                                          subproject.buffer?.unit || 'hours',
-                                      }
+                                      value: parseNumericInput(e.target.value),
+                                      unit:
+                                        subproject.buffer?.unit || 'days',
+                                    }
                                     : undefined,
                                 })
                               }
                               placeholder='0'
                             />
                             <Select
-                              value={subproject.buffer?.unit || 'hours'}
+                              value={subproject.buffer?.unit || 'days'}
                               onValueChange={(value: 'hours' | 'days') =>
                                 updateSubproject(subproject.id, {
                                   buffer: subproject.buffer
                                     ? {
-                                        ...subproject.buffer,
-                                        unit: value,
-                                      }
+                                      ...subproject.buffer,
+                                      unit: value,
+                                    }
                                     : { value: 0, unit: value },
                                 })
                               }
@@ -2016,10 +2038,10 @@ export default function Step2Subprojects({
                               onChange={(e) =>
                                 updateSubproject(subproject.id, {
                                   intakeDuration: {
-                                    value: parseInt(e.target.value) || 0,
+                                    value: parseNumericInput(e.target.value) || 0,
                                     unit:
                                       subproject.intakeDuration?.unit ||
-                                      'hours',
+                                      'days',
                                     buffer: subproject.intakeDuration?.buffer,
                                   },
                                 })
@@ -2027,7 +2049,7 @@ export default function Step2Subprojects({
                               placeholder='0'
                             />
                             <Select
-                              value={subproject.intakeDuration?.unit || 'hours'}
+                              value={subproject.intakeDuration?.unit || 'days'}
                               onValueChange={(value: 'hours' | 'days') =>
                                 updateSubproject(subproject.id, {
                                   intakeDuration: {
@@ -2060,8 +2082,8 @@ export default function Step2Subprojects({
                                 intakeDuration: {
                                   value: subproject.intakeDuration?.value || 0,
                                   unit:
-                                    subproject.intakeDuration?.unit || 'hours',
-                                  buffer: parseInt(e.target.value) || undefined,
+                                    subproject.intakeDuration?.unit || 'days',
+                                  buffer: parseNumericInput(e.target.value),
                                 },
                               })
                             }
@@ -2108,10 +2130,9 @@ export default function Step2Subprojects({
                           `EUR ${sub.pricing.amount} (Total)`}
                         {sub.pricing.type === 'unit' &&
                           sub.pricing.amount &&
-                          `EUR ${sub.pricing.amount}/${unitLabel}${
-                            sub.pricing.minOrderQuantity
-                              ? ` (min ${sub.pricing.minOrderQuantity})`
-                              : ''
+                          `EUR ${sub.pricing.amount}/${unitLabel}${sub.pricing.minOrderQuantity
+                            ? ` (min ${sub.pricing.minOrderQuantity})`
+                            : ''
                           }`}
                         {sub.pricing.type === 'rfq' && (
                           <>
@@ -2127,10 +2148,24 @@ export default function Step2Subprojects({
                         )}
                       </td>
                       <td className="p-2">
-                        {sub.pricing.type === 'rfq' && sub.executionDuration.range?.min && sub.executionDuration.range?.max ? (
-                          `${sub.executionDuration.range.min}-${sub.executionDuration.range.max} ${sub.executionDuration.unit}`
-                        ) : (
+                        {sub.pricing.type === 'rfq' ? (
+                          (() => {
+                            const r = sub.executionDuration.range;
+                            if (r?.min != null && r?.max != null) {
+                              return `${r.min}-${r.max} ${sub.executionDuration.unit}`;
+                            } else if (r?.min != null) {
+                              return `${r.min}- ${sub.executionDuration.unit}`;
+                            } else if (r?.max != null) {
+                              return `- ${r.max} ${sub.executionDuration.unit}`;
+                            }
+                            return sub.executionDuration.value != null
+                              ? `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                              : <span className='text-gray-400 italic'>Not set</span>;
+                          })()
+                        ) : sub.executionDuration.value != null ? (
                           `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                        ) : (
+                          <span className='text-gray-400 italic'>Not set</span>
                         )}
                       </td>
                       <td className='p-2'>
@@ -2148,16 +2183,16 @@ export default function Step2Subprojects({
             {subprojects.some(
               (s) => s.pricing.type === 'fixed' && s.pricing.amount
             ) && (
-              <div className='mt-4 p-4 bg-blue-50 rounded-lg'>
-                <div className='flex items-center space-x-2'>
-                  <Info className='w-4 h-4 text-blue-600' />
-                  <span className='font-medium text-blue-900'>
-                    Total fixed price packages: EUR{' '}
-                    {calculateTotalPrice().toFixed(2)}
-                  </span>
+                <div className='mt-4 p-4 bg-blue-50 rounded-lg'>
+                  <div className='flex items-center space-x-2'>
+                    <Info className='w-4 h-4 text-blue-600' />
+                    <span className='font-medium text-blue-900'>
+                      Total fixed price packages: EUR{' '}
+                      {calculateTotalPrice().toFixed(2)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </CardContent>
         </Card>
       )}

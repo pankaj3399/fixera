@@ -32,7 +32,7 @@ interface ProjectData {
   distance?: {
     address: string
     useCompanyAddress: boolean
-    maxKmRange: number
+    maxKmRange?: number
     noBorders: boolean
     location?: {
       type: 'Point'
@@ -328,13 +328,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     validateForm()
   }, [formData, serviceConfig])
 
-  // Ensure a priceModel is auto-selected for non-renovation when pricing models load
-  useEffect(() => {
-    const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
-    if (!isRenovation && !formData.priceModel && pricingModels.length > 0) {
-      updateFormData({ priceModel: pricingModels[0] })
-    }
-  }, [pricingModels])
+  // Price model is left blank so the professional is obliged to choose
 
   useEffect(() => {
     const currentMin = formData.minResources ?? 1
@@ -392,7 +386,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       (isRenovationCategory || (!!formData.priceModel)) &&
       formData.distance?.address &&
       addressValid &&
-      formData.distance?.maxKmRange
+      formData.distance?.maxKmRange &&
+      formData.distance.maxKmRange > 0
     )
     onValidate(isValid)
   }
@@ -493,9 +488,10 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (!formData.distance?.address) errors.push('Service Address is required')
     if (!addressValid) errors.push('Please enter a valid address')
     if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
+    else if (formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
 
     if (errors.length > 0) {
-      errors.forEach(error => toast.error(error))
+      toast.error(errors.join('. '));
     }
   }
 
@@ -510,7 +506,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const updateDistance = (updates: Partial<{
     address: string
     useCompanyAddress: boolean
-    maxKmRange: number
+    maxKmRange?: number
     noBorders: boolean
     location?: { type: 'Point'; coordinates: [number, number] }
   }>) => {
@@ -519,7 +515,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       distance: {
         address: prev.distance?.address || '',
         useCompanyAddress: prev.distance?.useCompanyAddress || false,
-        maxKmRange: prev.distance?.maxKmRange || 50,
+        maxKmRange: prev.distance?.maxKmRange,
         noBorders: prev.distance?.noBorders || false,
         location: prev.distance?.location,
         ...updates
@@ -565,7 +561,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         `Expert ${serviceTitle} Services - ${formData.areaOfWork || 'Professional Solutions'}`,
         `Quality ${serviceTitle} - ${keywords ? keywords.split(',')[0] : 'Reliable'} & Professional`,
         `Professional ${serviceTitle} - Quality Work You Can Trust`,
-        `${serviceTitle} Expert - ${formData.distance?.maxKmRange}km Range - Quality Guaranteed`
+        formData.distance?.maxKmRange != null
+          ? `${serviceTitle} Expert - ${formData.distance.maxKmRange}km Range - Quality Guaranteed`
+          : `${serviceTitle} Expert - Quality Guaranteed`
       ]
 
       let bestTitle = titleVariations[0]
@@ -722,7 +720,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     category: value,
                     service: '',
                     areaOfWork: '',
-                    priceModel: value.toLowerCase() === 'renovation' ? 'rfq' : (formData.priceModel || ''),
+                    priceModel: value.toLowerCase() === 'renovation' ? 'rfq' : '',
                     categories: [value],
                     services: []
                   })
@@ -876,14 +874,20 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className='space-y-2'>
-              <Label htmlFor="maxKmRange">Maximum Range (km) *</Label>
+              <Label htmlFor="maxKmRange">Maximum Range (km)</Label>
               <Input
                 id="maxKmRange"
                 type="number"
                 min="1"
                 max="200"
-                value={formData.distance?.maxKmRange || ''}
-                onChange={(e) => updateDistance({ maxKmRange: parseInt(e.target.value) })}
+                value={formData.distance?.maxKmRange ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parsed = parseInt(val, 10);
+                  updateDistance({
+                    maxKmRange: val === '' || Number.isNaN(parsed) ? undefined : parsed
+                  });
+                }}
                 placeholder="50"
               />
             </div>
@@ -895,7 +899,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 onCheckedChange={(checked) => updateDistance({ noBorders: checked as boolean })}
               />
               <Label htmlFor="noBorders">Don&apos;t cross country borders</Label>
-              
+
             </div>
           </div>
         </CardContent>
@@ -1636,4 +1640,4 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 Step1BasicInfo.displayName = 'Step1BasicInfo'
 
 export default Step1BasicInfo
- 
+

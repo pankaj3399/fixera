@@ -86,6 +86,14 @@ interface SubprojectIncludedItem {
 
 interface SubprojectMaterial {
   name: string
+  quantity?: string
+  unit?: string
+  description?: string
+}
+
+interface ProfessionalInputValue {
+  fieldName: string
+  value: string | number | { min: number; max: number }
 }
 
 interface Subproject {
@@ -95,9 +103,12 @@ interface Subproject {
   included?: SubprojectIncludedItem[]
   materialsIncluded?: boolean
   materials?: SubprojectMaterial[]
+  professionalInputs?: ProfessionalInputValue[]
   pricing?: {
     type?: string
     amount?: number
+    priceRange?: { min?: number; max?: number }
+    minOrderQuantity?: number
   }
   preparationDuration?: { value?: number; unit?: string }
   executionDuration?: {
@@ -110,6 +121,27 @@ interface Subproject {
   warrantyPeriod?: { value?: number; unit?: string }
 }
 
+interface ExtraOption {
+  name: string
+  description?: string
+  price: number
+  isCustom: boolean
+}
+
+interface TermCondition {
+  name: string
+  description: string
+  type?: 'condition' | 'warning'
+  additionalCost?: number
+  isCustom: boolean
+}
+
+interface FAQItem {
+  question: string
+  answer: string
+  isGenerated: boolean
+}
+
 interface Project {
   _id: string
   title: string
@@ -120,7 +152,7 @@ interface Project {
   professionalId: string
   distance: {
     address: string
-    maxKmRange: number
+    maxKmRange?: number
     noBorders: boolean
   }
   projectType: string[]
@@ -128,10 +160,17 @@ interface Project {
   status: string
   submittedAt: string
   qualityChecks: QualityCheck[]
+  extraOptions?: ExtraOption[]
+  termsConditions?: TermCondition[]
+  faq?: FAQItem[]
+  customConfirmationMessage?: string
+  // TODO: customerPresence is intentionally unused for now
+  customerPresence?: string
   professional?: Professional
   media?: {
     images?: MediaItem[]
     video?: MediaItem
+    captions?: MediaItem
   }
   certifications?: CertificationItem[]
   rfqQuestions?: RFQQuestion[]
@@ -152,6 +191,19 @@ const getCertUrl = (cert?: CertificationItem | null): string => {
   return cert.certificateUrl || cert.fileUrl || ''
 }
 
+const sanitizeHref = (url: string | undefined | null): string | undefined => {
+  if (!url) return undefined
+  try {
+    const parsed = new URL(url)
+    if (['http:', 'https:'].includes(parsed.protocol)) {
+      return parsed.href
+    }
+  } catch {
+    // ignore
+  }
+  return undefined
+}
+
 export default function ProjectApprovalPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [approvedProjects, setApprovedProjects] = useState<Project[]>([])
@@ -159,6 +211,21 @@ export default function ProjectApprovalPage() {
   const [feedback, setFeedback] = useState('')
   const [suspendReason, setSuspendReason] = useState('')
   const [deleteReason, setDeleteReason] = useState('')
+
+  // Safe URL parser for external links to prevent XSS payloads like javascript:
+  const sanitizeWebsiteUrl = (url: string | undefined): string | undefined => {
+    if (!url) return undefined
+    try {
+      const parsed = new URL(url.includes('://') ? url : `https://${url}`)
+      if (['http:', 'https:'].includes(parsed.protocol)) {
+        return parsed.toString()
+      }
+      return undefined // Invalid or unsafe scheme
+    } catch {
+      return undefined // Unparseable
+    }
+  }
+
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending')
@@ -526,7 +593,7 @@ export default function ProjectApprovalPage() {
                 <CardTitle className="flex items-center justify-between">
                   <span>{activeTab === 'pending' ? `Pending Projects (${projects.length})` : `Approved Projects (${approvedProjects.filter(p => approvedFilter === 'all' ? true : p.status === approvedFilter).length})`}</span>
                   <Button variant="outline" size="sm" onClick={activeTab === 'pending' ? fetchPendingProjects : fetchApprovedProjects}>
-                     Refresh
+                    Refresh
                   </Button>
                 </CardTitle>
               </CardHeader>
@@ -541,16 +608,15 @@ export default function ProjectApprovalPage() {
                     {(activeTab === 'pending'
                       ? projects
                       : approvedProjects
-                          .filter(p => approvedFilter === 'all' ? true : p.status === approvedFilter)
-                          .filter(p => p.title.toLowerCase().includes(approvedSearch.trim().toLowerCase()))
+                        .filter(p => approvedFilter === 'all' ? true : p.status === approvedFilter)
+                        .filter(p => p.title.toLowerCase().includes(approvedSearch.trim().toLowerCase()))
                     ).map((project) => (
                       <Card
                         key={project._id}
-                        className={`cursor-pointer transition-colors ${
-                          selectedProject?._id === project._id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'hover:bg-gray-50'
-                        }`}
+                        className={`cursor-pointer transition-colors ${selectedProject?._id === project._id
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'hover:bg-gray-50'
+                          }`}
                         onClick={() => handleSelectProject(project)}
                       >
                         <CardContent className="p-4">
@@ -570,10 +636,12 @@ export default function ProjectApprovalPage() {
                               <span>{project.category} - {project.service}</span>
                             </div>
 
-                            <div className="flex items-center space-x-2">
-                              <MapPin className="w-4 h-4" />
-                              <span>{project.distance.maxKmRange}km range</span>
-                            </div>
+                            {(project.distance.maxKmRange != null || project.distance.noBorders) && (
+                              <div className="flex items-center space-x-2">
+                                <MapPin className="w-4 h-4" />
+                                <span>{project.distance.noBorders ? 'No borders' : `${project.distance.maxKmRange}km range`}</span>
+                              </div>
+                            )}
 
                             <div className="flex items-center space-x-2">
                               <DollarSign className="w-4 h-4" />
@@ -655,424 +723,590 @@ export default function ProjectApprovalPage() {
 
                   {/* Project Info - always show for non-resubmissions, collapsible for resubmissions */}
                   {(!projectChanges?.isResubmission || activeTab !== 'pending' || showFullDetails) && (<>
-                  <div>
-                    <h4 className="font-semibold mb-3">Project Information</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium">Title</Label>
-                        <p className="text-sm text-gray-700">{selectedProject.title}</p>
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-medium">Description</Label>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {selectedProject.description}
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium">Category</Label>
-                          <p className="text-sm text-gray-700">{selectedProject.category}</p>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium">Service</Label>
-                          <p className="text-sm text-gray-700">{selectedProject.service}</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium">Price Model</Label>
-                          <p className="text-sm text-gray-700">{selectedProject.priceModel}</p>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium">Service Range</Label>
-                          <p className="text-sm text-gray-700">{selectedProject.distance.maxKmRange}km</p>
-                        </div>
-                      </div>
-
-                      {selectedProject.projectType && selectedProject.projectType.length > 0 && (
-                        <div>
-                          <Label className="text-sm font-medium">Project Types</Label>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {selectedProject.projectType.map((type, index) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {type}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedProject.keywords && selectedProject.keywords.length > 0 && (
-                        <div>
-                          <Label className="text-sm font-medium">Keywords</Label>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {selectedProject.keywords.map((keyword, index) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {keyword}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Professional Information */}
-                  {selectedProject.professional && (
                     <div>
-                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
-                        <Building className="w-4 h-4" />
-                        <span>Professional Information</span>
-                      </h4>
-                      <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-semibold mb-3">Project Information</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-sm font-medium">Title</Label>
+                          <p className="text-sm text-gray-700">{selectedProject.title}</p>
+                        </div>
+
+                        <div>
+                          <Label className="text-sm font-medium">Description</Label>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            {selectedProject.description}
+                          </p>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-sm font-medium flex items-center space-x-1">
-                              <User className="w-3 h-3" />
-                              <span>Name</span>
-                            </Label>
-                            <p className="text-sm text-gray-700">{selectedProject.professional.name}</p>
+                            <Label className="text-sm font-medium">Category</Label>
+                            <p className="text-sm text-gray-700">{selectedProject.category}</p>
                           </div>
                           <div>
-                            <Label className="text-sm font-medium flex items-center space-x-1">
-                              <Mail className="w-3 h-3" />
-                              <span>Email</span>
-                            </Label>
-                            <p className="text-sm text-gray-700">{selectedProject.professional.email}</p>
+                            <Label className="text-sm font-medium">Service</Label>
+                            <p className="text-sm text-gray-700">{selectedProject.service}</p>
                           </div>
                         </div>
+
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-sm font-medium flex items-center space-x-1">
-                              <Phone className="w-3 h-3" />
-                              <span>Phone</span>
-                            </Label>
-                            <p className="text-sm text-gray-700">{selectedProject.professional.phone}</p>
+                            <Label className="text-sm font-medium">Price Model</Label>
+                            <p className="text-sm text-gray-700">{selectedProject.priceModel}</p>
                           </div>
-                          {selectedProject.professional.professionalStatus && (
-                            <div>
-                              <Label className="text-sm font-medium">Status</Label>
-                              <Badge variant="outline" className="mt-1">
-                                {selectedProject.professional.professionalStatus}
-                              </Badge>
+                          <div>
+                            <Label className="text-sm font-medium">Service Range</Label>
+                            {(selectedProject.distance.maxKmRange != null || selectedProject.distance.noBorders) && (
+                              <p className="text-sm text-gray-700">
+                                {selectedProject.distance.noBorders
+                                  ? 'Nationwide (No borders)'
+                                  : `${selectedProject.distance.maxKmRange}km`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {selectedProject.projectType && selectedProject.projectType.length > 0 && (
+                          <div>
+                            <Label className="text-sm font-medium">Project Types</Label>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedProject.projectType.map((type, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {type}
+                                </Badge>
+                              ))}
                             </div>
-                          )}
-                        </div>
-                        {selectedProject.professional.businessInfo && (
+                          </div>
+                        )}
+
+                        {selectedProject.keywords && selectedProject.keywords.length > 0 && (
                           <div>
-                            <Label className="text-sm font-medium">Business Information</Label>
-                            <div className="mt-2 space-y-2 text-sm text-gray-700">
-                              {selectedProject.professional.businessInfo.businessName && (
-                                <p><strong>Business:</strong> {selectedProject.professional.businessInfo.businessName}</p>
-                              )}
-                              {selectedProject.professional.businessInfo.website && (
-                                <p>
-                                  <strong>Website:</strong>{' '}
-                                  <a
-                                    href={selectedProject.professional.businessInfo.website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline items-center inline-flex space-x-1"
-                                  >
-                                    <span>{selectedProject.professional.businessInfo.website}</span>
-                                    <ExternalLink className="w-3 h-3" />
-                                  </a>
-                                </p>
-                              )}
-                              {selectedProject.professional.businessInfo.address && (
-                                <p><strong>Address:</strong> {selectedProject.professional.businessInfo.address}</p>
-                              )}
+                            <Label className="text-sm font-medium">Keywords</Label>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedProject.keywords.map((keyword, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {keyword}
+                                </Badge>
+                              ))}
                             </div>
                           </div>
                         )}
                       </div>
                     </div>
-                  )}
 
-                  {/* Project Images */}
-                  {selectedProject.media?.images && selectedProject.media.images.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
-                        <ImageIcon className="w-4 h-4" />
-                        <span>Project Images ({selectedProject.media.images.length})</span>
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        {selectedProject.media.images.map((image, index) => (
-                          <div key={index} className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
-                            <Image
-                              src={getUrl(image)}
-                              alt={`Project image ${index + 1}`}
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 768px) 100vw, 50vw"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Project Video */}
-                  {selectedProject.media?.video && (
-                    <div>
-                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
-                        <Video className="w-4 h-4" />
-                        <span>Project Video</span>
-                      </h4>
-                      <div className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
-                        <video
-                          src={getUrl(selectedProject.media.video)}
-                          controls
-                          className="w-full h-full"
-                        >
-                          Your browser does not support the video tag.
-                        </video>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Subprojects */}
-                  {selectedProject && selectedProject.subprojects && selectedProject.subprojects.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
-                        <Package className="w-4 h-4" />
-                        <span>Subprojects ({selectedProject.subprojects.length})</span>
-                      </h4>
-                      <div className="space-y-3">
-                        {selectedProject.subprojects.map((sp: Subproject, idx: number) => {
-                          const preparationValue = sp.preparationDuration?.value
-                          const preparationUnit = sp.preparationDuration?.unit ?? sp.executionDuration?.unit ?? 'days'
-                          return (
-                            <div key={idx} className="p-3 rounded-lg border bg-gray-50">
-                              <div className="flex items-center justify-between">
-                                <div className="font-medium">{sp.name}</div>
-                                <div>
-                                  {sp.pricing?.type && (
-                                    <Badge variant="outline" className="text-xs">
-                                      {sp.pricing.type}{sp.pricing?.amount ? ` • ${sp.pricing.amount}` : ''}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                              {sp.description && (
-                                <p className="text-sm text-gray-700 mt-1">{sp.description}</p>
-                              )}
-                              {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
-                                <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
-                              )}
-                              {Array.isArray(sp.included) && sp.included.length > 0 && (
-                                <div className="mt-2">
-                                  <Label className="text-xs font-medium">Included Items</Label>
-                                  <div className="mt-1 flex flex-wrap gap-1">
-                                    {sp.included.map((it: SubprojectIncludedItem, i: number) => (
-                                      <Badge key={i} variant="outline" className={`text-[10px] ${it.isDynamicField ? 'bg-purple-100' : ''}`}>
-                                        {it.name}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
-                                <div className="mt-2 text-xs text-gray-700">Materials: {sp.materials.map((m: SubprojectMaterial) => m.name).join(', ')}</div>
-                              )}
-                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
-                                {preparationValue != null && (
-                                  <div>
-                                    Preparation: {preparationValue} {preparationUnit}
-                                  </div>
-                                )}
-                                {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
-                                {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
-                                {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
-                                {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
-                              </div>
-                              {sp.warrantyPeriod && (
-                                <div className="mt-2 text-xs text-gray-700">Warranty: {sp.warrantyPeriod.value} {sp.warrantyPeriod.unit}</div>
-                              )}
+                    {/* Professional Information */}
+                    {selectedProject.professional && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <Building className="w-4 h-4" />
+                          <span>Professional Information</span>
+                        </h4>
+                        <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-sm font-medium flex items-center space-x-1">
+                                <User className="w-3 h-3" />
+                                <span>Name</span>
+                              </Label>
+                              <p className="text-sm text-gray-700">{selectedProject.professional.name}</p>
                             </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Certifications */}
-                  {selectedProject.certifications && selectedProject.certifications.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
-                        <Award className="w-4 h-4" />
-                        <span>Certifications ({selectedProject.certifications.length})</span>
-                      </h4>
-                      <div className="space-y-3">
-                        {selectedProject.certifications.map((cert, index) => (
-                          <div key={index} className="p-4 border rounded-lg bg-gray-50">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h5 className="font-medium text-sm">{cert.name || 'Certification'}</h5>
-                                {(cert.issuedBy || cert.uploadedAt) && (
-                                  <p className="text-sm text-gray-600 mt-1">
-                                    {cert.issuedBy ? (
-                                      <>Issued by: {cert.issuedBy}</>
+                            <div>
+                              <Label className="text-sm font-medium flex items-center space-x-1">
+                                <Mail className="w-3 h-3" />
+                                <span>Email</span>
+                              </Label>
+                              <p className="text-sm text-gray-700">{selectedProject.professional.email}</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-sm font-medium flex items-center space-x-1">
+                                <Phone className="w-3 h-3" />
+                                <span>Phone</span>
+                              </Label>
+                              <p className="text-sm text-gray-700">{selectedProject.professional.phone}</p>
+                            </div>
+                            {selectedProject.professional.professionalStatus && (
+                              <div>
+                                <Label className="text-sm font-medium">Status</Label>
+                                <Badge variant="outline" className="mt-1">
+                                  {selectedProject.professional.professionalStatus}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                          {selectedProject.professional.businessInfo && (
+                            <div>
+                              <Label className="text-sm font-medium">Business Information</Label>
+                              <div className="mt-2 space-y-2 text-sm text-gray-700">
+                                {selectedProject.professional.businessInfo.businessName && (
+                                  <p><strong>Business:</strong> {selectedProject.professional.businessInfo.businessName}</p>
+                                )}
+                                {selectedProject.professional.businessInfo.website && (
+                                  <p>
+                                    <strong>Website:</strong>{' '}
+                                    {sanitizeWebsiteUrl(selectedProject.professional.businessInfo.website) ? (
+                                      <a
+                                        href={sanitizeWebsiteUrl(selectedProject.professional.businessInfo.website)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline items-center inline-flex space-x-1"
+                                      >
+                                        <span>{selectedProject.professional.businessInfo.website}</span>
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
                                     ) : (
-                                      <>Uploaded: {cert.uploadedAt ? new Date(cert.uploadedAt).toLocaleDateString() : ''}</>
+                                      <span className="text-gray-500 line-through" title="Invalid URL">
+                                        {selectedProject.professional.businessInfo.website}
+                                      </span>
                                     )}
                                   </p>
                                 )}
-                                <div className="flex items-center space-x-4 text-xs text-gray-500 mt-2">
-                                  {cert.issuedDate && (
-                                    <span>Issued: {new Date(cert.issuedDate).toLocaleDateString()}</span>
+                                {selectedProject.professional.businessInfo.address && (
+                                  <p><strong>Address:</strong> {selectedProject.professional.businessInfo.address}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Project Images */}
+                    {selectedProject.media?.images && selectedProject.media.images.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <ImageIcon className="w-4 h-4" />
+                          <span>Project Images ({selectedProject.media.images.length})</span>
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          {selectedProject.media.images.map((image, index) => (
+                            <div key={index} className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
+                              <Image
+                                src={getUrl(image)}
+                                alt={`Project image ${index + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 50vw"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Project Video */}
+                    {selectedProject.media?.video && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <Video className="w-4 h-4" />
+                          <span>Project Video</span>
+                        </h4>
+                        <div className="relative aspect-video border rounded-lg overflow-hidden bg-gray-100">
+                          <video
+                            src={getUrl(selectedProject.media.video)}
+                            controls
+                            className="w-full h-full"
+                          >
+                            {selectedProject.media.captions && (
+                              <track
+                                kind="captions"
+                                src={getUrl(selectedProject.media.captions)}
+                                srcLang="en"
+                                label="English captions"
+                                default
+                              />
+                            )}
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Subprojects */}
+                    {selectedProject && selectedProject.subprojects && selectedProject.subprojects.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <Package className="w-4 h-4" />
+                          <span>Subprojects ({selectedProject.subprojects.length})</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {selectedProject.subprojects.map((sp: Subproject, idx: number) => {
+                            const preparationValue = sp.preparationDuration?.value
+                            const preparationUnit = sp.preparationDuration?.unit ?? sp.executionDuration?.unit ?? 'days'
+                            return (
+                              <div key={idx} className="p-3 rounded-lg border bg-gray-50">
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium">{sp.name}</div>
+                                  <div>
+                                    {sp.pricing?.type && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {sp.pricing.type}{sp.pricing?.amount != null ? ` • €${sp.pricing.amount.toLocaleString()}` : ''}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                {sp.description && (
+                                  <p className="text-sm text-gray-700 mt-1">{sp.description}</p>
+                                )}
+                                {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
+                                  <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
+                                )}
+
+                                {/* MOQ for unit pricing */}
+                                {sp.pricing?.type === 'unit' && sp.pricing.minOrderQuantity != null && (
+                                  <div className="mt-2 text-xs text-gray-700">
+                                    <strong>Min Order Quantity:</strong> {sp.pricing.minOrderQuantity}
+                                  </div>
+                                )}
+
+                                {/* Price Range for RFQ */}
+                                {sp.pricing?.type === 'rfq' && sp.pricing.priceRange?.min != null && sp.pricing.priceRange?.max != null && (
+                                  <div className="mt-2 text-xs text-gray-700">
+                                    <strong>Price Range:</strong> €{sp.pricing.priceRange.min} - €{sp.pricing.priceRange.max}
+                                  </div>
+                                )}
+
+                                {/* Service Parameters / Professional Inputs */}
+                                {Array.isArray(sp.professionalInputs) && sp.professionalInputs.length > 0 && (
+                                  <div className="mt-2">
+                                    <Label className="text-xs font-medium">Service Parameters</Label>
+                                    <div className="mt-1 space-y-1">
+                                      {sp.professionalInputs.map((input: ProfessionalInputValue, i: number) => (
+                                        <div key={i} className="flex items-center justify-between text-xs text-gray-700 bg-white px-2 py-1 rounded border">
+                                          <span className="font-medium">{input.fieldName}</span>
+                                          <span>
+                                            {typeof input.value === 'object' && input.value !== null && 'min' in (input.value as Record<string, unknown>) && 'max' in (input.value as Record<string, unknown>)
+                                              ? `${(input.value as { min: number; max: number }).min} - ${(input.value as { min: number; max: number }).max}`
+                                              : String(input.value ?? '')}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {Array.isArray(sp.included) && sp.included.length > 0 && (
+                                  <div className="mt-2">
+                                    <Label className="text-xs font-medium">Included Items</Label>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {sp.included.map((it: SubprojectIncludedItem, i: number) => (
+                                        <Badge key={i} variant="outline" className={`text-[10px] ${it.isDynamicField ? 'bg-purple-100' : ''}`}>
+                                          {it.name}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {sp.materialsIncluded && Array.isArray(sp.materials) && sp.materials.length > 0 && (
+                                  <div className="mt-2">
+                                    <Label className="text-xs font-medium">Materials</Label>
+                                    <div className="mt-1 space-y-1">
+                                      {sp.materials.map((m: SubprojectMaterial, i: number) => (
+                                        <div key={i} className="text-xs text-gray-700 bg-white px-2 py-1 rounded border flex items-center justify-between">
+                                          <span className="font-medium">{m.name}</span>
+                                          <span className="text-gray-500">
+                                            {m.quantity ? `${m.quantity}` : ''}{m.unit ? ` ${m.unit}` : ''}{m.description ? ` — ${m.description}` : ''}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
+                                  {preparationValue != null && (
+                                    <div>
+                                      Preparation: {preparationValue} {preparationUnit}
+                                    </div>
                                   )}
-                                  {cert.expiryDate && (
-                                    <span>Expires: {new Date(cert.expiryDate).toLocaleDateString()}</span>
+                                  {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
+                                  {sp.executionDuration?.range && (sp.executionDuration.range.min != null || sp.executionDuration.range.max != null) && (
+                                    <div>
+                                      Range: {sp.executionDuration.range.min != null ? sp.executionDuration.range.min : ''}
+                                      {sp.executionDuration.range.min != null && sp.executionDuration.range.max != null ? ' - ' : ''}
+                                      {sp.executionDuration.range.max != null ? sp.executionDuration.range.max : ''}
+                                    </div>
                                   )}
+                                  {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
+                                  {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
                                 </div>
+                                {sp.warrantyPeriod && (
+                                  <div className="mt-2 text-xs text-gray-700">Warranty: {sp.warrantyPeriod.value} {sp.warrantyPeriod.unit}</div>
+                                )}
                               </div>
-                              {getCertUrl(cert) && (
-                                <a
-                                  href={getCertUrl(cert)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="ml-4 text-blue-600 hover:text-blue-800"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* RFQ Questions & Attachments */}
-                  {selectedProject.rfqQuestions && selectedProject.rfqQuestions.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
-                        <FileText className="w-4 h-4" />
-                        <span>RFQ Questions & Answers</span>
-                      </h4>
-                      <div className="space-y-3">
-                        {selectedProject.rfqQuestions.map((rfq, index) => (
-                          <div key={index} className="p-4 border rounded-lg">
-                            <div className="mb-2">
-                              <Label className="text-sm font-medium">Q{index + 1}: {rfq.question}</Label>
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                {rfq.answerType}
-                              </Badge>
-                            </div>
-                            {rfq.professionalAnswer && (
-                              <p className="text-sm text-gray-700 mb-2">
-                                <strong>Answer:</strong> {rfq.professionalAnswer}
-                              </p>
-                            )}
-                            {rfq.professionalAttachments && rfq.professionalAttachments.length > 0 && (
-                              <div className="mt-3">
-                                <Label className="text-xs font-medium text-gray-500 flex items-center space-x-1">
-                                  <Paperclip className="w-3 h-3" />
-                                  <span>Attachments ({rfq.professionalAttachments.length})</span>
-                                </Label>
-                                <div className="mt-2 space-y-2">
-                                  {rfq.professionalAttachments.map((attachment, attIndex) => (
-                                    <a
-                                      key={attIndex}
-                                      href={getUrl(attachment)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                                    >
-                                      <Paperclip className="w-3 h-3" />
-                                      <span>Attachment {attIndex + 1}</span>
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                  ))}
+                    {/* Certifications */}
+                    {selectedProject.certifications && selectedProject.certifications.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <Award className="w-4 h-4" />
+                          <span>Certifications ({selectedProject.certifications.length})</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {selectedProject.certifications.map((cert, index) => (
+                            <div key={index} className="p-4 border rounded-lg bg-gray-50">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <h5 className="font-medium text-sm">{cert.name || 'Certification'}</h5>
+                                  {(cert.issuedBy || cert.uploadedAt) && (
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      {cert.issuedBy ? (
+                                        <>Issued by: {cert.issuedBy}</>
+                                      ) : (
+                                        <>Uploaded: {cert.uploadedAt ? new Date(cert.uploadedAt).toLocaleDateString() : ''}</>
+                                      )}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center space-x-4 text-xs text-gray-500 mt-2">
+                                    {cert.issuedDate && (
+                                      <span>Issued: {new Date(cert.issuedDate).toLocaleDateString()}</span>
+                                    )}
+                                    {cert.expiryDate && (
+                                      <span>Expires: {new Date(cert.expiryDate).toLocaleDateString()}</span>
+                                    )}
+                                  </div>
                                 </div>
+                                {sanitizeHref(getCertUrl(cert)) && (
+                                  <a
+                                    href={sanitizeHref(getCertUrl(cert))}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="ml-4 text-blue-600 hover:text-blue-800"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Post-Booking Questions & Attachments */}
-                  {selectedProject.postBookingQuestions && selectedProject.postBookingQuestions.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3 flex items-center space-x-2">
-                        <FileText className="w-4 h-4" />
-                        <span>Post-Booking Questions & Answers</span>
-                      </h4>
-                      <div className="space-y-3">
-                        {selectedProject.postBookingQuestions.map((pbq, index) => (
-                          <div key={index} className="p-4 border rounded-lg bg-blue-50">
-                            <div className="mb-2">
-                              <Label className="text-sm font-medium">Q{index + 1}: {pbq.question}</Label>
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                {pbq.answerType}
-                              </Badge>
                             </div>
-                            {pbq.professionalAnswer && (
-                              <p className="text-sm text-gray-700 mb-2">
-                                <strong>Answer:</strong> {pbq.professionalAnswer}
-                              </p>
-                            )}
-                            {pbq.professionalAttachments && pbq.professionalAttachments.length > 0 && (
-                              <div className="mt-3">
-                                <Label className="text-xs font-medium text-gray-500 flex items-center space-x-1">
-                                  <Paperclip className="w-3 h-3" />
-                                  <span>Attachments ({pbq.professionalAttachments.length})</span>
-                                </Label>
-                                <div className="mt-2 space-y-2">
-                                  {pbq.professionalAttachments.map((attachment, attIndex) => (
-                                    <a
-                                      key={attIndex}
-                                      href={getUrl(attachment)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                                    >
-                                      <Paperclip className="w-3 h-3" />
-                                      <span>Attachment {attIndex + 1}</span>
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Quality Checks */}
-                  {selectedProject.qualityChecks && selectedProject.qualityChecks.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3">Quality Checks</h4>
-                      <div className="space-y-2">
-                        {selectedProject.qualityChecks.map((check, index) => (
-                          <div key={index} className="flex items-start space-x-3 p-3 border rounded-lg">
-                            {getQualityCheckIcon(check.status)}
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm font-medium">{check.category}</span>
-                                <Badge
-                                  variant={check.status === 'passed' ? 'default' : 'destructive'}
-                                  className="text-xs"
-                                >
-                                  {check.status}
+                    {/* RFQ Questions & Attachments */}
+                    {selectedProject.rfqQuestions && selectedProject.rfqQuestions.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <FileText className="w-4 h-4" />
+                          <span>RFQ Questions & Answers</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {selectedProject.rfqQuestions.map((rfq, index) => (
+                            <div key={index} className="p-4 border rounded-lg">
+                              <div className="mb-2">
+                                <Label className="text-sm font-medium">Q{index + 1}: {rfq.question}</Label>
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  {rfq.answerType}
                                 </Badge>
                               </div>
-                              <p className="text-sm text-gray-600 mt-1">{check.message}</p>
+                              {rfq.professionalAnswer && (
+                                <p className="text-sm text-gray-700 mb-2">
+                                  <strong>Answer:</strong> {rfq.professionalAnswer}
+                                </p>
+                              )}
+                              {rfq.professionalAttachments && rfq.professionalAttachments.length > 0 && (
+                                <div className="mt-3">
+                                  <Label className="text-xs font-medium text-gray-500 flex items-center space-x-1">
+                                    <Paperclip className="w-3 h-3" />
+                                    <span>Attachments ({rfq.professionalAttachments.length})</span>
+                                  </Label>
+                                  <div className="mt-2 space-y-2">
+                                    {rfq.professionalAttachments.map((attachment, attIndex) => {
+                                      const href = sanitizeHref(getUrl(attachment));
+                                      if (!href) return null;
+                                      return (
+                                        <a
+                                          key={attIndex}
+                                          href={href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          <Paperclip className="w-3 h-3" />
+                                          <span>Attachment {attIndex + 1}</span>
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {/* End of collapsible full details for resubmissions */}
+                    )}
+
+                    {/* Post-Booking Questions & Attachments */}
+                    {selectedProject.postBookingQuestions && selectedProject.postBookingQuestions.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <FileText className="w-4 h-4" />
+                          <span>Post-Booking Questions & Answers</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {selectedProject.postBookingQuestions.map((pbq, index) => (
+                            <div key={index} className="p-4 border rounded-lg bg-blue-50">
+                              <div className="mb-2">
+                                <Label className="text-sm font-medium">Q{index + 1}: {pbq.question}</Label>
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  {pbq.answerType}
+                                </Badge>
+                              </div>
+                              {pbq.professionalAnswer && (
+                                <p className="text-sm text-gray-700 mb-2">
+                                  <strong>Answer:</strong> {pbq.professionalAnswer}
+                                </p>
+                              )}
+                              {pbq.professionalAttachments && pbq.professionalAttachments.length > 0 && (
+                                <div className="mt-3">
+                                  <Label className="text-xs font-medium text-gray-500 flex items-center space-x-1">
+                                    <Paperclip className="w-3 h-3" />
+                                    <span>Attachments ({pbq.professionalAttachments.length})</span>
+                                  </Label>
+                                  <div className="mt-2 space-y-2">
+                                    {pbq.professionalAttachments.map((attachment, attIndex) => {
+                                      const href = sanitizeHref(getUrl(attachment));
+                                      if (!href) return null;
+                                      return (
+                                        <a
+                                          key={attIndex}
+                                          href={href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          <Paperclip className="w-3 h-3" />
+                                          <span>Attachment {attIndex + 1}</span>
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Extra Options */}
+                    {selectedProject.extraOptions && selectedProject.extraOptions.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <Package className="w-4 h-4" />
+                          <span>Extra Options ({selectedProject.extraOptions.length})</span>
+                        </h4>
+                        <div className="space-y-2">
+                          {selectedProject.extraOptions.map((opt: ExtraOption, index: number) => (
+                            <div key={index} className="p-3 border rounded-lg bg-gray-50 flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-sm">{opt.name}</div>
+                                {opt.description && <p className="text-xs text-gray-600 mt-0.5">{opt.description}</p>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">€{(opt.price ?? 0).toFixed(2)}</Badge>
+                                {opt.isCustom && <Badge className="text-[10px] bg-purple-100 text-purple-800">Custom</Badge>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Terms & Conditions */}
+                    {selectedProject.termsConditions && selectedProject.termsConditions.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <FileText className="w-4 h-4" />
+                          <span>Terms & Conditions ({selectedProject.termsConditions.length})</span>
+                        </h4>
+                        <div className="space-y-2">
+                          {selectedProject.termsConditions.map((term: TermCondition, index: number) => (
+                            <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium text-sm">{term.name}</div>
+                                <div className="flex items-center gap-2">
+                                  {term.type === 'warning' && <Badge className="text-[10px] bg-yellow-100 text-yellow-800">Warning</Badge>}
+                                  {term.type !== 'warning' && term.additionalCost != null && term.additionalCost >= 0 && (
+                                    <Badge variant="outline" className="text-xs text-red-600 border-red-200">+€{term.additionalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Badge>
+                                  )}
+                                  {term.isCustom && <Badge className="text-[10px] bg-purple-100 text-purple-800">Custom</Badge>}
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">{term.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* FAQ */}
+                    {selectedProject.faq && selectedProject.faq.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <FileText className="w-4 h-4" />
+                          <span>FAQ ({selectedProject.faq.length})</span>
+                        </h4>
+                        <div className="space-y-2">
+                          {selectedProject.faq.map((item: FAQItem, index: number) => (
+                            <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                              <div className="flex items-start justify-between">
+                                <div className="font-medium text-sm">Q: {item.question}</div>
+                                {item.isGenerated && <Badge className="text-[10px] bg-blue-100 text-blue-800">AI Generated</Badge>}
+                              </div>
+                              <p className="text-sm text-gray-700 mt-1">A: {item.answer}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom Confirmation Message */}
+                    {selectedProject.customConfirmationMessage && (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center space-x-2">
+                          <Mail className="w-4 h-4" />
+                          <span>Custom Confirmation Message</span>
+                        </h4>
+                        <div className="p-3 border rounded-lg bg-gray-50">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProject.customConfirmationMessage}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quality Checks */}
+                    {selectedProject.qualityChecks && selectedProject.qualityChecks.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3">Quality Checks</h4>
+                        <div className="space-y-2">
+                          {selectedProject.qualityChecks.map((check, index) => (
+                            <div key={index} className="flex items-start space-x-3 p-3 border rounded-lg">
+                              {getQualityCheckIcon(check.status)}
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm font-medium">{check.category}</span>
+                                  <Badge
+                                    variant={check.status === 'passed' ? 'default' : 'destructive'}
+                                    className="text-xs"
+                                  >
+                                    {check.status}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">{check.message}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* End of collapsible full details for resubmissions */}
                   </>)}
 
                   {activeTab === 'pending' ? (

@@ -71,7 +71,8 @@ interface Project {
   };
   distance: {
     address: string;
-    maxKmRange: number;
+    maxKmRange?: number;
+    noBorders: boolean;
   };
   firstAvailableDate?: string | null;
   certifications?: Array<{
@@ -394,6 +395,12 @@ export default function ProjectDetailPage() {
 
   const comparisonTableDateLabels = getComparisonTableDateLabels();
 
+  const serviceAreaLabel = project.distance.noBorders
+    ? 'No borders'
+    : project.distance.maxKmRange != null
+      ? `${project.distance.maxKmRange} km radius`
+      : '—';
+
   if (showBookingForm) {
     return (
       <ProjectBookingForm
@@ -549,9 +556,7 @@ export default function ProjectDetailPage() {
                     <MapPin className='h-5 w-5 text-gray-500' />
                     <div>
                       <p className='text-sm text-gray-500'>Service Area</p>
-                      <p className='font-medium'>
-                        {project.distance.maxKmRange} km radius
-                      </p>
+                      <p className='font-medium'>{serviceAreaLabel}</p>
                     </div>
                   </div>
                   <div className='flex items-center gap-2'>
@@ -926,7 +931,7 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
 

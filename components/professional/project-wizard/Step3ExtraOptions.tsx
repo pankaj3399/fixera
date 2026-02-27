@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,17 @@ import {
   Clock
 } from "lucide-react"
 import { toast } from 'sonner'
+import { getAuthToken } from '@/lib/utils'
+
+const parseNumericInput = (raw: string): number | undefined => {
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  const parsed = parseFloat(trimmed);
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+};
 
 interface IExtraOption {
   id: string
@@ -32,6 +43,7 @@ interface ITermCondition {
   id: string
   name: string
   description: string
+  type?: 'condition' | 'warning'
   additionalCost?: number
   isCustom: boolean
 }
@@ -147,39 +159,62 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [configConditions, setConfigConditions] = useState<Array<{ text: string; type: 'condition' | 'warning' }>>([])
 
   // Fetch admin-configured items for the selected service
-  const fetchServiceConfiguration = async () => {
-    if (!data.category || !data.service) return
-    try {
-      const params = new URLSearchParams({ category: data.category, service: data.service })
-      if (data.areaOfWork) params.append('areaOfWork', data.areaOfWork)
+  useEffect(() => {
+    const controller = new AbortController()
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`, {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const json = await res.json()
-        setConfigExtraOptions(json?.data?.extraOptions || [])
-        setConfigConditions(json?.data?.conditionsAndWarnings || [])
-      } else {
+    const fetchServiceConfiguration = async () => {
+      if (!data.category || !data.service) {
+        setConfigExtraOptions([])
+        setConfigConditions([])
+        return
+      }
+
+      try {
+        const params = new URLSearchParams({ category: data.category, service: data.service })
+        if (data.areaOfWork) params.append('areaOfWork', data.areaOfWork)
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`, {
+          credentials: 'include',
+          signal: controller.signal
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setConfigExtraOptions(json?.data?.extraOptions || [])
+          setConfigConditions(json?.data?.conditionsAndWarnings || [])
+        } else {
+          setConfigExtraOptions([])
+          setConfigConditions([])
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return
+        // silent fail to avoid noisy toasts on every render
         setConfigExtraOptions([])
         setConfigConditions([])
       }
-    } catch {
-      // silent fail to avoid noisy toasts on every render
-      setConfigExtraOptions([])
-      setConfigConditions([])
     }
-  }
 
-  useEffect(() => {
     fetchServiceConfiguration()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      controller.abort()
+    }
   }, [data.category, data.service, data.areaOfWork])
 
+  const latestDataRef = useRef(data)
   useEffect(() => {
-    onChange({ ...data, extraOptions, termsConditions, customerPresence })
-    validateForm()
-  }, [extraOptions, termsConditions, customerPresence])
+    latestDataRef.current = data
+  }, [data])
+
+  useEffect(() => {
+    onChange({ ...latestDataRef.current, extraOptions, termsConditions, customerPresence })
+
+    const errors: string[] = []
+    if (!customerPresence) {
+      errors.push('Customer presence selection is required')
+    }
+    setValidationErrors(errors)
+    onValidate(errors.length === 0)
+  }, [extraOptions, termsConditions, customerPresence, onValidate])
 
   const validateForm = () => {
     const errors: string[] = []
@@ -203,16 +238,18 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     return PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] || PREDEFINED_EXTRA_OPTIONS.default
   }
 
-  const getPredefinedTerms = () => {
+  const getPredefinedTerms = (): { name: string; description: string; cost: number; type?: 'condition' | 'warning' }[] => {
     if (configConditions.length > 0) {
       return configConditions.map(c => ({
         name: c.text,
         description: c.text,
-        cost: 0
+        cost: 0,
+        type: c.type as 'condition' | 'warning'
       }))
     }
     const service = data.service || 'default'
-    return PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] || PREDEFINED_TERMS.default
+    const terms = PREDEFINED_TERMS[service as keyof typeof PREDEFINED_TERMS] || PREDEFINED_TERMS.default
+    return terms.map(t => ({ ...t, type: 'condition' as const }))
   }
 
   const addPredefinedExtraOption = (option: { name: string; price: number }) => {
@@ -255,7 +292,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     const newOption: IExtraOption = {
       id: Date.now().toString(),
       name: customExtraName.trim(),
-      price: parseFloat(customExtraPrice),
+      price: parseNumericInput(customExtraPrice) || 0,
       isCustom: true
     }
 
@@ -274,7 +311,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     ))
   }
 
-  const addPredefinedTerm = (term: { name: string; cost: number; description: string }) => {
+  const addPredefinedTerm = (term: { name: string; cost: number; description: string; type?: 'condition' | 'warning' }) => {
     if (termsConditions.length >= 5) {
       toast.error('Maximum 5 terms and conditions allowed')
       return
@@ -289,6 +326,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       id: Date.now().toString(),
       name: term.name,
       description: term.description,
+      type: term.type || 'condition',
       additionalCost: term.cost > 0 ? term.cost : undefined,
       isCustom: false
     }
@@ -316,7 +354,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       id: Date.now().toString(),
       name: customTermName.trim(),
       description: customTermDescription.trim(),
-      additionalCost: customTermCost ? parseFloat(customTermCost) : undefined,
+      type: 'condition',
+      additionalCost: parseNumericInput(customTermCost),
       isCustom: true
     }
 
@@ -490,7 +529,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         min="0"
                         step="0.01"
                         value={option.price}
-                        onChange={(e) => updateExtraOption(option.id, { price: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateExtraOption(option.id, { price: parseNumericInput(e.target.value) || 0 })}
                         className="w-20 text-right"
                       />
                       <div className="text-xs text-gray-500">€</div>
@@ -536,16 +575,19 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                 <Button
                   key={index}
                   variant="outline"
-                  className="justify-between h-auto p-3 text-left"
+                  className={`justify-between h-auto p-3 text-left ${term.type === 'warning' ? 'border-yellow-300 bg-yellow-50' : ''}`}
                   onClick={() => addPredefinedTerm(term)}
                   disabled={termsConditions.some(t => t.name === term.name) || termsConditions.length >= 5}
                 >
                   <div>
-                    <div className="font-medium">{term.name}</div>
+                    <div className="font-medium">
+                      {term.name}
+                      {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                    </div>
                     <div className="text-sm text-gray-500">{term.description}</div>
                   </div>
                   <div className="text-right">
-                    {term.cost > 0 && (
+                    {term.type !== 'warning' && term.cost > 0 && (
                       <div className="text-sm font-medium text-red-600">+€{term.cost}</div>
                     )}
                     <Plus className="w-4 h-4" />
@@ -606,18 +648,21 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-3">{term.description}</p>
-                      {term.additionalCost && term.additionalCost > 0 && (
+                      {term.type === 'warning' && (
+                        <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-300 bg-yellow-50">Warning</Badge>
+                      )}
+                      {term.type !== 'warning' && (
                         <div className="flex items-center space-x-2">
-                          <Label className="text-xs">Additional cost if not met:</Label>
+                          <Label className="text-xs whitespace-nowrap">Cost if not met (€):</Label>
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
-                            value={term.additionalCost}
-                            onChange={(e) => updateTerm(term.id, { additionalCost: parseFloat(e.target.value) || 0 })}
-                            className="w-20 text-sm"
+                            value={term.additionalCost ?? ''}
+                            onChange={(e) => updateTerm(term.id, { additionalCost: parseNumericInput(e.target.value) })}
+                            className="w-24 text-sm"
+                            placeholder="0"
                           />
-                          <span className="text-xs text-gray-500">€</span>
                         </div>
                       )}
                     </div>
@@ -676,8 +721,11 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     {termsConditions.map((term) => (
                       <div key={term.id} className="text-sm">
                         <div className="flex justify-between">
-                          <span className="font-medium">{term.name}</span>
-                          {term.additionalCost && term.additionalCost > 0 && (
+                          <span className="font-medium">
+                            {term.name}
+                            {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                          </span>
+                          {term.type !== 'warning' && term.additionalCost && term.additionalCost > 0 && (
                             <span className="text-red-600">+€{term.additionalCost}</span>
                           )}
                         </div>
