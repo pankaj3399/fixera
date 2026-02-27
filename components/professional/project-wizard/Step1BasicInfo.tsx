@@ -386,7 +386,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       (isRenovationCategory || (!!formData.priceModel)) &&
       formData.distance?.address &&
       addressValid &&
-      (formData.distance?.maxKmRange == null || formData.distance.maxKmRange > 0)
+      formData.distance?.maxKmRange &&
+      formData.distance.maxKmRange > 0
     )
     onValidate(isValid)
   }
@@ -486,7 +487,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (!isRenovationCategory && !formData.priceModel) errors.push('Price Model is required')
     if (!formData.distance?.address) errors.push('Service Address is required')
     if (!addressValid) errors.push('Please enter a valid address')
-    if (formData.distance?.maxKmRange != null && formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
+    if (!formData.distance?.maxKmRange) errors.push('Maximum Service Range is required')
+    else if (formData.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
 
     if (errors.length > 0) {
       toast.error(errors.join('. '));

@@ -756,11 +756,11 @@ export default function Step2Subprojects({
                     }
                     placeholder="Describe what's included in this package..."
                     minLength={10}
-                    maxLength={300}
+                    maxLength={100}
                     rows={3}
                   />
                   <p className={`text-sm mt-1 ${subproject.description.length < 10 ? 'text-red-500' : 'text-gray-500'}`}>
-                    {subproject.description.length}/300 characters (minimum 10)
+                    {subproject.description.length}/100 characters (minimum 10)
                   </p>
                 </div>
 
