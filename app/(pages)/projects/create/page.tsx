@@ -401,7 +401,7 @@ export default function ProjectCreatePage() {
 
         // If this was a new project (no existing projectData.id) and we got a new ID, update the URL
         if (!projectData.id && savedProjectId) {
-          router.replace(`/professional/projects/create?id=${savedProjectId}`, { scroll: false })
+          router.replace(`/projects/create?id=${savedProjectId}`, { scroll: false })
         }
 
         if (!options?.silent) {
@@ -787,8 +787,20 @@ export default function ProjectCreatePage() {
                         <div className="flex justify-between">
                           <span className="text-gray-500">Execution:</span>
                           <span>
-                            {sub.pricing.type === 'rfq' && sub.executionDuration.range?.min != null && sub.executionDuration.range?.max != null
-                              ? `${sub.executionDuration.range.min}-${sub.executionDuration.range.max} ${sub.executionDuration.unit}`
+                            {sub.pricing.type === 'rfq'
+                              ? (() => {
+                                const r = sub.executionDuration.range;
+                                if (r?.min != null && r?.max != null) {
+                                  return `${r.min}-${r.max} ${sub.executionDuration.unit}`;
+                                } else if (r?.min != null) {
+                                  return `${r.min}- ${sub.executionDuration.unit}`;
+                                } else if (r?.max != null) {
+                                  return `- ${r.max} ${sub.executionDuration.unit}`;
+                                }
+                                return sub.executionDuration.value != null
+                                  ? `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                                  : 'Not set';
+                              })()
                               : sub.executionDuration.value != null ? `${sub.executionDuration.value} ${sub.executionDuration.unit}` : 'Not set'}
                           </span>
                         </div>

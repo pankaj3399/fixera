@@ -782,7 +782,7 @@ export default function ProjectDetailPage() {
                           <p>
                             {(() => {
                               const preparationValue = subproject.preparationDuration?.value;
-                              if (preparationValue == null) return null;
+                              if (preparationValue == null) return 'Not set';
                               const preparationUnit =
                                 subproject.preparationDuration?.unit ??
                                 subproject.executionDuration?.unit ??

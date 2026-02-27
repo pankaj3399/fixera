@@ -290,7 +290,7 @@ export default function Step2Subprojects({
         const result = await response.json();
         const inputs = (result.data.professionalInputFields || []).map((f: IDynamicField) => ({
           ...f,
-          isSingleNumber: f.fieldName.toLowerCase().includes('design') && f.fieldName.toLowerCase().includes('revision'),
+          isSingleNumber: f.isSingleNumber || false,
         }));
         setDynamicFields(inputs);
         setProjectTypes(result.data.projectTypes || []);
@@ -1707,7 +1707,7 @@ export default function Step2Subprojects({
                             const raw = e.target.value;
                             updateSubproject(subproject.id, {
                               preparationDuration: {
-                                value: parseNumericInput(raw) as number,
+                                value: parseNumericInput(raw),
                                 unit: resolvePreparationUnit(subproject),
                               },
                             });

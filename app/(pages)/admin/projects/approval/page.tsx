@@ -198,6 +198,21 @@ export default function ProjectApprovalPage() {
   const [feedback, setFeedback] = useState('')
   const [suspendReason, setSuspendReason] = useState('')
   const [deleteReason, setDeleteReason] = useState('')
+
+  // Safe URL parser for external links to prevent XSS payloads like javascript:
+  const sanitizeWebsiteUrl = (url: string | undefined): string | undefined => {
+    if (!url) return undefined
+    try {
+      const parsed = new URL(url.includes('://') ? url : `https://${url}`)
+      if (['http:', 'https:'].includes(parsed.protocol)) {
+        return parsed.toString()
+      }
+      return undefined // Invalid or unsafe scheme
+    } catch {
+      return undefined // Unparseable
+    }
+  }
+
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending')
@@ -608,10 +623,12 @@ export default function ProjectApprovalPage() {
                               <span>{project.category} - {project.service}</span>
                             </div>
 
-                            <div className="flex items-center space-x-2">
-                              <MapPin className="w-4 h-4" />
-                              <span>{project.distance.maxKmRange}km range</span>
-                            </div>
+                            {project.distance.maxKmRange != null && (
+                              <div className="flex items-center space-x-2">
+                                <MapPin className="w-4 h-4" />
+                                <span>{project.distance.maxKmRange}km range</span>
+                              </div>
+                            )}
 
                             <div className="flex items-center space-x-2">
                               <DollarSign className="w-4 h-4" />
@@ -726,13 +743,13 @@ export default function ProjectApprovalPage() {
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Service Range</Label>
-                            <p className="text-sm text-gray-700">
-                              {selectedProject.distance.noBorders
-                                ? 'No borders'
-                                : selectedProject.distance.maxKmRange != null
-                                  ? `${selectedProject.distance.maxKmRange}km`
-                                  : 'Not specified'}
-                            </p>
+                            {selectedProject.distance.maxKmRange != null && (
+                              <p className="text-sm text-gray-700">
+                                {selectedProject.distance.noBorders
+                                  ? 'Nationwide (No borders)'
+                                  : `${selectedProject.distance.maxKmRange}km`}
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -815,15 +832,21 @@ export default function ProjectApprovalPage() {
                                 {selectedProject.professional.businessInfo.website && (
                                   <p>
                                     <strong>Website:</strong>{' '}
-                                    <a
-                                      href={selectedProject.professional.businessInfo.website}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline items-center inline-flex space-x-1"
-                                    >
-                                      <span>{selectedProject.professional.businessInfo.website}</span>
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
+                                    {sanitizeWebsiteUrl(selectedProject.professional.businessInfo.website) ? (
+                                      <a
+                                        href={sanitizeWebsiteUrl(selectedProject.professional.businessInfo.website)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline items-center inline-flex space-x-1"
+                                      >
+                                        <span>{selectedProject.professional.businessInfo.website}</span>
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    ) : (
+                                      <span className="text-gray-500 line-through" title="Invalid URL">
+                                        {selectedProject.professional.businessInfo.website}
+                                      </span>
+                                    )}
                                   </p>
                                 )}
                                 {selectedProject.professional.businessInfo.address && (
@@ -872,12 +895,20 @@ export default function ProjectApprovalPage() {
                             controls
                             className="w-full h-full"
                           >
-                            {selectedProject.media.captions && (
+                            {selectedProject.media.captions ? (
                               <track
                                 kind="captions"
                                 src={getUrl(selectedProject.media.captions)}
                                 srcLang="en"
                                 label="English captions"
+                                default
+                              />
+                            ) : (
+                              <track
+                                kind="captions"
+                                src=""
+                                srcLang="en"
+                                label="No captions available"
                                 default
                               />
                             )}
