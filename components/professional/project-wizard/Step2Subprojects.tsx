@@ -47,7 +47,7 @@ interface IIncludedItem {
 
 interface IProfessionalInput {
   fieldName: string;
-  value: string | number | { min: number; max: number };
+  value: string | number | { min: number; max: number } | undefined;
 }
 
 interface IMaterial {
@@ -462,7 +462,7 @@ export default function Step2Subprojects({
   const updateProfessionalInput = (
     subprojectId: string,
     fieldName: string,
-    value: string | number | { min: number; max: number }
+    value: string | number | { min: number; max: number } | undefined
   ) => {
     const subproject = subprojects.find((s) => s.id === subprojectId);
     if (!subproject) return;
@@ -1532,7 +1532,7 @@ export default function Step2Subprojects({
                                         updateProfessionalInput(
                                           subproject.id,
                                           dynamicField.fieldName,
-                                          parseFloat(e.target.value) || 0
+                                          e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0)
                                         )
                                       }
                                       placeholder={
@@ -1643,7 +1643,7 @@ export default function Step2Subprojects({
                                       updateProfessionalInput(
                                         subproject.id,
                                         dynamicField.fieldName,
-                                        parseFloat(e.target.value) || 0
+                                        e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0)
                                       )
                                     }
                                     placeholder={

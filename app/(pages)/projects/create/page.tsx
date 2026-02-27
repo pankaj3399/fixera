@@ -621,8 +621,8 @@ export default function ProjectCreatePage() {
 
           if (sub.pricing?.type === 'rfq') {
             const range = sub.executionDuration?.range
-            const hasMin = typeof range?.min === 'number'
-            const hasMax = typeof range?.max === 'number'
+            const hasMin = typeof range?.min === 'number' && Number.isFinite(range.min)
+            const hasMax = typeof range?.max === 'number' && Number.isFinite(range.max)
 
             if (!hasMin && !hasMax) {
               errors.push('Valid execution duration range is required for RFQ packages')
@@ -806,19 +806,20 @@ export default function ProjectCreatePage() {
                           <span>
                             {sub.pricing.type === 'rfq'
                               ? (() => {
-                                const r = sub.executionDuration.range;
+                                const r = sub.executionDuration?.range;
+                                const unit = sub.executionDuration?.unit || 'days';
                                 if (r?.min != null && r?.max != null) {
-                                  return `${r.min}-${r.max} ${sub.executionDuration.unit}`;
+                                  return `${r.min}-${r.max} ${unit}`;
                                 } else if (r?.min != null) {
-                                  return `${r.min}- ${sub.executionDuration.unit}`;
+                                  return `${r.min}- ${unit}`;
                                 } else if (r?.max != null) {
-                                  return `- ${r.max} ${sub.executionDuration.unit}`;
+                                  return `- ${r.max} ${unit}`;
                                 }
-                                return sub.executionDuration.value != null
-                                  ? `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                                return sub.executionDuration?.value != null
+                                  ? `${sub.executionDuration.value} ${unit}`
                                   : 'Not set';
                               })()
-                              : sub.executionDuration.value != null ? `${sub.executionDuration.value} ${sub.executionDuration.unit}` : 'Not set'}
+                              : sub.executionDuration?.value != null ? `${sub.executionDuration.value} ${sub.executionDuration.unit}` : 'Not set'}
                           </span>
                         </div>
                         {sub.buffer?.value != null && sub.buffer.value > 0 && (

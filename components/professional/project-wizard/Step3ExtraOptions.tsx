@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +24,8 @@ import { getAuthToken } from '@/lib/utils'
 const parseNumericInput = (raw: string): number | undefined => {
   if (raw === '') return undefined
   const parsed = parseFloat(raw)
-  return Number.isNaN(parsed) ? undefined : parsed
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined
+  return parsed
 }
 
 interface IExtraOption {
@@ -156,14 +157,22 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
   // Fetch admin-configured items for the selected service
   useEffect(() => {
+    const controller = new AbortController()
+
     const fetchServiceConfiguration = async () => {
-      if (!data.category || !data.service) return
+      if (!data.category || !data.service) {
+        setConfigExtraOptions([])
+        setConfigConditions([])
+        return
+      }
+
       try {
         const params = new URLSearchParams({ category: data.category, service: data.service })
         if (data.areaOfWork) params.append('areaOfWork', data.areaOfWork)
 
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/service-configuration?${params}`, {
-          credentials: 'include'
+          credentials: 'include',
+          signal: controller.signal
         })
         if (res.ok) {
           const json = await res.json()
@@ -173,7 +182,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
           setConfigExtraOptions([])
           setConfigConditions([])
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return
         // silent fail to avoid noisy toasts on every render
         setConfigExtraOptions([])
         setConfigConditions([])
@@ -181,10 +191,19 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     }
 
     fetchServiceConfiguration()
+
+    return () => {
+      controller.abort()
+    }
   }, [data.category, data.service, data.areaOfWork])
 
+  const latestDataRef = useRef(data)
   useEffect(() => {
-    onChange({ ...data, extraOptions, termsConditions, customerPresence })
+    latestDataRef.current = data
+  }, [data])
+
+  useEffect(() => {
+    onChange({ ...latestDataRef.current, extraOptions, termsConditions, customerPresence })
 
     const errors: string[] = []
     if (!customerPresence) {
@@ -192,8 +211,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     }
     setValidationErrors(errors)
     onValidate(errors.length === 0)
-    // intentionally including onChange and onValidate from dependencies as they might cause loops if not memoized by parent
-  }, [extraOptions, termsConditions, customerPresence, data, onChange, onValidate])
+  }, [extraOptions, termsConditions, customerPresence, onValidate])
 
   const validateForm = () => {
     const errors: string[] = []

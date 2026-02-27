@@ -756,7 +756,7 @@ export default function ProjectApprovalPage() {
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Service Range</Label>
-                            {selectedProject.distance.maxKmRange != null && (
+                            {(selectedProject.distance.maxKmRange != null || selectedProject.distance.noBorders) && (
                               <p className="text-sm text-gray-700">
                                 {selectedProject.distance.noBorders
                                   ? 'Nationwide (No borders)'
@@ -1116,19 +1116,23 @@ export default function ProjectApprovalPage() {
                                     <span>Attachments ({rfq.professionalAttachments.length})</span>
                                   </Label>
                                   <div className="mt-2 space-y-2">
-                                    {rfq.professionalAttachments.map((attachment, attIndex) => (
-                                      <a
-                                        key={attIndex}
-                                        href={getUrl(attachment)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                                      >
-                                        <Paperclip className="w-3 h-3" />
-                                        <span>Attachment {attIndex + 1}</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                      </a>
-                                    ))}
+                                    {rfq.professionalAttachments.map((attachment, attIndex) => {
+                                      const href = sanitizeHref(getUrl(attachment));
+                                      if (!href) return null;
+                                      return (
+                                        <a
+                                          key={attIndex}
+                                          href={href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          <Paperclip className="w-3 h-3" />
+                                          <span>Attachment {attIndex + 1}</span>
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
@@ -1166,19 +1170,23 @@ export default function ProjectApprovalPage() {
                                     <span>Attachments ({pbq.professionalAttachments.length})</span>
                                   </Label>
                                   <div className="mt-2 space-y-2">
-                                    {pbq.professionalAttachments.map((attachment, attIndex) => (
-                                      <a
-                                        key={attIndex}
-                                        href={getUrl(attachment)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                                      >
-                                        <Paperclip className="w-3 h-3" />
-                                        <span>Attachment {attIndex + 1}</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                      </a>
-                                    ))}
+                                    {pbq.professionalAttachments.map((attachment, attIndex) => {
+                                      const href = sanitizeHref(getUrl(attachment));
+                                      if (!href) return null;
+                                      return (
+                                        <a
+                                          key={attIndex}
+                                          href={href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          <Paperclip className="w-3 h-3" />
+                                          <span>Attachment {attIndex + 1}</span>
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
