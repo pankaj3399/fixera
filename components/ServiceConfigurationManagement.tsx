@@ -392,6 +392,25 @@ export default function ServiceConfigurationManagement() {
 
   // Handle save button click
   const handleSave = () => {
+    // Validate pricing options
+    for (const opt of formData.pricingOptions) {
+      if (!opt.name.trim()) {
+        toast.error('Each pricing option must have a name')
+        return
+      }
+      if (opt.pricingType === 'price_per_unit' && !opt.unit?.trim()) {
+        toast.error(`Pricing option "${opt.name}" requires a unit (e.g., m², hour)`)
+        return
+      }
+    }
+    // Validate service parameter fields
+    for (const field of formData.professionalInputFields) {
+      if (!field.fieldName?.trim() || !field.label?.trim()) {
+        toast.error('Each service parameter must have a field name and label')
+        return
+      }
+    }
+
     if (editingId) {
       updateService(editingId)
     } else {

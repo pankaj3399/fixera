@@ -330,6 +330,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     validateForm()
   }, [formData, serviceConfig])
 
+  // Keep selectedPricingOption in sync with priceModel & serviceConfig
+  // (covers initial load, edit restore, and category/service changes)
+  useEffect(() => {
+    if (!serviceConfig?.pricingOptions || !formData.priceModel) return
+    const matched = serviceConfig.pricingOptions.find(o => o.name === formData.priceModel)
+    // Only update if it actually differs to avoid infinite loops
+    if (matched !== formData.selectedPricingOption) {
+      updateFormData({ selectedPricingOption: matched || undefined })
+    }
+  }, [formData.priceModel, serviceConfig?.pricingOptions])
+
   // Price model is left blank so the professional is obliged to choose
 
   useEffect(() => {

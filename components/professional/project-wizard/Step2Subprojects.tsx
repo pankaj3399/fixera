@@ -229,6 +229,29 @@ const getDefaultPricingType = (
   priceModel?: string
 ): PricingType => getValidPricingTypes(category, selectedOption, priceModel)[0];
 
+const getPricingLabel = (
+  pricingType: PricingType,
+  unitLabel: string,
+  configPricingOptions: Array<{ name: string; pricingType: string }>,
+  selectedPricingOption?: { name: string; pricingType: string },
+): string => {
+  // If we have a selected structured option, use its name for fixed/unit types
+  if (selectedPricingOption) {
+    const typeMap: Record<string, string> = { fixed: 'fixed_price', unit: 'price_per_unit' };
+    if (typeMap[pricingType] === selectedPricingOption.pricingType) return selectedPricingOption.name;
+  }
+  // Try matching from config options
+  const typeKey = pricingType === 'fixed' ? 'fixed_price' : pricingType === 'unit' ? 'price_per_unit' : null;
+  if (typeKey) {
+    const match = configPricingOptions.find(o => o.pricingType === typeKey);
+    if (match) return match.name;
+  }
+  // Defaults
+  if (pricingType === 'fixed') return 'Fixed Price (Total)';
+  if (pricingType === 'unit') return `Price per ${unitLabel}`;
+  return 'RFQ (Request for Quote)';
+};
+
 const parseNumericInput = (raw: string): number | undefined => {
   const trimmed = raw.trim();
   if (trimmed === '') return undefined;
@@ -351,7 +374,8 @@ export default function Step2Subprojects({
       }
     } catch (error) {
       console.error('Failed to fetch service configuration:', error);
-      // do not toast repeatedly; keep silent here to avoid noise
+      setConfigIncludedItems([]);
+      setConfigPricingOptions([]);
     }
   };
 
@@ -872,40 +896,16 @@ export default function Step2Subprojects({
                           <SelectValue placeholder='Select pricing type' />
                         </SelectTrigger>
                         <SelectContent>
-                          {validPricingTypes.map((pricingType) => {
-                            // Use admin-configured pricing option name if available
-                            const configOption = configPricingOptions.find(o =>
-                              (pricingType === 'fixed' && o.pricingType === 'fixed_price') ||
-                              (pricingType === 'unit' && o.pricingType === 'price_per_unit')
-                            );
-                            const label = configOption
-                              ? configOption.name
-                              : pricingType === 'fixed'
-                                ? 'Fixed Price (Total)'
-                                : pricingType === 'unit'
-                                  ? `Price per ${unitLabel}`
-                                  : 'RFQ (Request for Quote)';
-                            return (
+                          {validPricingTypes.map((pricingType) => (
                               <SelectItem key={pricingType} value={pricingType}>
-                                {label}
+                                {getPricingLabel(pricingType, unitLabel, configPricingOptions, data.selectedPricingOption)}
                               </SelectItem>
-                            );
-                          })}
+                          ))}
                         </SelectContent>
                       </Select>
                       <p className='text-xs text-gray-500'>
                         Current selection:{' '}
-                        {(() => {
-                          const configOpt = configPricingOptions.find(o =>
-                            (subproject.pricing.type === 'fixed' && o.pricingType === 'fixed_price') ||
-                            (subproject.pricing.type === 'unit' && o.pricingType === 'price_per_unit')
-                          );
-                          if (configOpt) return configOpt.name;
-                          if (subproject.pricing.type === 'fixed') return 'Fixed Price (Total)';
-                          if (subproject.pricing.type === 'unit') return `Price per ${unitLabel}`;
-                          if (subproject.pricing.type === 'rfq') return 'Request for Quote';
-                          return 'None';
-                        })()}
+                        {getPricingLabel(subproject.pricing.type, unitLabel, configPricingOptions, data.selectedPricingOption)}
                       </p>
                     </div>
 

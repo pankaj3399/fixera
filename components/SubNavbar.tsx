@@ -61,18 +61,18 @@ const SubNavbar = () => {
     }
   };
 
-  const handleMouseEnter = useCallback((categoryName: string) => {
+  const handleMouseEnter = useCallback((slug: string) => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
-    const el = categoryRefs.current.get(categoryName);
+    const el = categoryRefs.current.get(slug);
     if (el) {
       const rect = el.getBoundingClientRect();
       const left = Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - 8);
       setDropdownPos({ top: rect.bottom, left: Math.max(8, left) });
     }
-    setHoveredCategory(categoryName);
+    setHoveredCategory(slug);
   }, []);
 
   const handleMouseLeave = useCallback(() => {
@@ -98,7 +98,7 @@ const SubNavbar = () => {
     }, 150);
   }, []);
 
-  const hoveredCategoryData = categories.find(c => c.name === hoveredCategory);
+  const hoveredCategoryData = categories.find(c => c.slug === hoveredCategory);
 
   if (isLoading) {
     return (
@@ -121,27 +121,27 @@ const SubNavbar = () => {
               const CategoryIcon = getCategoryIcon(category.slug, category.name);
               return (
                 <div
-                  key={category.name}
+                  key={category.slug}
                   ref={(el) => {
-                    if (el) categoryRefs.current.set(category.name, el);
+                    if (el) categoryRefs.current.set(category.slug, el);
                   }}
                   role="menuitem"
                   aria-haspopup="true"
-                  aria-expanded={hoveredCategory === category.name}
+                  aria-expanded={hoveredCategory === category.slug}
                   className="h-full flex items-center shrink-0"
-                  onMouseEnter={() => handleMouseEnter(category.name)}
+                  onMouseEnter={() => handleMouseEnter(category.slug)}
                   onMouseLeave={handleMouseLeave}
-                  onFocus={() => handleMouseEnter(category.name)}
+                  onFocus={() => handleMouseEnter(category.slug)}
                   onBlur={handleMouseLeave}
                 >
                   <Link
                     href={`/categories/${category.slug}`}
-                    className={`px-3 text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200 h-full flex items-center gap-2 border-b-2 whitespace-nowrap ${hoveredCategory === category.name
+                    className={`px-3 text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200 h-full flex items-center gap-2 border-b-2 whitespace-nowrap ${hoveredCategory === category.slug
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent'
                       }`}
                   >
-                    <CategoryIcon className={`w-4 h-4 ${hoveredCategory === category.name ? 'text-blue-600' : 'text-gray-400'} transition-colors duration-200`} />
+                    <CategoryIcon className={`w-4 h-4 ${hoveredCategory === category.slug ? 'text-blue-600' : 'text-gray-400'} transition-colors duration-200`} />
                     {category.name}
                   </Link>
                 </div>
