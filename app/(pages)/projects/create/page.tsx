@@ -27,7 +27,7 @@ interface ISubproject {
   customProjectType?: string
   professionalInputs?: Array<{
     fieldName: string
-    value: string | number | { min: number; max: number }
+    value: string | number | { min: number; max: number } | undefined
   }>
   pricing: {
     type: 'fixed' | 'unit' | 'rfq'
@@ -39,11 +39,7 @@ interface ISubproject {
   errors?: {
     priceRange?: string
   }
-  included: Array<{
-    name: string
-    description?: string
-    isCustom: boolean
-  }>
+  included: IIncludedItem[]
   materialsIncluded?: boolean
   materials?: Array<{
     name: string
@@ -624,14 +620,18 @@ export default function ProjectCreatePage() {
             const hasMin = typeof range?.min === 'number' && Number.isFinite(range.min)
             const hasMax = typeof range?.max === 'number' && Number.isFinite(range.max)
 
+            let rangeError = false
             if (!hasMin && !hasMax) {
-              errors.push('Valid execution duration range is required for RFQ packages')
+              rangeError = true
             } else {
-              if (hasMin && range!.min! <= 0) errors.push('Valid execution duration range is required for RFQ packages')
-              if (hasMax && range!.max! <= 0) errors.push('Valid execution duration range is required for RFQ packages')
+              if (hasMin && range!.min! <= 0) rangeError = true
+              if (hasMax && range!.max! <= 0) rangeError = true
               if (hasMin && hasMax && range!.min! > range!.max!) {
-                errors.push('Valid execution duration range is required for RFQ packages')
+                rangeError = true
               }
+            }
+            if (rangeError) {
+              errors.push('Valid execution duration range is required for RFQ packages')
             }
           } else {
             if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) {
@@ -832,7 +832,11 @@ export default function ProjectCreatePage() {
                         {/* Warranty */}
                         <div className="flex justify-between">
                           <span className="text-gray-500">Warranty:</span>
-                          <span>{sub.warrantyPeriod.value === 0 ? 'None' : `${sub.warrantyPeriod.value} ${sub.warrantyPeriod.unit}`}</span>
+                          <span>
+                            {!sub.warrantyPeriod || sub.warrantyPeriod.value === 0
+                              ? 'None'
+                              : `${sub.warrantyPeriod.value} ${sub.warrantyPeriod.unit || ''}`}
+                          </span>
                         </div>
 
                         {/* Materials */}

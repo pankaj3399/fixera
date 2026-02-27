@@ -22,11 +22,14 @@ import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
 
 const parseNumericInput = (raw: string): number | undefined => {
-  if (raw === '') return undefined
-  const parsed = parseFloat(raw)
-  if (!Number.isFinite(parsed) || parsed < 0) return undefined
-  return parsed
-}
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  const parsed = parseFloat(trimmed);
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+};
 
 interface IExtraOption {
   id: string

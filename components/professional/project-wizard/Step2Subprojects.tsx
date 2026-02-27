@@ -221,9 +221,13 @@ const getDefaultPricingType = (
 ): PricingType => getValidPricingTypes(category, priceModel)[0];
 
 const parseNumericInput = (raw: string): number | undefined => {
-  if (raw === '') return undefined;
-  const parsed = parseFloat(raw);
-  return Number.isNaN(parsed) ? undefined : parsed;
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  const parsed = parseFloat(trimmed);
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
 };
 
 export default function Step2Subprojects({
@@ -1528,13 +1532,14 @@ export default function Step2Subprojects({
                                       min={dynamicField.min}
                                       max={dynamicField.max}
                                       value={(currentValue as number) ?? ''}
-                                      onChange={(e) =>
+                                      onChange={(e) => {
+                                        const parsed = parseFloat(e.target.value);
                                         updateProfessionalInput(
                                           subproject.id,
                                           dynamicField.fieldName,
-                                          e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0)
-                                        )
-                                      }
+                                          e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : parsed)
+                                        );
+                                      }}
                                       placeholder={
                                         dynamicField.placeholder ||
                                         `Enter ${dynamicField.label}`
@@ -1639,13 +1644,14 @@ export default function Step2Subprojects({
                                     min={dynamicField.min}
                                     max={dynamicField.max}
                                     value={(currentValue as number) ?? ''}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                      const parsed = parseFloat(e.target.value);
                                       updateProfessionalInput(
                                         subproject.id,
                                         dynamicField.fieldName,
-                                        e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0)
-                                      )
-                                    }
+                                        e.target.value === '' ? undefined : (isNaN(parsed) ? undefined : parsed)
+                                      );
+                                    }}
                                     placeholder={
                                       dynamicField.placeholder ||
                                       `Enter ${dynamicField.label}`
