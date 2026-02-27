@@ -335,6 +335,7 @@ export default function ProjectCreatePage() {
 
       loadProject()
     }
+    // Next.js router is stable and we only want to run this effect when projectId changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
@@ -365,25 +366,43 @@ export default function ProjectCreatePage() {
 
       console.log('Saving project data:', dataToSave)
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/draft`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dataToSave),
-        credentials: 'include'
-      })
+      let response;
+      // If projectData.id exists, it's an existing project, so use PUT. Otherwise, POST for a new project.
+      if (projectData.id) {
+        response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectData.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(dataToSave),
+          credentials: 'include'
+        })
+      } else {
+        response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/draft`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(dataToSave),
+          credentials: 'include'
+        })
+      }
 
       if (response.ok) {
         const savedProject = await response.json()
+        const savedProjectId = savedProject._id
 
-
-        // Update project data with the saved project info, including status
+        // Update project data with the saved project info, including status and ID if new
         setProjectData(prev => ({
           ...prev,
-          id: savedProject._id,
+          id: savedProjectId, // Ensure ID is set for new projects
           status: savedProject.status // Update status in case it changed
         }))
+
+        // If this was a new project (no existing projectData.id) and we got a new ID, update the URL
+        if (!projectData.id && savedProjectId) {
+          router.replace(`/professional/projects/create?id=${savedProjectId}`, { scroll: false })
+        }
 
         if (!options?.silent) {
           toast.success('Project draft saved successfully!')
@@ -397,6 +416,7 @@ export default function ProjectCreatePage() {
     } catch (error) {
       console.error('Save error:', error)
       toast.error('Failed to save project draft')
+      return null
     }
   }
 

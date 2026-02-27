@@ -221,9 +221,9 @@ export default function Step5RFQQuestions({ data, onChange, onValidate }: Step5P
   useEffect(() => {
     onChange({ ...data, rfqQuestions })
     validateForm()
-    // intentionally excluding onChange and validateForm from dependencies to avoid loops if unmemoized by parent
+    // intentionally excluding onChange, validateForm, and data from dependencies to avoid loops if unmemoized by parent
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rfqQuestions, data])
+  }, [rfqQuestions])
 
   const validateForm = () => {
     // RFQ questions are optional but if added, must be valid

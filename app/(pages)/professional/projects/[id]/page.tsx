@@ -498,10 +498,18 @@ export default function ProjectDetailPage() {
   }
 
   const formatDuration = (duration: IExecutionDuration) => {
-    if (duration.range) {
-      return `${duration.range.min}-${duration.range.max} ${duration.unit}`
+    if (duration.value != null) {
+      return `${duration.value} ${duration.unit}`
+    } else if (duration.range) {
+      if (duration.range.min != null && duration.range.max != null) {
+        return `${duration.range.min}–${duration.range.max} ${duration.unit}`
+      } else if (duration.range.min != null) {
+        return `≥${duration.range.min} ${duration.unit}`
+      } else if (duration.range.max != null) {
+        return `≤${duration.range.max} ${duration.unit}`
+      }
     }
-    return `${duration.value} ${duration.unit}`
+    return 'Not set'
   }
 
   if (loading || isLoading) {

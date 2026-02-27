@@ -393,7 +393,7 @@ export default function Step2Subprojects({
             return false;
           }
           const range = sub.executionDuration.range;
-          if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min > range.max) {
+          if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min <= 0 || range.max <= 0 || range.min > range.max) {
             return false;
           }
         }

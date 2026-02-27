@@ -872,14 +872,15 @@ export default function ProjectApprovalPage() {
                             controls
                             className="w-full h-full"
                           >
-                            <track
-                              kind="captions"
-                              src={selectedProject.media.captions ? getUrl(selectedProject.media.captions) : ''}
-                              srcLang="en"
-                              label={selectedProject.media.captions ? 'English captions' : 'No captions available'}
-                              default
-                              {...(!selectedProject.media.captions ? { 'aria-hidden': true } : {})}
-                            />
+                            {selectedProject.media.captions && (
+                              <track
+                                kind="captions"
+                                src={getUrl(selectedProject.media.captions)}
+                                srcLang="en"
+                                label="English captions"
+                                default
+                              />
+                            )}
                             Your browser does not support the video tag.
                           </video>
                         </div>
