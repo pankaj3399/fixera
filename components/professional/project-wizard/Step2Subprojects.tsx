@@ -75,7 +75,7 @@ interface ISubproject {
     executionDurationRange?: string;
   };
   included: IIncludedItem[];
-  materialsIncluded: boolean;
+  materialsIncluded?: boolean; // Made optional
   materials?: IMaterial[];
   preparationDuration?: {
     value?: number;
@@ -86,8 +86,8 @@ interface ISubproject {
     unit: 'hours' | 'days';
     range?: { min?: number; max?: number };
   };
-  buffer?: {
-    value: number;
+  buffer?: { // Made optional
+    value?: number; // Value inside buffer also made optional
     unit: 'hours' | 'days';
   };
   intakeDuration?: {
@@ -440,14 +440,14 @@ export default function Step2Subprojects({
         amount: 0,
       },
       included: [],
-      materialsIncluded: undefined as unknown as boolean,
+      materialsIncluded: undefined,
       materials: [],
       preparationDuration: { value: undefined, unit: 'days' },
       executionDuration: {
         value: undefined,
         unit: 'days',
       },
-      buffer: { value: undefined as unknown as number, unit: 'days' },
+      buffer: { value: undefined, unit: 'days' },
       warrantyPeriod: { value: 0, unit: 'years' },
     };
 
@@ -1936,7 +1936,7 @@ export default function Step2Subprojects({
                                 updateSubproject(subproject.id, {
                                   executionDuration: {
                                     ...subproject.executionDuration,
-                                    value: parseNumericInput(raw) as number,
+                                    value: parseNumericInput(raw),
                                   },
                                 });
                               }}

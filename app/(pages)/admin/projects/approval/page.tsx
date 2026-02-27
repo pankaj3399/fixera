@@ -983,7 +983,13 @@ export default function ProjectApprovalPage() {
                                     </div>
                                   )}
                                   {sp.executionDuration?.value != null && (<div>Execution: {sp.executionDuration.value} {sp.executionDuration.unit}</div>)}
-                                  {sp.executionDuration?.range && (<div>Range: {sp.executionDuration.range.min} - {sp.executionDuration.range.max}</div>)}
+                                  {sp.executionDuration?.range && (sp.executionDuration.range.min != null || sp.executionDuration.range.max != null) && (
+                                    <div>
+                                      Range: {sp.executionDuration.range.min != null ? sp.executionDuration.range.min : ''}
+                                      {sp.executionDuration.range.min != null && sp.executionDuration.range.max != null ? ' - ' : ''}
+                                      {sp.executionDuration.range.max != null ? sp.executionDuration.range.max : ''}
+                                    </div>
+                                  )}
                                   {sp.buffer?.value != null && (<div>Buffer: {sp.buffer.value} {sp.buffer.unit}</div>)}
                                   {sp.intakeDuration?.value != null && (<div>Intake: {sp.intakeDuration.value} {sp.intakeDuration.unit}</div>)}
                                 </div>

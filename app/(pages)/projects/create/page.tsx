@@ -39,8 +39,12 @@ interface ISubproject {
   errors?: {
     priceRange?: string
   }
-  included: IIncludedItem[]
-  materialsIncluded: boolean
+  included: Array<{
+    name: string
+    description?: string
+    isCustom: boolean
+  }>
+  materialsIncluded?: boolean
   materials?: Array<{
     name: string
     quantity?: string
@@ -57,7 +61,7 @@ interface ISubproject {
     range?: { min?: number; max?: number }
   }
   buffer?: {
-    value: number
+    value?: number
     unit: 'hours' | 'days'
   }
   intakeDuration?: {
@@ -746,7 +750,7 @@ export default function ProjectCreatePage() {
                             )}
                           </span>
                         </div>
-                        {sub.pricing.type === 'unit' && sub.pricing.minOrderQuantity && (
+                        {sub.pricing.type === 'unit' && sub.pricing.minOrderQuantity != null && (
                           <div className="flex justify-between">
                             <span className="text-gray-500">Min order qty:</span>
                             <span className="font-medium">{sub.pricing.minOrderQuantity}</span>

@@ -48,7 +48,7 @@ interface ISubproject {
     minProjectValue?: number
   }
   included: IIncludedItem[]
-  materialsIncluded: boolean
+  materialsIncluded?: boolean
   preparationDuration?: {
     value?: number
     unit: 'hours' | 'days'
@@ -59,7 +59,7 @@ interface ISubproject {
     range?: { min?: number; max?: number }
   }
   buffer?: {
-    value: number
+    value?: number
     unit: 'hours' | 'days'
   }
   intakeDuration?: {
@@ -221,7 +221,9 @@ export default function Step5RFQQuestions({ data, onChange, onValidate }: Step5P
   useEffect(() => {
     onChange({ ...data, rfqQuestions })
     validateForm()
-  }, [rfqQuestions])
+    // intentionally excluding onChange and validateForm from dependencies to avoid loops if unmemoized by parent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rfqQuestions, data])
 
   const validateForm = () => {
     // RFQ questions are optional but if added, must be valid

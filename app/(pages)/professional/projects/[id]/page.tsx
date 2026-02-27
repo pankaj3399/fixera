@@ -1143,6 +1143,7 @@ export default function ProjectDetailPage() {
                   <Button
                     onClick={submitProject}
                     className="w-full"
+                    disabled={isSubmitting}
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Submit for Approval
@@ -1153,6 +1154,7 @@ export default function ProjectDetailPage() {
                   <Button
                     onClick={submitProject}
                     className="w-full"
+                    disabled={isSubmitting}
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Resubmit for Approval
