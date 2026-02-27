@@ -57,12 +57,19 @@ interface ConditionWarning {
   type: 'condition' | 'warning'
 }
 
+interface PricingOption {
+  name: string
+  pricingType: 'fixed_price' | 'price_per_unit'
+  unit?: string
+}
+
 interface ServiceConfiguration {
   _id?: string
   category: string
   service: string
   areaOfWork?: string
-  pricingModel: string
+  pricingModel?: string
+  pricingOptions: PricingOption[]
   icon?: string
   certificationRequired: boolean
   requiredCertifications?: string[]
@@ -89,6 +96,7 @@ const EMPTY_FORM: ServiceConfiguration = {
   service: '',
   areaOfWork: '',
   pricingModel: '',
+  pricingOptions: [],
   icon: '',
   certificationRequired: false,
   requiredCertifications: [],
@@ -182,6 +190,11 @@ export default function ServiceConfigurationManagement() {
     }
   }
 
+  // Auto-generate legacy pricingModel string from pricingOptions
+  const buildLegacyPricingModel = (options: PricingOption[]): string => {
+    return options.map(o => o.name).join(' or ')
+  }
+
   // Create new service
   const createService = async (dataOverride?: ServiceConfiguration) => {
     const cleanedActive = (formData.activeCountries || []).filter(Boolean)
@@ -189,7 +202,8 @@ export default function ServiceConfigurationManagement() {
       toast.error('Please select at least one active country')
       return
     }
-    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
+    const base = dataOverride || { ...formData, activeCountries: cleanedActive }
+    const payload = { ...base, pricingModel: buildLegacyPricingModel(base.pricingOptions) }
     console.log('Creating service:', payload)
     try {
       setSaving(true)
@@ -234,7 +248,8 @@ export default function ServiceConfigurationManagement() {
       toast.error('Please select at least one active country')
       return
     }
-    const payload = dataOverride || { ...formData, activeCountries: cleanedActive }
+    const base = dataOverride || { ...formData, activeCountries: cleanedActive }
+    const payload = { ...base, pricingModel: buildLegacyPricingModel(base.pricingOptions) }
     console.log(`Updating service ${id}:`, payload)
     try {
       setSaving(true)
@@ -313,6 +328,25 @@ export default function ServiceConfigurationManagement() {
     setEditDialogOpen(true)
   }
 
+  // Migrate legacy pricingModel string to structured pricingOptions
+  const migratePricingOptions = (service: ServiceConfiguration): PricingOption[] => {
+    if (service.pricingOptions && service.pricingOptions.length > 0) {
+      return service.pricingOptions
+    }
+    if (!service.pricingModel) return []
+    // Parse legacy "X or Y" format
+    return service.pricingModel.split(' or ').map(m => {
+      const name = m.trim()
+      const lower = name.toLowerCase()
+      const isFixed = lower === 'total price' || lower === 'total' || lower === 'fixed price'
+      return {
+        name,
+        pricingType: isFixed ? 'fixed_price' as const : 'price_per_unit' as const,
+        unit: isFixed ? undefined : (lower.includes('m²') || lower.includes('m2') ? 'm²' : undefined),
+      }
+    })
+  }
+
   // Open dialog for editing service
   const handleEditClick = (service: ServiceConfiguration) => {
     console.log('✏️ Opening edit dialog for:', service)
@@ -320,7 +354,8 @@ export default function ServiceConfigurationManagement() {
     const resolvedActiveCountries = Array.isArray(service.activeCountries) && service.activeCountries.length > 0
       ? service.activeCountries
       : legacyCountry ? [legacyCountry] : []
-    setFormData({ ...service, activeCountries: resolvedActiveCountries })
+    const resolvedPricingOptions = migratePricingOptions(service)
+    setFormData({ ...service, activeCountries: resolvedActiveCountries, pricingOptions: resolvedPricingOptions })
     setEditingId(service._id || null)
     setEditDialogOpen(true)
     console.log('✏️ Edit dialog state set to:', true)
@@ -333,13 +368,15 @@ export default function ServiceConfigurationManagement() {
     const resolvedActiveCountries = Array.isArray(service.activeCountries) && service.activeCountries.length > 0
       ? service.activeCountries
       : legacyCountry ? [legacyCountry] : []
+    const resolvedPricingOptions = migratePricingOptions(service)
 
     const { _id, createdAt, updatedAt, ...rest } = service
 
     setFormData({
       ...rest,
       service: `${service.service} (Copy)`,
-      activeCountries: resolvedActiveCountries
+      activeCountries: resolvedActiveCountries,
+      pricingOptions: resolvedPricingOptions,
     })
     setEditingId(null)
     setEditDialogOpen(true)
@@ -410,6 +447,35 @@ export default function ServiceConfigurationManagement() {
     setFormData(prev => ({
       ...prev,
       includedItems: prev.includedItems.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      )
+    }))
+  }
+
+  // Professional Input Fields handlers
+  const addProfessionalInputField = () => {
+    setFormData(prev => ({
+      ...prev,
+      professionalInputFields: [...prev.professionalInputFields, {
+        fieldName: '',
+        fieldType: 'text',
+        label: '',
+        isRequired: true,
+      }]
+    }))
+  }
+
+  const removeProfessionalInputField = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      professionalInputFields: prev.professionalInputFields.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateProfessionalInputField = (index: number, field: string, value: string | boolean | number | string[] | undefined) => {
+    setFormData(prev => ({
+      ...prev,
+      professionalInputFields: prev.professionalInputFields.map((item, i) =>
         i === index ? { ...item, [field]: value } : item
       )
     }))
@@ -608,7 +674,11 @@ export default function ServiceConfigurationManagement() {
                         <TableCell className="font-medium">{service.category}</TableCell>
                         <TableCell>{service.service}</TableCell>
                         <TableCell>{service.areaOfWork || '-'}</TableCell>
-                        <TableCell className="text-sm">{service.pricingModel}</TableCell>
+                        <TableCell className="text-sm">
+                          {service.pricingOptions?.length > 0
+                            ? service.pricingOptions.map(o => o.name).join(', ')
+                            : service.pricingModel || '-'}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {service.activeCountries?.length ? (
@@ -731,26 +801,92 @@ export default function ServiceConfigurationManagement() {
 
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="areaOfWork">Area of Work</Label>
-                  <Input
-                    id="areaOfWork"
-                    value={formData.areaOfWork}
-                    onChange={(e) => setFormData(prev => ({ ...prev, areaOfWork: e.target.value }))}
-                    placeholder="e.g., Strip Foundations, Raft Foundation"
-                  />
+              <div className="space-y-2">
+                <Label htmlFor="areaOfWork">Area of Work</Label>
+                <Input
+                  id="areaOfWork"
+                  value={formData.areaOfWork}
+                  onChange={(e) => setFormData(prev => ({ ...prev, areaOfWork: e.target.value }))}
+                  placeholder="e.g., Strip Foundations, Raft Foundation"
+                />
+              </div>
+
+              {/* Pricing Options */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Pricing Options *</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      pricingOptions: [...prev.pricingOptions, { name: '', pricingType: 'fixed_price' }]
+                    }))}
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add Pricing Option
+                  </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="pricingModel">Pricing Model *</Label>
-                  <Input
-                    id="pricingModel"
-                    value={formData.pricingModel}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pricingModel: e.target.value }))}
-                    placeholder="e.g., Total price, Per m²"
-                  />
-                </div>
+                {formData.pricingOptions.map((option, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 border rounded-lg bg-gray-50">
+                    <div className="flex-1 grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Pricing Name *</Label>
+                        <Input
+                          value={option.name}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            pricingOptions: prev.pricingOptions.map((o, i) => i === index ? { ...o, name: e.target.value } : o)
+                          }))}
+                          placeholder="e.g., Total price"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Pricing Type *</Label>
+                        <select
+                          className="w-full border rounded-md px-3 py-2 bg-white text-sm"
+                          value={option.pricingType}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            pricingOptions: prev.pricingOptions.map((o, i) => i === index ? { ...o, pricingType: e.target.value as 'fixed_price' | 'price_per_unit' } : o)
+                          }))}
+                        >
+                          <option value="fixed_price">Fixed price</option>
+                          <option value="price_per_unit">Price per unit</option>
+                        </select>
+                      </div>
+                      {option.pricingType === 'price_per_unit' && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Unit *</Label>
+                          <Input
+                            value={option.unit || ''}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              pricingOptions: prev.pricingOptions.map((o, i) => i === index ? { ...o, unit: e.target.value } : o)
+                            }))}
+                            placeholder="e.g., m², hour, room"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        pricingOptions: prev.pricingOptions.filter((_, i) => i !== index)
+                      }))}
+                      className="h-8 px-2 hover:bg-red-50 mt-5"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  </div>
+                ))}
+
+                {formData.pricingOptions.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No pricing options added yet. Add at least one.</p>
+                )}
               </div>
 
               {/* Active Countries */}
@@ -1137,6 +1273,132 @@ export default function ServiceConfigurationManagement() {
               </div>
             </div>
 
+            {/* Professional Input Fields (Service Parameters) */}
+            <div className="space-y-4 p-4 rounded-lg border-2 border-transparent bg-white relative before:absolute before:inset-0 before:rounded-lg before:p-[1px] before:bg-gradient-to-br before:from-purple-200 before:to-pink-200 before:-z-10">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Service Parameters</h3>
+                <Button type="button" variant="outline" size="sm" onClick={addProfessionalInputField}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Parameter
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Define fields that professionals must fill in during project creation (e.g., m² area, kW power, building type).
+              </p>
+
+              <div className="space-y-4">
+                {formData.professionalInputFields.map((field, index) => (
+                  <div key={index} className="p-3 border rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Parameter {index + 1}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeProfessionalInputField(index)}
+                        className="h-8 px-2 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Field Name *</Label>
+                        <Input
+                          value={field.fieldName}
+                          onChange={(e) => updateProfessionalInputField(index, 'fieldName', e.target.value)}
+                          placeholder="e.g., range m2 living area"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Display Label *</Label>
+                        <Input
+                          value={field.label}
+                          onChange={(e) => updateProfessionalInputField(index, 'label', e.target.value)}
+                          placeholder="e.g., Living Area"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Field Type *</Label>
+                        <select
+                          className="w-full border rounded-md px-3 py-2 bg-white text-sm"
+                          value={field.fieldType}
+                          onChange={(e) => updateProfessionalInputField(index, 'fieldType', e.target.value)}
+                        >
+                          <option value="text">Text</option>
+                          <option value="number">Number</option>
+                          <option value="range">Range (min-max)</option>
+                          <option value="dropdown">Dropdown</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Unit</Label>
+                        <Input
+                          value={field.unit || ''}
+                          onChange={(e) => updateProfessionalInputField(index, 'unit', e.target.value)}
+                          placeholder="e.g., m², kW, m³"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Placeholder</Label>
+                        <Input
+                          value={field.placeholder || ''}
+                          onChange={(e) => updateProfessionalInputField(index, 'placeholder', e.target.value)}
+                          placeholder="e.g., Enter area..."
+                        />
+                      </div>
+                    </div>
+
+                    {(field.fieldType === 'number' || field.fieldType === 'range') && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Min Value</Label>
+                          <Input
+                            type="number"
+                            value={field.min ?? ''}
+                            onChange={(e) => updateProfessionalInputField(index, 'min', e.target.value ? Number(e.target.value) : undefined)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Max Value</Label>
+                          <Input
+                            type="number"
+                            value={field.max ?? ''}
+                            onChange={(e) => updateProfessionalInputField(index, 'max', e.target.value ? Number(e.target.value) : undefined)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {field.fieldType === 'dropdown' && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Options (comma-separated)</Label>
+                        <Input
+                          value={(field.options || []).join(', ')}
+                          onChange={(e) => updateProfessionalInputField(index, 'options', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                          placeholder="e.g., Option A, Option B, Option C"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={field.isRequired}
+                        onCheckedChange={(v) => updateProfessionalInputField(index, 'isRequired', Boolean(v))}
+                      />
+                      <Label className="text-xs cursor-pointer">Required field</Label>
+                    </div>
+                  </div>
+                ))}
+
+                {formData.professionalInputFields.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No service parameters added yet</p>
+                )}
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-4">
               <Button
                 variant="outline"
@@ -1151,7 +1413,7 @@ export default function ServiceConfigurationManagement() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!formData.category || !formData.service || !formData.pricingModel || saving}
+                disabled={!formData.category || !formData.service || formData.pricingOptions.length === 0 || saving}
                 className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

@@ -118,6 +118,7 @@ interface ProjectData {
   areaOfWork?: string;
   timeMode?: 'hours' | 'days' | 'mixed';
   priceModel?: string;
+  selectedPricingOption?: { name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string };
 }
 
 interface Step2Props {
@@ -180,19 +181,19 @@ const PREDEFINED_INCLUDED_ITEMS = {
   ],
 };
 
-// Check if priceModel is a "total price" type (fixed pricing)
-const isTotalPriceModel = (priceModel?: string): boolean => {
+// Check if pricing option is a fixed price type
+const isFixedPriceOption = (selectedOption?: { pricingType: string }, priceModel?: string): boolean => {
+  if (selectedOption) return selectedOption.pricingType === 'fixed_price';
+  // Legacy fallback: text matching
   if (!priceModel) return false;
   const normalized = priceModel.toLowerCase().trim();
-  return (
-    normalized === 'total price' ||
-    normalized === 'total' ||
-    normalized === 'fixed price'
-  );
+  return normalized === 'total price' || normalized === 'total' || normalized === 'fixed price';
 };
 
-// Get unit label from priceModel (e.g., "m² of floor surface" → "m²")
-const getUnitLabel = (priceModel?: string): string => {
+// Get unit label from structured pricing option or legacy text
+const getUnitLabel = (selectedOption?: { unit?: string }, priceModel?: string): string => {
+  if (selectedOption?.unit) return selectedOption.unit;
+  // Legacy fallback
   if (!priceModel) return 'unit';
   const normalized = priceModel.toLowerCase().trim();
   if (normalized.includes('m²') || normalized.includes('m2')) return 'm²';
@@ -200,25 +201,33 @@ const getUnitLabel = (priceModel?: string): string => {
   if (normalized.includes('day')) return 'day';
   if (normalized.includes('meter')) return 'meter';
   if (normalized.includes('room')) return 'room';
-  return 'unit'; // Return safe default if no match
+  if (normalized.includes('piece')) return 'piece';
+  return 'unit';
 };
 
 type PricingType = 'fixed' | 'unit' | 'rfq';
 
 const getValidPricingTypes = (
   category?: string,
+  selectedOption?: { pricingType: string },
   priceModel?: string
 ): PricingType[] => {
   const isRenovation = category?.toLowerCase() === 'renovation';
   if (isRenovation) return ['rfq'];
-  if (isTotalPriceModel(priceModel)) return ['fixed', 'rfq'];
+  // RFQ-only detection (legacy string)
+  if (!selectedOption && priceModel) {
+    const normalized = priceModel.toLowerCase().trim();
+    if (normalized === 'rfq only' || normalized === 'rfq') return ['rfq'];
+  }
+  if (isFixedPriceOption(selectedOption, priceModel)) return ['fixed', 'rfq'];
   return ['unit', 'rfq'];
 };
 
 const getDefaultPricingType = (
   category?: string,
+  selectedOption?: { pricingType: string },
   priceModel?: string
-): PricingType => getValidPricingTypes(category, priceModel)[0];
+): PricingType => getValidPricingTypes(category, selectedOption, priceModel)[0];
 
 const parseNumericInput = (raw: string): number | undefined => {
   const trimmed = raw.trim();
@@ -236,9 +245,10 @@ export default function Step2Subprojects({
   onValidate,
 }: Step2Props) {
   // Determine if this is a total price model or unit-based model
-  const unitLabel = getUnitLabel(data.priceModel);
+  const unitLabel = getUnitLabel(data.selectedPricingOption, data.priceModel);
   const validPricingTypes = getValidPricingTypes(
     data.category,
+    data.selectedPricingOption,
     data.priceModel
   );
 
@@ -265,6 +275,7 @@ export default function Step2Subprojects({
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);
   const [projectTypes, setProjectTypes] = useState<string[]>([]);
+  const [configPricingOptions, setConfigPricingOptions] = useState<Array<{ name: string; pricingType: string; unit?: string }>>([]);
   const [configIncludedItems, setConfigIncludedItems] = useState<
     {
       name: string;
@@ -332,8 +343,11 @@ export default function Step2Subprojects({
         setConfigIncludedItems(
           items.filter((i: { name?: string }) => Boolean(i?.name))
         );
+        // Store pricing options from service config
+        setConfigPricingOptions(result?.data?.pricingOptions || []);
       } else {
         setConfigIncludedItems([]);
+        setConfigPricingOptions([]);
       }
     } catch (error) {
       console.error('Failed to fetch service configuration:', error);
@@ -358,8 +372,8 @@ export default function Step2Subprojects({
 
   // Fix pricing types when priceModel changes (ensure they match available options)
   useEffect(() => {
-    const validTypes = getValidPricingTypes(data.category, data.priceModel);
-    const defaultType = getDefaultPricingType(data.category, data.priceModel);
+    const validTypes = getValidPricingTypes(data.category, data.selectedPricingOption, data.priceModel);
+    const defaultType = getDefaultPricingType(data.category, data.selectedPricingOption, data.priceModel);
 
     setSubprojects((prev) => {
       const needsUpdate = prev.some(
@@ -381,7 +395,7 @@ export default function Step2Subprojects({
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.priceModel, data.category]);
+  }, [data.priceModel, data.selectedPricingOption, data.category]);
 
   const validateForm = () => {
     const isValid =
@@ -434,6 +448,7 @@ export default function Step2Subprojects({
     // Set default pricing type based on category and priceModel
     const defaultPricingType = getDefaultPricingType(
       data.category,
+      data.selectedPricingOption,
       data.priceModel
     );
 
@@ -857,33 +872,47 @@ export default function Step2Subprojects({
                           <SelectValue placeholder='Select pricing type' />
                         </SelectTrigger>
                         <SelectContent>
-                          {validPricingTypes.map((pricingType) => (
-                            <SelectItem key={pricingType} value={pricingType}>
-                              {pricingType === 'fixed' && 'Fixed Price (Total)'}
-                              {pricingType === 'unit' &&
-                                `Price per ${unitLabel}`}
-                              {pricingType === 'rfq' &&
-                                'RFQ (Request for Quote)'}
-                            </SelectItem>
-                          ))}
+                          {validPricingTypes.map((pricingType) => {
+                            // Use admin-configured pricing option name if available
+                            const configOption = configPricingOptions.find(o =>
+                              (pricingType === 'fixed' && o.pricingType === 'fixed_price') ||
+                              (pricingType === 'unit' && o.pricingType === 'price_per_unit')
+                            );
+                            const label = configOption
+                              ? configOption.name
+                              : pricingType === 'fixed'
+                                ? 'Fixed Price (Total)'
+                                : pricingType === 'unit'
+                                  ? `Price per ${unitLabel}`
+                                  : 'RFQ (Request for Quote)';
+                            return (
+                              <SelectItem key={pricingType} value={pricingType}>
+                                {label}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                       <p className='text-xs text-gray-500'>
                         Current selection:{' '}
-                        {subproject.pricing.type === 'fixed' &&
-                          'Fixed Price (Total)'}
-                        {subproject.pricing.type === 'unit' &&
-                          `Price per ${unitLabel}`}
-                        {subproject.pricing.type === 'rfq' &&
-                          'Request for Quote'}
-                        {!subproject.pricing.type && 'None'}
+                        {(() => {
+                          const configOpt = configPricingOptions.find(o =>
+                            (subproject.pricing.type === 'fixed' && o.pricingType === 'fixed_price') ||
+                            (subproject.pricing.type === 'unit' && o.pricingType === 'price_per_unit')
+                          );
+                          if (configOpt) return configOpt.name;
+                          if (subproject.pricing.type === 'fixed') return 'Fixed Price (Total)';
+                          if (subproject.pricing.type === 'unit') return `Price per ${unitLabel}`;
+                          if (subproject.pricing.type === 'rfq') return 'Request for Quote';
+                          return 'None';
+                        })()}
                       </p>
                     </div>
 
                     {subproject.pricing.type === 'fixed' && (
                       <>
                         <div>
-                          <Label>Total Price (EUR) *</Label>
+                          <Label>Price (EUR) *</Label>
                           <Input
                             type='number'
                             min='0'
