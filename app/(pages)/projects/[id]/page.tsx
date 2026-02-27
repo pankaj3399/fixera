@@ -71,7 +71,8 @@ interface Project {
   };
   distance: {
     address: string;
-    maxKmRange: number;
+    maxKmRange?: number;
+    noBorders: boolean;
   };
   firstAvailableDate?: string | null;
   certifications?: Array<{
@@ -550,7 +551,7 @@ export default function ProjectDetailPage() {
                     <div>
                       <p className='text-sm text-gray-500'>Service Area</p>
                       <p className='font-medium'>
-                        {project.distance.maxKmRange} km radius
+                        {project.distance.noBorders ? 'No borders' : (project.distance.maxKmRange != null ? `${project.distance.maxKmRange} km radius` : '—')}
                       </p>
                     </div>
                   </div>

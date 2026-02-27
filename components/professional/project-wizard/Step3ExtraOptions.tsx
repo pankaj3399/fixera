@@ -19,6 +19,13 @@ import {
   Clock
 } from "lucide-react"
 import { toast } from 'sonner'
+import { getAuthToken } from '@/lib/utils'
+
+const parseNumericInput = (raw: string): number | undefined => {
+  if (raw === '') return undefined
+  const parsed = parseFloat(raw)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
 
 interface IExtraOption {
   id: string
@@ -185,9 +192,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     }
     setValidationErrors(errors)
     onValidate(errors.length === 0)
-    // intentionally excluding onChange and onValidate from dependencies as they might cause loops if not memoized by parent
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extraOptions, termsConditions, customerPresence, data])
+    // intentionally including onChange and onValidate from dependencies as they might cause loops if not memoized by parent
+  }, [extraOptions, termsConditions, customerPresence, data, onChange, onValidate])
 
   const validateForm = () => {
     const errors: string[] = []
@@ -265,7 +271,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     const newOption: IExtraOption = {
       id: Date.now().toString(),
       name: customExtraName.trim(),
-      price: parseFloat(customExtraPrice),
+      price: parseNumericInput(customExtraPrice) || 0,
       isCustom: true
     }
 
@@ -328,7 +334,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       name: customTermName.trim(),
       description: customTermDescription.trim(),
       type: 'condition',
-      additionalCost: customTermCost ? parseFloat(customTermCost) : undefined,
+      additionalCost: parseNumericInput(customTermCost),
       isCustom: true
     }
 
@@ -502,7 +508,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         min="0"
                         step="0.01"
                         value={option.price}
-                        onChange={(e) => updateExtraOption(option.id, { price: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateExtraOption(option.id, { price: parseNumericInput(e.target.value) || 0 })}
                         className="w-20 text-right"
                       />
                       <div className="text-xs text-gray-500">€</div>
@@ -632,7 +638,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                             min="0"
                             step="0.01"
                             value={term.additionalCost ?? ''}
-                            onChange={(e) => updateTerm(term.id, { additionalCost: e.target.value ? parseFloat(e.target.value) : undefined })}
+                            onChange={(e) => updateTerm(term.id, { additionalCost: parseNumericInput(e.target.value) })}
                             className="w-24 text-sm"
                             placeholder="0"
                           />

@@ -367,12 +367,14 @@ export default function ProjectCreatePage() {
       console.log('Saving project data:', dataToSave)
 
       let response;
+      const token = getAuthToken()
       // If projectData.id exists, it's an existing project, so use PUT. Otherwise, POST for a new project.
       if (projectData.id) {
         response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectData.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
           },
           body: JSON.stringify(dataToSave),
           credentials: 'include'
@@ -382,6 +384,7 @@ export default function ProjectCreatePage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
           },
           body: JSON.stringify(dataToSave),
           credentials: 'include'
@@ -606,19 +609,29 @@ export default function ProjectCreatePage() {
       if (!projectData.subprojects || projectData.subprojects.length === 0) {
         toast.error('At least one subproject/package is required')
       } else {
+        const allPackageErrors: string[] = []
         projectData.subprojects.forEach((sub, index) => {
           const label = sub.name || `Package ${index + 1}`
           const errors: string[] = []
           if (!sub.name) errors.push('Package name is required')
           if (!sub.description || sub.description.length < 10) errors.push('Package scope must be at least 10 characters')
           if (!sub.pricing?.type) errors.push('Pricing type is required')
-          if (sub.included.length < 3) errors.push('At least 3 included items are required')
+          if ((sub.included ?? []).length < 3) errors.push('At least 3 included items are required')
           if (typeof sub.materialsIncluded !== 'boolean') errors.push('Please select whether materials are included')
 
           if (sub.pricing?.type === 'rfq') {
             const range = sub.executionDuration?.range
-            if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min <= 0 || range.max <= 0 || range.min > range.max) {
+            const hasMin = typeof range?.min === 'number'
+            const hasMax = typeof range?.max === 'number'
+
+            if (!hasMin && !hasMax) {
               errors.push('Valid execution duration range is required for RFQ packages')
+            } else {
+              if (hasMin && range!.min! <= 0) errors.push('Valid execution duration range is required for RFQ packages')
+              if (hasMax && range!.max! <= 0) errors.push('Valid execution duration range is required for RFQ packages')
+              if (hasMin && hasMax && range!.min! > range!.max!) {
+                errors.push('Valid execution duration range is required for RFQ packages')
+              }
             }
           } else {
             if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) {
@@ -627,9 +640,13 @@ export default function ProjectCreatePage() {
           }
 
           if (errors.length > 0) {
-            toast.error(`${label}: ${errors.join(', ')}`)
+            allPackageErrors.push(`${label}: ${errors.join(', ')}`)
           }
         })
+
+        if (allPackageErrors.length > 0) {
+          toast.error(allPackageErrors.join(' | '))
+        }
       }
     } else if (currentStep === 3) {
       toast.info('Please specify customer presence requirement')
@@ -725,7 +742,7 @@ export default function ProjectCreatePage() {
                   <strong>Price Model:</strong> {projectData.priceModel || 'Not specified'}
                 </div>
                 <div>
-                  <strong>Service Range:</strong> {projectData.distance?.maxKmRange != null ? `${projectData.distance.maxKmRange} km` : 'Not specified'}
+                  <strong>Service Range:</strong> {projectData.distance?.noBorders ? 'No borders' : (projectData.distance?.maxKmRange != null ? `${projectData.distance.maxKmRange} km` : 'Not specified')}
                 </div>
               </div>
 
@@ -831,11 +848,11 @@ export default function ProjectCreatePage() {
                         )}
 
                         {/* Included items */}
-                        {sub.included.length > 0 && (
+                        {(sub.included ?? []).length > 0 && (
                           <div>
-                            <span className="text-gray-500">Included ({sub.included.length}):</span>
+                            <span className="text-gray-500">Included ({(sub.included ?? []).length}):</span>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {sub.included.map((item, ii) => (
+                              {(sub.included ?? []).map((item, ii) => (
                                 <span key={ii} className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded">{item.name}</span>
                               ))}
                             </div>

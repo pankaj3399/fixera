@@ -393,9 +393,13 @@ export default function Step2Subprojects({
             return false;
           }
           const range = sub.executionDuration.range;
-          if (!range || typeof range.min !== 'number' || typeof range.max !== 'number' || range.min <= 0 || range.max <= 0 || range.min > range.max) {
-            return false;
-          }
+          const hasMin = typeof range?.min === 'number' && Number.isFinite(range.min);
+          const hasMax = typeof range?.max === 'number' && Number.isFinite(range.max);
+
+          if (!hasMin && !hasMax) return false;
+          if (hasMin && range!.min! <= 0) return false;
+          if (hasMax && range!.max! <= 0) return false;
+          if (hasMin && hasMax && range!.min! > range!.max!) return false;
         }
 
         return (
@@ -718,7 +722,7 @@ export default function Step2Subprojects({
                           max='10'
                           value={subproject.warrantyPeriod.value}
                           onChange={(e) => {
-                            const parsed = parseInt(e.target.value) || 1;
+                            const parsed = parseNumericInput(e.target.value) || 1;
                             const clamped = Math.min(Math.max(parsed, 1), 10);
                             updateSubproject(subproject.id, {
                               warrantyPeriod: {
@@ -927,7 +931,7 @@ export default function Step2Subprojects({
                                 pricing: {
                                   ...subproject.pricing,
                                   minOrderQuantity:
-                                    parseInt(e.target.value) || undefined,
+                                    parseNumericInput(e.target.value),
                                 },
                               })
                             }
@@ -1523,7 +1527,7 @@ export default function Step2Subprojects({
                                       type='number'
                                       min={dynamicField.min}
                                       max={dynamicField.max}
-                                      value={(currentValue as number) || ''}
+                                      value={(currentValue as number) ?? ''}
                                       onChange={(e) =>
                                         updateProfessionalInput(
                                           subproject.id,
@@ -1634,7 +1638,7 @@ export default function Step2Subprojects({
                                     type='number'
                                     min={dynamicField.min}
                                     max={dynamicField.max}
-                                    value={(currentValue as number) || ''}
+                                    value={(currentValue as number) ?? ''}
                                     onChange={(e) =>
                                       updateProfessionalInput(
                                         subproject.id,
@@ -1753,8 +1757,7 @@ export default function Step2Subprojects({
                               }
                               onChange={(e) => {
                                 const raw = e.target.value;
-                                const newMin =
-                                  raw === '' ? undefined : parseInt(raw, 10);
+                                const newMin = parseNumericInput(raw);
                                 const currentMax =
                                   subproject.executionDuration.range?.max;
 
@@ -1804,8 +1807,7 @@ export default function Step2Subprojects({
                               }
                               onChange={(e) => {
                                 const raw = e.target.value;
-                                const newMax =
-                                  raw === '' ? undefined : parseInt(raw, 10);
+                                const newMax = parseNumericInput(raw);
                                 const currentMin =
                                   subproject.executionDuration.range?.min;
 
@@ -1886,7 +1888,7 @@ export default function Step2Subprojects({
                                 updateSubproject(subproject.id, {
                                   buffer: e.target.value
                                     ? {
-                                      value: parseInt(e.target.value),
+                                      value: parseNumericInput(e.target.value),
                                       unit:
                                         subproject.buffer?.unit || 'days',
                                     }
@@ -1974,7 +1976,7 @@ export default function Step2Subprojects({
                                 updateSubproject(subproject.id, {
                                   buffer: e.target.value
                                     ? {
-                                      value: parseInt(e.target.value),
+                                      value: parseNumericInput(e.target.value),
                                       unit:
                                         subproject.buffer?.unit || 'days',
                                     }
@@ -2030,7 +2032,7 @@ export default function Step2Subprojects({
                               onChange={(e) =>
                                 updateSubproject(subproject.id, {
                                   intakeDuration: {
-                                    value: parseInt(e.target.value) || 0,
+                                    value: parseNumericInput(e.target.value) || 0,
                                     unit:
                                       subproject.intakeDuration?.unit ||
                                       'days',
@@ -2075,7 +2077,7 @@ export default function Step2Subprojects({
                                   value: subproject.intakeDuration?.value || 0,
                                   unit:
                                     subproject.intakeDuration?.unit || 'days',
-                                  buffer: parseInt(e.target.value) || undefined,
+                                  buffer: parseNumericInput(e.target.value),
                                 },
                               })
                             }
@@ -2140,8 +2142,20 @@ export default function Step2Subprojects({
                         )}
                       </td>
                       <td className="p-2">
-                        {sub.pricing.type === 'rfq' && sub.executionDuration.range?.min && sub.executionDuration.range?.max ? (
-                          `${sub.executionDuration.range.min}-${sub.executionDuration.range.max} ${sub.executionDuration.unit}`
+                        {sub.pricing.type === 'rfq' ? (
+                          (() => {
+                            const r = sub.executionDuration.range;
+                            if (r?.min != null && r?.max != null) {
+                              return `${r.min}-${r.max} ${sub.executionDuration.unit}`;
+                            } else if (r?.min != null) {
+                              return `${r.min}- ${sub.executionDuration.unit}`;
+                            } else if (r?.max != null) {
+                              return `- ${r.max} ${sub.executionDuration.unit}`;
+                            }
+                            return sub.executionDuration.value != null
+                              ? `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                              : <span className='text-gray-400 italic'>Not set</span>;
+                          })()
                         ) : sub.executionDuration.value != null ? (
                           `${sub.executionDuration.value} ${sub.executionDuration.unit}`
                         ) : (

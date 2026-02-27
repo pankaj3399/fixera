@@ -487,7 +487,7 @@ export default function ProjectDetailPage() {
 
 
   const formatPricing = (pricing: IPricing) => {
-    if (pricing.type === 'fixed' && pricing.amount) {
+    if (pricing.type === 'fixed' && pricing.amount != null) {
       return `€${pricing.amount.toLocaleString()}`
     } else if (pricing.type === 'unit' && pricing.priceRange) {
       return `€${pricing.priceRange.min.toLocaleString()} - €${pricing.priceRange.max.toLocaleString()}`
@@ -862,7 +862,7 @@ export default function ProjectDetailPage() {
                         {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
                       </h4>
                       <p className="text-sm text-gray-600 mt-1 break-words">{term.description}</p>
-                      {term.type !== 'warning' && typeof term.additionalCost === 'number' && term.additionalCost >= 0 && (
+                      {term.type !== 'warning' && term.additionalCost != null && Number.isFinite(term.additionalCost) && term.additionalCost >= 0 && (
                         <p className="text-sm font-medium text-orange-600 mt-1">
                           Additional cost: €{term.additionalCost.toLocaleString()}
                         </p>

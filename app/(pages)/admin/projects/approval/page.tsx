@@ -191,6 +191,19 @@ const getCertUrl = (cert?: CertificationItem | null): string => {
   return cert.certificateUrl || cert.fileUrl || ''
 }
 
+const sanitizeHref = (url: string | undefined | null): string | undefined => {
+  if (!url) return undefined
+  try {
+    const parsed = new URL(url)
+    if (['http:', 'https:'].includes(parsed.protocol)) {
+      return parsed.href
+    }
+  } catch {
+    // ignore
+  }
+  return undefined
+}
+
 export default function ProjectApprovalPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [approvedProjects, setApprovedProjects] = useState<Project[]>([])
@@ -623,10 +636,10 @@ export default function ProjectApprovalPage() {
                               <span>{project.category} - {project.service}</span>
                             </div>
 
-                            {project.distance.maxKmRange != null && (
+                            {(project.distance.maxKmRange != null || project.distance.noBorders) && (
                               <div className="flex items-center space-x-2">
                                 <MapPin className="w-4 h-4" />
-                                <span>{project.distance.maxKmRange}km range</span>
+                                <span>{project.distance.noBorders ? 'No borders' : `${project.distance.maxKmRange}km range`}</span>
                               </div>
                             )}
 
@@ -895,20 +908,12 @@ export default function ProjectApprovalPage() {
                             controls
                             className="w-full h-full"
                           >
-                            {selectedProject.media.captions ? (
+                            {selectedProject.media.captions && (
                               <track
                                 kind="captions"
                                 src={getUrl(selectedProject.media.captions)}
                                 srcLang="en"
                                 label="English captions"
-                                default
-                              />
-                            ) : (
-                              <track
-                                kind="captions"
-                                src=""
-                                srcLang="en"
-                                label="No captions available"
                                 default
                               />
                             )}
@@ -936,7 +941,7 @@ export default function ProjectApprovalPage() {
                                   <div>
                                     {sp.pricing?.type && (
                                       <Badge variant="outline" className="text-xs">
-                                        {sp.pricing.type}{sp.pricing?.amount !== null && sp.pricing?.amount !== undefined ? ` • €${sp.pricing.amount}` : ''}
+                                        {sp.pricing.type}{sp.pricing?.amount != null ? ` • €${sp.pricing.amount.toLocaleString()}` : ''}
                                       </Badge>
                                     )}
                                   </div>
@@ -1066,9 +1071,9 @@ export default function ProjectApprovalPage() {
                                     )}
                                   </div>
                                 </div>
-                                {getCertUrl(cert) && (
+                                {sanitizeHref(getCertUrl(cert)) && (
                                   <a
-                                    href={getCertUrl(cert)}
+                                    href={sanitizeHref(getCertUrl(cert))}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="ml-4 text-blue-600 hover:text-blue-800"
@@ -1221,8 +1226,8 @@ export default function ProjectApprovalPage() {
                                 <div className="font-medium text-sm">{term.name}</div>
                                 <div className="flex items-center gap-2">
                                   {term.type === 'warning' && <Badge className="text-[10px] bg-yellow-100 text-yellow-800">Warning</Badge>}
-                                  {term.type !== 'warning' && term.additionalCost != null && term.additionalCost > 0 && (
-                                    <Badge variant="outline" className="text-xs text-red-600 border-red-200">+€{(term.additionalCost ?? 0).toFixed(2)}</Badge>
+                                  {term.type !== 'warning' && term.additionalCost != null && term.additionalCost >= 0 && (
+                                    <Badge variant="outline" className="text-xs text-red-600 border-red-200">+€{term.additionalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Badge>
                                   )}
                                   {term.isCustom && <Badge className="text-[10px] bg-purple-100 text-purple-800">Custom</Badge>}
                                 </div>
