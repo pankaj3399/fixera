@@ -339,7 +339,7 @@ export default function ManageProjectsPage() {
         if (mappedCounts) {
           console.log('[ManageProjects] Using API counts', mappedCounts)
           setProjectCounts(mappedCounts)
-        } else {
+        } else if (!statusFilter || statusFilter === 'all') {
           const derived = deriveCountsFromProjects(fetchedProjects)
           console.log('[ManageProjects] Derived counts from fetched data', derived)
           setProjectCounts(derived)
@@ -453,7 +453,7 @@ export default function ManageProjectsPage() {
         setDuplicateDialogOpen(false)
         setSelectedProject(null)
         // Optionally redirect to edit the duplicated project
-        router.push(`/professional/projects/${duplicatedProject._id}/edit`)
+        router.push(`/projects/create?id=${duplicatedProject._id}`)
       } else {
         const errorData = await response.json()
         alert(errorData.error || 'Failed to duplicate project')
@@ -521,7 +521,7 @@ export default function ManageProjectsPage() {
     setEditWarningDialogOpen(false)
     setSelectedProject(null)
 
-    router.push(`/professional/projects/${projectId}/edit`)
+    router.push(`/projects/create?id=${projectId}`)
   }
 
   // Since filtering is now handled server-side, we use projects directly
@@ -548,13 +548,12 @@ export default function ManageProjectsPage() {
   const rejectedProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'rejected')
   const onHoldProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'on_hold')
 
-  const fallbackCounts = deriveCountsFromProjects(filteredProjects)
   const tabCounts = {
-    drafts: projectCounts.drafts || fallbackCounts.drafts,
-    pending: projectCounts.pending || fallbackCounts.pending,
-    published: projectCounts.published || fallbackCounts.published,
-    on_hold: projectCounts.on_hold || fallbackCounts.on_hold,
-    rejected: projectCounts.rejected || fallbackCounts.rejected
+    drafts: projectCounts.drafts,
+    pending: projectCounts.pending,
+    published: projectCounts.published,
+    on_hold: projectCounts.on_hold,
+    rejected: projectCounts.rejected
   }
 
   // Get unique categories for filter dropdown
@@ -587,7 +586,7 @@ export default function ManageProjectsPage() {
           {canEdit && (
             <DropdownMenuItem onClick={() => {
               console.log('[ManageProjects] Editing project:', project._id)
-              router.push(`/professional/projects/${project._id}/edit`);
+              router.push(`/projects/create?id=${project._id}`);
             }}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Project
@@ -757,7 +756,7 @@ export default function ManageProjectsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.drafts}</div>
+              <div className="text-base sm:text-lg md:text-xl font-bold">{tabCounts.drafts}</div>
             </CardContent>
           </Card>
 
@@ -769,7 +768,7 @@ export default function ManageProjectsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.pending}</div>
+              <div className="text-base sm:text-lg md:text-xl font-bold">{tabCounts.pending}</div>
             </CardContent>
           </Card>
 
@@ -781,7 +780,7 @@ export default function ManageProjectsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.published}</div>
+              <div className="text-base sm:text-lg md:text-xl font-bold">{tabCounts.published}</div>
             </CardContent>
           </Card>
 
@@ -793,7 +792,7 @@ export default function ManageProjectsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.on_hold}</div>
+              <div className="text-base sm:text-lg md:text-xl font-bold">{tabCounts.on_hold}</div>
             </CardContent>
           </Card>
 
@@ -805,7 +804,7 @@ export default function ManageProjectsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
-              <div className="text-base sm:text-lg md:text-xl font-bold">{projectCounts.rejected}</div>
+              <div className="text-base sm:text-lg md:text-xl font-bold">{tabCounts.rejected}</div>
             </CardContent>
           </Card>
         </div>
@@ -814,7 +813,7 @@ export default function ManageProjectsPage() {
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="all" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                All ({filteredProjects.length})
+                All ({tabCounts.drafts + tabCounts.pending + tabCounts.published + tabCounts.on_hold + tabCounts.rejected})
               </TabsTrigger>
               <TabsTrigger value="drafts" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 Drafts ({tabCounts.drafts})

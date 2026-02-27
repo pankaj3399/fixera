@@ -37,6 +37,7 @@ import {
   getCertificateGradient,
   isQualityCertificate,
 } from '@/lib/projectHighlights';
+import { emitChatWidgetOpen, PENDING_CHAT_START_KEY } from '@/lib/chatWidgetEvents';
 import {
   formatProfessionalViewerLabel,
   formatWindowProfessionalViewer,
@@ -70,7 +71,8 @@ interface Project {
   };
   distance: {
     address: string;
-    maxKmRange: number;
+    maxKmRange?: number;
+    noBorders: boolean;
   };
   firstAvailableDate?: string | null;
   certifications?: Array<{
@@ -118,6 +120,7 @@ interface Project {
     answer: string;
   }>;
   professionalId: {
+    _id: string;
     name: string;
     businessInfo?: {
       companyName?: string;
@@ -292,6 +295,28 @@ export default function ProjectDetailPage() {
     setShowBookingForm(true);
   };
 
+  const handleContactProfessional = () => {
+    const profId = project?.professionalId?._id;
+    if (!profId) return;
+
+    if (!isAuthenticated) {
+      sessionStorage.setItem(
+        PENDING_CHAT_START_KEY,
+        JSON.stringify({ open: true, professionalId: profId })
+      );
+      toast.error('Please sign in to contact this professional');
+      router.push(`/login?redirect=/projects/${projectId}`);
+      return;
+    }
+
+    if (user?.role !== 'customer') {
+      toast.error('Only customers can contact professionals');
+      return;
+    }
+
+    emitChatWidgetOpen({ open: true, professionalId: profId });
+  };
+
   if (loading || authLoading) {
     return (
       <div className='min-h-screen flex items-center justify-center'>
@@ -369,6 +394,12 @@ export default function ProjectDetailPage() {
   };
 
   const comparisonTableDateLabels = getComparisonTableDateLabels();
+
+  const serviceAreaLabel = project.distance.noBorders
+    ? 'No borders'
+    : project.distance.maxKmRange != null
+      ? `${project.distance.maxKmRange} km radius`
+      : '—';
 
   if (showBookingForm) {
     return (
@@ -525,9 +556,7 @@ export default function ProjectDetailPage() {
                     <MapPin className='h-5 w-5 text-gray-500' />
                     <div>
                       <p className='text-sm text-gray-500'>Service Area</p>
-                      <p className='font-medium'>
-                        {project.distance.maxKmRange} km radius
-                      </p>
+                      <p className='font-medium'>{serviceAreaLabel}</p>
                     </div>
                   </div>
                   <div className='flex items-center gap-2'>
@@ -722,8 +751,9 @@ export default function ProjectDetailPage() {
                   onSelectIndex={setViewedSubprojectIndex}
                   dateLabels={comparisonTableDateLabels}
                   timeMode={project.timeMode}
-                  companyAvailability={project.professionalId?.companyAvailability}
-                  companyBlockedRanges={project.professionalId?.companyBlockedRanges}
+                  companyAvailability={project.professionalId.companyAvailability}
+                  companyBlockedRanges={project.professionalId.companyBlockedRanges}
+                  onContactProfessional={handleContactProfessional}
                 />
               </div>
             )}
@@ -901,7 +931,7 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
 

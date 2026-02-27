@@ -1943,6 +1943,12 @@ export default function ProjectBookingForm({
         : '';
       const serviceDescription = `Booking for ${project.title}. Selected package: ${selectedPackage.name}.${usageDetails}${additionalNotesText}${addressText}`;
       const totalPrice = calculateTotal();
+      const isRfqPackage = selectedPackage.pricing.type === 'rfq';
+      const hasValidPackageAmount =
+        typeof selectedPackage.pricing.amount === 'number' &&
+        selectedPackage.pricing.amount >= 0;
+      const shouldPayAtCheckout =
+        !isRfqPackage && hasValidPackageAmount && totalPrice > 0;
 
       const bookingData = {
         bookingType: 'project',
@@ -1954,6 +1960,7 @@ export default function ProjectBookingForm({
         estimatedUsage: usageRequired ? estimatedUsage : undefined,
         selectedExtraOptions:
           selectedExtraOptions.length > 0 ? selectedExtraOptions : undefined,
+        paymentAtCheckout: shouldPayAtCheckout,
         rfqData: {
           serviceType: project.title,
           description: serviceDescription,
@@ -2014,6 +2021,11 @@ export default function ProjectBookingForm({
         debugLog?.('[BOOKING] Response data:', data);
 
         if (response.ok && data.success) {
+          if (shouldPayAtCheckout && data.booking?._id) {
+            router.replace(`/bookings/${data.booking._id}/payment`);
+            return;
+          }
+
           // Check if project has post-booking questions
           if (
             project.postBookingQuestions &&
@@ -2139,6 +2151,29 @@ export default function ProjectBookingForm({
 
     return total;
   };
+
+  const shouldPayAtCheckoutFlow =
+    Boolean(selectedPackage) &&
+    selectedPackage?.pricing.type !== 'rfq' &&
+    typeof selectedPackage?.pricing.amount === 'number' &&
+    selectedPackage.pricing.amount >= 0 &&
+    calculateTotal() > 0;
+  const finalStepLabel = shouldPayAtCheckoutFlow
+    ? 'Review & Pay'
+    : 'Review & Submit RFQ';
+  const finalStepDescription = shouldPayAtCheckoutFlow
+    ? 'Please review your selections before proceeding to payment'
+    : 'Please review your selections before submitting your quote request';
+  const finalActionLabel = shouldPayAtCheckoutFlow ? 'Pay Now' : 'Submit RFQ';
+  const finalActionLoadingLabel = shouldPayAtCheckoutFlow
+    ? 'Preparing Payment...'
+    : 'Submitting RFQ...';
+  const stepLabels = [
+    'Confirm Package',
+    'Choose Date',
+    'Answer Questions',
+    finalStepLabel,
+  ];
 
   const projectedCompletionDate = calculateCompletionDate();
   const projectedCompletionDateTime = calculateCompletionDateTime();
@@ -2500,12 +2535,7 @@ export default function ProjectBookingForm({
         {/* Progress Steps */}
         <div className='mb-8'>
           <div className='flex items-center justify-between'>
-            {[
-              'Confirm Package',
-              'Choose Date',
-              'Answer Questions',
-              'Review & Pay',
-            ].map((step, idx) => (
+            {stepLabels.map((step, idx) => (
               <div key={idx} className='flex items-center'>
                 <div
                   className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep > idx + 1
@@ -2536,12 +2566,7 @@ export default function ProjectBookingForm({
             ))}
           </div>
           <div className='flex justify-between mt-2'>
-            {[
-              'Confirm Package',
-              'Choose Date',
-              'Answer Questions',
-              'Review & Pay',
-            ].map((step, idx) => (
+            {stepLabels.map((step, idx) => (
               <span
                 key={idx}
                 className={`text-xs ${currentStep === idx + 1
@@ -3383,7 +3408,7 @@ export default function ProjectBookingForm({
                     Review Your Booking
                   </h2>
                   <p className='text-gray-600 text-sm mb-6'>
-                    Please review your selections before proceeding
+                    {finalStepDescription}
                   </p>
                 </div>
 
@@ -3694,10 +3719,10 @@ export default function ProjectBookingForm({
               {loading ? (
                 <>
                   <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  Submitting...
+                  {finalActionLoadingLabel}
                 </>
               ) : (
-                'Submit Booking Request'
+                finalActionLabel
               )}
             </Button>
           )}

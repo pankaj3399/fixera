@@ -31,7 +31,7 @@ import {
   Award,
   Shield,
   ExternalLink,
-  
+
 } from "lucide-react"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || ''
@@ -48,7 +48,7 @@ interface ICertification {
 interface IDistance {
   address: string
   useCompanyAddress: boolean
-  maxKmRange: number
+  maxKmRange?: number
   noBorders: boolean
 }
 
@@ -81,9 +81,9 @@ interface IIncludedItem {
 }
 
 interface IExecutionDuration {
-  value: number
+  value?: number
   unit: 'hours' | 'days'
-  range?: { min: number; max: number }
+  range?: { min?: number; max?: number }
 }
 
 interface IBuffer {
@@ -109,7 +109,7 @@ interface ISubproject {
   pricing: IPricing
   included: IIncludedItem[]
   materialsIncluded: boolean
-  preparationDuration?: { value: number; unit: 'hours' | 'days' }
+  preparationDuration?: { value?: number; unit: 'hours' | 'days' }
   executionDuration: IExecutionDuration
   buffer?: IBuffer
   intakeDuration?: IIntakeDuration
@@ -126,6 +126,7 @@ interface IExtraOption {
 interface ITermCondition {
   name: string
   description: string
+  type?: 'condition' | 'warning'
   additionalCost?: number
   isCustom: boolean
 }
@@ -220,6 +221,7 @@ export default function ProjectDetailPage() {
   const params = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [showMeetingScheduler, setShowMeetingScheduler] = useState(false)
@@ -457,32 +459,35 @@ export default function ProjectDetailPage() {
     }
   }
 
-const submitProject = async () => {
-  if (!project) return;
+  const submitProject = async () => {
+    if (!project || isSubmitting) return;
 
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
-      method: 'POST',
-      credentials: 'include'
-    });
-    
-    if (response.ok) {
-      // Redirect to projects manage page on success
-      router.push('/professional/projects/manage');
-      router.refresh(); // Optional: refresh the manage page data
-    } else {
-      const errorData = await response.json();
-      alert(`${errorData.error || 'Failed to submit project'}`);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${project._id}/submit`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        // Redirect to projects manage page on success
+        router.push('/professional/projects/manage');
+        router.refresh(); // Optional: refresh the manage page data
+      } else {
+        const errorData = await response.json();
+        alert(`${errorData.error || 'Failed to submit project'}`);
+      }
+    } catch (error) {
+      console.error('Failed to submit project', error);
+      alert('Failed to submit project');
+    } finally {
+      setIsSubmitting(false);
     }
-  } catch (error) {
-    console.error('Failed to submit project', error);
-    alert('Failed to submit project');
-  }
-};
+  };
 
 
   const formatPricing = (pricing: IPricing) => {
-    if (pricing.type === 'fixed' && pricing.amount) {
+    if (pricing.type === 'fixed' && pricing.amount != null) {
       return `€${pricing.amount.toLocaleString()}`
     } else if (pricing.type === 'unit' && pricing.priceRange) {
       return `€${pricing.priceRange.min.toLocaleString()} - €${pricing.priceRange.max.toLocaleString()}`
@@ -493,10 +498,18 @@ const submitProject = async () => {
   }
 
   const formatDuration = (duration: IExecutionDuration) => {
-    if (duration.range) {
-      return `${duration.range.min}-${duration.range.max} ${duration.unit}`
+    if (duration.value != null) {
+      return `${duration.value} ${duration.unit}`
+    } else if (duration.range) {
+      if (duration.range.min != null && duration.range.max != null) {
+        return `${duration.range.min}–${duration.range.max} ${duration.unit}`
+      } else if (duration.range.min != null) {
+        return `≥${duration.range.min} ${duration.unit}`
+      } else if (duration.range.max != null) {
+        return `≤${duration.range.max} ${duration.unit}`
+      }
     }
-    return `${duration.value} ${duration.unit}`
+    return 'Not set'
   }
 
   if (loading || isLoading) {
@@ -646,7 +659,7 @@ const submitProject = async () => {
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Max Range:</span>
-                    <p>{project.distance.noBorders ? 'No borders' : `${project.distance.maxKmRange} km`}</p>
+                    <p>{project.distance.noBorders ? 'No borders' : (project.distance.maxKmRange != null ? `${project.distance.maxKmRange} km` : '—')}</p>
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Company Address:</span>
@@ -767,15 +780,15 @@ const submitProject = async () => {
                         <div>
                           <span className="font-medium text-gray-600">Preparation:</span>
                           <p>
-                        {(() => {
-                          const preparationValue = subproject.preparationDuration?.value;
-                          if (preparationValue == null) return null;
-                          const preparationUnit =
-                            subproject.preparationDuration?.unit ??
-                            subproject.executionDuration?.unit ??
-                            'days';
-                          return `${preparationValue} ${preparationUnit}`;
-                        })()}
+                            {(() => {
+                              const preparationValue = subproject.preparationDuration?.value;
+                              if (preparationValue == null) return 'Not set';
+                              const preparationUnit =
+                                subproject.preparationDuration?.unit ??
+                                subproject.executionDuration?.unit ??
+                                'days';
+                              return `${preparationValue} ${preparationUnit}`;
+                            })()}
                           </p>
                         </div>
                         {subproject.intakeDuration && (
@@ -843,10 +856,13 @@ const submitProject = async () => {
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
                   {project.termsConditions.map((term, index) => (
-                    <div key={index} className="border-l-4 border-blue-200 pl-4">
-                      <h4 className="font-medium text-sm">{term.name}</h4>
+                    <div key={index} className={`border-l-4 ${term.type === 'warning' ? 'border-yellow-300' : 'border-blue-200'} pl-4`}>
+                      <h4 className="font-medium text-sm">
+                        {term.name}
+                        {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                      </h4>
                       <p className="text-sm text-gray-600 mt-1 break-words">{term.description}</p>
-                      {term.additionalCost && (
+                      {term.type !== 'warning' && term.additionalCost != null && Number.isFinite(term.additionalCost) && term.additionalCost >= 0 && (
                         <p className="text-sm font-medium text-orange-600 mt-1">
                           Additional cost: €{term.additionalCost.toLocaleString()}
                         </p>
@@ -1040,28 +1056,25 @@ const submitProject = async () => {
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
                   {project.qualityChecks.map((check, index) => (
-                    <div key={index} className={`flex items-start gap-3 p-3 rounded-lg ${
-                      check.status === 'passed'
-                        ? 'bg-green-50 border border-green-200'
-                        : check.status === 'warning'
+                    <div key={index} className={`flex items-start gap-3 p-3 rounded-lg ${check.status === 'passed'
+                      ? 'bg-green-50 border border-green-200'
+                      : check.status === 'warning'
                         ? 'bg-yellow-50 border border-yellow-200'
                         : 'bg-red-50 border border-red-200'
-                    }`}>
+                      }`}>
                       {check.status === 'passed'
                         ? <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
                         : check.status === 'warning'
-                        ? <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                        : <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                          ? <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          : <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                       }
                       <div className="min-w-0 flex-1">
-                        <h5 className={`font-medium capitalize text-sm ${
-                          check.status === 'passed' ? 'text-green-800' : check.status === 'warning' ? 'text-yellow-800' : 'text-red-800'
-                        }`}>
+                        <h5 className={`font-medium capitalize text-sm ${check.status === 'passed' ? 'text-green-800' : check.status === 'warning' ? 'text-yellow-800' : 'text-red-800'
+                          }`}>
                           {check.category}
                         </h5>
-                        <p className={`text-sm break-words ${
-                          check.status === 'passed' ? 'text-green-700' : check.status === 'warning' ? 'text-yellow-700' : 'text-red-700'
-                        }`}>
+                        <p className={`text-sm break-words ${check.status === 'passed' ? 'text-green-700' : check.status === 'warning' ? 'text-yellow-700' : 'text-red-700'
+                          }`}>
                           {check.message}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
@@ -1125,7 +1138,7 @@ const submitProject = async () => {
               <CardContent className="px-4 md:px-6 space-y-3">
                 {/* Always show edit button */}
                 <Button
-                  onClick={() => router.push(`/professional/projects/${project._id}/edit`)}
+                  onClick={() => router.push(`/projects/create?id=${project._id}`)}
                   className="w-full"
                   variant="outline"
                 >
@@ -1138,6 +1151,7 @@ const submitProject = async () => {
                   <Button
                     onClick={submitProject}
                     className="w-full"
+                    disabled={isSubmitting}
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Submit for Approval
@@ -1148,6 +1162,7 @@ const submitProject = async () => {
                   <Button
                     onClick={submitProject}
                     className="w-full"
+                    disabled={isSubmitting}
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Resubmit for Approval

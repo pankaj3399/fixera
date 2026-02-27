@@ -1,9 +1,12 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Euro, ArrowRight, Calendar } from 'lucide-react';
+import StartChatButton from '@/components/chat/StartChatButton';
 
 interface ProfessionalCardProps {
   professional: {
@@ -105,12 +108,19 @@ const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
           )}
         </div>
 
-        {/* CTA Button */}
-        <Button asChild className="w-full mt-4" variant="default">
-          <Link href={`/professionals/${professional._id}`}>
-            View Profile <ArrowRight className="w-4 h-4 ml-2" />
-          </Link>
-        </Button>
+        {/* CTA Buttons */}
+        <div className="mt-4 grid grid-cols-1 gap-2">
+          <Button asChild className="w-full" variant="default">
+            <Link href={`/professionals/${professional._id}`}>
+              View Profile <ArrowRight className="w-4 h-4 ml-2" />
+            </Link>
+          </Button>
+          <StartChatButton
+            professionalId={professional._id}
+            label="Start Chat"
+            className="w-full"
+          />
+        </div>
       </CardContent>
     </Card>
   );

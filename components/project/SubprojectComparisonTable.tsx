@@ -57,6 +57,7 @@ interface SubprojectComparisonTableProps {
     reason?: string;
     isHoliday?: boolean;
   }>
+  onContactProfessional?: () => void
 }
 
 export default function SubprojectComparisonTable({
@@ -68,7 +69,8 @@ export default function SubprojectComparisonTable({
   dateLabels,
   timeMode,
   companyAvailability,
-  companyBlockedRanges
+  companyBlockedRanges,
+  onContactProfessional
 }: SubprojectComparisonTableProps) {
 
 
@@ -257,12 +259,15 @@ export default function SubprojectComparisonTable({
             </Button>
 
             {/* Contact Me Button */}
-            <Button
-              variant="outline"
-              className="w-full mt-3 mb-8 h-12 text-base font-medium border-gray-300 hover:bg-gray-50"
-            >
-              Contact me
-            </Button>
+            {onContactProfessional && (
+              <Button
+                variant="outline"
+                className="w-full mt-3 mb-8 h-12 text-base font-medium border-gray-300 hover:bg-gray-50"
+                onClick={onContactProfessional}
+              >
+                Contact me
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

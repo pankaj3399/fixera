@@ -10,6 +10,7 @@ import { useEffect, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
+import StartChatButton from "@/components/chat/StartChatButton"
 
 interface LoyaltyStats {
   tierDistribution: Array<{
@@ -523,6 +524,15 @@ export default function DashboardPage() {
                           >
                             View details
                           </Button>
+                          {booking.professional?._id && (
+                            <StartChatButton
+                              professionalId={booking.professional._id}
+                              bookingId={booking._id}
+                              label="Chat"
+                              size="sm"
+                              className="text-xs bg-white/80 border-indigo-200 hover:border-indigo-300"
+                            />
+                          )}
                           {/* Customer: Pay Now button */}
                           {user?.role === 'customer' && (booking.status === 'quote_accepted' || booking.status === 'payment_pending') && (
                             <Button
@@ -655,14 +665,25 @@ export default function DashboardPage() {
                         )}
 
                         <div className="pt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => router.push(`/bookings/${booking._id}`)}
-                            className="text-xs bg-white/80 border-teal-200 hover:border-teal-300"
-                          >
-                            View details
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => router.push(`/bookings/${booking._id}`)}
+                              className="text-xs bg-white/80 border-teal-200 hover:border-teal-300"
+                            >
+                              View details
+                            </Button>
+                            {booking.professional?._id && (
+                              <StartChatButton
+                                professionalId={booking.professional._id}
+                                bookingId={booking._id}
+                                label="Chat"
+                                size="sm"
+                                className="text-xs bg-white/80 border-teal-200 hover:border-teal-300"
+                              />
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
