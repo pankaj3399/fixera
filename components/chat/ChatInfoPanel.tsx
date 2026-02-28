@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { Loader2, Star, MapPin, Calendar, ExternalLink, Briefcase } from "lucide-react";
+import { Loader2, Star, MapPin, Calendar, Briefcase } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { fetchConversationInfo } from "@/lib/chatApi";
 import type { ChatConversation, ConversationInfoStats } from "@/types/chat";
 
@@ -85,9 +83,6 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
   const memberSince = other?.createdAt
     ? new Date(other.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })
     : null;
-  const profileUrl = currentUserRole === "customer" && other?._id
-    ? `/professional/${other._id}`
-    : undefined;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -123,14 +118,6 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
           </div>
         )}
 
-        {profileUrl && (
-          <Button asChild variant="outline" size="sm" className="mt-3">
-            <Link href={profileUrl}>
-              <ExternalLink className="h-3 w-3 mr-1.5" />
-              View Profile
-            </Link>
-          </Button>
-        )}
       </div>
 
       {/* Booking Stats */}
