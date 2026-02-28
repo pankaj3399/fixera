@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Euro, ArrowRight, Calendar } from 'lucide-react';
+import { MapPin, Euro, ArrowRight, Calendar, Star } from 'lucide-react';
 import StartChatButton from '@/components/chat/StartChatButton';
 
 interface ProfessionalCardProps {
@@ -24,6 +24,8 @@ interface ProfessionalCardProps {
     serviceCategories?: string[];
     profileImage?: string;
     availability?: boolean;
+    avgRating?: number;
+    totalReviews?: number;
   };
 }
 
@@ -63,7 +65,29 @@ const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
             {displayName}
           </h3>
           {professional.businessInfo?.companyName && professional.name !== professional.businessInfo.companyName && (
-            <p className="text-sm text-gray-500 mb-3">{professional.name}</p>
+            <p className="text-sm text-gray-500 mb-1">{professional.name}</p>
+          )}
+
+          {/* Rating */}
+          {professional.avgRating && professional.avgRating > 0 && (
+            <div className="flex items-center gap-1.5 mb-3">
+              <div className="flex items-center gap-0.5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-3.5 w-3.5 ${
+                      star <= Math.round(professional.avgRating!)
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-gray-200"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-sm font-medium text-gray-700">{professional.avgRating.toFixed(1)}</span>
+              {professional.totalReviews != null && (
+                <span className="text-xs text-gray-400">({professional.totalReviews})</span>
+              )}
+            </div>
           )}
 
           {professional.businessInfo?.description && (
@@ -111,7 +135,7 @@ const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
         {/* CTA Buttons */}
         <div className="mt-4 grid grid-cols-1 gap-2">
           <Button asChild className="w-full" variant="default">
-            <Link href={`/professionals/${professional._id}`}>
+            <Link href={`/professional/${professional._id}`}>
               View Profile <ArrowRight className="w-4 h-4 ml-2" />
             </Link>
           </Button>

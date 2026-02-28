@@ -191,7 +191,6 @@ export default function ChatWidget() {
       try {
         const conversation = await createOrGetConversation({
           professionalId: detail.professionalId,
-          bookingId: detail.bookingId,
         });
 
         await loadConversationList(false);
@@ -377,11 +376,6 @@ export default function ChatWidget() {
                     ? "New chat"
                     : "Messages"}
                 </CardTitle>
-                {selectedConversation?.bookingId?.bookingNumber && (
-                  <p className="text-[11px] text-indigo-100 mt-0.5">
-                    Booking {selectedConversation.bookingId.bookingNumber}
-                  </p>
-                )}
               </div>
 
               <div className="flex items-center gap-1">

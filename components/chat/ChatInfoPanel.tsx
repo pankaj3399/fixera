@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Star, MapPin, Calendar, ExternalLink, Briefcase } from "lucide-react";
+import { Loader2, Star, MapPin, Calendar, ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { fetchConversationInfo } from "@/lib/chatApi";
@@ -26,22 +26,25 @@ const maskEmail = (email: string): string => {
   return `${visiblePrefix}***@${domain}`;
 };
 
-const StarRating = ({ rating }: { rating: number }) => {
-  if (!rating || rating === 0) return <span className="text-xs text-gray-400">No ratings yet</span>;
+const StarRating = ({ rating, label }: { rating: number; label?: string }) => {
+  if (!rating || rating === 0) return null;
 
   return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <Star
-          key={star}
-          className={`h-3.5 w-3.5 ${
-            star <= Math.round(rating)
-              ? "fill-yellow-400 text-yellow-400"
-              : "text-gray-200"
-          }`}
-        />
-      ))}
-      <span className="text-xs text-gray-600 ml-1">{rating.toFixed(1)}</span>
+    <div className="flex items-center justify-between">
+      {label && <span className="text-[11px] text-gray-500 shrink-0">{label}</span>}
+      <div className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-3 w-3 ${
+              star <= Math.round(rating)
+                ? "fill-yellow-400 text-yellow-400"
+                : "text-gray-200"
+            }`}
+          />
+        ))}
+        <span className="text-[11px] text-gray-600 ml-1">{rating.toFixed(1)}</span>
+      </div>
     </div>
   );
 };
@@ -85,7 +88,12 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
   const memberSince = other?.createdAt
     ? new Date(other.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })
     : null;
-  const profileUrl = currentUserRole === "customer" && other?._id
+
+  const isProfessionalViewing = currentUserRole === "professional";
+  const isCustomerViewing = currentUserRole === "customer";
+
+  // Link to professional profile page
+  const profileUrl = isCustomerViewing && other?._id
     ? `/professional/${other._id}`
     : undefined;
 
@@ -124,7 +132,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
         )}
 
         {profileUrl && (
-          <Button asChild variant="outline" size="sm" className="mt-3">
+          <Button asChild variant="default" size="sm" className="mt-3 bg-indigo-600 hover:bg-indigo-700">
             <Link href={profileUrl}>
               <ExternalLink className="h-3 w-3 mr-1.5" />
               View Profile
@@ -132,6 +140,65 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
           </Button>
         )}
       </div>
+
+      {/* Ratings Section */}
+      {stats && (
+        <>
+          {/* When customer views professional: show 3 category ratings */}
+          {isCustomerViewing && stats.avgCustomerRating > 0 && (
+            <>
+              <div className="border-t border-slate-200 mx-4" />
+              <div className="p-4 space-y-2">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Professional Ratings</h4>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-4 w-4 ${
+                          star <= Math.round(stats.avgCustomerRating)
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">{stats.avgCustomerRating.toFixed(1)}</span>
+                </div>
+                <StarRating rating={stats.avgCommunication} label="Communication" />
+                <StarRating rating={stats.avgValueOfDelivery} label="Value of Delivery" />
+                <StarRating rating={stats.avgQualityOfService} label="Quality of Service" />
+              </div>
+            </>
+          )}
+
+          {/* When professional views customer: show customer's avg rating from professionals */}
+          {isProfessionalViewing && stats.avgProfessionalRating > 0 && (
+            <>
+              <div className="border-t border-slate-200 mx-4" />
+              <div className="p-4 space-y-2">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Rating</h4>
+                <p className="text-[11px] text-gray-400">Average from professionals</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-4 w-4 ${
+                          star <= Math.round(stats.avgProfessionalRating)
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">{stats.avgProfessionalRating.toFixed(1)}</span>
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       {/* Booking Stats */}
       {stats && (
@@ -151,20 +218,6 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
               </div>
             </div>
 
-            {stats.avgCustomerRating > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs text-gray-500">Customer Rating</p>
-                <StarRating rating={stats.avgCustomerRating} />
-              </div>
-            )}
-
-            {stats.avgProfessionalRating > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs text-gray-500">Professional Rating</p>
-                <StarRating rating={stats.avgProfessionalRating} />
-              </div>
-            )}
-
             {stats.totalBookings === 0 && (
               <p className="text-xs text-gray-400 text-center py-2">No bookings between you yet</p>
             )}
@@ -172,24 +225,6 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
         </>
       )}
 
-      {/* Booking Info */}
-      {displayConversation.bookingId?.bookingNumber && (
-        <>
-          <div className="border-t border-slate-200 mx-4" />
-          <div className="p-4 space-y-2">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Current Booking</h4>
-            <div className="flex items-center gap-2 text-sm">
-              <Briefcase className="h-4 w-4 text-gray-400" />
-              <span className="text-gray-700">#{displayConversation.bookingId.bookingNumber}</span>
-            </div>
-            {displayConversation.bookingId.status && (
-              <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 capitalize">
-                {displayConversation.bookingId.status}
-              </span>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

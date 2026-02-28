@@ -10,10 +10,11 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star } from "lucide-react"
 import { toast } from "sonner"
 import { getAuthToken } from "@/lib/utils"
 import StartChatButton from "@/components/chat/StartChatButton"
+import ReviewModal from "@/components/booking/ReviewModal"
 
 type BookingStatus =
   | "rfq"
@@ -98,6 +99,22 @@ interface BookingDetail {
     phone?: string
     customerType?: string
   }
+  customerReview?: {
+    communicationLevel?: number
+    valueOfDelivery?: number
+    qualityOfService?: number
+    comment?: string
+    reviewedAt?: string
+    reply?: {
+      comment?: string
+      repliedAt?: string
+    }
+  }
+  professionalReview?: {
+    rating?: number
+    comment?: string
+    reviewedAt?: string
+  }
 }
 
 const DETAIL_STATUS_STYLES: Record<string, string> = {
@@ -176,12 +193,28 @@ export default function BookingDetailPage() {
   const [submittingAnswers, setSubmittingAnswers] = useState(false)
   const [answersSubmitted, setAnswersSubmitted] = useState(false)
   const [validationErrors, setValidationErrors] = useState<number[]>([])
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewAutoShown, setReviewAutoShown] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push("/login?redirect=/dashboard")
     }
   }, [isAuthenticated, loading, router])
+
+  // Auto-popup review modal when booking is completed and user hasn't reviewed yet
+  useEffect(() => {
+    if (!booking || booking.status !== "completed" || reviewAutoShown) return
+    const isCustomer = user?.role === "customer" || user?._id === booking.customer?._id
+    const isProfessional = user?.role === "professional" || user?._id === booking.professional?._id
+    const customerHasReviewed = !!booking.customerReview?.communicationLevel
+    const professionalHasReviewed = !!booking.professionalReview?.rating
+
+    if ((isCustomer && !customerHasReviewed) || (isProfessional && !professionalHasReviewed)) {
+      setShowReviewModal(true)
+      setReviewAutoShown(true)
+    }
+  }, [booking, user, reviewAutoShown])
 
   useEffect(() => {
     if (!bookingId || !isAuthenticated) return
@@ -525,7 +558,6 @@ export default function BookingDetailPage() {
             {user?.role === "customer" && booking?.professional?._id && (
               <StartChatButton
                 professionalId={booking.professional._id}
-                bookingId={booking._id}
                 className="bg-white/80 backdrop-blur border-indigo-100 hover:border-indigo-300"
               />
             )}
@@ -973,7 +1005,7 @@ export default function BookingDetailPage() {
                   <div className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <CheckCircle className="h-6 w-6 text-emerald-600 mt-0.5" />
-                      <div>
+                      <div className="flex-1">
                         <h3 className="text-sm font-semibold text-emerald-900 mb-1">
                           Work Completed
                         </h3>
@@ -985,9 +1017,60 @@ export default function BookingDetailPage() {
                             Funds will arrive in your bank account within 2-7 business days.
                           </p>
                         )}
+
+                        {/* Review button */}
+                        {(() => {
+                          const isCustomer = user?._id === booking.customer?._id || user?.role === "customer"
+                          const isProfessional = user?._id === booking.professional?._id || user?.role === "professional"
+                          const customerHasReviewed = !!booking.customerReview?.communicationLevel
+                          const professionalHasReviewed = !!booking.professionalReview?.rating
+                          const canReview = (isCustomer && !customerHasReviewed) || (isProfessional && !professionalHasReviewed)
+
+                          if (canReview) {
+                            return (
+                              <Button
+                                size="sm"
+                                className="mt-3 bg-yellow-500 hover:bg-yellow-600 text-white"
+                                onClick={() => setShowReviewModal(true)}
+                              >
+                                <Star className="h-4 w-4 mr-1.5" />
+                                Leave a Review
+                              </Button>
+                            )
+                          }
+
+                          if ((isCustomer && customerHasReviewed) || (isProfessional && professionalHasReviewed)) {
+                            return (
+                              <p className="text-xs text-emerald-600 font-medium mt-2 flex items-center gap-1">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                You have already reviewed this booking
+                              </p>
+                            )
+                          }
+
+                          return null
+                        })()}
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* Review Modal */}
+                {booking.status === "completed" && (
+                  <ReviewModal
+                    open={showReviewModal}
+                    onClose={() => setShowReviewModal(false)}
+                    bookingId={booking._id}
+                    role={
+                      user?._id === booking.customer?._id || user?.role === "customer"
+                        ? "customer"
+                        : "professional"
+                    }
+                    onSubmitted={() => {
+                      // Refetch booking to update the UI
+                      window.location.reload()
+                    }}
+                  />
                 )}
 
                 {/* Core info */}

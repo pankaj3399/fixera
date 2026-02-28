@@ -54,7 +54,6 @@ export default function ChatPage() {
   const userRole = user?.role;
   const conversationIdFromQuery = searchParams.get("conversationId") || undefined;
   const professionalIdFromQuery = searchParams.get("professionalId") || undefined;
-  const bookingIdFromQuery = searchParams.get("bookingId") || undefined;
 
   const initializedByQueryRef = useRef(false);
 
@@ -182,7 +181,6 @@ export default function ChatPage() {
       try {
         const conversation = await createOrGetConversation({
           professionalId: professionalIdFromQuery,
-          bookingId: bookingIdFromQuery,
         });
         setSelectedConversationId(conversation._id);
         router.replace(`/chat?conversationId=${conversation._id}`);
@@ -192,7 +190,7 @@ export default function ChatPage() {
       }
     };
     void createFromQuery();
-  }, [bookingIdFromQuery, isAuthenticated, loadConversationList, professionalIdFromQuery, router, userRole]);
+  }, [isAuthenticated, loadConversationList, professionalIdFromQuery, router, userRole]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -435,11 +433,6 @@ export default function ChatPage() {
                 </button>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{otherName}</p>
-                  {selectedConversation.bookingId?.bookingNumber && (
-                    <p className="text-xs text-gray-500">
-                      Booking {selectedConversation.bookingId.bookingNumber}
-                    </p>
-                  )}
                 </div>
               </div>
               <Button

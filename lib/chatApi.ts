@@ -56,7 +56,6 @@ export const fetchProfessionals = async (limit = PROFESSIONALS_LIMIT): Promise<P
 
 export const createOrGetConversation = async (payload: {
   professionalId: string;
-  bookingId?: string;
 }) => {
   const response = await fetch(`${API_BASE}/conversations`, {
     method: "POST",

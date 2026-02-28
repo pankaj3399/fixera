@@ -10,7 +10,6 @@ import { emitChatWidgetOpen, PENDING_CHAT_START_KEY } from "@/lib/chatWidgetEven
 
 interface StartChatButtonProps {
   professionalId: string;
-  bookingId?: string;
   label?: string;
   className?: string;
   variant?: "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
@@ -19,7 +18,6 @@ interface StartChatButtonProps {
 
 export default function StartChatButton({
   professionalId,
-  bookingId,
   label = "Start Chat",
   className,
   variant = "outline",
@@ -33,9 +31,8 @@ export default function StartChatButton({
     () => ({
       open: true,
       professionalId,
-      bookingId,
     }),
-    [professionalId, bookingId]
+    [professionalId]
   );
 
   if (user && user.role !== "customer") {
