@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ArrowRight, Loader2 } from 'lucide-react'
+import { getServiceIconName } from '@/lib/serviceIcons'
 import Icon, { IconName } from '@/components/Icon'
 
 interface ApiService {
   name: string
   slug: string
+  icon?: string
 }
 
 interface ApiCategory {
@@ -19,30 +21,9 @@ interface ApiCategory {
   services: ApiService[]
 }
 
-function getServiceIcon(slug: string): IconName {
-  const s = slug.toLowerCase()
-  if (s.includes('plumb')) return 'Droplet'
-  if (s.includes('electr')) return 'Zap'
-  if (s.includes('paint')) return 'PaintBucket'
-  if (s.includes('renov')) return 'Hammer'
-  if (s.includes('roof')) return 'Home'
-  if (s.includes('garden') || s.includes('landsc')) return 'TreePine'
-  if (s.includes('clean')) return 'ShowerHead'
-  if (s.includes('hvac') || s.includes('air')) return 'Fan'
-  if (s.includes('insul')) return 'Thermometer'
-  if (s.includes('floor')) return 'Layers'
-  if (s.includes('tile')) return 'Grid'
-  if (s.includes('solar')) return 'Sun'
-  if (s.includes('design') || s.includes('3d')) return 'Palette'
-  if (s.includes('kitchen')) return 'ChefHat'
-  if (s.includes('bath')) return 'Bath'
-  if (s.includes('carpentry') || s.includes('wood')) return 'Hammer'
-  if (s.includes('window') || s.includes('door')) return 'DoorOpen'
-  if (s.includes('mov')) return 'Truck'
-  return 'Wrench'
-}
-
 const ServiceCard = ({ service }: { service: ApiService }) => {
+  const iconName = getServiceIconName(service.slug, service.icon) as IconName;
+
   return (
     <Link href={`/services/${service.slug}`} className="block group">
       <Card className="h-full hover:shadow-2xl transition-all duration-300 border-gray-200 hover:-translate-y-2 cursor-pointer overflow-hidden bg-white">
@@ -50,7 +31,7 @@ const ServiceCard = ({ service }: { service: ApiService }) => {
           <div className="h-48 bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
             <div className="p-6 rounded-full bg-white shadow-lg group-hover:scale-110 transition-transform duration-300">
               <Icon
-                name={getServiceIcon(service.slug)}
+                name={iconName}
                 className="w-8 h-8 text-blue-600 group-hover:text-purple-600 transition-colors duration-300"
               />
             </div>

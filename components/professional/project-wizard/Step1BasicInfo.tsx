@@ -51,6 +51,7 @@ interface ProjectData {
   projectType?: string[]
   description?: string
   priceModel?: string
+  selectedPricingOption?: { name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }
   keywords?: string[]
   title?: string
   media?: {
@@ -108,6 +109,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const { user } = useAuth()
   const [serviceConfig, setServiceConfig] = useState<{
     pricingModel?: string;
+    pricingOptions?: Array<{ name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }>;
     certificationRequired?: boolean;
     requiredCertifications?: string[];
     projectTypes?: string[];
@@ -328,6 +330,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     validateForm()
   }, [formData, serviceConfig])
 
+  // Keep selectedPricingOption in sync with priceModel & serviceConfig
+  // (covers initial load, edit restore, and category/service changes)
+  useEffect(() => {
+    if (!serviceConfig?.pricingOptions || !formData.priceModel) return
+    const matched = serviceConfig.pricingOptions.find(o => o.name === formData.priceModel)
+    // Only update if it actually differs to avoid infinite loops
+    if (matched !== formData.selectedPricingOption) {
+      updateFormData({ selectedPricingOption: matched || undefined })
+    }
+  }, [formData.priceModel, serviceConfig?.pricingOptions])
+
   // Price model is left blank so the professional is obliged to choose
 
   useEffect(() => {
@@ -353,17 +366,20 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
     // Check certifications when required by service configuration
     const requiredTypes = serviceConfig?.requiredCertifications || []
-    const hasRequiredTypes = requiredTypes.length === 0 || (
-      Array.isArray(formData.certifications) &&
-      requiredTypes.every(t => formData.certifications!.some(c => c.name === t && !!c.fileUrl))
-    )
-    // Backward compatibility: if only boolean is provided, keep previous behavior
-    const isCertificationsValid = hasRequiredTypes && (
-      requiredTypes.length > 0 || !serviceConfig?.certificationRequired || (
-        Array.isArray(formData.certifications) && formData.certifications.length > 0 &&
+    const certRequired = !!serviceConfig?.certificationRequired
+    let isCertificationsValid = true
+
+    if (requiredTypes.length > 0) {
+      // Specific certification types are required — check each one is uploaded
+      isCertificationsValid = Array.isArray(formData.certifications) &&
+        requiredTypes.every(t => formData.certifications!.some(c => c.name === t && !!c.fileUrl))
+    } else if (certRequired) {
+      // Generic certification required (no specific types) — at least one must be uploaded
+      isCertificationsValid = Array.isArray(formData.certifications) &&
+        formData.certifications.length > 0 &&
         formData.certifications.every(c => !!c.fileUrl)
-      )
-    )
+    }
+    // If neither certRequired nor requiredTypes, isCertificationsValid stays true
 
     // Resources requirement per service/category
     const isRenovation = (formData.category || '').toLowerCase() === 'renovation'
@@ -1419,7 +1435,14 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               <Label htmlFor="priceModel">Price Model *</Label>
               <Select
                 value={formData.priceModel || ''}
-                onValueChange={(value) => updateFormData({ priceModel: value })}
+                onValueChange={(value) => {
+                  // Find the matching structured pricing option
+                  const pricingOption = serviceConfig?.pricingOptions?.find(o => o.name === value)
+                  updateFormData({
+                    priceModel: value,
+                    selectedPricingOption: pricingOption || undefined
+                  })
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select pricing model" />

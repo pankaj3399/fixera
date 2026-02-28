@@ -37,6 +37,8 @@ interface IExtraOption {
   description?: string
   price: number
   isCustom: boolean
+  isCustomizable?: boolean
+  customDescription?: string
 }
 
 interface ITermCondition {
@@ -231,11 +233,11 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
   const getPredefinedExtraOptions = () => {
     if (configExtraOptions.length > 0) {
-      // Backend does not supply price; default to 0 and let professional edit
-      return configExtraOptions.map(o => ({ name: o.name, price: 0 }))
+      return configExtraOptions.map(o => ({ name: o.name, price: 0, isCustomizable: !!o.isCustomizable, description: o.description }))
     }
     const service = data.service || 'default'
-    return PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] || PREDEFINED_EXTRA_OPTIONS.default
+    return (PREDEFINED_EXTRA_OPTIONS[service as keyof typeof PREDEFINED_EXTRA_OPTIONS] || PREDEFINED_EXTRA_OPTIONS.default)
+      .map(o => ({ ...o, isCustomizable: false }))
   }
 
   const getPredefinedTerms = (): { name: string; description: string; cost: number; type?: 'condition' | 'warning' }[] => {
@@ -252,7 +254,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     return terms.map(t => ({ ...t, type: 'condition' as const }))
   }
 
-  const addPredefinedExtraOption = (option: { name: string; price: number }) => {
+  const addPredefinedExtraOption = (option: { name: string; price: number; isCustomizable?: boolean; description?: string }) => {
     if (extraOptions.length >= 10) {
       toast.error('Maximum 10 extra options allowed')
       return
@@ -266,8 +268,10 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     const newOption: IExtraOption = {
       id: Date.now().toString(),
       name: option.name,
+      description: option.description,
       price: option.price,
-      isCustom: false
+      isCustom: false,
+      isCustomizable: option.isCustomizable,
     }
 
     setExtraOptions([...extraOptions, newOption])
@@ -469,7 +473,12 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                   disabled={extraOptions.some(opt => opt.name === option.name) || extraOptions.length >= 10}
                 >
                   <span className="text-left">
-                    <div className="font-medium">{option.name}</div>
+                    <div className="font-medium flex items-center gap-1.5">
+                      {option.name}
+                      {option.isCustomizable && (
+                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-normal">Customizable</span>
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500">€{option.price}</div>
                   </span>
                   <Plus className="w-4 h-4" />
@@ -510,39 +519,55 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
             <div className="space-y-3">
               <Label className="text-sm font-medium">Current Extra Options</Label>
               {extraOptions.map((option) => (
-                <div key={option.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{option.name}</span>
-                      {option.isCustom && (
-                        <Badge variant="outline" className="text-xs">Custom</Badge>
+                <div key={option.id} className="p-3 border rounded-lg bg-white space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium">{option.name}</span>
+                        {option.isCustom && (
+                          <Badge variant="outline" className="text-xs">Custom</Badge>
+                        )}
+                        {option.isCustomizable && (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">Customizable</Badge>
+                        )}
+                      </div>
+                      {option.description && !option.isCustomizable && (
+                        <p className="text-sm text-gray-600 mt-1">{option.description}</p>
                       )}
                     </div>
-                    {option.description && (
-                      <p className="text-sm text-gray-600 mt-1">{option.description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="text-right">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={option.price}
-                        onChange={(e) => updateExtraOption(option.id, { price: parseNumericInput(e.target.value) || 0 })}
-                        className="w-20 text-right"
-                      />
-                      <div className="text-xs text-gray-500">€</div>
+                    <div className="flex items-center space-x-3">
+                      <div className="text-right">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={option.price}
+                          onChange={(e) => updateExtraOption(option.id, { price: parseNumericInput(e.target.value) || 0 })}
+                          className="w-20 text-right"
+                        />
+                        <div className="text-xs text-gray-500">€</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeExtraOption(option.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeExtraOption(option.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
+                  {option.isCustomizable && (
+                    <div className="pl-2 border-l-2 border-purple-200">
+                      <Label className="text-xs text-purple-700">Custom description (visible to customer)</Label>
+                      <Input
+                        placeholder="Describe this option in your own words..."
+                        value={option.customDescription || ''}
+                        onChange={(e) => updateExtraOption(option.id, { customDescription: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

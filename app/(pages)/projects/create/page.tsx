@@ -141,6 +141,7 @@ interface ProjectData {
   projectType?: string[]
   description?: string
   priceModel?: string
+  selectedPricingOption?: { name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }
   keywords?: string[]
   title?: string
   media?: {

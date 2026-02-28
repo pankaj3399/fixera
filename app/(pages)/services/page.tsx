@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Shield, Loader2, AlertCircle } from 'lucide-react';
 import Icon, { IconName } from '@/components/Icon';
+import { getServiceIconName } from '@/lib/serviceIcons';
 import { toast } from 'sonner';
 
 interface Service {
   name: string;
   slug: string;
   description?: string;
+  icon?: string;
   isActive: boolean;
   countries: string[];
 }
@@ -30,10 +32,11 @@ interface ServiceCategory {
 
 // Reusable Service Card Component
 const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service; categoryName: string; categoryIcon?: IconName }) => {
+  const serviceIconName = getServiceIconName(service.slug, service.icon) as IconName;
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col">
       <div className="relative h-48 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-        <Icon name={categoryIcon || 'Wrench'} className="w-16 h-16 text-blue-400 opacity-50" />
+        <Icon name={serviceIconName} className="w-16 h-16 text-blue-400 opacity-50" />
       </div>
       <CardContent className="p-4 flex flex-col flex-grow">
         <p className="text-sm text-gray-500 font-medium">{categoryName}</p>
