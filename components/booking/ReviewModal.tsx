@@ -32,15 +32,18 @@ function StarSelector({ value, onChange }: { value: number; onChange: (v: number
   const [hover, setHover] = useState(0)
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1" role="radiogroup">
       {[1, 2, 3, 4, 5].map((star) => (
         <button
           key={star}
           type="button"
+          role="radio"
+          aria-checked={star === value}
+          aria-label={`${star} star${star > 1 ? "s" : ""}`}
           onMouseEnter={() => setHover(star)}
           onMouseLeave={() => setHover(0)}
           onClick={() => onChange(star)}
-          className="p-0.5 focus:outline-none"
+          className="p-0.5 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
           <Star
             className={`h-6 w-6 transition-colors ${

@@ -69,21 +69,21 @@ const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
           )}
 
           {/* Rating */}
-          {professional.avgRating && professional.avgRating > 0 && (
+          {professional.avgRating != null && professional.avgRating > 0 && (
             <div className="flex items-center gap-1.5 mb-3">
               <div className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
                     className={`h-3.5 w-3.5 ${
-                      star <= Math.round(professional.avgRating!)
+                      star <= Math.round(professional.avgRating as number)
                         ? "fill-yellow-400 text-yellow-400"
                         : "text-gray-200"
                     }`}
                   />
                 ))}
               </div>
-              <span className="text-sm font-medium text-gray-700">{professional.avgRating.toFixed(1)}</span>
+              <span className="text-sm font-medium text-gray-700">{(professional.avgRating as number).toFixed(1)}</span>
               {professional.totalReviews != null && (
                 <span className="text-xs text-gray-400">({professional.totalReviews})</span>
               )}

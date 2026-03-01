@@ -205,12 +205,12 @@ export default function BookingDetailPage() {
   // Auto-popup review modal when booking is completed and user hasn't reviewed yet
   useEffect(() => {
     if (!booking || booking.status !== "completed" || reviewAutoShown) return
-    const isCustomer = user?.role === "customer" || user?._id === booking.customer?._id
-    const isProfessional = user?.role === "professional" || user?._id === booking.professional?._id
+    const isBookingCustomer = user?._id === booking.customer?._id
+    const isBookingProfessional = user?._id === booking.professional?._id
     const customerHasReviewed = !!booking.customerReview?.communicationLevel
     const professionalHasReviewed = !!booking.professionalReview?.rating
 
-    if ((isCustomer && !customerHasReviewed) || (isProfessional && !professionalHasReviewed)) {
+    if ((isBookingCustomer && !customerHasReviewed) || (isBookingProfessional && !professionalHasReviewed)) {
       setShowReviewModal(true)
       setReviewAutoShown(true)
     }
@@ -1020,8 +1020,8 @@ export default function BookingDetailPage() {
 
                         {/* Review button */}
                         {(() => {
-                          const isCustomer = user?._id === booking.customer?._id || user?.role === "customer"
-                          const isProfessional = user?._id === booking.professional?._id || user?.role === "professional"
+                          const isCustomer = user?._id === booking.customer?._id
+                          const isProfessional = user?._id === booking.professional?._id
                           const customerHasReviewed = !!booking.customerReview?.communicationLevel
                           const professionalHasReviewed = !!booking.professionalReview?.rating
                           const canReview = (isCustomer && !customerHasReviewed) || (isProfessional && !professionalHasReviewed)
@@ -1062,13 +1062,12 @@ export default function BookingDetailPage() {
                     onClose={() => setShowReviewModal(false)}
                     bookingId={booking._id}
                     role={
-                      user?._id === booking.customer?._id || user?.role === "customer"
+                      user?._id === booking.customer?._id
                         ? "customer"
                         : "professional"
                     }
                     onSubmitted={() => {
-                      // Refetch booking to update the UI
-                      window.location.reload()
+                      void refreshBooking()
                     }}
                   />
                 )}

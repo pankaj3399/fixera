@@ -82,16 +82,17 @@ function StarDisplay({ rating, size = "sm" }: { rating: number; size?: "sm" | "m
 }
 
 function RatingBar({ label, value }: { label: string; value: number }) {
+  const clamped = Math.min(5, Math.max(0, value))
   return (
     <div className="flex items-center gap-3">
       <span className="text-sm text-gray-600 w-44 shrink-0">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-2">
         <div
           className="bg-yellow-400 h-2 rounded-full transition-all"
-          style={{ width: `${(value / 5) * 100}%` }}
+          style={{ width: `${(clamped / 5) * 100}%` }}
         />
       </div>
-      <span className="text-sm font-medium text-gray-700 w-8 text-right">{value.toFixed(1)}</span>
+      <span className="text-sm font-medium text-gray-700 w-8 text-right">{clamped.toFixed(1)}</span>
     </div>
   )
 }
@@ -234,17 +235,25 @@ export default function ProfessionalProfilePage() {
                       Member since {memberSince}
                     </span>
                   )}
-                  {professional.businessInfo?.website && (
-                    <a
-                      href={professional.businessInfo.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-indigo-600 hover:underline"
-                    >
-                      <Globe className="h-3.5 w-3.5" />
-                      Website
-                    </a>
-                  )}
+                  {professional.businessInfo?.website && (() => {
+                    try {
+                      const url = new URL(professional.businessInfo.website!)
+                      if (url.protocol !== "http:" && url.protocol !== "https:") return null
+                      return (
+                        <a
+                          href={url.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-indigo-600 hover:underline"
+                        >
+                          <Globe className="h-3.5 w-3.5" />
+                          Website
+                        </a>
+                      )
+                    } catch {
+                      return null
+                    }
+                  })()}
                 </div>
 
                 {professional.serviceCategories && professional.serviceCategories.length > 0 && (
@@ -405,6 +414,7 @@ export default function ProfessionalProfilePage() {
                                     </div>
                                   ) : (
                                     <button
+                                      type="button"
                                       className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
                                       onClick={() => setReplyingTo(review._id)}
                                     >
@@ -427,6 +437,7 @@ export default function ProfessionalProfilePage() {
                           size="sm"
                           disabled={page <= 1}
                           onClick={() => setPage((p) => p - 1)}
+                          aria-label="Previous page"
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -438,6 +449,7 @@ export default function ProfessionalProfilePage() {
                           size="sm"
                           disabled={page >= totalPages}
                           onClick={() => setPage((p) => p + 1)}
+                          aria-label="Next page"
                         >
                           <ChevronRight className="h-4 w-4" />
                         </Button>
