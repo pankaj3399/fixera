@@ -1056,16 +1056,12 @@ export default function BookingDetailPage() {
                 )}
 
                 {/* Review Modal */}
-                {booking.status === "completed" && (
+                {booking.status === "completed" && (user?._id === booking.customer?._id || user?._id === booking.professional?._id) && (
                   <ReviewModal
                     open={showReviewModal}
                     onClose={() => setShowReviewModal(false)}
                     bookingId={booking._id}
-                    role={
-                      user?._id === booking.customer?._id
-                        ? "customer"
-                        : "professional"
-                    }
+                    role={user?._id === booking.customer?._id ? "customer" : "professional"}
                     onSubmitted={() => {
                       void refreshBooking()
                     }}

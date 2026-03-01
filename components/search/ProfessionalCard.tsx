@@ -76,14 +76,14 @@ const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
                   <Star
                     key={star}
                     className={`h-3.5 w-3.5 ${
-                      star <= Math.round(professional.avgRating as number)
+                      star <= Math.round(professional.avgRating!)
                         ? "fill-yellow-400 text-yellow-400"
                         : "text-gray-200"
                     }`}
                   />
                 ))}
               </div>
-              <span className="text-sm font-medium text-gray-700">{(professional.avgRating as number).toFixed(1)}</span>
+              <span className="text-sm font-medium text-gray-700">{professional.avgRating!.toFixed(1)}</span>
               {professional.totalReviews != null && (
                 <span className="text-xs text-gray-400">({professional.totalReviews})</span>
               )}
