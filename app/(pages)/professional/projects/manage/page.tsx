@@ -1291,10 +1291,14 @@ export default function ManageProjectsPage() {
                     <div className="text-sm text-orange-800">
                       <p className="font-medium mb-1">Important Notice:</p>
                       <ul className="space-y-1 text-xs list-disc pl-4">
-                        <li>Certain changes require re-approval by our admin team</li>
-                        <li>Approvals may take up to 48 hours</li>
-                        <li>The project stays hidden from customers until re-approved</li>
-                        <li>Previous approval data is cleared and submittedAt is updated</li>
+                        {selectedProjectStatus === 'published' && (
+                          <>
+                            <li>Certain changes require re-approval by our admin team</li>
+                            <li>Approvals may take up to 48 hours</li>
+                            <li>The project stays hidden from customers until re-approved</li>
+                            <li>Previous approval data is cleared and submittedAt is updated</li>
+                          </>
+                        )}
                       </ul>
                     </div>
                   </div>
