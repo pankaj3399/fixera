@@ -11,7 +11,7 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { cn } from '@/lib/utils'
 import { iconMapData, iconTags } from '@/data/icons'
 
@@ -80,7 +80,7 @@ export default function IconPicker({ value, onChange, label = 'Select Icon' }: I
                     <Search className="h-4 w-4 opacity-50" />
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col p-0 gap-0">
+            <DialogContent className="max-w-3xl max-h-[80vh] !grid-rows-none flex flex-col overflow-hidden p-0 gap-0">
                 <DialogHeader className="p-4 border-b">
                     <DialogTitle>Pick an Icon</DialogTitle>
                     <div className="relative mt-2">
@@ -102,7 +102,7 @@ export default function IconPicker({ value, onChange, label = 'Select Icon' }: I
                         )}
                     </div>
                 </DialogHeader>
-                <ScrollArea className="flex-1 p-4">
+                <div className="flex-1 min-h-0 overflow-y-auto p-4">
                     <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
                         {pagedIcons.map((iconName) => {
                             const Icon = iconMapData[iconName as keyof typeof iconMapData]
@@ -141,7 +141,7 @@ export default function IconPicker({ value, onChange, label = 'Select Icon' }: I
                             </div>
                         )}
                     </div>
-                </ScrollArea>
+                </div>
                 <div className="p-4 border-t bg-muted/50 flex items-center justify-between text-xs text-muted-foreground">
                     <div>
                         Showing {Math.min(filteredIcons.length, iconsPerPage * currentPage)} of {filteredIcons.length} icons
