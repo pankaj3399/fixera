@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from '@/lib/formatters';
 import Image from 'next/image';
 import ProjectBookingForm from '@/components/project/ProjectBookingForm';
@@ -319,8 +320,54 @@ export default function ProjectDetailPage() {
 
   if (loading || authLoading) {
     return (
-      <div className='min-h-screen flex items-center justify-center'>
-        <Loader2 className='h-8 w-8 animate-spin text-blue-600' />
+      <div className='min-h-screen bg-gray-50 py-8'>
+        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
+          <Skeleton className="h-9 w-20 rounded-lg mb-6" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Hero image skeleton */}
+              <Skeleton className="h-64 w-full rounded-xl" />
+              {/* Title & meta */}
+              <div className="space-y-3">
+                <Skeleton className="h-8 w-3/4" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+              {/* Subprojects skeleton */}
+              <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <Skeleton className="h-6 w-36" />
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <Skeleton className="h-4 w-1/3" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Sidebar */}
+            <div className="space-y-6">
+              <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <Skeleton className="h-8 w-28" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-12 w-full rounded-lg" />
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-3">
+                <Skeleton className="h-6 w-32" />
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-4 flex-1" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

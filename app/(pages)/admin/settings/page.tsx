@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import { ArrowLeft, Settings, Save, Loader2, Euro } from "lucide-react"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function AdminSettingsPage() {
   const { user, isAuthenticated, loading } = useAuth()
@@ -130,9 +131,23 @@ export default function AdminSettingsPage() {
 
         {isLoading ? (
           <Card>
-            <CardContent className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-              <span className="ml-2 text-gray-500">Loading settings...</span>
+            <CardHeader>
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-4 w-80" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+              <Skeleton className="h-10 w-36 rounded-lg" />
             </CardContent>
           </Card>
         ) : (

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense, ComponentProps, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, AlertCircle, Search as SearchIcon } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProfessionalCard from '@/components/search/ProfessionalCard';
@@ -528,9 +529,23 @@ function SearchPageContent() {
           {/* Results Grid */}
           <div className="lg:col-span-3">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-                <p className="text-gray-600 text-lg">Searching...</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-3">
+                    <Skeleton className="h-40 w-full rounded-lg" />
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <Skeleton className="h-4 w-28" />
+                    </div>
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                    <div className="flex gap-2 pt-1">
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-20">
@@ -617,8 +632,23 @@ function SearchPageContent() {
 export default function SearchPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+      <div className="bg-gray-50 min-h-screen">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
+          <div className="mb-8 space-y-3">
+            <Skeleton className="h-10 w-52" />
+            <Skeleton className="h-5 w-80" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-3">
+                <Skeleton className="h-40 w-full rounded-lg" />
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ))}
+          </div>
+        </main>
       </div>
     }>
       <SearchPageContent />

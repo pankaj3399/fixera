@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import { Loader2, Search, Tag } from 'lucide-react';
+import { Search, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Suggestion } from '@/hooks/useSearchAutocomplete';
 
@@ -46,9 +46,8 @@ const SearchAutocomplete = ({
       className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto"
     >
       {isLoading ? (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="w-5 h-5 text-blue-600 animate-spin mr-2" />
-          <span className="text-gray-600">Loading suggestions...</span>
+        <div className="py-4 px-4 space-y-2.5">
+          {[1, 2, 3].map(i => <div key={i} className="h-4 w-full rounded bg-gray-200/70 animate-pulse" style={{ width: `${85 - i * 15}%` }} />)}
         </div>
       ) : suggestions.length === 0 ? (
         <div className="py-6 text-center text-gray-500">

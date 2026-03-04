@@ -7,6 +7,7 @@ import ServiceConfigurationManagement from "@/components/ServiceConfigurationMan
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { Skeleton, SkeletonCard } from "@/components/ui/skeleton"
 
 export default function AdminServicesPage() {
   const { user, isAuthenticated, loading } = useAuth()
@@ -20,10 +21,16 @@ export default function AdminServicesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 p-4">
+        <div className="max-w-7xl mx-auto pt-20">
+          <div className="mb-8">
+            <Skeleton className="h-9 w-40 rounded-lg mb-4" />
+            <Skeleton className="h-10 w-72 mb-2" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} />)}
+          </div>
         </div>
       </div>
     )

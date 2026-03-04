@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
 import { getServiceIcon, getCategoryIcon } from "@/lib/serviceIcons";
 
 interface Service {
@@ -104,8 +103,10 @@ const SubNavbar = () => {
     return (
       <div className="hidden lg:block bg-white border-b border-t border-gray-200 shadow-sm sticky top-16 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-center items-center h-12">
-            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+          <div className="flex justify-center items-center h-12 gap-4">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="h-4 w-20 rounded bg-gray-200/70 animate-pulse" />
+            ))}
           </div>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from '@/components/ui/separator';
 import { Star, Heart, Award, ChevronRight, Loader2, AlertCircle, MapPin } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button';
 import ProfessionalFilters from '@/components/ProfessionalFilters';
 import { toast } from 'sonner';
@@ -159,14 +160,43 @@ export default function CategoryPage() {
   if (isLoading) {
     return (
       <div className="bg-white min-h-screen">
+        {/* Banner Skeleton */}
         <div className="relative h-72 md:h-96 w-full bg-gradient-to-br from-blue-50 to-purple-50">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+          <div className="absolute inset-0 flex items-end">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 w-full space-y-3">
+              <Skeleton className="h-10 w-72" />
+              <Skeleton className="h-5 w-96" />
+            </div>
           </div>
         </div>
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex flex-col items-center justify-center py-20">
-            <p className="text-gray-600 text-lg">Loading professionals...</p>
+          {/* Filters Skeleton */}
+          <div className="flex gap-3 mb-8">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-28 rounded-lg" />)}
+          </div>
+          {/* Professional Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-14 w-14 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-36" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-9 w-24 rounded-lg" />
+                </div>
+              </div>
+            ))}
           </div>
         </main>
       </div>

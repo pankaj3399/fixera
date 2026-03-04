@@ -540,10 +540,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 // Loading Component
 export const AuthLoadingScreen: React.FC = () => (
-  <div className="flex items-center justify-center min-h-screen bg-gray-50">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-      <p className="text-gray-600">Loading...</p>
+  <div className="min-h-screen bg-gray-50 p-4">
+    <div className="max-w-6xl mx-auto pt-20 space-y-6">
+      <div className="h-8 w-48 rounded bg-gray-200/70 animate-pulse" />
+      <div className="h-4 w-72 rounded bg-gray-200/70 animate-pulse" />
+      <div className="grid md:grid-cols-3 gap-6">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-3">
+            <div className="h-4 w-2/3 rounded bg-gray-200/70 animate-pulse" />
+            <div className="h-4 w-full rounded bg-gray-200/70 animate-pulse" />
+            <div className="h-4 w-1/2 rounded bg-gray-200/70 animate-pulse" />
+          </div>
+        ))}
+      </div>
     </div>
   </div>
 )

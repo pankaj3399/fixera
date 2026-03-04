@@ -73,8 +73,20 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+      <div className="p-4 space-y-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-16 w-16 rounded-full bg-gray-200/70 animate-pulse" />
+          <div className="h-5 w-32 rounded bg-gray-200/70 animate-pulse" />
+          <div className="h-3 w-24 rounded bg-gray-200/70 animate-pulse" />
+        </div>
+        <div className="space-y-3 pt-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="h-4 w-4 rounded bg-gray-200/70 animate-pulse" />
+              <div className="h-4 flex-1 rounded bg-gray-200/70 animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -91,11 +103,6 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
 
   const isProfessionalViewing = currentUserRole === "professional";
   const isCustomerViewing = currentUserRole === "customer";
-
-  // Link to professional profile page
-  const profileUrl = isCustomerViewing && other?._id
-    ? `/professional/${other._id}`
-    : undefined;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -129,15 +136,6 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             <Calendar className="h-3 w-3" />
             <span>Member since {memberSince}</span>
           </div>
-        )}
-
-        {profileUrl && (
-          <Button asChild variant="default" size="sm" className="mt-3 bg-indigo-600 hover:bg-indigo-700">
-            <Link href={profileUrl}>
-              <ExternalLink className="h-3 w-3 mr-1.5" />
-              View Profile
-            </Link>
-          </Button>
         )}
       </div>
 

@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColumn, ClosedCaption, AlertTriangle, FileText, Shield, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Professional {
   _id: string;
@@ -344,10 +345,37 @@ export default function ProfessionalsAdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-7xl mx-auto pt-20">
+          <div className="mb-8 flex items-center justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-80" />
+            </div>
+            <Skeleton className="h-10 w-36 rounded-lg" />
+          </div>
+          <div className="mb-6 flex space-x-1 bg-gray-100 rounded-lg p-1">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 flex-1 rounded-lg" />)}
+          </div>
+          <div className="grid gap-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-5 w-40" />
+                      <Skeleton className="h-3 w-52" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <div className="grid md:grid-cols-3 gap-4">
+                  {[1, 2, 3].map(j => <Skeleton key={j} className="h-4 w-full" />)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -393,9 +421,24 @@ export default function ProfessionalsAdminPage() {
 
         {/* Professionals List */}
         {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading professionals...</p>
+          <div className="grid gap-6">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-5 w-40" />
+                      <Skeleton className="h-3 w-52" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <div className="grid md:grid-cols-3 gap-4">
+                  {[1, 2, 3].map(j => <Skeleton key={j} className="h-4 w-full" />)}
+                </div>
+              </div>
+            ))}
           </div>
         ) : professionals.length === 0 ? (
           <Card>

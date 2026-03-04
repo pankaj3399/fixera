@@ -446,11 +446,13 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
             Your Availability
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            Loading availability...
-          </div>
+        <CardContent className="space-y-3 py-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="h-4 w-16 rounded bg-gray-200/70 animate-pulse" />
+              <div className="h-4 flex-1 rounded bg-gray-200/70 animate-pulse" />
+            </div>
+          ))}
         </CardContent>
       </Card>
     )

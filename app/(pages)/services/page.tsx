@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Shield, Loader2, AlertCircle } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 import Icon, { IconName } from '@/components/Icon';
 import { getServiceIconName } from '@/lib/serviceIcons';
 import { toast } from 'sonner';
@@ -132,9 +133,24 @@ export default function ServicesHubPage() {
     return (
       <div className="bg-white min-h-screen">
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-            <p className="text-gray-600 text-lg">Loading services...</p>
+          <div className="mb-12 space-y-3">
+            <Skeleton className="h-12 w-60" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+          {/* Tabs Skeleton */}
+          <div className="flex gap-2 mb-8 overflow-hidden">
+            {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-10 w-28 rounded-lg flex-shrink-0" />)}
+          </div>
+          {/* Service Cards Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-3">
+                <Skeleton className="h-10 w-10 rounded-lg" />
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ))}
           </div>
         </main>
       </div>

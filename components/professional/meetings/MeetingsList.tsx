@@ -170,7 +170,17 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading meetings...</div>
+          <div className="space-y-3 py-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-gray-200/70 animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-1/3 rounded bg-gray-200/70 animate-pulse" />
+                  <div className="h-3 w-1/2 rounded bg-gray-200/70 animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : filteredMeetings.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No meetings found

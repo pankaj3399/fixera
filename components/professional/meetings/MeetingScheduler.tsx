@@ -318,7 +318,11 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
                 )
               })}
             </div>
-            {loadingAvailability && <div className="text-center mt-4 text-sm text-muted-foreground">Loading availability...</div>}
+            {loadingAvailability && (
+              <div className="flex gap-2 mt-4 justify-center">
+                {[1, 2, 3, 4].map(i => <div key={i} className="h-8 w-14 rounded-lg bg-gray-200/70 animate-pulse" />)}
+              </div>
+            )}
           </div>
         </div>
 

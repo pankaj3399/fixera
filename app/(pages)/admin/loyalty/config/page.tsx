@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Award, Settings, Plus, Trash2, Save } from "lucide-react"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface LoyaltyTier {
   name: string;
@@ -113,13 +115,13 @@ export default function LoyaltyConfigPage() {
       })
 
       if (response.ok) {
-        alert('Configuration saved successfully!')
+        toast.success('Configuration saved successfully!')
       } else {
-        alert('Failed to save configuration')
+        toast.error('Failed to save configuration')
       }
     } catch (error) {
       console.error('Failed to save config:', error)
-      alert('Failed to save configuration')
+      toast.error('Failed to save configuration')
     } finally {
       setIsSaving(false)
     }
@@ -191,10 +193,48 @@ export default function LoyaltyConfigPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-6xl mx-auto pt-20">
+          <div className="mb-8 flex items-center justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-80" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <div className="flex gap-3">
+              <Skeleton className="h-10 w-36 rounded-lg" />
+              <Skeleton className="h-10 w-44 rounded-lg" />
+            </div>
+          </div>
+          <div className="space-y-6">
+            <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-72" />
+              <div className="grid md:grid-cols-3 gap-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {[1, 2, 3].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <Skeleton className="h-6 w-32" />
+                <div className="grid md:grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map(j => (
+                    <div key={j} className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-10 w-full rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  {[1, 2].map(j => <Skeleton key={j} className="h-10 w-full rounded-lg" />)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -227,9 +267,32 @@ export default function LoyaltyConfigPage() {
         </div>
 
         {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading configuration...</p>
+          <div className="space-y-6">
+            <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-72" />
+              <div className="grid md:grid-cols-3 gap-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {[1, 2, 3].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <Skeleton className="h-6 w-32" />
+                <div className="grid md:grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map(j => (
+                    <div key={j} className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-10 w-full rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="space-y-6">

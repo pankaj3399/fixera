@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star } from "lucide-react"
 import { toast } from "sonner"
 import { getAuthToken } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 import StartChatButton from "@/components/chat/StartChatButton"
 import ReviewModal from "@/components/booking/ReviewModal"
 
@@ -529,10 +530,46 @@ export default function BookingDetailPage() {
 
   if (loading || isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-500 mx-auto" />
-          <p className="mt-4 text-gray-600 text-sm">Loading booking details...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
+        <div className="max-w-4xl mx-auto pt-20 space-y-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-44" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </div>
+          {/* Booking Info Card Skeleton */}
+          <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-5">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-12 w-12 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-5 w-48" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-5 rounded" />
+                  <div className="space-y-1 flex-1">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Payment Card Skeleton */}
+          <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+            <Skeleton className="h-6 w-32" />
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex justify-between">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )

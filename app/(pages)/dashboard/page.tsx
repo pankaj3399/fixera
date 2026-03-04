@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
 import StartChatButton from "@/components/chat/StartChatButton"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface LoyaltyStats {
   tierDistribution: Array<{
@@ -261,10 +262,47 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
+        <div className="max-w-6xl mx-auto pt-20 space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="flex gap-3">
+              <Skeleton className="h-10 w-32 rounded-lg" />
+              <Skeleton className="h-10 w-32 rounded-lg" />
+            </div>
+          </div>
+          {/* Stats Cards Skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-3">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-full" />
+              </div>
+            ))}
+          </div>
+          {/* Content Cards Skeleton */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {[1, 2].map(i => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-60" />
+                {[1, 2, 3].map(j => (
+                  <div key={j} className="flex items-center gap-3 py-2">
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -396,11 +434,18 @@ export default function DashboardPage() {
               </h2>
 
               {bookingsLoading && (
-                <Card className="bg-white/70 backdrop-blur border border-indigo-100">
-                  <CardContent className="py-8 text-center text-gray-500">
-                    Loading your bookings...
-                  </CardContent>
-                </Card>
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-lg" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-1/3" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                      <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                  ))}
+                </div>
               )}
 
               {!bookingsLoading && bookingsError && (
@@ -872,7 +917,15 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent>
                     {isLoadingStats ? (
-                      <div className="text-center py-8">Loading...</div>
+                      <div className="space-y-3 py-4">
+                        {[1, 2, 3, 4].map(i => (
+                          <div key={i} className="flex items-center gap-3">
+                            <Skeleton className="h-4 w-20" />
+                            <Skeleton className="h-3 flex-1 rounded-full" />
+                            <Skeleton className="h-4 w-8" />
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <div className="space-y-3">
                         {loyaltyStats?.tierDistribution.map((tier) => (
@@ -1240,8 +1293,17 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               {bookingsLoading && (
-                <div className="text-center py-8 text-gray-500">
-                  Loading bookings...
+                <div className="space-y-3 py-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex items-center gap-4 py-2">
+                      <Skeleton className="h-8 w-8 rounded-lg" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-1/3" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                    </div>
+                  ))}
                 </div>
               )}
 

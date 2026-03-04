@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { MessageSquare, X, Minus, ArrowLeft, Loader2, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatPolling } from "@/hooks/useChatPolling";
 import ChatList from "@/components/chat/ChatList";
@@ -446,9 +447,16 @@ export default function ChatWidget() {
             {!selectedConversationId ? (
               <div className="flex-1 min-h-0">
                 {loadingConversations ? (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-500">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading conversations...
+                  <div className="p-3 space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="h-2.5 w-full" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : shouldShowNewChatPanel && userRole === "customer" ? (
                   <div className="h-full overflow-y-auto p-3 space-y-2">
@@ -459,9 +467,13 @@ export default function ChatWidget() {
                     </div>
 
                     {loadingProfessionals && (
-                      <div className="py-6 text-sm text-gray-500 flex items-center justify-center">
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Loading professionals...
+                      <div className="py-3 space-y-3 px-2">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="flex items-center gap-2">
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                            <Skeleton className="h-3 flex-1" />
+                          </div>
+                        ))}
                       </div>
                     )}
 

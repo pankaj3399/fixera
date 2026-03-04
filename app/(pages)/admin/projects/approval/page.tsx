@@ -29,6 +29,7 @@ import {
 import Image from 'next/image'
 import { toast } from 'sonner'
 import ProjectDiffView from '@/components/admin/ProjectDiffView'
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface QualityCheck {
   category: string
@@ -535,9 +536,37 @@ export default function ProjectApprovalPage() {
     return (
       <div className="min-h-screen p-6 bg-gray-50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4 animate-spin" />
-            <p className="text-gray-600">Loading pending projects...</p>
+          <div className="mb-4 space-y-2">
+            <Skeleton className="h-8 w-60" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="mb-6 flex items-center space-x-2">
+            <Skeleton className="h-9 w-24 rounded-lg" />
+            <Skeleton className="h-9 w-24 rounded-lg" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <Skeleton className="h-6 w-48" />
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="p-4 border border-gray-50 rounded-lg space-y-2">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                    <div className="flex gap-2">
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-48 w-full rounded-lg" />
+            </div>
           </div>
         </div>
       </div>
@@ -696,7 +725,10 @@ export default function ProjectApprovalPage() {
                 <CardContent className="space-y-6">
                   {/* Loading indicator for changes */}
                   {activeTab === 'pending' && changesLoading && (
-                    <div className="text-sm text-gray-500 py-2">Loading changes...</div>
+                    <div className="space-y-2 py-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-3/4" />
+                    </div>
                   )}
 
                   {/* Error indicator for changes */}

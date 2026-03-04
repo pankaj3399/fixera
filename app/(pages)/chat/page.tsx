@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MessageSquare, Search, PanelRightOpen, PanelRightClose, ArrowLeft, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatList from "@/components/chat/ChatList";
 import ChatThread from "@/components/chat/ChatThread";
@@ -278,10 +279,37 @@ export default function ChatPage() {
 
   if (loading || loadingConversations) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto" />
-          <p className="mt-3 text-sm text-gray-600">Loading chat...</p>
+      <div className="h-[calc(100vh-64px)] mt-16 flex bg-white">
+        {/* Left Panel - Conversation List Skeleton */}
+        <div className="w-full md:w-80 md:min-w-[320px] border-r border-slate-200 flex flex-col p-4 space-y-4">
+          <Skeleton className="h-10 w-full rounded-lg" />
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="flex items-center gap-3 p-2">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-full" />
+              </div>
+              <Skeleton className="h-3 w-10" />
+            </div>
+          ))}
+        </div>
+        {/* Right Panel - Chat Area Skeleton */}
+        <div className="hidden md:flex flex-1 flex-col">
+          <div className="border-b border-slate-200 p-4 flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-5 w-36" />
+          </div>
+          <div className="flex-1 p-6 space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                <Skeleton className={`h-12 rounded-2xl ${i % 2 === 0 ? 'w-1/3' : 'w-1/2'}`} />
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-slate-200 p-4">
+            <Skeleton className="h-12 w-full rounded-xl" />
+          </div>
         </div>
       </div>
     );
@@ -355,9 +383,13 @@ export default function ChatPage() {
             </div>
 
             {loadingProfessionals && (
-              <div className="py-6 text-sm text-gray-500 flex items-center justify-center">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Loading professionals...
+              <div className="py-4 space-y-3 px-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 rounded-full" />
+                    <Skeleton className="h-4 flex-1" />
+                  </div>
+                ))}
               </div>
             )}
 

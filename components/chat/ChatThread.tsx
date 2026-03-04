@@ -31,7 +31,15 @@ const getSenderName = (message: ChatMessage) => {
 
 export default function ChatThread({ messages, currentUserId, loading }: ChatThreadProps) {
   if (loading) {
-    return <div className="p-4 text-sm text-gray-500">Loading messages...</div>;
+    return (
+      <div className="p-4 space-y-3">
+        {[1, 2, 3].map(i => (
+          <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+            <div className={`h-8 rounded-2xl bg-gray-200/70 animate-pulse ${i % 2 === 0 ? 'w-1/3' : 'w-1/2'}`} />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   if (messages.length === 0) {

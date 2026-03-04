@@ -33,6 +33,8 @@ import {
   ExternalLink,
 
 } from "lucide-react"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || ''
 const MAX_BOOKINGS = 100
@@ -475,11 +477,11 @@ export default function ProjectDetailPage() {
         router.refresh(); // Optional: refresh the manage page data
       } else {
         const errorData = await response.json();
-        alert(`${errorData.error || 'Failed to submit project'}`);
+        toast.error(errorData.error || 'Failed to submit project');
       }
     } catch (error) {
       console.error('Failed to submit project', error);
-      alert('Failed to submit project');
+      toast.error('Failed to submit project');
     } finally {
       setIsSubmitting(false);
     }
@@ -514,10 +516,44 @@ export default function ProjectDetailPage() {
 
   if (loading || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading project details...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 md:p-4">
+        <div className="max-w-7xl mx-auto pt-16 md:pt-20">
+          <div className="mb-6 md:mb-8 flex items-center gap-4">
+            <Skeleton className="h-9 w-32 rounded-lg" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-3 space-y-6">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                  <Skeleton className="h-6 w-40" />
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {[1, 2, 3, 4].map(j => (
+                      <div key={j} className="space-y-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-full" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-6">
+              <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+                <Skeleton className="h-6 w-28" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-3">
+                <Skeleton className="h-6 w-32" />
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-4 w-full" />)}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )

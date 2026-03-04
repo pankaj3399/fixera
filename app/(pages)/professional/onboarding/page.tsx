@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Loader2, Shield, Building, Calendar as CalendarIcon, Users, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight, Check } from 'lucide-react'
+import { Skeleton } from "@/components/ui/skeleton"
 import AddressAutocomplete, { PlaceData } from '@/components/professional/project-wizard/AddressAutocomplete'
 import EmployeeManagement from '@/components/TeamManagement'
 import { EU_COUNTRIES } from '@/lib/countries'
@@ -1222,11 +1223,42 @@ export default function ProfessionalOnboardingPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="rounded-2xl bg-gradient-to-r from-violet-200 via-blue-200 to-cyan-200 p-[2px]">
-          <div className="rounded-[14px] bg-white/80 backdrop-blur px-8 py-6 flex items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-            <span className="text-gray-600 font-medium">Loading your profile...</span>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-4 pb-16">
+        <div className="max-w-4xl mx-auto pt-10 space-y-8">
+          {/* Header Skeleton */}
+          <div className="text-center space-y-3">
+            <Skeleton className="h-8 w-40 mx-auto rounded-full" />
+            <Skeleton className="h-10 w-72 mx-auto" />
+            <Skeleton className="h-4 w-80 mx-auto" />
+          </div>
+          {/* Progress Skeleton */}
+          <div className="flex items-center gap-4 justify-center">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex items-center gap-2">
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <Skeleton className="h-3 w-16 hidden sm:block" />
+              </div>
+            ))}
+          </div>
+          <Skeleton className="h-2 w-full rounded-full" />
+          {/* Form Card Skeleton */}
+          <div className="rounded-xl border border-gray-100 bg-white p-8 space-y-6">
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-48" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-10 w-full rounded-lg" />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between pt-4">
+              <Skeleton className="h-10 w-28 rounded-lg" />
+              <Skeleton className="h-10 w-28 rounded-lg" />
+            </div>
           </div>
         </div>
       </div>

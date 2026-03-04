@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label"
 import { Loader2, RefreshCw, Search, ShieldCheck, CalendarClock, ArrowRightLeft, Undo2 } from "lucide-react"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 type PaymentStatus = "pending" | "authorized" | "completed" | "failed" | "refunded" | "partially_refunded" | "expired"
 
@@ -373,8 +374,16 @@ export default function AdminPaymentsPage() {
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex items-center justify-center py-16 text-sm text-gray-500">
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Loading payments...
+              <div className="p-4 space-y-3">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="flex gap-4 py-3 border-b border-gray-50 last:border-0">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </div>
+                ))}
               </div>
             ) : payments.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-500">

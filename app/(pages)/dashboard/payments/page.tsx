@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ─── Shared types ───────────────────────────────────────────────────────────
 
@@ -244,8 +245,16 @@ function CustomerPaymentsView() {
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex items-center justify-center py-16 text-sm text-gray-500">
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Loading payments...
+              <div className="p-4 space-y-3">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="flex gap-4 py-3 border-b border-gray-50 last:border-0">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </div>
+                ))}
               </div>
             ) : payments.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-500">

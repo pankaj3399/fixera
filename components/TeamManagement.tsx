@@ -575,11 +575,16 @@ export default function EmployeeManagement() {
             Employee Management
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading employees...</span>
-          </div>
+        <CardContent className="space-y-3 py-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-gray-200/70 animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-1/3 rounded bg-gray-200/70 animate-pulse" />
+                <div className="h-3 w-1/2 rounded bg-gray-200/70 animate-pulse" />
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
     )
