@@ -10,6 +10,26 @@ import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColu
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
+function ProfessionalCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-52" />
+          </div>
+        </div>
+        <Skeleton className="h-6 w-20 rounded-full" />
+      </div>
+      <div className="grid md:grid-cols-3 gap-4">
+        {[1, 2, 3].map(j => <Skeleton key={j} className="h-4 w-full" />)}
+      </div>
+    </div>
+  )
+}
+
 interface Professional {
   _id: string;
   name: string;
@@ -359,21 +379,7 @@ export default function ProfessionalsAdminPage() {
           </div>
           <div className="grid gap-6">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-5 w-40" />
-                      <Skeleton className="h-3 w-52" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-6 w-20 rounded-full" />
-                </div>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {[1, 2, 3].map(j => <Skeleton key={j} className="h-4 w-full" />)}
-                </div>
-              </div>
+              <ProfessionalCardSkeleton key={i} />
             ))}
           </div>
         </div>
@@ -423,21 +429,7 @@ export default function ProfessionalsAdminPage() {
         {isLoading ? (
           <div className="grid gap-6">
             {[1, 2, 3].map(i => (
-              <div key={i} className="rounded-xl border border-gray-100 bg-white p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-5 w-40" />
-                      <Skeleton className="h-3 w-52" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-6 w-20 rounded-full" />
-                </div>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {[1, 2, 3].map(j => <Skeleton key={j} className="h-4 w-full" />)}
-                </div>
-              </div>
+              <ProfessionalCardSkeleton key={i} />
             ))}
           </div>
         ) : professionals.length === 0 ? (

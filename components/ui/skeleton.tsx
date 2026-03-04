@@ -7,7 +7,7 @@ function Skeleton({
   return (
     <div
       className={cn(
-        "animate-pulse rounded-md bg-gray-200/70",
+        "animate-pulse rounded-md bg-muted",
         className
       )}
       {...props}
@@ -30,7 +30,7 @@ function SkeletonText({ lines = 3, className }: { lines?: number; className?: st
 
 function SkeletonCard({ className }: { className?: string }) {
   return (
-    <div className={cn("rounded-xl border border-gray-100 bg-white p-5 space-y-4", className)}>
+    <div className={cn("rounded-xl border border-border bg-background p-5 space-y-4", className)}>
       <div className="flex items-center gap-3">
         <Skeleton className="h-10 w-10 rounded-full" />
         <div className="flex-1 space-y-2">
@@ -45,14 +45,14 @@ function SkeletonCard({ className }: { className?: string }) {
 
 function SkeletonTable({ rows = 5, cols = 4, className }: { rows?: number; cols?: number; className?: string }) {
   return (
-    <div className={cn("rounded-xl border border-gray-100 bg-white overflow-hidden", className)}>
-      <div className="flex gap-4 p-4 border-b border-gray-50 bg-gray-50/50">
+    <div className={cn("rounded-xl border border-border bg-background overflow-hidden", className)}>
+      <div className="flex gap-4 p-4 border-b border-border bg-muted/50">
         {Array.from({ length: cols }).map((_, i) => (
           <Skeleton key={i} className="h-4 flex-1" />
         ))}
       </div>
       {Array.from({ length: rows }).map((_, rowIdx) => (
-        <div key={rowIdx} className="flex gap-4 p-4 border-b border-gray-50 last:border-0">
+        <div key={rowIdx} className="flex gap-4 p-4 border-b border-border last:border-0">
           {Array.from({ length: cols }).map((_, colIdx) => (
             <Skeleton key={colIdx} className="h-4 flex-1" />
           ))}

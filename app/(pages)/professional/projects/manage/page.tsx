@@ -433,7 +433,7 @@ export default function ManageProjectsPage() {
         fetchProjects()
       } else {
         const errorData = await response.json()
-        toast.error(errorData.error || 'Failed to submit project')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to submit project')
       }
     } catch (error) {
       console.error('Failed to submit project:', error)
@@ -458,7 +458,7 @@ export default function ManageProjectsPage() {
         router.push(`/projects/create?id=${duplicatedProject._id}`)
       } else {
         const errorData = await response.json()
-        toast.error(errorData.error || 'Failed to duplicate project')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to duplicate project')
       }
     } catch (error) {
       console.error('Failed to duplicate project:', error)
@@ -480,7 +480,7 @@ export default function ManageProjectsPage() {
         setSelectedProject(null)
       } else {
         const errorData = await response.json()
-        toast.error(errorData.error || 'Failed to delete project')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to delete project')
       }
     } catch (error) {
       console.error('Failed to delete project:', error)
@@ -508,7 +508,7 @@ export default function ManageProjectsPage() {
         setSelectedProject(null)
       } else {
         const errorData = await response.json()
-        toast.error(errorData.error || 'Failed to update project status')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to update project status')
       }
     } catch (error) {
       console.error('Failed to update project status:', error)

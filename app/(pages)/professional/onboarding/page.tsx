@@ -1233,7 +1233,7 @@ export default function ProfessionalOnboardingPage() {
           </div>
           {/* Progress Skeleton */}
           <div className="flex items-center gap-4 justify-center">
-            {[1, 2, 3, 4, 5].map(i => (
+            {STEPS.map((_, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Skeleton className="h-8 w-8 rounded-full" />
                 <Skeleton className="h-3 w-16 hidden sm:block" />
