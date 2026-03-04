@@ -16,12 +16,6 @@ export interface ChatConversation {
   _id: string;
   customerId: ChatUserSummary;
   professionalId: ChatUserSummary;
-  bookingId?: {
-    _id: string;
-    bookingNumber?: string;
-    status?: string;
-    bookingType?: string;
-  } | null;
   initiatedBy: string;
   status: "active" | "archived";
   lastMessageAt?: string;
@@ -57,6 +51,9 @@ export interface ConversationInfoStats {
   totalBookings: number;
   completedBookings: number;
   avgCustomerRating: number;
+  avgCommunication: number;
+  avgValueOfDelivery: number;
+  avgQualityOfService: number;
   avgProfessionalRating: number;
 }
 

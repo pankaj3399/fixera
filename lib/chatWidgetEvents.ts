@@ -4,7 +4,6 @@ export const PENDING_CHAT_START_KEY = "fixera:pending-chat-start";
 export interface ChatWidgetOpenDetail {
   open?: boolean;
   professionalId?: string;
-  bookingId?: string;
   conversationId?: string;
 }
 

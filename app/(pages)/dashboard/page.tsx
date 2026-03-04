@@ -527,7 +527,6 @@ export default function DashboardPage() {
                           {booking.professional?._id && (
                             <StartChatButton
                               professionalId={booking.professional._id}
-                              bookingId={booking._id}
                               label="Chat"
                               size="sm"
                               className="text-xs bg-white/80 border-indigo-200 hover:border-indigo-300"
@@ -677,7 +676,6 @@ export default function DashboardPage() {
                             {booking.professional?._id && (
                               <StartChatButton
                                 professionalId={booking.professional._id}
-                                bookingId={booking._id}
                                 label="Chat"
                                 size="sm"
                                 className="text-xs bg-white/80 border-teal-200 hover:border-teal-300"
