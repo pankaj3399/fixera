@@ -260,6 +260,13 @@ export default function BookingDetailPage() {
     fetchBooking()
   }, [bookingId, isAuthenticated])
 
+  // Auto-open quote form when navigated with ?action=quote
+  useEffect(() => {
+    if (booking?.status === "rfq" && searchParams?.get("action") === "quote" && user?.role === "professional") {
+      setShowQuoteForm(true)
+    }
+  }, [booking, searchParams, user?.role])
+
   // Check if post-booking questions need to be answered
   const postBookingQuestions = booking?.project?.postBookingQuestions || []
   const hasPostBookingQuestions = postBookingQuestions.length > 0

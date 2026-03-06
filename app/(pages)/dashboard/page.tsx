@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
 import StartChatButton from "@/components/chat/StartChatButton"
+import { type BookingStatus, getBookingStatusMeta, getBookingTitle } from "@/lib/dashboardBookingHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface LoyaltyStats {
@@ -39,19 +40,6 @@ interface ProjectStats {
   pendingProjects: number;
 }
 
-type BookingStatus =
-  | "rfq"
-  | "quoted"
-  | "quote_accepted"
-  | "quote_rejected"
-  | "payment_pending"
-  | "booked"
-  | "in_progress"
-  | "completed"
-  | "cancelled"
-  | "dispute"
-  | "refunded"
-  | string
 
 interface Booking {
   _id: string
@@ -92,20 +80,6 @@ interface Booking {
   }
 }
 
-const BOOKING_STATUS_STYLES: Record<string, string> = {
-  rfq: "bg-indigo-50 text-indigo-700 border border-indigo-100",
-  quoted: "bg-blue-50 text-blue-700 border border-blue-100",
-  quote_accepted: "bg-emerald-50 text-emerald-700 border border-emerald-100",
-  quote_rejected: "bg-rose-50 text-rose-700 border border-rose-100",
-  payment_pending: "bg-amber-50 text-amber-700 border border-amber-100",
-  booked: "bg-emerald-50 text-emerald-700 border border-emerald-100",
-  in_progress: "bg-sky-50 text-sky-700 border border-sky-100",
-  completed: "bg-teal-50 text-teal-700 border border-teal-100",
-  cancelled: "bg-rose-50 text-rose-700 border border-rose-100",
-  refunded: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100",
-  dispute: "bg-red-50 text-red-700 border border-red-100",
-  unknown: "bg-slate-50 text-slate-700 border border-slate-100",
-}
 
 const STATUS_FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "All" },
@@ -133,16 +107,7 @@ const isPastBooking = (booking: Booking): boolean => {
   return pastStatuses.has(booking.status)
 }
 
-const getBookingStatusMeta = (status?: BookingStatus) => {
-  const rawStatus = status || "unknown"
-  return {
-    rawStatus,
-    label: rawStatus.replace(/_/g, " "),
-    className:
-      BOOKING_STATUS_STYLES[rawStatus] ||
-      "bg-slate-50 text-slate-700 border border-slate-100"
-  }
-}
+
 const formatBudget = (booking: Booking): string | null => {
   const budget = booking.rfqData?.budget
   if (!budget || (budget.min == null && budget.max == null)) return null
@@ -181,10 +146,10 @@ export default function DashboardPage() {
     }
   }, [user])
 
-  // Fetch bookings for customer and professional dashboard
+  // Fetch bookings for customer dashboard
   useEffect(() => {
     if (!user || !isAuthenticated) return
-    if (user.role !== "customer" && user.role !== "professional") return
+    if (user.role !== "customer") return
 
     const fetchBookings = async () => {
       setBookingsLoading(true)
@@ -1126,30 +1091,11 @@ export default function DashboardPage() {
                 <Briefcase className="h-8 w-8 text-blue-600" />
                 Professional Dashboard
               </h1>
-              <p className="text-gray-600">Manage your services and projects, {user?.name}!</p>
+              <p className="text-gray-600">Manage your profile, projects, bookings, and quotes, {user?.name}.</p>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {/* Create New Project Card */}
-            <Card className="border-2 border-dashed border-blue-300 hover:border-blue-500 transition-colors">
-              <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2 text-blue-600">
-                  <Plus className="h-6 w-6" />
-                  Create New Project
-                </CardTitle>
-                <CardDescription>Start offering a new service to customers</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <Button
-                  onClick={() => router.push('/projects/create')}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  size="lg"
-                >
-                  Create Project
-                </Button>
-              </CardContent>
-            </Card>
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
 
             {/* Profile Information */}
             <Card>
@@ -1209,15 +1155,7 @@ export default function DashboardPage() {
               <CardDescription>Common tasks for professionals</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/projects/create')}
-                  className="flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  New Project
-                </Button>
+              <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4">
                 <Button
                   variant="outline"
                   onClick={() => router.push('/profile')}
@@ -1233,6 +1171,22 @@ export default function DashboardPage() {
                 >
                   <Briefcase className="h-4 w-4" />
                   Manage Projects
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/bookings')}
+                  className="flex items-center gap-2"
+                >
+                  <Package className="h-4 w-4" />
+                  Manage Bookings
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/quotes')}
+                  className="flex items-center gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  Manage Quotes
                 </Button>
                 <Button
                   variant="outline"
@@ -1312,15 +1266,8 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {bookings.slice(0, 5).map((booking) => {
                     const isProject = booking.bookingType === "project"
-                    const title =
-                      (isProject ? booking.project?.title : booking.professional?.businessInfo?.companyName) ||
-                      booking.rfqData?.serviceType ||
-                      "Booking"
-
-                    const statusLabel = booking.status.replace(/_/g, " ")
-                    const statusClasses =
-                      BOOKING_STATUS_STYLES[booking.status] ||
-                      "bg-slate-50 text-slate-700 border border-slate-100"
+                    const title = getBookingTitle(booking)
+                    const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(booking.status)
 
                     return (
                       <div
@@ -1362,7 +1309,7 @@ export default function DashboardPage() {
                             {booking.status === 'rfq' && (
                               <Button
                                 size="sm"
-                                onClick={() => router.push(`/bookings/${booking._id}`)}
+                                onClick={() => router.push(`/bookings/${booking._id}?action=quote`)}
                                 className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
                               >
                                 <FileText className="h-3 w-3 mr-1" />
