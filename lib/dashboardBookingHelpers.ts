@@ -1,16 +1,29 @@
-export type BookingStatus =
-  | "rfq"
-  | "quoted"
-  | "quote_accepted"
-  | "quote_rejected"
-  | "payment_pending"
-  | "booked"
-  | "in_progress"
-  | "completed"
-  | "cancelled"
-  | "dispute"
-  | "refunded"
-  | string
+export const BOOKING_STATUSES = [
+  "rfq",
+  "quoted",
+  "quote_accepted",
+  "quote_rejected",
+  "payment_pending",
+  "booked",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "dispute",
+  "refunded",
+] as const
+
+export type BookingStatus = (typeof BOOKING_STATUSES)[number]
+
+const bookingStatusSet: ReadonlySet<string> = new Set<string>(BOOKING_STATUSES)
+
+export function isBookingStatus(value: string): value is BookingStatus {
+  return bookingStatusSet.has(value)
+}
+
+export function parseBookingStatus(value: string | undefined | null): BookingStatus | null {
+  if (value != null && isBookingStatus(value)) return value
+  return null
+}
 
 export const BOOKING_STATUS_STYLES: Record<string, string> = {
   rfq: "bg-indigo-50 text-indigo-700 border border-indigo-100",
@@ -31,7 +44,7 @@ export const QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "quoted", "quote_ac
 export const QUOTE_FINISHED_STATUSES = new Set<BookingStatus>(["quote_accepted", "quote_rejected"])
 export const BOOKING_FINISHED_STATUSES = new Set<BookingStatus>(["completed", "cancelled", "refunded"])
 
-export const getBookingStatusMeta = (status?: BookingStatus) => {
+export const getBookingStatusMeta = (status?: BookingStatus | string) => {
   const rawStatus = status || "unknown"
   return {
     rawStatus,

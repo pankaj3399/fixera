@@ -269,7 +269,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                   {mode === "quotes" && booking.status === "rfq" && (
                     <Button
                       size="sm"
-                      onClick={() => router.push(`/bookings/${booking._id}`)}
+                      onClick={() => router.push(`/bookings/${booking._id}?action=quote`)}
                       className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
                     >
                       <FileText className="h-3 w-3 mr-1" />
