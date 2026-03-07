@@ -35,14 +35,26 @@ export interface ChatAttachment {
   fileSize?: number;
 }
 
+export interface ReviewNotificationMeta {
+  bookingId: string;
+  avgRating: number;
+  communicationLevel: number;
+  valueOfDelivery: number;
+  qualityOfService: number;
+  comment?: string;
+  customerName: string;
+}
+
 export interface ChatMessage {
   _id: string;
   conversationId: string;
   senderId: ChatUserSummary;
-  senderRole: "customer" | "professional";
+  senderRole: "customer" | "professional" | "system";
+  messageType?: "text" | "review_notification";
   text?: string;
   images: string[];
   attachments?: ChatAttachment[];
+  reviewMeta?: ReviewNotificationMeta;
   createdAt: string;
   updatedAt: string;
 }

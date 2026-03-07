@@ -25,6 +25,7 @@ import {
   Shield,
   Award,
   Euro,
+  Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -212,6 +213,25 @@ export default function ProjectDetailPage() {
   >(null);
   const [viewedSubprojectIndex, setViewedSubprojectIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
+  const [reviews, setReviews] = useState<Array<{
+    _id: string;
+    customerReview: {
+      communicationLevel: number;
+      valueOfDelivery: number;
+      qualityOfService: number;
+      comment?: string;
+      reviewedAt: string;
+      reply?: { comment: string; repliedAt: string };
+    };
+    customer: { name?: string; profileImage?: string };
+  }>>([]);
+  const [ratingsSummary, setRatingsSummary] = useState<{
+    overallAverage: number;
+    avgCommunication: number;
+    avgValueOfDelivery: number;
+    avgQualityOfService: number;
+    totalReviews: number;
+  } | null>(null);
 
   const projectId = params.id as string;
 
@@ -228,6 +248,25 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     fetchProject();
   }, [projectId]);
+
+  useEffect(() => {
+    if (!project?.professionalId?._id) return;
+    const fetchReviews = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${project.professionalId._id}/reviews?page=1&limit=5`
+        );
+        const data = await res.json();
+        if (data.success) {
+          setReviews(data.data.reviews);
+          setRatingsSummary(data.data.ratingsSummary);
+        }
+      } catch {
+        // non-critical
+      }
+    };
+    fetchReviews();
+  }, [project?.professionalId?._id]);
 
   useEffect(() => {
     if (!projectId || !project) return;
@@ -772,14 +811,65 @@ export default function ProjectDetailPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Reviews & More From This Professional</CardTitle>
-                <CardDescription>Coming soon in the next phase</CardDescription>
+                <CardTitle>Reviews From Customers</CardTitle>
+                {ratingsSummary && ratingsSummary.totalReviews > 0 && (
+                  <div className='flex items-center gap-2 mt-1'>
+                    <div className='flex gap-0.5'>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-4 w-4 ${
+                            star <= Math.round(ratingsSummary.overallAverage)
+                              ? 'fill-yellow-400 text-yellow-400'
+                              : 'text-gray-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className='text-sm font-semibold'>{ratingsSummary.overallAverage.toFixed(1)}</span>
+                    <span className='text-xs text-gray-500'>({ratingsSummary.totalReviews} review{ratingsSummary.totalReviews !== 1 ? 's' : ''})</span>
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
-                <p className='text-sm text-gray-600'>
-                  We&apos;re working on surfacing verified reviews and
-                  additional projects from this company. Stay tuned!
-                </p>
+                {reviews.length === 0 ? (
+                  <p className='text-sm text-gray-500'>No reviews yet.</p>
+                ) : (
+                  <div className='space-y-4'>
+                    {reviews.map((review) => {
+                      const cr = review.customerReview;
+                      const avg = Math.round(((cr.communicationLevel + cr.valueOfDelivery + cr.qualityOfService) / 3) * 10) / 10;
+                      return (
+                        <div key={review._id} className='border-b border-gray-100 pb-4 last:border-0 last:pb-0'>
+                          <div className='flex items-center gap-2 mb-1'>
+                            <span className='text-sm font-medium'>{review.customer?.name || 'Anonymous'}</span>
+                            <div className='flex gap-0.5'>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`h-3 w-3 ${star <= Math.round(avg) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}`}
+                                />
+                              ))}
+                            </div>
+                            <span className='text-xs text-gray-400'>{new Date(cr.reviewedAt).toLocaleDateString()}</span>
+                          </div>
+                          {cr.comment && <p className='text-sm text-gray-600'>{cr.comment}</p>}
+                          {cr.reply && (
+                            <div className='mt-2 ml-4 border-l-2 border-blue-200 pl-3'>
+                              <p className='text-xs font-medium text-blue-700'>Professional&apos;s Reply</p>
+                              <p className='text-sm text-gray-600'>{cr.reply.comment}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {project?.professionalId?._id && (
+                      <Link href={`/professional/${project.professionalId._id}`} className='text-sm text-blue-600 hover:underline'>
+                        View all reviews
+                      </Link>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -480,7 +480,7 @@ export default function ChatPage() {
 
             {/* Messages */}
             <div className="flex-1 min-h-0">
-              <ChatThread messages={messages} currentUserId={user?._id || null} loading={loadingMessages} />
+              <ChatThread messages={messages} currentUserId={user?._id || null} currentUserRole={userRole} loading={loadingMessages} />
             </div>
 
             {/* Composer */}

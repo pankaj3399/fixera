@@ -195,6 +195,13 @@ const isPublicRoute = (pathname: string): boolean => {
     return true
   }
 
+  // Special case: /professional/[id] is a public profile page
+  // Match /professional/<objectId> but NOT /professional/projects, /professional/onboarding, etc.
+  const professionalProfileMatch = pathname.match(/^\/professional\/([a-f0-9]{24})$/)
+  if (professionalProfileMatch) {
+    return true
+  }
+
   return false
 }
 
@@ -216,6 +223,11 @@ const isProfessionalOnboardingRoute = (pathname: string): boolean => {
 
 // Returns all roles that have access to this route
 const getAllowedRoles = (pathname: string): string[] => {
+  // /professional/[objectId] is a public profile page — not role-restricted
+  if (/^\/professional\/[a-f0-9]{24}$/.test(pathname)) {
+    return []
+  }
+
   const allowedRoles: string[] = []
   for (const [role, routes] of Object.entries(ROUTE_CONFIG.ROLE_BASED)) {
     const hasAccess = routes.some(route => pathname.startsWith(route))

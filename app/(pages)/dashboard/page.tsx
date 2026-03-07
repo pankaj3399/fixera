@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1195,6 +1195,14 @@ export default function DashboardPage() {
                 >
                   <TrendingUp className="h-4 w-4" />
                   Payments & Stripe
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(`/professional/${user?._id}`)}
+                  className="flex items-center gap-2"
+                >
+                  <Star className="h-4 w-4" />
+                  My Reviews
                 </Button>
               </div>
             </CardContent>

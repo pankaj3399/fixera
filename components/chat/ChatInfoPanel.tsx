@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Star, MapPin, Calendar, ExternalLink } from "lucide-react";
+import { Loader2, Star, MapPin, Calendar, ExternalLink, User } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { fetchConversationInfo } from "@/lib/chatApi";
@@ -136,6 +136,15 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             <Calendar className="h-3 w-3" />
             <span>Member since {memberSince}</span>
           </div>
+        )}
+
+        {isCustomerViewing && other?._id && (
+          <Button asChild variant="outline" size="sm" className="mt-3 w-full text-xs">
+            <Link href={`/professional/${other._id}`}>
+              <User className="h-3 w-3 mr-1.5" />
+              View Full Profile
+            </Link>
+          </Button>
         )}
       </div>
 

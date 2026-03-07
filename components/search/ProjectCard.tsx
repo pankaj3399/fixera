@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { MapPin, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar, Star } from 'lucide-react';
 import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } from '@/lib/projectHighlights';
 import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
 
@@ -54,6 +54,8 @@ interface ProjectCardProps {
       hourlyRate?: number;
       currency?: string;
       profileImage?: string;
+      avgRating?: number;
+      totalReviews?: number;
     };
     subprojects?: Array<{
       name: string;
@@ -338,6 +340,26 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
                   <div className="flex items-center gap-1 text-[10px] text-gray-500">
                     <MapPin className="w-3 h-3" />
                     <span className="truncate">{location}</span>
+                  </div>
+                )}
+                {professional?.avgRating != null && professional.avgRating > 0 && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-2.5 w-2.5 ${
+                            star <= Math.round(professional.avgRating!)
+                              ? 'fill-yellow-400 text-yellow-400'
+                              : 'text-gray-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[10px] font-medium text-gray-600">{professional.avgRating.toFixed(1)}</span>
+                    {professional.totalReviews != null && (
+                      <span className="text-[10px] text-gray-400">({professional.totalReviews})</span>
+                    )}
                   </div>
                 )}
               </div>
