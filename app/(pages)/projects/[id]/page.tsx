@@ -232,6 +232,7 @@ export default function ProjectDetailPage() {
     avgQualityOfService: number;
     totalReviews: number;
   } | null>(null);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
   const projectId = params.id as string;
 
@@ -252,6 +253,7 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (!project?.professionalId?._id) return;
     const fetchReviews = async () => {
+      setReviewsLoading(true);
       try {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${project.professionalId._id}/reviews?page=1&limit=5`
@@ -263,6 +265,8 @@ export default function ProjectDetailPage() {
         }
       } catch {
         // non-critical
+      } finally {
+        setReviewsLoading(false);
       }
     };
     fetchReviews();
@@ -832,7 +836,19 @@ export default function ProjectDetailPage() {
                 )}
               </CardHeader>
               <CardContent>
-                {reviews.length === 0 ? (
+                {reviewsLoading ? (
+                  <div className='space-y-3'>
+                    {[1, 2].map(i => (
+                      <div key={i} className='space-y-2'>
+                        <div className='flex items-center gap-2'>
+                          <div className='h-4 w-24 bg-gray-200 rounded animate-pulse' />
+                          <div className='h-3 w-16 bg-gray-100 rounded animate-pulse' />
+                        </div>
+                        <div className='h-3 w-full bg-gray-100 rounded animate-pulse' />
+                      </div>
+                    ))}
+                  </div>
+                ) : reviews.length === 0 ? (
                   <p className='text-sm text-gray-500'>No reviews yet.</p>
                 ) : (
                   <div className='space-y-4'>

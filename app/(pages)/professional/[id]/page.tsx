@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import Link from "next/link"
 import { useAuth } from "@/contexts/AuthContext"
 import {
   Star,
@@ -166,12 +165,18 @@ export default function ProfessionalProfilePage() {
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/reviews?page=${pageNum}&limit=10`
       )
       const data = await res.json()
-      if (data.success) {
-        setProfessional(data.data.professional)
-        setReviews(data.data.reviews)
-        setRatingsSummary(data.data.ratingsSummary)
-        setTotalPages(data.data.pagination.totalPages)
+      if (!res.ok || !data.success) {
+        toast.error(data.msg || "Failed to load professional profile")
+        setProfessional(null)
+        setReviews([])
+        setRatingsSummary(null)
+        setTotalPages(1)
+        return
       }
+      setProfessional(data.data.professional)
+      setReviews(data.data.reviews)
+      setRatingsSummary(data.data.ratingsSummary)
+      setTotalPages(data.data.pagination.totalPages)
     } catch {
       toast.error("Failed to load professional profile")
     } finally {
