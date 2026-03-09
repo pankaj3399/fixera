@@ -46,7 +46,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [showInfoPanel, setShowInfoPanel] = useState(true);
   const [showNewChat, setShowNewChat] = useState(false);
   const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
   const [loadingProfessionals, setLoadingProfessionals] = useState(false);

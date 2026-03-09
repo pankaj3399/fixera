@@ -940,12 +940,16 @@ export default function ServiceConfigurationManagement() {
                           checked={checked}
                           onCheckedChange={(v) => {
                             const isChecked = Boolean(v)
-                            setFormData(prev => ({
-                              ...prev,
-                              requiredCertifications: isChecked
+                            setFormData(prev => {
+                              const updated = isChecked
                                 ? [...(prev.requiredCertifications || []), type]
                                 : (prev.requiredCertifications || []).filter(t => t !== type)
-                            }))
+                              return {
+                                ...prev,
+                                requiredCertifications: updated,
+                                certificationRequired: updated.length > 0,
+                              }
+                            })
                           }}
                         />
                         <Label className="cursor-pointer text-sm">{type}</Label>

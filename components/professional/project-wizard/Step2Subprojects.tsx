@@ -210,10 +210,23 @@ type PricingType = 'fixed' | 'unit' | 'rfq';
 const getValidPricingTypes = (
   category?: string,
   selectedOption?: { pricingType: string },
-  priceModel?: string
+  priceModel?: string,
+  configPricingOptions?: Array<{ name: string; pricingType: string }>
 ): PricingType[] => {
   const isRenovation = category?.toLowerCase() === 'renovation';
   if (isRenovation) return ['rfq'];
+
+  // When we have structured config pricing options, derive valid types from ALL of them
+  if (configPricingOptions && configPricingOptions.length > 0) {
+    const types = new Set<PricingType>();
+    for (const opt of configPricingOptions) {
+      if (opt.pricingType === 'fixed_price') types.add('fixed');
+      if (opt.pricingType === 'price_per_unit') types.add('unit');
+    }
+    types.add('rfq');
+    return Array.from(types);
+  }
+
   // RFQ-only detection (legacy string)
   if (!selectedOption && priceModel) {
     const normalized = priceModel.toLowerCase().trim();
@@ -226,8 +239,9 @@ const getValidPricingTypes = (
 const getDefaultPricingType = (
   category?: string,
   selectedOption?: { pricingType: string },
-  priceModel?: string
-): PricingType => getValidPricingTypes(category, selectedOption, priceModel)[0];
+  priceModel?: string,
+  configPricingOptions?: Array<{ name: string; pricingType: string }>
+): PricingType => getValidPricingTypes(category, selectedOption, priceModel, configPricingOptions)[0];
 
 const getPricingLabel = (
   pricingType: PricingType,
@@ -235,17 +249,21 @@ const getPricingLabel = (
   configPricingOptions: Array<{ name: string; pricingType: string }>,
   selectedPricingOption?: { name: string; pricingType: string },
 ): string => {
-  // If we have a selected structured option, use its name for fixed/unit types
-  if (selectedPricingOption) {
-    const typeMap: Record<string, string> = { fixed: 'fixed_price', unit: 'price_per_unit' };
-    if (typeMap[pricingType] === selectedPricingOption.pricingType) return selectedPricingOption.name;
+  // Map subproject pricing types to config pricingType values
+  const typeMap: Record<string, string> = { fixed: 'fixed_price', unit: 'price_per_unit' };
+  const configTypeKey = typeMap[pricingType] ?? null;
+
+  // If we have a selected structured option and it matches this pricing type, use its name
+  if (selectedPricingOption && configTypeKey === selectedPricingOption.pricingType) {
+    return selectedPricingOption.name;
   }
-  // Try matching from config options
-  const typeKey = pricingType === 'fixed' ? 'fixed_price' : pricingType === 'unit' ? 'price_per_unit' : null;
-  if (typeKey) {
-    const match = configPricingOptions.find(o => o.pricingType === typeKey);
+
+  // Try matching from all config options
+  if (configTypeKey) {
+    const match = configPricingOptions.find(o => o.pricingType === configTypeKey);
     if (match) return match.name;
   }
+
   // Defaults
   if (pricingType === 'fixed') return 'Fixed Price (Total)';
   if (pricingType === 'unit') return `Price per ${unitLabel}`;
@@ -269,11 +287,6 @@ export default function Step2Subprojects({
 }: Step2Props) {
   // Determine if this is a total price model or unit-based model
   const unitLabel = getUnitLabel(data.selectedPricingOption, data.priceModel);
-  const validPricingTypes = getValidPricingTypes(
-    data.category,
-    data.selectedPricingOption,
-    data.priceModel
-  );
 
   const normalizePreparationDuration = (subproject?: ISubproject) => {
     const value =
@@ -308,6 +321,14 @@ export default function Step2Subprojects({
       unit?: string;
     }[]
   >([]);
+
+  // Compute valid pricing types from ALL config options (not just selected one)
+  const validPricingTypes = getValidPricingTypes(
+    data.category,
+    data.selectedPricingOption,
+    data.priceModel,
+    configPricingOptions
+  );
 
   const fetchDynamicFields = async () => {
     try {
@@ -396,8 +417,8 @@ export default function Step2Subprojects({
 
   // Fix pricing types when priceModel changes (ensure they match available options)
   useEffect(() => {
-    const validTypes = getValidPricingTypes(data.category, data.selectedPricingOption, data.priceModel);
-    const defaultType = getDefaultPricingType(data.category, data.selectedPricingOption, data.priceModel);
+    const validTypes = getValidPricingTypes(data.category, data.selectedPricingOption, data.priceModel, configPricingOptions);
+    const defaultType = getDefaultPricingType(data.category, data.selectedPricingOption, data.priceModel, configPricingOptions);
 
     setSubprojects((prev) => {
       const needsUpdate = prev.some(
@@ -419,7 +440,7 @@ export default function Step2Subprojects({
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.priceModel, data.selectedPricingOption, data.category]);
+  }, [data.priceModel, data.selectedPricingOption, data.category, configPricingOptions]);
 
   const validateForm = () => {
     const isValid =
@@ -473,7 +494,8 @@ export default function Step2Subprojects({
     const defaultPricingType = getDefaultPricingType(
       data.category,
       data.selectedPricingOption,
-      data.priceModel
+      data.priceModel,
+      configPricingOptions
     );
 
     const newSubproject: ISubproject = {
