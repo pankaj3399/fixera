@@ -151,11 +151,36 @@ type BookingApiResponse = {
   msg?: string
 }
 
+interface DiscountPreview {
+  originalAmount: number
+  loyaltyDiscount: {
+    tier: string
+    percentage: number
+    amount: number
+    capped: boolean
+  }
+  repeatBuyerDiscount: {
+    percentage: number
+    amount: number
+    previousBookings: number
+    capped: boolean
+  }
+  totalDiscount: number
+  finalAmount: number
+  currency: string
+}
+
 const isBookingApiResponse = (value: unknown): value is BookingApiResponse => {
   if (!value || typeof value !== "object") return false
   const record = value as Record<string, unknown>
   return typeof record.success === "boolean"
 }
+
+const formatMoney = (amount: number, currencyCode = "EUR"): string =>
+  `${currencyCode.toUpperCase()} ${amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
 
 const parseResponseBody = async <T,>(response: Response): Promise<{ data: T | null; rawText: string | null }> => {
   const contentType = response.headers.get("content-type") || ""
@@ -196,6 +221,8 @@ export default function BookingDetailPage() {
   const [validationErrors, setValidationErrors] = useState<number[]>([])
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewAutoShown, setReviewAutoShown] = useState(false)
+  const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null)
+  const [loadingDiscountPreview, setLoadingDiscountPreview] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -259,6 +286,58 @@ export default function BookingDetailPage() {
 
     fetchBooking()
   }, [bookingId, isAuthenticated])
+
+  useEffect(() => {
+    const canPreviewDiscount =
+      Boolean(bookingId) &&
+      user?.role === "customer" &&
+      booking?.status === "quoted" &&
+      Boolean(booking?.quote?.amount)
+
+    if (!canPreviewDiscount) {
+      setDiscountPreview(null)
+      setLoadingDiscountPreview(false)
+      return
+    }
+
+    let isCancelled = false
+
+    const fetchDiscountPreview = async () => {
+      setLoadingDiscountPreview(true)
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/discount-preview`,
+          {
+            credentials: "include",
+            headers,
+          }
+        )
+
+        const { data } = await parseResponseBody<{ success?: boolean; data?: DiscountPreview }>(response)
+        if (!isCancelled && response.ok && data?.success && data.data) {
+          setDiscountPreview(data.data)
+        }
+      } catch {
+        // Keep booking flow usable if preview fails
+      } finally {
+        if (!isCancelled) {
+          setLoadingDiscountPreview(false)
+        }
+      }
+    }
+
+    fetchDiscountPreview()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [bookingId, booking?.quote?.amount, booking?.status, user?.role])
 
   // Auto-open quote form when navigated with ?action=quote
   useEffect(() => {
@@ -927,6 +1006,68 @@ export default function BookingDetailPage() {
                         </p>
                       )}
                     </div>
+
+                    {loadingDiscountPreview && (
+                      <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <p className="text-xs text-blue-700">Calculating your member savings...</p>
+                      </div>
+                    )}
+
+                    {discountPreview && (
+                      <div className="mb-4 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-amber-900">
+                            {discountPreview.loyaltyDiscount.tier} Member Benefits
+                          </p>
+                          <Badge variant="outline" className="border-amber-300 bg-white text-amber-800">
+                            {discountPreview.loyaltyDiscount.tier}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-3 space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-700">Original quote</span>
+                            <span className="font-medium text-gray-900">
+                              {formatMoney(discountPreview.originalAmount, discountPreview.currency)}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between">
+                            <span className="text-gray-700">
+                              Loyalty discount ({discountPreview.loyaltyDiscount.percentage}%)
+                            </span>
+                            <span className="font-medium text-green-700">
+                              -{formatMoney(discountPreview.loyaltyDiscount.amount, discountPreview.currency)}
+                            </span>
+                          </div>
+
+                          {discountPreview.repeatBuyerDiscount.amount > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-700">
+                                Returning customer discount ({discountPreview.repeatBuyerDiscount.percentage}%)
+                              </span>
+                              <span className="font-medium text-green-700">
+                                -{formatMoney(discountPreview.repeatBuyerDiscount.amount, discountPreview.currency)}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between border-t border-amber-200 pt-2">
+                            <span className="font-semibold text-gray-900">You save</span>
+                            <span className="font-semibold text-green-700">
+                              {formatMoney(discountPreview.totalDiscount, discountPreview.currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-semibold text-gray-900">You pay</span>
+                            <span className="text-base font-bold text-blue-700">
+                              {formatMoney(discountPreview.finalAmount, discountPreview.currency)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-3">
                       <Button
                         onClick={() => handleRespondToQuote("accept")}

@@ -113,6 +113,16 @@ export default function LoyaltyConfigPage() {
   }
 
   const saveConfig = async () => {
+    const invalidCapTier = config.tiers.find(
+      (tier) =>
+        tier.maxDiscountAmount !== null &&
+        !Number.isFinite(tier.maxDiscountAmount)
+    )
+    if (invalidCapTier) {
+      toast.error(`Max discount cap must be numeric for tier ${invalidCapTier.name || 'Unknown'}`)
+      return
+    }
+
     setIsSaving(true)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/config`, {
@@ -442,12 +452,29 @@ export default function LoyaltyConfigPage() {
                       <p className="text-xs text-gray-500">Automatic discount applied to bookings for this tier</p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor={`tier-max-discount-${tierIndex}`}>Max Discount Cap (€)</Label>
+                      <Label htmlFor={`tier-max-discount-${tierIndex}`}>Max Discount Cap ($)</Label>
                       <Input
                         id={`tier-max-discount-${tierIndex}`}
                         type="number"
-                        value={tier.maxDiscountAmount ?? ''}
-                        onChange={(e) => updateTier(tierIndex, 'maxDiscountAmount', e.target.value ? parseFloat(e.target.value) : '')}
+                        value={
+                          typeof tier.maxDiscountAmount === 'number' &&
+                          Number.isFinite(tier.maxDiscountAmount)
+                            ? tier.maxDiscountAmount
+                            : ''
+                        }
+                        onChange={(e) => {
+                          const raw = e.target.value.trim()
+                          if (raw === '') {
+                            updateTier(tierIndex, 'maxDiscountAmount', null)
+                            return
+                          }
+                          const parsed = parseFloat(raw)
+                          updateTier(
+                            tierIndex,
+                            'maxDiscountAmount',
+                            Number.isFinite(parsed) ? parsed : null
+                          )
+                        }}
                         min="0"
                         step="1"
                         placeholder="No cap"
@@ -517,3 +544,4 @@ export default function LoyaltyConfigPage() {
     </div>
   )
 }
+

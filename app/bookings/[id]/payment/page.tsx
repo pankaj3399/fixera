@@ -18,9 +18,20 @@ interface BookingPayment {
   vatRate?: number;
   totalWithVat?: number;
   status?: string;
+  discount?: {
+    loyaltyTier?: string;
+    loyaltyPercentage?: number;
+    loyaltyAmount?: number;
+    repeatBuyerPercentage?: number;
+    repeatBuyerAmount?: number;
+    totalDiscount?: number;
+    originalAmount?: number;
+  };
 }
 
 interface BookingQuote {
+  amount?: number;
+  currency?: string;
   description?: string;
 }
 
@@ -44,6 +55,11 @@ interface Booking {
 
 const MAX_PAYMENT_RETRY_ATTEMPTS = 3;
 const PAYMENT_RETRY_DELAY_MS = 2000;
+const formatMoney = (amount: number, currencyCode = 'EUR'): string =>
+  `${currencyCode.toUpperCase()} ${amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 export default function BookingPaymentPage() {
   const router = useRouter();
@@ -245,6 +261,15 @@ export default function BookingPaymentPage() {
     // router.push(`/bookings/${bookingId}/payment/failed?error=${encodeURIComponent(errorMessage)}`);
   };
 
+  const paymentCurrency = booking?.payment?.currency?.toUpperCase() || 'EUR';
+  const discountInfo = booking?.payment?.discount;
+  const hasDiscountBreakdown = (discountInfo?.totalDiscount ?? 0) > 0;
+  const originalServiceAmount =
+    discountInfo?.originalAmount ??
+    booking?.quote?.amount ??
+    booking?.payment?.netAmount ??
+    0;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -322,28 +347,63 @@ export default function BookingPaymentPage() {
           {/* Payment Breakdown */}
           <div className="px-6 py-4 border-b bg-gray-50">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Payment Details</h2>
+            {discountInfo?.loyaltyTier && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-sm font-medium text-amber-900">
+                  {discountInfo.loyaltyTier} member benefits applied
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
+              {hasDiscountBreakdown && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Original Service Amount:</span>
+                  <span className="text-gray-900">
+                    {formatMoney(originalServiceAmount, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {(discountInfo?.loyaltyAmount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">
+                    Loyalty Discount ({discountInfo?.loyaltyPercentage ?? 0}%):
+                  </span>
+                  <span className="text-green-700">
+                    -{formatMoney(discountInfo?.loyaltyAmount ?? 0, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {(discountInfo?.repeatBuyerAmount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">
+                    Returning Customer Discount ({discountInfo?.repeatBuyerPercentage ?? 0}%):
+                  </span>
+                  <span className="text-green-700">
+                    -{formatMoney(discountInfo?.repeatBuyerAmount ?? 0, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <span className="text-gray-600">Service Amount:</span>
                 <span className="text-gray-900">
-                  {(booking?.payment?.currency?.toUpperCase() || 'EUR')}{" "}
-                  {booking?.payment?.netAmount != null ? booking.payment.netAmount.toFixed(2) : '0.00'}
+                  {formatMoney(booking?.payment?.netAmount ?? 0, paymentCurrency)}
                 </span>
               </div>
               {(booking?.payment?.vatAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">VAT ({booking?.payment?.vatRate}%):</span>
                   <span className="text-gray-900">
-                  {(booking?.payment?.currency?.toUpperCase() || 'EUR')}{" "}
-                  {booking?.payment?.vatAmount != null ? booking.payment.vatAmount.toFixed(2) : '0.00'}
+                    {formatMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t">
                 <span className="text-lg font-semibold text-gray-900">Total:</span>
                 <span className="text-lg font-bold text-gray-900">
-                  {(booking?.payment?.currency?.toUpperCase() || 'EUR')}{" "}
-                  {booking?.payment?.totalWithVat != null ? booking.payment.totalWithVat.toFixed(2) : '0.00'}
+                  {formatMoney(booking?.payment?.totalWithVat ?? 0, paymentCurrency)}
                 </span>
               </div>
             </div>
