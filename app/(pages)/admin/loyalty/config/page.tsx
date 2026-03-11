@@ -15,6 +15,8 @@ interface LoyaltyTier {
   name: string;
   minSpendingAmount: number;
   pointsPercentage: number;
+  discountPercentage: number;
+  maxDiscountAmount: number | null;
   benefits: string[];
   color?: string;
 }
@@ -43,6 +45,8 @@ export default function LoyaltyConfigPage() {
         name: 'Bronze',
         minSpendingAmount: 0,
         pointsPercentage: 1,
+        discountPercentage: 0,
+        maxDiscountAmount: null,
         benefits: ['Basic support', '1% cashback points'],
         color: '#CD7F32'
       },
@@ -50,21 +54,27 @@ export default function LoyaltyConfigPage() {
         name: 'Silver',
         minSpendingAmount: 500,
         pointsPercentage: 2,
-        benefits: ['Priority support', '2% cashback points', '5% booking discount'],
+        discountPercentage: 2,
+        maxDiscountAmount: 25,
+        benefits: ['Priority support', '2% cashback points', '2% booking discount'],
         color: '#C0C0C0'
       },
       {
         name: 'Gold',
         minSpendingAmount: 1500,
         pointsPercentage: 3,
-        benefits: ['VIP support', '3% cashback points', '10% booking discount', 'Free cancellation'],
+        discountPercentage: 5,
+        maxDiscountAmount: 75,
+        benefits: ['VIP support', '3% cashback points', '5% booking discount', 'Free cancellation'],
         color: '#FFD700'
       },
       {
         name: 'Platinum',
         minSpendingAmount: 5000,
         pointsPercentage: 5,
-        benefits: ['Dedicated account manager', '5% cashback points', '15% booking discount', 'Free cancellation', 'Priority booking'],
+        discountPercentage: 10,
+        maxDiscountAmount: 150,
+        benefits: ['Dedicated account manager', '5% cashback points', '10% booking discount', 'Free cancellation', 'Priority booking'],
         color: '#E5E4E2'
       }
     ]
@@ -134,6 +144,8 @@ export default function LoyaltyConfigPage() {
         name: '',
         minSpendingAmount: 0,
         pointsPercentage: 1,
+        discountPercentage: 0,
+        maxDiscountAmount: null,
         benefits: [''],
         color: '#6B7280'
       }]
@@ -147,11 +159,11 @@ export default function LoyaltyConfigPage() {
     }))
   }
 
-  const updateTier = (index: number, field: keyof LoyaltyTier, value: string | number) => {
+  const updateTier = (index: number, field: keyof LoyaltyTier, value: string | number | null) => {
     setConfig(prev => ({
       ...prev,
-      tiers: prev.tiers.map((tier, i) => 
-        i === index ? { ...tier, [field]: value } : tier
+      tiers: prev.tiers.map((tier, i) =>
+        i === index ? { ...tier, [field]: field === 'maxDiscountAmount' && value === '' ? null : value } : tier
       )
     }))
   }
@@ -381,7 +393,7 @@ export default function LoyaltyConfigPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid md:grid-cols-4 gap-4">
+                  <div className="grid md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor={`tier-name-${tierIndex}`}>Tier Name</Label>
                       <Input
@@ -411,6 +423,36 @@ export default function LoyaltyConfigPage() {
                         max="100"
                         step="0.1"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`tier-discount-${tierIndex}`}>Auto-Discount (%)</Label>
+                      <Input
+                        id={`tier-discount-${tierIndex}`}
+                        type="number"
+                        value={tier.discountPercentage ?? 0}
+                        onChange={(e) => updateTier(tierIndex, 'discountPercentage', parseFloat(e.target.value) || 0)}
+                        min="0"
+                        max="50"
+                        step="0.5"
+                        placeholder="0"
+                      />
+                      <p className="text-xs text-gray-500">Automatic discount applied to bookings for this tier</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`tier-max-discount-${tierIndex}`}>Max Discount Cap (€)</Label>
+                      <Input
+                        id={`tier-max-discount-${tierIndex}`}
+                        type="number"
+                        value={tier.maxDiscountAmount ?? ''}
+                        onChange={(e) => updateTier(tierIndex, 'maxDiscountAmount', e.target.value ? parseFloat(e.target.value) : '')}
+                        min="0"
+                        step="1"
+                        placeholder="No cap"
+                      />
+                      <p className="text-xs text-gray-500">Leave empty for no cap</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`tier-color-${tierIndex}`}>Tier Color</Label>
