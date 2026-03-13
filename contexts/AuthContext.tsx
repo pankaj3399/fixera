@@ -137,6 +137,7 @@ interface SignupData {
   companyName?: string
   vatNumber?: string
   isVatValidated?: boolean
+  referralCode?: string
 }
 
 // Route Configuration
