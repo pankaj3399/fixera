@@ -110,7 +110,7 @@ function JoinContent() {
               </div>
 
               <Button
-                onClick={() => router.push(`/signup/customer${refCode ? `?ref=${refCode}` : ''}`)}
+                onClick={() => router.push(`/signup/customer${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`)}
                 className="w-full h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold text-lg group/btn"
                 size="lg"
               >
@@ -153,7 +153,7 @@ function JoinContent() {
               </div>
 
               <Button
-                onClick={() => router.push(`/register${refCode ? `?ref=${refCode}` : ''}`)}
+                onClick={() => router.push(`/register${refCode ? `?ref=${encodeURIComponent(refCode)}` : ''}`)}
                 className="w-full h-12 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold text-lg group/btn"
                 size="lg"
               >

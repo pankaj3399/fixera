@@ -41,17 +41,19 @@ import { getAuthToken } from '@/lib/utils';
 
 interface ReferralConfig {
   isEnabled: boolean;
-  referrerRewardAmount: number;
+  referrerRewardAmount: number | undefined;
   referredCustomerDiscountType: 'percentage' | 'fixed';
-  referredCustomerDiscountValue: number;
-  referredCustomerDiscountMaxAmount: number;
-  referredProfessionalCommissionReduction: number;
-  referredProfessionalBenefitBookings: number;
-  referralExpiryDays: number;
-  creditExpiryMonths: number;
-  maxReferralsPerUser: number;
-  minBookingAmountForTrigger: number;
+  referredCustomerDiscountValue: number | undefined;
+  referredCustomerDiscountMaxAmount: number | undefined;
+  referredProfessionalCommissionReduction: number | undefined;
+  referredProfessionalBenefitBookings: number | undefined;
+  referralExpiryDays: number | undefined;
+  creditExpiryMonths: number | undefined;
+  maxReferralsPerUser: number | undefined;
+  minBookingAmountForTrigger: number | undefined;
 }
+
+const numVal = (v: string): number | undefined => v === '' ? undefined : Number(v);
 
 interface ReferralAnalytics {
   totalReferrals: number;
@@ -192,7 +194,14 @@ export default function AdminReferralPage() {
     }
   };
 
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
   const revokeReferral = async (referralId: string) => {
+    if (!window.confirm('Are you sure you want to revoke this referral? This will claw back any credits issued.')) {
+      return;
+    }
+    if (revokingId) return; // prevent double-click
+    setRevokingId(referralId);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/referral/${referralId}/revoke`,
@@ -213,6 +222,8 @@ export default function AdminReferralPage() {
       }
     } catch (e) {
       toast.error('Failed to revoke referral');
+    } finally {
+      setRevokingId(null);
     }
   };
 
@@ -298,12 +309,13 @@ export default function AdminReferralPage() {
                       type="number"
                       min={0}
                       value={config.referrerRewardAmount}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          referrerRewardAmount: Number(e.target.value),
-                        })
-                      }
+                          referrerRewardAmount: numVal(v),
+                        });
+                      }}
                     />
                     <p className="text-xs text-gray-500">1 credit = 1 EUR</p>
                   </div>
@@ -313,12 +325,13 @@ export default function AdminReferralPage() {
                       type="number"
                       min={1}
                       value={config.creditExpiryMonths}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          creditExpiryMonths: Number(e.target.value),
-                        })
-                      }
+                          creditExpiryMonths: numVal(v),
+                        });
+                      }}
                     />
                   </div>
                 </div>
@@ -366,13 +379,14 @@ export default function AdminReferralPage() {
                     <Input
                       type="number"
                       min={0}
-                      value={config.referredCustomerDiscountValue}
-                      onChange={(e) =>
+                      value={config.referredCustomerDiscountValue ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          referredCustomerDiscountValue: Number(e.target.value),
-                        })
-                      }
+                          referredCustomerDiscountValue: numVal(v),
+                        });
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -380,15 +394,14 @@ export default function AdminReferralPage() {
                     <Input
                       type="number"
                       min={0}
-                      value={config.referredCustomerDiscountMaxAmount}
-                      onChange={(e) =>
+                      value={config.referredCustomerDiscountMaxAmount ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          referredCustomerDiscountMaxAmount: Number(
-                            e.target.value
-                          ),
-                        })
-                      }
+                          referredCustomerDiscountMaxAmount: numVal(v),
+                        });
+                      }}
                     />
                   </div>
                 </div>
@@ -399,15 +412,14 @@ export default function AdminReferralPage() {
                       type="number"
                       min={0}
                       max={100}
-                      value={config.referredProfessionalCommissionReduction}
-                      onChange={(e) =>
+                      value={config.referredProfessionalCommissionReduction ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          referredProfessionalCommissionReduction: Number(
-                            e.target.value
-                          ),
-                        })
-                      }
+                          referredProfessionalCommissionReduction: numVal(v),
+                        });
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -415,15 +427,14 @@ export default function AdminReferralPage() {
                     <Input
                       type="number"
                       min={0}
-                      value={config.referredProfessionalBenefitBookings}
-                      onChange={(e) =>
+                      value={config.referredProfessionalBenefitBookings ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          referredProfessionalBenefitBookings: Number(
-                            e.target.value
-                          ),
-                        })
-                      }
+                          referredProfessionalBenefitBookings: numVal(v),
+                        });
+                      }}
                     />
                     <p className="text-xs text-gray-500">
                       Number of bookings with reduced commission
@@ -445,13 +456,14 @@ export default function AdminReferralPage() {
                     <Input
                       type="number"
                       min={1}
-                      value={config.referralExpiryDays}
-                      onChange={(e) =>
+                      value={config.referralExpiryDays ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          referralExpiryDays: Number(e.target.value),
-                        })
-                      }
+                          referralExpiryDays: numVal(v),
+                        });
+                      }}
                     />
                     <p className="text-xs text-gray-500">
                       Time for referred user to complete qualifying action
@@ -462,13 +474,14 @@ export default function AdminReferralPage() {
                     <Input
                       type="number"
                       min={1}
-                      value={config.maxReferralsPerUser}
-                      onChange={(e) =>
+                      value={config.maxReferralsPerUser ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          maxReferralsPerUser: Number(e.target.value),
-                        })
-                      }
+                          maxReferralsPerUser: numVal(v),
+                        });
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -476,13 +489,14 @@ export default function AdminReferralPage() {
                     <Input
                       type="number"
                       min={0}
-                      value={config.minBookingAmountForTrigger}
-                      onChange={(e) =>
+                      value={config.minBookingAmountForTrigger ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
                         setConfig({
                           ...config,
-                          minBookingAmountForTrigger: Number(e.target.value),
-                        })
-                      }
+                          minBookingAmountForTrigger: numVal(v),
+                        });
+                      }}
                     />
                     <p className="text-xs text-gray-500">
                       Minimum first booking value to trigger reward
@@ -745,9 +759,14 @@ export default function AdminReferralPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => revokeReferral(ref._id)}
+                                disabled={revokingId === ref._id}
                                 className="text-red-600 hover:text-red-700"
                               >
-                                <Ban className="h-3 w-3 mr-1" />
+                                {revokingId === ref._id ? (
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                ) : (
+                                  <Ban className="h-3 w-3 mr-1" />
+                                )}
                                 Revoke
                               </Button>
                             )}

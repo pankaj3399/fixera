@@ -56,7 +56,19 @@ function RegisterForm() {
     const ref = searchParams.get('ref')
     if (ref) {
       setFormData(prev => ({ ...prev, referralCode: ref }))
-      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/referral/validate/${encodeURIComponent(ref)}`)
+    }
+  }, [searchParams])
+
+  // Validate referral code whenever it changes (debounced)
+  useEffect(() => {
+    const code = formData.referralCode.trim()
+    if (!code) {
+      setReferralValid(null)
+      setReferralReferrer('')
+      return
+    }
+    const timer = setTimeout(() => {
+      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/referral/validate/${encodeURIComponent(code)}`)
         .then(res => res.json())
         .then(data => {
           if (data.success) {
@@ -64,11 +76,16 @@ function RegisterForm() {
             setReferralReferrer(data.data?.referrerName || '')
           } else {
             setReferralValid(false)
+            setReferralReferrer('')
           }
         })
-        .catch(() => setReferralValid(false))
-    }
-  }, [searchParams])
+        .catch(() => {
+          setReferralValid(false)
+          setReferralReferrer('')
+        })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [formData.referralCode])
 
   const validateForm = (): boolean => {
     if (!formData.name.trim()) {

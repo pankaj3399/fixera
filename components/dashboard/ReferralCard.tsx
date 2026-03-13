@@ -45,11 +45,13 @@ interface ReferralData {
 export default function ReferralCard() {
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   const fetchReferralStats = async () => {
     try {
+      setFetchError(false);
       const token = getAuthToken();
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/referral/stats`,
@@ -61,9 +63,12 @@ export default function ReferralCard() {
       const json = await res.json();
       if (json.success) {
         setData(json.data);
+      } else {
+        setFetchError(true);
       }
     } catch (e) {
       console.error('Failed to fetch referral stats:', e);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -139,6 +144,10 @@ export default function ReferralCard() {
         </CardContent>
       </Card>
     );
+  }
+
+  if (fetchError) {
+    return null; // Hide on transient errors — will retry on next mount
   }
 
   if (!data?.programEnabled) {
