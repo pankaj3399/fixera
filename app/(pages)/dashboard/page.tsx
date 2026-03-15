@@ -124,20 +124,34 @@ export default function DashboardPage() {
           headers['Authorization'] = `Bearer ${token}`
         }
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?limit=50`,
-          {
-            credentials: "include",
-            headers
-          }
-        )
-        const data = await response.json()
+        const allBookings: typeof bookings = []
+        let page = 1
+        const limit = 50
 
-        if (response.ok && data.success) {
-          setBookings(data.bookings || [])
-        } else {
-          setBookingsError(data.msg || "Failed to load your bookings.")
+        while (true) {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=${page}&limit=${limit}`,
+            {
+              credentials: "include",
+              headers
+            }
+          )
+          const data = await response.json()
+
+          if (!response.ok || !data.success) {
+            setBookingsError(data.msg || "Failed to load your bookings.")
+            break
+          }
+
+          const incoming = Array.isArray(data.bookings) ? data.bookings : []
+          allBookings.push(...incoming)
+
+          const totalPages = data.pagination?.totalPages ?? 1
+          if (page >= totalPages || incoming.length < limit) break
+          page++
         }
+
+        setBookings(allBookings)
       } catch (error) {
         console.error("Failed to fetch bookings:", error)
         setBookingsError("Failed to load your bookings.")

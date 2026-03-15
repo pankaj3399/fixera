@@ -144,7 +144,15 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         page: String(pageToLoad),
         limit: String(PAGE_SIZE),
       })
-      if (statusFilter !== "all") params.append("status", statusFilter)
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter)
+      } else {
+        // Send mode-appropriate statuses so pagination counts match
+        const modeStatuses = mode === "quotes"
+          ? Array.from(QUOTE_STATUSES).join(",")
+          : ["booked", "in_progress", "payment_pending", "completed", "cancelled", "dispute", "refunded"].join(",")
+        params.append("status", modeStatuses)
+      }
       if (serviceFilter !== "all") params.append("service", serviceFilter)
       if (debouncedSearch) params.append("search", debouncedSearch)
 
@@ -214,7 +222,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         setIsLoading(false)
       }
     }
-  }, [isAuthenticated, user?.role, statusFilter, serviceFilter, debouncedSearch])
+  }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch])
 
   useEffect(() => {
     fetchBookings(1, false)

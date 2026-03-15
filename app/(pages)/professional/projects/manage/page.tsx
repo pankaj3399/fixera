@@ -375,17 +375,16 @@ export default function ManageProjectsPage() {
     }
   }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage])
 
-  // Fetch projects when filters change
+  // Reset to page 1 when filters change (the pagination effect will trigger the fetch)
   useEffect(() => {
     if (user?.role === 'professional') {
-      setCurrentPage(1) // Reset to first page when filters change
-      fetchProjects()
+      setCurrentPage(1)
     }
-  }, [user, debouncedSearchTerm, statusFilter, serviceFilter, fetchProjects])
+  }, [user, debouncedSearchTerm, statusFilter, serviceFilter])
 
-  // Fetch projects when page changes
+  // Fetch projects when page or filters change
   useEffect(() => {
-    if (user?.role === 'professional' && currentPage > 1) {
+    if (user?.role === 'professional') {
       fetchProjects()
     }
   }, [currentPage, user?.role, fetchProjects])
