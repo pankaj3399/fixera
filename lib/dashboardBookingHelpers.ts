@@ -44,6 +44,11 @@ export const QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "quoted", "quote_ac
 export const QUOTE_FINISHED_STATUSES = new Set<BookingStatus>(["quote_accepted", "quote_rejected"])
 export const BOOKING_FINISHED_STATUSES = new Set<BookingStatus>(["completed", "cancelled", "refunded"])
 
+// Professional dashboard: booking-phase (non-quote) statuses
+export const PROFESSIONAL_BOOKING_MODE_STATUSES = new Set<BookingStatus>([
+  "booked", "in_progress", "payment_pending", "completed", "cancelled", "dispute", "refunded",
+])
+
 // Customer dashboard: quote-phase statuses
 export const CUSTOMER_QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "quoted", "quote_rejected"])
 // Customer dashboard: booking-phase statuses

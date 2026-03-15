@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
@@ -65,6 +65,7 @@ interface Booking {
     }
   }
   scheduledStartDate?: string
+  scheduledExecutionEndDate?: string
   scheduledEndDate?: string
   createdAt?: string
   project?: {
@@ -94,6 +95,7 @@ export default function DashboardPage() {
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
 
+  const actionItems = useMemo(() => getProfessionalActionItems(bookings), [bookings])
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -139,7 +141,9 @@ export default function DashboardPage() {
           const data = await response.json()
 
           if (!response.ok || !data.success) {
-            setBookingsError(data.msg || "Failed to load your bookings.")
+            if (allBookings.length === 0) {
+              setBookingsError(data.msg || "Failed to load your bookings.")
+            }
             break
           }
 
@@ -850,88 +854,84 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {!bookingsLoading && !bookingsError && (() => {
-                const actionItems = getProfessionalActionItems(bookings)
-                if (actionItems.length === 0) {
-                  return (
-                    <div className="text-center py-8 text-gray-500">
-                      No actions needed right now. You&apos;re all caught up!
-                    </div>
-                  )
-                }
-                return (
-                  <div className="space-y-3">
-                    {actionItems.map((item) => {
-                      const isProject = item.booking.bookingType === "project"
-                      const title = getBookingTitle(item.booking)
-                      const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(item.booking.status)
-                      const severityClasses = item.severity === "urgent"
-                        ? "border-red-200 bg-red-50/50"
-                        : "border-amber-200 bg-amber-50/50"
+              {!bookingsLoading && !bookingsError && actionItems.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No actions needed right now. You&apos;re all caught up!
+                </div>
+              )}
 
-                      return (
-                        <div
-                          key={item.booking._id}
-                          className={`border rounded-lg p-4 transition-colors ${severityClasses}`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                {isProject ? (
-                                  <Package className="h-4 w-4 text-indigo-500" />
-                                ) : (
-                                  <Briefcase className="h-4 w-4 text-indigo-500" />
-                                )}
-                                <h3 className="font-semibold text-sm">{title}</h3>
-                              </div>
-                              <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
-                                <span>Customer: {item.booking.customer?.name || "Unknown"}</span>
-                                {item.booking.createdAt && (
-                                  <span>• {new Date(item.booking.createdAt).toLocaleDateString()}</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  variant="outline"
-                                  className={`text-xs capitalize ${statusClasses}`}
-                                >
-                                  {statusLabel}
-                                </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-xs ${item.severity === "urgent" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}
-                                >
-                                  {item.label}
-                                </Badge>
-                              </div>
+              {!bookingsLoading && !bookingsError && actionItems.length > 0 && (
+                <div className="space-y-3">
+                  {actionItems.map((item) => {
+                    const isProject = item.booking.bookingType === "project"
+                    const title = getBookingTitle(item.booking)
+                    const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(item.booking.status)
+                    const severityClasses = item.severity === "urgent"
+                      ? "border-red-200 bg-red-50/50"
+                      : "border-amber-200 bg-amber-50/50"
+
+                    return (
+                      <div
+                        key={item.booking._id}
+                        className={`border rounded-lg p-4 transition-colors ${severityClasses}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {isProject ? (
+                                <Package className="h-4 w-4 text-indigo-500" />
+                              ) : (
+                                <Briefcase className="h-4 w-4 text-indigo-500" />
+                              )}
+                              <h3 className="font-semibold text-sm">{title}</h3>
                             </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => router.push(`/bookings/${item.booking._id}`)}
-                                className="text-xs"
-                              >
-                                View
-                              </Button>
-                              {item.booking.status === 'rfq' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => router.push(`/bookings/${item.booking._id}?action=quote`)}
-                                  className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                                >
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  Quote
-                                </Button>
+                            <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
+                              <span>Customer: {item.booking.customer?.name || "Unknown"}</span>
+                              {item.booking.createdAt && (
+                                <span>• {new Date(item.booking.createdAt).toLocaleDateString()}</span>
                               )}
                             </div>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={`text-xs capitalize ${statusClasses}`}
+                              >
+                                {statusLabel}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${item.severity === "urgent" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}
+                              >
+                                {item.label}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => router.push(`/bookings/${item.booking._id}`)}
+                              className="text-xs"
+                            >
+                              View
+                            </Button>
+                            {item.booking.status === 'rfq' && (
+                              <Button
+                                size="sm"
+                                onClick={() => router.push(`/bookings/${item.booking._id}?action=quote`)}
+                                className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                              >
+                                <FileText className="h-3 w-3 mr-1" />
+                                Quote
+                              </Button>
+                            )}
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -218,6 +218,11 @@ export default function ManageProjectsPage() {
     setCurrentPage(1)
   }
 
+  const handleServiceFilterChange = (service: string) => {
+    setServiceFilter(service)
+    setCurrentPage(1)
+  }
+
   const handleTabChange = (tabValue: TabValue) => {
     console.log('[ManageProjects] Tab changed', { tabValue })
     setActiveTab(tabValue)
@@ -236,11 +241,12 @@ export default function ManageProjectsPage() {
     }
   }, [isAuthenticated, loading, router, user])
 
-  // Debouncing effect for search term
+  // Debouncing effect for search term (also resets page)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm)
-    }, 500) // 500ms delay
+      setCurrentPage(1)
+    }, 500)
 
     return () => clearTimeout(timer)
   }, [searchTerm])
@@ -309,6 +315,9 @@ export default function ManageProjectsPage() {
             totalProjects: responseData.totalProjects,
             counts: responseData.counts
           })
+          if (Array.isArray(responseData.distinctServices)) {
+            setAllServices(responseData.distinctServices)
+          }
           fetchedProjects = responseData.projects
           responseCounts = responseData.counts
           setTotalPages(responseData.totalPages || 1)
@@ -375,19 +384,12 @@ export default function ManageProjectsPage() {
     }
   }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage])
 
-  // Reset to page 1 when filters change (the pagination effect will trigger the fetch)
-  useEffect(() => {
-    if (user?.role === 'professional') {
-      setCurrentPage(1)
-    }
-  }, [user, debouncedSearchTerm, statusFilter, serviceFilter])
-
-  // Fetch projects when page or filters change
+  // Single effect to fetch projects — fetchProjects changes when filters/page change
   useEffect(() => {
     if (user?.role === 'professional') {
       fetchProjects()
     }
-  }, [currentPage, user?.role, fetchProjects])
+  }, [user?.role, fetchProjects])
 
   const getStatusColor = (status: Project['status']) => {
     const normalized = normalizeProjectStatus(status)
@@ -769,7 +771,7 @@ export default function ManageProjectsPage() {
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={serviceFilter} onValueChange={setServiceFilter}>
+              <Select value={serviceFilter} onValueChange={handleServiceFilterChange}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Filter by service" />
                 </SelectTrigger>

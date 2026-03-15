@@ -15,6 +15,7 @@ import {
   QUOTE_STATUSES,
   QUOTE_FINISHED_STATUSES,
   BOOKING_FINISHED_STATUSES,
+  PROFESSIONAL_BOOKING_MODE_STATUSES,
   getBookingStatusMeta,
   getBookingTitle,
 } from "@/lib/dashboardBookingHelpers"
@@ -150,7 +151,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         // Send mode-appropriate statuses so pagination counts match
         const modeStatuses = mode === "quotes"
           ? Array.from(QUOTE_STATUSES).join(",")
-          : ["booked", "in_progress", "payment_pending", "completed", "cancelled", "dispute", "refunded"].join(",")
+          : Array.from(PROFESSIONAL_BOOKING_MODE_STATUSES).join(",")
         params.append("status", modeStatuses)
       }
       if (serviceFilter !== "all") params.append("service", serviceFilter)
@@ -367,10 +368,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total</CardDescription>
-              <CardTitle>{filteredBookings.length}</CardTitle>
+              <CardTitle>{totalBookings}</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 text-xs text-gray-500">
-              {relevantBookings.length} loaded of {totalBookings}
+              {relevantBookings.length} currently loaded
             </CardContent>
           </Card>
           <Card>
