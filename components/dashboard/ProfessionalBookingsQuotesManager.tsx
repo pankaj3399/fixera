@@ -7,7 +7,9 @@ import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Briefcase, Calendar, Clock, FileText, Package, RefreshCw } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ArrowLeft, Briefcase, Calendar, Clock, FileText, Loader2, Package, RefreshCw, Search } from "lucide-react"
 import {
   type BookingStatus,
   QUOTE_STATUSES,
@@ -60,6 +62,35 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const [currentPage, setCurrentPage] = useState(1)
   const [totalBookings, setTotalBookings] = useState(0)
   const [hasMore, setHasMore] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [serviceFilter, setServiceFilter] = useState("all")
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const statusOptions = mode === "quotes"
+    ? [
+        { id: "all", label: "All Statuses" },
+        { id: "rfq", label: "RFQ" },
+        { id: "quoted", label: "Quoted" },
+        { id: "quote_accepted", label: "Accepted" },
+        { id: "quote_rejected", label: "Rejected" },
+      ]
+    : [
+        { id: "all", label: "All Statuses" },
+        { id: "booked", label: "Booked" },
+        { id: "in_progress", label: "In Progress" },
+        { id: "payment_pending", label: "Awaiting Payment" },
+        { id: "completed", label: "Completed" },
+        { id: "cancelled", label: "Cancelled" },
+        { id: "dispute", label: "Dispute" },
+        { id: "refunded", label: "Refunded" },
+      ]
 
   const pageCopy = mode === "bookings"
     ? {
@@ -184,23 +215,44 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     })
   }, [bookings, mode])
 
-  const pendingBookings = useMemo(() => {
+  // Unique services for the filter dropdown
+  const uniqueServices = useMemo(() => {
+    return Array.from(new Set(relevantBookings.map(b => b.rfqData?.serviceType).filter(Boolean))) as string[]
+  }, [relevantBookings])
+
+  // Apply search, status and service filters
+  const filteredBookings = useMemo(() => {
     return relevantBookings.filter((booking) => {
+      if (statusFilter !== "all" && booking.status !== statusFilter) return false
+      if (serviceFilter !== "all" && booking.rfqData?.serviceType !== serviceFilter) return false
+      if (debouncedSearch) {
+        const term = debouncedSearch.toLowerCase()
+        const title = getBookingTitle(booking).toLowerCase()
+        const service = (booking.rfqData?.serviceType || "").toLowerCase()
+        const customer = (booking.customer?.name || "").toLowerCase()
+        if (!title.includes(term) && !service.includes(term) && !customer.includes(term)) return false
+      }
+      return true
+    })
+  }, [relevantBookings, statusFilter, serviceFilter, debouncedSearch])
+
+  const pendingBookings = useMemo(() => {
+    return filteredBookings.filter((booking) => {
       if (mode === "quotes") {
         return !QUOTE_FINISHED_STATUSES.has(booking.status)
       }
       return !BOOKING_FINISHED_STATUSES.has(booking.status)
     })
-  }, [mode, relevantBookings])
+  }, [mode, filteredBookings])
 
   const finishedBookings = useMemo(() => {
-    return relevantBookings.filter((booking) => {
+    return filteredBookings.filter((booking) => {
       if (mode === "quotes") {
         return QUOTE_FINISHED_STATUSES.has(booking.status)
       }
       return BOOKING_FINISHED_STATUSES.has(booking.status)
     })
-  }, [mode, relevantBookings])
+  }, [mode, filteredBookings])
 
   if (authLoading) {
     return (
@@ -307,11 +359,11 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         <div className="grid md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Total Loaded</CardDescription>
-              <CardTitle>{relevantBookings.length}</CardTitle>
+              <CardDescription>Total</CardDescription>
+              <CardTitle>{filteredBookings.length}</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 text-xs text-gray-500">
-              {bookings.length} of {totalBookings}
+              {relevantBookings.length} loaded of {totalBookings}
             </CardContent>
           </Card>
           <Card>
@@ -326,6 +378,45 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <CardTitle>{finishedBookings.length}</CardTitle>
             </CardHeader>
           </Card>
+        </div>
+
+        {/* Search and Filter Controls */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            {searchTerm !== debouncedSearch && (
+              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
+            )}
+            <Input
+              placeholder={`Search ${mode}...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-10"
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map(opt => (
+                  <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={serviceFilter} onValueChange={setServiceFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by service" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Services</SelectItem>
+                {uniqueServices.map(svc => (
+                  <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {isLoading && (
@@ -344,7 +435,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           </Card>
         )}
 
-        {!isLoading && !error && relevantBookings.length > 0 && (
+        {!isLoading && !error && filteredBookings.length > 0 && (
           <div className="grid lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -372,7 +463,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           </div>
         )}
 
-        {!isLoading && !error && relevantBookings.length === 0 && !hasMore && (
+        {!isLoading && !error && filteredBookings.length === 0 && !hasMore && (
           <Card className="border-dashed">
             <CardContent className="py-8 text-center text-gray-500">
               {pageCopy.empty}

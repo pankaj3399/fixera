@@ -44,6 +44,34 @@ export const QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "quoted", "quote_ac
 export const QUOTE_FINISHED_STATUSES = new Set<BookingStatus>(["quote_accepted", "quote_rejected"])
 export const BOOKING_FINISHED_STATUSES = new Set<BookingStatus>(["completed", "cancelled", "refunded"])
 
+// Customer dashboard: quote-phase statuses
+export const CUSTOMER_QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "quoted", "quote_rejected"])
+// Customer dashboard: booking-phase statuses
+export const CUSTOMER_BOOKING_STATUSES = new Set<BookingStatus>([
+  "quote_accepted", "payment_pending", "booked", "in_progress",
+  "completed", "cancelled", "dispute", "refunded",
+])
+
+// Status filter options for customer quotes tab
+export const CUSTOMER_QUOTE_STATUS_FILTERS: { id: string; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "rfq", label: "RFQ" },
+  { id: "quoted", label: "Quoted" },
+  { id: "quote_rejected", label: "Rejected" },
+]
+
+// Status filter options for customer bookings tab
+export const CUSTOMER_BOOKING_STATUS_FILTERS: { id: string; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "booked", label: "Booked" },
+  { id: "in_progress", label: "In Progress" },
+  { id: "payment_pending", label: "Awaiting Payment" },
+  { id: "completed", label: "Completed" },
+  { id: "dispute", label: "Dispute" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "refunded", label: "Refunded" },
+]
+
 export const getBookingStatusMeta = (status?: BookingStatus | string) => {
   const rawStatus = status || "unknown"
   return {

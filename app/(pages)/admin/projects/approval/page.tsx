@@ -69,6 +69,9 @@ interface CertificationItem {
 interface RFQQuestion {
   question: string
   answerType: string
+  type?: string
+  options?: string[]
+  isRequired?: boolean
   professionalAnswer?: string
   professionalAttachments?: AttachmentItem[]
 }
@@ -76,12 +79,17 @@ interface RFQQuestion {
 interface PostBookingQuestion {
   question: string
   answerType: string
+  type?: string
+  options?: string[]
+  isRequired?: boolean
   professionalAnswer?: string
   professionalAttachments?: AttachmentItem[]
 }
 
 interface SubprojectIncludedItem {
   name: string
+  description?: string
+  isCustom?: boolean
   isDynamicField?: boolean
 }
 
@@ -101,6 +109,7 @@ interface Subproject {
   name: string
   description?: string
   projectType?: string[]
+  customProjectType?: string
   included?: SubprojectIncludedItem[]
   materialsIncluded?: boolean
   materials?: SubprojectMaterial[]
@@ -149,10 +158,13 @@ interface Project {
   description: string
   category: string
   service: string
+  areaOfWork?: string
   priceModel: string
   professionalId: string
+  timeMode?: string
   distance: {
     address: string
+    useCompanyAddress?: boolean
     maxKmRange?: number
     noBorders: boolean
   }
@@ -165,7 +177,6 @@ interface Project {
   termsConditions?: TermCondition[]
   faq?: FAQItem[]
   customConfirmationMessage?: string
-  // TODO: customerPresence is intentionally unused for now
   customerPresence?: string
   professional?: Professional
   media?: {
@@ -177,6 +188,17 @@ interface Project {
   rfqQuestions?: RFQQuestion[]
   postBookingQuestions?: PostBookingQuestion[]
   subprojects?: Subproject[]
+  resources?: string[]
+  minResources?: number
+  minOverlapPercentage?: number
+  intakeMeeting?: {
+    enabled: boolean
+    resources?: string[]
+  }
+  renovationPlanning?: {
+    fixeraManaged: boolean
+    resources?: string[]
+  }
   isResubmission?: boolean
   reapprovalType?: "full" | "moderation_failed" | "none" | null
 }
@@ -781,10 +803,35 @@ export default function ProjectApprovalPage() {
                           </div>
                         </div>
 
+                        {selectedProject.areaOfWork && (
+                          <div>
+                            <Label className="text-sm font-medium">Area of Work</Label>
+                            <p className="text-sm text-gray-700">{selectedProject.areaOfWork}</p>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label className="text-sm font-medium">Price Model</Label>
                             <p className="text-sm text-gray-700">{selectedProject.priceModel}</p>
+                          </div>
+                          {selectedProject.timeMode && (
+                            <div>
+                              <Label className="text-sm font-medium">Time Mode</Label>
+                              <p className="text-sm text-gray-700 capitalize">{selectedProject.timeMode}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium">Service Address</Label>
+                            <p className="text-sm text-gray-700">
+                              {selectedProject.distance.address}
+                              {selectedProject.distance.useCompanyAddress && (
+                                <span className="ml-1 text-xs text-blue-600">(company address)</span>
+                              )}
+                            </p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Service Range</Label>
@@ -821,6 +868,50 @@ export default function ProjectApprovalPage() {
                                 </Badge>
                               ))}
                             </div>
+                          </div>
+                        )}
+
+                        {/* Resources & Scheduling */}
+                        {(selectedProject.resources?.length || selectedProject.minResources != null || selectedProject.minOverlapPercentage != null) && (
+                          <div>
+                            <Label className="text-sm font-medium">Resources & Scheduling</Label>
+                            <div className="mt-1 grid grid-cols-2 gap-2 text-sm text-gray-700">
+                              {selectedProject.resources && selectedProject.resources.length > 0 && (
+                                <div>Team members: {selectedProject.resources.length}</div>
+                              )}
+                              {selectedProject.minResources != null && (
+                                <div>Min resources: {selectedProject.minResources}</div>
+                              )}
+                              {selectedProject.minOverlapPercentage != null && (
+                                <div>Min overlap: {selectedProject.minOverlapPercentage}%</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Intake Meeting */}
+                        {selectedProject.intakeMeeting?.enabled && (
+                          <div>
+                            <Label className="text-sm font-medium">Intake Meeting</Label>
+                            <p className="text-sm text-gray-700 mt-1">
+                              Enabled
+                              {selectedProject.intakeMeeting.resources && selectedProject.intakeMeeting.resources.length > 0 && (
+                                <span> — {selectedProject.intakeMeeting.resources.length} resource(s) assigned</span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Renovation Planning */}
+                        {selectedProject.renovationPlanning?.fixeraManaged && (
+                          <div>
+                            <Label className="text-sm font-medium">Renovation Planning</Label>
+                            <p className="text-sm text-gray-700 mt-1">
+                              Fixera-managed
+                              {selectedProject.renovationPlanning.resources && selectedProject.renovationPlanning.resources.length > 0 && (
+                                <span> — {selectedProject.renovationPlanning.resources.length} resource(s) assigned</span>
+                              )}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -982,7 +1073,10 @@ export default function ProjectApprovalPage() {
                                   <p className="text-sm text-gray-700 mt-1">{sp.description}</p>
                                 )}
                                 {Array.isArray(sp.projectType) && sp.projectType.length > 0 && (
-                                  <div className="mt-2 text-xs text-gray-700">Types: {sp.projectType.join(', ')}</div>
+                                  <div className="mt-2 text-xs text-gray-700">
+                                    Types: {sp.projectType.join(', ')}
+                                    {sp.customProjectType && ` (Custom: ${sp.customProjectType})`}
+                                  </div>
                                 )}
 
                                 {/* MOQ for unit pricing */}
@@ -1021,11 +1115,16 @@ export default function ProjectApprovalPage() {
                                 {Array.isArray(sp.included) && sp.included.length > 0 && (
                                   <div className="mt-2">
                                     <Label className="text-xs font-medium">Included Items</Label>
-                                    <div className="mt-1 flex flex-wrap gap-1">
+                                    <div className="mt-1 space-y-1">
                                       {sp.included.map((it: SubprojectIncludedItem, i: number) => (
-                                        <Badge key={i} variant="outline" className={`text-[10px] ${it.isDynamicField ? 'bg-purple-100' : ''}`}>
-                                          {it.name}
-                                        </Badge>
+                                        <div key={i} className="text-xs text-gray-700 bg-white px-2 py-1 rounded border flex items-center justify-between">
+                                          <div className="flex items-center gap-1">
+                                            <span className="font-medium">{it.name}</span>
+                                            {it.isCustom && <Badge className="text-[10px] bg-purple-100 text-purple-800">Custom</Badge>}
+                                            {it.isDynamicField && <Badge className="text-[10px] bg-blue-100 text-blue-800">Dynamic</Badge>}
+                                          </div>
+                                          {it.description && <span className="text-gray-500">{it.description}</span>}
+                                        </div>
                                       ))}
                                     </div>
                                   </div>
@@ -1130,12 +1229,18 @@ export default function ProjectApprovalPage() {
                         <div className="space-y-3">
                           {selectedProject.rfqQuestions.map((rfq, index) => (
                             <div key={index} className="p-4 border rounded-lg">
-                              <div className="mb-2">
+                              <div className="mb-2 flex items-center flex-wrap gap-1">
                                 <Label className="text-sm font-medium">Q{index + 1}: {rfq.question}</Label>
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  {rfq.answerType}
+                                <Badge variant="outline" className="text-xs">
+                                  {rfq.type || rfq.answerType}
                                 </Badge>
+                                {rfq.isRequired && <Badge className="text-[10px] bg-red-100 text-red-800">Required</Badge>}
                               </div>
+                              {rfq.options && rfq.options.length > 0 && (
+                                <div className="mb-2 text-xs text-gray-600">
+                                  Options: {rfq.options.join(', ')}
+                                </div>
+                              )}
                               {rfq.professionalAnswer && (
                                 <p className="text-sm text-gray-700 mb-2">
                                   <strong>Answer:</strong> {rfq.professionalAnswer}
@@ -1184,12 +1289,18 @@ export default function ProjectApprovalPage() {
                         <div className="space-y-3">
                           {selectedProject.postBookingQuestions.map((pbq, index) => (
                             <div key={index} className="p-4 border rounded-lg bg-blue-50">
-                              <div className="mb-2">
+                              <div className="mb-2 flex items-center flex-wrap gap-1">
                                 <Label className="text-sm font-medium">Q{index + 1}: {pbq.question}</Label>
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  {pbq.answerType}
+                                <Badge variant="outline" className="text-xs">
+                                  {pbq.type || pbq.answerType}
                                 </Badge>
+                                {pbq.isRequired && <Badge className="text-[10px] bg-red-100 text-red-800">Required</Badge>}
                               </div>
+                              {pbq.options && pbq.options.length > 0 && (
+                                <div className="mb-2 text-xs text-gray-600">
+                                  Options: {pbq.options.join(', ')}
+                                </div>
+                              )}
                               {pbq.professionalAnswer && (
                                 <p className="text-sm text-gray-700 mb-2">
                                   <strong>Answer:</strong> {pbq.professionalAnswer}

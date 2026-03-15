@@ -42,6 +42,7 @@ interface Project {
   description: string
   status: string
   category: string
+  service: string
   subprojects: Array<{
     name: string
     description: string
@@ -163,7 +164,7 @@ export default function ManageProjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [serviceFilter, setServiceFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [holdDialogOpen, setHoldDialogOpen] = useState(false)
@@ -250,7 +251,7 @@ export default function ManageProjectsPage() {
       console.log('[ManageProjects] Fetching projects', {
         search: debouncedSearchTerm,
         statusFilter,
-        categoryFilter,
+        serviceFilter,
         currentPage
       })
       // Build query parameters
@@ -264,8 +265,8 @@ export default function ManageProjectsPage() {
         queryParams.append('status', statusFilter)
       }
 
-      if (categoryFilter && categoryFilter !== 'all') {
-        queryParams.append('category', categoryFilter)
+      if (serviceFilter && serviceFilter !== 'all') {
+        queryParams.append('service', serviceFilter)
       }
 
       queryParams.append('page', currentPage.toString())
@@ -368,7 +369,7 @@ export default function ManageProjectsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [debouncedSearchTerm, statusFilter, categoryFilter, currentPage])
+  }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage])
 
   // Fetch projects when filters change
   useEffect(() => {
@@ -376,7 +377,7 @@ export default function ManageProjectsPage() {
       setCurrentPage(1) // Reset to first page when filters change
       fetchProjects()
     }
-  }, [user, debouncedSearchTerm, statusFilter, categoryFilter, fetchProjects])
+  }, [user, debouncedSearchTerm, statusFilter, serviceFilter, fetchProjects])
 
   // Fetch projects when page changes
   useEffect(() => {
@@ -590,8 +591,8 @@ export default function ManageProjectsPage() {
     rejected: projectCounts.rejected
   }
 
-  // Get unique categories for filter dropdown
-  const uniqueCategories = Array.from(new Set(projects.map(p => p.category))).filter(Boolean)
+  // Get unique services for filter dropdown
+  const uniqueServices = Array.from(new Set(projects.map(p => p.service))).filter(Boolean)
 
   const selectedProjectStatus = selectedProject ? normalizeProjectStatus(selectedProject.status) : null
 
@@ -765,14 +766,14 @@ export default function ManageProjectsPage() {
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <Select value={serviceFilter} onValueChange={setServiceFilter}>
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by category" />
+                  <SelectValue placeholder="Filter by service" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {uniqueCategories.map(category => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  <SelectItem value="all">All Services</SelectItem>
+                  {uniqueServices.map(svc => (
+                    <SelectItem key={svc} value={svc}>{svc}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -874,12 +875,12 @@ export default function ManageProjectsPage() {
                   <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No projects found</h3>
                   <p className="text-gray-600 mb-4">
-                    {searchTerm || statusFilter !== 'all' || categoryFilter !== 'all'
+                    {searchTerm || statusFilter !== 'all' || serviceFilter !== 'all'
                       ? 'Try adjusting your search or filters'
                       : 'Create your first project to get started'
                     }
                   </p>
-                  {!searchTerm && statusFilter === 'all' && categoryFilter === 'all' && (
+                  {!searchTerm && statusFilter === 'all' && serviceFilter === 'all' && (
                     <Button onClick={() => router.push('/projects/create')}>
                       <Plus className="h-4 w-4 mr-2" />
                       Create Project
