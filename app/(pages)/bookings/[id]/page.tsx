@@ -157,6 +157,24 @@ const isBookingApiResponse = (value: unknown): value is BookingApiResponse => {
   return typeof record.success === "boolean"
 }
 
+interface DiscountBreakdown {
+  loyaltyDiscount: {
+    tierName: string
+    percentage: number
+    amount: number
+    absorbedBy: "platform"
+  }
+  repeatBuyerDiscount: {
+    percentage: number
+    amount: number
+    completedBookings: number
+    absorbedBy: "professional"
+  }
+  totalDiscount: number
+  originalAmount: number
+  discountedAmount: number
+}
+
 const parseResponseBody = async <T,>(response: Response): Promise<{ data: T | null; rawText: string | null }> => {
   const contentType = response.headers.get("content-type") || ""
   if (contentType.includes("application/json")) {
@@ -196,6 +214,8 @@ export default function BookingDetailPage() {
   const [validationErrors, setValidationErrors] = useState<number[]>([])
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewAutoShown, setReviewAutoShown] = useState(false)
+  const [discountPreview, setDiscountPreview] = useState<DiscountBreakdown | null>(null)
+  const [loadingDiscount, setLoadingDiscount] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -266,6 +286,37 @@ export default function BookingDetailPage() {
       setShowQuoteForm(true)
     }
   }, [booking, searchParams, user?.role])
+
+  // Fetch discount preview when customer views a quoted booking
+  useEffect(() => {
+    if (!bookingId || !booking || booking.status !== "quoted" || !booking.quote || user?.role !== "customer") return
+
+    const fetchDiscount = async () => {
+      setLoadingDiscount(true)
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/discount-preview`,
+          { credentials: "include", headers }
+        )
+        if (response.ok) {
+          const json = await response.json()
+          if (json?.success && json?.data?.discount) {
+            setDiscountPreview(json.data.discount)
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch discount preview:", err)
+      } finally {
+        setLoadingDiscount(false)
+      }
+    }
+
+    fetchDiscount()
+  }, [bookingId, booking?.status, booking?.quote, user?.role])
 
   // Check if post-booking questions need to be answered
   const postBookingQuestions = booking?.project?.postBookingQuestions || []
@@ -909,12 +960,58 @@ export default function BookingDetailPage() {
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-green-900 mb-3">Quote Received</h3>
                     <div className="bg-white rounded-lg p-4 mb-4 space-y-2">
+                      {/* Original quote amount */}
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Quote Amount:</span>
-                        <span className="text-2xl font-bold text-green-600">
+                        <span className={`text-2xl font-bold ${discountPreview && discountPreview.totalDiscount > 0 ? "text-gray-400 line-through text-lg" : "text-green-600"}`}>
                           {booking.quote.currency || "€"}{booking.quote.amount != null ? booking.quote.amount.toLocaleString() : "—"}
                         </span>
                       </div>
+
+                      {/* Discount breakdown */}
+                      {loadingDiscount && (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 pt-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Checking available discounts...
+                        </div>
+                      )}
+
+                      {discountPreview && discountPreview.totalDiscount > 0 && (
+                        <div className="space-y-1.5 pt-2 border-t border-dashed border-green-200">
+                          {discountPreview.loyaltyDiscount.amount > 0 && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-green-700 flex items-center gap-1">
+                                <Shield className="h-3.5 w-3.5" />
+                                {discountPreview.loyaltyDiscount.tierName} Member Discount ({discountPreview.loyaltyDiscount.percentage}%)
+                              </span>
+                              <span className="text-green-600 font-medium">
+                                -{booking.quote.currency || "€"}{discountPreview.loyaltyDiscount.amount.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {discountPreview.repeatBuyerDiscount.amount > 0 && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-green-700 flex items-center gap-1">
+                                <Star className="h-3.5 w-3.5" />
+                                Returning Customer ({discountPreview.repeatBuyerDiscount.percentage}%)
+                              </span>
+                              <span className="text-green-600 font-medium">
+                                -{booking.quote.currency || "€"}{discountPreview.repeatBuyerDiscount.amount.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center pt-2 border-t border-green-200">
+                            <span className="text-sm font-semibold text-green-900">You Pay:</span>
+                            <span className="text-2xl font-bold text-green-600">
+                              {booking.quote.currency || "€"}{discountPreview.discountedAmount.toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-green-600 text-right">
+                            You save {booking.quote.currency || "€"}{discountPreview.totalDiscount.toLocaleString()}!
+                          </p>
+                        </div>
+                      )}
+
                       {booking.quote.description && (
                         <div className="pt-2 border-t">
                           <p className="text-xs text-gray-600 mb-1">Description:</p>

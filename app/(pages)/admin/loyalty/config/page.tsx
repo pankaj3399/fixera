@@ -17,6 +17,8 @@ interface LoyaltyTier {
   pointsPercentage: number;
   benefits: string[];
   color?: string;
+  discountPercentage?: number;
+  maxDiscountAmount?: number | null;
 }
 
 interface LoyaltyConfig {
@@ -381,7 +383,7 @@ export default function LoyaltyConfigPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid md:grid-cols-4 gap-4">
+                  <div className="grid md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor={`tier-name-${tierIndex}`}>Tier Name</Label>
                       <Input
@@ -411,6 +413,37 @@ export default function LoyaltyConfigPage() {
                         max="100"
                         step="0.1"
                       />
+                    </div>
+                  </div>
+
+                  {/* Discount Settings */}
+                  <div className="grid md:grid-cols-3 gap-4 pt-2 border-t border-dashed border-gray-200">
+                    <div className="space-y-2">
+                      <Label htmlFor={`tier-discount-${tierIndex}`}>Auto-Discount (%)</Label>
+                      <Input
+                        id={`tier-discount-${tierIndex}`}
+                        type="number"
+                        value={tier.discountPercentage ?? 0}
+                        onChange={(e) => updateTier(tierIndex, 'discountPercentage', parseFloat(e.target.value) || 0)}
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        placeholder="0"
+                      />
+                      <p className="text-xs text-gray-500">Automatic discount applied to bookings for this tier</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`tier-maxdiscount-${tierIndex}`}>Max Discount Cap (EUR)</Label>
+                      <Input
+                        id={`tier-maxdiscount-${tierIndex}`}
+                        type="number"
+                        value={tier.maxDiscountAmount ?? ''}
+                        onChange={(e) => updateTier(tierIndex, 'maxDiscountAmount', e.target.value ? parseFloat(e.target.value) : 0)}
+                        min="0"
+                        step="1"
+                        placeholder="No cap"
+                      />
+                      <p className="text-xs text-gray-500">Maximum discount amount per booking (leave empty for no cap)</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`tier-color-${tierIndex}`}>Tier Color</Label>
