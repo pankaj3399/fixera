@@ -101,7 +101,7 @@ interface User {
   profileCompletedAt?: string
   professionalOnboardingCompletedAt?: string
   loyaltyPoints?: number
-  loyaltyLevel?: 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond'
+  loyaltyLevel?: string
   totalSpent?: number
   totalBookings?: number
   // Referral fields

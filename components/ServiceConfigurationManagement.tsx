@@ -957,6 +957,7 @@ export default function ServiceConfigurationManagement() {
                       return (
                         <div key={type} className="flex items-center space-x-2 p-2 border rounded">
                           <Checkbox
+                            id={`cert-${type.replace(/\s+/g, '-').toLowerCase()}`}
                             checked={checked}
                             onCheckedChange={(v) => {
                               const isChecked = Boolean(v)
@@ -968,7 +969,7 @@ export default function ServiceConfigurationManagement() {
                               }))
                             }}
                           />
-                          <Label className="cursor-pointer text-sm">{type}</Label>
+                          <Label htmlFor={`cert-${type.replace(/\s+/g, '-').toLowerCase()}`} className="cursor-pointer text-sm">{type}</Label>
                         </div>
                       )
                     })}

@@ -113,13 +113,24 @@ export default function LoyaltyConfigPage() {
   }
 
   const saveConfig = async () => {
+    const invalidPercentageTier = config.tiers.find(
+      (tier) =>
+        !Number.isFinite(tier.discountPercentage) ||
+        tier.discountPercentage < 0 ||
+        tier.discountPercentage > 50
+    )
+    if (invalidPercentageTier) {
+      toast.error(`Discount percentage must be between 0 and 50 for tier ${invalidPercentageTier.name || 'Unknown'}`)
+      return
+    }
+
     const invalidCapTier = config.tiers.find(
       (tier) =>
-        tier.maxDiscountAmount !== null &&
-        !Number.isFinite(tier.maxDiscountAmount)
+        tier.maxDiscountAmount != null &&
+        (!Number.isFinite(tier.maxDiscountAmount) || tier.maxDiscountAmount < 0)
     )
     if (invalidCapTier) {
-      toast.error(`Max discount cap must be numeric for tier ${invalidCapTier.name || 'Unknown'}`)
+      toast.error(`Max discount cap must be a non-negative number for tier ${invalidCapTier.name || 'Unknown'}`)
       return
     }
 

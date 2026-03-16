@@ -211,6 +211,7 @@ export default function ProjectCreatePage() {
     subprojects: [],
     extraOptions: [],
     termsConditions: [],
+    repeatBuyerDiscount: { enabled: false, percentage: 5, minPreviousBookings: 1 },
     faq: [],
     rfqQuestions: [],
     postBookingQuestions: []

@@ -226,6 +226,17 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     if (!customerPresence) {
       errors.push('Customer presence selection is required')
     }
+    if (repeatBuyerDiscount.enabled) {
+      if (repeatBuyerDiscount.percentage < 1 || repeatBuyerDiscount.percentage > 20) {
+        errors.push('Repeat-buyer discount percentage must be between 1 and 20')
+      }
+      if (repeatBuyerDiscount.minPreviousBookings < 1) {
+        errors.push('Minimum previous bookings must be at least 1')
+      }
+      if (repeatBuyerDiscount.maxDiscountAmount != null && repeatBuyerDiscount.maxDiscountAmount < 0) {
+        errors.push('Max discount cap must be non-negative')
+      }
+    }
     setValidationErrors(errors)
     onValidate(errors.length === 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps

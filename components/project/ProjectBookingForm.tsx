@@ -3592,7 +3592,7 @@ export default function ProjectBookingForm({
                 {/* Loyalty visibility before checkout */}
                 {user?.role === 'customer' &&
                   selectedPackage &&
-                  selectedPackage.pricing.type !== 'rfq' && (
+                  shouldPayAtCheckoutFlow && (
                     <div className='space-y-3'>
                       <h3 className='font-semibold'>Member Savings</h3>
                       <div className='bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4'>
