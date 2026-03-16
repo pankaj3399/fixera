@@ -42,6 +42,7 @@ interface Project {
   description: string
   status: string
   category: string
+  service: string
   subprojects: Array<{
     name: string
     description: string
@@ -163,7 +164,7 @@ export default function ManageProjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [serviceFilter, setServiceFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [holdDialogOpen, setHoldDialogOpen] = useState(false)
@@ -174,6 +175,7 @@ export default function ManageProjectsPage() {
   const [totalProjects, setTotalProjects] = useState(0)
   const [projectCounts, setProjectCounts] = useState(() => ({ ...DEFAULT_PROJECT_COUNTS }))
   const [activeTab, setActiveTab] = useState<TabValue>('all')
+  const [allServices, setAllServices] = useState<string[]>([])
 
   const mapTabToStatus = (tab: TabValue): string => {
     switch (tab) {
@@ -216,6 +218,11 @@ export default function ManageProjectsPage() {
     setCurrentPage(1)
   }
 
+  const handleServiceFilterChange = (service: string) => {
+    setServiceFilter(service)
+    setCurrentPage(1)
+  }
+
   const handleTabChange = (tabValue: TabValue) => {
     console.log('[ManageProjects] Tab changed', { tabValue })
     setActiveTab(tabValue)
@@ -234,11 +241,12 @@ export default function ManageProjectsPage() {
     }
   }, [isAuthenticated, loading, router, user])
 
-  // Debouncing effect for search term
+  // Debouncing effect for search term (also resets page)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm)
-    }, 500) // 500ms delay
+      setCurrentPage(1)
+    }, 500)
 
     return () => clearTimeout(timer)
   }, [searchTerm])
@@ -250,7 +258,7 @@ export default function ManageProjectsPage() {
       console.log('[ManageProjects] Fetching projects', {
         search: debouncedSearchTerm,
         statusFilter,
-        categoryFilter,
+        serviceFilter,
         currentPage
       })
       // Build query parameters
@@ -264,8 +272,8 @@ export default function ManageProjectsPage() {
         queryParams.append('status', statusFilter)
       }
 
-      if (categoryFilter && categoryFilter !== 'all') {
-        queryParams.append('category', categoryFilter)
+      if (serviceFilter && serviceFilter !== 'all') {
+        queryParams.append('service', serviceFilter)
       }
 
       queryParams.append('page', currentPage.toString())
@@ -293,6 +301,9 @@ export default function ManageProjectsPage() {
             itemCount: responseData.items.length,
             counts: responseData.counts
           })
+          if (Array.isArray(responseData.distinctServices)) {
+            setAllServices(responseData.distinctServices)
+          }
           fetchedProjects = responseData.items
           responseCounts = responseData.counts
           setTotalPages(responseData.meta.pages || 1)
@@ -304,6 +315,9 @@ export default function ManageProjectsPage() {
             totalProjects: responseData.totalProjects,
             counts: responseData.counts
           })
+          if (Array.isArray(responseData.distinctServices)) {
+            setAllServices(responseData.distinctServices)
+          }
           fetchedProjects = responseData.projects
           responseCounts = responseData.counts
           setTotalPages(responseData.totalPages || 1)
@@ -368,22 +382,14 @@ export default function ManageProjectsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [debouncedSearchTerm, statusFilter, categoryFilter, currentPage])
+  }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage])
 
-  // Fetch projects when filters change
+  // Single effect to fetch projects — fetchProjects changes when filters/page change
   useEffect(() => {
     if (user?.role === 'professional') {
-      setCurrentPage(1) // Reset to first page when filters change
       fetchProjects()
     }
-  }, [user, debouncedSearchTerm, statusFilter, categoryFilter, fetchProjects])
-
-  // Fetch projects when page changes
-  useEffect(() => {
-    if (user?.role === 'professional' && currentPage > 1) {
-      fetchProjects()
-    }
-  }, [currentPage, user?.role, fetchProjects])
+  }, [user?.role, fetchProjects])
 
   const getStatusColor = (status: Project['status']) => {
     const normalized = normalizeProjectStatus(status)
@@ -590,8 +596,8 @@ export default function ManageProjectsPage() {
     rejected: projectCounts.rejected
   }
 
-  // Get unique categories for filter dropdown
-  const uniqueCategories = Array.from(new Set(projects.map(p => p.category))).filter(Boolean)
+  // Get unique services for filter dropdown (from API, falls back to current page)
+  const uniqueServices = allServices.length > 0 ? allServices : Array.from(new Set(projects.map(p => p.service))).filter(Boolean)
 
   const selectedProjectStatus = selectedProject ? normalizeProjectStatus(selectedProject.status) : null
 
@@ -765,14 +771,14 @@ export default function ManageProjectsPage() {
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <Select value={serviceFilter} onValueChange={handleServiceFilterChange}>
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by category" />
+                  <SelectValue placeholder="Filter by service" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {uniqueCategories.map(category => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  <SelectItem value="all">All Services</SelectItem>
+                  {uniqueServices.map(svc => (
+                    <SelectItem key={svc} value={svc}>{svc}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -874,12 +880,12 @@ export default function ManageProjectsPage() {
                   <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No projects found</h3>
                   <p className="text-gray-600 mb-4">
-                    {searchTerm || statusFilter !== 'all' || categoryFilter !== 'all'
+                    {searchTerm || statusFilter !== 'all' || serviceFilter !== 'all'
                       ? 'Try adjusting your search or filters'
                       : 'Create your first project to get started'
                     }
                   </p>
-                  {!searchTerm && statusFilter === 'all' && categoryFilter === 'all' && (
+                  {!searchTerm && statusFilter === 'all' && serviceFilter === 'all' && (
                     <Button onClick={() => router.push('/projects/create')}>
                       <Plus className="h-4 w-4 mr-2" />
                       Create Project

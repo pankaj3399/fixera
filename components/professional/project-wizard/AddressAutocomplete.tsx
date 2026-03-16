@@ -43,6 +43,12 @@ export default function AddressAutocomplete({
   const { isLoaded, validateAddress, geocodeAddress } = useGoogleMaps();
   const hasInitialized = useRef(false);
 
+  // Store callbacks in refs so the autocomplete useEffect doesn't re-run on every render
+  const onChangeRef = useRef(onChange);
+  const onValidationRef = useRef(onValidation);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => { onValidationRef.current = onValidation; }, [onValidation]);
+
   // Initialize autocomplete
   useEffect(() => {
     if (!isLoaded || !inputRef.current || useCompanyAddress) {
@@ -93,11 +99,11 @@ export default function AddressAutocomplete({
           };
 
         // Call onChange with both parameters (second parameter is optional for backward compatibility)
-        onChange(place.formatted_address, placeData);
+        onChangeRef.current(place.formatted_address, placeData);
         selectedFromDropdownRef.current = true;
         validatedAddressRef.current = place.formatted_address;
         setIsValid(true);
-        onValidation(true);
+        onValidationRef.current(true);
       }
     });
 
@@ -106,7 +112,7 @@ export default function AddressAutocomplete({
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
-  }, [isLoaded, useCompanyAddress, onChange, onValidation]);
+  }, [isLoaded, useCompanyAddress]);
 
   // Validate on blur - only for manually typed addresses
   const handleBlur = async () => {
