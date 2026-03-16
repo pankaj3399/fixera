@@ -158,6 +158,12 @@ interface ProjectData {
   subprojects?: ISubproject[]
   extraOptions?: IExtraOption[]
   termsConditions?: ITermCondition[]
+  repeatBuyerDiscount?: {
+    enabled: boolean
+    percentage: number
+    minPreviousBookings: number
+    maxDiscountAmount?: number | null
+  }
   faq?: IFAQ[]
   rfqQuestions?: IRFQQuestion[]
   postBookingQuestions?: IPostBookingQuestion[]
@@ -205,6 +211,7 @@ export default function ProjectCreatePage() {
     subprojects: [],
     extraOptions: [],
     termsConditions: [],
+    repeatBuyerDiscount: { enabled: false, percentage: 5, minPreviousBookings: 1 },
     faq: [],
     rfqQuestions: [],
     postBookingQuestions: []
@@ -304,6 +311,7 @@ export default function ProjectCreatePage() {
             subprojects: project.subprojects || [],
             extraOptions: project.extraOptions || [],
             termsConditions: project.termsConditions || [],
+            repeatBuyerDiscount: project.repeatBuyerDiscount || { enabled: false, percentage: 5, minPreviousBookings: 1 },
             faq: project.faq || [],
             rfqQuestions: project.rfqQuestions || [],
             postBookingQuestions: project.postBookingQuestions || [],

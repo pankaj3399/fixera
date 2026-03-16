@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   FileText,
   User,
-  Clock
+  Clock,
+  Repeat
 } from "lucide-react"
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
@@ -50,6 +51,13 @@ interface ITermCondition {
   isCustom: boolean
 }
 
+interface IRepeatBuyerDiscount {
+  enabled: boolean
+  percentage: number
+  minPreviousBookings: number
+  maxDiscountAmount?: number | null
+}
+
 interface ProjectData {
   extraOptions?: IExtraOption[]
   termsConditions?: ITermCondition[]
@@ -57,6 +65,7 @@ interface ProjectData {
   service?: string
   customerPresence?: string
   areaOfWork?: string
+  repeatBuyerDiscount?: IRepeatBuyerDiscount
 }
 
 interface Step3Props {
@@ -150,6 +159,9 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [customerPresence, setCustomerPresence] = useState<string>(
     data.customerPresence || ''
   )
+  const [repeatBuyerDiscount, setRepeatBuyerDiscount] = useState<IRepeatBuyerDiscount>(
+    data.repeatBuyerDiscount || { enabled: false, percentage: 5, minPreviousBookings: 1 }
+  )
   const [customExtraName, setCustomExtraName] = useState('')
   const [customExtraPrice, setCustomExtraPrice] = useState('')
   const [customTermName, setCustomTermName] = useState('')
@@ -208,16 +220,27 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   }, [data])
 
   useEffect(() => {
-    onChange({ ...latestDataRef.current, extraOptions, termsConditions, customerPresence })
+    onChange({ ...latestDataRef.current, extraOptions, termsConditions, customerPresence, repeatBuyerDiscount })
 
     const errors: string[] = []
     if (!customerPresence) {
       errors.push('Customer presence selection is required')
     }
+    if (repeatBuyerDiscount.enabled) {
+      if (repeatBuyerDiscount.percentage < 1 || repeatBuyerDiscount.percentage > 20) {
+        errors.push('Repeat-buyer discount percentage must be between 1 and 20')
+      }
+      if (repeatBuyerDiscount.minPreviousBookings < 1) {
+        errors.push('Minimum previous bookings must be at least 1')
+      }
+      if (repeatBuyerDiscount.maxDiscountAmount != null && repeatBuyerDiscount.maxDiscountAmount < 0) {
+        errors.push('Max discount cap must be non-negative')
+      }
+    }
     setValidationErrors(errors)
     onValidate(errors.length === 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extraOptions, termsConditions, customerPresence])
+  }, [extraOptions, termsConditions, customerPresence, repeatBuyerDiscount])
 
   const validateForm = () => {
     const errors: string[] = []
@@ -703,6 +726,85 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Repeat-Buyer Discount */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Repeat className="w-5 h-5" />
+            <span>Returning Customer Discount (Optional)</span>
+          </CardTitle>
+          <CardDescription>
+            Offer a discount to customers who have completed previous bookings with you. This encourages repeat business.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="repeat-buyer-toggle"
+              checked={repeatBuyerDiscount.enabled}
+              onChange={(e) => setRepeatBuyerDiscount(prev => ({ ...prev, enabled: e.target.checked }))}
+              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <Label htmlFor="repeat-buyer-toggle" className="text-sm font-medium cursor-pointer">
+              Offer returning customer discount
+            </Label>
+          </div>
+
+          {repeatBuyerDiscount.enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-7 border-l-2 border-purple-200">
+              <div className="space-y-2">
+                <Label htmlFor="repeat-discount-pct">Discount Percentage (%)</Label>
+                <Input
+                  id="repeat-discount-pct"
+                  type="number"
+                  min="1"
+                  max="20"
+                  step="1"
+                  value={repeatBuyerDiscount.percentage}
+                  onChange={(e) => {
+                    const val = Math.min(20, Math.max(1, parseInt(e.target.value) || 1))
+                    setRepeatBuyerDiscount(prev => ({ ...prev, percentage: val }))
+                  }}
+                />
+                <p className="text-xs text-gray-500">1-20% off for returning customers</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="repeat-min-bookings">Min. Previous Bookings</Label>
+                <Input
+                  id="repeat-min-bookings"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={repeatBuyerDiscount.minPreviousBookings}
+                  onChange={(e) => {
+                    const val = Math.max(1, parseInt(e.target.value) || 1)
+                    setRepeatBuyerDiscount(prev => ({ ...prev, minPreviousBookings: val }))
+                  }}
+                />
+                <p className="text-xs text-gray-500">Completed bookings needed to qualify</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="repeat-max-cap">Max Discount Cap (EUR)</Label>
+                <Input
+                  id="repeat-max-cap"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={repeatBuyerDiscount.maxDiscountAmount ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? parseNumericInput(e.target.value) : undefined
+                    setRepeatBuyerDiscount(prev => ({ ...prev, maxDiscountAmount: val ?? null }))
+                  }}
+                  placeholder="No cap"
+                />
+                <p className="text-xs text-gray-500">Leave empty for no cap</p>
+              </div>
             </div>
           )}
         </CardContent>

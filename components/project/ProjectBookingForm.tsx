@@ -3589,6 +3589,36 @@ export default function ProjectBookingForm({
                   </div>
                 </div>
 
+                {/* Loyalty visibility before checkout */}
+                {user?.role === 'customer' &&
+                  selectedPackage &&
+                  shouldPayAtCheckoutFlow && (
+                    <div className='space-y-3'>
+                      <h3 className='font-semibold'>Member Savings</h3>
+                      <div className='bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4'>
+                        <div className='flex items-center justify-between gap-3'>
+                          <div>
+                            <p className='text-sm font-semibold text-amber-900'>
+                              {user.loyaltyLevel
+                                ? `${user.loyaltyLevel} Member`
+                                : 'Loyalty Member'}
+                            </p>
+                            <p className='text-xs text-amber-800 mt-1'>
+                              Your tier savings and any returning-customer discount
+                              are calculated automatically before payment.
+                            </p>
+                          </div>
+                          <Badge
+                            variant='outline'
+                            className='border-amber-300 bg-white text-amber-800'
+                          >
+                            {user.loyaltyLevel || 'Customer'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 {/* Price Breakdown */}
                 {selectedPackage && (
                   <div className='space-y-3'>

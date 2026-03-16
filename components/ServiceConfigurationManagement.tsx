@@ -933,37 +933,49 @@ export default function ServiceConfigurationManagement() {
                 <Switch
                   id="certificationRequired"
                   checked={formData.certificationRequired}
-                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, certificationRequired: checked }))}
+                  onCheckedChange={(checked) => {
+                    const isChecked = Boolean(checked)
+                    setFormData(prev => ({
+                      ...prev,
+                      certificationRequired: isChecked,
+                      requiredCertifications: isChecked
+                        ? (prev.requiredCertifications || [])
+                        : []
+                    }))
+                  }}
                 />
                 <Label htmlFor="certificationRequired">Certification Required</Label>
               </div>
 
               {/* Required Certification Types */}
-              <div className="space-y-2">
-                <Label>Required Certification Types</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {CERTIFICATION_TYPES.map((type) => {
-                    const checked = (formData.requiredCertifications || []).includes(type)
-                    return (
-                      <div key={type} className="flex items-center space-x-2 p-2 border rounded">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => {
-                            const isChecked = Boolean(v)
-                            setFormData(prev => ({
-                              ...prev,
-                              requiredCertifications: isChecked
-                                ? [...(prev.requiredCertifications || []), type]
-                                : (prev.requiredCertifications || []).filter(t => t !== type)
-                            }))
-                          }}
-                        />
-                        <Label className="cursor-pointer text-sm">{type}</Label>
-                      </div>
-                    )
-                  })}
+              {formData.certificationRequired && (
+                <div className="space-y-2">
+                  <Label>Required Certification Types</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {CERTIFICATION_TYPES.map((type) => {
+                      const checked = (formData.requiredCertifications || []).includes(type)
+                      return (
+                        <div key={type} className="flex items-center space-x-2 p-2 border rounded">
+                          <Checkbox
+                            id={`cert-${type.replace(/\s+/g, '-').toLowerCase()}`}
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              const isChecked = Boolean(v)
+                              setFormData(prev => ({
+                                ...prev,
+                                requiredCertifications: isChecked
+                                  ? [...(prev.requiredCertifications || []), type]
+                                  : (prev.requiredCertifications || []).filter(t => t !== type)
+                              }))
+                            }}
+                          />
+                          <Label htmlFor={`cert-${type.replace(/\s+/g, '-').toLowerCase()}`} className="cursor-pointer text-sm">{type}</Label>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center space-x-2">
                 <Switch

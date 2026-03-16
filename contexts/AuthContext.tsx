@@ -100,6 +100,10 @@ interface User {
   }
   profileCompletedAt?: string
   professionalOnboardingCompletedAt?: string
+  loyaltyPoints?: number
+  loyaltyLevel?: string
+  totalSpent?: number
+  totalBookings?: number
   // Referral fields
   referralCode?: string
   referredBy?: string
