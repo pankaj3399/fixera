@@ -316,6 +316,9 @@ export default function Step2Subprojects({
     }))
   );
 
+  // Platform commission percentage
+  const [commissionPercent, setCommissionPercent] = useState<number>(0);
+
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);
   const [projectTypes, setProjectTypes] = useState<string[]>([]);
@@ -408,6 +411,20 @@ export default function Step2Subprojects({
     }
   };
 
+  // Fetch commission rate on mount
+  useEffect(() => {
+    const fetchCommission = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/commission-rate`, { credentials: 'include' });
+        if (res.ok) {
+          const json = await res.json();
+          setCommissionPercent(json?.data?.commissionPercent ?? 0);
+        }
+      } catch {}
+    };
+    fetchCommission();
+  }, []);
+
   // Fetch dynamic fields when category/service changes
   useEffect(() => {
     if (data.category && data.service) {
@@ -449,6 +466,12 @@ export default function Step2Subprojects({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.priceModel, data.selectedPricingOption, data.category, configPricingOptions]);
+
+  // Calculate customer-facing price (professional price + platform commission)
+  const customerPrice = (amount: number) => {
+    if (!commissionPercent || !amount) return amount;
+    return +(amount * (1 + commissionPercent / 100)).toFixed(2);
+  };
 
   const validateForm = () => {
     const isValid =
@@ -958,6 +981,11 @@ export default function Step2Subprojects({
                             }
                             placeholder='0.00'
                           />
+                          {commissionPercent > 0 && subproject.pricing.amount ? (
+                            <p className='text-xs text-gray-500 mt-1'>
+                              Customer sees: <span className='font-medium text-blue-600'>EUR {customerPrice(subproject.pricing.amount)}</span> (incl. {commissionPercent}% platform fee)
+                            </p>
+                          ) : null}
                         </div>
                       </>
                     )}
@@ -981,6 +1009,11 @@ export default function Step2Subprojects({
                             }
                             placeholder='0.00'
                           />
+                          {commissionPercent > 0 && subproject.pricing.amount ? (
+                            <p className='text-xs text-gray-500 mt-1'>
+                              Customer sees: <span className='font-medium text-blue-600'>EUR {customerPrice(subproject.pricing.amount)}/{unitLabel}</span> (incl. {commissionPercent}% platform fee)
+                            </p>
+                          ) : null}
                         </div>
                         <div>
                           <Label>Minimum Order Quantity ({unitLabel})</Label>
@@ -1098,6 +1131,15 @@ export default function Step2Subprojects({
                               {subproject.errors.priceRange}
                             </p>
                           )}
+                          {commissionPercent > 0 && (subproject.pricing.priceRange?.min || subproject.pricing.priceRange?.max) ? (
+                            <p className='text-xs text-gray-500 mt-1'>
+                              Customer sees: <span className='font-medium text-blue-600'>
+                                {subproject.pricing.priceRange?.min ? `EUR ${customerPrice(subproject.pricing.priceRange.min)}` : '...'}
+                                {' - '}
+                                {subproject.pricing.priceRange?.max ? `EUR ${customerPrice(subproject.pricing.priceRange.max)}` : '...'}
+                              </span> (incl. {commissionPercent}% platform fee)
+                            </p>
+                          ) : null}
                         </div>
                       </>
                     )}
@@ -2185,25 +2227,44 @@ export default function Step2Subprojects({
                       </td>
                       <td className='p-2'>
                         {sub.pricing.type === 'fixed' &&
-                          sub.pricing.amount &&
-                          `EUR ${sub.pricing.amount} (Total)`}
-                        {sub.pricing.type === 'unit' &&
-                          sub.pricing.amount &&
-                          `EUR ${sub.pricing.amount}/${unitLabel}${sub.pricing.minOrderQuantity
-                            ? ` (min ${sub.pricing.minOrderQuantity})`
-                            : ''
-                          }`}
-                        {sub.pricing.type === 'rfq' && (
-                          <>
-                            Quote required
-                            {sub.pricing.priceRange?.min &&
-                              sub.pricing.priceRange?.max && (
-                                <span className='text-gray-500 text-sm ml-1'>
-                                  (EUR {sub.pricing.priceRange.min}-
-                                  {sub.pricing.priceRange.max})
-                                </span>
+                          sub.pricing.amount && (
+                            <div>
+                              <div>EUR {sub.pricing.amount} (Total)</div>
+                              {commissionPercent > 0 && (
+                                <div className='text-xs text-blue-600'>Customer: EUR {customerPrice(sub.pricing.amount)}</div>
                               )}
-                          </>
+                            </div>
+                          )}
+                        {sub.pricing.type === 'unit' &&
+                          sub.pricing.amount && (
+                            <div>
+                              <div>EUR {sub.pricing.amount}/{unitLabel}{sub.pricing.minOrderQuantity
+                                ? ` (min ${sub.pricing.minOrderQuantity})`
+                                : ''
+                              }</div>
+                              {commissionPercent > 0 && (
+                                <div className='text-xs text-blue-600'>Customer: EUR {customerPrice(sub.pricing.amount)}/{unitLabel}</div>
+                              )}
+                            </div>
+                          )}
+                        {sub.pricing.type === 'rfq' && (
+                          <div>
+                            <div>
+                              Quote required
+                              {sub.pricing.priceRange?.min &&
+                                sub.pricing.priceRange?.max && (
+                                  <span className='text-gray-500 text-sm ml-1'>
+                                    (EUR {sub.pricing.priceRange.min}-
+                                    {sub.pricing.priceRange.max})
+                                  </span>
+                                )}
+                            </div>
+                            {commissionPercent > 0 && sub.pricing.priceRange?.min && sub.pricing.priceRange?.max && (
+                              <div className='text-xs text-blue-600'>
+                                Customer: EUR {customerPrice(sub.pricing.priceRange.min)}-{customerPrice(sub.pricing.priceRange.max)}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="p-2">
@@ -2248,6 +2309,11 @@ export default function Step2Subprojects({
                     <span className='font-medium text-blue-900'>
                       Total fixed price packages: EUR{' '}
                       {calculateTotalPrice().toFixed(2)}
+                      {commissionPercent > 0 && (
+                        <span className='text-blue-600 ml-2'>
+                          (Customer sees: EUR {customerPrice(calculateTotalPrice()).toFixed(2)})
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
