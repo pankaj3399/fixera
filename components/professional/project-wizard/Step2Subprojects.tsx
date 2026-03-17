@@ -33,6 +33,7 @@ import {
   Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCommissionRate } from '@/hooks/useCommissionRate';
 
 interface IIncludedItem {
   name: string;
@@ -316,8 +317,7 @@ export default function Step2Subprojects({
     }))
   );
 
-  // Platform commission percentage
-  const [commissionPercent, setCommissionPercent] = useState<number>(0);
+  const { commissionPercent, customerPrice } = useCommissionRate();
 
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);
@@ -411,20 +411,6 @@ export default function Step2Subprojects({
     }
   };
 
-  // Fetch commission rate on mount
-  useEffect(() => {
-    const fetchCommission = async () => {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/commission-rate`, { credentials: 'include' });
-        if (res.ok) {
-          const json = await res.json();
-          setCommissionPercent(json?.data?.commissionPercent ?? 0);
-        }
-      } catch {}
-    };
-    fetchCommission();
-  }, []);
-
   // Fetch dynamic fields when category/service changes
   useEffect(() => {
     if (data.category && data.service) {
@@ -466,12 +452,6 @@ export default function Step2Subprojects({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.priceModel, data.selectedPricingOption, data.category, configPricingOptions]);
-
-  // Calculate customer-facing price (professional price + platform commission)
-  const customerPrice = (amount: number) => {
-    if (!commissionPercent || !amount) return amount;
-    return +(amount * (1 + commissionPercent / 100)).toFixed(2);
-  };
 
   const validateForm = () => {
     const isValid =
@@ -2259,9 +2239,9 @@ export default function Step2Subprojects({
                                   </span>
                                 )}
                             </div>
-                            {commissionPercent > 0 && sub.pricing.priceRange?.min && sub.pricing.priceRange?.max && (
+                            {commissionPercent > 0 && (sub.pricing.priceRange?.min || sub.pricing.priceRange?.max) && (
                               <div className='text-xs text-blue-600'>
-                                Customer: EUR {customerPrice(sub.pricing.priceRange.min)}-{customerPrice(sub.pricing.priceRange.max)}
+                                Customer: EUR {sub.pricing.priceRange?.min ? customerPrice(sub.pricing.priceRange.min) : '...'}-{sub.pricing.priceRange?.max ? customerPrice(sub.pricing.priceRange.max) : '...'}
                               </div>
                             )}
                           </div>

@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
+import { useCommissionRate } from '@/hooks/useCommissionRate'
 
 const parseNumericInput = (raw: string): number | undefined => {
   const trimmed = raw.trim();
@@ -162,7 +163,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [repeatBuyerDiscount, setRepeatBuyerDiscount] = useState<IRepeatBuyerDiscount>(
     data.repeatBuyerDiscount || { enabled: false, percentage: 5, minPreviousBookings: 1 }
   )
-  const [commissionPercent, setCommissionPercent] = useState<number>(0)
+  const { commissionPercent, customerPrice } = useCommissionRate()
   const [customExtraName, setCustomExtraName] = useState('')
   const [customExtraPrice, setCustomExtraPrice] = useState('')
   const [customTermName, setCustomTermName] = useState('')
@@ -214,26 +215,6 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       controller.abort()
     }
   }, [data.category, data.service, data.areaOfWork])
-
-  // Fetch commission rate on mount
-  useEffect(() => {
-    const fetchCommission = async () => {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/commission-rate`, { credentials: 'include' })
-        if (res.ok) {
-          const json = await res.json()
-          setCommissionPercent(json?.data?.commissionPercent ?? 0)
-        }
-      } catch {}
-    }
-    fetchCommission()
-  }, [])
-
-  // Calculate customer-facing price (professional price + platform commission)
-  const customerPrice = (amount: number) => {
-    if (!commissionPercent || !amount) return amount
-    return +(amount * (1 + commissionPercent / 100)).toFixed(2)
-  }
 
   const latestDataRef = useRef(data)
   useEffect(() => {
