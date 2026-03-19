@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
+import { useCommissionRate } from '@/hooks/useCommissionRate'
 
 const parseNumericInput = (raw: string): number | undefined => {
   const trimmed = raw.trim();
@@ -162,6 +163,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [repeatBuyerDiscount, setRepeatBuyerDiscount] = useState<IRepeatBuyerDiscount>(
     data.repeatBuyerDiscount || { enabled: false, percentage: 5, minPreviousBookings: 1 }
   )
+  const { commissionPercent, customerPrice } = useCommissionRate()
   const [customExtraName, setCustomExtraName] = useState('')
   const [customExtraPrice, setCustomExtraPrice] = useState('')
   const [customTermName, setCustomTermName] = useState('')
@@ -503,7 +505,12 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-normal">Customizable</span>
                       )}
                     </div>
-                    <div className="text-sm text-gray-500">€{option.price}</div>
+                    <div className="text-sm text-gray-500">
+                      €{option.price}
+                      {commissionPercent > 0 && option.price > 0 && (
+                        <span className="text-blue-600 ml-1">(Customer: €{customerPrice(option.price)})</span>
+                      )}
+                    </div>
                   </span>
                   <Plus className="w-4 h-4" />
                 </Button>
@@ -560,7 +567,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                       )}
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className="text-right">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-gray-500">€</span>
                         <Input
                           type="number"
                           min="0"
@@ -569,7 +577,9 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                           onChange={(e) => updateExtraOption(option.id, { price: parseNumericInput(e.target.value) || 0 })}
                           className="w-20 text-right"
                         />
-                        <div className="text-xs text-gray-500">€</div>
+                        {commissionPercent > 0 && option.price > 0 && (
+                          <span className="text-xs text-blue-600 whitespace-nowrap">Customer: €{customerPrice(option.price)}</span>
+                        )}
                       </div>
                       <Button
                         variant="ghost"
@@ -828,12 +838,24 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     {extraOptions.map((option) => (
                       <div key={option.id} className="flex justify-between text-sm">
                         <span>{option.name}</span>
-                        <span className="font-medium">€{option.price}</span>
+                        <span className="font-medium">
+                          €{option.price}
+                          {commissionPercent > 0 && option.price > 0 && (
+                            <span className="text-blue-600 ml-1 text-xs">(Customer: €{customerPrice(option.price)})</span>
+                          )}
+                        </span>
                       </div>
                     ))}
                     <div className="border-t pt-2 flex justify-between font-medium">
                       <span>Total extra options value:</span>
-                      <span>€{extraOptions.reduce((sum, opt) => sum + opt.price, 0).toFixed(2)}</span>
+                      <span>
+                        €{extraOptions.reduce((sum, opt) => sum + opt.price, 0).toFixed(2)}
+                        {commissionPercent > 0 && (
+                          <span className="text-blue-600 ml-1 text-xs">
+                            (Customer: €{customerPrice(extraOptions.reduce((sum, opt) => sum + opt.price, 0)).toFixed(2)})
+                          </span>
+                        )}
+                      </span>
                     </div>
                   </div>
                 )}
