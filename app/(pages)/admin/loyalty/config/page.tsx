@@ -14,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 interface LoyaltyTier {
   name: string;
   minSpendingAmount: number;
-  pointsPercentage: number;
   discountPercentage: number;
   maxDiscountAmount: number | null;
   benefits: string[];
@@ -24,8 +23,6 @@ interface LoyaltyTier {
 interface LoyaltyConfig {
   globalSettings: {
     enabled: boolean;
-    pointsExpiryDays: number;
-    minimumRedemptionPoints: number;
   };
   tiers: LoyaltyTier[];
 }
@@ -37,44 +34,38 @@ export default function LoyaltyConfigPage() {
   const [config, setConfig] = useState<LoyaltyConfig>({
     globalSettings: {
       enabled: true,
-      pointsExpiryDays: 365,
-      minimumRedemptionPoints: 100
     },
     tiers: [
       {
         name: 'Bronze',
         minSpendingAmount: 0,
-        pointsPercentage: 1,
         discountPercentage: 0,
         maxDiscountAmount: null,
-        benefits: ['Basic support', '1% cashback points'],
+        benefits: ['Standard customer support'],
         color: '#CD7F32'
       },
       {
         name: 'Silver',
         minSpendingAmount: 500,
-        pointsPercentage: 2,
         discountPercentage: 2,
         maxDiscountAmount: 25,
-        benefits: ['Priority support', '2% cashback points', '2% booking discount'],
+        benefits: ['Priority support', '2% booking discount'],
         color: '#C0C0C0'
       },
       {
         name: 'Gold',
         minSpendingAmount: 1500,
-        pointsPercentage: 3,
         discountPercentage: 5,
         maxDiscountAmount: 75,
-        benefits: ['VIP support', '3% cashback points', '5% booking discount', 'Free cancellation'],
+        benefits: ['VIP support', '5% booking discount', 'Free cancellation'],
         color: '#FFD700'
       },
       {
         name: 'Platinum',
         minSpendingAmount: 5000,
-        pointsPercentage: 5,
         discountPercentage: 10,
         maxDiscountAmount: 150,
-        benefits: ['Dedicated account manager', '5% cashback points', '10% booking discount', 'Free cancellation', 'Priority booking'],
+        benefits: ['Dedicated account manager', '10% booking discount', 'Free cancellation', 'Priority booking'],
         color: '#E5E4E2'
       }
     ]
@@ -164,7 +155,6 @@ export default function LoyaltyConfigPage() {
       tiers: [...prev.tiers, {
         name: '',
         minSpendingAmount: 0,
-        pointsPercentage: 1,
         discountPercentage: 0,
         maxDiscountAmount: null,
         benefits: [''],
@@ -339,45 +329,20 @@ export default function LoyaltyConfigPage() {
                 <CardDescription>Configure system-wide loyalty settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>
-                      <input
-                        type="checkbox"
-                        checked={config.globalSettings.enabled}
-                        onChange={(e) => setConfig(prev => ({
-                          ...prev,
-                          globalSettings: { ...prev.globalSettings, enabled: e.target.checked }
-                        }))}
-                        className="mr-2"
-                      />
-                      System Enabled
-                    </Label>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pointsExpiry">Points Expiry (Days)</Label>
-                    <Input
-                      id="pointsExpiry"
-                      type="number"
-                      value={config.globalSettings.pointsExpiryDays}
+                <div className="space-y-2">
+                  <Label>
+                    <input
+                      type="checkbox"
+                      checked={config.globalSettings.enabled}
                       onChange={(e) => setConfig(prev => ({
                         ...prev,
-                        globalSettings: { ...prev.globalSettings, pointsExpiryDays: parseInt(e.target.value) }
+                        globalSettings: { ...prev.globalSettings, enabled: e.target.checked }
                       }))}
+                      className="mr-2"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="minRedemption">Minimum Redemption Points</Label>
-                    <Input
-                      id="minRedemption"
-                      type="number"
-                      value={config.globalSettings.minimumRedemptionPoints}
-                      onChange={(e) => setConfig(prev => ({
-                        ...prev,
-                        globalSettings: { ...prev.globalSettings, minimumRedemptionPoints: parseInt(e.target.value) }
-                      }))}
-                    />
-                  </div>
+                    System Enabled
+                  </Label>
+                  <p className="text-xs text-gray-500">Loyalty tiers drive automatic discounts based on total spending. Points settings are managed separately.</p>
                 </div>
               </CardContent>
             </Card>
@@ -425,24 +390,12 @@ export default function LoyaltyConfigPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor={`tier-spending-${tierIndex}`}>Min Spending Amount ($)</Label>
+                      <Label htmlFor={`tier-spending-${tierIndex}`}>Min Spending Amount (&euro;)</Label>
                       <Input
                         id={`tier-spending-${tierIndex}`}
                         type="number"
                         value={tier.minSpendingAmount}
                         onChange={(e) => updateTier(tierIndex, 'minSpendingAmount', parseInt(e.target.value))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`tier-points-${tierIndex}`}>Points Percentage (%)</Label>
-                      <Input
-                        id={`tier-points-${tierIndex}`}
-                        type="number"
-                        value={tier.pointsPercentage}
-                        onChange={(e) => updateTier(tierIndex, 'pointsPercentage', parseFloat(e.target.value))}
-                        min="0"
-                        max="100"
-                        step="0.1"
                       />
                     </div>
                   </div>

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift } from "lucide-react"
 import { toast } from "sonner"
 import { getAuthToken } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -165,6 +165,13 @@ interface DiscountPreview {
     previousBookings: number
     capped: boolean
   }
+  pointsDiscount?: {
+    pointsUsed: number
+    discountAmount: number
+    conversionRate: number
+  }
+  availablePoints?: number
+  pointsExpiry?: string
   totalDiscount: number
   finalAmount: number
   currency: string
@@ -223,6 +230,7 @@ export default function BookingDetailPage() {
   const [reviewAutoShown, setReviewAutoShown] = useState(false)
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null)
   const [loadingDiscountPreview, setLoadingDiscountPreview] = useState(false)
+  const [pointsToRedeem, setPointsToRedeem] = useState(0)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -539,7 +547,7 @@ export default function BookingDetailPage() {
           method: "POST",
           headers,
           credentials: "include",
-          body: JSON.stringify({ action })
+          body: JSON.stringify({ action, pointsToRedeem: action === "accept" ? pointsToRedeem : undefined })
         }
       )
 
@@ -1059,6 +1067,17 @@ export default function BookingDetailPage() {
                               </span>
                             </div>
                           )}
+                          {discountPreview.pointsDiscount && discountPreview.pointsDiscount.discountAmount > 0 && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-green-700 flex items-center gap-1">
+                                <Gift className="h-3.5 w-3.5" />
+                                Points Redeemed ({discountPreview.pointsDiscount.pointsUsed} pts)
+                              </span>
+                              <span className="text-green-600 font-medium">
+                                -{booking.quote.currency || "€"}{discountPreview.pointsDiscount.discountAmount.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex justify-between items-center pt-2 border-t border-green-200">
                             <span className="text-sm font-semibold text-green-900">You Pay:</span>
                             <span className="text-2xl font-bold text-green-600">
@@ -1129,6 +1148,17 @@ export default function BookingDetailPage() {
                             </div>
                           )}
 
+                          {discountPreview.pointsDiscount && discountPreview.pointsDiscount.discountAmount > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-700">
+                                Points redeemed ({discountPreview.pointsDiscount.pointsUsed} pts)
+                              </span>
+                              <span className="font-medium text-green-700">
+                                -{formatMoney(discountPreview.pointsDiscount.discountAmount, discountPreview.currency)}
+                              </span>
+                            </div>
+                          )}
+
                           <div className="flex justify-between border-t border-amber-200 pt-2">
                             <span className="font-semibold text-gray-900">You save</span>
                             <span className="font-semibold text-green-700">
@@ -1141,6 +1171,42 @@ export default function BookingDetailPage() {
                               {formatMoney(discountPreview.finalAmount, discountPreview.currency)}
                             </span>
                           </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Points Redemption */}
+                    {discountPreview && (discountPreview.availablePoints ?? 0) > 0 && (
+                      <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                        <p className="text-sm font-medium text-purple-900 mb-2 flex items-center gap-1">
+                          <Gift className="h-4 w-4" />
+                          Use Your Points
+                        </p>
+                        <p className="text-xs text-purple-700 mb-2">
+                          You have {discountPreview.availablePoints} points available (&euro;{discountPreview.availablePoints})
+                          {discountPreview.pointsExpiry && (
+                            <span> &middot; Expires {new Date(discountPreview.pointsExpiry).toLocaleDateString()}</span>
+                          )}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={discountPreview.availablePoints}
+                            value={pointsToRedeem || ''}
+                            onChange={(e) => setPointsToRedeem(Math.min(Number(e.target.value) || 0, discountPreview.availablePoints ?? 0))}
+                            placeholder="0"
+                            className="w-24 bg-white text-sm"
+                          />
+                          <span className="text-xs text-purple-700">points to redeem</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="ml-auto text-xs border-purple-300"
+                            onClick={() => setPointsToRedeem(discountPreview.availablePoints ?? 0)}
+                          >
+                            Use All
+                          </Button>
                         </div>
                       </div>
                     )}

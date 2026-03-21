@@ -100,15 +100,15 @@ interface User {
   }
   profileCompletedAt?: string
   professionalOnboardingCompletedAt?: string
-  loyaltyPoints?: number
+  points?: number
+  pointsExpiry?: string
   loyaltyLevel?: string
   totalSpent?: number
   totalBookings?: number
+  professionalLevel?: 'New' | 'Rising' | 'Level 1' | 'Level 2' | 'Expert'
   // Referral fields
   referralCode?: string
   referredBy?: string
-  referralCredits?: number
-  referralCreditsExpiry?: string
   totalReferrals?: number
   completedReferrals?: number
   createdAt: string

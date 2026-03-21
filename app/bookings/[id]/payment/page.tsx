@@ -24,6 +24,8 @@ interface BookingPayment {
     loyaltyAmount?: number;
     repeatBuyerPercentage?: number;
     repeatBuyerAmount?: number;
+    pointsRedeemed?: number;
+    pointsDiscountAmount?: number;
     totalDiscount?: number;
     originalAmount?: number;
   };
@@ -382,6 +384,17 @@ export default function BookingPaymentPage() {
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.repeatBuyerAmount ?? 0, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {(discountInfo?.pointsRedeemed ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">
+                    Points Redeemed ({discountInfo?.pointsRedeemed} pts):
+                  </span>
+                  <span className="text-green-700">
+                    -{formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
