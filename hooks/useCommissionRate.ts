@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
 export function useCommissionRate() {
-  const [commissionPercent, setCommissionPercent] = useState<number>(0)
+  const [commissionPercent, setCommissionPercent] = useState<number | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -28,7 +28,7 @@ export function useCommissionRate() {
 
   const customerPrice = useCallback(
     (amount: number) => {
-      if (!commissionPercent || !amount) return amount
+      if (commissionPercent == null || !amount) return amount
       return +(amount * (1 + commissionPercent / 100)).toFixed(2)
     },
     [commissionPercent]

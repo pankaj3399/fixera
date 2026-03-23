@@ -507,7 +507,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     </div>
                     <div className="text-sm text-gray-500">
                       €{option.price}
-                      {commissionPercent > 0 && option.price > 0 && (
+                      {(commissionPercent ?? 0) > 0 && option.price > 0 && (
                         <span className="text-blue-600 ml-1">(Customer: €{customerPrice(option.price)})</span>
                       )}
                     </div>
@@ -577,7 +577,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                           onChange={(e) => updateExtraOption(option.id, { price: parseNumericInput(e.target.value) || 0 })}
                           className="w-20 text-right"
                         />
-                        {commissionPercent > 0 && option.price > 0 && (
+                        {(commissionPercent ?? 0) > 0 && option.price > 0 && (
                           <span className="text-xs text-blue-600 whitespace-nowrap">Customer: €{customerPrice(option.price)}</span>
                         )}
                       </div>
@@ -840,7 +840,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         <span>{option.name}</span>
                         <span className="font-medium">
                           €{option.price}
-                          {commissionPercent > 0 && option.price > 0 && (
+                          {(commissionPercent ?? 0) > 0 && option.price > 0 && (
                             <span className="text-blue-600 ml-1 text-xs">(Customer: €{customerPrice(option.price)})</span>
                           )}
                         </span>
@@ -850,7 +850,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                       <span>Total extra options value:</span>
                       <span>
                         €{extraOptions.reduce((sum, opt) => sum + opt.price, 0).toFixed(2)}
-                        {commissionPercent > 0 && (
+                        {(commissionPercent ?? 0) > 0 && (
                           <span className="text-blue-600 ml-1 text-xs">
                             (Customer: €{customerPrice(extraOptions.reduce((sum, opt) => sum + opt.price, 0)).toFixed(2)})
                           </span>

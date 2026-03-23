@@ -1,5 +1,7 @@
 export const BOOKING_STATUSES = [
   "rfq",
+  "rfq_accepted",
+  "draft_quote",
   "quoted",
   "quote_accepted",
   "quote_rejected",
@@ -27,6 +29,8 @@ export function parseBookingStatus(value: string | undefined | null): BookingSta
 
 export const BOOKING_STATUS_STYLES: Record<string, string> = {
   rfq: "bg-indigo-50 text-indigo-700 border border-indigo-100",
+  rfq_accepted: "bg-violet-50 text-violet-700 border border-violet-100",
+  draft_quote: "bg-slate-50 text-slate-700 border border-slate-100",
   quoted: "bg-blue-50 text-blue-700 border border-blue-100",
   quote_accepted: "bg-emerald-50 text-emerald-700 border border-emerald-100",
   quote_rejected: "bg-rose-50 text-rose-700 border border-rose-100",
@@ -40,7 +44,7 @@ export const BOOKING_STATUS_STYLES: Record<string, string> = {
   unknown: "bg-slate-50 text-slate-700 border border-slate-100",
 }
 
-export const QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "quoted", "quote_accepted", "quote_rejected"])
+export const QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "rfq_accepted", "draft_quote", "quoted", "quote_accepted", "quote_rejected"])
 export const QUOTE_FINISHED_STATUSES = new Set<BookingStatus>(["quote_accepted", "quote_rejected"])
 export const BOOKING_FINISHED_STATUSES = new Set<BookingStatus>(["completed", "cancelled", "refunded"])
 
@@ -50,7 +54,7 @@ export const PROFESSIONAL_BOOKING_MODE_STATUSES = new Set<BookingStatus>([
 ])
 
 // Customer dashboard: quote-phase statuses
-export const CUSTOMER_QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "quoted", "quote_rejected"])
+export const CUSTOMER_QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "rfq_accepted", "quoted", "quote_rejected"])
 // Customer dashboard: booking-phase statuses
 export const CUSTOMER_BOOKING_STATUSES = new Set<BookingStatus>([
   "quote_accepted", "payment_pending", "booked", "in_progress",
@@ -61,6 +65,7 @@ export const CUSTOMER_BOOKING_STATUSES = new Set<BookingStatus>([
 export const CUSTOMER_QUOTE_STATUS_FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "All" },
   { id: "rfq", label: "RFQ" },
+  { id: "rfq_accepted", label: "RFQ Accepted" },
   { id: "quoted", label: "Quoted" },
   { id: "quote_rejected", label: "Rejected" },
 ]

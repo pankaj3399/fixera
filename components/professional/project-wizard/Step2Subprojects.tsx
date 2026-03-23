@@ -961,7 +961,7 @@ export default function Step2Subprojects({
                             }
                             placeholder='0.00'
                           />
-                          {commissionPercent > 0 && subproject.pricing.amount ? (
+                          {(commissionPercent ?? 0) > 0 && subproject.pricing.amount ? (
                             <p className='text-xs text-gray-500 mt-1'>
                               Customer sees: <span className='font-medium text-blue-600'>EUR {customerPrice(subproject.pricing.amount)}</span> (incl. {commissionPercent}% platform fee)
                             </p>
@@ -989,7 +989,7 @@ export default function Step2Subprojects({
                             }
                             placeholder='0.00'
                           />
-                          {commissionPercent > 0 && subproject.pricing.amount ? (
+                          {(commissionPercent ?? 0) > 0 && subproject.pricing.amount ? (
                             <p className='text-xs text-gray-500 mt-1'>
                               Customer sees: <span className='font-medium text-blue-600'>EUR {customerPrice(subproject.pricing.amount)}/{unitLabel}</span> (incl. {commissionPercent}% platform fee)
                             </p>
@@ -1111,12 +1111,12 @@ export default function Step2Subprojects({
                               {subproject.errors.priceRange}
                             </p>
                           )}
-                          {commissionPercent > 0 && (subproject.pricing.priceRange?.min || subproject.pricing.priceRange?.max) ? (
+                          {(commissionPercent ?? 0) > 0 && (subproject.pricing.priceRange?.min != null || subproject.pricing.priceRange?.max != null) ? (
                             <p className='text-xs text-gray-500 mt-1'>
                               Customer sees: <span className='font-medium text-blue-600'>
-                                {subproject.pricing.priceRange?.min ? `EUR ${customerPrice(subproject.pricing.priceRange.min)}` : '...'}
+                                {subproject.pricing.priceRange?.min != null ? `EUR ${customerPrice(subproject.pricing.priceRange.min)}` : '...'}
                                 {' - '}
-                                {subproject.pricing.priceRange?.max ? `EUR ${customerPrice(subproject.pricing.priceRange.max)}` : '...'}
+                                {subproject.pricing.priceRange?.max != null ? `EUR ${customerPrice(subproject.pricing.priceRange.max)}` : '...'}
                               </span> (incl. {commissionPercent}% platform fee)
                             </p>
                           ) : null}
@@ -2210,7 +2210,7 @@ export default function Step2Subprojects({
                           sub.pricing.amount && (
                             <div>
                               <div>EUR {sub.pricing.amount} (Total)</div>
-                              {commissionPercent > 0 && (
+                              {(commissionPercent ?? 0) > 0 && (
                                 <div className='text-xs text-blue-600'>Customer: EUR {customerPrice(sub.pricing.amount)}</div>
                               )}
                             </div>
@@ -2222,7 +2222,7 @@ export default function Step2Subprojects({
                                 ? ` (min ${sub.pricing.minOrderQuantity})`
                                 : ''
                               }</div>
-                              {commissionPercent > 0 && (
+                              {(commissionPercent ?? 0) > 0 && (
                                 <div className='text-xs text-blue-600'>Customer: EUR {customerPrice(sub.pricing.amount)}/{unitLabel}</div>
                               )}
                             </div>
@@ -2231,17 +2231,17 @@ export default function Step2Subprojects({
                           <div>
                             <div>
                               Quote required
-                              {sub.pricing.priceRange?.min &&
-                                sub.pricing.priceRange?.max && (
+                              {sub.pricing.priceRange?.min != null &&
+                                sub.pricing.priceRange?.max != null && (
                                   <span className='text-gray-500 text-sm ml-1'>
                                     (EUR {sub.pricing.priceRange.min}-
                                     {sub.pricing.priceRange.max})
                                   </span>
                                 )}
                             </div>
-                            {commissionPercent > 0 && (sub.pricing.priceRange?.min || sub.pricing.priceRange?.max) && (
+                            {(commissionPercent ?? 0) > 0 && (sub.pricing.priceRange?.min != null || sub.pricing.priceRange?.max != null) && (
                               <div className='text-xs text-blue-600'>
-                                Customer: EUR {sub.pricing.priceRange?.min ? customerPrice(sub.pricing.priceRange.min) : '...'}-{sub.pricing.priceRange?.max ? customerPrice(sub.pricing.priceRange.max) : '...'}
+                                Customer: EUR {sub.pricing.priceRange?.min != null ? customerPrice(sub.pricing.priceRange.min) : '...'}-{sub.pricing.priceRange?.max != null ? customerPrice(sub.pricing.priceRange.max) : '...'}
                               </div>
                             )}
                           </div>
@@ -2289,7 +2289,7 @@ export default function Step2Subprojects({
                     <span className='font-medium text-blue-900'>
                       Total fixed price packages: EUR{' '}
                       {calculateTotalPrice().toFixed(2)}
-                      {commissionPercent > 0 && (
+                      {(commissionPercent ?? 0) > 0 && (
                         <span className='text-blue-600 ml-2'>
                           (Customer sees: EUR {customerPrice(calculateTotalPrice()).toFixed(2)})
                         </span>

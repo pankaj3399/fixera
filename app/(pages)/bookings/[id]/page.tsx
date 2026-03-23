@@ -10,15 +10,20 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { getAuthToken } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import StartChatButton from "@/components/chat/StartChatButton"
 import ReviewModal from "@/components/booking/ReviewModal"
+import QuotationWizard from "@/components/quotation/QuotationWizard"
+import type { QuoteVersion, QuotationMilestone } from "@/types/quotation"
 
 type BookingStatus =
   | "rfq"
+  | "rfq_accepted"
+  | "draft_quote"
   | "quoted"
   | "quote_accepted"
   | "quote_rejected"
@@ -71,6 +76,13 @@ interface BookingDetail {
     submittedAt?: string
     submittedBy?: string
   }
+  quotationNumber?: string
+  quoteVersions?: QuoteVersion[]
+  currentQuoteVersion?: number
+  rfqResponse?: { action: 'accepted' | 'rejected'; respondedAt: string; rejectionReason?: string }
+  rfqDeadline?: string
+  customerRejectionReason?: string
+  milestonePayments?: QuotationMilestone[]
   scheduledStartDate?: string
   scheduledEndDate?: string
   createdAt?: string
@@ -120,6 +132,8 @@ interface BookingDetail {
 
 const DETAIL_STATUS_STYLES: Record<string, string> = {
   rfq: "bg-indigo-50 text-indigo-700 border border-indigo-100",
+  rfq_accepted: "bg-violet-50 text-violet-700 border border-violet-100",
+  draft_quote: "bg-slate-50 text-slate-700 border border-slate-100",
   quoted: "bg-blue-50 text-blue-700 border border-blue-100",
   quote_accepted: "bg-emerald-50 text-emerald-700 border border-emerald-100",
   quote_rejected: "bg-rose-50 text-rose-700 border border-rose-100",
@@ -231,6 +245,16 @@ export default function BookingDetailPage() {
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null)
   const [loadingDiscountPreview, setLoadingDiscountPreview] = useState(false)
   const [pointsToRedeem, setPointsToRedeem] = useState(0)
+  // New quotation flow state
+  const [showQuotationWizard, setShowQuotationWizard] = useState(false)
+  const [respondingToRFQ, setRespondingToRFQ] = useState(false)
+  const [showRejectionModal, setShowRejectionModal] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState("")
+  const [respondingToQuotation, setRespondingToQuotation] = useState(false)
+  const [showQuoteRejectionModal, setShowQuoteRejectionModal] = useState(false)
+  const [quoteRejectionReason, setQuoteRejectionReason] = useState("")
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false)
+  const [payingMilestone, setPayingMilestone] = useState<number | null>(null)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -351,6 +375,14 @@ export default function BookingDetailPage() {
   useEffect(() => {
     if (booking?.status === "rfq" && searchParams?.get("action") === "quote" && user?.role === "professional") {
       setShowQuoteForm(true)
+    }
+    // Auto-open quotation wizard for draft_quote or rfq_accepted with action=quote
+    if (
+      (booking?.status === "draft_quote" || booking?.status === "rfq_accepted") &&
+      searchParams?.get("action") === "quote" &&
+      user?.role === "professional"
+    ) {
+      setShowQuotationWizard(true)
     }
   }, [booking, searchParams, user?.role])
 
@@ -482,6 +514,142 @@ export default function BookingDetailPage() {
       // Silently fail - the page already has stale data
     }
   }
+
+  // ── New Quotation Flow Handlers ──
+
+  const handleRespondToRFQ = async (action: 'accepted' | 'rejected') => {
+    if (!bookingId) return
+    if (action === 'rejected' && !rejectionReason.trim()) {
+      toast.error("Please provide a rejection reason")
+      return
+    }
+
+    setRespondingToRFQ(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/respond-rfq`,
+        {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ action, rejectionReason: action === 'rejected' ? rejectionReason : undefined }),
+        }
+      )
+      const { data } = await parseResponseBody<{ success?: boolean; error?: { message?: string }; data?: Record<string, unknown> }>(response)
+
+      if (response.ok && data?.success) {
+        if (action === 'accepted') {
+          toast.success("RFQ accepted! You can now create your quotation.")
+          setShowQuotationWizard(true)
+        } else {
+          toast.success("RFQ rejected.")
+          setRejectionReason('')
+          setShowRejectionModal(false)
+        }
+        await refreshBooking()
+      } else {
+        toast.error(data?.error?.message || "Failed to respond to RFQ")
+      }
+    } catch (err) {
+      console.error("Error responding to RFQ:", err)
+      toast.error("Failed to respond to RFQ. Please try again.")
+    } finally {
+      setRespondingToRFQ(false)
+    }
+  }
+
+  const handleRespondToQuotation = async (action: 'accepted' | 'rejected') => {
+    if (!bookingId) return
+    if (action === 'rejected' && !quoteRejectionReason.trim()) {
+      toast.error("Please provide a reason for rejection")
+      return
+    }
+
+    setRespondingToQuotation(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/customer-respond`,
+        {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({
+            action,
+            rejectionReason: action === 'rejected' ? quoteRejectionReason : undefined,
+          }),
+        }
+      )
+      const { data } = await parseResponseBody<{ success?: boolean; error?: { message?: string }; data?: { clientSecret?: string } }>(response)
+
+      if (response.ok && data?.success) {
+        if (action === 'accepted') {
+          toast.success("Quotation accepted! Redirecting to payment...")
+          if (data.data?.clientSecret) {
+            router.push(`/bookings/${bookingId}/payment`)
+          } else {
+            await refreshBooking()
+          }
+        } else {
+          toast.success("Quotation rejected. The professional will be notified.")
+          setQuoteRejectionReason('')
+          setShowQuoteRejectionModal(false)
+          await refreshBooking()
+        }
+      } else {
+        toast.error(data?.error?.message || "Failed to respond to quotation")
+      }
+    } catch (err) {
+      console.error("Error responding to quotation:", err)
+      toast.error("Failed to respond. Please try again.")
+    } finally {
+      setRespondingToQuotation(false)
+    }
+  }
+
+  const handlePayMilestone = async (index: number) => {
+    if (!bookingId) return
+    setPayingMilestone(index)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/milestones/${index}/payment-intent`,
+        { method: "POST", headers, credentials: "include" }
+      )
+      const { data } = await parseResponseBody<{ success?: boolean; error?: { message?: string }; data?: { clientSecret?: string } }>(response)
+
+      if (response.ok && data?.success) {
+        router.push(`/bookings/${bookingId}/payment`)
+      } else {
+        toast.error(data?.error?.message || "Failed to create payment")
+      }
+    } catch (err) {
+      console.error("Error paying milestone:", err)
+      toast.error("Failed to initiate payment. Please try again.")
+    } finally {
+      setPayingMilestone(null)
+    }
+  }
+
+  // Helper: check if this booking uses new quotation system
+  const hasQuotationVersions = (booking?.quoteVersions?.length || 0) > 0
+  const currentVersion = hasQuotationVersions
+    ? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
+    : null
+  const rfqDeadlineDate = booking?.rfqDeadline ? new Date(booking.rfqDeadline) : null
+  const rfqDeadlineRemaining = rfqDeadlineDate
+    ? Math.max(0, Math.ceil((rfqDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60)))
+    : null
 
   const handleSubmitQuote = async () => {
     const parsedAmount = parseFloat(quoteAmount)
@@ -950,31 +1118,62 @@ export default function BookingDetailPage() {
                   </div>
                 )}
 
-                {/* Professional: Submit Quote (when status is RFQ) */}
+                {/* Professional: RFQ Response (new flow) - Accept/Reject/Chat */}
                 {user?.role === "professional" && booking.status === "rfq" && (
                   <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
-                    {!showQuoteForm ? (
-                      <div className="flex items-start justify-between gap-4">
+                    {!showQuoteForm && !showQuotationWizard ? (
+                      <div className="space-y-3">
                         <div>
                           <h3 className="text-sm font-semibold text-purple-900 mb-1">
-                            Quote Requested
+                            Request for Quote Received
                           </h3>
                           <p className="text-xs text-purple-700">
-                            The customer is waiting for your quote. Please review the requirements and submit your quote.
+                            Review the customer&apos;s requirements. Accept to start preparing a detailed quotation, or chat for more information.
                           </p>
                         </div>
-                        <Button
-                          onClick={() => setShowQuoteForm(true)}
-                          className="bg-purple-600 hover:bg-purple-700 text-white shrink-0"
-                          size="sm"
-                        >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Submit Quote
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            onClick={() => handleRespondToRFQ('accepted')}
+                            disabled={respondingToRFQ}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            size="sm"
+                          >
+                            {respondingToRFQ ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                            Accept & Create Quotation
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toast.info("Use the chat widget in the bottom right to message this customer.")}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Chat for More Info
+                          </Button>
+                          <Button
+                            onClick={() => setShowRejectionModal(true)}
+                            disabled={respondingToRFQ}
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                            size="sm"
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Reject
+                          </Button>
+                        </div>
+
+                        {/* Fallback: Legacy simple quote form */}
+                        <div className="pt-2 border-t border-purple-200">
+                          <button
+                            onClick={() => setShowQuoteForm(true)}
+                            className="text-xs text-purple-600 hover:text-purple-800 underline"
+                          >
+                            Or submit a simple quote instead
+                          </button>
+                        </div>
                       </div>
-                    ) : (
+                    ) : showQuoteForm ? (
                       <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-purple-900">Submit Your Quote</h3>
+                        <h3 className="text-sm font-semibold text-purple-900">Submit Simple Quote</h3>
                         <div className="space-y-3">
                           <div>
                             <Label htmlFor="quoteAmount" className="text-xs">Quote Amount (EUR) *</Label>
@@ -999,31 +1198,328 @@ export default function BookingDetailPage() {
                             />
                           </div>
                           <div className="flex gap-2">
-                            <Button
-                              onClick={handleSubmitQuote}
-                              disabled={submittingQuote}
-                              className="bg-purple-600 hover:bg-purple-700 text-white"
-                              size="sm"
-                            >
+                            <Button onClick={handleSubmitQuote} disabled={submittingQuote} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">
                               {submittingQuote ? "Submitting..." : "Submit Quote"}
                             </Button>
-                            <Button
-                              onClick={() => setShowQuoteForm(false)}
-                              variant="outline"
-                              size="sm"
-                              disabled={submittingQuote}
-                            >
+                            <Button onClick={() => setShowQuoteForm(false)} variant="outline" size="sm" disabled={submittingQuote}>
                               Cancel
                             </Button>
                           </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Professional: RFQ Accepted - Show QuotationWizard with deadline */}
+                {user?.role === "professional" && booking.status === "rfq_accepted" && (
+                  <div className="space-y-4">
+                    {/* Deadline countdown */}
+                    {rfqDeadlineRemaining !== null && (
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                        <div className="flex items-center gap-3">
+                          <AlertTriangle className="h-5 w-5 text-amber-600" />
+                          <div>
+                            <h3 className="text-sm font-semibold text-amber-900">
+                              {rfqDeadlineRemaining > 0
+                                ? `${rfqDeadlineRemaining} hour${rfqDeadlineRemaining !== 1 ? 's' : ''} remaining to submit quotation`
+                                : 'Deadline has passed!'}
+                            </h3>
+                            <p className="text-xs text-amber-700">
+                              Deadline: {rfqDeadlineDate?.toLocaleDateString()} {rfqDeadlineDate?.toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {showQuotationWizard ? (
+                      <QuotationWizard
+                        bookingId={bookingId!}
+                        onSuccess={async () => { setShowQuotationWizard(false); await refreshBooking() }}
+                        onCancel={() => setShowQuotationWizard(false)}
+                      />
+                    ) : (
+                      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-sm font-semibold text-purple-900 mb-1">Create Your Quotation</h3>
+                            <p className="text-xs text-purple-700">Fill out the detailed quotation wizard with scope, pricing, milestones, and timeline.</p>
+                          </div>
+                          <Button onClick={() => setShowQuotationWizard(true)} className="bg-purple-600 hover:bg-purple-700 text-white shrink-0" size="sm">
+                            <FileText className="h-4 w-4 mr-2" />
+                            Open Wizard
+                          </Button>
                         </div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Customer: Quote Ready - Accept/Reject */}
-                {user?.role === "customer" && booking.status === "quoted" && booking.quote && (
+                {/* Professional: Draft Quote - Show QuotationWizard (direct quotation entry) */}
+                {user?.role === "professional" && booking.status === "draft_quote" && (
+                  showQuotationWizard ? (
+                    <QuotationWizard
+                      bookingId={bookingId!}
+                      onSuccess={async () => { setShowQuotationWizard(false); await refreshBooking() }}
+                      onCancel={() => setShowQuotationWizard(false)}
+                    />
+                  ) : (
+                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-sm font-semibold text-purple-900 mb-1">Direct Quotation Draft</h3>
+                          <p className="text-xs text-purple-700">Complete the quotation wizard to send this quote to the customer.</p>
+                        </div>
+                        <Button onClick={() => setShowQuotationWizard(true)} className="bg-purple-600 hover:bg-purple-700 text-white shrink-0" size="sm">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Create Quotation
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* Customer: New Quotation Display (when quoteVersions exist) */}
+                {user?.role === "customer" && booking.status === "quoted" && hasQuotationVersions && currentVersion && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-green-900">Quotation Received</h3>
+                      {booking.quotationNumber && (
+                        <Badge variant="outline" className="text-xs">{booking.quotationNumber}</Badge>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium">Scope</p>
+                        <p className="text-sm text-gray-900">{currentVersion.scope}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium">Description</p>
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{currentVersion.description}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Warranty</p>
+                          <p className="text-sm">{currentVersion.warrantyDuration.value} {currentVersion.warrantyDuration.unit}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Materials</p>
+                          <p className="text-sm">{currentVersion.materialsIncluded ? 'Included' : 'Not included'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Prep Time</p>
+                          <p className="text-sm">{currentVersion.preparationDuration.value} {currentVersion.preparationDuration.unit}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Execution Time</p>
+                          <p className="text-sm">{currentVersion.executionDuration.value} {currentVersion.executionDuration.unit}</p>
+                        </div>
+                      </div>
+                      {currentVersion.materialsIncluded && currentVersion.materials && currentVersion.materials.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium mb-1">Materials List</p>
+                          <ul className="text-sm space-y-0.5">
+                            {currentVersion.materials.map((m, i) => (
+                              <li key={i} className="text-gray-700">
+                                {m.name}{m.quantity ? ` x${m.quantity}` : ''}{m.unit ? ` ${m.unit}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {/* Milestones */}
+                      {currentVersion.milestones && currentVersion.milestones.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium mb-1">Payment Milestones</p>
+                          <div className="space-y-1.5">
+                            {currentVersion.milestones.map((ms, i) => (
+                              <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
+                                <span className="text-gray-700">{ms.title}</span>
+                                <span className="font-medium">EUR {ms.amount.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-sm font-semibold text-gray-900">Total</span>
+                        <span className="text-2xl font-bold text-green-600">EUR {currentVersion.totalAmount.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Valid until: {new Date(currentVersion.validUntil).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    {/* Version history accordion */}
+                    {(booking.quoteVersions?.length || 0) > 1 && (
+                      <div className="border rounded-lg">
+                        <button
+                          onClick={() => setVersionHistoryOpen(!versionHistoryOpen)}
+                          className="flex items-center justify-between w-full p-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          <span>Version History ({booking.quoteVersions?.length} versions)</span>
+                          {versionHistoryOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                        {versionHistoryOpen && (
+                          <div className="border-t p-3 space-y-2">
+                            {booking.quoteVersions?.map((v, i) => (
+                              <div key={i} className={`p-2 rounded text-sm ${v.version === booking.currentQuoteVersion ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                                <div className="flex justify-between items-center">
+                                  <span className="font-medium">v{v.version}</span>
+                                  <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-xs text-gray-600">EUR {v.totalAmount.toFixed(2)}</p>
+                                {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={() => handleRespondToQuotation('accepted')}
+                        disabled={respondingToQuotation}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        size="sm"
+                      >
+                        {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                        Accept & Pay
+                      </Button>
+                      <Button
+                        onClick={() => setShowQuoteRejectionModal(true)}
+                        disabled={respondingToQuotation}
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                        size="sm"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Reject with Reason
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Professional: View submitted quotation (read-only) + Edit button */}
+                {user?.role === "professional" && booking.status === "quoted" && hasQuotationVersions && currentVersion && !showQuotationWizard && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-blue-900">Your Quotation (v{currentVersion.version})</h3>
+                      <Button onClick={() => setShowQuotationWizard(true)} variant="outline" size="sm">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Edit Quotation
+                      </Button>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 space-y-2 text-sm">
+                      <p><span className="text-gray-500">Scope:</span> {currentVersion.scope}</p>
+                      <p><span className="text-gray-500">Total:</span> <strong>EUR {currentVersion.totalAmount.toFixed(2)}</strong></p>
+                      <p><span className="text-gray-500">Valid until:</span> {new Date(currentVersion.validUntil).toLocaleDateString()}</p>
+                      <p className="text-xs text-gray-500">Waiting for customer response...</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Professional editing quotation inline */}
+                {user?.role === "professional" && booking.status === "quoted" && showQuotationWizard && (
+                  <QuotationWizard
+                    bookingId={bookingId!}
+                    existingVersion={currentVersion || undefined}
+                    isEditing
+                    onSuccess={async () => { setShowQuotationWizard(false); await refreshBooking() }}
+                    onCancel={() => setShowQuotationWizard(false)}
+                  />
+                )}
+
+                {/* Professional: Quote Rejected - Show reason + Revise button */}
+                {user?.role === "professional" && booking.status === "quote_rejected" && (
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-rose-50 to-red-50 border border-rose-200 rounded-lg p-4">
+                      <h3 className="text-sm font-semibold text-rose-900 mb-2">Quotation Rejected by Customer</h3>
+                      {booking.customerRejectionReason && (
+                        <div className="bg-white rounded-lg p-3 mb-3">
+                          <p className="text-xs text-gray-500 mb-1">Customer&apos;s feedback:</p>
+                          <p className="text-sm text-gray-800">{booking.customerRejectionReason}</p>
+                        </div>
+                      )}
+                      {!showQuotationWizard && (
+                        <Button onClick={() => setShowQuotationWizard(true)} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Revise & Resubmit
+                        </Button>
+                      )}
+                    </div>
+                    {showQuotationWizard && (
+                      <QuotationWizard
+                        bookingId={bookingId!}
+                        existingVersion={currentVersion || undefined}
+                        isEditing
+                        onSuccess={async () => { setShowQuotationWizard(false); await refreshBooking() }}
+                        onCancel={() => setShowQuotationWizard(false)}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Milestone Tracker (when booking has milestonePayments and is booked/in_progress) */}
+                {booking.milestonePayments && booking.milestonePayments.length > 0 && ['booked', 'in_progress', 'completed'].includes(booking.status) && (
+                  <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-sky-900 mb-3">Milestone Payments</h3>
+                    {/* Progress bar */}
+                    {(() => {
+                      const total = booking.milestonePayments!.reduce((s, m) => s + m.amount, 0)
+                      const paid = booking.milestonePayments!.filter(m => m.status === 'paid').reduce((s, m) => s + m.amount, 0)
+                      const pct = total > 0 ? Math.round((paid / total) * 100) : 0
+                      return (
+                        <div className="mb-3">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>EUR {paid.toFixed(2)} paid</span>
+                            <span>{pct}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className="bg-sky-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    <div className="space-y-2">
+                      {booking.milestonePayments.map((ms, i) => {
+                        const isPaid = ms.status === 'paid'
+                        const prevPaid = booking.milestonePayments!.slice(0, i).every(m => m.status === 'paid')
+                        const canPay = !isPaid && prevPaid && user?.role === 'customer'
+
+                        return (
+                          <div key={i} className={`flex items-center justify-between p-2 rounded ${isPaid ? 'bg-green-50 border border-green-200' : 'bg-white border'}`}>
+                            <div className="flex items-center gap-2">
+                              {isPaid ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Clock className="h-4 w-4 text-gray-400" />}
+                              <div>
+                                <p className="text-sm font-medium">{ms.title}</p>
+                                <p className="text-xs text-gray-500">EUR {ms.amount.toFixed(2)}</p>
+                              </div>
+                            </div>
+                            {isPaid && <Badge className="bg-green-100 text-green-700">Paid</Badge>}
+                            {canPay && (
+                              <Button
+                                onClick={() => handlePayMilestone(i)}
+                                disabled={payingMilestone === i}
+                                size="sm"
+                                className="bg-sky-600 hover:bg-sky-700 text-white"
+                              >
+                                {payingMilestone === i ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4 mr-1" />}
+                                Pay
+                              </Button>
+                            )}
+                            {!isPaid && !canPay && <Badge variant="outline">Pending</Badge>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Customer: Legacy Quote Ready - Accept/Reject (backward compat: only when no quoteVersions) */}
+                {user?.role === "customer" && booking.status === "quoted" && !hasQuotationVersions && booking.quote && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-green-900 mb-3">Quote Received</h3>
                     <div className="bg-white rounded-lg p-4 mb-4 space-y-2">
@@ -1569,6 +2065,64 @@ export default function BookingDetailPage() {
             </Card>
           </div>
         )}
+
+        {/* RFQ Rejection Modal */}
+        <Dialog open={showRejectionModal} onOpenChange={setShowRejectionModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reject Request</DialogTitle>
+              <DialogDescription>Please provide a reason for rejecting this request. The customer will be notified.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Textarea
+                value={rejectionReason}
+                onChange={e => setRejectionReason(e.target.value)}
+                placeholder="Explain why you cannot take on this request..."
+                rows={3}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowRejectionModal(false)}>Cancel</Button>
+                <Button
+                  onClick={() => handleRespondToRFQ('rejected')}
+                  disabled={respondingToRFQ || !rejectionReason.trim()}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {respondingToRFQ ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Reject Request
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Quotation Rejection Modal (customer rejects quotation with reason) */}
+        <Dialog open={showQuoteRejectionModal} onOpenChange={setShowQuoteRejectionModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reject Quotation</DialogTitle>
+              <DialogDescription>Please explain what changes you&apos;d like. The professional will be notified and can revise the quotation.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Textarea
+                value={quoteRejectionReason}
+                onChange={e => setQuoteRejectionReason(e.target.value)}
+                placeholder="What would you like changed? (e.g., price too high, missing scope items...)"
+                rows={3}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowQuoteRejectionModal(false)}>Cancel</Button>
+                <Button
+                  onClick={() => handleRespondToQuotation('rejected')}
+                  disabled={respondingToQuotation || !quoteRejectionReason.trim()}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Reject & Send Feedback
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

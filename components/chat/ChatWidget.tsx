@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare, X, Minus, ArrowLeft, Loader2, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MessageSquare, X, Minus, ArrowLeft, Loader2, Plus, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,7 +27,7 @@ import {
   type ChatWidgetOpenDetail,
 } from "@/lib/chatWidgetEvents";
 import type { ChatAttachment, ChatConversation, ChatMessage } from "@/types/chat";
-import { cn } from "@/lib/utils";
+import { cn, getAuthToken } from "@/lib/utils";
 import { toast } from "sonner";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
@@ -45,6 +46,7 @@ const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: str
 
 export default function ChatWidget() {
   const pathname = usePathname();
+  const chatRouter = useRouter();
   const { user, isAuthenticated, loading } = useAuth();
 
   const [open, setOpen] = useState(false);
@@ -57,6 +59,37 @@ export default function ChatWidget() {
   const [manualNewChatPanel, setManualNewChatPanel] = useState(false);
   const [loadingProfessionals, setLoadingProfessionals] = useState(false);
   const [professionalsError, setProfessionalsError] = useState<string | null>(null);
+  const [creatingSendQuotation, setCreatingSendQuotation] = useState(false);
+
+  const handleSendQuotation = async () => {
+    if (!selectedConversation || userRole !== "professional") return;
+    const customerId = selectedConversation.customerId?._id;
+    if (!customerId) { toast.error("Customer not found"); return; }
+
+    setCreatingSendQuotation(true);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/direct`,
+        { method: "POST", headers, credentials: "include", body: JSON.stringify({ customerId }) }
+      );
+      const data = await response.json();
+      if (response.ok && data?.success) {
+        setOpen(false);
+        chatRouter.push(`/bookings/${data.data.bookingId}?action=quote`);
+      } else {
+        toast.error(data?.error?.message || "Failed to create quotation");
+      }
+    } catch (err) {
+      console.error("Error creating direct quotation:", err);
+      toast.error("Failed to create quotation");
+    } finally {
+      setCreatingSendQuotation(false);
+    }
+  };
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -381,18 +414,33 @@ export default function ChatWidget() {
 
               <div className="flex items-center gap-1">
                 {selectedConversationId && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white hover:bg-white/20"
-                    onClick={() => {
-                      setSelectedConversationId(null);
-                      setManualNewChatPanel(false);
-                    }}
-                    aria-label="Back to conversations"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white hover:bg-white/20"
+                      onClick={() => {
+                        setSelectedConversationId(null);
+                        setManualNewChatPanel(false);
+                      }}
+                      aria-label="Back to conversations"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    {userRole === "professional" && selectedConversation && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-white hover:bg-white/20"
+                        onClick={handleSendQuotation}
+                        disabled={creatingSendQuotation}
+                        aria-label="Send quotation"
+                        title="Send Quotation"
+                      >
+                        {creatingSendQuotation ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                      </Button>
+                    )}
+                  </>
                 )}
 
                 {userRole === "customer" && (

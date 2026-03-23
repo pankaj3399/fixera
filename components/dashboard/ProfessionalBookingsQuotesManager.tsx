@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Briefcase, Calendar, Clock, FileText, Loader2, Package, RefreshCw, Search } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { ArrowLeft, Briefcase, Calendar, Clock, FileText, Loader2, Package, Plus, RefreshCw, Search } from "lucide-react"
 import {
   type BookingStatus,
   QUOTE_STATUSES,
@@ -68,6 +69,69 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const [statusFilter, setStatusFilter] = useState("all")
   const [serviceFilter, setServiceFilter] = useState("all")
   const [allServices, setAllServices] = useState<string[]>([])
+  const [showCreateQuoteModal, setShowCreateQuoteModal] = useState(false)
+  const [activeCustomers, setActiveCustomers] = useState<Array<{ _id: string; name?: string; email?: string }>>([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [loadingCustomersError, setLoadingCustomersError] = useState<string | null>(null)
+  const [creatingQuote, setCreatingQuote] = useState(false)
+
+  const fetchActiveCustomers = async () => {
+    setLoadingCustomers(true)
+    setLoadingCustomersError(null)
+    setActiveCustomers([])
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/active-customers`,
+        { credentials: "include", headers }
+      )
+      const data = await response.json()
+      if (response.ok && data?.success) {
+        setActiveCustomers(data.data?.customers || [])
+      } else {
+        setLoadingCustomersError("Failed to load customers")
+      }
+    } catch (err) {
+      console.error("Error fetching active customers:", err)
+      setLoadingCustomersError("Failed to load customers")
+    } finally {
+      setLoadingCustomers(false)
+    }
+  }
+
+  const handleCreateDirectQuote = async (customerId: string) => {
+    setCreatingQuote(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/direct`,
+        {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ customerId }),
+        }
+      )
+      const data = await response.json()
+      if (response.ok && data?.success) {
+        setShowCreateQuoteModal(false)
+        router.push(`/bookings/${data.data.bookingId}?action=quote`)
+      } else {
+        alert(data?.error?.message || "Failed to create quotation")
+      }
+    } catch (err) {
+      console.error("Error creating direct quotation:", err)
+      alert("Failed to create quotation")
+    } finally {
+      setCreatingQuote(false)
+    }
+  }
 
   // Debounce search
   useEffect(() => {
@@ -79,6 +143,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     ? [
         { id: "all", label: "All Statuses" },
         { id: "rfq", label: "RFQ" },
+        { id: "rfq_accepted", label: "RFQ Accepted" },
+        { id: "draft_quote", label: "Draft Quote" },
         { id: "quoted", label: "Quoted" },
         { id: "quote_accepted", label: "Accepted" },
         { id: "quote_rejected", label: "Rejected" },
@@ -353,10 +419,21 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
-          <Button variant="outline" onClick={() => fetchBookings(1, false)} disabled={isLoading || isLoadingMore}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            {mode === "quotes" && (
+              <Button
+                onClick={() => { setShowCreateQuoteModal(true); fetchActiveCustomers() }}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Quote
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => fetchBookings(1, false)} disabled={isLoading || isLoadingMore}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div>
@@ -494,6 +571,47 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           </div>
         )}
       </div>
+
+      {/* Create Direct Quote Modal */}
+      <Dialog open={showCreateQuoteModal} onOpenChange={setShowCreateQuoteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Direct Quotation</DialogTitle>
+            <DialogDescription>Select a customer from your active conversations to send a quotation.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {loadingCustomers ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-4 justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading customers...
+              </div>
+            ) : loadingCustomersError ? (
+              <p className="text-sm text-red-500 text-center py-4">
+                {loadingCustomersError}
+              </p>
+            ) : activeCustomers.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                No active conversations found. Start a conversation with a customer first.
+              </p>
+            ) : (
+              activeCustomers.map(customer => (
+                <button
+                  key={customer._id}
+                  onClick={() => handleCreateDirectQuote(customer._id)}
+                  disabled={creatingQuote}
+                  className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors flex items-center justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-sm">{customer.name || "Customer"}</p>
+                    {customer.email && <p className="text-xs text-gray-500">{customer.email}</p>}
+                  </div>
+                  <FileText className="h-4 w-4 text-gray-400" />
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
