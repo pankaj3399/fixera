@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Star, ImagePlus, X } from "lucide-react"
 import {
   Dialog,
@@ -68,16 +68,31 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
 
   const isCustomer = role === "customer"
 
+  // Cleanup object URLs and reset state when modal closes or unmounts
+  const resetState = useCallback(() => {
+    imagePreviews.forEach((url) => URL.revokeObjectURL(url))
+    setImages([])
+    setImagePreviews([])
+    setRatings({})
+    setComment("")
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }, [imagePreviews])
+
+  useEffect(() => {
+    if (!open) {
+      resetState()
+    }
+    return () => {
+      // Cleanup on unmount
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [open])
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    const remaining = 2 - images.length
-    if (remaining <= 0) {
-      toast.error("Maximum 2 images allowed")
-      return
-    }
-    const selected = files.slice(0, remaining)
+    // Validate all files first, then enforce the 2-image cap
     const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
-    const valid = selected.filter((f) => {
+    const validatedFiles = files.filter((f) => {
       if (!validTypes.includes(f.type)) {
         toast.error(`${f.name}: only JPEG, PNG, WebP allowed`)
         return false
@@ -88,6 +103,12 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
       }
       return true
     })
+    const remaining = 2 - images.length
+    if (remaining <= 0) {
+      toast.error("Maximum 2 images allowed")
+      return
+    }
+    const valid = validatedFiles.slice(0, remaining)
     setImages((prev) => [...prev, ...valid])
     setImagePreviews((prev) => [...prev, ...valid.map((f) => URL.createObjectURL(f))])
     if (fileInputRef.current) fileInputRef.current.value = ""

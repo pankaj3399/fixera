@@ -262,6 +262,7 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    const controller = new AbortController();
     const fetchReviews = async () => {
       setReviewsLoading(true);
       try {
@@ -269,7 +270,8 @@ export default function ProjectDetailPage() {
         if (reviewSearch.trim()) params.set('search', reviewSearch.trim());
         if (reviewRatingFilter) params.set('rating', String(reviewRatingFilter));
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${projectId}/reviews?${params}`
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${projectId}/reviews?${params}`,
+          { signal: controller.signal }
         );
         const data = await res.json();
         if (data.success) {
@@ -278,13 +280,15 @@ export default function ProjectDetailPage() {
           setOrdersInQueue(data.data.ordersInQueue || 0);
           setReviewTotalPages(data.data.pagination.totalPages);
         }
-      } catch {
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         // non-critical
       } finally {
         setReviewsLoading(false);
       }
     };
     fetchReviews();
+    return () => { controller.abort(); };
   }, [projectId, reviewPage, reviewSearch, reviewRatingFilter]);
 
   useEffect(() => {
@@ -882,7 +886,7 @@ export default function ProjectDetailPage() {
                       </Button>
                     ))}
                     {reviewRatingFilter && (
-                      <Button variant='ghost' size='sm' className='h-9 px-2' onClick={() => { setReviewRatingFilter(null); setReviewPage(1); }}>
+                      <Button variant='ghost' size='sm' className='h-9 px-2' aria-label='Clear rating filter' title='Clear rating filter' onClick={() => { setReviewRatingFilter(null); setReviewPage(1); }}>
                         <X className='h-3 w-3' />
                       </Button>
                     )}
@@ -951,6 +955,7 @@ export default function ProjectDetailPage() {
                           size='sm'
                           disabled={reviewPage <= 1}
                           onClick={() => setReviewPage(reviewPage - 1)}
+                          aria-label='Previous page'
                         >
                           <ChevronLeft className='h-4 w-4' />
                         </Button>
@@ -962,6 +967,7 @@ export default function ProjectDetailPage() {
                           size='sm'
                           disabled={reviewPage >= reviewTotalPages}
                           onClick={() => setReviewPage(reviewPage + 1)}
+                          aria-label='Next page'
                         >
                           <ChevronRight className='h-4 w-4' />
                         </Button>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import {
@@ -173,18 +173,21 @@ export default function ProfessionalProfilePage() {
   const [reviewRatingFilter, setReviewRatingFilter] = useState<number | null>(null)
   const [reviewProjectFilter, setReviewProjectFilter] = useState("")
   const [hidingReview, setHidingReview] = useState<string | null>(null)
+  const [projectOptions, setProjectOptions] = useState<Array<{ _id: string; title: string }>>([])
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const isOwner = user?._id === professionalId && user?.role === "professional"
   const isAdmin = user?.role === "admin"
 
-  const fetchReviews = useCallback(async (pageNum: number) => {
+  const fetchReviews = useCallback(async (pageNum: number, signal?: AbortSignal) => {
     try {
       const params = new URLSearchParams({ page: String(pageNum), limit: "10" })
       if (reviewSearch.trim()) params.set("search", reviewSearch.trim())
       if (reviewRatingFilter) params.set("rating", String(reviewRatingFilter))
       if (reviewProjectFilter) params.set("projectId", reviewProjectFilter)
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/reviews?${params}`
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/reviews?${params}`,
+        { signal }
       )
       const data = await res.json()
       if (!res.ok || !data.success) {
@@ -199,7 +202,9 @@ export default function ProfessionalProfilePage() {
       setReviews(data.data.reviews)
       setRatingsSummary(data.data.ratingsSummary)
       setTotalPages(data.data.pagination.totalPages)
-    } catch {
+      if (data.data.projects) setProjectOptions(data.data.projects)
+    } catch (err: any) {
+      if (err?.name === "AbortError") return
       toast.error("Failed to load professional profile")
     } finally {
       setLoading(false)
@@ -207,9 +212,12 @@ export default function ProfessionalProfilePage() {
   }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter])
 
   useEffect(() => {
-    if (professionalId) {
-      fetchReviews(page)
-    }
+    if (!professionalId) return
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+    fetchReviews(page, controller.signal)
+    return () => { controller.abort() }
   }, [professionalId, page, fetchReviews, reviewSearch, reviewRatingFilter, reviewProjectFilter])
 
   const handleReply = async (bookingId: string) => {
@@ -277,13 +285,7 @@ export default function ProfessionalProfilePage() {
     }
   }
 
-  // Collect unique project titles from reviews for the filter dropdown
-  const projectOptions = reviews.reduce<Array<{ _id: string; title: string }>>((acc, r) => {
-    if (r.project && !acc.find(p => p._id === r.project!._id)) {
-      acc.push(r.project)
-    }
-    return acc
-  }, [])
+  // projectOptions is populated from the API (stable, unpaginated list)
 
   if (loading) {
     return (
@@ -568,7 +570,7 @@ export default function ProfessionalProfilePage() {
                         className="pl-9 h-9 text-sm"
                       />
                     </div>
-                    {projectOptions.length > 1 && (
+                    {(projectOptions.length > 1 || reviewProjectFilter) && (
                       <select
                         value={reviewProjectFilter}
                         onChange={(e) => { setReviewProjectFilter(e.target.value); setPage(1) }}
