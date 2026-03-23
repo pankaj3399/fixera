@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { getAuthToken } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -179,6 +179,13 @@ interface DiscountPreview {
     previousBookings: number
     capped: boolean
   }
+  pointsDiscount?: {
+    pointsUsed: number
+    discountAmount: number
+    conversionRate: number
+  }
+  availablePoints?: number
+  pointsExpiry?: string
   totalDiscount: number
   finalAmount: number
   currency: string
@@ -237,6 +244,7 @@ export default function BookingDetailPage() {
   const [reviewAutoShown, setReviewAutoShown] = useState(false)
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null)
   const [loadingDiscountPreview, setLoadingDiscountPreview] = useState(false)
+  const [pointsToRedeem, setPointsToRedeem] = useState(0)
   // New quotation flow state
   const [showQuotationWizard, setShowQuotationWizard] = useState(false)
   const [respondingToRFQ, setRespondingToRFQ] = useState(false)
@@ -335,17 +343,31 @@ export default function BookingDetailPage() {
           headers['Authorization'] = `Bearer ${token}`
         }
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/discount-preview`,
-          {
+        const url = new URL(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/discount-preview`)
+        if (pointsToRedeem > 0) {
+          url.searchParams.set('pointsToRedeem', String(pointsToRedeem))
+        }
+
+        const response = await fetch(url.toString(), {
             credentials: "include",
             headers,
           }
         )
 
-        const { data } = await parseResponseBody<{ success?: boolean; data?: DiscountPreview }>(response)
-        if (!isCancelled && response.ok && data?.success && data.data) {
-          setDiscountPreview(data.data)
+        const { data } = await parseResponseBody<{ success?: boolean; data?: { discount: Omit<DiscountPreview, 'availablePoints' | 'pointsExpiry' | 'currency'>; availablePoints?: number; pointsExpiry?: string } }>(response)
+        if (!isCancelled && response.ok && data?.success && data.data?.discount) {
+          const d = data.data.discount
+          setDiscountPreview({
+            originalAmount: d.originalAmount,
+            loyaltyDiscount: d.loyaltyDiscount,
+            repeatBuyerDiscount: d.repeatBuyerDiscount,
+            pointsDiscount: d.pointsDiscount,
+            totalDiscount: d.totalDiscount,
+            finalAmount: d.finalAmount,
+            availablePoints: data.data.availablePoints,
+            pointsExpiry: data.data.pointsExpiry,
+            currency: booking?.quote?.currency || 'EUR',
+          })
         }
       } catch {
         // Keep booking flow usable if preview fails
@@ -361,7 +383,7 @@ export default function BookingDetailPage() {
     return () => {
       isCancelled = true
     }
-  }, [bookingId, booking?.quote?.amount, booking?.status, user?.role])
+  }, [bookingId, booking?.quote?.amount, booking?.status, user?.role, pointsToRedeem])
 
   // Auto-open quote form when navigated with ?action=quote
   useEffect(() => {
@@ -377,37 +399,6 @@ export default function BookingDetailPage() {
       setShowQuotationWizard(true)
     }
   }, [booking, searchParams, user?.role])
-
-  // Fetch discount preview when customer views a quoted booking
-  useEffect(() => {
-    if (!bookingId || !booking || booking.status !== "quoted" || !booking.quote || user?.role !== "customer") return
-
-    const fetchDiscount = async () => {
-      setLoadingDiscountPreview(true)
-      try {
-        const token = getAuthToken()
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/discount-preview`,
-          { credentials: "include", headers }
-        )
-        if (response.ok) {
-          const json = await response.json()
-          if (json?.success && json?.data?.discount) {
-            setDiscountPreview(json.data.discount)
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch discount preview:", err)
-      } finally {
-        setLoadingDiscountPreview(false)
-      }
-    }
-
-    fetchDiscount()
-  }, [bookingId, booking?.status, booking?.quote, user?.role])
 
   // Check if post-booking questions need to be answered
   const postBookingQuestions = booking?.project?.postBookingQuestions || []
@@ -576,6 +567,7 @@ export default function BookingDetailPage() {
           body: JSON.stringify({
             action,
             rejectionReason: action === 'rejected' ? quoteRejectionReason : undefined,
+            pointsToRedeem: action === 'accepted' ? pointsToRedeem : undefined,
           }),
         }
       )
@@ -707,7 +699,7 @@ export default function BookingDetailPage() {
           method: "POST",
           headers,
           credentials: "include",
-          body: JSON.stringify({ action })
+          body: JSON.stringify({ action, pointsToRedeem: action === "accept" ? pointsToRedeem : undefined })
         }
       )
 
@@ -1555,6 +1547,17 @@ export default function BookingDetailPage() {
                               </span>
                             </div>
                           )}
+                          {discountPreview.pointsDiscount && discountPreview.pointsDiscount.discountAmount > 0 && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-green-700 flex items-center gap-1">
+                                <Gift className="h-3.5 w-3.5" />
+                                Points Redeemed ({discountPreview.pointsDiscount.pointsUsed} pts)
+                              </span>
+                              <span className="text-green-600 font-medium">
+                                -{booking.quote.currency || "€"}{discountPreview.pointsDiscount.discountAmount.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex justify-between items-center pt-2 border-t border-green-200">
                             <span className="text-sm font-semibold text-green-900">You Pay:</span>
                             <span className="text-2xl font-bold text-green-600">
@@ -1625,6 +1628,17 @@ export default function BookingDetailPage() {
                             </div>
                           )}
 
+                          {discountPreview.pointsDiscount && discountPreview.pointsDiscount.discountAmount > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-700">
+                                Points redeemed ({discountPreview.pointsDiscount.pointsUsed} pts)
+                              </span>
+                              <span className="font-medium text-green-700">
+                                -{formatMoney(discountPreview.pointsDiscount.discountAmount, discountPreview.currency)}
+                              </span>
+                            </div>
+                          )}
+
                           <div className="flex justify-between border-t border-amber-200 pt-2">
                             <span className="font-semibold text-gray-900">You save</span>
                             <span className="font-semibold text-green-700">
@@ -1640,6 +1654,50 @@ export default function BookingDetailPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Points Redemption */}
+                    {discountPreview && (discountPreview.availablePoints ?? 0) > 0 && (() => {
+                      const conversionRate = discountPreview.pointsDiscount?.conversionRate ?? 1
+                      const payableAmount = discountPreview.finalAmount ?? booking.quote?.amount ?? 0
+                      const maxPointsByBalance = discountPreview.availablePoints ?? 0
+                      const maxPointsByPayable = conversionRate > 0 ? Math.ceil(payableAmount / conversionRate) : maxPointsByBalance
+                      const maxRedeem = Math.min(maxPointsByBalance, maxPointsByPayable)
+                      const pointsEuroValue = ((discountPreview.availablePoints ?? 0) * conversionRate).toFixed(2)
+                      return (
+                      <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                        <p className="text-sm font-medium text-purple-900 mb-2 flex items-center gap-1">
+                          <Gift className="h-4 w-4" />
+                          Use Your Points
+                        </p>
+                        <p className="text-xs text-purple-700 mb-2">
+                          You have {discountPreview.availablePoints} points available (&euro;{pointsEuroValue})
+                          {discountPreview.pointsExpiry && (
+                            <span> &middot; Expires {new Date(discountPreview.pointsExpiry).toLocaleDateString()}</span>
+                          )}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={maxRedeem}
+                            value={pointsToRedeem || ''}
+                            onChange={(e) => setPointsToRedeem(Math.min(Number(e.target.value) || 0, maxRedeem))}
+                            placeholder="0"
+                            className="w-24 bg-white text-sm"
+                          />
+                          <span className="text-xs text-purple-700">points to redeem</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="ml-auto text-xs border-purple-300"
+                            onClick={() => setPointsToRedeem(maxRedeem)}
+                          >
+                            Use All
+                          </Button>
+                        </div>
+                      </div>
+                      )
+                    })()}
 
                     <div className="flex gap-3">
                       <Button

@@ -21,12 +21,12 @@ import { getAuthToken } from '@/lib/utils';
 
 interface ReferralData {
   referralCode: string;
-  referralCredits: number;
-  referralCreditsExpiry: string | null;
+  points: number;
+  pointsExpiry: string | null;
   totalReferrals: number;
   pendingReferrals: number;
   completedReferrals: number;
-  totalCreditsEarned: number;
+  totalPointsEarned: number;
   programEnabled: boolean;
   referrerRewardAmount: number;
   referredCustomerDiscountType: string;
@@ -169,7 +169,7 @@ export default function ReferralCard() {
             </div>
           )}
           <p className="text-sm text-gray-600 mb-4">
-            Refer friends to Fixera and earn credits when they complete their first booking!
+            Refer friends to Fixera and earn points when they complete their first booking!
           </p>
           <Button onClick={generateCode} disabled={generating} className="bg-purple-600 hover:bg-purple-700">
             {generating ? (
@@ -254,15 +254,15 @@ export default function ReferralCard() {
           </div>
         </div>
 
-        {/* Credits */}
-        {data.referralCredits > 0 && (
+        {/* Points */}
+        {data.points > 0 && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm font-medium text-green-800">
-              Available Credits: <span className="text-lg font-bold">&euro;{data.referralCredits}</span>
+              Available Points: <span className="text-lg font-bold">{data.points} pts (&euro;{data.points})</span>
             </p>
-            {data.referralCreditsExpiry && (
+            {data.pointsExpiry && (
               <p className="text-xs text-green-600 mt-1">
-                Expires: {new Date(data.referralCreditsExpiry).toLocaleDateString()}
+                Expires: {new Date(data.pointsExpiry).toLocaleDateString()}
               </p>
             )}
           </div>
@@ -274,7 +274,7 @@ export default function ReferralCard() {
           <ul className="space-y-1">
             <li>1. Share your referral code or link</li>
             <li>2. Friend signs up and completes their first booking</li>
-            <li>3. You earn &euro;{data.referrerRewardAmount} in credits!</li>
+            <li>3. You earn {data.referrerRewardAmount} points (&euro;{data.referrerRewardAmount})!</li>
           </ul>
         </div>
 
