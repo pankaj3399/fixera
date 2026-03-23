@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -26,10 +26,14 @@ import {
   Award,
   Euro,
   Star,
+  Search,
+  ShoppingCart,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { formatCurrency } from '@/lib/formatters';
 import Image from 'next/image';
 import ProjectBookingForm from '@/components/project/ProjectBookingForm';
@@ -220,6 +224,7 @@ export default function ProjectDetailPage() {
       valueOfDelivery: number;
       qualityOfService: number;
       comment?: string;
+      images?: string[];
       reviewedAt: string;
       reply?: { comment: string; repliedAt: string };
     };
@@ -233,6 +238,11 @@ export default function ProjectDetailPage() {
     totalReviews: number;
   } | null>(null);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [ordersInQueue, setOrdersInQueue] = useState(0);
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewRatingFilter, setReviewRatingFilter] = useState<number | null>(null);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewTotalPages, setReviewTotalPages] = useState(1);
 
   const projectId = params.id as string;
 
@@ -251,17 +261,22 @@ export default function ProjectDetailPage() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!project?.professionalId?._id) return;
+    if (!projectId) return;
     const fetchReviews = async () => {
       setReviewsLoading(true);
       try {
+        const params = new URLSearchParams({ page: String(reviewPage), limit: '10' });
+        if (reviewSearch.trim()) params.set('search', reviewSearch.trim());
+        if (reviewRatingFilter) params.set('rating', String(reviewRatingFilter));
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${project.professionalId._id}/reviews?page=1&limit=5`
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${projectId}/reviews?${params}`
         );
         const data = await res.json();
         if (data.success) {
           setReviews(data.data.reviews);
           setRatingsSummary(data.data.ratingsSummary);
+          setOrdersInQueue(data.data.ordersInQueue || 0);
+          setReviewTotalPages(data.data.pagination.totalPages);
         }
       } catch {
         // non-critical
@@ -270,7 +285,7 @@ export default function ProjectDetailPage() {
       }
     };
     fetchReviews();
-  }, [project?.professionalId?._id]);
+  }, [projectId, reviewPage, reviewSearch, reviewRatingFilter]);
 
   useEffect(() => {
     if (!projectId || !project) return;
@@ -815,7 +830,15 @@ export default function ProjectDetailPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Reviews From Customers</CardTitle>
+                <div className='flex items-center justify-between'>
+                  <CardTitle>Reviews From Customers</CardTitle>
+                  {ordersInQueue > 0 && (
+                    <div className='flex items-center gap-1.5 text-sm text-orange-600'>
+                      <ShoppingCart className='h-4 w-4' />
+                      <span>{ordersInQueue} order{ordersInQueue !== 1 ? 's' : ''} in queue</span>
+                    </div>
+                  )}
+                </div>
                 {ratingsSummary && ratingsSummary.totalReviews > 0 && (
                   <div className='flex items-center gap-2 mt-1'>
                     <div className='flex gap-0.5'>
@@ -834,6 +857,37 @@ export default function ProjectDetailPage() {
                     <span className='text-xs text-gray-500'>({ratingsSummary.totalReviews} review{ratingsSummary.totalReviews !== 1 ? 's' : ''})</span>
                   </div>
                 )}
+
+                {/* Search and filter controls */}
+                <div className='flex flex-col sm:flex-row gap-2 mt-3'>
+                  <div className='relative flex-1'>
+                    <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
+                    <Input
+                      placeholder='Search reviews...'
+                      value={reviewSearch}
+                      onChange={(e) => { setReviewSearch(e.target.value); setReviewPage(1); }}
+                      className='pl-9 h-9 text-sm'
+                    />
+                  </div>
+                  <div className='flex gap-1'>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Button
+                        key={star}
+                        variant={reviewRatingFilter === star ? 'default' : 'outline'}
+                        size='sm'
+                        className='h-9 px-2 text-xs'
+                        onClick={() => { setReviewRatingFilter(reviewRatingFilter === star ? null : star); setReviewPage(1); }}
+                      >
+                        {star} <Star className='h-3 w-3 ml-0.5 fill-current' />
+                      </Button>
+                    ))}
+                    {reviewRatingFilter && (
+                      <Button variant='ghost' size='sm' className='h-9 px-2' onClick={() => { setReviewRatingFilter(null); setReviewPage(1); }}>
+                        <X className='h-3 w-3' />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {reviewsLoading ? (
@@ -870,6 +924,15 @@ export default function ProjectDetailPage() {
                             <span className='text-xs text-gray-400'>{new Date(cr.reviewedAt).toLocaleDateString()}</span>
                           </div>
                           {cr.comment && <p className='text-sm text-gray-600'>{cr.comment}</p>}
+                          {cr.images && cr.images.length > 0 && (
+                            <div className='flex gap-2 mt-2'>
+                              {cr.images.map((img, idx) => (
+                                <a key={idx} href={img} target='_blank' rel='noopener noreferrer'>
+                                  <img src={img} alt={`Review image ${idx + 1}`} className='h-20 w-20 object-cover rounded-md border border-gray-200 hover:opacity-80 transition-opacity' />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                           {cr.reply && (
                             <div className='mt-2 ml-4 border-l-2 border-blue-200 pl-3'>
                               <p className='text-xs font-medium text-blue-700'>Professional&apos;s Reply</p>
@@ -879,6 +942,32 @@ export default function ProjectDetailPage() {
                         </div>
                       );
                     })}
+
+                    {/* Pagination */}
+                    {reviewTotalPages > 1 && (
+                      <div className='flex items-center justify-center gap-2 pt-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          disabled={reviewPage <= 1}
+                          onClick={() => setReviewPage(reviewPage - 1)}
+                        >
+                          <ChevronLeft className='h-4 w-4' />
+                        </Button>
+                        <span className='text-sm text-gray-600'>
+                          Page {reviewPage} of {reviewTotalPages}
+                        </span>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          disabled={reviewPage >= reviewTotalPages}
+                          onClick={() => setReviewPage(reviewPage + 1)}
+                        >
+                          <ChevronRight className='h-4 w-4' />
+                        </Button>
+                      </div>
+                    )}
+
                     {project?.professionalId?._id && (
                       <Link href={`/professional/${project.professionalId._id}`} className='text-sm text-blue-600 hover:underline'>
                         View all reviews

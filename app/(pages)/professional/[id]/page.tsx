@@ -18,6 +18,10 @@ import {
   Quote,
   TrendingUp,
   Shield,
+  Search,
+  X,
+  EyeOff,
+  Eye,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +31,8 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { getAuthToken } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Input } from "@/components/ui/input"
+import Link from "next/link"
 import StartChatButton from "@/components/chat/StartChatButton"
 
 interface ProfessionalData {
@@ -57,6 +63,7 @@ interface ReviewData {
     valueOfDelivery: number
     qualityOfService: number
     comment?: string
+    images?: string[]
     reviewedAt: string
     reply?: {
       comment: string
@@ -67,6 +74,10 @@ interface ReviewData {
     _id: string
     name?: string
     profileImage?: string
+  }
+  project?: {
+    _id: string
+    title: string
   }
 }
 
@@ -157,12 +168,23 @@ export default function ProfessionalProfilePage() {
   const [replyText, setReplyText] = useState("")
   const [submittingReply, setSubmittingReply] = useState(false)
 
+  // Filter state
+  const [reviewSearch, setReviewSearch] = useState("")
+  const [reviewRatingFilter, setReviewRatingFilter] = useState<number | null>(null)
+  const [reviewProjectFilter, setReviewProjectFilter] = useState("")
+  const [hidingReview, setHidingReview] = useState<string | null>(null)
+
   const isOwner = user?._id === professionalId && user?.role === "professional"
+  const isAdmin = user?.role === "admin"
 
   const fetchReviews = useCallback(async (pageNum: number) => {
     try {
+      const params = new URLSearchParams({ page: String(pageNum), limit: "10" })
+      if (reviewSearch.trim()) params.set("search", reviewSearch.trim())
+      if (reviewRatingFilter) params.set("rating", String(reviewRatingFilter))
+      if (reviewProjectFilter) params.set("projectId", reviewProjectFilter)
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/reviews?page=${pageNum}&limit=10`
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/reviews?${params}`
       )
       const data = await res.json()
       if (!res.ok || !data.success) {
@@ -182,13 +204,13 @@ export default function ProfessionalProfilePage() {
     } finally {
       setLoading(false)
     }
-  }, [professionalId])
+  }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter])
 
   useEffect(() => {
     if (professionalId) {
       fetchReviews(page)
     }
-  }, [professionalId, page, fetchReviews])
+  }, [professionalId, page, fetchReviews, reviewSearch, reviewRatingFilter, reviewProjectFilter])
 
   const handleReply = async (bookingId: string) => {
     if (!replyText.trim()) {
@@ -226,6 +248,42 @@ export default function ProfessionalProfilePage() {
       setSubmittingReply(false)
     }
   }
+
+  const handleHideReview = async (bookingId: string) => {
+    setHidingReview(bookingId)
+    try {
+      const token = getAuthToken()
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/reviews/${bookingId}/hide`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      )
+      const data = await res.json()
+      if (res.ok && data.success) {
+        toast.success("Review hidden")
+        fetchReviews(page)
+      } else {
+        toast.error(data.msg || "Failed to hide review")
+      }
+    } catch {
+      toast.error("Failed to hide review")
+    } finally {
+      setHidingReview(null)
+    }
+  }
+
+  // Collect unique project titles from reviews for the filter dropdown
+  const projectOptions = reviews.reduce<Array<{ _id: string; title: string }>>((acc, r) => {
+    if (r.project && !acc.find(p => p._id === r.project!._id)) {
+      acc.push(r.project)
+    }
+    return acc
+  }, [])
 
   if (loading) {
     return (
@@ -497,6 +555,56 @@ export default function ProfessionalProfilePage() {
                     )}
                   </CardTitle>
                 </div>
+
+                {/* Search and filter controls */}
+                <div className="flex flex-col gap-2 mt-3">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search reviews..."
+                        value={reviewSearch}
+                        onChange={(e) => { setReviewSearch(e.target.value); setPage(1) }}
+                        className="pl-9 h-9 text-sm"
+                      />
+                    </div>
+                    {projectOptions.length > 1 && (
+                      <select
+                        value={reviewProjectFilter}
+                        onChange={(e) => { setReviewProjectFilter(e.target.value); setPage(1) }}
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="">All Projects</option>
+                        {projectOptions.map((p) => (
+                          <option key={p._id} value={p._id}>{p.title}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Button
+                        key={star}
+                        variant={reviewRatingFilter === star ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => { setReviewRatingFilter(reviewRatingFilter === star ? null : star); setPage(1) }}
+                      >
+                        {star} <Star className="h-3 w-3 ml-0.5 fill-current" />
+                      </Button>
+                    ))}
+                    {(reviewRatingFilter || reviewSearch || reviewProjectFilter) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => { setReviewRatingFilter(null); setReviewSearch(""); setReviewProjectFilter(""); setPage(1) }}
+                      >
+                        <X className="h-3 w-3 mr-1" /> Clear
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {reviews.length === 0 ? (
@@ -549,6 +657,16 @@ export default function ProfessionalProfilePage() {
                                 <span className="text-sm font-medium text-gray-700">{avg.toFixed(1)}</span>
                               </div>
 
+                              {/* Project link */}
+                              {review.project && (
+                                <Link
+                                  href={`/projects/${review.project._id}`}
+                                  className="inline-flex items-center text-xs text-indigo-600 hover:underline mt-1"
+                                >
+                                  Project: {review.project.title}
+                                </Link>
+                              )}
+
                               {/* Category breakdown pills */}
                               <div className="flex flex-wrap gap-2 mt-2">
                                 <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
@@ -565,6 +683,17 @@ export default function ProfessionalProfilePage() {
                               {/* Comment */}
                               {cr.comment && (
                                 <p className="text-sm text-gray-700 mt-3 leading-relaxed">{cr.comment}</p>
+                              )}
+
+                              {/* Review images */}
+                              {cr.images && cr.images.length > 0 && (
+                                <div className="flex gap-2 mt-2">
+                                  {cr.images.map((img, idx) => (
+                                    <a key={idx} href={img} target="_blank" rel="noopener noreferrer">
+                                      <img src={img} alt={`Review image ${idx + 1}`} className="h-20 w-20 object-cover rounded-md border border-gray-200 hover:opacity-80 transition-opacity" />
+                                    </a>
+                                  ))}
+                                </div>
                               )}
 
                               {/* Professional&apos;s reply */}
@@ -588,6 +717,26 @@ export default function ProfessionalProfilePage() {
                                     )}
                                   </div>
                                   <p className="text-sm text-gray-700 leading-relaxed">{cr.reply.comment}</p>
+                                </div>
+                              )}
+
+                              {/* Admin hide button */}
+                              {isAdmin && (
+                                <div className="mt-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 -ml-2 text-xs"
+                                    disabled={hidingReview === review._id}
+                                    onClick={() => handleHideReview(review._id)}
+                                  >
+                                    {hidingReview === review._id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                    ) : (
+                                      <EyeOff className="h-3 w-3 mr-1" />
+                                    )}
+                                    Hide Review
+                                  </Button>
                                 </div>
                               )}
 
