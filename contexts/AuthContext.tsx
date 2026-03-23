@@ -105,7 +105,7 @@ interface User {
   loyaltyLevel?: string
   totalSpent?: number
   totalBookings?: number
-  professionalLevel?: 'New' | 'Rising' | 'Level 1' | 'Level 2' | 'Expert'
+  professionalLevel?: 'New' | 'Level 1' | 'Level 2' | 'Level 3' | 'Expert'
   // Referral fields
   referralCode?: string
   referredBy?: string
