@@ -1,5 +1,5 @@
 import { getAuthToken } from "@/lib/utils";
-import type { ChatAttachment, ChatConversation, ConversationListResponse, MessageListResponse, ChatMessage, ConversationInfoStats } from "@/types/chat";
+import type { ChatAttachment, ChatConversation, ConversationListResponse, MessageListResponse, ChatMessage, ConversationInfoStats, ChatFilter } from "@/types/chat";
 
 const getAuthHeaders = (headers?: Record<string, string>) => {
   const token = getAuthToken();
@@ -72,10 +72,11 @@ export const createOrGetConversation = async (payload: {
   return data.conversation;
 };
 
-export const fetchConversations = async (params?: { page?: number; limit?: number }) => {
+export const fetchConversations = async (params?: { page?: number; limit?: number; filter?: ChatFilter }) => {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.filter && params.filter !== "all") query.set("filter", params.filter);
 
   const response = await fetch(`${API_BASE}/conversations${query.toString() ? `?${query.toString()}` : ""}`, {
     method: "GET",
@@ -118,7 +119,7 @@ export const fetchConversationMessages = async (
 
 export const sendConversationMessage = async (
   conversationId: string,
-  payload: { text?: string; images?: string[]; attachments?: ChatAttachment[] }
+  payload: { text?: string; images?: string[]; attachments?: ChatAttachment[]; replyTo?: string }
 ) => {
   const response = await fetch(`${API_BASE}/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
@@ -212,5 +213,95 @@ export const fetchConversationInfo = async (conversationId: string) => {
     throw new Error((data && data.msg) || `Failed to load conversation info (${response.status})`);
   }
 
+  return data.data;
+};
+
+export const toggleConversationStar = async (conversationId: string) => {
+  const response = await fetch(`${API_BASE}/conversations/${encodeURIComponent(conversationId)}/star`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
+  });
+
+  const data = await parseJson<{ success?: boolean; starred?: boolean; msg?: string }>(response);
+  if (!response.ok || !data?.success) {
+    throw new Error((data && data.msg) || `Failed to toggle star (${response.status})`);
+  }
+  return data.starred ?? false;
+};
+
+export const toggleConversationArchive = async (conversationId: string) => {
+  const response = await fetch(`${API_BASE}/conversations/${encodeURIComponent(conversationId)}/archive`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
+  });
+
+  const data = await parseJson<{ success?: boolean; archived?: boolean; msg?: string }>(response);
+  if (!response.ok || !data?.success) {
+    throw new Error((data && data.msg) || `Failed to toggle archive (${response.status})`);
+  }
+  return data.archived ?? false;
+};
+
+export const addConversationLabel = async (conversationId: string, label: string, color?: string) => {
+  const response = await fetch(`${API_BASE}/conversations/${encodeURIComponent(conversationId)}/label`, {
+    method: "POST",
+    credentials: "include",
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ label, color }),
+  });
+
+  const data = await parseJson<{ success?: boolean; msg?: string }>(response);
+  if (!response.ok || !data?.success) {
+    throw new Error((data && data.msg) || `Failed to add label (${response.status})`);
+  }
+};
+
+export const removeConversationLabel = async (conversationId: string, label: string) => {
+  const response = await fetch(
+    `${API_BASE}/conversations/${encodeURIComponent(conversationId)}/label/${encodeURIComponent(label)}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+      headers: getAuthHeaders(),
+    }
+  );
+
+  const data = await parseJson<{ success?: boolean; msg?: string }>(response);
+  if (!response.ok || !data?.success) {
+    throw new Error((data && data.msg) || `Failed to remove label (${response.status})`);
+  }
+};
+
+export const reportChatMessage = async (messageId: string, reason: string, description?: string) => {
+  const response = await fetch(`${API_BASE}/messages/${encodeURIComponent(messageId)}/report`, {
+    method: "POST",
+    credentials: "include",
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason, description }),
+  });
+
+  const data = await parseJson<{ success?: boolean; msg?: string }>(response);
+  if (!response.ok || !data?.success) {
+    throw new Error((data && data.msg) || `Failed to report message (${response.status})`);
+  }
+};
+
+export const searchChatMessages = async (conversationId: string, query: string) => {
+  const params = new URLSearchParams({ q: query });
+  const response = await fetch(
+    `${API_BASE}/conversations/${encodeURIComponent(conversationId)}/messages/search?${params.toString()}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: getAuthHeaders(),
+    }
+  );
+
+  const data = await parseJson<{ success?: boolean; data?: { results: ChatMessage[]; total: number }; msg?: string }>(response);
+  if (!response.ok || !data?.success || !data.data) {
+    throw new Error((data && data.msg) || `Search failed (${response.status})`);
+  }
   return data.data;
 };
