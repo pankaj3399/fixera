@@ -3,10 +3,12 @@
 import { useState } from "react";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 import { cn, getAuthToken } from "@/lib/utils";
-import { FileText, Download, Star, MessageSquare, Loader2 } from "lucide-react";
+import { FileText, Download, Star, MessageSquare, Loader2, Reply, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { reportChatMessage } from "@/lib/chatApi";
 
 interface ChatThreadProps {
   messages: ChatMessage[];
@@ -14,6 +16,7 @@ interface ChatThreadProps {
   currentUserRole?: string;
   loading: boolean;
   onReviewReplySubmitted?: () => void;
+  onReplyTo?: (message: ChatMessage) => void;
 }
 
 const getSenderId = (message: ChatMessage) => {
@@ -34,6 +37,100 @@ const getSenderName = (message: ChatMessage) => {
   }
   return "User";
 };
+
+const getSenderImage = (message: ChatMessage) => {
+  const sender = message.senderId as unknown;
+  if (sender && typeof sender === "object") {
+    return (sender as { profileImage?: string }).profileImage || null;
+  }
+  return null;
+};
+
+const REPORT_REASONS = [
+  { value: "spam", label: "Spam" },
+  { value: "harassment", label: "Harassment" },
+  { value: "inappropriate", label: "Inappropriate content" },
+  { value: "scam", label: "Scam" },
+  { value: "other", label: "Other" },
+];
+
+function ReportDialog({
+  messageId,
+  open,
+  onOpenChange,
+}: {
+  messageId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!reason) {
+      toast.error("Please select a reason");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await reportChatMessage(messageId, reason, description.trim() || undefined);
+      toast.success("Report submitted");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit report");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle className="text-sm">Report Message</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          {REPORT_REASONS.map((r) => (
+            <label
+              key={r.value}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors",
+                reason === r.value ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"
+              )}
+            >
+              <input
+                type="radio"
+                name="reason"
+                value={r.value}
+                checked={reason === r.value}
+                onChange={() => setReason(r.value)}
+                className="sr-only"
+              />
+              {r.label}
+            </label>
+          ))}
+        </div>
+        <Textarea
+          placeholder="Additional details (optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="text-xs min-h-[50px]"
+          maxLength={500}
+        />
+        <div className="flex gap-2">
+          <Button size="sm" className="flex-1 text-xs" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+            Submit Report
+          </Button>
+          <Button size="sm" variant="ghost" className="text-xs" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Cancel
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ReviewNotificationCard({
   message,
@@ -162,7 +259,54 @@ function ReviewNotificationCard({
   );
 }
 
-export default function ChatThread({ messages, currentUserId, currentUserRole, loading, onReviewReplySubmitted }: ChatThreadProps) {
+function ReplyToPreview({ replyTo, isMine }: { replyTo: ChatMessage["replyTo"]; isMine: boolean }) {
+  if (!replyTo) return null;
+  const sender = replyTo.senderId as unknown;
+  const name =
+    sender && typeof sender === "object"
+      ? (sender as { businessInfo?: { companyName?: string }; name?: string }).businessInfo?.companyName ||
+        (sender as { name?: string }).name ||
+        "User"
+      : "User";
+  const previewText = replyTo.text?.slice(0, 100) || (replyTo.images?.length ? "[Image]" : "");
+
+  const scrollToOriginal = () => {
+    const el = document.getElementById(`msg-${replyTo._id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-indigo-400", "ring-offset-1");
+      setTimeout(() => el.classList.remove("ring-2", "ring-indigo-400", "ring-offset-1"), 2000);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={scrollToOriginal}
+      className={cn(
+        "w-full text-left flex items-start gap-2 px-3 py-2 mb-1 rounded-lg cursor-pointer transition-colors",
+        "border-l-[3px] border-indigo-500",
+        isMine
+          ? "bg-indigo-500/20 hover:bg-indigo-500/30"
+          : "bg-indigo-50 hover:bg-indigo-100"
+      )}
+    >
+      <Reply className="h-3.5 w-3.5 text-indigo-500 mt-0.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className={cn("text-[11px] font-semibold", isMine ? "text-indigo-200" : "text-indigo-600")}>
+          {name}
+        </p>
+        <p className={cn("text-[11px] truncate", isMine ? "text-indigo-100/70" : "text-gray-500")}>
+          {previewText}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+export default function ChatThread({ messages, currentUserId, currentUserRole, loading, onReviewReplySubmitted, onReplyTo }: ChatThreadProps) {
+  const [reportingId, setReportingId] = useState<string | null>(null);
+
   if (loading) {
     return (
       <div className="p-4 space-y-3">
@@ -181,7 +325,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, l
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-3 bg-slate-50/50">
-      {messages.map((message) => {
+      {messages.map((message, index) => {
         if (message.messageType === "review_notification") {
           return (
             <ReviewNotificationCard
@@ -195,105 +339,170 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, l
 
         const isMine = getSenderId(message) === currentUserId;
         const senderName = getSenderName(message);
+        const senderImage = getSenderImage(message);
+        // Group consecutive messages from same sender — only show avatar on first
+        const prevMessage = index > 0 ? messages[index - 1] : null;
+        const showAvatar = !isMine && (!prevMessage || getSenderId(prevMessage) !== getSenderId(message) || prevMessage.messageType === "review_notification");
 
         return (
           <div
             key={message._id}
-            className={cn("flex", isMine ? "justify-end" : "justify-start")}
+            id={`msg-${message._id}`}
+            className={cn("flex gap-2 group/msg", isMine ? "justify-end" : "justify-start")}
           >
-            <div
-              className={cn(
-                "max-w-[80%] rounded-lg px-3 py-2 shadow-sm",
-                isMine ? "bg-indigo-600 text-white" : "bg-white text-gray-900 border border-slate-200"
-              )}
-            >
-              {!isMine && <p className="mb-1 text-[11px] font-semibold text-indigo-700">{senderName}</p>}
-              {message.text && <p className="text-sm whitespace-pre-wrap">{message.text}</p>}
+            {/* Avatar */}
+            {!isMine && (
+              <div className="w-8 shrink-0">
+                {showAvatar && (
+                  <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
+                    {senderImage ? (
+                      <img src={senderImage} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] font-semibold text-indigo-600">
+                        {senderName.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-              {Array.isArray(message.images) && message.images.length > 0 && (
-                <div className={cn("mt-2 grid gap-2", message.images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
-                  {message.images.map((imageUrl, index) => (
-                    <a
-                      key={`${message._id}-image-${index}`}
-                      href={imageUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="block"
-                    >
-                      <img
-                        src={imageUrl}
-                        alt="Chat attachment"
-                        className="max-h-56 w-full rounded-md object-cover"
-                      />
-                    </a>
-                  ))}
-                </div>
-              )}
+            <div className="relative min-w-[180px] max-w-[80%]">
+              {/* Reply-to preview */}
+              {message.replyTo && <ReplyToPreview replyTo={message.replyTo} isMine={isMine} />}
 
-              {Array.isArray(message.attachments) && message.attachments.length > 0 && (
-                <div className="mt-2 space-y-2">
-                  {message.attachments.map((att: ChatAttachment, index: number) => {
-                    if (att.fileType === "image") {
+              <div
+                className={cn(
+                  "rounded-lg px-3 py-2 shadow-sm w-full",
+                  isMine ? "bg-indigo-600 text-white" : "bg-white text-gray-900 border border-slate-200"
+                )}
+              >
+                {!isMine && showAvatar && <p className="mb-1 text-[11px] font-semibold text-indigo-700">{senderName}</p>}
+                {message.text && <p className="text-sm whitespace-pre-wrap">{message.text}</p>}
+
+                {Array.isArray(message.images) && message.images.length > 0 && (
+                  <div className={cn("mt-2 grid gap-2", message.images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+                    {message.images.map((imageUrl, imgIndex) => (
+                      <a
+                        key={`${message._id}-image-${imgIndex}`}
+                        href={imageUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="block"
+                      >
+                        <img
+                          src={imageUrl}
+                          alt="Chat attachment"
+                          className="max-h-56 w-full rounded-md object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {Array.isArray(message.attachments) && message.attachments.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {message.attachments.map((att: ChatAttachment, attIndex: number) => {
+                      if (att.fileType === "image") {
+                        return (
+                          <a
+                            key={`${message._id}-att-${attIndex}`}
+                            href={att.url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="block"
+                          >
+                            <img
+                              src={att.url}
+                              alt={att.fileName}
+                              className="max-h-56 w-full rounded-md object-cover"
+                            />
+                          </a>
+                        );
+                      }
+
+                      if (att.fileType === "video") {
+                        return (
+                          <video
+                            key={`${message._id}-att-${attIndex}`}
+                            src={att.url}
+                            controls
+                            className="max-h-56 w-full rounded-md"
+                          >
+                            <track kind="captions" src="" srcLang="en" label="Captions (not available)" />
+                            Your browser does not support video playback.
+                          </video>
+                        );
+                      }
+
                       return (
                         <a
-                          key={`${message._id}-att-${index}`}
+                          key={`${message._id}-att-${attIndex}`}
                           href={att.url}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="block"
+                          className={cn(
+                            "flex items-center gap-2 rounded-md border px-3 py-2 text-xs",
+                            isMine
+                              ? "border-indigo-400 text-indigo-100 hover:bg-indigo-500"
+                              : "border-slate-200 text-gray-700 hover:bg-slate-50"
+                          )}
                         >
-                          <img
-                            src={att.url}
-                            alt={att.fileName}
-                            className="max-h-56 w-full rounded-md object-cover"
-                          />
+                          <FileText className="h-4 w-4 shrink-0" />
+                          <span className="truncate flex-1">{att.fileName}</span>
+                          <Download className="h-3 w-3 shrink-0" />
                         </a>
                       );
-                    }
+                    })}
+                  </div>
+                )}
 
-                    if (att.fileType === "video") {
-                      return (
-                        <video
-                          key={`${message._id}-att-${index}`}
-                          src={att.url}
-                          controls
-                          className="max-h-56 w-full rounded-md"
-                        >
-                          <track kind="captions" src="" srcLang="en" label="Captions (not available)" />
-                          Your browser does not support video playback.
-                        </video>
-                      );
-                    }
+                <p className={cn("mt-2 text-[10px]", isMine ? "text-indigo-100" : "text-gray-400")}>
+                  {new Date(message.createdAt).toLocaleString()}
+                </p>
+              </div>
 
-                    return (
-                      <a
-                        key={`${message._id}-att-${index}`}
-                        href={att.url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className={cn(
-                          "flex items-center gap-2 rounded-md border px-3 py-2 text-xs",
-                          isMine
-                            ? "border-indigo-400 text-indigo-100 hover:bg-indigo-500"
-                            : "border-slate-200 text-gray-700 hover:bg-slate-50"
-                        )}
-                      >
-                        <FileText className="h-4 w-4 shrink-0" />
-                        <span className="truncate flex-1">{att.fileName}</span>
-                        <Download className="h-3 w-3 shrink-0" />
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-
-              <p className={cn("mt-2 text-[10px]", isMine ? "text-indigo-100" : "text-gray-400")}>
-                {new Date(message.createdAt).toLocaleString()}
-              </p>
+              {/* Hover actions: Reply + Report — always in DOM, shown via CSS */}
+              <div
+                className={cn(
+                  "absolute top-0 flex gap-0.5 bg-white border border-slate-200 rounded-md shadow-sm p-0.5 z-10 transition-opacity",
+                  "opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100",
+                  "[@media(hover:none)]:opacity-70",
+                  isMine ? "left-0 -translate-x-full -ml-1" : "right-0 translate-x-full ml-1"
+                )}
+              >
+                {onReplyTo && (
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-slate-100"
+                    onClick={() => onReplyTo(message)}
+                    title="Reply"
+                  >
+                    <Reply className="h-3.5 w-3.5 text-gray-500" />
+                  </button>
+                )}
+                {!isMine && (
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-slate-100"
+                    onClick={() => setReportingId(message._id)}
+                    title="Report"
+                  >
+                    <Flag className="h-3.5 w-3.5 text-gray-500" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
       })}
+
+      {/* Report dialog */}
+      <ReportDialog
+        messageId={reportingId || ""}
+        open={!!reportingId}
+        onOpenChange={(open) => { if (!open) setReportingId(null); }}
+      />
     </div>
   );
 }

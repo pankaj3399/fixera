@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Star, MapPin, Calendar, ExternalLink, User } from "lucide-react";
+import { Loader2, Star, MapPin, Calendar, User, Clock, Award, Briefcase } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { fetchConversationInfo } from "@/lib/chatApi";
 import type { ChatConversation, ConversationInfoStats } from "@/types/chat";
 
@@ -24,6 +26,24 @@ const maskEmail = (email: string): string => {
   if (!domain) return "***";
   const visiblePrefix = local.length > 0 ? local.charAt(0) : "";
   return `${visiblePrefix}***@${domain}`;
+};
+
+const formatResponseTime = (ms: number): string => {
+  if (ms <= 0) return "N/A";
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+};
+
+const LEVEL_COLORS: Record<string, string> = {
+  "New": "bg-gray-100 text-gray-600",
+  "Level 1": "bg-blue-100 text-blue-700",
+  "Level 2": "bg-green-100 text-green-700",
+  "Level 3": "bg-purple-100 text-purple-700",
+  "Expert": "bg-amber-100 text-amber-700",
 };
 
 const StarRating = ({ rating, label }: { rating: number; label?: string }) => {
@@ -113,9 +133,13 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
       {/* Profile Section */}
       <div className="p-4 flex flex-col items-center text-center">
         <Avatar className="h-16 w-16 mb-3">
-          <AvatarFallback className="bg-indigo-100 text-indigo-600 text-xl">
-            {name.charAt(0).toUpperCase()}
-          </AvatarFallback>
+          {other?.profileImage ? (
+            <img src={other.profileImage} alt="" className="h-full w-full object-cover rounded-full" />
+          ) : (
+            <AvatarFallback className="bg-indigo-100 text-indigo-600 text-xl">
+              {name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          )}
         </Avatar>
         <p className="text-sm font-semibold text-gray-900">{name}</p>
         {other?.email && (
@@ -147,6 +171,36 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
           </Button>
         )}
       </div>
+
+      {/* Professional Level & Response Rate (when customer views professional) */}
+      {isCustomerViewing && stats && (
+        <>
+          <div className="border-t border-slate-200 mx-4" />
+          <div className="p-4 space-y-3">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Professional Info</h4>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                <Award className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Level</span>
+              </div>
+              <Badge className={`text-[10px] ${LEVEL_COLORS[stats.professionalLevel] || "bg-gray-100 text-gray-600"}`}>
+                {stats.professionalLevel}
+              </Badge>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Avg. Response</span>
+              </div>
+              <span className="text-xs font-medium text-gray-700">
+                {formatResponseTime(stats.avgResponseTimeMs)}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Ratings Section */}
       {stats && (
@@ -228,6 +282,52 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             {stats.totalBookings === 0 && (
               <p className="text-xs text-gray-400 text-center py-2">No bookings between you yet</p>
             )}
+          </div>
+        </>
+      )}
+
+      {/* Pending Orders */}
+      {stats && stats.pendingBookings && stats.pendingBookings.length > 0 && (
+        <>
+          <div className="border-t border-slate-200 mx-4" />
+          <div className="p-4 space-y-3">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Briefcase className="h-3.5 w-3.5" />
+              Pending Orders
+            </h4>
+
+            <div className="space-y-2">
+              {stats.pendingBookings.map((booking) => (
+                <div
+                  key={booking.bookingNumber}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-2.5"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-gray-800">{booking.bookingNumber}</span>
+                    <Badge
+                      className={cn(
+                        "text-[9px]",
+                        booking.status === "in_progress"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-amber-100 text-amber-700"
+                      )}
+                    >
+                      {booking.status === "in_progress" ? "In Progress" : "Booked"}
+                    </Badge>
+                  </div>
+                  {booking.preferredStartDate && (
+                    <p className="text-[10px] text-gray-500">
+                      Start: {new Date(booking.preferredStartDate).toLocaleDateString()}
+                    </p>
+                  )}
+                  {booking.estimatedDuration && (
+                    <p className="text-[10px] text-gray-500">
+                      Duration: {booking.estimatedDuration}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}

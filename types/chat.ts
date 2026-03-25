@@ -12,12 +12,21 @@ export interface ChatUserSummary {
   };
 }
 
+export interface ConversationLabel {
+  userId: string;
+  label: string;
+  color?: string;
+}
+
 export interface ChatConversation {
   _id: string;
   customerId: ChatUserSummary;
   professionalId: ChatUserSummary;
   initiatedBy: string;
   status: "active" | "archived";
+  starredBy: string[];
+  archivedBy: string[];
+  labels: ConversationLabel[];
   lastMessageAt?: string;
   lastMessagePreview?: string;
   lastMessageSenderId?: string;
@@ -45,6 +54,14 @@ export interface ReviewNotificationMeta {
   customerName: string;
 }
 
+export interface ReplyToMessage {
+  _id: string;
+  text?: string;
+  senderId: ChatUserSummary;
+  images?: string[];
+  createdAt: string;
+}
+
 export interface ChatMessage {
   _id: string;
   conversationId: string;
@@ -55,8 +72,16 @@ export interface ChatMessage {
   images: string[];
   attachments?: ChatAttachment[];
   reviewMeta?: ReviewNotificationMeta;
+  replyTo?: ReplyToMessage;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PendingBooking {
+  bookingNumber: string;
+  status: string;
+  preferredStartDate: string | null;
+  estimatedDuration: string | null;
 }
 
 export interface ConversationInfoStats {
@@ -67,7 +92,13 @@ export interface ConversationInfoStats {
   avgValueOfDelivery: number;
   avgQualityOfService: number;
   avgProfessionalRating: number;
+  professionalLevel: string;
+  avgResponseTimeMs: number;
+  pendingBookings: PendingBooking[];
+  absence: { from: string; to: string } | null;
 }
+
+export type ChatFilter = "all" | "unread" | "starred" | "archived" | string;
 
 export interface ConversationListResponse {
   success: boolean;

@@ -587,10 +587,19 @@ export default function ChatWidget() {
                     conversations={conversations}
                     selectedConversationId={selectedConversationId}
                     currentUserRole={userRole}
+                    currentUserId={user?._id}
+                    filter="all"
+                    userLabels={[]}
+                    compact
                     onSelect={(conversationId) => {
                       setManualNewChatPanel(false);
                       setSelectedConversationId(conversationId);
                     }}
+                    onFilterChange={() => {}}
+                    onToggleStar={() => {}}
+                    onToggleArchive={() => {}}
+                    onAddLabel={() => {}}
+                    onRemoveLabel={() => {}}
                   />
                 )}
               </div>
