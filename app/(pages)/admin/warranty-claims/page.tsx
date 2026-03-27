@@ -12,14 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, Clock, Loader2, RefreshCw, Search, ShieldAlert, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
-
-type WarrantyClaimStatus =
-  | "open"
-  | "proposal_sent"
-  | "proposal_accepted"
-  | "resolved"
-  | "escalated"
-  | "closed"
+import { type WarrantyClaimStatus, STATUS_OPTIONS, STATUS_STYLES as STATUS_BADGE_STYLES, REASON_LABELS } from "@/lib/warrantyClaim"
 
 interface PopulatedBooking {
   _id: string
@@ -82,33 +75,6 @@ interface WarrantyAnalytics {
   }>
 }
 
-const STATUS_OPTIONS: Array<{ value: "all" | WarrantyClaimStatus; label: string }> = [
-  { value: "all", label: "All statuses" },
-  { value: "open", label: "Open" },
-  { value: "proposal_sent", label: "Proposal Sent" },
-  { value: "proposal_accepted", label: "Proposal Accepted" },
-  { value: "resolved", label: "Resolved" },
-  { value: "escalated", label: "Escalated" },
-  { value: "closed", label: "Closed" },
-]
-
-const STATUS_BADGE_STYLES: Record<WarrantyClaimStatus, string> = {
-  open: "bg-amber-50 text-amber-700 border border-amber-200",
-  proposal_sent: "bg-blue-50 text-blue-700 border border-blue-200",
-  proposal_accepted: "bg-violet-50 text-violet-700 border border-violet-200",
-  resolved: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  escalated: "bg-rose-50 text-rose-700 border border-rose-200",
-  closed: "bg-slate-100 text-slate-700 border border-slate-200",
-}
-
-const REASON_LABELS: Record<string, string> = {
-  defect: "Defect",
-  incomplete_work: "Incomplete Work",
-  material_issue: "Material Issue",
-  functionality_issue: "Functionality Issue",
-  safety_issue: "Safety Issue",
-  other: "Other",
-}
 
 const formatDate = (value?: string) => {
   if (!value) return "-"
@@ -135,17 +101,20 @@ export default function AdminWarrantyClaimsPage() {
   const [closingClaimId, setClosingClaimId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    if (loading) return
+    if (!isAuthenticated) {
       router.push("/login?redirect=/admin/warranty-claims")
+    } else if (user?.role !== "admin") {
+      router.push("/dashboard")
     }
-  }, [isAuthenticated, loading, router])
+  }, [isAuthenticated, loading, router, user?.role])
 
   useEffect(() => {
     const timeout = setTimeout(() => setSearchQuery(searchInput.trim()), 350)
     return () => clearTimeout(timeout)
   }, [searchInput])
 
-  const fetchAnalytics = useCallback(async () => {
+  const fetchAnalytics = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || user?.role !== "admin") return
     setIsLoadingAnalytics(true)
     try {
@@ -154,7 +123,7 @@ export default function AdminWarrantyClaimsPage() {
       if (token) headers.Authorization = `Bearer ${token}`
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`,
-        { credentials: "include", headers }
+        { credentials: "include", headers, signal }
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
@@ -162,6 +131,7 @@ export default function AdminWarrantyClaimsPage() {
       }
       setAnalytics(payload.data || null)
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
       console.error("[ADMIN][WARRANTY] analytics fetch failed", err)
       setError(err instanceof Error ? err.message : "Failed to load warranty analytics")
     } finally {
@@ -169,7 +139,7 @@ export default function AdminWarrantyClaimsPage() {
     }
   }, [isAuthenticated, user?.role])
 
-  const fetchClaims = useCallback(async () => {
+  const fetchClaims = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || user?.role !== "admin") return
     setIsLoadingClaims(true)
     setError(null)
@@ -185,7 +155,7 @@ export default function AdminWarrantyClaimsPage() {
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/list?${params.toString()}`,
-        { credentials: "include", headers }
+        { credentials: "include", headers, signal }
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
@@ -197,6 +167,7 @@ export default function AdminWarrantyClaimsPage() {
       setTotalPages(data.pagination?.totalPages || 1)
       setTotalClaims(data.pagination?.total || 0)
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
       console.error("[ADMIN][WARRANTY] claims fetch failed", err)
       setError(err instanceof Error ? err.message : "Failed to load warranty claims")
     } finally {
@@ -205,11 +176,15 @@ export default function AdminWarrantyClaimsPage() {
   }, [isAuthenticated, page, searchQuery, statusFilter, user?.role])
 
   useEffect(() => {
-    fetchAnalytics()
+    const controller = new AbortController()
+    fetchAnalytics(controller.signal)
+    return () => controller.abort()
   }, [fetchAnalytics])
 
   useEffect(() => {
-    fetchClaims()
+    const controller = new AbortController()
+    fetchClaims(controller.signal)
+    return () => controller.abort()
   }, [fetchClaims])
 
   const closeClaim = async (claim: WarrantyClaimRecord) => {
@@ -262,8 +237,7 @@ export default function AdminWarrantyClaimsPage() {
     )
   }
 
-  if (!isAuthenticated) return null
-  if (user?.role !== "admin") return null
+  if (!isAuthenticated || user?.role !== "admin") return null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 p-4">

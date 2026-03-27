@@ -44,8 +44,8 @@ const PopularProjectsCarousel = () => {
       });
 
       if (response.ok) {
-        const data = (await response.json()) as { projects: PopularProject[] };
-        setProjects(data.projects || []);
+        const data = await response.json();
+        setProjects(Array.isArray(data?.projects) ? data.projects : []);
       } else {
         const errorText = await response.text().catch(() => '');
         console.error(`Failed to fetch popular projects: ${response.status}`, errorText);
@@ -88,7 +88,7 @@ const PopularProjectsCarousel = () => {
   };
 
   const formatPrice = (price: number | null, type: string) => {
-    if (price === null) return 'Request Quote';
+    if (type === 'rfq' || price === null) return 'Request Quote';
     if (type === 'unit') return `From \u20AC${price.toLocaleString()}`;
     return `\u20AC${price.toLocaleString()}`;
   };
@@ -116,7 +116,7 @@ const PopularProjectsCarousel = () => {
   if (projects.length === 0) return null;
 
   return (
-    <div className="mt-10 max-w-5xl mx-auto">
+    <div className="mt-10 max-w-5xl mx-auto text-left">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Popular Projects</h3>
         <div className="flex gap-2">

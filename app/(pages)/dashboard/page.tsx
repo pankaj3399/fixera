@@ -197,11 +197,10 @@ export default function DashboardPage() {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       }
 
-      const [loyaltyResponse, approvalResponse, projectsResponse, warrantyResponse] = await Promise.all([
+      const [loyaltyResponse, approvalResponse, projectsResponse] = await Promise.all([
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/analytics`, fetchOptions),
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats/approvals`, fetchOptions),
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/admin/pending`, fetchOptions),
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`, fetchOptions),
       ])
 
       if (loyaltyResponse.ok) {
@@ -219,9 +218,22 @@ export default function DashboardPage() {
         setProjectStats({ pendingProjects: projectsData.length })
       }
 
-      if (warrantyResponse.ok) {
-        const warrantyData = await warrantyResponse.json()
-        setWarrantyAnalytics(warrantyData.data || null)
+      // Fetch warranty analytics separately so its failure doesn't block other cards
+      try {
+        const warrantyResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`,
+          fetchOptions
+        )
+        if (warrantyResponse.ok) {
+          const warrantyData = await warrantyResponse.json()
+          if (warrantyData.success) {
+            setWarrantyAnalytics(warrantyData.data || null)
+          } else {
+            console.error('[Dashboard] Warranty analytics returned success: false', warrantyData.msg)
+          }
+        }
+      } catch (warrantyErr) {
+        console.error('[Dashboard] Failed to fetch warranty analytics:', warrantyErr)
       }
 
     } catch (error) {

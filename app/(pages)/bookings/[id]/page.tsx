@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
+import { type WarrantyClaimStatus, REASON_LABELS as warrantyReasonLabels } from "@/lib/warrantyClaim"
 import { getAuthToken } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import StartChatButton from "@/components/chat/StartChatButton"
@@ -135,14 +136,6 @@ interface BookingDetail {
     reviewedAt?: string
   }
 }
-
-type WarrantyClaimStatus =
-  | "open"
-  | "proposal_sent"
-  | "proposal_accepted"
-  | "resolved"
-  | "escalated"
-  | "closed"
 
 interface WarrantyClaimDetail {
   _id: string
@@ -267,14 +260,6 @@ const parseResponseBody = async <T,>(response: Response): Promise<{ data: T | nu
   }
 }
 
-const warrantyReasonLabels: Record<string, string> = {
-  defect: "Defect",
-  incomplete_work: "Incomplete Work",
-  material_issue: "Material Issue",
-  functionality_issue: "Functionality Issue",
-  safety_issue: "Safety Issue",
-  other: "Other",
-}
 
 const warrantyStatusLabels: Record<WarrantyClaimStatus, string> = {
   open: "Open",
@@ -506,7 +491,8 @@ export default function BookingDetailPage() {
     booking?.status === "completed" &&
     hasWarrantyCoverage &&
     !isWarrantyExpired &&
-    !hasActiveWarrantyClaim
+    !hasActiveWarrantyClaim &&
+    !loadingWarrantyClaim
 
   useEffect(() => {
     if (!autoOpenWarrantyClaim || warrantyDialogAutoOpened) return
@@ -597,9 +583,16 @@ export default function BookingDetailPage() {
       return
     }
 
+    // Re-check for existing claim to prevent duplicate creation
+    if (warrantyClaim && warrantyClaim.status !== "closed") {
+      toast.error("An active warranty claim already exists for this booking.")
+      return
+    }
+
     setOpeningWarrantyClaim(true)
+    let evidenceUrls: string[] = []
     try {
-      const evidenceUrls = await uploadWarrantyEvidence()
+      evidenceUrls = await uploadWarrantyEvidence()
       const token = getAuthToken()
       const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (token) headers['Authorization'] = `Bearer ${token}`
@@ -632,6 +625,25 @@ export default function BookingDetailPage() {
         setWarrantyEvidenceFiles([])
         setShowWarrantyClaimDialog(false)
       } else {
+        // Claim creation failed — attempt to clean up orphaned evidence files
+        if (evidenceUrls.length > 0) {
+          try {
+            const cleanupToken = getAuthToken()
+            const cleanupHeaders: Record<string, string> = { "Content-Type": "application/json" }
+            if (cleanupToken) cleanupHeaders['Authorization'] = `Bearer ${cleanupToken}`
+            await fetch(
+              `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/cleanup-evidence`,
+              {
+                method: "POST",
+                credentials: "include",
+                headers: cleanupHeaders,
+                body: JSON.stringify({ urls: evidenceUrls }),
+              }
+            ).catch(() => { /* best-effort cleanup */ })
+          } catch {
+            // best-effort cleanup
+          }
+        }
         toast.error(data?.msg || rawText || "Failed to open warranty claim")
       }
     } catch (err) {
