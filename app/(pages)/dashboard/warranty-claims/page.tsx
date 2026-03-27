@@ -83,7 +83,7 @@ export default function ProfessionalWarrantyClaimsPage() {
     }
   }, [isAuthenticated, loading, router, user?.role])
 
-  const fetchClaims = useCallback(async () => {
+  const fetchClaims = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || user?.role !== "professional") return
     setIsLoadingClaims(true)
     setError(null)
@@ -99,7 +99,7 @@ export default function ProfessionalWarrantyClaimsPage() {
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/my?${params.toString()}`,
-        { credentials: "include", headers }
+        { credentials: "include", headers, signal }
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
@@ -111,6 +111,7 @@ export default function ProfessionalWarrantyClaimsPage() {
       setTotalPages(data.pagination?.totalPages || 1)
       setTotalClaims(data.pagination?.total || 0)
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
       setError(err instanceof Error ? err.message : "Failed to load warranty claims")
     } finally {
       setIsLoadingClaims(false)
@@ -118,7 +119,9 @@ export default function ProfessionalWarrantyClaimsPage() {
   }, [isAuthenticated, page, statusFilter, user?.role])
 
   useEffect(() => {
-    fetchClaims()
+    const controller = new AbortController()
+    fetchClaims(controller.signal)
+    return () => controller.abort()
   }, [fetchClaims])
 
   if (loading) {
@@ -153,7 +156,7 @@ export default function ProfessionalWarrantyClaimsPage() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            <Button onClick={fetchClaims} disabled={isLoadingClaims}>
+            <Button onClick={() => fetchClaims()} disabled={isLoadingClaims}>
               {isLoadingClaims ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (

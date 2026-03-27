@@ -307,7 +307,7 @@ export default function BookingDetailPage() {
   const [quoteRejectionReason, setQuoteRejectionReason] = useState("")
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false)
   const [payingMilestone, setPayingMilestone] = useState<number | null>(null)
-  const [warrantyClaim, setWarrantyClaim] = useState<WarrantyClaimDetail | null>(null)
+  const [warrantyClaim, setWarrantyClaim] = useState<WarrantyClaimDetail | null | undefined>(undefined)
   const [loadingWarrantyClaim, setLoadingWarrantyClaim] = useState(false)
   const [showWarrantyClaimDialog, setShowWarrantyClaimDialog] = useState(false)
   const [openingWarrantyClaim, setOpeningWarrantyClaim] = useState(false)
@@ -481,10 +481,12 @@ export default function BookingDetailPage() {
   const currencyRange = booking ? formatCurrencyRange(booking) : null
   const warrantyDurationValue = Number(booking?.warrantyCoverage?.duration?.value || 0)
   const hasWarrantyCoverage = warrantyDurationValue > 0
-  const warrantyEndsAtDate = booking?.warrantyCoverage?.endsAt
-    ? new Date(booking.warrantyCoverage.endsAt)
-    : null
+  const warrantyEndsAtTs = booking?.warrantyCoverage?.endsAt
+    ? new Date(booking.warrantyCoverage.endsAt).getTime()
+    : NaN
+  const warrantyEndsAtDate = Number.isFinite(warrantyEndsAtTs) ? new Date(warrantyEndsAtTs) : null
   const isWarrantyExpired = warrantyEndsAtDate ? warrantyEndsAtDate.getTime() <= Date.now() : true
+  const warrantyClaimResolved = warrantyClaim !== undefined
   const hasActiveWarrantyClaim = !!warrantyClaim && warrantyClaim.status !== "closed"
   const canOpenWarrantyClaim =
     user?.role === "customer" &&
@@ -492,6 +494,7 @@ export default function BookingDetailPage() {
     hasWarrantyCoverage &&
     !isWarrantyExpired &&
     !hasActiveWarrantyClaim &&
+    warrantyClaimResolved &&
     !loadingWarrantyClaim
 
   useEffect(() => {

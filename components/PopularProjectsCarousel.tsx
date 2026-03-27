@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, MapPin, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -33,30 +34,33 @@ const PopularProjectsCarousel = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchPopularProjects();
-  }, []);
+    const controller = new AbortController();
+    const fetchPopularProjects = async () => {
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+        const response = await fetch(`${backendUrl}/api/search/popular-projects?limit=10`, {
+          credentials: 'include',
+          signal: controller.signal,
+        });
 
-  const fetchPopularProjects = async () => {
-    try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
-      const response = await fetch(`${backendUrl}/api/search/popular-projects?limit=10`, {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(Array.isArray(data?.projects) ? data.projects : []);
-      } else {
-        const errorText = await response.text().catch(() => '');
-        console.error(`Failed to fetch popular projects: ${response.status}`, errorText);
-        setProjects([]);
+        if (response.ok) {
+          const data = await response.json();
+          setProjects(Array.isArray(data?.projects) ? data.projects : []);
+        } else {
+          const errorText = await response.text().catch(() => '');
+          console.error(`Failed to fetch popular projects: ${response.status}`, errorText);
+          setProjects([]);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        console.error('Failed to fetch popular projects:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Failed to fetch popular projects:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    fetchPopularProjects();
+    return () => controller.abort();
+  }, []);
 
   const updateScrollButtons = useCallback(() => {
     const el = scrollRef.current;
@@ -80,7 +84,9 @@ const PopularProjectsCarousel = () => {
   const scroll = (direction: 'left' | 'right') => {
     const el = scrollRef.current;
     if (!el) return;
-    const cardWidth = 300;
+    const first = el.firstElementChild as HTMLElement | null;
+    const gap = 16; // gap-4
+    const cardWidth = first ? first.offsetWidth + gap : 280 + gap;
     el.scrollBy({
       left: direction === 'left' ? -cardWidth : cardWidth,
       behavior: 'smooth',
@@ -159,10 +165,11 @@ const PopularProjectsCarousel = () => {
                 {/* Image */}
                 <div className="relative h-40 bg-gradient-to-br from-blue-50 to-purple-50">
                   {project.image ? (
-                    <img
+                    <Image
                       src={project.image}
                       alt={project.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-sm text-gray-400">
@@ -206,14 +213,16 @@ const PopularProjectsCarousel = () => {
                   {project.professional && (
                     <div className="mt-auto pt-2.5 border-t border-gray-100 flex items-center gap-2">
                       {project.professional.profileImage ? (
-                        <img
+                        <Image
                           src={project.professional.profileImage}
-                          alt={project.professional.name}
+                          alt={project.professional.name || 'Professional'}
+                          width={24}
+                          height={24}
                           className="w-6 h-6 rounded-full object-cover"
                         />
                       ) : (
                         <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-bold">
-                          {project.professional.name.charAt(0).toUpperCase()}
+                          {(project.professional.name || '?').charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div className="min-w-0 flex-1">

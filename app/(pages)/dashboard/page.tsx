@@ -409,10 +409,10 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-rose-600">
-                      {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalClaims || 0}
+                      {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalClaims ?? '\u2014'}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Escalated: {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalEscalated || 0}
+                      Escalated: {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalEscalated ?? '\u2014'}
                     </p>
                   </CardContent>
                 </Card>
@@ -468,17 +468,17 @@ export default function DashboardPage() {
                   <div className="grid md:grid-cols-3 gap-3">
                     <div className="rounded-lg border bg-slate-50 p-3">
                       <p className="text-xs text-slate-500">Claims (window)</p>
-                      <p className="text-lg font-semibold">{warrantyAnalytics?.summary?.totalClaims || 0}</p>
+                      <p className="text-lg font-semibold">{warrantyAnalytics?.summary?.totalClaims ?? '\u2014'}</p>
                     </div>
                     <div className="rounded-lg border bg-slate-50 p-3">
                       <p className="text-xs text-slate-500">Avg resolution</p>
                       <p className="text-lg font-semibold">
-                        {Number(warrantyAnalytics?.summary?.avgResolutionHours || 0).toFixed(1)}h
+                        {warrantyAnalytics?.summary?.avgResolutionHours != null ? `${Number(warrantyAnalytics.summary.avgResolutionHours).toFixed(1)}h` : '\u2014'}
                       </p>
                     </div>
                     <div className="rounded-lg border bg-slate-50 p-3">
                       <p className="text-xs text-slate-500">Flagged professionals</p>
-                      <p className="text-lg font-semibold">{warrantyAnalytics?.flaggedProfessionals?.length || 0}</p>
+                      <p className="text-lg font-semibold">{warrantyAnalytics?.flaggedProfessionals?.length ?? '\u2014'}</p>
                     </div>
                   </div>
                   <Button

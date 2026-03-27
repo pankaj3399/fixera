@@ -272,7 +272,7 @@ export default function AdminWarrantyClaimsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{isLoadingAnalytics ? "..." : summary?.totalClaims || 0}</p>
+              <p className="text-2xl font-bold">{isLoadingAnalytics ? "..." : summary?.totalClaims ?? "\u2014"}</p>
             </CardContent>
           </Card>
           <Card>
@@ -283,7 +283,7 @@ export default function AdminWarrantyClaimsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{isLoadingAnalytics ? "..." : summary?.totalEscalated || 0}</p>
+              <p className="text-2xl font-bold">{isLoadingAnalytics ? "..." : summary?.totalEscalated ?? "\u2014"}</p>
             </CardContent>
           </Card>
           <Card>
@@ -294,7 +294,7 @@ export default function AdminWarrantyClaimsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{isLoadingAnalytics ? "..." : summary?.totalClosed || 0}</p>
+              <p className="text-2xl font-bold">{isLoadingAnalytics ? "..." : summary?.totalClosed ?? "\u2014"}</p>
             </CardContent>
           </Card>
           <Card>
@@ -306,7 +306,7 @@ export default function AdminWarrantyClaimsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">
-                {isLoadingAnalytics ? "..." : `${Number(summary?.avgResolutionHours || 0).toFixed(1)}h`}
+                {isLoadingAnalytics ? "..." : summary?.avgResolutionHours != null ? `${Number(summary.avgResolutionHours).toFixed(1)}h` : "\u2014"}
               </p>
             </CardContent>
           </Card>
