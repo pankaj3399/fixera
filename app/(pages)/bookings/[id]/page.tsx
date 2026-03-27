@@ -541,8 +541,8 @@ export default function BookingDetailPage() {
     }
   }
 
-  const uploadWarrantyEvidence = async (): Promise<string[]> => {
-    if (!warrantyEvidenceFiles.length) return []
+  const uploadWarrantyEvidence = async (claimId: string): Promise<void> => {
+    if (!warrantyEvidenceFiles.length) return
     const token = getAuthToken()
     const headers: Record<string, string> = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
@@ -553,7 +553,7 @@ export default function BookingDetailPage() {
     })
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/upload-evidence`,
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${claimId}/evidence`,
       {
         method: "POST",
         credentials: "include",
@@ -564,16 +564,29 @@ export default function BookingDetailPage() {
     const { data, rawText } = await parseResponseBody<{
       success?: boolean
       msg?: string
-      data?: { files?: Array<{ url?: string }> }
     }>(response)
 
     if (!response.ok || !data?.success) {
       throw new Error(data?.msg || rawText || "Failed to upload evidence")
     }
+  }
 
-    return (data.data?.files || [])
-      .map((file) => file.url)
-      .filter((url): url is string => typeof url === "string" && !!url)
+  const deleteDraftClaim = async (claimId: string): Promise<void> => {
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${claimId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers,
+        }
+      ).catch(() => { /* best-effort cleanup */ })
+    } catch {
+      // best-effort cleanup
+    }
   }
 
   const handleOpenWarrantyClaim = async () => {
@@ -590,9 +603,9 @@ export default function BookingDetailPage() {
     }
 
     setOpeningWarrantyClaim(true)
-    let evidenceUrls: string[] = []
+    let createdClaimId: string | null = null
     try {
-      evidenceUrls = await uploadWarrantyEvidence()
+      // Step 1: Create the claim without evidence
       const token = getAuthToken()
       const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (token) headers['Authorization'] = `Bearer ${token}`
@@ -607,7 +620,6 @@ export default function BookingDetailPage() {
             bookingId,
             reason: warrantyClaimReason,
             description: warrantyClaimDescription.trim(),
-            evidence: evidenceUrls,
           }),
         }
       )
@@ -617,35 +629,43 @@ export default function BookingDetailPage() {
         claim?: WarrantyClaimDetail
       }>(response)
 
-      if (response.ok && data?.success && data.claim) {
-        toast.success("Warranty claim opened.")
-        setWarrantyClaim(data.claim)
-        setWarrantyClaimReason("defect")
-        setWarrantyClaimDescription("")
-        setWarrantyEvidenceFiles([])
-        setShowWarrantyClaimDialog(false)
-      } else {
-        // Claim creation failed — attempt to clean up orphaned evidence files
-        if (evidenceUrls.length > 0) {
-          try {
-            const cleanupToken = getAuthToken()
-            const cleanupHeaders: Record<string, string> = { "Content-Type": "application/json" }
-            if (cleanupToken) cleanupHeaders['Authorization'] = `Bearer ${cleanupToken}`
-            await fetch(
-              `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/cleanup-evidence`,
-              {
-                method: "POST",
-                credentials: "include",
-                headers: cleanupHeaders,
-                body: JSON.stringify({ urls: evidenceUrls }),
-              }
-            ).catch(() => { /* best-effort cleanup */ })
-          } catch {
-            // best-effort cleanup
-          }
-        }
+      if (!response.ok || !data?.success || !data.claim) {
         toast.error(data?.msg || rawText || "Failed to open warranty claim")
+        return
       }
+
+      createdClaimId = data.claim._id
+
+      // Step 2: Upload and attach evidence to the created claim
+      try {
+        await uploadWarrantyEvidence(createdClaimId)
+      } catch (evidenceErr) {
+        // Evidence upload failed — delete the draft claim to avoid orphaned claim
+        await deleteDraftClaim(createdClaimId)
+        throw evidenceErr
+      }
+
+      // Step 3: Re-fetch the claim to get the updated evidence URLs
+      const refreshRes = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${createdClaimId}`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        }
+      )
+      const refreshData = await parseResponseBody<{
+        success?: boolean
+        claim?: WarrantyClaimDetail
+      }>(refreshRes)
+
+      const finalClaim = refreshData.data?.claim || data.claim
+      toast.success("Warranty claim opened.")
+      setWarrantyClaim(finalClaim)
+      setWarrantyClaimReason("defect")
+      setWarrantyClaimDescription("")
+      setWarrantyEvidenceFiles([])
+      setShowWarrantyClaimDialog(false)
     } catch (err) {
       console.error("Failed to open warranty claim:", err)
       toast.error(err instanceof Error ? err.message : "Failed to open warranty claim")
