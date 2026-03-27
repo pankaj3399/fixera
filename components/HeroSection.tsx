@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select"
 import { keyBenefits } from '@/data/content'
 import Icon, { IconName } from './Icon'
+import PopularProjectsCarousel from './PopularProjectsCarousel'
 
 
 
@@ -230,6 +231,9 @@ const HeroSection = () => {
               </div>
             )}
           </form>
+
+          {/* Popular Projects Carousel */}
+          <PopularProjectsCarousel />
 
           {/* Key Benefits Section */}
           <div className="mt-10 pt-16 border-t border-gray-200">
