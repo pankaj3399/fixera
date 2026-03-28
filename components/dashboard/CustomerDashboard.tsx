@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  AlertTriangle, Briefcase, Calendar, CheckCircle, Clock, CreditCard,
+  Briefcase, Calendar, CheckCircle, Clock, CreditCard,
   Loader2, Package, Plus, Search,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -45,6 +45,12 @@ interface Booking {
   createdAt?: string
   project?: { _id: string; title?: string; category?: string; service?: string }
   professional?: { _id: string; name?: string; businessInfo?: { companyName?: string } }
+  warrantyCoverage?: {
+    duration?: { value?: number; unit?: "months" | "years" }
+    startsAt?: string
+    endsAt?: string
+    source?: "quote" | "project_subproject"
+  }
 }
 
 const formatBudget = (booking: Booking): string | null => {
@@ -246,6 +252,21 @@ export default function CustomerDashboard() {
       ? new Date(booking.scheduledStartDate)
       : null
     const budgetLabel = formatBudget(booking)
+    const warrantyDurationValue = Number(booking.warrantyCoverage?.duration?.value || 0)
+    const warrantyEndsAtDate = booking.warrantyCoverage?.endsAt
+      ? new Date(booking.warrantyCoverage.endsAt)
+      : null
+    const hasWarrantyCoverage = warrantyDurationValue > 0 && !!warrantyEndsAtDate
+    const canOpenWarrantyClaim =
+      booking.status === "completed" &&
+      hasWarrantyCoverage &&
+      !!warrantyEndsAtDate &&
+      warrantyEndsAtDate.getTime() > Date.now()
+    const warrantyButtonTitle = !hasWarrantyCoverage
+      ? "No warranty coverage for this booking"
+      : canOpenWarrantyClaim
+      ? "Open warranty claim"
+      : "Warranty period expired"
 
     return (
       <Card key={booking._id} className="bg-white/90 backdrop-blur shadow-sm">
@@ -302,6 +323,11 @@ export default function CustomerDashboard() {
               </span>
             </div>
           )}
+          {booking.status === "completed" && hasWarrantyCoverage && warrantyEndsAtDate && (
+            <div className="text-[11px] text-slate-600">
+              Warranty active until <span className="font-medium">{warrantyEndsAtDate.toLocaleDateString()}</span>
+            </div>
+          )}
           <div className="pt-2 flex gap-2">
             <Button
               variant="outline"
@@ -327,6 +353,18 @@ export default function CustomerDashboard() {
               >
                 <CreditCard className="h-3 w-3 mr-1" />
                 Pay Now
+              </Button>
+            )}
+            {booking.status === "completed" && hasWarrantyCoverage && (
+              <Button
+                variant="outline"
+                size="sm"
+                title={warrantyButtonTitle}
+                disabled={!canOpenWarrantyClaim}
+                onClick={() => router.push(`/bookings/${booking._id}?openWarrantyClaim=true`)}
+                className="text-xs"
+              >
+                Open Warranty Claim
               </Button>
             )}
           </div>
