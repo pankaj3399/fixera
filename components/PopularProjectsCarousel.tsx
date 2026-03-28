@@ -227,7 +227,7 @@ const PopularProjectsCarousel = () => {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-medium text-gray-800 truncate">
-                          {project.professional.name}
+                          {project.professional.name || "Unknown"}
                         </p>
                         {profLocation && (
                           <p className="text-[10px] text-gray-500 flex items-center gap-0.5 truncate">

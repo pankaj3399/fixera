@@ -112,6 +112,9 @@ export default function ProfessionalWarrantyClaimsPage() {
       setTotalClaims(data.pagination?.total || 0)
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
+      setClaims([])
+      setTotalPages(1)
+      setTotalClaims(0)
       setError(err instanceof Error ? err.message : "Failed to load warranty claims")
     } finally {
       setIsLoadingClaims(false)
