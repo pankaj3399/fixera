@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertTriangle, Clock, Loader2, RefreshCw, Search, ShieldAlert, ShieldCheck } from "lucide-react"
+import { AlertTriangle, Clock, Info, Loader2, Play, RefreshCw, Search, ShieldAlert, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { type WarrantyClaimStatus, STATUS_OPTIONS, STATUS_STYLES as STATUS_BADGE_STYLES, REASON_LABELS } from "@/lib/warrantyClaim"
 
@@ -99,6 +99,7 @@ export default function AdminWarrantyClaimsPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalClaims, setTotalClaims] = useState(0)
   const [closingClaimId, setClosingClaimId] = useState<string | null>(null)
+  const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
 
   useEffect(() => {
     if (loading) return
@@ -218,6 +219,34 @@ export default function AdminWarrantyClaimsPage() {
     }
   }
 
+  const runWarrantyChecks = async () => {
+    setIsRunningWarrantyCheck(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers.Authorization = `Bearer ${token}`
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/run-warranty-checks`,
+        { method: "POST", credentials: "include", headers }
+      )
+      const payload = await response.json()
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.msg || "Failed to run warranty checks")
+      }
+      const { escalated, closed, errors } = payload.data || {}
+      const parts: string[] = []
+      if (escalated) parts.push(`${escalated} claim(s) escalated`)
+      if (closed) parts.push(`${closed} claim(s) auto-closed`)
+      if (errors?.length) parts.push(`${errors.length} error(s)`)
+      toast.success(parts.length ? parts.join(", ") : "No overdue claims found")
+      await Promise.all([fetchClaims(), fetchAnalytics()])
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to run warranty checks")
+    } finally {
+      setIsRunningWarrantyCheck(false)
+    }
+  }
+
   const summary = analytics?.summary
   const flaggedPros = analytics?.flaggedProfessionals || []
   const analyticsWindowDays = analytics?.window?.lastDays || 30
@@ -260,6 +289,28 @@ export default function AdminWarrantyClaimsPage() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                onClick={runWarrantyChecks}
+                disabled={isRunningWarrantyCheck}
+                className="border-rose-300 text-rose-700 hover:bg-rose-50"
+              >
+                {isRunningWarrantyCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                Run SLA Checks
+              </Button>
+              <div className="relative group">
+                <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
+                  <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                  <ul className="space-y-1 list-disc pl-3">
+                    <li>Auto-escalates open claims where the professional missed the 5 business day response window</li>
+                    <li>Auto-closes resolved claims where the customer didn&apos;t confirm within 7 days</li>
+                  </ul>
+                  <p className="mt-2 text-slate-400">Safe to run anytime — only acts on overdue items.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

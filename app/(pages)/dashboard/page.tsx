@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -15,6 +15,7 @@ import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
 
 interface LoyaltyStats {
   tierDistribution: Array<{
@@ -110,6 +111,8 @@ export default function DashboardPage() {
   const [approvalStats, setApprovalStats] = useState<ApprovalStats | null>(null)
   const [projectStats, setProjectStats] = useState<ProjectStats | null>(null)
   const [warrantyAnalytics, setWarrantyAnalytics] = useState<WarrantyAnalytics | null>(null)
+  const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
+  const [isRunningRfqCheck, setIsRunningRfqCheck] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
@@ -240,6 +243,44 @@ export default function DashboardPage() {
       console.error('Failed to fetch admin data:', error)
     } finally {
       setIsLoadingStats(false)
+    }
+  }
+
+  const runSchedulerCheck = async (type: 'warranty' | 'rfq') => {
+    const setLoading = type === 'warranty' ? setIsRunningWarrantyCheck : setIsRunningRfqCheck
+    const endpoint = type === 'warranty' ? 'run-warranty-checks' : 'run-rfq-checks'
+    setLoading(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers.Authorization = `Bearer ${token}`
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/${endpoint}`,
+        { method: 'POST', credentials: 'include', headers }
+      )
+      const payload = await response.json()
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.msg || `Failed to run ${type} checks`)
+      }
+      const d = payload.data || {}
+      if (type === 'warranty') {
+        const parts: string[] = []
+        if (d.escalated) parts.push(`${d.escalated} escalated`)
+        if (d.closed) parts.push(`${d.closed} auto-closed`)
+        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
+        toast.success(parts.length ? `Warranty: ${parts.join(', ')}` : 'No overdue warranty claims found')
+      } else {
+        const parts: string[] = []
+        if (d.cancelled) parts.push(`${d.cancelled} cancelled`)
+        if (d.remindersSent) parts.push(`${d.remindersSent} reminder(s) sent`)
+        if (d.expiredQuotationsFound) parts.push(`${d.expiredQuotationsFound} expired quotation(s)`)
+        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
+        toast.success(parts.length ? `RFQ: ${parts.join(', ')}` : 'No overdue RFQ deadlines found')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to run ${type} checks`)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -487,6 +528,63 @@ export default function DashboardPage() {
                   >
                     Open Warranty Claims Dashboard
                   </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Play className="h-5 w-5 text-indigo-500" />
+                    Run Automated Checks
+                  </CardTitle>
+                  <CardDescription>Manually trigger background checks that process overdue items. Safe to run anytime — only acts on items that are actually overdue.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      onClick={() => runSchedulerCheck('warranty')}
+                      disabled={isRunningWarrantyCheck}
+                      className="flex-1 border-rose-300 text-rose-700 hover:bg-rose-50"
+                    >
+                      {isRunningWarrantyCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                      Run Warranty SLA Checks
+                    </Button>
+                    <div className="relative group">
+                      <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                      <div className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
+                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <ul className="space-y-1 list-disc pl-3">
+                          <li>Auto-escalates open claims where the professional missed the 5 business day response window</li>
+                          <li>Auto-closes resolved claims where the customer didn&apos;t confirm within 7 days</li>
+                        </ul>
+                        <p className="mt-2 text-slate-400">Safe to run anytime — only acts on overdue items.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      onClick={() => runSchedulerCheck('rfq')}
+                      disabled={isRunningRfqCheck}
+                      className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                    >
+                      {isRunningRfqCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                      Run RFQ Deadline Checks
+                    </Button>
+                    <div className="relative group">
+                      <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                      <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
+                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <ul className="space-y-1 list-disc pl-3">
+                          <li>Auto-cancels accepted RFQs where the professional missed the quotation deadline, and emails both parties</li>
+                          <li>Sends reminders to professionals who haven&apos;t submitted a quotation for 2+ working days</li>
+                          <li>Flags quotations that have passed their validity date</li>
+                        </ul>
+                        <p className="mt-2 text-slate-400">Safe to run anytime — only acts on overdue items.</p>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
