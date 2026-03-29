@@ -202,7 +202,7 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isCustomer ? "Rate this Professional" : "Rate this Customer"}

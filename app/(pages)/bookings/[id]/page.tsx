@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
+import { type WarrantyClaimStatus, REASON_LABELS as warrantyReasonLabels, STATUS_LABELS as warrantyStatusLabels } from "@/lib/warrantyClaim"
 import { getAuthToken } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import StartChatButton from "@/components/chat/StartChatButton"
@@ -87,6 +88,12 @@ interface BookingDetail {
   scheduledEndDate?: string
   createdAt?: string
   updatedAt?: string
+  warrantyCoverage?: {
+    duration?: { value?: number; unit?: "months" | "years" }
+    startsAt?: string
+    endsAt?: string
+    source?: "quote" | "project_subproject"
+  }
   postBookingData?: PostBookingAnswer[]
   project?: {
     _id: string
@@ -127,6 +134,40 @@ interface BookingDetail {
     rating?: number
     comment?: string
     reviewedAt?: string
+  }
+}
+
+interface WarrantyClaimDetail {
+  _id: string
+  claimNumber: string
+  status: WarrantyClaimStatus
+  reason: string
+  description: string
+  evidence?: string[]
+  createdAt?: string
+  warrantyEndsAt?: string
+  proposal?: {
+    message?: string
+    proposedScheduleAt?: string
+    customerDecision?: "accepted" | "declined"
+    decisionNote?: string
+  }
+  escalation?: {
+    escalatedAt?: string
+    reason?: string
+    note?: string
+    autoEscalated?: boolean
+  }
+  resolution?: {
+    summary?: string
+    resolvedAt?: string
+    customerConfirmedAt?: string
+    autoClosedAt?: string
+  }
+  sla?: {
+    professionalResponseDueAt?: string
+    customerConfirmationDueAt?: string
+    customerAutoCloseDays?: number
   }
 }
 
@@ -219,6 +260,7 @@ const parseResponseBody = async <T,>(response: Response): Promise<{ data: T | nu
   }
 }
 
+
 export default function BookingDetailPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
@@ -226,6 +268,7 @@ export default function BookingDetailPage() {
   const searchParams = useSearchParams()
   const bookingId = (params?.id || params?.bookingId) as string | undefined
   const showPostBookingQuestions = searchParams?.get("postBookingQuestions") === "true"
+  const autoOpenWarrantyClaim = searchParams?.get("openWarrantyClaim") === "true"
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -255,6 +298,20 @@ export default function BookingDetailPage() {
   const [quoteRejectionReason, setQuoteRejectionReason] = useState("")
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false)
   const [payingMilestone, setPayingMilestone] = useState<number | null>(null)
+  const [warrantyClaim, setWarrantyClaim] = useState<WarrantyClaimDetail | null | undefined>(undefined)
+  const [loadingWarrantyClaim, setLoadingWarrantyClaim] = useState(false)
+  const [showWarrantyClaimDialog, setShowWarrantyClaimDialog] = useState(false)
+  const [openingWarrantyClaim, setOpeningWarrantyClaim] = useState(false)
+  const [warrantyClaimReason, setWarrantyClaimReason] = useState("defect")
+  const [warrantyClaimDescription, setWarrantyClaimDescription] = useState("")
+  const [warrantyEvidenceFiles, setWarrantyEvidenceFiles] = useState<File[]>([])
+  const [warrantyActionLoading, setWarrantyActionLoading] = useState(false)
+  const [warrantyProposalMessage, setWarrantyProposalMessage] = useState("")
+  const [warrantyProposalSchedule, setWarrantyProposalSchedule] = useState("")
+  const [warrantyResolutionSummary, setWarrantyResolutionSummary] = useState("")
+  const [warrantyDialogAutoOpened, setWarrantyDialogAutoOpened] = useState(false)
+  const [showDeclineReasonDialog, setShowDeclineReasonDialog] = useState(false)
+  const [declineReason, setDeclineReason] = useState("")
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -385,6 +442,15 @@ export default function BookingDetailPage() {
     }
   }, [bookingId, booking?.quote?.amount, booking?.status, user?.role, pointsToRedeem])
 
+  useEffect(() => {
+    if (!bookingId || !isAuthenticated) return
+    if (booking?.status !== "completed") {
+      setWarrantyClaim(null)
+      return
+    }
+    void fetchWarrantyClaim()
+  }, [bookingId, isAuthenticated, booking?.status, booking?.updatedAt])
+
   // Auto-open quote form when navigated with ?action=quote
   useEffect(() => {
     if (booking?.status === "rfq" && searchParams?.get("action") === "quote" && user?.role === "professional") {
@@ -406,10 +472,337 @@ export default function BookingDetailPage() {
   const alreadyAnswered = (booking?.postBookingData?.length || 0) > 0
   const shouldShowPostBookingForm = showPostBookingQuestions && hasPostBookingQuestions && !alreadyAnswered && !answersSubmitted
   const currencyRange = booking ? formatCurrencyRange(booking) : null
+  const warrantyDurationValue = Number(booking?.warrantyCoverage?.duration?.value || 0)
+  const hasWarrantyCoverage = warrantyDurationValue > 0
+  const warrantyEndsAtTs = booking?.warrantyCoverage?.endsAt
+    ? new Date(booking.warrantyCoverage.endsAt).getTime()
+    : NaN
+  const warrantyEndsAtDate = Number.isFinite(warrantyEndsAtTs) ? new Date(warrantyEndsAtTs) : null
+  const isWarrantyExpired = warrantyEndsAtDate ? warrantyEndsAtDate.getTime() <= Date.now() : true
+  const warrantyClaimResolved = warrantyClaim !== undefined
+  const hasActiveWarrantyClaim = !!warrantyClaim && warrantyClaim.status !== "closed"
+  const canOpenWarrantyClaim =
+    user?.role === "customer" &&
+    booking?.status === "completed" &&
+    hasWarrantyCoverage &&
+    !isWarrantyExpired &&
+    !hasActiveWarrantyClaim &&
+    warrantyClaimResolved &&
+    !loadingWarrantyClaim
+
+  useEffect(() => {
+    if (!autoOpenWarrantyClaim || warrantyDialogAutoOpened) return
+    if (canOpenWarrantyClaim) {
+      setShowWarrantyClaimDialog(true)
+      setWarrantyDialogAutoOpened(true)
+    }
+  }, [autoOpenWarrantyClaim, warrantyDialogAutoOpened, canOpenWarrantyClaim])
 
   const handleAnswerChange = (index: number, answer: string) => {
     setPostBookingAnswers(prev => ({ ...prev, [index]: answer }))
     setValidationErrors(prev => prev.filter((item) => item !== index))
+  }
+
+  const fetchWarrantyClaim = async () => {
+    if (!bookingId || !isAuthenticated || !booking || booking.status !== "completed") {
+      setWarrantyClaim(null)
+      return
+    }
+
+    setLoadingWarrantyClaim(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/booking/${bookingId}`,
+        { credentials: "include", headers }
+      )
+      const { data } = await parseResponseBody<{
+        success?: boolean
+        data?: {
+          activeClaim?: WarrantyClaimDetail | null
+          latestClaim?: WarrantyClaimDetail | null
+        }
+      }>(response)
+
+      if (response.ok && data?.success) {
+        setWarrantyClaim(data.data?.activeClaim || data.data?.latestClaim || null)
+      }
+    } catch (err) {
+      console.error("Failed to fetch warranty claim:", err)
+    } finally {
+      setLoadingWarrantyClaim(false)
+    }
+  }
+
+  const uploadWarrantyEvidence = async (claimId: string): Promise<void> => {
+    if (!warrantyEvidenceFiles.length) return
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const form = new FormData()
+    warrantyEvidenceFiles.forEach((file) => {
+      form.append("files", file)
+    })
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${claimId}/evidence`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: form,
+      }
+    )
+    const { data, rawText } = await parseResponseBody<{
+      success?: boolean
+      msg?: string
+    }>(response)
+
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.msg || rawText || "Failed to upload evidence")
+    }
+  }
+
+  const deleteDraftClaim = async (claimId: string): Promise<void> => {
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${claimId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers,
+        }
+      ).catch(() => { /* best-effort cleanup */ })
+    } catch {
+      // best-effort cleanup
+    }
+  }
+
+  const handleOpenWarrantyClaim = async () => {
+    if (!bookingId) return
+    if (!warrantyClaimDescription.trim() || warrantyClaimDescription.trim().length < 10) {
+      toast.error("Please provide at least 10 characters describing the issue.")
+      return
+    }
+
+    // Re-check for existing claim to prevent duplicate creation
+    if (warrantyClaim && warrantyClaim.status !== "closed") {
+      toast.error("An active warranty claim already exists for this booking.")
+      return
+    }
+
+    setOpeningWarrantyClaim(true)
+    let createdClaimId: string | null = null
+    try {
+      // Step 1: Create the claim without evidence
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers,
+          body: JSON.stringify({
+            bookingId,
+            reason: warrantyClaimReason,
+            description: warrantyClaimDescription.trim(),
+          }),
+        }
+      )
+      const { data, rawText } = await parseResponseBody<{
+        success?: boolean
+        msg?: string
+        claim?: WarrantyClaimDetail
+      }>(response)
+
+      if (!response.ok || !data?.success || !data.claim) {
+        toast.error(data?.msg || rawText || "Failed to open warranty claim")
+        return
+      }
+
+      createdClaimId = data.claim._id
+
+      // Step 2: Upload and attach evidence to the created claim
+      try {
+        await uploadWarrantyEvidence(createdClaimId)
+      } catch (evidenceErr) {
+        // Evidence upload failed — delete the draft claim to avoid orphaned claim
+        await deleteDraftClaim(createdClaimId)
+        throw evidenceErr
+      }
+
+      // Step 3: Re-fetch the claim to get the updated evidence URLs
+      const refreshRes = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${createdClaimId}`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        }
+      )
+      const refreshData = await parseResponseBody<{
+        success?: boolean
+        claim?: WarrantyClaimDetail
+      }>(refreshRes)
+
+      const finalClaim = refreshData.data?.claim || data.claim
+      toast.success("Warranty claim opened.")
+      setWarrantyClaim(finalClaim)
+      setWarrantyClaimReason("defect")
+      setWarrantyClaimDescription("")
+      setWarrantyEvidenceFiles([])
+      setShowWarrantyClaimDialog(false)
+    } catch (err) {
+      console.error("Failed to open warranty claim:", err)
+      toast.error(err instanceof Error ? err.message : "Failed to open warranty claim")
+    } finally {
+      setOpeningWarrantyClaim(false)
+    }
+  }
+
+  const callWarrantyAction = async (path: string, body?: Record<string, unknown>) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${path}`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify(body || {}),
+      }
+    )
+    const { data, rawText } = await parseResponseBody<{
+      success?: boolean
+      msg?: string
+      claim?: WarrantyClaimDetail
+    }>(response)
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.msg || rawText || "Warranty action failed")
+    }
+    return data
+  }
+
+  const handleSubmitWarrantyProposal = async () => {
+    if (!warrantyClaim?._id) return
+    if (!warrantyProposalMessage.trim()) {
+      toast.error("Proposal message is required.")
+      return
+    }
+    setWarrantyActionLoading(true)
+    try {
+      const data = await callWarrantyAction(`${warrantyClaim._id}/proposal`, {
+        message: warrantyProposalMessage.trim(),
+        proposedScheduleAt: warrantyProposalSchedule || undefined,
+      })
+      setWarrantyClaim(data.claim || null)
+      setWarrantyProposalMessage("")
+      setWarrantyProposalSchedule("")
+      toast.success("Proposal sent.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit proposal")
+    } finally {
+      setWarrantyActionLoading(false)
+    }
+  }
+
+  const handleDeclineWarrantyClaim = async () => {
+    if (!warrantyClaim?._id) return
+    const trimmed = declineReason.trim()
+    if (!trimmed) {
+      toast.error("Please provide a reason for declining.")
+      return
+    }
+
+    setWarrantyActionLoading(true)
+    try {
+      const data = await callWarrantyAction(`${warrantyClaim._id}/decline`, { reason: trimmed })
+      setWarrantyClaim(data.claim || null)
+      setShowDeclineReasonDialog(false)
+      setDeclineReason("")
+      toast.success("Claim declined and escalated.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to decline claim")
+    } finally {
+      setWarrantyActionLoading(false)
+    }
+  }
+
+  const handleRespondToWarrantyProposal = async (action: "accept" | "decline") => {
+    if (!warrantyClaim?._id) return
+    setWarrantyActionLoading(true)
+    try {
+      const data = await callWarrantyAction(`${warrantyClaim._id}/proposal-response`, { action })
+      setWarrantyClaim(data.claim || null)
+      toast.success(action === "accept" ? "Proposal accepted." : "Proposal declined and escalated.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to respond to proposal")
+    } finally {
+      setWarrantyActionLoading(false)
+    }
+  }
+
+  const handleMarkWarrantyResolved = async () => {
+    if (!warrantyClaim?._id) return
+    if (!warrantyResolutionSummary.trim()) {
+      toast.error("Resolution summary is required.")
+      return
+    }
+    setWarrantyActionLoading(true)
+    try {
+      const data = await callWarrantyAction(`${warrantyClaim._id}/resolve`, {
+        summary: warrantyResolutionSummary.trim(),
+      })
+      setWarrantyClaim(data.claim || null)
+      setWarrantyResolutionSummary("")
+      toast.success("Claim marked as resolved.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to mark claim resolved")
+    } finally {
+      setWarrantyActionLoading(false)
+    }
+  }
+
+  const handleConfirmWarrantyResolution = async () => {
+    if (!warrantyClaim?._id) return
+    setWarrantyActionLoading(true)
+    try {
+      const data = await callWarrantyAction(`${warrantyClaim._id}/confirm`)
+      setWarrantyClaim(data.claim || null)
+      toast.success("Warranty claim closed.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to confirm resolution")
+    } finally {
+      setWarrantyActionLoading(false)
+    }
+  }
+
+  const handleEscalateWarrantyClaim = async () => {
+    if (!warrantyClaim?._id) return
+    setWarrantyActionLoading(true)
+    try {
+      const data = await callWarrantyAction(`${warrantyClaim._id}/escalate`, {
+        reason: "Manual escalation requested from booking dashboard",
+      })
+      setWarrantyClaim(data.claim || null)
+      toast.success("Claim escalated to admin.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to escalate claim")
+    } finally {
+      setWarrantyActionLoading(false)
+    }
   }
 
   const handleSubmitPostBookingAnswers = async () => {
@@ -1871,6 +2264,224 @@ export default function BookingDetailPage() {
                   </div>
                 )}
 
+                {booking.status === "completed" && (
+                  <div className="bg-white border border-indigo-100 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-indigo-900">Warranty</h3>
+                        {!hasWarrantyCoverage && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            This booking has no warranty coverage.
+                          </p>
+                        )}
+                        {hasWarrantyCoverage && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            Coverage: {booking.warrantyCoverage?.duration?.value} {booking.warrantyCoverage?.duration?.unit}
+                            {warrantyEndsAtDate && (
+                              <> · Expires on {warrantyEndsAtDate.toLocaleDateString()}</>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      {user?.role === "customer" && hasWarrantyCoverage && (
+                        <Button
+                          size="sm"
+                          disabled={!canOpenWarrantyClaim}
+                          title={
+                            hasActiveWarrantyClaim
+                              ? "An active claim already exists"
+                              : isWarrantyExpired
+                              ? "Warranty period expired"
+                              : undefined
+                          }
+                          onClick={() => setShowWarrantyClaimDialog(true)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                          Open Warranty Claim
+                        </Button>
+                      )}
+                    </div>
+
+                    {loadingWarrantyClaim && (
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Loading warranty claim...
+                      </div>
+                    )}
+
+                    {warrantyClaim && (
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-800">
+                              {warrantyClaim.claimNumber}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Reason: {warrantyReasonLabels[warrantyClaim.reason] || warrantyClaim.reason}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs bg-white">
+                            {warrantyStatusLabels[warrantyClaim.status] || warrantyClaim.status}
+                          </Badge>
+                        </div>
+
+                        <p className="text-xs text-gray-700 whitespace-pre-line">
+                          {warrantyClaim.description}
+                        </p>
+
+                        {Array.isArray(warrantyClaim.evidence) && warrantyClaim.evidence.length > 0 && (
+                          <div className="text-xs">
+                            <p className="font-medium text-gray-600 mb-1">Evidence</p>
+                            <div className="flex flex-wrap gap-2">
+                              {warrantyClaim.evidence.map((url, idx) => (
+                                <a
+                                  key={`${url}-${idx}`}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline text-indigo-600"
+                                >
+                                  File {idx + 1}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {warrantyClaim.proposal?.message && (
+                          <div className="rounded border bg-white p-2">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Proposal</p>
+                            <p className="text-xs text-gray-700 whitespace-pre-line">{warrantyClaim.proposal.message}</p>
+                          </div>
+                        )}
+
+                        {warrantyClaim.escalation && (
+                          <div className="rounded border border-amber-200 bg-amber-50 p-2">
+                            <p className="text-xs font-medium text-amber-800">Escalated to Admin</p>
+                            <p className="text-xs text-amber-700">
+                              {warrantyClaim.escalation.reason}
+                              {warrantyClaim.escalation.note ? ` · ${warrantyClaim.escalation.note}` : ""}
+                            </p>
+                          </div>
+                        )}
+
+                        {warrantyClaim.resolution?.summary && (
+                          <div className="rounded border border-green-200 bg-green-50 p-2">
+                            <p className="text-xs font-medium text-green-800">Resolution</p>
+                            <p className="text-xs text-green-700 whitespace-pre-line">{warrantyClaim.resolution.summary}</p>
+                          </div>
+                        )}
+
+                        {user?.role === "professional" && warrantyClaim.status === "open" && (
+                          <div className="space-y-2 rounded border bg-white p-3">
+                            <Label className="text-xs">Proposal Message</Label>
+                            <Textarea
+                              value={warrantyProposalMessage}
+                              onChange={(e) => setWarrantyProposalMessage(e.target.value)}
+                              placeholder="Describe your solution and repair plan..."
+                              className="text-xs min-h-[90px]"
+                            />
+                            <Label className="text-xs">Proposed Schedule (optional)</Label>
+                            <Input
+                              type="datetime-local"
+                              value={warrantyProposalSchedule}
+                              onChange={(e) => setWarrantyProposalSchedule(e.target.value)}
+                              className="text-xs"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={handleSubmitWarrantyProposal}
+                                disabled={warrantyActionLoading}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                              >
+                                {warrantyActionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                Send Proposal
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowDeclineReasonDialog(true)}
+                                disabled={warrantyActionLoading}
+                                className="border-rose-300 text-rose-700"
+                              >
+                                Decline Claim
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {user?.role === "customer" && warrantyClaim.status === "proposal_sent" && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleRespondToWarrantyProposal("accept")}
+                              disabled={warrantyActionLoading}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              Accept Proposal
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRespondToWarrantyProposal("decline")}
+                              disabled={warrantyActionLoading}
+                              className="border-rose-300 text-rose-700"
+                            >
+                              Decline & Escalate
+                            </Button>
+                          </div>
+                        )}
+
+                        {user?.role === "professional" && warrantyClaim.status === "proposal_accepted" && (
+                          <div className="space-y-2 rounded border bg-white p-3">
+                            <Label className="text-xs">Resolution Summary</Label>
+                            <Textarea
+                              value={warrantyResolutionSummary}
+                              onChange={(e) => setWarrantyResolutionSummary(e.target.value)}
+                              placeholder="Summarize what was fixed..."
+                              className="text-xs min-h-[80px]"
+                            />
+                            <Button
+                              size="sm"
+                              onClick={handleMarkWarrantyResolved}
+                              disabled={warrantyActionLoading}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              Mark Resolved
+                            </Button>
+                          </div>
+                        )}
+
+                        {user?.role === "customer" && warrantyClaim.status === "resolved" && (
+                          <Button
+                            size="sm"
+                            onClick={handleConfirmWarrantyResolution}
+                            disabled={warrantyActionLoading}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Confirm Resolution
+                          </Button>
+                        )}
+
+                        {warrantyClaim.status !== "closed" &&
+                          warrantyClaim.status !== "escalated" &&
+                          (user?._id === booking.customer?._id || user?._id === booking.professional?._id) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleEscalateWarrantyClaim}
+                              disabled={warrantyActionLoading}
+                              className="border-amber-300 text-amber-700"
+                            >
+                              Escalate Claim
+                            </Button>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Review Modal */}
                 {booking.status === "completed" && (user?._id === booking.customer?._id || user?._id === booking.professional?._id) && (
                   <ReviewModal
@@ -1883,6 +2494,143 @@ export default function BookingDetailPage() {
                     }}
                   />
                 )}
+
+                <Dialog open={showWarrantyClaimDialog} onOpenChange={setShowWarrantyClaimDialog}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Open Warranty Claim</DialogTitle>
+                      <DialogDescription>
+                        Describe the issue and upload optional evidence files.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="warranty-reason">Reason</Label>
+                        <select
+                          id="warranty-reason"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={warrantyClaimReason}
+                          onChange={(e) => setWarrantyClaimReason(e.target.value)}
+                        >
+                          {Object.entries(warrantyReasonLabels).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="warranty-description">Issue Description</Label>
+                        <Textarea
+                          id="warranty-description"
+                          value={warrantyClaimDescription}
+                          onChange={(e) => setWarrantyClaimDescription(e.target.value)}
+                          placeholder="Describe what is wrong and what outcome you expect..."
+                          className="min-h-[120px]"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="warranty-files">Evidence (optional)</Label>
+                        <Input
+                          id="warranty-files"
+                          type="file"
+                          multiple
+                          accept="image/*,video/*,.pdf"
+                          onChange={(e) => {
+                            const allowedTypes = ['image/', 'video/', 'application/pdf']
+                            const maxFileSize = 50 * 1024 * 1024 // 50 MB
+                            const maxFiles = 10
+                            const raw = Array.from(e.target.files || [])
+                            const valid: File[] = []
+                            const rejected: string[] = []
+                            for (const file of raw.slice(0, maxFiles)) {
+                              if (!allowedTypes.some((t) => file.type.startsWith(t))) {
+                                rejected.push(`${file.name}: unsupported type`)
+                              } else if (file.size > maxFileSize) {
+                                rejected.push(`${file.name}: exceeds 50 MB`)
+                              } else {
+                                valid.push(file)
+                              }
+                            }
+                            if (raw.length > maxFiles) {
+                              rejected.push(`Only ${maxFiles} files allowed`)
+                            }
+                            setWarrantyEvidenceFiles(valid)
+                            if (rejected.length > 0) {
+                              toast.error(rejected.join('; '))
+                            }
+                          }}
+                        />
+                        {warrantyEvidenceFiles.length > 0 && (
+                          <p className="text-xs text-gray-500">
+                            {warrantyEvidenceFiles.length} file(s) selected
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowWarrantyClaimDialog(false)}
+                          disabled={openingWarrantyClaim}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleOpenWarrantyClaim}
+                          disabled={openingWarrantyClaim}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                          {openingWarrantyClaim ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Submit Claim
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={showDeclineReasonDialog} onOpenChange={(open) => { setShowDeclineReasonDialog(open); if (!open) setDeclineReason("") }}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Decline Warranty Claim</DialogTitle>
+                      <DialogDescription>
+                        Please provide a reason for declining this claim. The claim will be escalated for admin review.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="decline-reason">Reason</Label>
+                        <Textarea
+                          id="decline-reason"
+                          value={declineReason}
+                          onChange={(e) => setDeclineReason(e.target.value)}
+                          placeholder="Explain why you are declining this claim..."
+                          className="min-h-[100px]"
+                          aria-required="true"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => { setShowDeclineReasonDialog(false); setDeclineReason("") }}
+                          disabled={warrantyActionLoading}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleDeclineWarrantyClaim}
+                          disabled={warrantyActionLoading || !declineReason.trim()}
+                          className="bg-rose-600 hover:bg-rose-700 text-white"
+                        >
+                          {warrantyActionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Decline Claim
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
                 {/* Core info */}
                 <section className="grid md:grid-cols-2 gap-4 text-xs text-gray-700">
