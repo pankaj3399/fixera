@@ -476,6 +476,16 @@ export default function Step2Subprojects({
           if (hasMin && hasMax && range!.min! > range!.max!) return false;
         }
 
+        const requiredFieldsMissing = dynamicFields
+          .filter((f) => f.isRequired)
+          .some((f) => {
+            const input = sub.professionalInputs?.find(
+              (i) => i.fieldName === f.fieldName
+            );
+            return !input || input.value === undefined || input.value === '' || input.value === null;
+          });
+        if (requiredFieldsMissing) return false;
+
         return (
           sub.name &&
           sub.description &&
@@ -486,7 +496,6 @@ export default function Step2Subprojects({
           sub.preparationDuration &&
           typeof sub.preparationDuration.value === 'number' &&
           (sub.pricing.type === 'rfq' || (typeof sub.executionDuration.value === 'number' && sub.executionDuration.value > 0)) &&
-          // Materials validation: must be explicitly selected, and if true, must have at least one material
           typeof sub.materialsIncluded === 'boolean' &&
           (!sub.materialsIncluded ||
             (sub.materials && sub.materials.length > 0))
@@ -1539,6 +1548,9 @@ export default function Step2Subprojects({
                             <div className='flex items-center justify-between mb-2'>
                               <span className='text-sm font-medium'>
                                 {item.name}
+                                {dynamicField?.isRequired && (
+                                  <span className='text-red-500 ml-1'>*</span>
+                                )}
                               </span>
                               <div className='flex items-center space-x-2'>
                                 {item.isCustom && (
