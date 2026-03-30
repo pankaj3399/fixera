@@ -745,6 +745,8 @@ export default function ChatPage() {
                 messages={messages}
                 currentUserId={user?._id || null}
                 currentUserRole={userRole}
+                currentUserImage={user?.profileImage}
+                currentUserName={user?.name}
                 loading={loadingMessages}
                 onReplyTo={(msg) => setReplyToMessage(msg)}
               />

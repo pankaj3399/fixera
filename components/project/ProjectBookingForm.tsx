@@ -32,6 +32,7 @@ import 'react-day-picker/dist/style.css';
 import { useAuth } from '@/contexts/AuthContext';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
 import { formatCurrency } from '@/lib/formatters';
+import { getAuthToken } from '@/lib/utils';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -357,6 +358,7 @@ export default function ProjectBookingForm({
   } | null>(null);
   const [loadingScheduleWindow, setLoadingScheduleWindow] = useState(false);
   const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([]);
+  const [uploadingQuestionIndex, setUploadingQuestionIndex] = useState<number | null>(null);
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>(
     []
   );
@@ -1782,6 +1784,46 @@ export default function ProjectBookingForm({
       };
       return newAnswers;
     });
+  };
+
+  const handleRFQAttachmentUpload = async (index: number, file: File | null) => {
+    if (!file) return;
+
+    setUploadingQuestionIndex(index);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const formData = new FormData();
+      formData.append('attachment', file);
+      formData.append('projectId', project._id);
+      formData.append('questionId', project.rfqQuestions[index]?.question || `rfq-${index}`);
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/projects/upload/attachment`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok || !data?.success || !data?.data?.url) {
+        toast.error(data?.message || 'Failed to upload attachment');
+        return;
+      }
+
+      handleRFQAnswerChange(index, data.data.url);
+      toast.success('Attachment uploaded');
+    } catch (error) {
+      console.error('Failed to upload RFQ attachment:', error);
+      toast.error('Failed to upload attachment');
+    } finally {
+      setUploadingQuestionIndex(null);
+    }
   };
 
   const handleExtraOptionToggle = (index: number) => {
@@ -3368,17 +3410,35 @@ export default function ProjectBookingForm({
                       <div className='border-2 border-dashed border-gray-300 rounded-lg p-6 text-center'>
                         <Upload className='h-8 w-8 text-gray-400 mx-auto mb-2' />
                         <p className='text-sm text-gray-600'>
-                          File upload coming soon
+                          Upload a file for this question
                         </p>
                         <Input
-                          type='text'
-                          placeholder='For now, please describe or provide a link'
-                          value={rfqAnswers[idx]?.answer || ''}
-                          onChange={(e) =>
-                            handleRFQAnswerChange(idx, e.target.value)
-                          }
+                          type='file'
+                          accept='.pdf,image/*'
                           className='mt-3'
+                          disabled={uploadingQuestionIndex === idx}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            void handleRFQAttachmentUpload(idx, file);
+                            e.currentTarget.value = '';
+                          }}
                         />
+                        {uploadingQuestionIndex === idx && (
+                          <div className='mt-3 inline-flex items-center text-xs text-indigo-600'>
+                            <Loader2 className='h-3.5 w-3.5 mr-1 animate-spin' />
+                            Uploading...
+                          </div>
+                        )}
+                        {rfqAnswers[idx]?.answer && (
+                          <a
+                            href={rfqAnswers[idx].answer}
+                            target='_blank'
+                            rel='noreferrer noopener'
+                            className='mt-3 inline-flex text-sm text-indigo-600 hover:underline'
+                          >
+                            Open uploaded attachment
+                          </a>
+                        )}
                       </div>
                     )}
                   </div>

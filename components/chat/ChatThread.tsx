@@ -14,6 +14,8 @@ interface ChatThreadProps {
   messages: ChatMessage[];
   currentUserId: string | null;
   currentUserRole?: string;
+  currentUserImage?: string | null;
+  currentUserName?: string;
   loading: boolean;
   onReviewReplySubmitted?: () => void;
   onReplyTo?: (message: ChatMessage) => void;
@@ -287,16 +289,16 @@ function ReplyToPreview({ replyTo, isMine }: { replyTo: ChatMessage["replyTo"]; 
         "w-full text-left flex items-start gap-2 px-3 py-2 mb-1 rounded-lg cursor-pointer transition-colors",
         "border-l-[3px] border-indigo-500",
         isMine
-          ? "bg-indigo-500/20 hover:bg-indigo-500/30"
+          ? "bg-indigo-900/30 hover:bg-indigo-900/40"
           : "bg-indigo-50 hover:bg-indigo-100"
       )}
     >
-      <Reply className="h-3.5 w-3.5 text-indigo-500 mt-0.5 shrink-0" />
+      <Reply className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", isMine ? "text-white" : "text-indigo-500")} />
       <div className="min-w-0 flex-1">
-        <p className={cn("text-[11px] font-semibold", isMine ? "text-indigo-200" : "text-indigo-600")}>
+        <p className={cn("text-[11px] font-semibold", isMine ? "text-white" : "text-indigo-600")}>
           {name}
         </p>
-        <p className={cn("text-[11px] truncate", isMine ? "text-indigo-100/70" : "text-gray-500")}>
+        <p className={cn("text-[11px] truncate", isMine ? "text-indigo-50" : "text-gray-500")}>
           {previewText}
         </p>
       </div>
@@ -304,7 +306,7 @@ function ReplyToPreview({ replyTo, isMine }: { replyTo: ChatMessage["replyTo"]; 
   );
 }
 
-export default function ChatThread({ messages, currentUserId, currentUserRole, loading, onReviewReplySubmitted, onReplyTo }: ChatThreadProps) {
+export default function ChatThread({ messages, currentUserId, currentUserRole, currentUserImage, currentUserName, loading, onReviewReplySubmitted, onReplyTo }: ChatThreadProps) {
   const [reportingId, setReportingId] = useState<string | null>(null);
 
   if (loading) {
@@ -340,9 +342,8 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, l
         const isMine = getSenderId(message) === currentUserId;
         const senderName = getSenderName(message);
         const senderImage = getSenderImage(message);
-        // Group consecutive messages from same sender — only show avatar on first
         const prevMessage = index > 0 ? messages[index - 1] : null;
-        const showAvatar = !isMine && (!prevMessage || getSenderId(prevMessage) !== getSenderId(message) || prevMessage.messageType === "review_notification");
+        const showAvatar = !prevMessage || getSenderId(prevMessage) !== getSenderId(message) || prevMessage.messageType === "review_notification";
 
         return (
           <div
@@ -350,7 +351,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, l
             id={`msg-${message._id}`}
             className={cn("flex gap-2 group/msg", isMine ? "justify-end" : "justify-start")}
           >
-            {/* Avatar */}
+            {/* Avatar — other user */}
             {!isMine && (
               <div className="w-8 shrink-0">
                 {showAvatar && (
@@ -367,7 +368,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, l
               </div>
             )}
 
-            <div className="relative min-w-[180px] max-w-[80%]">
+            <div className="relative w-[320px] max-w-[80%]">
               {/* Reply-to preview */}
               {message.replyTo && <ReplyToPreview replyTo={message.replyTo} isMine={isMine} />}
 
@@ -377,6 +378,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, l
                   isMine ? "bg-indigo-600 text-white" : "bg-white text-gray-900 border border-slate-200"
                 )}
               >
+                
                 {!isMine && showAvatar && <p className="mb-1 text-[11px] font-semibold text-indigo-700">{senderName}</p>}
                 {message.text && <p className="text-sm whitespace-pre-wrap">{message.text}</p>}
 
@@ -493,6 +495,23 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, l
                 )}
               </div>
             </div>
+
+            {/* Avatar — own user */}
+            {isMine && (
+              <div className="w-8 shrink-0">
+                {showAvatar && (
+                  <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
+                    {(senderImage || currentUserImage) ? (
+                      <img src={(senderImage || currentUserImage)!} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] font-semibold text-indigo-600">
+                        {(currentUserName || senderName).charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

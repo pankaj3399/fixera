@@ -78,6 +78,7 @@ export interface ChatMessage {
 }
 
 export interface PendingBooking {
+  bookingId: string | null;
   bookingNumber: string;
   status: string;
   preferredStartDate: string | null;

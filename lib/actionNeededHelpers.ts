@@ -49,14 +49,19 @@ export function getProfessionalActionItems(bookings: ActionNeededBooking[]): Act
   const items: ActionItem[] = []
 
   for (const booking of bookings) {
-    // RFQ not quoted for 4+ working days
-    if (booking.status === "rfq" && booking.createdAt && workingDaysSince(booking.createdAt) >= 4) {
-      items.push({ booking, label: "Quote or reject", severity: "urgent" })
+    // RFQ awaiting professional decision
+    if (booking.status === "rfq") {
+      const isOverdue = booking.createdAt && workingDaysSince(booking.createdAt) >= 4
+      items.push({
+        booking,
+        label: "Accept or decline RFQ",
+        severity: isOverdue ? "urgent" : "warning",
+      })
     }
 
     // Start date passed, still in booked status
     if (booking.status === "booked" && isPastDate(booking.scheduledStartDate)) {
-      items.push({ booking, label: "Confirm start or reschedule", severity: "warning" })
+      items.push({ booking, label: "Confirm start", severity: "warning" })
     }
 
     // Completion date passed, still in progress
@@ -80,7 +85,7 @@ export function getCustomerActionItems(bookings: ActionNeededBooking[]): ActionI
   for (const booking of bookings) {
     // Quote awaiting decision
     if (booking.status === "quoted") {
-      items.push({ booking, label: "Accept or reject quote", severity: "warning" })
+      items.push({ booking, label: "Accept or decline quotation", severity: "warning" })
     }
 
     // Payment needed

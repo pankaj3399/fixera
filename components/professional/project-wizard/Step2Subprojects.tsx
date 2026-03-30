@@ -2190,6 +2190,13 @@ export default function Step2Subprojects({
               </CardContent>
             </Card>
           ))}
+
+          <div className='flex justify-center pt-2'>
+            <Button onClick={addSubproject} disabled={subprojects.length >= 5}>
+              <Plus className='w-4 h-4 mr-2' />
+              Add Package
+            </Button>
+          </div>
         </div>
       )}
 

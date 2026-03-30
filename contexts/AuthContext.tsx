@@ -98,6 +98,7 @@ interface User {
     country?: string
     postalCode?: string
   }
+  profileImage?: string
   profileCompletedAt?: string
   professionalOnboardingCompletedAt?: string
   points?: number

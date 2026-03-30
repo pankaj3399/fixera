@@ -299,11 +299,20 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             <div className="space-y-2">
               {stats.pendingBookings.map((booking) => (
                 <div
-                  key={booking.bookingNumber}
+                  key={booking.bookingId || booking.bookingNumber}
                   className="rounded-lg border border-slate-200 bg-slate-50 p-2.5"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-800">{booking.bookingNumber}</span>
+                    {booking.bookingId ? (
+                      <Link
+                        href={`/bookings/${booking.bookingId}`}
+                        className="text-xs font-medium text-indigo-700 hover:underline"
+                      >
+                        {booking.bookingNumber}
+                      </Link>
+                    ) : (
+                      <span className="text-xs font-medium text-gray-800">{booking.bookingNumber}</span>
+                    )}
                     <Badge
                       className={cn(
                         "text-[9px]",

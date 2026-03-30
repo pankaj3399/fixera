@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Paperclip, FileText, Video, ImageIcon, CornerUpRight } from "lucide-react";
+import { X, Paperclip, FileText, Video, ImageIcon, CornerUpRight, Loader2 } from "lucide-react";
 import type { ChatMessage } from "@/types/chat";
 
 interface ChatComposerProps {
@@ -62,7 +62,7 @@ export default function ChatComposer({ disabled, sending, replyTo, onCancelReply
   };
 
   return (
-    <div className="border-t border-slate-200 bg-white p-3 space-y-2">
+    <div className="border-t border-slate-200 bg-white p-3 space-y-2 shrink-0">
       {/* Reply-to preview */}
       {replyTo && (
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
@@ -83,14 +83,6 @@ export default function ChatComposer({ disabled, sending, replyTo, onCancelReply
           </button>
         </div>
       )}
-
-      <Textarea
-        placeholder="Type a message..."
-        rows={3}
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        disabled={disabled || sending}
-      />
 
       {files.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -115,31 +107,43 @@ export default function ChatComposer({ disabled, sending, replyTo, onCancelReply
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/heic,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,video/mp4,video/quicktime"
-            multiple
-            className="hidden"
-            onChange={onPickFiles}
-            disabled={disabled || sending}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => inputRef.current?.click()}
-            disabled={disabled || sending || files.length >= 5}
-          >
-            <Paperclip className="mr-2 h-4 w-4" />
-            Attach
-          </Button>
-        </div>
-
-        <Button type="button" onClick={handleSubmit} disabled={!canSend}>
-          {sending ? "Sending..." : "Send"}
+      <div className="flex items-end gap-2">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/heic,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,video/mp4,video/quicktime"
+          multiple
+          className="hidden"
+          onChange={onPickFiles}
+          disabled={disabled || sending}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 text-gray-500 hover:text-indigo-600"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled || sending || files.length >= 5}
+          aria-label="Attach file"
+        >
+          <Paperclip className="h-5 w-5" />
+        </Button>
+        <Textarea
+          placeholder="Type a message..."
+          rows={1}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              handleSubmit();
+            }
+          }}
+          disabled={disabled || sending}
+          className="resize-none flex-1 min-h-[36px] max-h-[80px]"
+        />
+        <Button type="button" size="icon" className="h-9 w-9 shrink-0" onClick={handleSubmit} disabled={!canSend}>
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CornerUpRight className="h-4 w-4" />}
         </Button>
       </div>
     </div>

@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, CalendarX, Pencil, MapPin, AlertTriangle, CreditCard } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, CalendarX, Pencil, MapPin, AlertTriangle, CreditCard, Camera, Trash2 } from "lucide-react"
 import EmployeeManagement from "@/components/TeamManagement"
 import PasswordChange from "@/components/PasswordChange"
 import EmployeeAvailability from "@/components/EmployeeAvailability"
 import WeeklyAvailabilityCalendar, { CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -120,6 +120,8 @@ export default function ProfilePage() {
   const [newCompanyBlockedRange, setNewCompanyBlockedRange] = useState({ startDate: '', endDate: '', reason: '', isHoliday: false })
   const [bookingEvents, setBookingEvents] = useState<CalendarEvent[]>([])
   const [profileSaving, setProfileSaving] = useState(false)
+  const [profileImageUploading, setProfileImageUploading] = useState(false)
+  const profileImageInputRef = useRef<HTMLInputElement>(null)
   const [showAutoPopulateDialog, setShowAutoPopulateDialog] = useState(false)
   const [pendingVatData, setPendingVatData] = useState<{
     vatNumber: string;
@@ -696,6 +698,55 @@ export default function ProfilePage() {
       toast.error('Failed to remove VAT number')
     } finally {
       setVatSaving(false)
+    }
+  }
+
+  const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (profileImageInputRef.current) profileImageInputRef.current.value = ''
+
+    setProfileImageUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('profileImage', file)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/profile-image`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      })
+      const result = await response.json()
+      if (result.success) {
+        toast.success('Profile image updated')
+        await checkAuth()
+      } else {
+        toast.error(result.msg || 'Failed to upload image')
+      }
+    } catch {
+      toast.error('Failed to upload image')
+    } finally {
+      setProfileImageUploading(false)
+    }
+  }
+
+  const handleDeleteProfileImage = async () => {
+    setProfileImageUploading(true)
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/profile-image`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const result = await response.json()
+      if (result.success) {
+        toast.success('Profile image removed')
+        await checkAuth()
+      } else {
+        toast.error(result.msg || 'Failed to remove image')
+      }
+    } catch {
+      toast.error('Failed to remove image')
+    } finally {
+      setProfileImageUploading(false)
     }
   }
 
@@ -1455,6 +1506,52 @@ export default function ProfilePage() {
                     <CardDescription>Your account details</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    <div className="flex items-center gap-4 pb-3 border-b">
+                      <div className="relative group">
+                        <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
+                          {user?.profileImage ? (
+                            <img src={user.profileImage} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-lg font-semibold text-indigo-600">
+                              {user?.name?.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => profileImageInputRef.current?.click()}
+                          disabled={profileImageUploading}
+                          className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        >
+                          {profileImageUploading ? (
+                            <Loader2 className="h-5 w-5 text-white animate-spin" />
+                          ) : (
+                            <Camera className="h-5 w-5 text-white" />
+                          )}
+                        </button>
+                        <input
+                          ref={profileImageInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={handleProfileImageUpload}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{user?.name}</p>
+                        <p className="text-xs text-gray-500">Click photo to change</p>
+                        {user?.profileImage && (
+                          <button
+                            type="button"
+                            onClick={handleDeleteProfileImage}
+                            disabled={profileImageUploading}
+                            className="text-xs text-red-500 hover:text-red-700 mt-0.5 flex items-center gap-1"
+                          >
+                            <Trash2 className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-gray-500" />
                       <span className="text-sm">{user?.email}</span>
@@ -2439,6 +2536,52 @@ export default function ProfilePage() {
                     <CardDescription>Your account details</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    <div className="flex items-center gap-4 pb-3 border-b">
+                      <div className="relative group">
+                        <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
+                          {user?.profileImage ? (
+                            <img src={user.profileImage} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-lg font-semibold text-indigo-600">
+                              {user?.name?.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => profileImageInputRef.current?.click()}
+                          disabled={profileImageUploading}
+                          className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        >
+                          {profileImageUploading ? (
+                            <Loader2 className="h-5 w-5 text-white animate-spin" />
+                          ) : (
+                            <Camera className="h-5 w-5 text-white" />
+                          )}
+                        </button>
+                        <input
+                          ref={profileImageInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={handleProfileImageUpload}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{user?.name}</p>
+                        <p className="text-xs text-gray-500">Click photo to change</p>
+                        {user?.profileImage && (
+                          <button
+                            type="button"
+                            onClick={handleDeleteProfileImage}
+                            disabled={profileImageUploading}
+                            className="text-xs text-red-500 hover:text-red-700 mt-0.5 flex items-center gap-1"
+                          >
+                            <Trash2 className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-gray-500" />
                       <span className="text-sm">{user?.email}</span>
