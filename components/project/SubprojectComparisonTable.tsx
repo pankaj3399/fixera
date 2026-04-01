@@ -165,7 +165,7 @@ export default function SubprojectComparisonTable({
                 <div>
                   <div className="text-4xl font-bold text-gray-900">
                     {currentSubproject.pricing.type === 'rfq' ? (
-                      <span className="text-2xl">Request Quote</span>
+                      <span className="text-2xl">RFQ</span>
                     ) : currentSubproject.pricing.type === 'unit' ? (
                       <>
                         {formatCurrency(currentSubproject.pricing.amount)}

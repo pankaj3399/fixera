@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { ArrowLeft, Briefcase, Calendar, Clock, FileText, Loader2, Package, Plus, RefreshCw, Search } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ArrowLeft, Briefcase, Calendar, Clock, FileText, GitCompareArrows, Loader2, Package, Plus, RefreshCw, Search } from "lucide-react"
+import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import {
   type BookingStatus,
   QUOTE_STATUSES,
@@ -74,6 +76,17 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [loadingCustomersError, setLoadingCustomersError] = useState<string | null>(null)
   const [creatingQuote, setCreatingQuote] = useState(false)
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set())
+  const [showComparison, setShowComparison] = useState(false)
+
+  const toggleQuoteSelection = useCallback((bookingId: string) => {
+    setSelectedQuoteIds(prev => {
+      const next = new Set(prev)
+      if (next.has(bookingId)) next.delete(bookingId)
+      else next.add(bookingId)
+      return next
+    })
+  }, [])
 
   const fetchActiveCustomers = async () => {
     setLoadingCustomers(true)
@@ -310,6 +323,11 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   // Filters are now applied server-side; relevantBookings just splits quotes vs bookings
   const filteredBookings = relevantBookings
 
+  const comparisonBookings = useMemo(
+    () => filteredBookings.filter(b => selectedQuoteIds.has(b._id)),
+    [filteredBookings, selectedQuoteIds]
+  )
+
   const pendingBookings = useMemo(() => {
     return filteredBookings.filter((booking) => {
       if (mode === "quotes") {
@@ -361,6 +379,14 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               className="border rounded-lg p-4 bg-white hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-start justify-between gap-3">
+                {mode === "quotes" && (
+                  <Checkbox
+                    checked={selectedQuoteIds.has(booking._id)}
+                    onCheckedChange={() => toggleQuoteSelection(booking._id)}
+                    className="mt-1 shrink-0"
+                    aria-label={`Select for comparison`}
+                  />
+                )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     {isProject ? (
@@ -420,6 +446,16 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
             Back to Dashboard
           </Button>
           <div className="flex gap-2">
+            {mode === "quotes" && selectedQuoteIds.size >= 2 && (
+              <Button
+                variant="outline"
+                onClick={() => setShowComparison(true)}
+                className="text-xs"
+              >
+                <GitCompareArrows className="h-4 w-4 mr-2" />
+                Compare ({selectedQuoteIds.size})
+              </Button>
+            )}
             {mode === "quotes" && (
               <Button
                 onClick={() => { setShowCreateQuoteModal(true); fetchActiveCustomers() }}
@@ -612,6 +648,12 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           </div>
         </DialogContent>
       </Dialog>
+
+      <QuoteComparisonModal
+        open={showComparison}
+        onOpenChange={setShowComparison}
+        bookings={comparisonBookings}
+      />
     </div>
   )
 }

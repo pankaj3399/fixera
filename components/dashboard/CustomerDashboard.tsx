@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Briefcase, Calendar, CheckCircle, Clock, CreditCard,
-  Loader2, Package, Plus, Search,
+  GitCompareArrows, Loader2, Package, Plus, Search,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
@@ -27,6 +28,7 @@ import {
   CUSTOMER_BOOKING_STATUS_FILTERS,
 } from "@/lib/dashboardBookingHelpers"
 import { getCustomerActionItems, type ActionItem } from "@/lib/actionNeededHelpers"
+import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 
 interface Booking {
   _id: string
@@ -83,6 +85,9 @@ export default function CustomerDashboard() {
   const [debouncedBookingSearch, setDebouncedBookingSearch] = useState("")
   const [bookingStatusFilter, setBookingStatusFilter] = useState("all")
   const [bookingServiceFilter, setBookingServiceFilter] = useState("all")
+
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set())
+  const [showComparison, setShowComparison] = useState(false)
 
   // Debounce
   useEffect(() => {
@@ -186,6 +191,20 @@ export default function CustomerDashboard() {
     })
   }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch])
 
+  const toggleQuoteSelection = useCallback((bookingId: string) => {
+    setSelectedQuoteIds(prev => {
+      const next = new Set(prev)
+      if (next.has(bookingId)) next.delete(bookingId)
+      else next.add(bookingId)
+      return next
+    })
+  }, [])
+
+  const comparisonBookings = useMemo(
+    () => filteredQuotes.filter(b => selectedQuoteIds.has(b._id)),
+    [filteredQuotes, selectedQuoteIds]
+  )
+
   // Summary stats
   const totalBookings = bookings.length
   const totalActive = activeBookings.filter(b => !["completed", "cancelled", "refunded"].includes(b.status)).length
@@ -241,7 +260,7 @@ export default function CustomerDashboard() {
     </div>
   )
 
-  const renderBookingCard = (booking: Booking, colorAccent: string) => {
+  const renderBookingCard = (booking: Booking, colorAccent: string, opts?: { selectable?: boolean; selected?: boolean; onToggle?: () => void }) => {
     const isProject = booking.bookingType === "project"
     const title = getBookingTitle(booking)
     const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(booking.status)
@@ -272,21 +291,31 @@ export default function CustomerDashboard() {
       <Card key={booking._id} className="bg-white/90 backdrop-blur shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                {isProject ? (
-                  <Package className={`h-4 w-4 text-${colorAccent}-500`} />
-                ) : (
-                  <Briefcase className={`h-4 w-4 text-${colorAccent}-500`} />
-                )}
-                <CardTitle className="text-base font-semibold text-gray-900">
-                  {title}
-                </CardTitle>
+            <div className="flex items-start gap-2">
+              {opts?.selectable && (
+                <Checkbox
+                  checked={opts.selected}
+                  onCheckedChange={() => opts.onToggle?.()}
+                  className="mt-1 shrink-0"
+                  aria-label={`Select ${title} for comparison`}
+                />
+              )}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  {isProject ? (
+                    <Package className={`h-4 w-4 text-${colorAccent}-500`} />
+                  ) : (
+                    <Briefcase className={`h-4 w-4 text-${colorAccent}-500`} />
+                  )}
+                  <CardTitle className="text-base font-semibold text-gray-900">
+                    {title}
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-xs text-gray-500">
+                  {isProject ? "Project booking" : "Professional booking"}
+                  {booking.rfqData?.serviceType && ` • ${booking.rfqData.serviceType}`}
+                </CardDescription>
               </div>
-              <CardDescription className="text-xs text-gray-500">
-                {isProject ? "Project booking" : "Professional booking"}
-                {booking.rfqData?.serviceType && ` • ${booking.rfqData.serviceType}`}
-              </CardDescription>
             </div>
             <Badge
               variant="outline"
@@ -572,6 +601,26 @@ export default function CustomerDashboard() {
               "Search quotes..."
             )}
 
+            {filteredQuotes.length > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">
+                  {selectedQuoteIds.size > 0
+                    ? `${selectedQuoteIds.size} selected`
+                    : "Select quotes to compare"}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={selectedQuoteIds.size < 2}
+                  onClick={() => setShowComparison(true)}
+                  className="text-xs"
+                >
+                  <GitCompareArrows className="h-3.5 w-3.5 mr-1.5" />
+                  Compare ({selectedQuoteIds.size})
+                </Button>
+              </div>
+            )}
+
             {bookingsLoading && renderLoadingSkeleton()}
             {!bookingsLoading && bookingsError && (
               <Card className="bg-rose-50 border border-rose-100">
@@ -587,7 +636,11 @@ export default function CustomerDashboard() {
             )}
             {!bookingsLoading && !bookingsError && filteredQuotes.length > 0 && (
               <div className="space-y-4">
-                {filteredQuotes.map(b => renderBookingCard(b, "indigo"))}
+                {filteredQuotes.map(b => renderBookingCard(b, "indigo", {
+                  selectable: true,
+                  selected: selectedQuoteIds.has(b._id),
+                  onToggle: () => toggleQuoteSelection(b._id),
+                }))}
               </div>
             )}
           </TabsContent>
@@ -622,6 +675,12 @@ export default function CustomerDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <QuoteComparisonModal
+        open={showComparison}
+        onOpenChange={setShowComparison}
+        bookings={comparisonBookings}
+      />
     </div>
   )
 }

@@ -1867,7 +1867,9 @@ export default function ProjectBookingForm({
         return false;
       }
 
+      const isRfqPricing = selectedPackage?.pricing?.type === 'rfq';
       if (
+        !isRfqPricing &&
         projectMode === 'days' &&
         (loadingScheduleWindow || !scheduleWindowCompletionDate)
       ) {
@@ -2699,7 +2701,7 @@ export default function ProjectBookingForm({
                                 </div>
                               )}
                             {selectedPackage.pricing.type === 'rfq' && (
-                              <Badge variant='outline'>Quote Required</Badge>
+                              <Badge variant='outline'>RFQ</Badge>
                             )}
                           </div>
                         </div>
@@ -3279,10 +3281,10 @@ export default function ProjectBookingForm({
                           <span className='text-gray-700'>Package Price:</span>
                           <span className='font-semibold'>
                             {selectedPackage.pricing.type === 'rfq'
-                              ? 'Quote Required'
+                              ? 'RFQ'
                               : typeof effectivePackagePrice === 'number'
                                 ? formatCurrency(effectivePackagePrice)
-                                : 'Quote Required'}
+                                : 'RFQ'}
                           </span>
                         </div>
 
@@ -3509,7 +3511,7 @@ export default function ProjectBookingForm({
                             </span>
                           )}
                         {selectedPackage.pricing.type === 'rfq' && (
-                          <Badge variant='outline'>Quote Required</Badge>
+                          <Badge variant='outline'>RFQ</Badge>
                         )}
                       </div>
                     </div>
@@ -3698,10 +3700,10 @@ export default function ProjectBookingForm({
                         <span className='text-gray-700'>Package Price:</span>
                         <span className='font-semibold'>
                           {selectedPackage.pricing.type === 'rfq'
-                            ? 'Quote Required'
+                            ? 'RFQ'
                             : typeof effectivePackagePrice === 'number'
                               ? formatCurrency(effectivePackagePrice)
-                              : 'Quote Required'}
+                              : 'RFQ'}
                         </span>
                       </div>
 
