@@ -94,8 +94,8 @@ const PopularProjectsCarousel = () => {
   };
 
   const formatPrice = (price: number | null, type: string) => {
-    if (type === 'rfq' || price === null) return 'Request Quote';
-    if (type === 'unit') return `From \u20AC${price.toLocaleString()}`;
+    if (price === null) return type === 'rfq' ? 'RFQ' : 'Price on request';
+    if (type === 'unit' || type === 'rfq') return `From \u20AC${price.toLocaleString()}`;
     return `\u20AC${price.toLocaleString()}`;
   };
 

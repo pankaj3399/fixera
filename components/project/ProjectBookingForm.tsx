@@ -2165,17 +2165,20 @@ export default function ProjectBookingForm({
   };
 
   const getEffectivePackagePrice = (): number | null => {
+    const currentPackage = selectedPackage;
+    const amount = currentPackage?.pricing.amount;
     if (
-      !selectedPackage?.pricing.amount ||
-      selectedPackage.pricing.type === 'rfq'
+      !currentPackage ||
+      amount == null ||
+      currentPackage?.pricing.type === 'rfq'
     ) {
       return null;
     }
 
-    const multiplier = shouldCollectUsage(selectedPackage.pricing.type)
+    const multiplier = shouldCollectUsage(currentPackage.pricing.type)
       ? estimatedUsage
       : 1;
-    return multiplier * selectedPackage.pricing.amount;
+    return multiplier * amount;
   };
 
   const calculateTotal = (): number => {
@@ -2699,7 +2702,7 @@ export default function ProjectBookingForm({
                                 </div>
                               )}
                             {selectedPackage.pricing.type === 'rfq' && (
-                              <Badge variant='outline'>Quote Required</Badge>
+                              <Badge variant='outline'>RFQ</Badge>
                             )}
                           </div>
                         </div>
@@ -3279,10 +3282,10 @@ export default function ProjectBookingForm({
                           <span className='text-gray-700'>Package Price:</span>
                           <span className='font-semibold'>
                             {selectedPackage.pricing.type === 'rfq'
-                              ? 'Quote Required'
+                              ? 'RFQ'
                               : typeof effectivePackagePrice === 'number'
                                 ? formatCurrency(effectivePackagePrice)
-                                : 'Quote Required'}
+                                : 'RFQ'}
                           </span>
                         </div>
 
@@ -3509,7 +3512,7 @@ export default function ProjectBookingForm({
                             </span>
                           )}
                         {selectedPackage.pricing.type === 'rfq' && (
-                          <Badge variant='outline'>Quote Required</Badge>
+                          <Badge variant='outline'>RFQ</Badge>
                         )}
                       </div>
                     </div>
@@ -3698,10 +3701,10 @@ export default function ProjectBookingForm({
                         <span className='text-gray-700'>Package Price:</span>
                         <span className='font-semibold'>
                           {selectedPackage.pricing.type === 'rfq'
-                            ? 'Quote Required'
+                            ? 'RFQ'
                             : typeof effectivePackagePrice === 'number'
                               ? formatCurrency(effectivePackagePrice)
-                              : 'Quote Required'}
+                              : 'RFQ'}
                         </span>
                       </div>
 
