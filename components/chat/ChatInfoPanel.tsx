@@ -163,12 +163,22 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
         )}
 
         {isCustomerViewing && other?._id && (
-          <Button asChild variant="outline" size="sm" className="mt-3 w-full text-xs">
-            <Link href={`/professional/${other._id}`}>
-              <User className="h-3 w-3 mr-1.5" />
-              View Full Profile
-            </Link>
-          </Button>
+          <div className="mt-3 grid w-full gap-2">
+            <Button asChild variant="outline" size="sm" className="w-full text-xs">
+              <Link href={`/professional/${other._id}`}>
+                <User className="h-3 w-3 mr-1.5" />
+                View Full Profile
+              </Link>
+            </Button>
+            {stats?.pendingBookings?.[0]?.bookingId && (
+              <Button asChild size="sm" className="w-full text-xs bg-indigo-600 hover:bg-indigo-700">
+                <Link href={`/bookings/${stats.pendingBookings[0].bookingId}`}>
+                  <Briefcase className="h-3 w-3 mr-1.5" />
+                  Open Booking
+                </Link>
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

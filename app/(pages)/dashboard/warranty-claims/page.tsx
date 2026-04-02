@@ -31,9 +31,11 @@ interface ClaimRecord {
   } | null
   proposal?: {
     message?: string
+    resolveByDate?: string
     proposedScheduleAt?: string
     customerDecision?: "accepted" | "declined"
   }
+  evidence?: string[]
   escalation?: {
     reason?: string
     note?: string
@@ -244,7 +246,30 @@ export default function ProfessionalWarrantyClaimsPage() {
 
                     {claim.proposal?.message && (
                       <div className="rounded-md border bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                        Proposal: {claim.proposal.message}
+                        Resolve proposal: {claim.proposal.message}
+                        {(claim.proposal.resolveByDate || claim.proposal.proposedScheduleAt) && (
+                          <div className="mt-1 text-sky-700">
+                            Resolve date: {formatDate(claim.proposal.resolveByDate || claim.proposal.proposedScheduleAt)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {Array.isArray(claim.evidence) && claim.evidence.length > 0 && (
+                      <div className="rounded-md border bg-white px-3 py-2 text-xs text-slate-700">
+                        <p className="mb-2 font-medium text-slate-800">Attachments</p>
+                        <div className="space-y-1">
+                          {claim.evidence.map((attachment, index) => (
+                            <a
+                              key={`${attachment}-${index}`}
+                              href={attachment}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="block text-indigo-700 hover:underline"
+                            >
+                              Open attachment {index + 1}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {claim.resolution?.summary && (

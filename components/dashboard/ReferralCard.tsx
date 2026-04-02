@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAuthToken } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ReferralData {
   referralCode: string;
@@ -43,6 +44,7 @@ interface ReferralData {
 }
 
 export default function ReferralCard() {
+  const { user } = useAuth();
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -136,6 +138,8 @@ export default function ReferralCard() {
     }
   };
 
+  const isProfessional = user?.role === 'professional';
+
   if (loading) {
     return (
       <Card>
@@ -169,7 +173,9 @@ export default function ReferralCard() {
             </div>
           )}
           <p className="text-sm text-gray-600 mb-4">
-            Refer friends to Fixera and earn points when they complete their first booking!
+            {isProfessional
+              ? 'Refer professionals to Fixera and earn points that help you level up faster.'
+              : 'Refer customers to Fixera and earn points when they complete their first booking!'}
           </p>
           <Button onClick={generateCode} disabled={generating} className="bg-purple-600 hover:bg-purple-700">
             {generating ? (
@@ -206,6 +212,11 @@ export default function ReferralCard() {
             </Button>
           </div>
         )}
+        <p className="text-sm text-gray-600">
+          {isProfessional
+            ? 'Professional referrals help you build points and trust faster.'
+            : 'Customer referrals convert into points you can spend on future bookings.'}
+        </p>
         {/* Referral Code Display */}
         <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
           <p className="text-xs text-gray-500 mb-1">Your Referral Code</p>
@@ -273,7 +284,7 @@ export default function ReferralCard() {
           <p className="font-medium text-gray-700 mb-1">How it works:</p>
           <ul className="space-y-1">
             <li>1. Share your referral code or link</li>
-            <li>2. Friend signs up and completes their first booking</li>
+            <li>2. {isProfessional ? 'A professional' : 'A customer'} signs up and completes their first booking</li>
             <li>3. You earn {data.referrerRewardAmount} points (&euro;{data.referrerRewardAmount})!</li>
           </ul>
         </div>
