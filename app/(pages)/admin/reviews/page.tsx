@@ -120,7 +120,11 @@ export default function AdminReviewsPage() {
   }, [isAuthenticated, loading, router, user?.role])
 
   useEffect(() => {
-    const timeout = setTimeout(() => setSearchQuery(searchInput.trim()), 350)
+    const timeout = setTimeout(() => {
+      const nextQuery = searchInput.trim()
+      setSearchQuery(nextQuery)
+      setPage((currentPage) => (currentPage === 1 ? currentPage : 1))
+    }, 350)
     return () => clearTimeout(timeout)
   }, [searchInput])
 
@@ -174,7 +178,6 @@ export default function AdminReviewsPage() {
 
   const mutateVisibility = async (review: ReviewRecord, nextAction: "hide" | "unhide") => {
     setActioningReviewId(review._id)
-    const controller = new AbortController()
     try {
       const response = await authFetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/reviews/${review._id}/${nextAction}`,
@@ -186,11 +189,10 @@ export default function AdminReviewsPage() {
       }
 
       toast.success(nextAction === "hide" ? "Review hidden" : "Review restored")
-      await fetchReviews(controller.signal)
+      await fetchReviews()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `Failed to ${nextAction} review`)
     } finally {
-      controller.abort()
       if (isMountedRef.current) {
         setActioningReviewId(null)
       }
@@ -312,10 +314,7 @@ export default function AdminReviewsPage() {
                   <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <Input
                     value={searchInput}
-                    onChange={(e) => {
-                      setPage(1)
-                      setSearchInput(e.target.value)
-                    }}
+                    onChange={(e) => setSearchInput(e.target.value)}
                     placeholder="Search comment or booking number"
                     className="pl-9"
                   />
@@ -344,7 +343,11 @@ export default function AdminReviewsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+              >
                 {error}
               </div>
             )}

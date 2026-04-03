@@ -79,6 +79,7 @@ export default function WarrantyClaimsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const searchSuffix = searchParams.toString() ? `?${searchParams.toString()}` : ""
   const claimIdFromQuery = searchParams.get("claimId") || null
   const statusFromQuery = searchParams.get("status")
 
@@ -101,9 +102,9 @@ export default function WarrantyClaimsPage() {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push("/login?redirect=/dashboard/warranty-claims")
+      router.push(`/login?redirect=/dashboard/warranty-claims${searchSuffix}`)
     }
-  }, [isAuthenticated, loading, router])
+  }, [isAuthenticated, loading, router, searchSuffix])
 
   useEffect(() => {
     if (!loading && isAuthenticated && user?.role !== "professional" && user?.role !== "customer") {
@@ -112,8 +113,9 @@ export default function WarrantyClaimsPage() {
   }, [isAuthenticated, loading, router, user?.role])
 
   useEffect(() => {
-    if (claimIdFromQuery || !normalizedStatusFromQuery) return
-    setStatusFilter(normalizedStatusFromQuery)
+    if (claimIdFromQuery) return
+    setStatusFilter(normalizedStatusFromQuery ?? "all")
+    setPage((currentPage) => (currentPage === 1 ? currentPage : 1))
   }, [claimIdFromQuery, normalizedStatusFromQuery])
 
   const fetchClaimById = useCallback(async (claimId: string, signal?: AbortSignal) => {
@@ -139,9 +141,8 @@ export default function WarrantyClaimsPage() {
   useEffect(() => {
     if (!claimIdFromQuery) {
       setHighlightedClaim(null)
-      if (normalizedStatusFromQuery) {
-        setStatusFilter(normalizedStatusFromQuery)
-      }
+      setStatusFilter(normalizedStatusFromQuery ?? "all")
+      setPage((currentPage) => (currentPage === 1 ? currentPage : 1))
       return
     }
 
@@ -154,11 +155,7 @@ export default function WarrantyClaimsPage() {
 
         setHighlightedClaim(claim)
         setPage(1)
-        setStatusFilter(
-          normalizedStatusFromQuery === "all" || normalizedStatusFromQuery == null
-            ? claim.status
-            : normalizedStatusFromQuery
-        )
+        setStatusFilter(claim.status)
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return
         setHighlightedClaim(null)

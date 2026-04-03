@@ -3382,7 +3382,7 @@ export default function ProjectBookingForm({
                         )}
 
                         {/* Grand Total */}
-                        {calculateTotal() > 0 && (
+                        {finalDisplayTotal > 0 && (
                           <div className='flex justify-between items-center pt-3 border-t-2 border-blue-400'>
                             <span className='text-lg font-bold text-gray-900'>
                               Grand Total:
@@ -3854,12 +3854,12 @@ export default function ProjectBookingForm({
                       )}
 
                       {/* Separator */}
-                      {calculateTotal() > 0 && (
+                      {finalDisplayTotal > 0 && (
                         <div className='border-t-2 border-blue-400 my-2'></div>
                       )}
 
                       {/* Grand Total */}
-                      {calculateTotal() > 0 && (
+                      {finalDisplayTotal > 0 && (
                         <div className='flex justify-between items-center'>
                           <span className='text-lg font-bold text-gray-900'>
                             Grand Total:
