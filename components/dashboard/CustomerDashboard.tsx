@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
 import StartChatButton from "@/components/chat/StartChatButton"
 import ReferralCard from "@/components/dashboard/ReferralCard"
+import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import {
   type BookingStatus,
   getBookingStatusMeta,
@@ -53,6 +54,20 @@ interface Booking {
     endsAt?: string
     source?: "quote" | "project_subproject"
   }
+}
+
+interface WarrantyClaimAction {
+  _id: string
+  status: string
+  claimNumber: string
+  booking?: { _id?: string; bookingNumber?: string } | null
+}
+
+interface WarrantyDashboardAction {
+  id: string
+  bookingId: string
+  label: string
+  severity: "warning" | "urgent"
 }
 
 const formatBudget = (booking: Booking): string | null => {
@@ -97,6 +112,7 @@ export default function CustomerDashboard() {
   const router = useRouter()
 
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
 
@@ -168,6 +184,25 @@ export default function CustomerDashboard() {
     fetchAllBookings()
   }, [])
 
+  useEffect(() => {
+    const loadClaims = async () => {
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers.Authorization = `Bearer ${token}`
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/my?limit=50`, {
+          credentials: "include",
+          headers,
+        })
+        const payload = await response.json()
+        if (response.ok && payload.success) setWarrantyClaims(payload.data?.claims || [])
+      } catch {
+        // non-blocking
+      }
+    }
+    void loadClaims()
+  }, [])
+
   // Split into quotes and bookings
   const quoteBookings = useMemo(
     () => bookings.filter(b => CUSTOMER_QUOTE_STATUSES.has(b.status)),
@@ -180,6 +215,18 @@ export default function CustomerDashboard() {
 
   // Action items
   const actionItems = useMemo(() => getCustomerActionItems(bookings), [bookings])
+  const warrantyActionItems = useMemo<WarrantyDashboardAction[]>(() => {
+    return warrantyClaims.reduce<WarrantyDashboardAction[]>((acc, claim) => {
+      if (!claim.booking?._id) return acc
+      if (claim.status === "proposal_sent") {
+        acc.push({ id: claim._id, bookingId: claim.booking._id, label: "Accept or decline warranty proposal", severity: "warning" })
+      }
+      if (claim.status === "resolved") {
+        acc.push({ id: claim._id, bookingId: claim.booking._id, label: "Accept or decline warranty resolution", severity: "urgent" })
+      }
+      return acc
+    }, [])
+  }, [warrantyClaims])
 
   // Unique services across all bookings
   const allServices = useMemo(() => {
@@ -582,6 +629,8 @@ export default function CustomerDashboard() {
           </Card>
         </div>
 
+        <BenefitsProgramCard />
+
         {/* Referral Card */}
         <ReferralCard />
 
@@ -590,7 +639,7 @@ export default function CustomerDashboard() {
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="action_needed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Action Needed {actionItems.length > 0 && `(${actionItems.length})`}
+                Action Needed {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
               </TabsTrigger>
               <TabsTrigger value="quotes" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 Quotes ({quoteBookings.length})
@@ -609,12 +658,23 @@ export default function CustomerDashboard() {
                 <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
               </Card>
             )}
-            {!bookingsLoading && !bookingsError && actionItems.length === 0 && (
+            {!bookingsLoading && !bookingsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
               renderEmptyState("No actions needed right now. You're all caught up!")
             )}
-            {!bookingsLoading && !bookingsError && actionItems.length > 0 && (
+            {!bookingsLoading && !bookingsError && (actionItems.length > 0 || warrantyActionItems.length > 0) && (
               <div className="space-y-3">
                 {actionItems.map(renderActionItem)}
+                {warrantyActionItems.map((item) => (
+                  <div key={item.id} className={`border rounded-lg p-4 ${item.severity === "urgent" ? "border-red-200 bg-red-50/50" : "border-amber-200 bg-amber-50/50"}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-sm text-slate-900">{item.label}</p>
+                        <p className="text-xs text-slate-600">Warranty flow for booking {item.bookingId}</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/bookings/${item.bookingId}`)}>View</Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </TabsContent>

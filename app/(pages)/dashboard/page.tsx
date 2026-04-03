@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
 import ReferralCard from "@/components/dashboard/ReferralCard"
+import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
@@ -103,6 +104,27 @@ interface Booking {
   }
 }
 
+interface WarrantyClaimAction {
+  _id: string
+  status: string
+  claimNumber: string
+  booking?: {
+    _id?: string
+    bookingNumber?: string
+  } | null
+  proposal?: {
+    resolveByDate?: string
+    proposedScheduleAt?: string
+  }
+}
+
+interface WarrantyDashboardAction {
+  id: string
+  bookingId: string
+  label: string
+  severity: "warning" | "urgent"
+}
+
 
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth()
@@ -117,8 +139,26 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
+  const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
+  const [warrantyClaimsLoading, setWarrantyClaimsLoading] = useState(false)
+  const [warrantyClaimsError, setWarrantyClaimsError] = useState<string | null>(null)
 
   const actionItems = useMemo(() => getProfessionalActionItems(bookings), [bookings])
+  const warrantyActionItems = useMemo<WarrantyDashboardAction[]>(() => {
+    if (warrantyClaimsLoading || warrantyClaimsError) return []
+    return warrantyClaims.flatMap((claim) => {
+      if (!claim.booking?._id) return []
+      if (claim.status === "open") {
+        return [{ id: claim._id, bookingId: claim.booking._id, label: "Accept or decline warranty claim", severity: "urgent" as const }]
+      }
+      if (claim.status === "proposal_accepted") {
+        const resolveAt = claim.proposal?.resolveByDate || claim.proposal?.proposedScheduleAt
+        const overdue = resolveAt ? new Date(resolveAt).getTime() <= Date.now() : false
+        return [{ id: claim._id, bookingId: claim.booking._id, label: overdue ? "Confirm warranty resolve now" : "Track warranty resolve date", severity: overdue ? "urgent" as const : "warning" as const }]
+      }
+      return []
+    })
+  }, [warrantyClaims, warrantyClaimsError, warrantyClaimsLoading])
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -188,6 +228,35 @@ export default function DashboardPage() {
     }
 
     fetchBookings()
+  }, [user, isAuthenticated])
+
+  useEffect(() => {
+    if (!user || !isAuthenticated || user.role !== "professional") return
+    const loadClaims = async () => {
+      setWarrantyClaimsLoading(true)
+      setWarrantyClaimsError(null)
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers.Authorization = `Bearer ${token}`
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/my?limit=50`, {
+          credentials: "include",
+          headers,
+        })
+        const payload = await response.json()
+        if (response.ok && payload.success) {
+          setWarrantyClaims(payload.data?.claims || [])
+          return
+        }
+        setWarrantyClaimsError(payload?.msg || "Failed to load warranty claims.")
+      } catch (error) {
+        console.error("Failed to load warranty claims:", error)
+        setWarrantyClaimsError("Failed to load warranty claims.")
+      } finally {
+        setWarrantyClaimsLoading(false)
+      }
+    }
+    void loadClaims()
   }, [user, isAuthenticated])
 
   const fetchAdminData = async () => {
@@ -494,6 +563,25 @@ export default function DashboardPage() {
                   >
                     <Settings className="h-4 w-4 mr-2" />
                     Manage Platform Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-blue-500" />
+                    Professional Management
+                  </CardTitle>
+                  <CardDescription>Manage professional levels, tags, earnings, and account status</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/professionals/manage', '_blank')}
+                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-700 hover:from-blue-700 hover:to-cyan-800"
+                  >
+                    <Briefcase className="h-4 w-4 mr-2" />
+                    Open Professional Management
                   </Button>
                 </CardContent>
               </Card>
@@ -994,6 +1082,8 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
+          <BenefitsProgramCard />
+
           {/* Referral Card */}
           <ReferralCard />
 
@@ -1053,13 +1143,25 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {!bookingsLoading && !bookingsError && actionItems.length === 0 && (
+              {!bookingsLoading && !bookingsError && !warrantyClaimsLoading && !warrantyClaimsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   No actions needed right now. You&apos;re all caught up!
                 </div>
               )}
 
-              {!bookingsLoading && !bookingsError && actionItems.length > 0 && (
+              {!bookingsLoading && !bookingsError && warrantyClaimsLoading && (
+                <div className="text-center py-4 text-gray-500">
+                  Loading warranty actions...
+                </div>
+              )}
+
+              {!bookingsLoading && !bookingsError && !warrantyClaimsLoading && warrantyClaimsError && (
+                <div className="text-center py-4 text-amber-700">
+                  {warrantyClaimsError}
+                </div>
+              )}
+
+              {!bookingsLoading && !bookingsError && (actionItems.length > 0 || (!warrantyClaimsLoading && !warrantyClaimsError && warrantyActionItems.length > 0)) && (
                 <div className="space-y-3">
                   {actionItems.map((item) => {
                     const isProject = item.booking.bookingType === "project"
@@ -1129,6 +1231,24 @@ export default function DashboardPage() {
                       </div>
                     )
                   })}
+                  {!warrantyClaimsLoading && !warrantyClaimsError && warrantyActionItems.map((item) => (
+                    <div key={item.id} className={`border rounded-lg p-4 ${item.severity === "urgent" ? "border-red-200 bg-red-50/50" : "border-amber-200 bg-amber-50/50"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold text-sm">{item.label}</h3>
+                          <p className="text-xs text-gray-600">Warranty action for booking {item.bookingId}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/bookings/${item.bookingId}`)}
+                          className="text-xs"
+                        >
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

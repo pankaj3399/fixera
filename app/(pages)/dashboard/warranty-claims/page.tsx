@@ -31,9 +31,11 @@ interface ClaimRecord {
   } | null
   proposal?: {
     message?: string
+    resolveByDate?: string
     proposedScheduleAt?: string
     customerDecision?: "accepted" | "declined"
   }
+  evidence?: string[]
   escalation?: {
     reason?: string
     note?: string
@@ -41,6 +43,7 @@ interface ClaimRecord {
   }
   resolution?: {
     summary?: string
+    attachments?: string[]
     resolvedAt?: string
     customerConfirmedAt?: string
     autoClosedAt?: string
@@ -58,6 +61,11 @@ const formatDate = (value?: string) => {
   if (Number.isNaN(date.getTime())) return "-"
   return date.toLocaleDateString()
 }
+
+const getClaimAttachments = (claim: ClaimRecord) => [
+  ...(Array.isArray(claim.evidence) ? claim.evidence : []),
+  ...(Array.isArray(claim.resolution?.attachments) ? claim.resolution.attachments : []),
+]
 
 export default function ProfessionalWarrantyClaimsPage() {
   const { user, isAuthenticated, loading } = useAuth()
@@ -211,7 +219,10 @@ export default function ProfessionalWarrantyClaimsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {claims.map((claim) => (
+                {claims.map((claim) => {
+                  const attachments = getClaimAttachments(claim)
+
+                  return (
                   <div key={claim._id} className="rounded-lg border bg-white p-4 space-y-3">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                       <div>
@@ -244,7 +255,30 @@ export default function ProfessionalWarrantyClaimsPage() {
 
                     {claim.proposal?.message && (
                       <div className="rounded-md border bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                        Proposal: {claim.proposal.message}
+                        Resolve proposal: {claim.proposal.message}
+                        {(claim.proposal.resolveByDate || claim.proposal.proposedScheduleAt) && (
+                          <div className="mt-1 text-sky-700">
+                            Resolve date: {formatDate(claim.proposal.resolveByDate || claim.proposal.proposedScheduleAt)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {attachments.length > 0 && (
+                      <div className="rounded-md border bg-white px-3 py-2 text-xs text-slate-700">
+                        <p className="mb-2 font-medium text-slate-800">Attachments</p>
+                        <div className="space-y-1">
+                          {attachments.map((attachment, index) => (
+                            <a
+                              key={`${attachment}-${index}`}
+                              href={attachment}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="block text-indigo-700 hover:underline"
+                            >
+                              Open attachment {index + 1}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {claim.resolution?.summary && (
@@ -292,7 +326,8 @@ export default function ProfessionalWarrantyClaimsPage() {
                       )}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 

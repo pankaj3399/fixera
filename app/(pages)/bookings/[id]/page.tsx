@@ -159,6 +159,7 @@ interface WarrantyClaimDetail {
   warrantyEndsAt?: string
   proposal?: {
     message?: string
+    resolveByDate?: string
     proposedScheduleAt?: string
     customerDecision?: "accepted" | "declined"
     decisionNote?: string
@@ -171,6 +172,7 @@ interface WarrantyClaimDetail {
   }
   resolution?: {
     summary?: string
+    attachments?: string[]
     resolvedAt?: string
     customerConfirmedAt?: string
     autoClosedAt?: string
@@ -292,6 +294,32 @@ const parseResponseBody = async <T,>(response: Response): Promise<{ data: T | nu
   }
 }
 
+const WARRANTY_ALLOWED_FILE_TYPES = ['image/', 'video/', 'application/pdf']
+const WARRANTY_MAX_FILE_SIZE = 50 * 1024 * 1024
+const WARRANTY_MAX_FILES = 10
+
+const validateWarrantyFiles = (fileList: FileList | File[] | null | undefined) => {
+  const raw = Array.from(fileList || [])
+  const valid: File[] = []
+  const rejected: string[] = []
+
+  for (const file of raw.slice(0, WARRANTY_MAX_FILES)) {
+    if (!WARRANTY_ALLOWED_FILE_TYPES.some((type) => file.type.startsWith(type))) {
+      rejected.push(`${file.name}: unsupported type`)
+    } else if (file.size > WARRANTY_MAX_FILE_SIZE) {
+      rejected.push(`${file.name}: exceeds 50 MB`)
+    } else {
+      valid.push(file)
+    }
+  }
+
+  if (raw.length > WARRANTY_MAX_FILES) {
+    rejected.push(`Only ${WARRANTY_MAX_FILES} files allowed`)
+  }
+
+  return { valid, rejected }
+}
+
 
 export default function BookingDetailPage() {
   const { user, isAuthenticated, loading } = useAuth()
@@ -343,6 +371,7 @@ export default function BookingDetailPage() {
   const [warrantyProposalMessage, setWarrantyProposalMessage] = useState("")
   const [warrantyProposalSchedule, setWarrantyProposalSchedule] = useState("")
   const [warrantyResolutionSummary, setWarrantyResolutionSummary] = useState("")
+  const [warrantyResolutionFiles, setWarrantyResolutionFiles] = useState<File[]>([])
   const [warrantyDialogAutoOpened, setWarrantyDialogAutoOpened] = useState(false)
   const [showDeclineReasonDialog, setShowDeclineReasonDialog] = useState(false)
   const [declineReason, setDeclineReason] = useState("")
@@ -769,19 +798,23 @@ export default function BookingDetailPage() {
   const handleSubmitWarrantyProposal = async () => {
     if (!warrantyClaim?._id) return
     if (!warrantyProposalMessage.trim()) {
-      toast.error("Proposal message is required.")
+      toast.error("Resolve proposal is required.")
+      return
+    }
+    if (!warrantyProposalSchedule) {
+      toast.error("Resolve date is required.")
       return
     }
     setWarrantyActionLoading(true)
     try {
       const data = await callWarrantyAction(`${warrantyClaim._id}/proposal`, {
         message: warrantyProposalMessage.trim(),
-        proposedScheduleAt: warrantyProposalSchedule || undefined,
+        resolveByDate: warrantyProposalSchedule,
       })
       setWarrantyClaim(data.claim || null)
       setWarrantyProposalMessage("")
       setWarrantyProposalSchedule("")
-      toast.success("Proposal sent.")
+      toast.success("Resolve proposal sent.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit proposal")
     } finally {
@@ -833,11 +866,57 @@ export default function BookingDetailPage() {
     }
     setWarrantyActionLoading(true)
     try {
-      const data = await callWarrantyAction(`${warrantyClaim._id}/resolve`, {
-        summary: warrantyResolutionSummary.trim(),
-      })
+      const token = getAuthToken()
+      let attachmentUrls: string[] = []
+      let uploadedFiles: Array<{ url?: string; key?: string }> = []
+      if (warrantyResolutionFiles.length > 0) {
+        const formData = new FormData()
+        warrantyResolutionFiles.forEach((file) => formData.append("files", file))
+        const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/upload-evidence`, {
+          method: "POST",
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        })
+        const uploadPayload = await uploadResponse.json()
+        if (!uploadResponse.ok || !uploadPayload.success) {
+          throw new Error(uploadPayload.msg || "Failed to upload resolution attachments")
+        }
+        uploadedFiles = Array.isArray(uploadPayload.data?.files) ? uploadPayload.data.files : []
+        attachmentUrls = uploadedFiles
+          .map((file: { url?: string }) => file.url)
+          .filter((url): url is string => Boolean(url))
+      }
+      let data
+      try {
+        data = await callWarrantyAction(`${warrantyClaim._id}/resolve`, {
+          summary: warrantyResolutionSummary.trim(),
+          attachments: attachmentUrls,
+        })
+      } catch (error) {
+        if (uploadedFiles.length > 0) {
+          try {
+            await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/upload-evidence`, {
+              method: "DELETE",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                urls: uploadedFiles.map((file) => file.url).filter(Boolean),
+                keys: uploadedFiles.map((file) => file.key).filter(Boolean),
+              }),
+            })
+          } catch (cleanupError) {
+            console.error("Failed to clean up warranty resolution attachments:", cleanupError)
+          }
+        }
+        throw error
+      }
       setWarrantyClaim(data.claim || null)
       setWarrantyResolutionSummary("")
+      setWarrantyResolutionFiles([])
       toast.success("Claim marked as resolved.")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to mark claim resolved")
@@ -2554,8 +2633,13 @@ export default function BookingDetailPage() {
 
                         {warrantyClaim.proposal?.message && (
                           <div className="rounded border bg-white p-2">
-                            <p className="text-xs font-medium text-gray-700 mb-1">Proposal</p>
+                            <p className="text-xs font-medium text-gray-700 mb-1">Resolve Proposal</p>
                             <p className="text-xs text-gray-700 whitespace-pre-line">{warrantyClaim.proposal.message}</p>
+                            {(warrantyClaim.proposal.resolveByDate || warrantyClaim.proposal.proposedScheduleAt) && (
+                              <p className="mt-1 text-[11px] text-gray-500">
+                                Resolve date: {new Date(warrantyClaim.proposal.resolveByDate || warrantyClaim.proposal.proposedScheduleAt || "").toLocaleString()}
+                              </p>
+                            )}
                           </div>
                         )}
 
@@ -2573,19 +2657,34 @@ export default function BookingDetailPage() {
                           <div className="rounded border border-green-200 bg-green-50 p-2">
                             <p className="text-xs font-medium text-green-800">Resolution</p>
                             <p className="text-xs text-green-700 whitespace-pre-line">{warrantyClaim.resolution.summary}</p>
+                            {Array.isArray(warrantyClaim.resolution.attachments) && warrantyClaim.resolution.attachments.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {warrantyClaim.resolution.attachments.map((attachment, index) => (
+                                  <a
+                                    key={`${attachment}-${index}`}
+                                    href={attachment}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    className="block text-[11px] text-green-700 hover:underline"
+                                  >
+                                    {getFileLabel(attachment, `Resolution attachment ${index + 1}`)}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 
                         {user?.role === "professional" && warrantyClaim.status === "open" && (
                           <div className="space-y-2 rounded border bg-white p-3">
-                            <Label className="text-xs">Proposal Message</Label>
+                            <Label className="text-xs">Resolve Proposal</Label>
                             <Textarea
                               value={warrantyProposalMessage}
                               onChange={(e) => setWarrantyProposalMessage(e.target.value)}
                               placeholder="Describe your solution and repair plan..."
                               className="text-xs min-h-[90px]"
                             />
-                            <Label className="text-xs">Proposed Schedule (optional)</Label>
+                            <Label className="text-xs">Resolve Date</Label>
                             <Input
                               type="datetime-local"
                               value={warrantyProposalSchedule}
@@ -2600,7 +2699,7 @@ export default function BookingDetailPage() {
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                               >
                                 {warrantyActionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                                Send Proposal
+                                Send Resolve Proposal
                               </Button>
                               <Button
                                 size="sm"
@@ -2646,6 +2745,25 @@ export default function BookingDetailPage() {
                               placeholder="Summarize what was fixed..."
                               className="text-xs min-h-[80px]"
                             />
+                            <div className="space-y-2">
+                              <Label className="text-xs">Resolution Attachments</Label>
+                              <Input
+                                type="file"
+                                multiple
+                                accept="image/*,video/*,.pdf"
+                                onChange={(e) => {
+                                  const { valid, rejected } = validateWarrantyFiles(e.target.files)
+                                  setWarrantyResolutionFiles(valid)
+                                  if (rejected.length > 0) {
+                                    toast.error(rejected.join('; '))
+                                  }
+                                }}
+                                className="text-xs"
+                              />
+                              {warrantyResolutionFiles.length > 0 && (
+                                <p className="text-[11px] text-gray-500">{warrantyResolutionFiles.length} file(s) selected</p>
+                              )}
+                            </div>
                             <Button
                               size="sm"
                               onClick={handleMarkWarrantyResolved}
@@ -2658,19 +2776,30 @@ export default function BookingDetailPage() {
                         )}
 
                         {user?.role === "customer" && warrantyClaim.status === "resolved" && (
-                          <Button
-                            size="sm"
-                            onClick={handleConfirmWarrantyResolution}
-                            disabled={warrantyActionLoading}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            Confirm Resolution
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={handleConfirmWarrantyResolution}
+                              disabled={warrantyActionLoading}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              Accept Resolution
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleEscalateWarrantyClaim}
+                              disabled={warrantyActionLoading}
+                              className="border-rose-300 text-rose-700"
+                            >
+                              Decline Resolution
+                            </Button>
+                          </div>
                         )}
 
-                        {warrantyClaim.status !== "closed" &&
-                          warrantyClaim.status !== "escalated" &&
-                          (user?._id === booking.customer?._id || user?._id === booking.professional?._id) && (
+                        {user?.role === "professional" &&
+                          warrantyClaim.status !== "closed" &&
+                          warrantyClaim.status !== "escalated" && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -2742,24 +2871,7 @@ export default function BookingDetailPage() {
                           multiple
                           accept="image/*,video/*,.pdf"
                           onChange={(e) => {
-                            const allowedTypes = ['image/', 'video/', 'application/pdf']
-                            const maxFileSize = 50 * 1024 * 1024 // 50 MB
-                            const maxFiles = 10
-                            const raw = Array.from(e.target.files || [])
-                            const valid: File[] = []
-                            const rejected: string[] = []
-                            for (const file of raw.slice(0, maxFiles)) {
-                              if (!allowedTypes.some((t) => file.type.startsWith(t))) {
-                                rejected.push(`${file.name}: unsupported type`)
-                              } else if (file.size > maxFileSize) {
-                                rejected.push(`${file.name}: exceeds 50 MB`)
-                              } else {
-                                valid.push(file)
-                              }
-                            }
-                            if (raw.length > maxFiles) {
-                              rejected.push(`Only ${maxFiles} files allowed`)
-                            }
+                            const { valid, rejected } = validateWarrantyFiles(e.target.files)
                             setWarrantyEvidenceFiles(valid)
                             if (rejected.length > 0) {
                               toast.error(rejected.join('; '))
