@@ -36,6 +36,16 @@ type BookingStatus =
   | "dispute"
   | "refunded"
 
+const PRE_SERVICE_BOOKING_STATUSES: BookingStatus[] = [
+  "rfq",
+  "rfq_accepted",
+  "draft_quote",
+  "quoted",
+  "quote_accepted",
+  "payment_pending",
+  "booked",
+]
+
 interface PostBookingQuestion {
   _id?: string
   id?: string
@@ -544,7 +554,9 @@ export default function BookingDetailPage() {
   const customerCanAnswerPostBooking =
     user?.role === "customer" &&
     (booking?.customer?._id ? user?._id === booking.customer._id : true)
+  const isPreServiceBookingStatus = booking?.status ? PRE_SERVICE_BOOKING_STATUSES.includes(booking.status) : false
   const shouldShowPostBookingForm =
+    isPreServiceBookingStatus &&
     hasPostBookingQuestions &&
     !alreadyAnswered &&
     !answersSubmitted &&

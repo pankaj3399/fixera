@@ -78,7 +78,11 @@ const formatDate = (value?: string) => {
 }
 
 const getAverageRating = (review?: CustomerReview) => {
-  if (!review?.communicationLevel || !review?.valueOfDelivery || !review?.qualityOfService) return null
+  if (
+    review?.communicationLevel == null ||
+    review?.valueOfDelivery == null ||
+    review?.qualityOfService == null
+  ) return null
   return ((review.communicationLevel + review.valueOfDelivery + review.qualityOfService) / 3).toFixed(1)
 }
 
@@ -220,7 +224,6 @@ export default function AdminReviewsPage() {
             <Button
               onClick={() => {
                 setPage(1)
-                fetchReviews()
               }}
               disabled={isLoading}
               className="bg-amber-600 hover:bg-amber-700"

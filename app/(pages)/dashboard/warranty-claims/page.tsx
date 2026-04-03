@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
@@ -89,6 +89,15 @@ export default function WarrantyClaimsPage() {
   const [totalClaims, setTotalClaims] = useState(0)
   const [isLoadingClaims, setIsLoadingClaims] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [highlightedClaim, setHighlightedClaim] = useState<ClaimRecord | null>(null)
+
+  const normalizedStatusFromQuery = useMemo(() => {
+    if (!statusFromQuery) return null
+    if (statusFromQuery === "all") return "all"
+    return STATUS_OPTIONS.some((option) => option.value === statusFromQuery)
+      ? (statusFromQuery as WarrantyClaimStatus)
+      : null
+  }, [statusFromQuery])
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -103,17 +112,62 @@ export default function WarrantyClaimsPage() {
   }, [isAuthenticated, loading, router, user?.role])
 
   useEffect(() => {
-    if (!statusFromQuery) return
-    if (statusFromQuery === "all") {
-      setStatusFilter("all")
+    if (claimIdFromQuery || !normalizedStatusFromQuery) return
+    setStatusFilter(normalizedStatusFromQuery)
+  }, [claimIdFromQuery, normalizedStatusFromQuery])
+
+  const fetchClaimById = useCallback(async (claimId: string, signal?: AbortSignal) => {
+    if (!isAuthenticated || (user?.role !== "professional" && user?.role !== "customer")) return null
+
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/${claimId}`,
+      { credentials: "include", headers, signal }
+    )
+    const payload = await response.json()
+    const claim = payload.claim || payload.data?.claim
+    if (!response.ok || !payload.success || !claim) {
+      throw new Error(payload.msg || "Failed to load warranty claim")
+    }
+
+    return claim as ClaimRecord
+  }, [isAuthenticated, user?.role])
+
+  useEffect(() => {
+    if (!claimIdFromQuery) {
+      setHighlightedClaim(null)
+      if (normalizedStatusFromQuery) {
+        setStatusFilter(normalizedStatusFromQuery)
+      }
       return
     }
 
-    const isValidStatus = STATUS_OPTIONS.some((option) => option.value === statusFromQuery)
-    if (isValidStatus) {
-      setStatusFilter(statusFromQuery as WarrantyClaimStatus)
-    }
-  }, [statusFromQuery])
+    const controller = new AbortController()
+
+    ;(async () => {
+      try {
+        const claim = await fetchClaimById(claimIdFromQuery, controller.signal)
+        if (!claim) return
+
+        setHighlightedClaim(claim)
+        setPage(1)
+        setStatusFilter(
+          normalizedStatusFromQuery === "all" || normalizedStatusFromQuery == null
+            ? claim.status
+            : normalizedStatusFromQuery
+        )
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return
+        setHighlightedClaim(null)
+        setError(err instanceof Error ? err.message : "Failed to load warranty claim")
+      }
+    })()
+
+    return () => controller.abort()
+  }, [claimIdFromQuery, fetchClaimById, normalizedStatusFromQuery])
 
   const fetchClaims = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || (user?.role !== "professional" && user?.role !== "customer")) return
@@ -139,7 +193,18 @@ export default function WarrantyClaimsPage() {
       }
 
       const data = payload.data || {}
-      setClaims(Array.isArray(data.claims) ? data.claims : [])
+      const nextClaims = Array.isArray(data.claims) ? data.claims : []
+      if (highlightedClaim) {
+        const matchesFilter = statusFilter === "all" || highlightedClaim.status === statusFilter
+        if (matchesFilter && !nextClaims.some((claim: ClaimRecord) => claim._id === highlightedClaim._id)) {
+          setClaims([highlightedClaim, ...nextClaims])
+          setTotalClaims(Math.max(data.pagination?.total || 0, nextClaims.length + 1))
+          setTotalPages(Math.max(data.pagination?.totalPages || 1, 1))
+          return
+        }
+      }
+
+      setClaims(nextClaims)
       setTotalPages(data.pagination?.totalPages || 1)
       setTotalClaims(data.pagination?.total || 0)
     } catch (err) {
@@ -151,7 +216,7 @@ export default function WarrantyClaimsPage() {
     } finally {
       setIsLoadingClaims(false)
     }
-  }, [isAuthenticated, page, statusFilter, user?.role])
+  }, [highlightedClaim, isAuthenticated, page, statusFilter, user?.role])
 
   useEffect(() => {
     const controller = new AbortController()

@@ -400,7 +400,11 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
         }
 
         if (message.messageType === "warranty_notification") {
-          return <WarrantyNotificationCard key={message._id} message={message} />;
+          return (
+            <div key={message._id} id={`msg-${message._id}`}>
+              <WarrantyNotificationCard message={message} />
+            </div>
+          );
         }
 
         const isMine = getSenderId(message) === currentUserId;

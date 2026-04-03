@@ -150,6 +150,9 @@ interface Project {
     minPreviousBookings: number;
     maxDiscountAmount?: number | null;
   };
+  repeatBuyerEligibility?: {
+    eligible: boolean;
+  } | null;
   postBookingQuestions?: Array<{
     id?: string;
     question: string;
@@ -2194,12 +2197,14 @@ export default function ProjectBookingForm({
   };
 
   const applyConfiguredRepeatBuyerDiscount = (
-    amount?: number | null
+    amount?: number | null,
+    eligible?: boolean
   ): number | null => {
     if (typeof amount !== 'number' || !Number.isFinite(amount)) {
       return null;
     }
     if (
+      !eligible ||
       !project.repeatBuyerDiscount?.enabled ||
       project.repeatBuyerDiscount.percentage <= 0
     ) {
@@ -2261,12 +2266,21 @@ export default function ProjectBookingForm({
   const finalActionLoadingLabel = shouldPayAtCheckoutFlow
     ? 'Preparing Payment...'
     : 'Submitting RFQ...';
+  const repeatBuyerEligible = project.repeatBuyerEligibility?.eligible === true;
   const displayPackagePrice = toCustomerDisplayAmount(getEffectivePackagePrice());
   const displayTotalPrice = toCustomerDisplayAmount(calculateTotal());
-  const discountedDisplayPackagePrice =
-    applyConfiguredRepeatBuyerDiscount(displayPackagePrice);
   const discountedDisplayTotalPrice =
-    applyConfiguredRepeatBuyerDiscount(displayTotalPrice);
+    applyConfiguredRepeatBuyerDiscount(displayTotalPrice, repeatBuyerEligible);
+  const baseDisplayTotal =
+    typeof displayTotalPrice === 'number' ? displayTotalPrice : calculateTotal();
+  const repeatBuyerDiscountAmount =
+    discountedDisplayTotalPrice != null && discountedDisplayTotalPrice < baseDisplayTotal
+      ? +(baseDisplayTotal - discountedDisplayTotalPrice).toFixed(2)
+      : 0;
+  const finalDisplayTotal =
+    repeatBuyerDiscountAmount > 0
+      ? discountedDisplayTotalPrice ?? baseDisplayTotal
+      : baseDisplayTotal;
   const stepLabels = [
     'Confirm Package',
     'Choose Date',
@@ -3329,10 +3343,7 @@ export default function ProjectBookingForm({
                             {selectedPackage.pricing.type === 'rfq'
                               ? 'Quote Required'
                               : typeof displayPackagePrice === 'number'
-                                ? discountedDisplayPackagePrice != null &&
-                                  discountedDisplayPackagePrice < displayPackagePrice
-                                  ? `${formatCurrency(displayPackagePrice)} -> ${formatCurrency(discountedDisplayPackagePrice)}`
-                                  : formatCurrency(displayPackagePrice)
+                                ? formatCurrency(displayPackagePrice)
                                 : 'Quote Required'}
                           </span>
                         </div>
@@ -3390,6 +3401,17 @@ export default function ProjectBookingForm({
                           </div>
                         )}
 
+                        {repeatBuyerDiscountAmount > 0 && (
+                          <div className='flex justify-between items-center text-sm pt-2 border-t border-blue-200'>
+                            <span className='text-gray-700 font-semibold'>
+                              Repeat buyer discount:
+                            </span>
+                            <span className='font-semibold text-green-600'>
+                              -{formatCurrency(repeatBuyerDiscountAmount)}
+                            </span>
+                          </div>
+                        )}
+
                         {/* Grand Total */}
                         {calculateTotal() > 0 && (
                           <div className='flex justify-between items-center pt-3 border-t-2 border-blue-400'>
@@ -3397,11 +3419,7 @@ export default function ProjectBookingForm({
                               Grand Total:
                             </span>
                             <span className='text-2xl font-bold text-blue-600'>
-                              {discountedDisplayTotalPrice != null &&
-                              typeof displayTotalPrice === 'number' &&
-                              discountedDisplayTotalPrice < displayTotalPrice
-                                ? `${formatCurrency(displayTotalPrice)} -> ${formatCurrency(discountedDisplayTotalPrice)}`
-                                : formatCurrency(displayTotalPrice ?? calculateTotal())}
+                              {formatCurrency(finalDisplayTotal)}
                             </span>
                           </div>
                         )}
@@ -3768,10 +3786,7 @@ export default function ProjectBookingForm({
                           {selectedPackage.pricing.type === 'rfq'
                             ? 'Quote Required'
                             : typeof displayPackagePrice === 'number'
-                              ? discountedDisplayPackagePrice != null &&
-                                discountedDisplayPackagePrice < displayPackagePrice
-                                ? `${formatCurrency(displayPackagePrice)} -> ${formatCurrency(discountedDisplayPackagePrice)}`
-                                : formatCurrency(displayPackagePrice)
+                              ? formatCurrency(displayPackagePrice)
                               : 'Quote Required'}
                         </span>
                       </div>
@@ -3849,6 +3864,17 @@ export default function ProjectBookingForm({
                         </div>
                       )}
 
+                      {repeatBuyerDiscountAmount > 0 && (
+                        <div className='flex justify-between items-center text-sm pt-2 border-t border-blue-200'>
+                          <span className='text-gray-700 font-semibold'>
+                            Repeat buyer discount:
+                          </span>
+                          <span className='font-semibold text-green-600'>
+                            -{formatCurrency(repeatBuyerDiscountAmount)}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Separator */}
                       {calculateTotal() > 0 && (
                         <div className='border-t-2 border-blue-400 my-2'></div>
@@ -3861,11 +3887,7 @@ export default function ProjectBookingForm({
                             Grand Total:
                           </span>
                           <span className='text-2xl font-bold text-blue-600'>
-                            {discountedDisplayTotalPrice != null &&
-                            typeof displayTotalPrice === 'number' &&
-                            discountedDisplayTotalPrice < displayTotalPrice
-                              ? `${formatCurrency(displayTotalPrice)} -> ${formatCurrency(discountedDisplayTotalPrice)}`
-                              : formatCurrency(displayTotalPrice ?? calculateTotal())}
+                            {formatCurrency(finalDisplayTotal)}
                           </span>
                         </div>
                       )}

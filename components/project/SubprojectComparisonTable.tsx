@@ -51,6 +51,9 @@ interface SubprojectComparisonTableProps {
     minPreviousBookings: number
     maxDiscountAmount?: number | null
   }
+  repeatBuyerEligibility?: {
+    eligible: boolean
+  } | null
   selectedIndex: number
   onSelectIndex: (index: number) => void
   dateLabels?: DateLabels
@@ -76,6 +79,7 @@ export default function SubprojectComparisonTable({
   onSelectPackage,
   priceModel,
   repeatBuyerDiscount,
+  repeatBuyerEligibility,
   selectedIndex,
   onSelectIndex,
   dateLabels,
@@ -114,9 +118,9 @@ export default function SubprojectComparisonTable({
     return customerPrice(amount)
   }
 
-  const applyConfiguredDiscount = (amount?: number | null) => {
+  const applyConfiguredDiscount = (amount?: number | null, eligible?: boolean) => {
     if (typeof amount !== 'number' || !Number.isFinite(amount)) return null
-    if (!repeatBuyerDiscount?.enabled || repeatBuyerDiscount.percentage <= 0) {
+    if (!eligible || !repeatBuyerDiscount?.enabled || repeatBuyerDiscount.percentage <= 0) {
       return null
     }
 
@@ -130,9 +134,6 @@ export default function SubprojectComparisonTable({
 
     return +Math.max(0, amount - discountAmount).toFixed(2)
   }
-
-  const currentCustomerAmount = toCustomerAmount(currentSubproject.pricing.amount)
-  const currentDiscountedAmount = applyConfiguredDiscount(currentCustomerAmount)
 
   const allIncludedItems = useMemo(() => {
     // Collect all unique included items across all subprojects, preserving their order of appearance
@@ -160,7 +161,7 @@ export default function SubprojectComparisonTable({
 
   const currentIncludedNames = useMemo(() => {
     const names = new Set<string>();
-    (currentSubproject.included || []).forEach((item) => {
+    (currentSubproject?.included || []).forEach((item) => {
       if (!item) return;
       const name = typeof item === 'string' ? (item as string).trim() : item.name?.trim();
       if (name) {
@@ -173,6 +174,12 @@ export default function SubprojectComparisonTable({
   if (!subprojects || subprojects.length === 0 || !currentSubproject) {
     return null;
   }
+
+  const currentCustomerAmount = toCustomerAmount(currentSubproject.pricing.amount)
+  const currentDiscountedAmount = applyConfiguredDiscount(
+    currentCustomerAmount,
+    repeatBuyerEligibility?.eligible === true
+  )
 
   return (
     <div className="w-full">

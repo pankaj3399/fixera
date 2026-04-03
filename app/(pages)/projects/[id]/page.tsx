@@ -130,6 +130,9 @@ interface Project {
     minPreviousBookings: number;
     maxDiscountAmount?: number | null;
   };
+  repeatBuyerEligibility?: {
+    eligible: boolean;
+  } | null;
   customerPresence?: string;
   termsConditions?: Array<{
     name: string;
@@ -1107,6 +1110,7 @@ export default function ProjectDetailPage() {
                   onSelectPackage={handleSelectPackage}
                   priceModel={project.priceModel}
                   repeatBuyerDiscount={project.repeatBuyerDiscount}
+                  repeatBuyerEligibility={project.repeatBuyerEligibility}
                   selectedIndex={viewedSubprojectIndex}
                   onSelectIndex={setViewedSubprojectIndex}
                   dateLabels={comparisonTableDateLabels}
