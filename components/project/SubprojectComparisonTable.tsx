@@ -6,35 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Check, Clock, Shield, ArrowRight, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
 import { useCommissionRate } from '@/hooks/useCommissionRate'
-
-interface SubprojectPricing {
-  type: 'fixed' | 'unit' | 'rfq'
-  amount?: number
-  priceRange?: { min: number; max: number }
-  minProjectValue?: number
-}
-
-interface Subproject {
-  name: string
-  description: string
-  professionalInputs?: Array<{
-    fieldName: string
-    value: string | number | { min: number; max: number } | undefined
-  }>
-  pricing: SubprojectPricing
-  included: Array<{
-    name: string
-    description?: string
-  }>
-  executionDuration?: {
-    value: number
-    unit: 'hours' | 'days'
-  }
-  warrantyPeriod?: {
-    value: number
-    unit: 'months' | 'years'
-  }
-}
+import type { ProjectDto, ProjectSubproject } from '@/types/project'
 
 interface DateLabels {
   firstAvailable?: string | null
@@ -42,18 +14,11 @@ interface DateLabels {
 }
 
 interface SubprojectComparisonTableProps {
-  subprojects: Subproject[]
+  subprojects: ProjectSubproject[]
   onSelectPackage: (index: number) => void
-  priceModel?: string
-  repeatBuyerDiscount?: {
-    enabled: boolean
-    percentage: number
-    minPreviousBookings: number
-    maxDiscountAmount?: number | null
-  }
-  repeatBuyerEligibility?: {
-    eligible: boolean
-  } | null
+  priceModel?: ProjectDto["priceModel"]
+  repeatBuyerDiscount?: ProjectDto["repeatBuyerDiscount"]
+  repeatBuyerEligibility?: ProjectDto["repeatBuyerEligibility"]
   selectedIndex: number
   onSelectIndex: (index: number) => void
   dateLabels?: DateLabels
@@ -91,8 +56,8 @@ export default function SubprojectComparisonTable({
   const { customerPrice } = useCommissionRate()
 
 
-  const formatDuration = (duration?: { value: number; unit: 'hours' | 'days' }): string => {
-    if (!duration) return 'N/A'
+  const formatDuration = (duration?: { value?: number; unit: 'hours' | 'days' }): string => {
+    if (!duration || duration.value == null) return 'N/A'
     return `${duration.value} ${duration.unit}`
   }
 
@@ -180,7 +145,11 @@ export default function SubprojectComparisonTable({
     currentCustomerAmount,
     repeatBuyerEligibility?.eligible === true
   )
+  const canShowUnitDiscountRate =
+    currentSubproject.pricing.type !== 'unit' ||
+    repeatBuyerDiscount?.maxDiscountAmount == null
   const hasCurrentDiscount =
+    canShowUnitDiscountRate &&
     currentCustomerAmount != null &&
     currentDiscountedAmount != null &&
     currentDiscountedAmount < currentCustomerAmount

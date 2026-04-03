@@ -34,6 +34,7 @@ import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
 import { formatCurrency } from '@/lib/formatters';
 import { getAuthToken } from '@/lib/utils';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
+import type { ProjectDto } from '@/types/project';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -92,89 +93,8 @@ const isUnitBasedPriceModel = (priceModel?: string): boolean => {
 // while still warning users about unusually long throughput windows.
 const THROUGHPUT_SUGGESTION_MULTIPLIER = 2;
 
-interface Project {
-  _id: string;
-  title: string;
-  priceModel?: string;
-  timeMode?: 'hours' | 'days' | 'mixed';
-  preparationDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
-  executionDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
-  firstAvailableDate?: string | null;
-  bufferDuration?: {
-    value: number;
-    unit: 'hours' | 'days';
-  };
-  subprojects: Array<{
-    name: string;
-    description: string;
-    pricing: {
-      type: 'fixed' | 'unit' | 'rfq';
-      amount?: number;
-      priceRange?: { min: number; max: number };
-      minOrderQuantity?: number; // Unit pricing: minimum order quantity
-    };
-    preparationDuration?: {
-      value: number;
-      unit: 'hours' | 'days';
-    };
-    executionDuration?: {
-      value?: number;
-      unit: 'hours' | 'days';
-      range?: { min?: number; max?: number };
-    };
-    buffer?: {
-      value?: number;
-      unit: 'hours' | 'days';
-    };
-  }>;
-  rfqQuestions: Array<{
-    question: string;
-    type: 'text' | 'multiple_choice' | 'attachment';
-    options?: string[];
-    isRequired: boolean;
-  }>;
-  extraOptions: Array<{
-    name: string;
-    description?: string;
-    price: number;
-  }>;
-  repeatBuyerDiscount?: {
-    enabled: boolean;
-    percentage: number;
-    minPreviousBookings: number;
-    maxDiscountAmount?: number | null;
-  };
-  repeatBuyerEligibility?: {
-    eligible: boolean;
-  } | null;
-  postBookingQuestions?: Array<{
-    id?: string;
-    question: string;
-    type: 'text' | 'multiple_choice' | 'attachment';
-    options?: string[];
-    isRequired: boolean;
-  }>;
-  distance?: {
-    address?: string;
-    maxKmRange?: number;
-    useCompanyAddress?: boolean;
-    noBorders?: boolean;
-    borderLevel?: 'none' | 'country' | 'province';
-    location?: {
-      type: 'Point';
-      coordinates: [number, number];
-    };
-  };
-}
-
 interface ProjectBookingFormProps {
-  project: Project;
+  project: ProjectDto;
   onBack: () => void;
   selectedSubprojectIndex?: number | null;
 }
@@ -284,9 +204,9 @@ interface WorkingHoursResponse {
   timezone?: string;
 }
 
-type ProjectExecutionDuration = NonNullable<Project['executionDuration']>;
+type ProjectExecutionDuration = NonNullable<ProjectDto['executionDuration']>;
 type SubprojectExecutionDuration = NonNullable<
-  Project['subprojects'][number]['executionDuration']
+  ProjectDto['subprojects'][number]['executionDuration']
 >;
 type AnyExecutionDuration =
   | ProjectExecutionDuration
@@ -2004,7 +1924,7 @@ export default function ProjectBookingForm({
         ? ` Service address: ${confirmedAddress}.`
         : '';
       const serviceDescription = `Booking for ${project.title}. Selected package: ${selectedPackage.name}.${usageDetails}${additionalNotesText}${addressText}`;
-      const totalPrice = calculateTotal();
+      const totalPrice = finalDisplayTotal;
       const isRfqPackage = selectedPackage.pricing.type === 'rfq';
       const hasValidPackageAmount =
         typeof selectedPackage.pricing.amount === 'number' &&
@@ -2253,38 +2173,28 @@ export default function ProjectBookingForm({
     return total;
   };
 
-  const shouldPayAtCheckoutFlow =
-    Boolean(selectedPackage) &&
-    selectedPackage?.pricing.type !== 'rfq' &&
-    typeof selectedPackage?.pricing.amount === 'number' &&
-    selectedPackage.pricing.amount >= 0 &&
-    calculateTotal() > 0;
-  const finalStepLabel = shouldPayAtCheckoutFlow
-    ? 'Review & Pay'
-    : 'Review & Submit RFQ';
-  const finalStepDescription = shouldPayAtCheckoutFlow
-    ? 'Please review your selections before proceeding to payment'
-    : 'Please review your selections before submitting your quote request';
-  const finalActionLabel = shouldPayAtCheckoutFlow ? 'Pay Now' : 'Submit RFQ';
-  const finalActionLoadingLabel = shouldPayAtCheckoutFlow
-    ? 'Preparing Payment...'
-    : 'Submitting RFQ...';
   const repeatBuyerEligible = project.repeatBuyerEligibility?.eligible === true;
   const displaySelectedPackageUnitPrice = toCustomerDisplayAmount(selectedPackage?.pricing.amount);
-  const discountedSelectedPackageUnitPrice = applyConfiguredRepeatBuyerDiscount(
-    displaySelectedPackageUnitPrice,
-    repeatBuyerEligible
-  );
-  const hasSelectedPackageUnitDiscount =
-    displaySelectedPackageUnitPrice != null &&
-    discountedSelectedPackageUnitPrice != null &&
-    discountedSelectedPackageUnitPrice < displaySelectedPackageUnitPrice;
   const displayPackagePrice = toCustomerDisplayAmount(getEffectivePackagePrice());
   const displayTotalPrice = toCustomerDisplayAmount(calculateTotal());
   const discountedDisplayTotalPrice =
     applyConfiguredRepeatBuyerDiscount(displayTotalPrice, repeatBuyerEligible);
   const discountedDisplayPackagePrice =
     applyConfiguredRepeatBuyerDiscount(displayPackagePrice, repeatBuyerEligible);
+  const packageUnitCount =
+    selectedPackage && shouldCollectUsage(selectedPackage.pricing.type)
+      ? Math.max(estimatedUsage, minOrderQuantity ?? 1)
+      : 1;
+  const discountedSelectedPackageUnitPrice =
+    packageUnitCount > 0 &&
+    discountedDisplayPackagePrice != null &&
+    Number.isFinite(discountedDisplayPackagePrice)
+      ? +(discountedDisplayPackagePrice / packageUnitCount).toFixed(2)
+      : null;
+  const hasSelectedPackageUnitDiscount =
+    displaySelectedPackageUnitPrice != null &&
+    discountedSelectedPackageUnitPrice != null &&
+    discountedSelectedPackageUnitPrice < displaySelectedPackageUnitPrice;
   const hasDisplayPackageDiscount =
     displayPackagePrice != null &&
     discountedDisplayPackagePrice != null &&
@@ -2299,6 +2209,22 @@ export default function ProjectBookingForm({
     repeatBuyerDiscountAmount > 0
       ? discountedDisplayTotalPrice ?? baseDisplayTotal
       : baseDisplayTotal;
+  const shouldPayAtCheckoutFlow =
+    Boolean(selectedPackage) &&
+    selectedPackage?.pricing.type !== 'rfq' &&
+    typeof selectedPackage?.pricing.amount === 'number' &&
+    selectedPackage.pricing.amount >= 0 &&
+    finalDisplayTotal > 0;
+  const finalStepLabel = shouldPayAtCheckoutFlow
+    ? 'Review & Pay'
+    : 'Review & Submit RFQ';
+  const finalStepDescription = shouldPayAtCheckoutFlow
+    ? 'Please review your selections before proceeding to payment'
+    : 'Please review your selections before submitting your quote request';
+  const finalActionLabel = shouldPayAtCheckoutFlow ? 'Pay Now' : 'Submit RFQ';
+  const finalActionLoadingLabel = shouldPayAtCheckoutFlow
+    ? 'Preparing Payment...'
+    : 'Submitting RFQ...';
   const stepLabels = [
     'Confirm Package',
     'Choose Date',
