@@ -53,7 +53,7 @@ import {
   getViewerTimezone,
 } from '@/lib/timezoneDisplay';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
-import type { ProjectDto as Project } from '@/types/project';
+import type { PublicProjectDto as Project } from '@/types/project';
 
 interface ScheduleProposalsResponse {
   success: boolean;

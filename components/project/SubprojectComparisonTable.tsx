@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Check, Clock, Shield, ArrowRight, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
+import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing'
 import { useCommissionRate } from '@/hooks/useCommissionRate'
-import type { ProjectDto, ProjectSubproject } from '@/types/project'
+import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
 
 interface DateLabels {
   firstAvailable?: string | null
@@ -16,9 +17,9 @@ interface DateLabels {
 interface SubprojectComparisonTableProps {
   subprojects: ProjectSubproject[]
   onSelectPackage: (index: number) => void
-  priceModel?: ProjectDto["priceModel"]
-  repeatBuyerDiscount?: ProjectDto["repeatBuyerDiscount"]
-  repeatBuyerEligibility?: ProjectDto["repeatBuyerEligibility"]
+  priceModel?: PublicProjectDto["priceModel"]
+  repeatBuyerDiscount?: PublicProjectDto["repeatBuyerDiscount"]
+  repeatBuyerEligibility?: PublicProjectDto["repeatBuyerEligibility"]
   selectedIndex: number
   onSelectIndex: (index: number) => void
   dateLabels?: DateLabels
@@ -77,28 +78,14 @@ export default function SubprojectComparisonTable({
   }
 
   const currentSubproject = subprojects[selectedIndex]
-
-  const toCustomerAmount = (amount?: number | null) => {
-    if (typeof amount !== 'number' || !Number.isFinite(amount)) return null
-    return customerPrice(amount)
-  }
-
-  const applyConfiguredDiscount = (amount?: number | null, eligible?: boolean) => {
-    if (typeof amount !== 'number' || !Number.isFinite(amount)) return null
-    if (!eligible || !repeatBuyerDiscount?.enabled || repeatBuyerDiscount.percentage <= 0) {
-      return null
-    }
-
-    let discountAmount = +(amount * (repeatBuyerDiscount.percentage / 100)).toFixed(2)
-    if (
-      typeof repeatBuyerDiscount.maxDiscountAmount === 'number' &&
-      Number.isFinite(repeatBuyerDiscount.maxDiscountAmount)
-    ) {
-      discountAmount = Math.min(discountAmount, repeatBuyerDiscount.maxDiscountAmount)
-    }
-
-    return +Math.max(0, amount - discountAmount).toFixed(2)
-  }
+  const repeatBuyerEligible = repeatBuyerEligibility?.eligible === true
+  const getCustomerPricing = (amount?: number | null) =>
+    computeCustomerPriceWithRepeatBuyerDiscount({
+      amount,
+      customerPrice,
+      eligible: repeatBuyerEligible,
+      repeatBuyerDiscount,
+    })
 
   const allIncludedItems = useMemo(() => {
     // Collect all unique included items across all subprojects, preserving their order of appearance
@@ -140,11 +127,9 @@ export default function SubprojectComparisonTable({
     return null;
   }
 
-  const currentCustomerAmount = toCustomerAmount(currentSubproject.pricing.amount)
-  const currentDiscountedAmount = applyConfiguredDiscount(
-    currentCustomerAmount,
-    repeatBuyerEligibility?.eligible === true
-  )
+  const currentPricing = getCustomerPricing(currentSubproject.pricing.amount)
+  const currentCustomerAmount = currentPricing.customerAmount
+  const currentDiscountedAmount = currentPricing.discountedAmount
   const canShowUnitDiscountRate =
     currentSubproject.pricing.type !== 'unit' ||
     repeatBuyerDiscount?.maxDiscountAmount == null
@@ -153,25 +138,19 @@ export default function SubprojectComparisonTable({
     currentCustomerAmount != null &&
     currentDiscountedAmount != null &&
     currentDiscountedAmount < currentCustomerAmount
-  const minProjectCustomerAmount = toCustomerAmount(currentSubproject.pricing.minProjectValue)
-  const minProjectDiscountedAmount = applyConfiguredDiscount(
-    minProjectCustomerAmount,
-    repeatBuyerEligibility?.eligible === true
-  )
+  const minProjectPricing = getCustomerPricing(currentSubproject.pricing.minProjectValue)
+  const minProjectCustomerAmount = minProjectPricing.customerAmount
+  const minProjectDiscountedAmount = minProjectPricing.discountedAmount
   const hasMinProjectDiscount =
     minProjectCustomerAmount != null &&
     minProjectDiscountedAmount != null &&
     minProjectDiscountedAmount < minProjectCustomerAmount
-  const minRangeCustomerAmount = toCustomerAmount(currentSubproject.pricing.priceRange?.min)
-  const maxRangeCustomerAmount = toCustomerAmount(currentSubproject.pricing.priceRange?.max)
-  const minRangeDiscountedAmount = applyConfiguredDiscount(
-    minRangeCustomerAmount,
-    repeatBuyerEligibility?.eligible === true
-  )
-  const maxRangeDiscountedAmount = applyConfiguredDiscount(
-    maxRangeCustomerAmount,
-    repeatBuyerEligibility?.eligible === true
-  )
+  const minRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.min)
+  const maxRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.max)
+  const minRangeCustomerAmount = minRangePricing.customerAmount
+  const minRangeDiscountedAmount = minRangePricing.discountedAmount
+  const maxRangeCustomerAmount = maxRangePricing.customerAmount
+  const maxRangeDiscountedAmount = maxRangePricing.discountedAmount
   const hasMinRangeDiscount =
     minRangeCustomerAmount != null &&
     minRangeDiscountedAmount != null &&

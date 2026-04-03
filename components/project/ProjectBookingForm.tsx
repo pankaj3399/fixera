@@ -32,9 +32,10 @@ import 'react-day-picker/dist/style.css';
 import { useAuth } from '@/contexts/AuthContext';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
 import { formatCurrency } from '@/lib/formatters';
+import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing';
 import { getAuthToken } from '@/lib/utils';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
-import type { ProjectDto } from '@/types/project';
+import type { PublicProjectDto } from '@/types/project';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -94,7 +95,7 @@ const isUnitBasedPriceModel = (priceModel?: string): boolean => {
 const THROUGHPUT_SUGGESTION_MULTIPLIER = 2;
 
 interface ProjectBookingFormProps {
-  project: ProjectDto;
+  project: PublicProjectDto;
   onBack: () => void;
   selectedSubprojectIndex?: number | null;
 }
@@ -204,9 +205,9 @@ interface WorkingHoursResponse {
   timezone?: string;
 }
 
-type ProjectExecutionDuration = NonNullable<ProjectDto['executionDuration']>;
+type ProjectExecutionDuration = NonNullable<PublicProjectDto['executionDuration']>;
 type SubprojectExecutionDuration = NonNullable<
-  ProjectDto['subprojects'][number]['executionDuration']
+  PublicProjectDto['subprojects'][number]['executionDuration']
 >;
 type AnyExecutionDuration =
   | ProjectExecutionDuration
@@ -2095,7 +2096,17 @@ export default function ProjectBookingForm({
     }
   };
 
-  const getEffectivePackagePrice = (): number | null => {
+  const getClampedPackageUnitCount = (): number => {
+    if (!selectedPackage || !shouldCollectUsage(selectedPackage.pricing.type)) {
+      return 1;
+    }
+
+    return Math.max(estimatedUsage, minOrderQuantity ?? 1);
+  };
+
+  const getEffectivePackagePrice = (
+    packageUnitCount = getClampedPackageUnitCount()
+  ): number | null => {
     const currentPackage = selectedPackage;
     const amount = currentPackage?.pricing.amount;
     if (
@@ -2107,52 +2118,18 @@ export default function ProjectBookingForm({
     }
 
     const multiplier = shouldCollectUsage(currentPackage.pricing.type)
-      ? estimatedUsage
+      ? packageUnitCount
       : 1;
     return multiplier * amount;
   };
 
-  const toCustomerDisplayAmount = (amount?: number | null): number | null => {
-    if (typeof amount !== 'number' || !Number.isFinite(amount)) {
-      return null;
-    }
-    return customerPrice(amount);
-  };
-
-  const applyConfiguredRepeatBuyerDiscount = (
-    amount?: number | null,
-    eligible?: boolean
-  ): number | null => {
-    if (typeof amount !== 'number' || !Number.isFinite(amount)) {
-      return null;
-    }
-    if (
-      !eligible ||
-      !project.repeatBuyerDiscount?.enabled ||
-      project.repeatBuyerDiscount.percentage <= 0
-    ) {
-      return null;
-    }
-
-    let discountAmount = +(amount * (project.repeatBuyerDiscount.percentage / 100)).toFixed(2);
-    if (
-      typeof project.repeatBuyerDiscount.maxDiscountAmount === 'number' &&
-      Number.isFinite(project.repeatBuyerDiscount.maxDiscountAmount)
-    ) {
-      discountAmount = Math.min(
-        discountAmount,
-        project.repeatBuyerDiscount.maxDiscountAmount
-      );
-    }
-
-    return +Math.max(0, amount - discountAmount).toFixed(2);
-  };
-
-  const calculateTotal = (): number => {
+  const calculateTotal = (
+    packageUnitCount = getClampedPackageUnitCount()
+  ): number => {
     let total = 0;
 
     if (selectedPackage) {
-      const packagePrice = getEffectivePackagePrice();
+      const packagePrice = getEffectivePackagePrice(packageUnitCount);
       if (typeof packagePrice === 'number') {
         total += packagePrice;
       } else if (
@@ -2174,17 +2151,35 @@ export default function ProjectBookingForm({
   };
 
   const repeatBuyerEligible = project.repeatBuyerEligibility?.eligible === true;
-  const displaySelectedPackageUnitPrice = toCustomerDisplayAmount(selectedPackage?.pricing.amount);
-  const displayPackagePrice = toCustomerDisplayAmount(getEffectivePackagePrice());
-  const displayTotalPrice = toCustomerDisplayAmount(calculateTotal());
-  const discountedDisplayTotalPrice =
-    applyConfiguredRepeatBuyerDiscount(displayTotalPrice, repeatBuyerEligible);
-  const discountedDisplayPackagePrice =
-    applyConfiguredRepeatBuyerDiscount(displayPackagePrice, repeatBuyerEligible);
-  const packageUnitCount =
-    selectedPackage && shouldCollectUsage(selectedPackage.pricing.type)
-      ? Math.max(estimatedUsage, minOrderQuantity ?? 1)
-      : 1;
+  const packageUnitCount = getClampedPackageUnitCount();
+  const getCustomerDisplayAmount = (amount?: number | null) =>
+    computeCustomerPriceWithRepeatBuyerDiscount({
+      amount,
+      customerPrice,
+    }).customerAmount;
+  const selectedPackageUnitPricing = computeCustomerPriceWithRepeatBuyerDiscount({
+    amount: selectedPackage?.pricing.amount,
+    customerPrice,
+    eligible: repeatBuyerEligible,
+    repeatBuyerDiscount: project.repeatBuyerDiscount,
+  });
+  const packagePricing = computeCustomerPriceWithRepeatBuyerDiscount({
+    amount: getEffectivePackagePrice(packageUnitCount),
+    customerPrice,
+    eligible: repeatBuyerEligible,
+    repeatBuyerDiscount: project.repeatBuyerDiscount,
+  });
+  const totalPricing = computeCustomerPriceWithRepeatBuyerDiscount({
+    amount: calculateTotal(packageUnitCount),
+    customerPrice,
+    eligible: repeatBuyerEligible,
+    repeatBuyerDiscount: project.repeatBuyerDiscount,
+  });
+  const displaySelectedPackageUnitPrice = selectedPackageUnitPricing.customerAmount;
+  const displayPackagePrice = packagePricing.customerAmount;
+  const displayTotalPrice = totalPricing.customerAmount;
+  const discountedDisplayTotalPrice = totalPricing.discountedAmount;
+  const discountedDisplayPackagePrice = packagePricing.discountedAmount;
   const discountedSelectedPackageUnitPrice =
     packageUnitCount > 0 &&
     discountedDisplayPackagePrice != null &&
@@ -2199,8 +2194,14 @@ export default function ProjectBookingForm({
     displayPackagePrice != null &&
     discountedDisplayPackagePrice != null &&
     discountedDisplayPackagePrice < displayPackagePrice;
+  const displayPackageBreakdownUnitPrice =
+    hasDisplayPackageDiscount
+      ? discountedSelectedPackageUnitPrice ?? displaySelectedPackageUnitPrice
+      : displaySelectedPackageUnitPrice;
   const baseDisplayTotal =
-    typeof displayTotalPrice === 'number' ? displayTotalPrice : calculateTotal();
+    typeof displayTotalPrice === 'number'
+      ? displayTotalPrice
+      : calculateTotal(packageUnitCount);
   const repeatBuyerDiscountAmount =
     discountedDisplayTotalPrice != null && discountedDisplayTotalPrice < baseDisplayTotal
       ? +(baseDisplayTotal - discountedDisplayTotalPrice).toFixed(2)
@@ -2792,10 +2793,11 @@ export default function ProjectBookingForm({
                                 )}
                               </div>
                               <p className='text-sm text-gray-500'>
-                                {estimatedUsage}{' '}
+                                {packageUnitCount}{' '}
                                 {getUnitLabel(project.priceModel)} x{' '}
                                 {formatCurrency(
-                                  displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                                  displayPackageBreakdownUnitPrice ??
+                                    selectedPackage.pricing.amount
                                 )}
                                 /{getUnitLabel(project.priceModel)}
                               </p>
@@ -3285,7 +3287,7 @@ export default function ProjectBookingForm({
                                 <div className='text-right flex-shrink-0'>
                                   <p className='font-bold text-blue-600'>
                                     +{formatCurrency(
-                                      toCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.price) ?? option.price
                                     )}
                                   </p>
                                 </div>
@@ -3335,7 +3337,7 @@ export default function ProjectBookingForm({
                                   </span>
                                   <span className='font-semibold text-green-600'>
                                     +{formatCurrency(
-                                      toCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.price) ?? option.price
                                     )}
                                   </span>
                                 </div>
@@ -3348,7 +3350,7 @@ export default function ProjectBookingForm({
                               </span>
                               <span className='font-semibold'>
                                 {formatCurrency(
-                                  toCustomerDisplayAmount(
+                                  getCustomerDisplayAmount(
                                     selectedExtraOptions.reduce(
                                       (sum, idx) =>
                                         sum +
@@ -3393,10 +3395,10 @@ export default function ProjectBookingForm({
 
                         {shouldShowUsageBreakdown && (
                           <p className='text-xs text-gray-600 pt-2'>
-                            Based on {estimatedUsage}{' '}
+                            Based on {packageUnitCount}{' '}
                             {getUnitLabel(project.priceModel)} at{' '}
                             {formatCurrency(
-                              toCustomerDisplayAmount(selectedPackage.pricing.amount) ??
+                              displayPackageBreakdownUnitPrice ??
                                 selectedPackage.pricing.amount
                             )}/
                             {getUnitLabel(project.priceModel)}
@@ -3766,9 +3768,10 @@ export default function ProjectBookingForm({
 
                       {shouldShowUsageBreakdown && (
                         <p className='text-xs text-gray-600'>
-                          ({estimatedUsage} {getUnitLabel(project.priceModel)} ×{' '}
+                          ({packageUnitCount} {getUnitLabel(project.priceModel)} x{' '}
                           {formatCurrency(
-                            displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                            displayPackageBreakdownUnitPrice ??
+                              selectedPackage.pricing.amount
                           )}/
                           {getUnitLabel(project.priceModel)})
                         </p>
@@ -3805,7 +3808,7 @@ export default function ProjectBookingForm({
                                 </div>
                                 <span className='font-semibold text-green-600 ml-4 flex-shrink-0'>
                                   +{formatCurrency(
-                                    toCustomerDisplayAmount(option.price) ?? option.price
+                                    getCustomerDisplayAmount(option.price) ?? option.price
                                   )}
                                 </span>
                               </div>
@@ -3819,7 +3822,7 @@ export default function ProjectBookingForm({
                             </span>
                             <span className='font-semibold'>
                               {formatCurrency(
-                                toCustomerDisplayAmount(
+                                getCustomerDisplayAmount(
                                   selectedExtraOptions.reduce(
                                     (sum, idx) =>
                                       sum +

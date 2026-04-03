@@ -4,21 +4,25 @@ export interface ProjectProfessionalInput {
 }
 
 export interface ProjectSubprojectPricing {
-  type: "fixed" | "unit" | "rfq"
+  type?: "fixed" | "unit" | "rfq"
   amount?: number
   priceRange?: { min: number; max: number }
   minOrderQuantity?: number
   minProjectValue?: number
 }
 
+export type ProjectIncludedItem =
+  | string
+  | {
+      name: string
+      description?: string
+    }
+
 export interface ProjectSubproject {
   name: string
   description: string
   pricing: ProjectSubprojectPricing
-  included: Array<{
-    name: string
-    description?: string
-  }>
+  included: ProjectIncludedItem[]
   professionalInputs?: ProjectProfessionalInput[]
   preparationDuration?: {
     value: number
@@ -38,6 +42,34 @@ export interface ProjectSubproject {
     unit: "months" | "years"
   }
 }
+
+export interface ProjectProfessionalDto {
+  _id: string
+  name: string
+  businessInfo?: {
+    companyName?: string
+    timezone?: string
+  }
+  email: string
+  phone: string
+  companyAvailability?: {
+    monday?: { available: boolean; startTime?: string; endTime?: string }
+    tuesday?: { available: boolean; startTime?: string; endTime?: string }
+    wednesday?: { available: boolean; startTime?: string; endTime?: string }
+    thursday?: { available: boolean; startTime?: string; endTime?: string }
+    friday?: { available: boolean; startTime?: string; endTime?: string }
+    saturday?: { available: boolean; startTime?: string; endTime?: string }
+    sunday?: { available: boolean; startTime?: string; endTime?: string }
+  }
+  companyBlockedRanges?: Array<{
+    startDate: string
+    endDate: string
+    reason?: string
+    isHoliday?: boolean
+  }>
+}
+
+export type PublicProfessionalDto = Omit<ProjectProfessionalDto, 'email' | 'phone'>
 
 export interface ProjectDto {
   _id: string
@@ -122,29 +154,9 @@ export interface ProjectDto {
     question: string
     answer: string
   }>
-  professionalId: {
-    _id: string
-    name: string
-    businessInfo?: {
-      companyName?: string
-      timezone?: string
-    }
-    email: string
-    phone: string
-    companyAvailability?: {
-      monday?: { available: boolean; startTime?: string; endTime?: string }
-      tuesday?: { available: boolean; startTime?: string; endTime?: string }
-      wednesday?: { available: boolean; startTime?: string; endTime?: string }
-      thursday?: { available: boolean; startTime?: string; endTime?: string }
-      friday?: { available: boolean; startTime?: string; endTime?: string }
-      saturday?: { available: boolean; startTime?: string; endTime?: string }
-      sunday?: { available: boolean; startTime?: string; endTime?: string }
-    }
-    companyBlockedRanges?: Array<{
-      startDate: string
-      endDate: string
-      reason?: string
-      isHoliday?: boolean
-    }>
-  }
+  professionalId: ProjectProfessionalDto
+}
+
+export type PublicProjectDto = Omit<ProjectDto, 'professionalId'> & {
+  professionalId: PublicProfessionalDto
 }
