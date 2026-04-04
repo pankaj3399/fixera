@@ -105,6 +105,12 @@ export default function ProfilePage() {
     country: '',
     postalCode: ''
   })
+  const [username, setUsername] = useState('')
+  const [usernameEdit, setUsernameEdit] = useState(false)
+  const [usernameCheck, setUsernameCheck] = useState<{ available?: boolean; reason?: string; checking?: boolean }>({})
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
+  const [usernameSaving, setUsernameSaving] = useState(false)
+  const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
@@ -330,6 +336,7 @@ export default function ProfilePage() {
           ...user.businessInfo
         }))
       }
+      if (user.username) setUsername(user.username)
       if (user.hourlyRate) setHourlyRate(user.hourlyRate.toString())
       if (user.currency) setCurrency(user.currency)
       if (user.serviceCategories) setServiceCategories(user.serviceCategories)
@@ -1827,6 +1834,114 @@ export default function ProfilePage() {
                         placeholder="https://yourwebsite.com"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Display Username</Label>
+                    <p className="text-xs text-gray-500">This is how customers see you. Your company name is only visible to administrators.</p>
+                    {!usernameEdit ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-gray-900">{username || '(not set)'}</span>
+                        <Button variant="outline" size="sm" onClick={() => setUsernameEdit(true)}>Edit</Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            value={username}
+                            onChange={(e) => {
+                              const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                              setUsername(val)
+                              if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
+                              if (!val || val.length < 3) { setUsernameCheck({}); return }
+                              setUsernameCheck({ checking: true })
+                              usernameTimerRef.current = setTimeout(async () => {
+                                try {
+                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${val}`, { credentials: 'include' })
+                                  const data = await res.json()
+                                  setUsernameCheck({ available: data.available, reason: data.reason })
+                                } catch { setUsernameCheck({ reason: 'Failed to check' }) }
+                              }, 500)
+                            }}
+                            placeholder="e.g., silva-lisboa"
+                            maxLength={30}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username`, { credentials: 'include' })
+                                const data = await res.json()
+                                if (data.suggestions?.length) {
+                                  setUsernameSuggestions(data.suggestions)
+                                  setUsername(data.suggestions[0])
+                                  setUsernameCheck({ available: true })
+                                }
+                              } catch { toast.error('Failed to generate suggestions') }
+                            }}
+                          >
+                            Suggest
+                          </Button>
+                        </div>
+                        {username && username.length >= 3 && (
+                          <div className={`flex items-center gap-2 text-xs p-2 rounded-lg ${
+                            usernameCheck.checking ? 'bg-gray-50 text-gray-600' :
+                            usernameCheck.available ? 'bg-green-50 text-green-700' :
+                            usernameCheck.available === false ? 'bg-red-50 text-red-700' : ''
+                          }`}>
+                            {usernameCheck.checking ? 'Checking...' :
+                             usernameCheck.available ? 'Username available' :
+                             usernameCheck.available === false ? usernameCheck.reason : null}
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-400">3-30 characters, lowercase letters, numbers, and hyphens only</p>
+                        {usernameSuggestions.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {usernameSuggestions.map((s) => (
+                              <button key={s} type="button" onClick={() => { setUsername(s); setUsernameCheck({ available: true }) }}
+                                className={`text-xs px-3 py-1 rounded-full border ${username === s ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            disabled={usernameSaving || !username || username.length < 3 || usernameCheck.available !== true}
+                            onClick={async () => {
+                              setUsernameSaving(true)
+                              try {
+                                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/username`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  credentials: 'include',
+                                  body: JSON.stringify({ username }),
+                                })
+                                const data = await res.json()
+                                if (data.success) {
+                                  toast.success('Username updated')
+                                  setUsernameEdit(false)
+                                  await checkAuth()
+                                } else {
+                                  toast.error(data.msg || 'Failed to update username')
+                                }
+                              } catch { toast.error('Failed to update username') }
+                              finally { setUsernameSaving(false) }
+                            }}
+                          >
+                            {usernameSaving ? 'Saving...' : 'Save Username'}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setUsernameEdit(false)
+                            setUsername(user?.username || '')
+                            setUsernameCheck({})
+                            setUsernameSuggestions([])
+                          }}>Cancel</Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">

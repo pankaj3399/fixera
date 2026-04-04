@@ -86,7 +86,7 @@ export default function ChatPage() {
     const q = searchQuery.toLowerCase();
     return conversations.filter((c) => {
       const other = getOtherParticipant(c, userRole);
-      const name = other?.businessInfo?.companyName || other?.name || "";
+      const name = other?.username || other?.name || "";
       const email = other?.email || "";
       return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
     });
@@ -116,7 +116,7 @@ export default function ChatPage() {
   const otherParticipant = selectedConversation
     ? getOtherParticipant(selectedConversation, userRole)
     : null;
-  const otherName = otherParticipant?.businessInfo?.companyName || otherParticipant?.name || "Conversation";
+  const otherName = otherParticipant?.username || otherParticipant?.name || "Conversation";
 
   const loadConversationList = useCallback(
     async (showBusy: boolean) => {
@@ -525,7 +525,7 @@ export default function ChatPage() {
               <div className="space-y-2">
                 {professionalOptions.map((professional) => {
                   const displayName =
-                    professional.businessInfo?.companyName || professional.name || "Professional";
+                    professional.username || professional.name || "Professional";
                   const location = [professional.businessInfo?.city, professional.businessInfo?.country]
                     .filter(Boolean)
                     .join(", ");

@@ -33,6 +33,7 @@ interface ClaimRecord {
     _id: string
     name?: string
     email?: string
+    username?: string
     businessInfo?: {
       companyName?: string
     }
@@ -292,7 +293,7 @@ export default function WarrantyClaimsPage() {
                         <p>
                           {isProfessional
                             ? (claim.customer?.name || claim.customer?.email || "-")
-                            : (claim.professional?.businessInfo?.companyName ||
+                            : (claim.professional?.username ||
                               claim.professional?.name ||
                               claim.professional?.email ||
                               "-")}

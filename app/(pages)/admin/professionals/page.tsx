@@ -37,6 +37,7 @@ interface Professional {
   phone: string;
   professionalStatus: 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended';
   hourlyRate?: number;
+  username?: string;
   currency?: string;
   serviceCategories?: string[];
   businessInfo?: {
@@ -481,6 +482,9 @@ export default function ProfessionalsAdminPage() {
                           <span className="font-medium">Company:</span> {professional.businessInfo.companyName}
                         </div>
                       )}
+                      <div className="text-sm">
+                        <span className="font-medium">Username:</span> {professional.username || '(not set)'}
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -749,6 +753,7 @@ export default function ProfessionalsAdminPage() {
                     <h4 className="font-medium mb-3">Business Information</h4>
                     <div className="space-y-2 text-sm">
                       <div><span className="font-medium">Company:</span> {selectedProfessional.businessInfo?.companyName || 'Not provided'}</div>
+                      <div><span className="font-medium">Username:</span> {selectedProfessional.username || '(not set)'}</div>
                       <div><span className="font-medium">Rate:</span> {selectedProfessional.currency}{selectedProfessional.hourlyRate}/hr</div>
                       <div><span className="font-medium">Website:</span> {selectedProfessional.businessInfo?.website || 'Not provided'}</div>
                       <div><span className="font-medium">Location:</span> {selectedProfessional.businessInfo?.city}, {selectedProfessional.businessInfo?.country}</div>

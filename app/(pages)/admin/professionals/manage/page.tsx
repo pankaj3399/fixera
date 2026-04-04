@@ -17,6 +17,7 @@ interface ProfessionalRow {
   professionalLevel?: string
   points?: number
   moneyEarned?: number
+  username?: string
   accountStatus?: string
   adminTags?: string[]
   businessInfo?: { companyName?: string; country?: string }
@@ -146,6 +147,7 @@ export default function AdminProfessionalManagementPage() {
               <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="font-semibold text-slate-900">{row.businessInfo?.companyName || row.name}</p>
+                  {row.username && <p className="text-xs text-slate-500">@{row.username}</p>}
                   <p className="text-sm text-slate-600">{row.email}</p>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
                     <Badge variant="outline">{row.professionalLevel || "New"}</Badge>

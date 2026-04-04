@@ -17,8 +17,8 @@ interface ChatComposerProps {
 const getReplyName = (message: ChatMessage) => {
   const sender = message.senderId as unknown;
   if (sender && typeof sender === "object") {
-    const s = sender as { name?: string; businessInfo?: { companyName?: string } };
-    return s.businessInfo?.companyName || s.name || "User";
+    const s = sender as { name?: string; username?: string; businessInfo?: { companyName?: string } };
+    return s.username || s.name || "User";
   }
   return "User";
 };

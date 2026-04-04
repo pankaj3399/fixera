@@ -124,6 +124,7 @@ interface BookingDetail {
     name?: string
     email?: string
     phone?: string
+    username?: string
     businessInfo?: {
       companyName?: string
     }
@@ -1659,7 +1660,7 @@ export default function BookingDetailPage() {
                       )}
                       <CardTitle className="text-lg text-gray-900">
                         {booking.project?.title ||
-                          booking.professional?.businessInfo?.companyName ||
+                          booking.professional?.username ||
                           booking.rfqData?.serviceType ||
                           "Booking"}
                       </CardTitle>
@@ -3179,10 +3180,10 @@ export default function BookingDetailPage() {
 
                         {booking.bookingType === "professional" && booking.professional && (
                           <>
-                            {booking.professional.businessInfo?.companyName && (
+                            {booking.professional.username && (
                               <div className="flex items-center gap-2">
                                 <Shield className="h-3 w-3 text-gray-400" />
-                                <span>{booking.professional.businessInfo.companyName}</span>
+                                <span>{booking.professional.username}</span>
                               </div>
                             )}
                             {booking.professional.name && (

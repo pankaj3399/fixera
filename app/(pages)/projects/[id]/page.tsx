@@ -144,6 +144,7 @@ interface Project {
   professionalId: {
     _id: string;
     name: string;
+    username?: string;
     businessInfo?: {
       companyName?: string;
       timezone?: string;

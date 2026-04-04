@@ -165,6 +165,7 @@ interface ProfessionalBusinessInfoPayload {
   city: string;
   country: string;
   postalCode: string;
+  username?: string;
 }
 
 interface MissingRequirementDetail {
@@ -284,7 +285,8 @@ export const updateProfessionalBusinessProfile = async (
           city: businessInfo.city.trim(),
           country: businessInfo.country.trim(),
           postalCode: businessInfo.postalCode.trim(),
-        }
+        },
+        ...(businessInfo.username ? { username: businessInfo.username.trim() } : {}),
       }),
     });
 

@@ -41,6 +41,7 @@ interface Booking {
   }
   professional?: {
     _id: string
+    username?: string
     businessInfo?: {
       companyName?: string
     }

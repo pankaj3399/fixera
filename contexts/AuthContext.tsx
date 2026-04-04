@@ -26,6 +26,7 @@ interface User {
     oldValue: string
     newValue: string
   }[]
+  username?: string
   professionalStatus?: 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended'
   approvedBy?: string
   approvedAt?: string

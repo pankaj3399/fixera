@@ -38,7 +38,7 @@ const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: str
   }
 
   return (
-    conversation.professionalId?.businessInfo?.companyName ||
+    conversation.professionalId?.username ||
     conversation.professionalId?.name ||
     "Professional"
   );
@@ -98,6 +98,7 @@ export default function ChatWidget() {
     Array<{
       _id: string;
       name?: string;
+      username?: string;
       businessInfo?: { companyName?: string; city?: string; country?: string };
     }>
   >([]);
@@ -198,6 +199,7 @@ export default function ChatWidget() {
       const data = (await response.json()) as Array<{
         _id: string;
         name?: string;
+        username?: string;
         businessInfo?: { companyName?: string; city?: string; country?: string };
       }>;
 
@@ -550,7 +552,7 @@ export default function ChatWidget() {
                       <div className="space-y-2">
                         {professionalOptions.map((professional) => {
                           const displayName =
-                            professional.businessInfo?.companyName || professional.name || "Professional";
+                            professional.username || professional.name || "Professional";
                           const location = [professional.businessInfo?.city, professional.businessInfo?.country]
                             .filter(Boolean)
                             .join(", ");

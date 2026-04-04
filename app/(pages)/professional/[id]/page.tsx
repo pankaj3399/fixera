@@ -37,6 +37,7 @@ import StartChatButton from "@/components/chat/StartChatButton"
 interface ProfessionalData {
   _id: string
   name?: string
+  username?: string
   profileImage?: string
   businessInfo?: {
     companyName?: string
@@ -337,10 +338,8 @@ export default function ProfessionalProfilePage() {
     )
   }
 
-  const name = professional.businessInfo?.companyName || professional.name || "Professional"
-  const personalName = professional.businessInfo?.companyName && professional.name !== professional.businessInfo.companyName
-    ? professional.name
-    : null
+  const name = professional.username || professional.name || "Professional"
+  const personalName: string | null = null
   const location = [professional.businessInfo?.city, professional.businessInfo?.country].filter(Boolean).join(", ")
   const memberSince = professional.createdAt
     ? new Date(professional.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })
