@@ -33,14 +33,16 @@ const getSenderId = (message: ChatMessage) => {
   return "";
 };
 
-const getSenderName = (message: ChatMessage) => {
-  const sender = message.senderId as unknown;
+const resolveSenderName = (sender: unknown): string => {
   if (sender && typeof sender === "object") {
-    const senderRecord = sender as { name?: string; username?: string };
-    return senderRecord.username || senderRecord.name || "User";
+    const s = sender as { username?: string; name?: string };
+    return s.username || s.name || "User";
   }
   return "User";
 };
+
+const getSenderName = (message: ChatMessage) =>
+  resolveSenderName(message.senderId);
 
 const getSenderImage = (message: ChatMessage) => {
   const sender = message.senderId as unknown;
@@ -306,13 +308,7 @@ function WarrantyNotificationCard({ message }: { message: ChatMessage }) {
 
 function ReplyToPreview({ replyTo, isMine }: { replyTo: ChatMessage["replyTo"]; isMine: boolean }) {
   if (!replyTo) return null;
-  const sender = replyTo.senderId as unknown;
-  const name =
-    sender && typeof sender === "object"
-      ? (sender as { username?: string; name?: string }).username ||
-        (sender as { name?: string }).name ||
-        "User"
-      : "User";
+  const name = resolveSenderName(replyTo.senderId);
   const previewText = replyTo.text?.slice(0, 100) || (replyTo.images?.length ? "[Image]" : "");
 
   const scrollToOriginal = () => {

@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAuthToken } from "@/lib/utils"
+import { getAuthToken, buildUsernameSuggestionParams } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
 import { CompanyAvailability, DEFAULT_COMPANY_AVAILABILITY } from "@/lib/defaults/companyAvailability"
 import {
@@ -1878,10 +1878,8 @@ export default function ProfilePage() {
                             size="sm"
                             onClick={async () => {
                               try {
-                                const params = new URLSearchParams()
-                                if (businessInfo.companyName) params.set('companyName', businessInfo.companyName)
-                                if (businessInfo.city) params.set('city', businessInfo.city)
-                                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username?${params}`, { credentials: 'include' })
+                                const qs = buildUsernameSuggestionParams(businessInfo)
+                                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include' })
                                 const data = await res.json()
                                 if (data.suggestions?.length) {
                                   setUsernameSuggestions(data.suggestions)

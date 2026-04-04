@@ -91,6 +91,16 @@ export function getAuthFetchOptions(additionalHeaders?: Record<string, string>):
 /**
  * Authenticated fetch helper - includes both cookie and Bearer token
  */
+export function buildUsernameSuggestionParams(fields: { companyName?: string; city?: string }): string {
+  const params = new URLSearchParams()
+  const name = fields.companyName?.trim()
+  const city = fields.city?.trim()
+  if (name) params.set('companyName', name)
+  if (city) params.set('city', city)
+  const qs = params.toString()
+  return qs ? `?${qs}` : ''
+}
+
 export async function authFetch(url: string, options?: RequestInit): Promise<Response> {
   const token = getAuthToken()
   const headers: Record<string, string> = {}

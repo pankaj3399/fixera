@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import AddressAutocomplete, { PlaceData } from '@/components/professional/project-wizard/AddressAutocomplete'
 import EmployeeManagement from '@/components/TeamManagement'
 import { EU_COUNTRIES } from '@/lib/countries'
-import { getAuthToken } from '@/lib/utils'
+import { getAuthToken, buildUsernameSuggestionParams } from '@/lib/utils'
 import { formatVATNumber, getVATCountryName, isEUVatNumber, validateVATFormat, validateVATWithAPI, updateProfessionalBusinessProfile, submitForVerification } from '@/lib/vatValidation'
 import { CompanyAvailability, DayAvailability, DEFAULT_COMPANY_AVAILABILITY } from '@/lib/defaults/companyAvailability'
 
@@ -320,10 +320,8 @@ function BusinessDetailsStep({
   const generateSuggestions = async () => {
     setSuggestionsLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (businessInfo.companyName) params.set('companyName', businessInfo.companyName)
-      if (businessInfo.city) params.set('city', businessInfo.city)
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username?${params}`, {
+      const qs = buildUsernameSuggestionParams(businessInfo)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, {
         credentials: 'include',
       })
       const data = await res.json()

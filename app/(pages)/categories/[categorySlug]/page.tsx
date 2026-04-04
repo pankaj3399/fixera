@@ -18,7 +18,6 @@ interface Professional {
   _id: string;
   name: string;
   username?: string;
-  email: string;
   businessInfo?: {
     description?: string;
     city?: string;
