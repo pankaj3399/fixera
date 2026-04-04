@@ -93,6 +93,10 @@ export function getCustomerActionItems(bookings: ActionNeededBooking[]): ActionI
       items.push({ booking, label: "Payment needed", severity: "urgent" })
     }
 
+    if (booking.status === "professional_completed") {
+      items.push({ booking, label: "Review completion and confirm", severity: "urgent" })
+    }
+
     // Dispute needs customer response
     if (booking.status === "dispute") {
       items.push({ booking, label: "Review dispute", severity: "urgent" })

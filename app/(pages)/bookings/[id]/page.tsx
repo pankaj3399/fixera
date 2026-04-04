@@ -19,6 +19,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import StartChatButton from "@/components/chat/StartChatButton"
 import ReviewModal from "@/components/booking/ReviewModal"
 import QuotationWizard from "@/components/quotation/QuotationWizard"
+import { StripeProvider } from "@/components/stripe/StripeProvider"
+import { PaymentForm } from "@/components/stripe/PaymentForm"
 import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 
@@ -64,7 +66,48 @@ interface BookingDetail {
     status?: string
     currency?: string
     totalWithVat?: number
+    amount?: number
+    netAmount?: number
+    vatAmount?: number
+    vatRate?: number
+    platformCommission?: number
+    professionalPayout?: number
+    stripeFeeAmount?: number
+    stripePaymentIntentId?: string
+    extraCostStripePaymentIntentId?: string
+    extraCostClientSecret?: string
+    extraCostAmount?: number
+    authorizedAt?: string
+    capturedAt?: string
+    transferredAt?: string
+    paidAt?: string
+    discount?: {
+      loyaltyTier?: string
+      loyaltyAmount?: number
+      repeatBuyerAmount?: number
+      pointsDiscountAmount?: number
+      totalDiscount?: number
+      originalAmount?: number
+    }
   }
+  completionAttestation?: {
+    confirmedAt?: string
+    confirmedBy?: string
+    attachments?: string[]
+    notes?: string
+  }
+  extraCosts?: Array<{
+    type: 'unit_adjustment' | 'condition' | 'option' | 'other'
+    name: string
+    justification: string
+    amount: number
+    estimatedUnits?: number
+    actualUnits?: number
+    unitPrice?: number
+    referenceIndex?: number
+  }>
+  extraCostStatus?: 'pending' | 'confirmed' | 'disputed'
+  extraCostTotal?: number
   rfqData?: {
     serviceType?: string
     description?: string
@@ -123,6 +166,14 @@ interface BookingDetail {
     email?: string
     phone?: string
     username?: string
+    businessInfo?: {
+      companyName?: string
+      kvkNumber?: string
+      vatNumber?: string
+      country?: string
+    }
+    role?: string
+    createdAt?: string
   }
   customer?: {
     _id: string
@@ -130,6 +181,7 @@ interface BookingDetail {
     email?: string
     phone?: string
     customerType?: string
+    vatNumber?: string
   }
   customerReview?: {
     communicationLevel?: number
@@ -185,6 +237,17 @@ interface WarrantyClaimDetail {
   }
 }
 
+type CompletionExtraCost = {
+  type: 'unit_adjustment' | 'condition' | 'option' | 'other'
+  name: string
+  justification: string
+  amount: number
+  referenceIndex?: number
+  estimatedUnits?: number
+  actualUnits?: number
+  unitPrice?: number
+}
+
 const DETAIL_STATUS_STYLES: Record<string, string> = {
   rfq: "bg-indigo-50 text-indigo-700 border border-indigo-100",
   rfq_accepted: "bg-violet-50 text-violet-700 border border-violet-100",
@@ -195,6 +258,7 @@ const DETAIL_STATUS_STYLES: Record<string, string> = {
   payment_pending: "bg-amber-50 text-amber-700 border border-amber-100",
   booked: "bg-emerald-50 text-emerald-700 border border-emerald-100",
   in_progress: "bg-sky-50 text-sky-700 border border-sky-100",
+  professional_completed: "bg-amber-50 text-amber-700 border border-amber-100",
   completed: "bg-teal-50 text-teal-700 border border-teal-100",
   cancelled: "bg-rose-50 text-rose-700 border border-rose-100",
   refunded: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100",
@@ -217,6 +281,7 @@ const formatCurrencyRange = (booking: BookingDetail): string | null => {
 type BookingApiResponse = {
   success: boolean
   booking?: BookingDetail
+  viewerRole?: 'admin' | 'customer' | 'professional'
   msg?: string
 }
 
@@ -332,6 +397,7 @@ export default function BookingDetailPage() {
   const autoOpenWarrantyClaim = searchParams?.get("openWarrantyClaim") === "true"
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
+  const [viewerRole, setViewerRole] = useState<'admin' | 'customer' | 'professional' | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showQuoteForm, setShowQuoteForm] = useState(false)
@@ -376,6 +442,23 @@ export default function BookingDetailPage() {
   const [warrantyDialogAutoOpened, setWarrantyDialogAutoOpened] = useState(false)
   const [showDeclineReasonDialog, setShowDeclineReasonDialog] = useState(false)
   const [declineReason, setDeclineReason] = useState("")
+
+  // Professional completion flow state
+  const [showCompletionModal, setShowCompletionModal] = useState(false)
+  const [completionNotes, setCompletionNotes] = useState("")
+  const [completionFiles, setCompletionFiles] = useState<File[]>([])
+  const [completionExtraCosts, setCompletionExtraCosts] = useState<CompletionExtraCost[]>([])
+  const [submittingCompletion, setSubmittingCompletion] = useState(false)
+
+  // Customer dispute state
+  const [showDisputeModal, setShowDisputeModal] = useState(false)
+  const [disputeReason, setDisputeReason] = useState("")
+  const [disputeDescription, setDisputeDescription] = useState("")
+  const [submittingDispute, setSubmittingDispute] = useState(false)
+  const [confirmingCompletion, setConfirmingCompletion] = useState(false)
+  const [extraCostClientSecret, setExtraCostClientSecret] = useState("")
+  const [loadingExtraCostPayment, setLoadingExtraCostPayment] = useState(false)
+  const [extraCostPaymentCompleted, setExtraCostPaymentCompleted] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -426,6 +509,7 @@ export default function BookingDetailPage() {
 
         if (response.ok && data.success && data.booking) {
           setBooking(data.booking)
+          if (data.viewerRole) setViewerRole(data.viewerRole)
         } else {
           setError(data.msg || "Failed to load booking details.")
         }
@@ -1053,6 +1137,7 @@ export default function BookingDetailPage() {
       const { data } = await parseResponseBody<BookingApiResponse>(response)
       if (isBookingApiResponse(data) && data.success && data.booking) {
         setBooking(data.booking)
+        if (data.viewerRole) setViewerRole(data.viewerRole)
       }
     } catch {
       // Silently fail - the page already has stale data
@@ -1401,6 +1486,200 @@ export default function BookingDetailPage() {
     }
   }
 
+  const handleProfessionalComplete = async () => {
+    if (!bookingId) return
+    setSubmittingCompletion(true)
+    try {
+      const token = getAuthToken()
+      const formData = new FormData()
+      if (completionNotes) formData.append('notes', completionNotes)
+      if (completionExtraCosts.length > 0) {
+        formData.append('extraCosts', JSON.stringify(completionExtraCosts))
+      }
+      completionFiles.forEach(file => formData.append('attachments', file))
+
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/professional-complete`,
+        { method: "POST", headers, credentials: "include", body: formData }
+      )
+      const result = await response.json()
+      if (response.ok && result.success) {
+        toast.success("Completion confirmed. Awaiting customer confirmation.")
+        setShowCompletionModal(false)
+        setCompletionNotes("")
+        setCompletionFiles([])
+        setCompletionExtraCosts([])
+        await refreshBooking()
+      } else {
+        toast.error(result.error?.message || "Failed to confirm completion")
+      }
+    } catch (err) {
+      console.error("Failed to confirm completion:", err)
+      toast.error("Failed to confirm completion. Please try again.")
+    } finally {
+      setSubmittingCompletion(false)
+    }
+  }
+
+  const initializeExtraCostPayment = async () => {
+    if (!bookingId) return false
+
+    if (extraCostClientSecret) return true
+
+    setLoadingExtraCostPayment(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers["Authorization"] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/extra-cost-payment-intent`,
+        { method: "POST", headers, credentials: "include" }
+      )
+      const result = await response.json()
+
+      if (response.ok && result.success && result.data?.clientSecret) {
+        setExtraCostClientSecret(result.data.clientSecret)
+        return true
+      }
+
+      toast.error(result.error?.message || "Failed to initialize extra cost payment")
+      return false
+    } catch (err) {
+      console.error("Failed to initialize extra cost payment:", err)
+      toast.error("Failed to initialize extra cost payment. Please try again.")
+      return false
+    } finally {
+      setLoadingExtraCostPayment(false)
+    }
+  }
+
+  const submitCustomerConfirmCompletion = async (skipPrompt = false) => {
+    if (!bookingId) return false
+    if (!skipPrompt && !confirm("Are you satisfied with the work and extra costs?\n\nThis will release the payment to the professional.")) return false
+
+    setConfirmingCompletion(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/customer-confirm-completion`,
+        { method: "POST", headers, credentials: "include" }
+      )
+      const result = await response.json()
+      if (response.ok && result.success) {
+        toast.success("Booking completed! Payment has been released.")
+        setExtraCostClientSecret("")
+        setExtraCostPaymentCompleted(false)
+        await refreshBooking()
+        return true
+      }
+
+      if (result.error?.code === "EXTRA_COST_NOT_PAID" && (booking?.extraCostTotal || 0) > 0) {
+        const paymentReady = await initializeExtraCostPayment()
+        if (paymentReady) {
+          toast.info("Pay the extra costs below to complete the booking.")
+        }
+        return false
+      }
+
+      toast.error(result.error?.message || "Failed to confirm completion")
+      return false
+    } catch (err) {
+      console.error("Failed to confirm completion:", err)
+      toast.error("Failed to confirm completion. Please try again.")
+      return false
+    } finally {
+      setConfirmingCompletion(false)
+    }
+  }
+
+  const handleCustomerConfirmCompletion = async () => {
+    await submitCustomerConfirmCompletion()
+  }
+
+  const handleExtraCostPaymentSuccess = async () => {
+    setExtraCostPaymentCompleted(true)
+    toast.success("Extra costs paid. Finalizing booking...")
+    await submitCustomerConfirmCompletion(true)
+  }
+
+  const handleExtraCostPaymentError = (message: string) => {
+    toast.error(message)
+  }
+
+  const handleCustomerDispute = async () => {
+    if (!bookingId || !disputeReason) return
+    setSubmittingDispute(true)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/dispute-extra-costs`,
+        {
+          method: "POST", headers, credentials: "include",
+          body: JSON.stringify({ reason: disputeReason, description: disputeDescription })
+        }
+      )
+      const result = await response.json()
+      if (response.ok && result.success) {
+        toast.success("Dispute raised. An admin will review your case.")
+        setShowDisputeModal(false)
+        setDisputeReason("")
+        setDisputeDescription("")
+        await refreshBooking()
+      } else {
+        toast.error(result.error?.message || "Failed to raise dispute")
+      }
+    } catch (err) {
+      console.error("Failed to raise dispute:", err)
+      toast.error("Failed to raise dispute. Please try again.")
+    } finally {
+      setSubmittingDispute(false)
+    }
+  }
+
+  const addExtraCost = (type: 'unit_adjustment' | 'condition' | 'option' | 'other') => {
+    setCompletionExtraCosts(prev => [...prev, {
+      type,
+      name: type === 'unit_adjustment' ? 'Unit-based adjustment' : '',
+      justification: '',
+      amount: 0,
+      ...(type === 'unit_adjustment' ? { estimatedUnits: 0, actualUnits: 0, unitPrice: 0 } : {}),
+      ...(type === 'condition' || type === 'option' ? { referenceIndex: 0 } : {}),
+    }])
+  }
+
+  const updateExtraCost = (index: number, field: keyof CompletionExtraCost, value: string | number) => {
+    setCompletionExtraCosts(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], [field]: value }
+      if (updated[index].type === 'unit_adjustment' && (field === 'actualUnits' || field === 'estimatedUnits' || field === 'unitPrice')) {
+        const diff = (updated[index].actualUnits || 0) - (updated[index].estimatedUnits || 0)
+        updated[index].amount = diff * (updated[index].unitPrice || 0)
+      }
+      return updated
+    })
+  }
+
+  const removeExtraCost = (index: number) => {
+    setCompletionExtraCosts(prev => prev.filter((_, i) => i !== index))
+  }
+
+  useEffect(() => {
+    setExtraCostClientSecret(booking?.payment?.extraCostClientSecret || "")
+    if (booking?.status !== "professional_completed") {
+      setExtraCostPaymentCompleted(false)
+    }
+  }, [booking?.payment?.extraCostClientSecret, booking?.status])
+
   if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
@@ -1658,7 +1937,6 @@ export default function BookingDetailPage() {
                       <CardTitle className="text-lg text-gray-900">
                         {booking.project?.title ||
                           booking.professional?.username ||
-                          booking.professional?.name ||
                           booking.rfqData?.serviceType ||
                           "Booking"}
                       </CardTitle>
@@ -2068,7 +2346,7 @@ export default function BookingDetailPage() {
                 )}
 
                 {/* Milestone Tracker (when booking has milestonePayments and is booked/in_progress) */}
-                {booking.milestonePayments && booking.milestonePayments.length > 0 && ['booked', 'in_progress', 'completed'].includes(booking.status) && (
+                {booking.milestonePayments && booking.milestonePayments.length > 0 && ['booked', 'in_progress', 'professional_completed', 'completed'].includes(booking.status) && (
                   <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-sky-900 mb-3">Milestones</h3>
                     {(() => {
@@ -2448,62 +2726,172 @@ export default function BookingDetailPage() {
                   </div>
                 )}
 
-                {/* Professional: Customer must confirm completion */}
+                {/* Professional: Confirm Completion (when status is in_progress) */}
                 {user?.role === "professional" && booking.status === "in_progress" && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="text-sm font-semibold text-green-900 mb-1">
-                          Waiting for customer confirmation
+                          Ready to confirm completion?
                         </h3>
                         <p className="text-xs text-green-700 mb-2">
-                          Finish the work and notify your customer. Only they can confirm completion and release the payment from escrow.
+                          Once you confirm completion, you can attach certificates/photos and declare any extra costs. The customer will then review and confirm.
                         </p>
-                        <p className="text-xs text-green-600 font-medium">
-                          Funds stay protected until the customer marks the booking as completed.
+                      </div>
+                      <Button
+                        onClick={() => setShowCompletionModal(true)}
+                        className="bg-green-600 hover:bg-green-700 text-white shrink-0"
+                        size="sm"
+                      >
+                        <CheckCheck className="h-4 w-4 mr-2" />
+                        Confirm Completion
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Professional: Waiting for customer after professional confirmed */}
+                {user?.role === "professional" && booking.status === "professional_completed" && (
+                  <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-start gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-amber-900 mb-1">
+                          Awaiting customer confirmation
+                        </h3>
+                        <p className="text-xs text-amber-700 mb-2">
+                          You have confirmed completion. The customer is reviewing the work{booking.extraCostTotal ? ` and extra costs (${booking.payment?.currency || 'EUR'} ${booking.extraCostTotal.toFixed(2)})` : ''}.
                         </p>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Customer: Confirm Work Completion (when status is in_progress) */}
+                {/* Customer: Work In Progress - waiting for professional to confirm */}
                 {user?.role === "customer" && booking.status === "in_progress" && (
                   <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
                       <div>
                         <h3 className="text-sm font-semibold text-teal-900 mb-1">
                           Work In Progress
                         </h3>
                         <p className="text-xs text-teal-700 mb-2">
-                          The professional is currently working on your request. Once they complete the work, you can confirm completion.
+                          The professional is currently working on your request. They will confirm completion when done.
                         </p>
                         <p className="text-xs text-teal-600 font-medium">
-                          Payment will be released from escrow when you confirm completion.
+                          Payment is held in escrow until the work is completed and confirmed.
                         </p>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Customer: Review & Confirm Completion (when professional has confirmed) */}
+                {user?.role === "customer" && booking.status === "professional_completed" && (
+                  <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-teal-900 mb-1">
+                        Professional has completed the work
+                      </h3>
+                      <p className="text-xs text-teal-700">
+                        Review the completion details below and confirm to release payment.
+                      </p>
+                    </div>
+
+                    {booking.completionAttestation?.notes && (
+                      <div className="bg-white/60 rounded p-2">
+                        <p className="text-xs font-medium text-gray-700 mb-1">Professional&apos;s notes:</p>
+                        <p className="text-xs text-gray-600">{booking.completionAttestation.notes}</p>
+                      </div>
+                    )}
+
+                    {booking.completionAttestation?.attachments && booking.completionAttestation.attachments.length > 0 && (
+                      <div className="bg-white/60 rounded p-2">
+                        <p className="text-xs font-medium text-gray-700 mb-1">Attachments ({booking.completionAttestation.attachments.length}):</p>
+                        <div className="flex flex-wrap gap-1">
+                          {booking.completionAttestation.attachments.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                              Attachment {i + 1}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {booking.extraCosts && booking.extraCosts.length > 0 && (
+                      <div className="bg-white/60 rounded p-2 space-y-2">
+                        <p className="text-xs font-semibold text-gray-700">Extra Costs:</p>
+                        {booking.extraCosts.map((cost, i) => (
+                          <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-medium text-gray-800">{cost.name}</span>
+                              <span className={`text-xs font-semibold ${cost.amount >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {cost.amount >= 0 ? '+' : ''}{booking.payment?.currency || 'EUR'} {cost.amount.toFixed(2)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              <span className="capitalize">{cost.type.replace('_', ' ')}</span>
+                              {cost.type === 'unit_adjustment' && ` (estimated: ${cost.estimatedUnits}, actual: ${cost.actualUnits})`}
+                            </p>
+                            <p className="text-xs text-gray-500 italic">{cost.justification}</p>
+                          </div>
+                        ))}
+                        <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                          <span className="text-xs font-semibold text-gray-800">Total Extra Costs</span>
+                          <span className={`text-sm font-bold ${(booking.extraCostTotal || 0) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {(booking.extraCostTotal || 0) >= 0 ? '+' : ''}{booking.payment?.currency || 'EUR'} {(booking.extraCostTotal || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-1">
                       <Button
-                        onClick={() => handleUpdateStatus(
-                          "completed",
-                          "Are you satisfied with the work?\n\nThis will release the payment from escrow to the professional."
-                        )}
-                        disabled={updatingStatus}
-                        className="bg-teal-600 hover:bg-teal-700 text-white shrink-0"
+                        onClick={handleCustomerConfirmCompletion}
+                        disabled={confirmingCompletion || loadingExtraCostPayment}
+                        className="bg-teal-600 hover:bg-teal-700 text-white"
                         size="sm"
                       >
-                        {updatingStatus ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Processing...
-                          </>
+                        {confirmingCompletion || loadingExtraCostPayment ? (
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
                         ) : (
-                          <>
-                            <CheckCheck className="h-4 w-4 mr-2" />
-                            Confirm Completion
-                          </>
+                          <><CheckCheck className="h-4 w-4 mr-2" />{booking.extraCostTotal && booking.extraCostTotal > 0 ? 'Review Payment & Complete' : 'Confirm Completion'}</>
                         )}
                       </Button>
+                      <Button
+                        onClick={() => setShowDisputeModal(true)}
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                        size="sm"
+                      >
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        Dispute
+                      </Button>
                     </div>
+
+                    {(booking.extraCostTotal || 0) > 0 && extraCostClientSecret && (
+                      <div className="rounded-lg border border-teal-200 bg-white/80 p-3 space-y-3">
+                        <div>
+                          <p className="text-sm font-semibold text-teal-900">Pay extra costs before final confirmation</p>
+                          <p className="text-xs text-teal-700">
+                            Once this payment succeeds, the booking will be finalized automatically.
+                          </p>
+                        </div>
+                        {extraCostPaymentCompleted && (
+                          <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                            Extra cost payment succeeded. Finalizing the booking now. If the page does not refresh, use the confirm button again.
+                          </div>
+                        )}
+                        <StripeProvider>
+                          <PaymentForm
+                            clientSecret={extraCostClientSecret}
+                            amount={booking.extraCostTotal || 0}
+                            currency={booking.payment?.currency || "EUR"}
+                            onSuccess={handleExtraCostPaymentSuccess}
+                            onError={handleExtraCostPaymentError}
+                          />
+                        </StripeProvider>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -3176,7 +3564,7 @@ export default function BookingDetailPage() {
                           </>
                         )}
 
-                        {booking.bookingType === "professional" && booking.professional && (
+                        {booking.professional && (
                           <>
                             {booking.professional.username && (
                               <div className="flex items-center gap-2">
@@ -3184,13 +3572,166 @@ export default function BookingDetailPage() {
                                 <span>{booking.professional.username}</span>
                               </div>
                             )}
-                            {booking.professional.name && (
+                            {viewerRole !== 'customer' && booking.professional.name && (
                               <div className="flex items-center gap-2">
                                 <User className="h-3 w-3 text-gray-400" />
                                 <span>{booking.professional.name}</span>
                               </div>
                             )}
+                            {viewerRole !== 'customer' && booking.professional.businessInfo?.companyName && (
+                              <div className="flex items-center gap-2">
+                                <Briefcase className="h-3 w-3 text-gray-400" />
+                                <span>{booking.professional.businessInfo.companyName}</span>
+                              </div>
+                            )}
+                            {viewerRole === 'admin' && (
+                              <>
+                                {booking.professional.email && (
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-3 w-3 text-gray-400" />
+                                    <span>{booking.professional.email}</span>
+                                  </div>
+                                )}
+                                {booking.professional.phone && (
+                                  <div className="flex items-center gap-2">
+                                    <Phone className="h-3 w-3 text-gray-400" />
+                                    <span>{booking.professional.phone}</span>
+                                  </div>
+                                )}
+                                {booking.professional.businessInfo?.kvkNumber && (
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-3 w-3 text-gray-400" />
+                                    <span>KVK: {booking.professional.businessInfo.kvkNumber}</span>
+                                  </div>
+                                )}
+                                {booking.professional.businessInfo?.vatNumber && (
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-3 w-3 text-gray-400" />
+                                    <span>VAT: {booking.professional.businessInfo.vatNumber}</span>
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {viewerRole === 'admin' && booking.customer && (
+                    <Card className="bg-slate-50/60 border border-slate-100">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-xs">
+                          <User className="h-4 w-4 text-slate-600" />
+                          Customer
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-1 text-xs text-gray-700">
+                        {booking.customer.name && (
+                          <div className="flex items-center gap-2">
+                            <User className="h-3 w-3 text-gray-400" />
+                            <span>{booking.customer.name}</span>
+                          </div>
+                        )}
+                        {booking.customer.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-3 w-3 text-gray-400" />
+                            <span>{booking.customer.email}</span>
+                          </div>
+                        )}
+                        {booking.customer.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-3 w-3 text-gray-400" />
+                            <span>{booking.customer.phone}</span>
+                          </div>
+                        )}
+                        {booking.customer.customerType && (
+                          <div className="flex items-center gap-2">
+                            <Briefcase className="h-3 w-3 text-gray-400" />
+                            <span className="capitalize">{booking.customer.customerType}</span>
+                          </div>
+                        )}
+                        {booking.customer.vatNumber && (
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-3 w-3 text-gray-400" />
+                            <span>VAT: {booking.customer.vatNumber}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {viewerRole === 'admin' && booking.payment && (
+                    <Card className="bg-slate-50/60 border border-slate-100">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-xs">
+                          <CreditCard className="h-4 w-4 text-slate-600" />
+                          Payment Breakdown
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-1.5 text-xs text-gray-700">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Status</span>
+                          <Badge variant="outline" className="text-[10px] h-5">{booking.payment.status || 'unknown'}</Badge>
+                        </div>
+                        {booking.payment.amount != null && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Net Amount</span>
+                            <span>{booking.payment.currency || 'EUR'} {booking.payment.amount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {booking.payment.vatAmount != null && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">VAT ({booking.payment.vatRate || 0}%)</span>
+                            <span>{booking.payment.currency || 'EUR'} {booking.payment.vatAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {booking.payment.totalWithVat != null && (
+                          <div className="flex justify-between font-medium">
+                            <span>Total (incl. VAT)</span>
+                            <span>{booking.payment.currency || 'EUR'} {booking.payment.totalWithVat.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {booking.payment.discount && booking.payment.discount.totalDiscount != null && booking.payment.discount.totalDiscount > 0 && (
+                          <div className="flex justify-between text-green-600">
+                            <span>Discount</span>
+                            <span>-{booking.payment.currency || 'EUR'} {booking.payment.discount.totalDiscount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="border-t border-gray-200 pt-1.5 mt-1.5 space-y-1">
+                          {booking.payment.platformCommission != null && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Platform Commission</span>
+                              <span>{booking.payment.currency || 'EUR'} {booking.payment.platformCommission.toFixed(2)}</span>
+                            </div>
+                          )}
+                          {booking.payment.stripeFeeAmount != null && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Stripe Fee</span>
+                              <span>{booking.payment.currency || 'EUR'} {booking.payment.stripeFeeAmount.toFixed(2)}</span>
+                            </div>
+                          )}
+                          {booking.payment.professionalPayout != null && (
+                            <div className="flex justify-between font-medium">
+                              <span>Professional Payout</span>
+                              <span>{booking.payment.currency || 'EUR'} {booking.payment.professionalPayout.toFixed(2)}</span>
+                            </div>
+                          )}
+                        </div>
+                        {booking.extraCostTotal != null && booking.extraCostTotal !== 0 && (
+                          <div className="border-t border-gray-200 pt-1.5 mt-1.5">
+                            <div className="flex justify-between font-medium">
+                              <span>Extra Costs</span>
+                              <span className={booking.extraCostTotal >= 0 ? 'text-red-600' : 'text-green-600'}>
+                                {booking.extraCostTotal >= 0 ? '+' : ''}{booking.payment.currency || 'EUR'} {booking.extraCostTotal.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {booking.payment.stripePaymentIntentId && (
+                          <div className="border-t border-gray-200 pt-1.5 mt-1.5">
+                            <p className="text-[10px] text-gray-400 break-all">PI: {booking.payment.stripePaymentIntentId}</p>
+                          </div>
                         )}
                       </CardContent>
                     </Card>
@@ -3253,6 +3794,187 @@ export default function BookingDetailPage() {
                 >
                   {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                   Reject & Send Feedback
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Professional Completion Modal */}
+        <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Confirm Completion</DialogTitle>
+              <DialogDescription>
+                Confirm the work is done, attach any documents, and declare extra costs if applicable.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="completion-notes">Notes (optional)</Label>
+                <Textarea
+                  id="completion-notes"
+                  value={completionNotes}
+                  onChange={(e) => setCompletionNotes(e.target.value)}
+                  placeholder="Any notes about the completed work..."
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="completion-files">Attachments (optional)</Label>
+                <p className="text-xs text-gray-500">Certificates, photos, documents</p>
+                <Input
+                  id="completion-files"
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx"
+                  onChange={(e) => setCompletionFiles(Array.from(e.target.files || []))}
+                />
+                {completionFiles.length > 0 && (
+                  <p className="text-xs text-gray-500">{completionFiles.length} file(s) selected</p>
+                )}
+              </div>
+
+              <div className="space-y-3 border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Extra Costs</Label>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('unit_adjustment')} className="text-xs h-7">+ Unit Adj.</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('condition')} className="text-xs h-7">+ Condition</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('option')} className="text-xs h-7">+ Option</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('other')} className="text-xs h-7">+ Other</Button>
+                  </div>
+                </div>
+
+                {completionExtraCosts.map((cost, i) => (
+                  <div key={i} className="border rounded-lg p-3 space-y-2 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-xs capitalize">{cost.type.replace('_', ' ')}</Badge>
+                      <Button size="sm" variant="ghost" onClick={() => removeExtraCost(i)} className="text-red-500 h-6 text-xs">Remove</Button>
+                    </div>
+
+                    {cost.type === 'unit_adjustment' && (
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <Label className="text-xs">Estimated Units</Label>
+                          <Input type="number" value={cost.estimatedUnits || ''} onChange={(e) => updateExtraCost(i, 'estimatedUnits', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Actual Units</Label>
+                          <Input type="number" value={cost.actualUnits || ''} onChange={(e) => updateExtraCost(i, 'actualUnits', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Unit Price</Label>
+                          <Input type="number" value={cost.unitPrice || ''} onChange={(e) => updateExtraCost(i, 'unitPrice', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
+                        </div>
+                      </div>
+                    )}
+
+                    {cost.type === 'condition' && (
+                      <div>
+                        <Label className="text-xs">Condition (select from project)</Label>
+                        <Input type="number" placeholder="Condition index" value={cost.referenceIndex ?? ''} onChange={(e) => updateExtraCost(i, 'referenceIndex', parseInt(e.target.value) || 0)} className="h-8 text-sm" />
+                      </div>
+                    )}
+
+                    {cost.type === 'option' && (
+                      <div>
+                        <Label className="text-xs">Option (select from project)</Label>
+                        <Input type="number" placeholder="Option index" value={cost.referenceIndex ?? ''} onChange={(e) => updateExtraCost(i, 'referenceIndex', parseInt(e.target.value) || 0)} className="h-8 text-sm" />
+                      </div>
+                    )}
+
+                    {cost.type === 'other' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Name</Label>
+                          <Input value={cost.name} onChange={(e) => updateExtraCost(i, 'name', e.target.value)} className="h-8 text-sm" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Amount</Label>
+                          <Input type="number" value={cost.amount || ''} onChange={(e) => updateExtraCost(i, 'amount', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <Label className="text-xs">Justification (required)</Label>
+                      <Textarea value={cost.justification} onChange={(e) => updateExtraCost(i, 'justification', e.target.value)} placeholder="Explain why this cost is necessary..." className="min-h-[50px] text-sm" />
+                    </div>
+
+                    {cost.type === 'unit_adjustment' && (
+                      <p className="text-xs text-gray-600">
+                        Calculated: {cost.amount >= 0 ? '+' : ''}{cost.amount.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+
+                {completionExtraCosts.length > 0 && (
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-sm font-semibold">Total Extra Costs:</span>
+                    <span className={`text-sm font-bold ${completionExtraCosts.reduce((s, c) => s + c.amount, 0) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {completionExtraCosts.reduce((s, c) => s + c.amount, 0).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => setShowCompletionModal(false)}>Cancel</Button>
+                <Button
+                  onClick={handleProfessionalComplete}
+                  disabled={submittingCompletion || completionExtraCosts.some(c => !c.justification)}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {submittingCompletion ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCheck className="h-4 w-4 mr-2" />}
+                  Confirm Completion
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Customer Dispute Modal */}
+        <Dialog open={showDisputeModal} onOpenChange={setShowDisputeModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Dispute Extra Costs</DialogTitle>
+              <DialogDescription>
+                If you disagree with the extra costs or the work quality, raise a dispute. An admin will review your case.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="dispute-reason">Reason</Label>
+                <Input
+                  id="dispute-reason"
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  placeholder="Brief reason for the dispute"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dispute-description">Description (optional)</Label>
+                <Textarea
+                  id="dispute-description"
+                  value={disputeDescription}
+                  onChange={(e) => setDisputeDescription(e.target.value)}
+                  placeholder="Provide more details about your dispute..."
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowDisputeModal(false)}>Cancel</Button>
+                <Button
+                  onClick={handleCustomerDispute}
+                  disabled={submittingDispute || !disputeReason.trim()}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {submittingDispute ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-2" />}
+                  Submit Dispute
                 </Button>
               </div>
             </div>

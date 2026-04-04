@@ -726,6 +726,24 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
+              <Card className="border-red-100 bg-gradient-to-br from-white via-red-50 to-amber-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    Dispute Management
+                  </CardTitle>
+                  <CardDescription>Review and resolve booking disputes raised by customers</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/disputes', '_blank')}
+                    className="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700"
+                  >
+                    Open Dispute Dashboard
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50 to-blue-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl xl:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
