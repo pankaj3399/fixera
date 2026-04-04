@@ -20,6 +20,7 @@ interface PopulatedUser {
   _id: string
   name?: string
   email?: string
+  username?: string
   businessInfo?: {
     companyName?: string
   }
@@ -433,6 +434,7 @@ export default function AdminPaymentsPage() {
                           <div className="font-medium text-gray-900">
                             {payment.professional?.businessInfo?.companyName || payment.professional?.name || "\u2014"}
                           </div>
+                          {payment.professional?.username && <div className="text-xs text-gray-500">@{payment.professional.username}</div>}
                           <div className="text-xs text-gray-500">{payment.professional?.email}</div>
                         </td>
                         <td className="px-4 py-4 text-sm">

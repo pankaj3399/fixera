@@ -115,7 +115,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
   if (!displayConversation) return null;
 
   const other = getOtherParticipant(displayConversation, currentUserRole);
-  const name = other?.businessInfo?.companyName || other?.name || "User";
+  const name = other?.username || other?.name || "User";
   const location = [other?.businessInfo?.city, other?.businessInfo?.country].filter(Boolean).join(", ");
   const memberSince = other?.createdAt
     ? new Date(other.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })

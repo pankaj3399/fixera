@@ -1,6 +1,7 @@
 export interface ChatUserSummary {
   _id: string;
   name?: string;
+  username?: string;
   email?: string;
   role?: "customer" | "professional" | "admin" | "visitor" | "employee" | string;
   profileImage?: string;

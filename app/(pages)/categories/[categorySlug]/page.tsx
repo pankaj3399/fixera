@@ -17,6 +17,7 @@ import StartChatButton from '@/components/chat/StartChatButton';
 interface Professional {
   _id: string;
   name: string;
+  username?: string;
   email: string;
   businessInfo?: {
     companyName?: string;
@@ -31,7 +32,7 @@ interface Professional {
 }
 
 const ProfessionalCard = ({ professional }: { professional: Professional }) => {
-  const displayName = professional.businessInfo?.companyName || professional.name;
+  const displayName = professional.username || professional.name;
   const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   const location = professional.businessInfo?.city
     ? `${professional.businessInfo.city}, ${professional.businessInfo.country || ''}`

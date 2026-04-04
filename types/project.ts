@@ -46,6 +46,7 @@ export interface ProjectSubproject {
 export interface ProjectProfessionalDto {
   _id: string
   name: string
+  username?: string
   businessInfo?: {
     companyName?: string
     timezone?: string

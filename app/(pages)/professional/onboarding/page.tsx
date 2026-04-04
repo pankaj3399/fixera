@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
@@ -270,8 +270,8 @@ function BusinessDetailsStep({
   businessSaving,
 }: {
   gradient: string
-  businessInfo: { companyName: string; address: string; city: string; country: string; postalCode: string }
-  setBusinessInfo: React.Dispatch<React.SetStateAction<{ companyName: string; address: string; city: string; country: string; postalCode: string }>>
+  businessInfo: { companyName: string; address: string; city: string; country: string; postalCode: string; username: string }
+  setBusinessInfo: React.Dispatch<React.SetStateAction<{ companyName: string; address: string; city: string; country: string; postalCode: string; username: string }>>
   vatNumber: string
   setVatNumber: (value: string) => void
   vatValidation: { valid?: boolean; error?: string }
@@ -283,6 +283,58 @@ function BusinessDetailsStep({
   handleStep2Continue: () => void
   businessSaving: boolean
 }) {
+  const [usernameCheck, setUsernameCheck] = useState<{ available?: boolean; reason?: string; checking?: boolean }>({})
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+  const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const usernameAbortRef = useRef<AbortController | null>(null)
+
+  const checkUsername = (value: string) => {
+    const normalized = value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+    setBusinessInfo(prev => ({ ...prev, username: normalized }))
+    if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
+    if (usernameAbortRef.current) usernameAbortRef.current.abort()
+    if (!normalized || normalized.length < 3) {
+      setUsernameCheck({})
+      return
+    }
+    setUsernameCheck({ checking: true })
+    usernameTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController()
+      usernameAbortRef.current = controller
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(normalized)}`, {
+          credentials: 'include',
+          signal: controller.signal,
+        })
+        const data = await res.json()
+        setUsernameCheck({ available: data.available, reason: data.reason })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return
+        setUsernameCheck({ reason: 'Failed to check availability' })
+      }
+    }, 500)
+  }
+
+  const generateSuggestions = async () => {
+    setSuggestionsLoading(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username`, {
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (data.suggestions?.length) {
+        setUsernameSuggestions(data.suggestions)
+        setBusinessInfo(prev => ({ ...prev, username: data.suggestions[0] }))
+        setUsernameCheck({ available: true })
+      }
+    } catch {
+      toast.error('Failed to generate suggestions')
+    } finally {
+      setSuggestionsLoading(false)
+    }
+  }
   return (
     <GradientCard gradient={gradient}>
       <div className="p-6 sm:p-8 space-y-6">
@@ -306,6 +358,68 @@ function BusinessDetailsStep({
             className="rounded-xl"
             placeholder="Your company name"
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-gray-700">
+            Display Username *
+          </Label>
+          <p className="text-xs text-gray-500">This is how customers will see you. Your company name will be hidden from customers.</p>
+          <div className="flex gap-2">
+            <Input
+              value={businessInfo.username}
+              onChange={(e) => checkUsername(e.target.value)}
+              className="rounded-xl"
+              placeholder="e.g., silva-lisboa"
+              maxLength={30}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={generateSuggestions}
+              disabled={suggestionsLoading || !businessInfo.companyName}
+              className="rounded-xl shrink-0 text-xs"
+            >
+              {suggestionsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Suggest'}
+            </Button>
+          </div>
+          {businessInfo.username && businessInfo.username.length >= 3 && (
+            <div className={`flex items-center gap-2 text-xs p-2 rounded-xl ${
+              usernameCheck.checking ? 'bg-gray-50 text-gray-600 border border-gray-200' :
+              usernameCheck.available ? 'bg-green-50 text-green-700 border border-green-200' :
+              usernameCheck.available === false ? 'bg-red-50 text-red-700 border border-red-200' : ''
+            }`}>
+              {usernameCheck.checking ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Checking...</>
+              ) : usernameCheck.available ? (
+                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Username available</>
+              ) : usernameCheck.available === false ? (
+                <>{usernameCheck.reason}</>
+              ) : null}
+            </div>
+          )}
+          <p className="text-xs text-gray-400">3-30 characters, lowercase letters, numbers, and hyphens only</p>
+          {usernameSuggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {usernameSuggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    setBusinessInfo(prev => ({ ...prev, username: s }))
+                    setUsernameCheck({ available: true })
+                  }}
+                  className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                    businessInfo.username === s
+                      ? 'bg-blue-50 border-blue-300 text-blue-700'
+                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -730,7 +844,8 @@ function useBusinessFormState() {
     address: '',
     city: '',
     country: '',
-    postalCode: ''
+    postalCode: '',
+    username: ''
   })
   const [vatNumber, setVatNumber] = useState('')
   const [vatValidating, setVatValidating] = useState(false)
@@ -878,7 +993,7 @@ export default function ProfessionalOnboardingPage() {
     }
     if (user.idExpirationDate) setIdExpirationDate(user.idExpirationDate.split('T')[0])
 
-    if (user.businessInfo) {
+    if (user.businessInfo || user.username) {
       setBusinessInfo(prev => ({
         ...prev,
         companyName: user.businessInfo?.companyName || '',
@@ -886,6 +1001,7 @@ export default function ProfessionalOnboardingPage() {
         city: user.businessInfo?.city || '',
         country: user.businessInfo?.country || '',
         postalCode: user.businessInfo?.postalCode || '',
+        username: user.username || '',
       }))
     }
     if (user.vatNumber) setVatNumber(user.vatNumber)
@@ -1093,6 +1209,14 @@ export default function ProfessionalOnboardingPage() {
       toast.error('Company name is required')
       return
     }
+    if (!businessInfo.username.trim()) {
+      toast.error('Display username is required')
+      return
+    }
+    if (businessInfo.username.length < 3 || businessInfo.username.length > 30) {
+      toast.error('Username must be between 3 and 30 characters')
+      return
+    }
     if (!vatNumber.trim()) {
       toast.error('VAT number is required')
       return
@@ -1118,7 +1242,8 @@ export default function ProfessionalOnboardingPage() {
         address: businessInfo.address,
         city: businessInfo.city,
         country: businessInfo.country,
-        postalCode: businessInfo.postalCode
+        postalCode: businessInfo.postalCode,
+        username: businessInfo.username
       })
       if (!result.success) {
         toast.error(result.error || 'Failed to save business info')

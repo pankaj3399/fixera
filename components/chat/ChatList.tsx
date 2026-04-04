@@ -33,7 +33,7 @@ const getParticipantDisplay = (conversation: ChatConversation, role: string | un
   }
 
   const professional = conversation.professionalId;
-  const professionalName = professional?.businessInfo?.companyName || professional?.name;
+  const professionalName = professional?.username || professional?.name;
   return {
     name: professionalName || "Professional",
     subtitle: professional?.businessInfo?.city || professional?.email || "",

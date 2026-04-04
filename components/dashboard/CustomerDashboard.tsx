@@ -47,7 +47,7 @@ interface Booking {
   scheduledExecutionEndDate?: string
   createdAt?: string
   project?: { _id: string; title?: string; category?: string; service?: string }
-  professional?: { _id: string; name?: string; businessInfo?: { companyName?: string } }
+  professional?: { _id: string; name?: string; username?: string; businessInfo?: { companyName?: string } }
   warrantyCoverage?: {
     duration?: { value?: number; unit?: "months" | "years" }
     startsAt?: string

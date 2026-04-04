@@ -36,6 +36,7 @@ export const PROFESSIONALS_LIMIT = 20;
 export interface ProfessionalOption {
   _id: string;
   name?: string;
+  username?: string;
   businessInfo?: { companyName?: string; city?: string; country?: string };
 }
 

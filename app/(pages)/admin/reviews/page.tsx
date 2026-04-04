@@ -19,6 +19,7 @@ interface PopulatedUser {
   _id: string
   name?: string
   profileImage?: string
+  username?: string
   businessInfo?: {
     companyName?: string
   }
@@ -367,9 +368,7 @@ export default function AdminReviewsPage() {
                 {reviews.map((review) => {
                   const averageRating = getAverageRating(review.customerReview)
                   const professionalName =
-                    review.professional?.businessInfo?.companyName ||
-                    review.professional?.name ||
-                    "Unknown professional"
+                    `${review.professional?.businessInfo?.companyName || review.professional?.name || "Unknown professional"}${review.professional?.username ? ` (@${review.professional.username})` : ''}`
 
                   return (
                     <div key={review._id} className="rounded-xl border bg-white p-4 shadow-sm">

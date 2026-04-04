@@ -16,11 +16,13 @@ import {
   createOrGetConversation,
   fetchConversationMessages,
   fetchConversations,
+  fetchProfessionals,
   markConversationAsRead,
   sendConversationMessage,
   uploadChatImage,
   uploadChatFile,
 } from "@/lib/chatApi";
+import type { ProfessionalOption } from "@/lib/chatApi";
 import {
   CHAT_WIDGET_OPEN_EVENT,
   PENDING_CHAT_START_KEY,
@@ -38,7 +40,7 @@ const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: str
   }
 
   return (
-    conversation.professionalId?.businessInfo?.companyName ||
+    conversation.professionalId?.username ||
     conversation.professionalId?.name ||
     "Professional"
   );
@@ -94,13 +96,7 @@ export default function ChatWidget() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [professionalOptions, setProfessionalOptions] = useState<
-    Array<{
-      _id: string;
-      name?: string;
-      businessInfo?: { companyName?: string; city?: string; country?: string };
-    }>
-  >([]);
+  const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
 
   const userRole = user?.role;
   const userId = user?._id || null;
@@ -187,21 +183,8 @@ export default function ChatWidget() {
     setProfessionalsError(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/professionals`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load professionals (${response.status})`);
-      }
-
-      const data = (await response.json()) as Array<{
-        _id: string;
-        name?: string;
-        businessInfo?: { companyName?: string; city?: string; country?: string };
-      }>;
-
-      setProfessionalOptions(Array.isArray(data) ? data.slice(0, 20) : []);
+      const data = await fetchProfessionals();
+      setProfessionalOptions(data);
     } catch (error) {
       setProfessionalsError(error instanceof Error ? error.message : "Failed to load professionals");
     } finally {
@@ -550,7 +533,7 @@ export default function ChatWidget() {
                       <div className="space-y-2">
                         {professionalOptions.map((professional) => {
                           const displayName =
-                            professional.businessInfo?.companyName || professional.name || "Professional";
+                            professional.username || professional.name || "Professional";
                           const location = [professional.businessInfo?.city, professional.businessInfo?.country]
                             .filter(Boolean)
                             .join(", ");

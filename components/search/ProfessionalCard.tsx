@@ -12,6 +12,7 @@ interface ProfessionalCardProps {
   professional: {
     _id: string;
     name: string;
+    username?: string;
     email: string;
     businessInfo?: {
       companyName?: string;
@@ -30,7 +31,7 @@ interface ProfessionalCardProps {
 }
 
 const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
-  const displayName = professional.businessInfo?.companyName || professional.name;
+  const displayName = professional.username || professional.name;
   const location = [professional.businessInfo?.city, professional.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
@@ -64,7 +65,7 @@ const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
           <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
             {displayName}
           </h3>
-          {professional.businessInfo?.companyName && professional.name !== professional.businessInfo.companyName && (
+          {professional.username && professional.name !== professional.username && (
             <p className="text-sm text-gray-500 mb-1">{professional.name}</p>
           )}
 
