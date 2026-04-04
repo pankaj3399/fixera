@@ -358,6 +358,7 @@ export default function WarrantyClaimsPage() {
                             ? (claim.customer?.name || claim.customer?.email || "-")
                             : (claim.professional?.username ||
                               claim.professional?.name ||
+                              claim.professional?.businessInfo?.companyName ||
                               claim.professional?.email ||
                               "-")}
                         </p>

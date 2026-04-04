@@ -339,7 +339,7 @@ export default function ProfessionalProfilePage() {
   }
 
   const name = professional.username || professional.name || "Professional"
-  const personalName: string | null = null
+  const personalName: string | null = professional.username && professional.name && professional.name !== professional.username ? professional.name : null
   const location = [professional.businessInfo?.city, professional.businessInfo?.country].filter(Boolean).join(", ")
   const memberSince = professional.createdAt
     ? new Date(professional.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })

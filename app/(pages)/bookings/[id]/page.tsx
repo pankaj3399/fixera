@@ -1660,6 +1660,7 @@ export default function BookingDetailPage() {
                       )}
                       <CardTitle className="text-lg text-gray-900">
                         {booking.project?.title ||
+                          booking.professional?.name ||
                           booking.professional?.username ||
                           booking.rfqData?.serviceType ||
                           "Booking"}

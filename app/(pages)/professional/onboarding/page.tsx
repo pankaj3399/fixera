@@ -288,22 +288,30 @@ function BusinessDetailsStep({
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const usernameAbortRef = useRef<AbortController | null>(null)
+
   const checkUsername = (value: string) => {
-    setBusinessInfo(prev => ({ ...prev, username: value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))
+    const normalized = value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+    setBusinessInfo(prev => ({ ...prev, username: normalized }))
     if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
-    if (!value || value.length < 3) {
+    if (usernameAbortRef.current) usernameAbortRef.current.abort()
+    if (!normalized || normalized.length < 3) {
       setUsernameCheck({})
       return
     }
     setUsernameCheck({ checking: true })
     usernameTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController()
+      usernameAbortRef.current = controller
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${value.toLowerCase()}`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(normalized)}`, {
           credentials: 'include',
+          signal: controller.signal,
         })
         const data = await res.json()
         setUsernameCheck({ available: data.available, reason: data.reason })
-      } catch {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return
         setUsernameCheck({ reason: 'Failed to check availability' })
       }
     }, 500)
@@ -985,7 +993,7 @@ export default function ProfessionalOnboardingPage() {
     }
     if (user.idExpirationDate) setIdExpirationDate(user.idExpirationDate.split('T')[0])
 
-    if (user.businessInfo) {
+    if (user.businessInfo || user.username) {
       setBusinessInfo(prev => ({
         ...prev,
         companyName: user.businessInfo?.companyName || '',

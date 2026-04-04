@@ -111,6 +111,7 @@ export default function ProfilePage() {
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
   const [usernameSaving, setUsernameSaving] = useState(false)
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const usernameAbortRef = useRef<AbortController | null>(null)
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
@@ -1853,14 +1854,20 @@ export default function ProfilePage() {
                               const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
                               setUsername(val)
                               if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
+                              if (usernameAbortRef.current) usernameAbortRef.current.abort()
                               if (!val || val.length < 3) { setUsernameCheck({}); return }
                               setUsernameCheck({ checking: true })
                               usernameTimerRef.current = setTimeout(async () => {
+                                const controller = new AbortController()
+                                usernameAbortRef.current = controller
                                 try {
-                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${val}`, { credentials: 'include' })
+                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(val)}`, { credentials: 'include', signal: controller.signal })
                                   const data = await res.json()
                                   setUsernameCheck({ available: data.available, reason: data.reason })
-                                } catch { setUsernameCheck({ reason: 'Failed to check' }) }
+                                } catch (err: unknown) {
+                                  if (err instanceof Error && err.name === 'AbortError') return
+                                  setUsernameCheck({ reason: 'Failed to check' })
+                                }
                               }, 500)
                             }}
                             placeholder="e.g., silva-lisboa"
