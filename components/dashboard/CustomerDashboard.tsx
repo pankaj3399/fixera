@@ -768,7 +768,7 @@ export default function CustomerDashboard() {
         onOpenChange={(open) => {
           setShowComparison(open)
           if (!open) {
-            setSelectedQuoteIds(new Set())
+            setTimeout(() => setSelectedQuoteIds(new Set()), 300)
           }
         }}
         bookings={comparisonBookings}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
@@ -117,7 +117,13 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     }
   }
 
+  const fetchActiveProjectsControllerRef = useRef<AbortController | null>(null)
+
   const fetchActiveProjects = async () => {
+    fetchActiveProjectsControllerRef.current?.abort()
+    const controller = new AbortController()
+    fetchActiveProjectsControllerRef.current = controller
+
     setLoadingProjects(true)
     setLoadingProjectsError(null)
     setActiveProjects([])
@@ -128,23 +134,30 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/active-projects`,
-        { credentials: "include", headers }
+        { credentials: "include", headers, signal: controller.signal }
       )
+      if (controller.signal.aborted) return
       const data = await response.json()
+      if (controller.signal.aborted) return
       if (response.ok && data?.success) {
         const projects = Array.isArray(data.data?.projects) ? data.data.projects : []
         setActiveProjects(projects)
         if (projects.length === 1) {
           setSelectedProjectId(projects[0]._id)
+        } else {
+          setSelectedProjectId("none")
         }
       } else {
         setLoadingProjectsError("Failed to load active projects")
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
       console.error("Error fetching active projects:", err)
       setLoadingProjectsError("Failed to load active projects")
     } finally {
-      setLoadingProjects(false)
+      if (!controller.signal.aborted) {
+        setLoadingProjects(false)
+      }
     }
   }
 
@@ -191,6 +204,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   useEffect(() => {
     if (!showCreateQuoteModal) {
       setSelectedProjectId("none")
+      fetchActiveProjectsControllerRef.current?.abort()
       return
     }
 

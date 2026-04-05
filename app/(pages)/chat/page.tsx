@@ -89,13 +89,17 @@ export default function ChatPage() {
         setActiveProjects(projects);
         if (projects.length === 1) {
           setSelectedProjectId(projects[0]._id);
+        } else {
+          setSelectedProjectId("none");
         }
       } else {
         setActiveProjects([]);
+        setSelectedProjectId("none");
       }
     } catch (err) {
       console.error("Error loading active projects:", err);
       setActiveProjects([]);
+      setSelectedProjectId("none");
     } finally {
       setLoadingProjects(false);
     }

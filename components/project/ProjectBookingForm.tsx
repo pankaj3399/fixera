@@ -1909,7 +1909,7 @@ export default function ProjectBookingForm({
   };
 
   const handleNext = () => {
-    if (uploadingQuestionIndexes.size > 0) {
+    if (uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment) {
       toast.error('Please wait for all uploads to finish before continuing.');
       return;
     }
@@ -1930,7 +1930,7 @@ export default function ProjectBookingForm({
   };
 
   const handleSubmit = async () => {
-    if (uploadingQuestionIndexes.size > 0) {
+    if (uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment) {
       toast.error('Please wait for all uploads to finish before submitting.');
       return;
     }
@@ -4032,13 +4032,13 @@ export default function ProjectBookingForm({
           </Button>
 
           {currentStep < 4 ? (
-            <Button onClick={handleNext} disabled={isOutsideServiceArea || uploadingQuestionIndexes.size > 0}>
+            <Button onClick={handleNext} disabled={isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment}>
               Next Step
             </Button>
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || (shouldPayAtCheckoutFlow && commissionPercent == null)}
+              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && commissionPercent == null)}
               className='bg-blue-600 hover:bg-blue-700'
             >
               {loading ? (

@@ -86,13 +86,17 @@ export default function ChatWidget() {
         setActiveProjects(projects);
         if (projects.length === 1) {
           setSelectedProjectId(projects[0]._id);
+        } else {
+          setSelectedProjectId("none");
         }
       } else {
         setActiveProjects([]);
+        setSelectedProjectId("none");
       }
     } catch (err) {
       console.error("Error loading active projects:", err);
       setActiveProjects([]);
+      setSelectedProjectId("none");
     } finally {
       setLoadingProjects(false);
     }
@@ -262,7 +266,16 @@ export default function ChatWidget() {
           setManualNewChatPanel(false);
           setSelectedConversationId(existing._id);
         } else {
-          toast.info("No conversation found with this customer yet.");
+          try {
+            const conversation = await createOrGetConversation({
+              customerId: detail.customerId,
+            });
+            await loadConversationList(false);
+            setManualNewChatPanel(false);
+            setSelectedConversationId(conversation._id);
+          } catch {
+            toast.error("Failed to start conversation with this customer.");
+          }
         }
         return;
       }
@@ -673,7 +686,7 @@ export default function ChatWidget() {
         </Card>
       )}
 
-      <Dialog open={showQuotationDialog} onOpenChange={setShowQuotationDialog}>
+      <Dialog open={showQuotationDialog} onOpenChange={(open) => { setShowQuotationDialog(open); if (!open) setSelectedProjectId("none"); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Direct Quotation</DialogTitle>

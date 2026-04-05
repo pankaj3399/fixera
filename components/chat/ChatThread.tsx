@@ -423,7 +423,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                 </div>
                 <p className="text-xs text-gray-700 mb-1"><strong>Scope:</strong> {meta.scope}</p>
                 <p className="text-xs text-gray-700 mb-1"><strong>Amount:</strong> {meta.currency} {Number(meta.totalAmount).toFixed(2)}</p>
-                <p className="text-xs text-gray-500 mb-3">Valid until {new Date(meta.validUntil).toLocaleDateString()}</p>
+                <p className="text-xs text-gray-500 mb-3">Valid until {(() => { const [y, m, d] = String(meta.validUntil).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(); })()}</p>
                 <a
                   href={`/bookings/${meta.bookingId}`}
                   className="inline-block text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded transition-colors"

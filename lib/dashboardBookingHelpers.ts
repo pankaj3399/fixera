@@ -112,10 +112,13 @@ export interface BookingBase {
   }
 }
 
+export const isProjectBooking = (booking: BookingBase) =>
+  booking.bookingType === "project" || Boolean(booking.project?.title?.trim())
+
 export const getBookingTitle = (booking: BookingBase) => {
-  const isProject = booking.bookingType === "project" || Boolean(booking.project?.title)
+  const trimmedTitle = booking.project?.title?.trim()
   return (
-    (isProject ? booking.project?.title : booking.rfqData?.serviceType || booking.professional?.businessInfo?.companyName) ||
+    (isProjectBooking(booking) && trimmedTitle ? trimmedTitle : booking.rfqData?.serviceType || booking.professional?.businessInfo?.companyName) ||
     booking.rfqData?.serviceType ||
     "Booking"
   )

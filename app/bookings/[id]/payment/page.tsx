@@ -383,7 +383,7 @@ export default function BookingPaymentPage() {
         return;
       }
 
-      if (bookingInfo?.status === 'quote_accepted' && !bookingInfo?.scheduledStartDate) {
+      if ((bookingInfo?.status === 'quote_accepted' || bookingInfo?.status === 'payment_pending') && !bookingInfo?.scheduledStartDate) {
         setScheduleStep(true);
         void loadScheduleProposals(bookingInfo);
         return;
