@@ -130,6 +130,7 @@ export default function BookingPaymentPage() {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleProposals, setScheduleProposals] = useState<ScheduleProposals | null>(null);
   const [loadingScheduleProposals, setLoadingScheduleProposals] = useState(false);
+  const [scheduleProposalsFailed, setScheduleProposalsFailed] = useState(false);
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>([]);
   const [postBookingAnswers, setPostBookingAnswers] = useState<Record<number, string>>({});
   const [uploadingPostBookingQuestionIndexes, setUploadingPostBookingQuestionIndexes] = useState<Set<number>>(new Set());
@@ -202,6 +203,7 @@ export default function BookingPaymentPage() {
     }
 
     setLoadingScheduleProposals(true);
+    setScheduleProposalsFailed(false);
     try {
       const params = new URLSearchParams();
       if (typeof currentBooking?.selectedSubprojectIndex === 'number') {
@@ -219,10 +221,12 @@ export default function BookingPaymentPage() {
         }
       } else {
         setScheduleProposals(null);
+        setScheduleProposalsFailed(true);
       }
     } catch (err) {
       console.error('Failed to load schedule proposals:', err);
       setScheduleProposals(null);
+      setScheduleProposalsFailed(true);
     } finally {
       setLoadingScheduleProposals(false);
     }
@@ -626,6 +630,11 @@ export default function BookingPaymentPage() {
                   <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Checking project availability...
+                  </div>
+                )}
+                {scheduleProposalsFailed && !loadingScheduleProposals && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    Failed to load project availability. Please try refreshing the page.
                   </div>
                 )}
                 {scheduleProposals?.earliestBookableDate && (
