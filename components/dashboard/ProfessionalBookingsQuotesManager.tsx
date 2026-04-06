@@ -21,6 +21,7 @@ import {
   PROFESSIONAL_BOOKING_MODE_STATUSES,
   getBookingStatusMeta,
   getBookingTitle,
+  isProjectBooking,
 } from "@/lib/dashboardBookingHelpers"
 
 type ManagerMode = "bookings" | "quotes"
@@ -429,7 +430,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     return (
       <div className="space-y-3">
         {items.map((booking) => {
-          const isProject = booking.bookingType === "project"
+          const isProject = isProjectBooking(booking)
           const { label, className } = getBookingStatusMeta(booking.status)
           const createdAt = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : null
 

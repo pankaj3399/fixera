@@ -23,6 +23,7 @@ import {
   type BookingStatus,
   getBookingStatusMeta,
   getBookingTitle,
+  isProjectBooking,
   CUSTOMER_QUOTE_STATUSES,
   CUSTOMER_BOOKING_STATUSES,
   CUSTOMER_QUOTE_STATUS_FILTERS,
@@ -335,7 +336,7 @@ export default function CustomerDashboard() {
 
   const renderBookingCard = (booking: Booking, colorAccent: string, opts?: { selectable?: boolean; selected?: boolean; onToggle?: () => void }) => {
     const accent = ACCENT_CLASSES[(colorAccent as AccentKey)] ?? ACCENT_CLASSES.indigo
-    const isProject = booking.bookingType === "project"
+    const isProject = isProjectBooking(booking)
     const title = getBookingTitle(booking)
     const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(booking.status)
     const createdAt = booking.createdAt ? new Date(booking.createdAt) : null

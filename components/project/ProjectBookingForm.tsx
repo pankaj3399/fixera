@@ -405,8 +405,15 @@ export default function ProjectBookingForm({
     const packageIndex = typeof selectedPackageIndex === 'number'
       ? selectedPackageIndex
       : undefined;
-    fetchTeamAvailability(packageIndex);
-    fetchScheduleProposals(packageIndex);
+    const pkg = typeof selectedPackageIndex === 'number'
+      ? project.subprojects[selectedPackageIndex]
+      : null;
+    if (pkg?.pricing?.type !== 'rfq') {
+      fetchTeamAvailability(packageIndex);
+      fetchScheduleProposals(packageIndex);
+    } else {
+      setLoadingAvailability(false);
+    }
     setHasUserSelectedDate(false);
   }, [selectedPackageIndex]);
 
@@ -2878,7 +2885,19 @@ export default function ProjectBookingForm({
             )}
 
             {/* Step 2: Choose Date */}
-            {currentStep === 2 && (
+            {currentStep === 2 && isRfqPackage && (
+              <div className='space-y-4'>
+                <div>
+                  <h2 className='text-xl font-semibold mb-2'>Before Booking</h2>
+                  <p className='text-gray-600 text-sm mb-4'>
+                    Because this is an RFQ package, scheduling will happen after the professional reviews your request and provides a quote.
+                    Click &quot;Next&quot; to continue.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 2 && !isRfqPackage && (
               <div className='space-y-4'>
                 <div>
                   <h2 className='text-xl font-semibold mb-2'>

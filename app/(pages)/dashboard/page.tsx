@@ -13,7 +13,7 @@ import { getAuthToken } from "@/lib/utils"
 import ReferralCard from "@/components/dashboard/ReferralCard"
 import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
-import { type BookingStatus, getBookingStatusMeta, getBookingTitle } from "@/lib/dashboardBookingHelpers"
+import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
@@ -1290,7 +1290,7 @@ export default function DashboardPage() {
               {!bookingsLoading && !bookingsError && (actionItems.length > 0 || (!warrantyClaimsLoading && !warrantyClaimsError && warrantyActionItems.length > 0)) && (
                 <div className="space-y-3">
                   {actionItems.map((item) => {
-                    const isProject = item.booking.bookingType === "project"
+                    const isProject = isProjectBooking(item.booking)
                     const title = getBookingTitle(item.booking)
                     const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(item.booking.status)
                     const severityClasses = item.severity === "urgent"

@@ -46,6 +46,7 @@ interface BookingProject {
   _id?: string;
   title?: string;
   extraOptions?: Array<{
+    _id?: string;
     name: string;
     description?: string;
     price: number;
@@ -84,7 +85,7 @@ interface Booking {
   milestonePayments?: BookingMilestone[];
   quotationNumber?: string;
   selectedSubprojectIndex?: number;
-  selectedExtraOptions?: number[];
+  selectedExtraOptions?: Array<{ extraOptionId: string; bookedPrice: number } | number>;
   postBookingData?: Array<{
     questionId: string;
     question: string;
@@ -134,6 +135,17 @@ export default function BookingPaymentPage() {
   const [uploadingPostBookingQuestionIndexes, setUploadingPostBookingQuestionIndexes] = useState<Set<number>>(new Set());
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+
+  const storedExtrasToIndexes = (
+    stored: Booking['selectedExtraOptions'],
+    projectOptions: BookingProject['extraOptions']
+  ): number[] => {
+    if (!Array.isArray(stored) || stored.length === 0) return [];
+    if (typeof stored[0] === 'number') return stored as number[];
+    return (stored as Array<{ extraOptionId: string }>)
+      .map((e) => (projectOptions || []).findIndex((o) => o._id === e.extraOptionId))
+      .filter((i) => i >= 0);
+  };
 
   const toggleExtraOption = (index: number) => {
     setSelectedExtraOptions((prev) =>
@@ -278,7 +290,7 @@ export default function BookingPaymentPage() {
       if (response.ok && data?.success) {
         const updatedBooking = data.data?.booking || booking;
         setBooking(updatedBooking);
-        setSelectedExtraOptions(updatedBooking?.selectedExtraOptions || []);
+        setSelectedExtraOptions(storedExtrasToIndexes(updatedBooking?.selectedExtraOptions, updatedBooking?.project?.extraOptions));
         setScheduleStep(false);
         await ensurePaymentIntent(bookingId, updatedBooking);
       } else {
@@ -367,7 +379,7 @@ export default function BookingPaymentPage() {
 
       const bookingInfo = bookingData.booking as Booking; // Backend returns { success, booking }
       setBooking(bookingInfo);
-      setSelectedExtraOptions(bookingInfo?.selectedExtraOptions || []);
+      setSelectedExtraOptions(storedExtrasToIndexes(bookingInfo?.selectedExtraOptions, bookingInfo?.project?.extraOptions));
       if (Array.isArray(bookingInfo?.postBookingData) && bookingInfo.postBookingData.length > 0) {
         const hydratedAnswers = bookingInfo.postBookingData.reduce<Record<number, string>>((acc, answer, index) => {
           acc[index] = answer.answer;
