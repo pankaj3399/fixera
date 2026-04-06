@@ -18,6 +18,14 @@ export type ProjectIncludedItem =
       description?: string
     }
 
+export type ProjectAttachmentRef =
+  | string
+  | {
+      url: string
+      name?: string
+      _id?: string
+    }
+
 export interface ProjectSubproject {
   name: string
   description: string
@@ -122,7 +130,7 @@ export interface ProjectDto {
     type: "text" | "multiple_choice" | "attachment"
     options?: string[]
     isRequired: boolean
-    professionalAttachments?: string[]
+    professionalAttachments?: ProjectAttachmentRef[]
   }>
   extraOptions: Array<{
     _id?: string
@@ -140,11 +148,13 @@ export interface ProjectDto {
     eligible: boolean
   } | null
   postBookingQuestions?: Array<{
+    _id?: string
     id?: string
     question: string
     type: "text" | "multiple_choice" | "attachment"
     options?: string[]
     isRequired: boolean
+    professionalAttachments?: ProjectAttachmentRef[]
   }>
   customerPresence?: string
   termsConditions?: Array<{

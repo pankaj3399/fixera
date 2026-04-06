@@ -408,6 +408,15 @@ export default function ProjectBookingForm({
     const pkg = typeof selectedPackageIndex === 'number'
       ? project.subprojects[selectedPackageIndex]
       : null;
+    setLoadingAvailability(true);
+    setBlockedDates({
+      blockedDates: [],
+      blockedRanges: [],
+    });
+    setProposals(null);
+    setScheduleWindow(null);
+    setSelectedDate('');
+    setSelectedTime('');
     if (pkg?.pricing?.type !== 'rfq') {
       fetchTeamAvailability(packageIndex);
       fetchScheduleProposals(packageIndex);
@@ -3513,18 +3522,26 @@ export default function ProjectBookingForm({
                             Files from the professional
                           </p>
                           <div className='space-y-1'>
-                            {question.professionalAttachments?.map((attachment, attachmentIndex) => (
+                            {question.professionalAttachments?.map((attachment, attachmentIndex) => {
+                              const attachmentUrl =
+                                typeof attachment === 'string' ? attachment : attachment.url;
+                              const attachmentLabel =
+                                typeof attachment === 'string'
+                                  ? `Download attachment ${attachmentIndex + 1}`
+                                  : attachment.name?.trim() || `Download attachment ${attachmentIndex + 1}`;
+                              return (
                               <a
                                 key={`${idx}-${attachmentIndex}`}
-                                href={attachment}
+                                href={attachmentUrl}
                                 target='_blank'
                                 rel='noreferrer noopener'
                                 className='inline-flex items-center text-sm text-blue-700 hover:underline'
                               >
                                 <FileText className='mr-2 h-4 w-4' />
-                                Download attachment {attachmentIndex + 1}
+                                {attachmentLabel}
                               </a>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}

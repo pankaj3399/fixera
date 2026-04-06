@@ -9,7 +9,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { StripeProvider } from '@/components/stripe/StripeProvider';
 import { PaymentForm } from '@/components/stripe/PaymentForm';
-import { Loader2 } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
+import type { ProjectAttachmentRef, ProjectDto } from '@/types/project';
 
 interface BookingPayment {
   stripeClientSecret?: string;
@@ -42,24 +43,9 @@ interface BookingProfessional {
   name?: string;
 }
 
-interface BookingProject {
-  _id?: string;
-  title?: string;
-  extraOptions?: Array<{
-    _id?: string;
-    name: string;
-    description?: string;
-    price: number;
-  }>;
-  postBookingQuestions?: Array<{
-    _id?: string;
-    id?: string;
-    question: string;
-    type: 'text' | 'multiple_choice' | 'attachment';
-    options?: string[];
-    isRequired: boolean;
-  }>;
-}
+type BookingProject = Partial<
+  Pick<ProjectDto, '_id' | 'title' | 'extraOptions' | 'postBookingQuestions'>
+>;
 
 interface BookingRfqDetails {
   description?: string;
@@ -103,6 +89,16 @@ interface ScheduleProposals {
   };
 }
 
+interface ScheduleWindowPreview {
+  scheduledStartDate: string;
+  scheduledExecutionEndDate: string;
+  scheduledBufferStartDate?: string;
+  scheduledBufferEndDate?: string;
+  scheduledBufferUnit?: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+}
+
 const MAX_PAYMENT_RETRY_ATTEMPTS = 3;
 const PAYMENT_RETRY_DELAY_MS = 2000;
 const formatMoney = (amount: number, currencyCode = 'EUR'): string =>
@@ -110,6 +106,20 @@ const formatMoney = (amount: number, currencyCode = 'EUR'): string =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+const getAttachmentUrl = (attachment: ProjectAttachmentRef): string =>
+  typeof attachment === 'string' ? attachment : attachment.url;
+const getAttachmentLabel = (
+  attachment: ProjectAttachmentRef,
+  index: number
+): string =>
+  typeof attachment === 'string'
+    ? `Download attachment ${index + 1}`
+    : attachment.name?.trim() || `Download attachment ${index + 1}`;
+const getScheduleSelectionKey = (
+  startDate: string,
+  startTime: string,
+  mode: ScheduleProposals['mode'] | null
+): string => `${startDate}|${mode === 'hours' ? startTime : ''}`;
 
 export default function BookingPaymentPage() {
   const router = useRouter();
@@ -131,6 +141,10 @@ export default function BookingPaymentPage() {
   const [scheduleProposals, setScheduleProposals] = useState<ScheduleProposals | null>(null);
   const [loadingScheduleProposals, setLoadingScheduleProposals] = useState(false);
   const [scheduleProposalsFailed, setScheduleProposalsFailed] = useState(false);
+  const [scheduleWindow, setScheduleWindow] = useState<ScheduleWindowPreview | null>(null);
+  const [validatingScheduleSelection, setValidatingScheduleSelection] = useState(false);
+  const [validatedScheduleSelectionKey, setValidatedScheduleSelectionKey] = useState('');
+  const [scheduleValidationMessage, setScheduleValidationMessage] = useState('');
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>([]);
   const [postBookingAnswers, setPostBookingAnswers] = useState<Record<number, string>>({});
   const [uploadingPostBookingQuestionIndexes, setUploadingPostBookingQuestionIndexes] = useState<Set<number>>(new Set());
@@ -199,6 +213,9 @@ export default function BookingPaymentPage() {
     const projectId = currentBooking?.project?._id;
     if (!projectId) {
       setScheduleProposals(null);
+      setScheduleWindow(null);
+      setValidatedScheduleSelectionKey('');
+      setScheduleValidationMessage('');
       return;
     }
 
@@ -216,27 +233,171 @@ export default function BookingPaymentPage() {
       const data = await response.json();
       if (response.ok && data?.success && data?.proposals) {
         setScheduleProposals(data.proposals);
-        if (data.proposals?.earliestBookableDate) {
-          setSelectedStartDate((prev) => prev || data.proposals.earliestBookableDate.slice(0, 10));
-        }
       } else {
         setScheduleProposals(null);
         setScheduleProposalsFailed(true);
+        setScheduleWindow(null);
+        setValidatedScheduleSelectionKey('');
       }
     } catch (err) {
       console.error('Failed to load schedule proposals:', err);
       setScheduleProposals(null);
       setScheduleProposalsFailed(true);
+      setScheduleWindow(null);
+      setValidatedScheduleSelectionKey('');
     } finally {
       setLoadingScheduleProposals(false);
     }
   }, [API_URL]);
+
+  useEffect(() => {
+    if (!scheduleStep || !booking?.project?._id || !scheduleProposals) {
+      return;
+    }
+
+    const fallbackDate = scheduleProposals.earliestBookableDate.slice(0, 10);
+    const proposalDate = scheduleProposals.earliestProposal?.start?.slice(0, 10) || fallbackDate;
+    const proposalTime = scheduleProposals.earliestProposal?.start?.slice(11, 16) || '';
+
+    setSelectedStartDate((prev) => prev || proposalDate);
+
+    if (scheduleProposals.mode === 'hours') {
+      setSelectedStartTime((prev) => prev || proposalTime);
+    } else {
+      setSelectedStartTime('');
+    }
+  }, [booking?.project?._id, scheduleProposals, scheduleStep]);
+
+  useEffect(() => {
+    const projectId = booking?.project?._id;
+    const scheduleMode = scheduleProposals?.mode ?? null;
+
+    if (!scheduleStep || !projectId || !scheduleProposals) {
+      setScheduleWindow(null);
+      setValidatedScheduleSelectionKey('');
+      setScheduleValidationMessage('');
+      setValidatingScheduleSelection(false);
+      return;
+    }
+
+    if (!selectedStartDate) {
+      setScheduleWindow(null);
+      setValidatedScheduleSelectionKey('');
+      setScheduleValidationMessage('');
+      setValidatingScheduleSelection(false);
+      return;
+    }
+
+    if (scheduleMode === 'hours' && !selectedStartTime) {
+      setScheduleWindow(null);
+      setValidatedScheduleSelectionKey('');
+      setScheduleValidationMessage('Select a valid start time to continue.');
+      setValidatingScheduleSelection(false);
+      return;
+    }
+
+    const earliestDate = scheduleProposals.earliestBookableDate.slice(0, 10);
+    if (selectedStartDate < earliestDate) {
+      setScheduleWindow(null);
+      setValidatedScheduleSelectionKey('');
+      setScheduleValidationMessage(`Please choose ${earliestDate} or later.`);
+      setValidatingScheduleSelection(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const validateSelection = async () => {
+      setValidatingScheduleSelection(true);
+      setScheduleWindow(null);
+      setValidatedScheduleSelectionKey('');
+      setScheduleValidationMessage('');
+
+      try {
+        const params = new URLSearchParams({
+          startDate: selectedStartDate,
+        });
+        if (typeof booking?.selectedSubprojectIndex === 'number') {
+          params.set('subprojectIndex', String(booking.selectedSubprojectIndex));
+        }
+        if (scheduleMode === 'hours' && selectedStartTime) {
+          params.set('startTime', selectedStartTime);
+        }
+
+        const response = await fetch(
+          `${API_URL}/api/public/projects/${encodeURIComponent(projectId)}/schedule-window?${params.toString()}`,
+          { signal: controller.signal }
+        );
+        const data = await response.json();
+
+        if (response.ok && data?.success && data?.window) {
+          setScheduleWindow(data.window);
+          setValidatedScheduleSelectionKey(
+            getScheduleSelectionKey(selectedStartDate, selectedStartTime, scheduleMode)
+          );
+        } else {
+          setScheduleValidationMessage(
+            data?.error || 'The selected schedule is not available. Please choose a different option.'
+          );
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to validate project schedule:', err);
+        setScheduleValidationMessage('Unable to verify the selected schedule right now.');
+      } finally {
+        if (!controller.signal.aborted) {
+          setValidatingScheduleSelection(false);
+        }
+      }
+    };
+
+    void validateSelection();
+
+    return () => controller.abort();
+  }, [
+    API_URL,
+    booking?.project?._id,
+    booking?.selectedSubprojectIndex,
+    scheduleProposals,
+    scheduleStep,
+    selectedStartDate,
+    selectedStartTime,
+  ]);
 
   const handleConfirmSchedule = async () => {
     if (!selectedStartDate) return;
     setSavingSchedule(true);
     try {
       setError('');
+      const requiresProjectSchedule = Boolean(booking?.project?._id);
+      const scheduleMode = requiresProjectSchedule ? scheduleProposals?.mode ?? null : 'days';
+      const currentSelectionKey = getScheduleSelectionKey(
+        selectedStartDate,
+        selectedStartTime,
+        scheduleMode
+      );
+
+      if (requiresProjectSchedule) {
+        if (loadingScheduleProposals || validatingScheduleSelection) {
+          setError('Please wait for project availability to finish loading.');
+          return;
+        }
+
+        if (!scheduleProposals || scheduleProposalsFailed || !scheduleMode) {
+          setError('Project availability must load successfully before you can continue.');
+          return;
+        }
+
+        if (
+          validatedScheduleSelectionKey !== currentSelectionKey ||
+          !scheduleWindow
+        ) {
+          setError('Please choose a valid available schedule before continuing.');
+          return;
+        }
+      }
+
       if (uploadingPostBookingQuestionIndexes.size > 0) {
         setError('Please wait for all uploads to finish before continuing.');
         return;
@@ -285,7 +446,7 @@ export default function BookingPaymentPage() {
         body: JSON.stringify({
           scheduledStartDate: selectedStartDate,
           scheduledStartTime:
-            scheduleProposals?.mode === 'hours' ? selectedStartTime || undefined : undefined,
+            scheduleMode === 'hours' ? selectedStartTime || undefined : undefined,
           additionalNotes: additionalNotes || undefined,
           selectedExtraOptions,
         }),
@@ -558,12 +719,23 @@ export default function BookingPaymentPage() {
   }
 
   if (scheduleStep) {
+    const requiresProjectSchedule = Boolean(booking?.project?._id);
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const minDate = scheduleProposals?.earliestBookableDate
       ? scheduleProposals.earliestBookableDate.slice(0, 10)
       : `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-    const scheduleMode = scheduleProposals?.mode || 'days';
+    const scheduleMode = requiresProjectSchedule ? scheduleProposals?.mode ?? null : 'days';
+    const currentSelectionKey = getScheduleSelectionKey(
+      selectedStartDate,
+      selectedStartTime,
+      scheduleMode
+    );
+    const hasValidatedProjectSelection =
+      !requiresProjectSchedule ||
+      (Boolean(scheduleProposals) &&
+        validatedScheduleSelectionKey === currentSelectionKey &&
+        Boolean(scheduleWindow));
     const projectExtraOptions = booking?.project?.extraOptions || [];
     const postBookingQuestions = booking?.project?.postBookingQuestions || [];
     const selectedOptionTotal = selectedExtraOptions.reduce(
@@ -620,7 +792,7 @@ export default function BookingPaymentPage() {
             <div className="px-6 py-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Start Date</h2>
               <p className="text-sm text-gray-600 mb-4">
-                {booking?.project?._id
+                {requiresProjectSchedule
                   ? 'Choose an available slot based on the linked project schedule.'
                   : 'Choose when you would like the work to begin.'}
               </p>
@@ -637,6 +809,11 @@ export default function BookingPaymentPage() {
                     Failed to load project availability. Please try refreshing the page.
                   </div>
                 )}
+                {requiresProjectSchedule && !loadingScheduleProposals && !scheduleProposals && !scheduleProposalsFailed && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                    Waiting for project availability before enabling scheduling.
+                  </div>
+                )}
                 {scheduleProposals?.earliestBookableDate && (
                   <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
                     <p>
@@ -646,7 +823,7 @@ export default function BookingPaymentPage() {
                 )}
                 <div>
                   <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-                    {booking?.project?._id ? 'Available Start Date' : 'Preferred Start Date'}
+                    {requiresProjectSchedule ? 'Available Start Date' : 'Preferred Start Date'}
                   </label>
                   <input
                     id="startDate"
@@ -654,6 +831,7 @@ export default function BookingPaymentPage() {
                     min={minDate}
                     value={selectedStartDate}
                     onChange={(e) => setSelectedStartDate(e.target.value)}
+                    disabled={requiresProjectSchedule && (!scheduleProposals || loadingScheduleProposals)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -668,11 +846,31 @@ export default function BookingPaymentPage() {
                       type="time"
                       value={selectedStartTime}
                       onChange={(e) => setSelectedStartTime(e.target.value)}
+                      disabled={requiresProjectSchedule && (!scheduleProposals || loadingScheduleProposals)}
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
                       This project is scheduled in hours mode, so the scheduler also needs a start time.
                     </p>
+                  </div>
+                )}
+
+                {validatingScheduleSelection && requiresProjectSchedule && (
+                  <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Validating the selected schedule...
+                  </div>
+                )}
+
+                {scheduleValidationMessage && requiresProjectSchedule && !validatingScheduleSelection && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {scheduleValidationMessage}
+                  </div>
+                )}
+
+                {hasValidatedProjectSelection && scheduleWindow && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                    Selected slot is available and ready to book.
                   </div>
                 )}
 
@@ -727,6 +925,35 @@ export default function BookingPaymentPage() {
                             {question.question}
                             {question.isRequired && <span className="ml-1 text-red-500">*</span>}
                           </label>
+
+                          {(question.professionalAttachments?.length ?? 0) > 0 && (
+                            <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                              <p className="mb-2 text-xs font-semibold text-blue-900">
+                                Files from the professional
+                              </p>
+                              <div className="space-y-1">
+                                {question.professionalAttachments?.map((attachment, attachmentIndex) => {
+                                  const attachmentUrl = getAttachmentUrl(attachment);
+                                  return (
+                                    <a
+                                      key={
+                                        typeof attachment === 'string'
+                                          ? `${question._id || question.id || index}-${attachmentIndex}`
+                                          : attachment._id || `${question._id || question.id || index}-${attachmentIndex}`
+                                      }
+                                      href={attachmentUrl}
+                                      target="_blank"
+                                      rel="noreferrer noopener"
+                                      className="inline-flex items-center text-sm text-blue-700 hover:underline"
+                                    >
+                                      <FileText className="mr-2 h-4 w-4" />
+                                      {getAttachmentLabel(attachment, attachmentIndex)}
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           {question.type === 'text' && (
                             <textarea
@@ -813,7 +1040,14 @@ export default function BookingPaymentPage() {
                 <button
                   type="button"
                   onClick={handleConfirmSchedule}
-                  disabled={!selectedStartDate || savingSchedule || loadingScheduleProposals || (scheduleMode === 'hours' && !selectedStartTime)}
+                  disabled={
+                    !selectedStartDate ||
+                    savingSchedule ||
+                    loadingScheduleProposals ||
+                    validatingScheduleSelection ||
+                    (scheduleMode === 'hours' && !selectedStartTime) ||
+                    (requiresProjectSchedule && !hasValidatedProjectSelection)
+                  }
                   className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {savingSchedule ? 'Saving...' : 'Continue to Payment'}
