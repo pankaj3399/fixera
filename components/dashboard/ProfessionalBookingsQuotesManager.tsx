@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Briefcase, Calendar, Clock, FileText, GitCompareArrows, Loader2, Package, Plus, RefreshCw, Search } from "lucide-react"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
+import BookingTimelineBoard from "@/components/dashboard/BookingTimelineBoard"
 import {
   type BookingStatus,
   QUOTE_STATUSES,
@@ -36,8 +37,33 @@ interface Booking {
   }
   rfqData?: {
     serviceType?: string
+    description?: string
+    preferredStartDate?: string
   }
   createdAt?: string
+  scheduledStartDate?: string
+  scheduledExecutionEndDate?: string
+  scheduledBufferStartDate?: string
+  scheduledBufferEndDate?: string
+  scheduledStartTime?: string
+  scheduledEndTime?: string
+  payment?: {
+    status?: string
+    currency?: string
+  }
+  rescheduleRequest?: {
+    status?: "pending" | "accepted" | "declined"
+    reason?: string
+    note?: string
+    proposedSchedule?: {
+      scheduledStartDate?: string
+      scheduledExecutionEndDate?: string
+      scheduledBufferStartDate?: string
+      scheduledBufferEndDate?: string
+      scheduledStartTime?: string
+      scheduledEndTime?: string
+    }
+  }
   project?: {
     _id: string
     title?: string
@@ -45,6 +71,9 @@ interface Booking {
   professional?: {
     _id: string
     username?: string
+    businessInfo?: {
+      companyName?: string
+    }
   }
 }
 
@@ -58,6 +87,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const { user, isAuthenticated, loading: authLoading } = useAuth()
 
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [timelineBookings, setTimelineBookings] = useState<Booking[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -242,9 +272,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       ]
     : [
         { id: "all", label: "All Statuses" },
+        { id: "awaiting_payment", label: "Awaiting Payment" },
         { id: "booked", label: "Booked" },
+        { id: "rescheduling_requested", label: "Rescheduling Request" },
         { id: "in_progress", label: "In Progress" },
-        { id: "payment_pending", label: "Awaiting Payment" },
         { id: "completed", label: "Completed" },
         { id: "cancelled", label: "Cancelled" },
         { id: "dispute", label: "Dispute" },
@@ -303,7 +334,11 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         limit: String(PAGE_SIZE),
       })
       if (statusFilter !== "all") {
+        if (mode === "bookings" && statusFilter === "awaiting_payment") {
+          params.append("status", "quote_accepted,payment_pending")
+        } else {
         params.append("status", statusFilter)
+        }
       } else {
         // Send mode-appropriate statuses so pagination counts match
         const modeStatuses = mode === "quotes"
@@ -382,9 +417,46 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     }
   }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch])
 
+  const fetchTimelineBookings = useCallback(async () => {
+    if (!isAuthenticated || user?.role !== "professional") return
+
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers.Authorization = `Bearer ${token}`
+
+      const activeStatuses = ["booked", "rescheduling_requested", "in_progress", "professional_completed", "payment_pending", "quote_accepted", "dispute"].join(",")
+      const allTimelineBookings: Booking[] = []
+      let page = 1
+      const limit = 50
+
+      while (true) {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=${page}&limit=${limit}&status=${activeStatuses}`,
+          { credentials: "include", headers }
+        )
+        const data = await response.json()
+        if (!response.ok || !data.success) {
+          break
+        }
+
+        const incoming = Array.isArray(data.bookings) ? data.bookings : []
+        allTimelineBookings.push(...incoming)
+        const totalPages = data.pagination?.totalPages ?? 1
+        if (page >= totalPages || incoming.length < limit) break
+        page++
+      }
+
+      setTimelineBookings(allTimelineBookings)
+    } catch (error) {
+      console.error("Failed to fetch timeline bookings:", error)
+    }
+  }, [isAuthenticated, user?.role])
+
   useEffect(() => {
     fetchBookings(1, false)
-  }, [fetchBookings])
+    void fetchTimelineBookings()
+  }, [fetchBookings, fetchTimelineBookings])
 
   const relevantBookings = useMemo(() => {
     return bookings.filter((booking) => {
@@ -634,31 +706,47 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           </Card>
         )}
 
-        {!isLoading && !error && filteredBookings.length > 0 && (
-          <div className="grid lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Clock className="h-5 w-5 text-amber-600" />
-                  {pageCopy.pendingTitle}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {renderBookingList(pendingBookings, `No pending ${mode}.`)}
-              </CardContent>
-            </Card>
+        {!isLoading && !error && mode === "bookings" && (
+          <BookingTimelineBoard
+            bookings={timelineBookings}
+            viewerRole="professional"
+            onBookingUpdated={async () => {
+              await Promise.all([
+                fetchBookings(1, false),
+                fetchTimelineBookings(),
+              ])
+            }}
+            emptyLabel="No active professional bookings fall inside the centered two-month timeline."
+          />
+        )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Calendar className="h-5 w-5 text-emerald-600" />
-                  {pageCopy.finishedTitle}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {renderBookingList(finishedBookings, `No finished ${mode}.`)}
-              </CardContent>
-            </Card>
+        {!isLoading && !error && filteredBookings.length > 0 && (
+          <div className="space-y-6">
+            <div className="grid lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Clock className="h-5 w-5 text-amber-600" />
+                    {pageCopy.pendingTitle}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {renderBookingList(pendingBookings, `No pending ${mode}.`)}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Calendar className="h-5 w-5 text-emerald-600" />
+                    {pageCopy.finishedTitle}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {renderBookingList(finishedBookings, `No finished ${mode}.`)}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
 

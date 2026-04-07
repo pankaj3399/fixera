@@ -31,6 +31,7 @@ export default function AdminProfessionalManagementPage() {
   const [country, setCountry] = useState("all")
   const [level, setLevel] = useState("all")
   const [tag, setTag] = useState("")
+  const [customerName, setCustomerName] = useState("")
   const abortRef = useRef<AbortController | null>(null)
   const loadRequestIdRef = useRef(0)
 
@@ -46,6 +47,7 @@ export default function AdminProfessionalManagementPage() {
       if (country !== "all") params.set("country", country)
       if (level !== "all") params.set("levels", level)
       if (tag.trim()) params.set("tags", tag.trim())
+      if (customerName.trim()) params.set("customerName", customerName.trim())
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professionals/manage?${params.toString()}`, {
         credentials: "include",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -71,7 +73,7 @@ export default function AdminProfessionalManagementPage() {
       if (error instanceof DOMException && error.name === "AbortError") return
       console.error("Failed to load professionals:", error)
     }
-  }, [country, level, search, tag])
+  }, [country, customerName, level, search, tag])
 
   const patchProfessional = async (professionalId: string, body: Record<string, unknown>) => {
     try {
@@ -126,8 +128,9 @@ export default function AdminProfessionalManagementPage() {
           <CardHeader>
             <CardTitle>Filters</CardTitle>
           </CardHeader>
-          <CardContent className="grid md:grid-cols-4 gap-3">
+          <CardContent className="grid md:grid-cols-5 gap-3">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or company" />
+            <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name" />
             <Input value={country === "all" ? "" : country} onChange={(e) => setCountry(e.target.value || "all")} placeholder="Country" />
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger><SelectValue placeholder="Level" /></SelectTrigger>

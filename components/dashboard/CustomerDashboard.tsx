@@ -31,6 +31,7 @@ import {
 } from "@/lib/dashboardBookingHelpers"
 import { getCustomerActionItems, type ActionItem } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
+import BookingTimelineBoard from "@/components/dashboard/BookingTimelineBoard"
 
 interface Booking {
   _id: string
@@ -44,11 +45,37 @@ interface Booking {
     budget?: { min?: number; max?: number; currency?: string }
   }
   scheduledStartDate?: string
+  scheduledBufferStartDate?: string
+  scheduledBufferEndDate?: string
   scheduledEndDate?: string
   scheduledExecutionEndDate?: string
+  scheduledStartTime?: string
+  scheduledEndTime?: string
   createdAt?: string
   project?: { _id: string; title?: string; category?: string; service?: string }
-  professional?: { _id: string; name?: string; username?: string }
+  professional?: { _id: string; name?: string; username?: string; businessInfo?: { companyName?: string } }
+  payment?: { status?: string; currency?: string }
+  rescheduleRequest?: {
+    status?: "pending" | "accepted" | "declined"
+    reason?: string
+    note?: string
+    proposedSchedule?: {
+      scheduledStartDate?: string
+      scheduledExecutionEndDate?: string
+      scheduledBufferStartDate?: string
+      scheduledBufferEndDate?: string
+      scheduledStartTime?: string
+      scheduledEndTime?: string
+    }
+    previousSchedule?: {
+      scheduledStartDate?: string
+      scheduledExecutionEndDate?: string
+      scheduledBufferStartDate?: string
+      scheduledBufferEndDate?: string
+      scheduledStartTime?: string
+      scheduledEndTime?: string
+    }
+  }
   warrantyCoverage?: {
     duration?: { value?: number; unit?: "months" | "years" }
     startsAt?: string
@@ -148,49 +175,50 @@ export default function CustomerDashboard() {
     return () => clearTimeout(t)
   }, [bookingSearch])
 
+  const fetchAllBookings = useCallback(async () => {
+    setBookingsLoading(true)
+    setBookingsError(null)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const allBookings: Booking[] = []
+      let page = 1
+      const limit = 50
+
+      while (true) {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=${page}&limit=${limit}`,
+          { credentials: "include", headers }
+        )
+        const data = await response.json()
+        if (!response.ok || !data.success) {
+          if (allBookings.length === 0) {
+            setBookingsError(data.msg || "Failed to load your bookings.")
+            return
+          }
+          break
+        }
+        const incoming = data.bookings || []
+        allBookings.push(...incoming)
+        const totalPages = data.pagination?.totalPages ?? 1
+        if (page >= totalPages || incoming.length < limit) break
+        page++
+      }
+
+      setBookings(allBookings)
+    } catch {
+      setBookingsError("Failed to load your bookings.")
+    } finally {
+      setBookingsLoading(false)
+    }
+  }, [])
+
   // Fetch all bookings via pagination
   useEffect(() => {
-    const fetchAllBookings = async () => {
-      setBookingsLoading(true)
-      setBookingsError(null)
-      try {
-        const token = getAuthToken()
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
-        const allBookings: typeof bookings = []
-        let page = 1
-        const limit = 50
-
-        while (true) {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=${page}&limit=${limit}`,
-            { credentials: "include", headers }
-          )
-          const data = await response.json()
-          if (!response.ok || !data.success) {
-            if (allBookings.length === 0) {
-              setBookingsError(data.msg || "Failed to load your bookings.")
-              return
-            }
-            break
-          }
-          const incoming = data.bookings || []
-          allBookings.push(...incoming)
-          const totalPages = data.pagination?.totalPages ?? 1
-          if (page >= totalPages || incoming.length < limit) break
-          page++
-        }
-
-        setBookings(allBookings)
-      } catch {
-        setBookingsError("Failed to load your bookings.")
-      } finally {
-        setBookingsLoading(false)
-      }
-    }
-    fetchAllBookings()
-  }, [])
+    void fetchAllBookings()
+  }, [fetchAllBookings])
 
   useEffect(() => {
     const loadClaims = async () => {
@@ -259,7 +287,12 @@ export default function CustomerDashboard() {
   // Filtered bookings
   const filteredActiveBookings = useMemo(() => {
     return activeBookings.filter(b => {
-      if (bookingStatusFilter !== "all" && b.status !== bookingStatusFilter) return false
+      if (bookingStatusFilter !== "all") {
+        const matchesAwaitingPayment =
+          bookingStatusFilter === "payment_pending" &&
+          (b.status === "payment_pending" || b.status === "quote_accepted")
+        if (!matchesAwaitingPayment && b.status !== bookingStatusFilter) return false
+      }
       if (bookingServiceFilter !== "all" && b.rfqData?.serviceType !== bookingServiceFilter) return false
       if (debouncedBookingSearch) {
         const term = debouncedBookingSearch.toLowerCase()
@@ -742,6 +775,15 @@ export default function CustomerDashboard() {
 
           {/* Bookings Tab */}
           <TabsContent value="bookings" className="space-y-4">
+            {!bookingsLoading && !bookingsError && (
+              <BookingTimelineBoard
+                bookings={activeBookings}
+                viewerRole="customer"
+                onBookingUpdated={fetchAllBookings}
+                emptyLabel="No active customer bookings fall inside the centered two-month timeline."
+              />
+            )}
+
             {renderSearchFilters(
               bookingSearch, setBookingSearch, debouncedBookingSearch,
               bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,

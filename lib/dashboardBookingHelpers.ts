@@ -7,6 +7,7 @@ export const BOOKING_STATUSES = [
   "quote_rejected",
   "payment_pending",
   "booked",
+  "rescheduling_requested",
   "in_progress",
   "professional_completed",
   "completed",
@@ -37,6 +38,7 @@ export const BOOKING_STATUS_STYLES: Record<string, string> = {
   quote_rejected: "bg-rose-50 text-rose-700 border border-rose-100",
   payment_pending: "bg-amber-50 text-amber-700 border border-amber-100",
   booked: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+  rescheduling_requested: "bg-cyan-50 text-cyan-700 border border-cyan-100",
   in_progress: "bg-sky-50 text-sky-700 border border-sky-100",
   professional_completed: "bg-amber-50 text-amber-700 border border-amber-100",
   completed: "bg-teal-50 text-teal-700 border border-teal-100",
@@ -52,14 +54,14 @@ export const BOOKING_FINISHED_STATUSES = new Set<BookingStatus>(["completed", "c
 
 // Professional dashboard: booking-phase (non-quote) statuses
 export const PROFESSIONAL_BOOKING_MODE_STATUSES = new Set<BookingStatus>([
-  "booked", "in_progress", "professional_completed", "payment_pending", "completed", "cancelled", "dispute", "refunded",
+  "quote_accepted", "payment_pending", "booked", "rescheduling_requested", "in_progress", "professional_completed", "completed", "cancelled", "dispute", "refunded",
 ])
 
 // Customer dashboard: quote-phase statuses
 export const CUSTOMER_QUOTE_STATUSES = new Set<BookingStatus>(["rfq", "rfq_accepted", "quoted", "quote_rejected"])
 // Customer dashboard: booking-phase statuses
 export const CUSTOMER_BOOKING_STATUSES = new Set<BookingStatus>([
-  "quote_accepted", "payment_pending", "booked", "in_progress",
+  "quote_accepted", "payment_pending", "booked", "rescheduling_requested", "in_progress",
   "professional_completed",
   "completed", "cancelled", "dispute", "refunded",
 ])
@@ -77,6 +79,7 @@ export const CUSTOMER_QUOTE_STATUS_FILTERS: { id: string; label: string }[] = [
 export const CUSTOMER_BOOKING_STATUS_FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "All" },
   { id: "booked", label: "Booked" },
+  { id: "rescheduling_requested", label: "Rescheduling Request" },
   { id: "in_progress", label: "In Progress" },
   { id: "professional_completed", label: "Awaiting Your Confirmation" },
   { id: "payment_pending", label: "Awaiting Payment" },
@@ -86,11 +89,30 @@ export const CUSTOMER_BOOKING_STATUS_FILTERS: { id: string; label: string }[] = 
   { id: "refunded", label: "Refunded" },
 ]
 
+export const BOOKING_STATUS_LABELS: Record<string, string> = {
+  rfq: "RFQ",
+  rfq_accepted: "RFQ Accepted",
+  draft_quote: "Draft Quote",
+  quoted: "Quoted",
+  quote_accepted: "Awaiting Payment",
+  quote_rejected: "Quote Rejected",
+  payment_pending: "Awaiting Payment",
+  booked: "Booked",
+  rescheduling_requested: "Rescheduling Request",
+  in_progress: "In Progress",
+  professional_completed: "Awaiting Your Confirmation",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+  dispute: "Dispute",
+  unknown: "Unknown",
+}
+
 export const getBookingStatusMeta = (status?: BookingStatus | string) => {
   const rawStatus = status || "unknown"
   return {
     rawStatus,
-    label: rawStatus.replace(/_/g, " "),
+    label: BOOKING_STATUS_LABELS[rawStatus] || rawStatus.replace(/_/g, " "),
     className:
       BOOKING_STATUS_STYLES[rawStatus] ||
       BOOKING_STATUS_STYLES.unknown,
