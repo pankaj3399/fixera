@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { addDays, addMonths, differenceInCalendarDays, eachDayOfInterval, endOfDay, format, isAfter, isBefore, startOfDay } from "date-fns"
+import { addMonths, differenceInCalendarDays, eachDayOfInterval, endOfDay, format, isAfter, isBefore, parseISO, startOfDay } from "date-fns"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -125,7 +125,7 @@ const getTimelineBarKey = (status: BookingStatus) => {
 
 const toDate = (value?: string) => {
   if (!value) return null
-  const parsed = new Date(value)
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseISO(value) : new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
@@ -137,17 +137,26 @@ const formatDateLabel = (value?: string | Date | null) => {
 }
 
 const getDisplaySchedule = (booking: TimelineBooking) => {
-  if (booking.status === "rescheduling_requested" && booking.rescheduleRequest?.proposedSchedule?.scheduledStartDate) {
-    return booking.rescheduleRequest.proposedSchedule
-  }
-
-  return {
+  const persistedSchedule = {
     scheduledStartDate: booking.scheduledStartDate,
     scheduledExecutionEndDate: booking.scheduledExecutionEndDate,
     scheduledBufferStartDate: booking.scheduledBufferStartDate,
     scheduledBufferEndDate: booking.scheduledBufferEndDate,
     scheduledStartTime: booking.scheduledStartTime,
     scheduledEndTime: booking.scheduledEndTime,
+  }
+
+  if (booking.status !== "rescheduling_requested" || !booking.rescheduleRequest?.proposedSchedule) {
+    return persistedSchedule
+  }
+
+  return {
+    scheduledStartDate: booking.rescheduleRequest.proposedSchedule.scheduledStartDate ?? persistedSchedule.scheduledStartDate,
+    scheduledExecutionEndDate: booking.rescheduleRequest.proposedSchedule.scheduledExecutionEndDate ?? persistedSchedule.scheduledExecutionEndDate,
+    scheduledBufferStartDate: booking.rescheduleRequest.proposedSchedule.scheduledBufferStartDate ?? persistedSchedule.scheduledBufferStartDate,
+    scheduledBufferEndDate: booking.rescheduleRequest.proposedSchedule.scheduledBufferEndDate ?? persistedSchedule.scheduledBufferEndDate,
+    scheduledStartTime: booking.rescheduleRequest.proposedSchedule.scheduledStartTime ?? persistedSchedule.scheduledStartTime,
+    scheduledEndTime: booking.rescheduleRequest.proposedSchedule.scheduledEndTime ?? persistedSchedule.scheduledEndTime,
   }
 }
 
@@ -159,11 +168,11 @@ const getTimelineBounds = (booking: TimelineBooking) => {
   const end =
     toDate(schedule.scheduledBufferEndDate)
     || toDate(schedule.scheduledExecutionEndDate)
-    || addDays(start, 1)
+    || start
 
   return {
     start,
-    end: isAfter(end, start) ? end : addDays(start, 1),
+    end: isAfter(end, start) ? end : start,
   }
 }
 

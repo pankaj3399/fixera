@@ -194,11 +194,8 @@ export default function CustomerDashboard() {
         )
         const data = await response.json()
         if (!response.ok || !data.success) {
-          if (allBookings.length === 0) {
-            setBookingsError(data.msg || "Failed to load your bookings.")
-            return
-          }
-          break
+          setBookingsError(data.msg || "Failed to load your bookings.")
+          return
         }
         const incoming = data.bookings || []
         allBookings.push(...incoming)

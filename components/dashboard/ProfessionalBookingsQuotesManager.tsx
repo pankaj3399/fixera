@@ -417,6 +417,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     }
   }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch])
 
+  const refreshBookings = useCallback(async () => {
+    await fetchBookings(1, false)
+  }, [fetchBookings])
+
   const fetchTimelineBookings = useCallback(async () => {
     if (!isAuthenticated || user?.role !== "professional") return
 
@@ -454,14 +458,26 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   }, [isAuthenticated, user?.role])
 
   useEffect(() => {
-    fetchBookings(1, false)
+    void refreshBookings()
+  }, [refreshBookings])
+
+  useEffect(() => {
+    if (mode !== "bookings") return
     void fetchTimelineBookings()
-  }, [fetchBookings, fetchTimelineBookings])
+  }, [fetchTimelineBookings, mode])
+
+  const handleRefresh = useCallback(async () => {
+    await refreshBookings()
+    if (mode === "bookings") {
+      await fetchTimelineBookings()
+    }
+  }, [fetchTimelineBookings, mode, refreshBookings])
 
   const relevantBookings = useMemo(() => {
     return bookings.filter((booking) => {
-      const isQuote = QUOTE_STATUSES.has(booking.status)
-      return mode === "quotes" ? isQuote : !isQuote
+      return mode === "quotes"
+        ? QUOTE_STATUSES.has(booking.status)
+        : PROFESSIONAL_BOOKING_MODE_STATUSES.has(booking.status)
     })
   }, [bookings, mode])
 
@@ -615,7 +631,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                 Create Quote
               </Button>
             )}
-            <Button variant="outline" onClick={() => fetchBookings(1, false)} disabled={isLoading || isLoadingMore}>
+            <Button variant="outline" onClick={() => void handleRefresh()} disabled={isLoading || isLoadingMore}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
@@ -711,10 +727,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
             bookings={timelineBookings}
             viewerRole="professional"
             onBookingUpdated={async () => {
-              await Promise.all([
-                fetchBookings(1, false),
-                fetchTimelineBookings(),
-              ])
+              await Promise.all([refreshBookings(), fetchTimelineBookings()])
             }}
             emptyLabel="No active professional bookings fall inside the centered two-month timeline."
           />

@@ -130,7 +130,7 @@ export default function AdminProfessionalManagementPage() {
           </CardHeader>
           <CardContent className="grid md:grid-cols-5 gap-3">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or company" />
-            <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name" />
+            <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name" aria-label="Customer name" />
             <Input value={country === "all" ? "" : country} onChange={(e) => setCountry(e.target.value || "all")} placeholder="Country" />
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger><SelectValue placeholder="Level" /></SelectTrigger>

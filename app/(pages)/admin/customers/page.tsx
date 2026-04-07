@@ -130,7 +130,7 @@ export default function AdminCustomersPage() {
           </CardHeader>
           <CardContent className="grid md:grid-cols-4 gap-3">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email" />
-            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" />
+            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" aria-label="Address" />
             <Input value={country === "all" ? "" : country} onChange={(e) => setCountry(e.target.value || "all")} placeholder="Country" />
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger><SelectValue placeholder="Level" /></SelectTrigger>
