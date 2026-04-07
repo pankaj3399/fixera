@@ -64,6 +64,10 @@ export function getProfessionalActionItems(bookings: ActionNeededBooking[]): Act
       items.push({ booking, label: "Confirm start", severity: "warning" })
     }
 
+    if (booking.status === "rescheduling_requested") {
+      items.push({ booking, label: "Awaiting customer reschedule decision", severity: "warning" })
+    }
+
     // Completion date passed, still in progress
     const endDate = booking.scheduledExecutionEndDate ?? booking.scheduledEndDate
     if (booking.status === "in_progress" && isPastDate(endDate)) {
@@ -91,6 +95,10 @@ export function getCustomerActionItems(bookings: ActionNeededBooking[]): ActionI
     // Payment needed
     if (booking.status === "payment_pending" || booking.status === "quote_accepted") {
       items.push({ booking, label: "Payment needed", severity: "urgent" })
+    }
+
+    if (booking.status === "rescheduling_requested") {
+      items.push({ booking, label: "Accept or decline rescheduling", severity: "urgent" })
     }
 
     if (booking.status === "professional_completed") {
