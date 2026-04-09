@@ -1,0 +1,9 @@
+export const ONBOARDING_STEPS = {
+  ID_UPLOAD: 1,
+  BUSINESS_INFO: 2,
+  STRIPE: 3,
+  COMPANY_HOURS: 4,
+  PERSONAL_HOURS: 5,
+  EMPLOYEES: 6,
+  RULES: 7,
+} as const

@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
@@ -17,15 +17,16 @@ import { EU_COUNTRIES } from '@/lib/countries'
 import { getAuthToken, buildUsernameSuggestionParams } from '@/lib/utils'
 import { formatVATNumber, getVATCountryName, isEUVatNumber, validateVATFormat, validateVATWithAPI, updateProfessionalBusinessProfile, submitForVerification, COUNTRY_NAMES } from '@/lib/vatValidation'
 import { CompanyAvailability, DayAvailability, DEFAULT_COMPANY_AVAILABILITY } from '@/lib/defaults/companyAvailability'
+import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
 
 const STEPS = [
-  { id: 1, title: 'ID Upload', icon: Shield, required: true, gradient: 'from-violet-200 via-purple-200 to-fuchsia-200' },
-  { id: 2, title: 'Business Info', icon: Building, required: false, gradient: 'from-blue-200 via-cyan-200 to-teal-200' },
-  { id: 3, title: 'Stripe', icon: CreditCard, required: true, gradient: 'from-sky-200 via-cyan-200 to-blue-200' },
-  { id: 4, title: 'Company Hours', icon: CalendarIcon, required: true, gradient: 'from-emerald-200 via-green-200 to-lime-200' },
-  { id: 5, title: 'Personal Hours', icon: CalendarIcon, required: false, gradient: 'from-amber-200 via-yellow-200 to-orange-200' },
-  { id: 6, title: 'Employees', icon: Users, required: false, gradient: 'from-rose-200 via-pink-200 to-fuchsia-200' },
-  { id: 7, title: 'Rules', icon: CheckCircle2, required: true, gradient: 'from-indigo-200 via-blue-200 to-violet-200' },
+  { id: ONBOARDING_STEPS.ID_UPLOAD, title: 'ID Upload', icon: Shield, required: true, gradient: 'from-violet-200 via-purple-200 to-fuchsia-200' },
+  { id: ONBOARDING_STEPS.BUSINESS_INFO, title: 'Business Info', icon: Building, required: false, gradient: 'from-blue-200 via-cyan-200 to-teal-200' },
+  { id: ONBOARDING_STEPS.STRIPE, title: 'Stripe', icon: CreditCard, required: true, gradient: 'from-sky-200 via-cyan-200 to-blue-200' },
+  { id: ONBOARDING_STEPS.COMPANY_HOURS, title: 'Company Hours', icon: CalendarIcon, required: true, gradient: 'from-emerald-200 via-green-200 to-lime-200' },
+  { id: ONBOARDING_STEPS.PERSONAL_HOURS, title: 'Personal Hours', icon: CalendarIcon, required: false, gradient: 'from-amber-200 via-yellow-200 to-orange-200' },
+  { id: ONBOARDING_STEPS.EMPLOYEES, title: 'Employees', icon: Users, required: false, gradient: 'from-rose-200 via-pink-200 to-fuchsia-200' },
+  { id: ONBOARDING_STEPS.RULES, title: 'Rules', icon: CheckCircle2, required: true, gradient: 'from-indigo-200 via-blue-200 to-violet-200' },
 ]
 
 const PLATFORM_RULES = [
@@ -314,7 +315,7 @@ function IdVerificationStep({
   idExpirationDate,
   setIdExpirationDate,
   setIdProofFile,
-  handleStep1Continue,
+  handleIdStepContinue,
   uploading,
   idInfoSaving,
   setCurrentStep,
@@ -326,7 +327,7 @@ function IdVerificationStep({
   idExpirationDate: string
   setIdExpirationDate: (value: string) => void
   setIdProofFile: (file: File | null) => void
-  handleStep1Continue: () => void
+  handleIdStepContinue: () => void
   uploading: boolean
   idInfoSaving: boolean
   setCurrentStep: (step: number) => void
@@ -396,7 +397,7 @@ function IdVerificationStep({
 
         <div className="flex items-center justify-end gap-2 pt-2">
 <Button
-            onClick={handleStep1Continue}
+            onClick={handleIdStepContinue}
             disabled={uploading || idInfoSaving}
             className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 px-6"
           >
@@ -432,7 +433,7 @@ function BusinessDetailsStep({
   selectedServices,
   setSelectedServices,
   setCurrentStep,
-  handleStep2Continue,
+  handleBusinessStepContinue,
   businessSaving,
 }: {
   gradient: string
@@ -450,7 +451,7 @@ function BusinessDetailsStep({
   selectedServices: string[]
   setSelectedServices: React.Dispatch<React.SetStateAction<string[]>>
   setCurrentStep: (step: number) => void
-  handleStep2Continue: () => void
+  handleBusinessStepContinue: () => void
   businessSaving: boolean
 }) {
   const [usernameCheck, setUsernameCheck] = useState<{ available?: boolean; reason?: string; checking?: boolean }>({})
@@ -747,7 +748,7 @@ function BusinessDetailsStep({
               Skip for now
             </Button>
             <Button
-              onClick={handleStep2Continue}
+              onClick={handleBusinessStepContinue}
               disabled={businessSaving}
               className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 px-6"
             >
@@ -771,7 +772,7 @@ function CompanyAvailabilityStep({
   companyAvailabilityErrors,
   setCompanyAvailabilityErrors,
   setCurrentStep,
-  handleStep3Continue,
+  handleCompanyHoursContinue,
   companySaving,
 }: {
   gradient: string
@@ -780,7 +781,7 @@ function CompanyAvailabilityStep({
   companyAvailabilityErrors: Partial<Record<keyof CompanyAvailability, string>>
   setCompanyAvailabilityErrors: React.Dispatch<React.SetStateAction<Partial<Record<keyof CompanyAvailability, string>>>>
   setCurrentStep: (step: number) => void
-  handleStep3Continue: () => void
+  handleCompanyHoursContinue: () => void
   companySaving: boolean
 }) {
   return (
@@ -875,7 +876,7 @@ function CompanyAvailabilityStep({
             <ChevronLeft className="h-4 w-4" /> Back
           </Button>
           <Button
-            onClick={handleStep3Continue}
+            onClick={handleCompanyHoursContinue}
             disabled={companySaving}
             className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-6"
           >
@@ -898,7 +899,7 @@ function PersonalAvailabilityStep({
   personalAvailabilityErrors,
   setPersonalAvailabilityErrors,
   setCurrentStep,
-  handleStep5Continue,
+  handlePersonalHoursContinue,
   personalSaving,
 }: {
   gradient: string
@@ -907,7 +908,7 @@ function PersonalAvailabilityStep({
   personalAvailabilityErrors: Partial<Record<keyof CompanyAvailability, string>>
   setPersonalAvailabilityErrors: React.Dispatch<React.SetStateAction<Partial<Record<keyof CompanyAvailability, string>>>>
   setCurrentStep: (step: number) => void
-  handleStep5Continue: () => void
+  handlePersonalHoursContinue: () => void
   personalSaving: boolean
 }) {
   return (
@@ -1006,7 +1007,7 @@ function PersonalAvailabilityStep({
               Skip for now
             </Button>
             <Button
-              onClick={handleStep5Continue}
+              onClick={handlePersonalHoursContinue}
               disabled={personalSaving}
               className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-6"
             >
@@ -1471,7 +1472,7 @@ function ProfessionalOnboardingContent() {
     return headers
   }
 
-  const refreshStripeStatus = async () => {
+  const refreshStripeStatus = useCallback(async () => {
     setStripeLoading(true)
     setStripeError('')
     try {
@@ -1500,13 +1501,13 @@ function ProfessionalOnboardingContent() {
     } finally {
       setStripeLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (user?.role === 'professional') {
       void refreshStripeStatus()
     }
-  }, [user?.role])
+  }, [user?.role, refreshStripeStatus])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -1686,7 +1687,7 @@ function ProfessionalOnboardingContent() {
     }
   }
 
-  const handleStep2Continue = async () => {
+  const handleIdStepContinue = async () => {
     if (!user?.idProofUrl && !idProofFile) {
       toast.error('Please upload your ID proof')
       return
@@ -1711,7 +1712,7 @@ function ProfessionalOnboardingContent() {
     }
   }
 
-  const handleStep3Continue = async () => {
+  const handleBusinessStepContinue = async () => {
     if (!businessInfo.companyName.trim()) {
       toast.error('Company name is required')
       return
@@ -1767,7 +1768,7 @@ function ProfessionalOnboardingContent() {
     }
   }
 
-  const handleStep4Continue = async () => {
+  const handleCompanyHoursContinue = async () => {
     const hasAvailableDay = Object.values(companyAvailability).some((day) => day.available)
     if (!hasAvailableDay) {
       toast.error('Select at least one available day')
@@ -1817,7 +1818,7 @@ function ProfessionalOnboardingContent() {
     }
   }
 
-  const handleStep5Continue = async () => {
+  const handlePersonalHoursContinue = async () => {
     const hasAvailableDay = Object.values(personalAvailability).some((day) => day.available)
 
     if (!hasAvailableDay) {
@@ -2054,7 +2055,7 @@ function ProfessionalOnboardingContent() {
             idExpirationDate={idExpirationDate}
             setIdExpirationDate={setIdExpirationDate}
             setIdProofFile={setIdProofFile}
-            handleStep1Continue={handleStep2Continue}
+            handleIdStepContinue={handleIdStepContinue}
             uploading={uploading}
             idInfoSaving={idInfoSaving}
             setCurrentStep={setCurrentStep}
@@ -2081,7 +2082,7 @@ function ProfessionalOnboardingContent() {
             selectedServices={selectedServices}
             setSelectedServices={setSelectedServices}
             setCurrentStep={setCurrentStep}
-            handleStep2Continue={handleStep3Continue}
+            handleBusinessStepContinue={handleBusinessStepContinue}
             businessSaving={businessSaving}
           />
         )}
@@ -2106,7 +2107,7 @@ function ProfessionalOnboardingContent() {
             companyAvailabilityErrors={companyAvailabilityErrors}
             setCompanyAvailabilityErrors={setCompanyAvailabilityErrors}
             setCurrentStep={setCurrentStep}
-            handleStep3Continue={handleStep4Continue}
+            handleCompanyHoursContinue={handleCompanyHoursContinue}
             companySaving={companySaving}
           />
         )}
@@ -2119,7 +2120,7 @@ function ProfessionalOnboardingContent() {
             personalAvailabilityErrors={personalAvailabilityErrors}
             setPersonalAvailabilityErrors={setPersonalAvailabilityErrors}
             setCurrentStep={setCurrentStep}
-            handleStep5Continue={handleStep5Continue}
+            handlePersonalHoursContinue={handlePersonalHoursContinue}
             personalSaving={personalSaving}
           />
         )}

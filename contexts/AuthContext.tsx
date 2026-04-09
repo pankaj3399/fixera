@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
+import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
 
 interface User {
   _id: string
@@ -462,7 +463,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pathname.startsWith('/projects/create') &&
       (!currentUser.stripe?.accountId || !currentUser.stripe?.onboardingCompleted)
     ) {
-      router.replace('/professional/onboarding?step=3')
+      router.replace(`/professional/onboarding?step=${ONBOARDING_STEPS.STRIPE}`)
       return
     }
 
