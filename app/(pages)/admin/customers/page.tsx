@@ -34,7 +34,7 @@ export default function AdminCustomersPage() {
   const abortRef = useRef<AbortController | null>(null)
   const loadRequestIdRef = useRef(0)
   const [patching, setPatching] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     abortRef.current?.abort()
@@ -107,7 +107,8 @@ export default function AdminCustomersPage() {
   }
 
   const deleteCustomer = async (customerId: string) => {
-    setDeleting(customerId)
+    if (deletingIds.has(customerId)) return
+    setDeletingIds((prev) => new Set(prev).add(customerId))
     try {
       const token = getAuthToken()
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/users/${customerId}`, {
@@ -116,7 +117,7 @@ export default function AdminCustomersPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const payload = await response.json().catch(() => null)
-      if (!response.ok || !payload?.success) {
+      if (!response.ok || (payload != null && !payload.success)) {
         console.error("Failed to delete customer:", payload?.msg || response.status)
         return
       }
@@ -124,7 +125,7 @@ export default function AdminCustomersPage() {
     } catch (e) {
       console.error("Failed to delete customer:", e)
     } finally {
-      setDeleting(null)
+      setDeletingIds((prev) => { const next = new Set(prev); next.delete(customerId); return next })
     }
   }
 
@@ -199,7 +200,7 @@ export default function AdminCustomersPage() {
                   </Button>
                   <Button
                     variant="destructive"
-                    disabled={deleting === row._id}
+                    disabled={deletingIds.has(row._id)}
                     onClick={() => {
                       if (!window.confirm(`Permanently delete ${row.name || row.email}? This will remove the user and ALL their data (bookings, messages, files, etc). This cannot be undone.`)) {
                         return
@@ -207,7 +208,7 @@ export default function AdminCustomersPage() {
                       void deleteCustomer(row._id)
                     }}
                   >
-                    {deleting === row._id ? "Deleting..." : "Delete"}
+                    {deletingIds.has(row._id) ? "Deleting..." : "Delete"}
                   </Button>
                 </div>
               </CardContent>
