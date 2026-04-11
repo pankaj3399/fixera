@@ -45,6 +45,10 @@ export default function ProfessionalLevelConfigPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isRecalculating, setIsRecalculating] = useState(false)
+  const clamp = (value: number, min: number, max?: number) => {
+    const lowerBounded = Math.max(min, Number.isFinite(value) ? value : min)
+    return typeof max === "number" ? Math.min(lowerBounded, max) : lowerBounded
+  }
 
   useEffect(() => {
     if (!loading && (!isAuthenticated || user?.role !== "admin")) {
@@ -88,13 +92,31 @@ export default function ProfessionalLevelConfigPage() {
   }
 
   const updateLevel = (index: number, nextLevel: ProfessionalLevel) => {
+    const sanitizedLevel: ProfessionalLevel = {
+      ...nextLevel,
+      criteria: {
+        minCompletedBookings: clamp(nextLevel.criteria.minCompletedBookings, 0),
+        minDaysActive: clamp(nextLevel.criteria.minDaysActive, 0),
+        minAvgRating: clamp(nextLevel.criteria.minAvgRating, 0, 5),
+        minOnTimePercentage: clamp(nextLevel.criteria.minOnTimePercentage, 0, 100),
+        minResponseRate: clamp(nextLevel.criteria.minResponseRate, 0, 100),
+      },
+      perks: {
+        ...nextLevel.perks,
+        commissionReduction: clamp(nextLevel.perks.commissionReduction, 0, 100),
+        searchRankingBoost: clamp(nextLevel.perks.searchRankingBoost, 1),
+      },
+      pointsBoostRatio: clamp(nextLevel.pointsBoostRatio, 1),
+    }
+
     setConfig((prev) => ({
       ...prev,
-      levels: prev.levels.map((level, levelIndex) => levelIndex === index ? nextLevel : level),
+      levels: prev.levels.map((level, levelIndex) => levelIndex === index ? sanitizedLevel : level),
     }))
   }
 
   const saveConfig = async () => {
+    if (isSaving || isRecalculating) return
     setIsSaving(true)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professional-levels/config`, {
@@ -119,6 +141,7 @@ export default function ProfessionalLevelConfigPage() {
   }
 
   const recalculateLevels = async () => {
+    if (isSaving || isRecalculating) return
     setIsRecalculating(true)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professional-levels/recalculate`, {
@@ -187,11 +210,11 @@ export default function ProfessionalLevelConfigPage() {
             <Button variant="outline" onClick={() => router.push("/admin/loyalty/config")}>
               Back
             </Button>
-            <Button variant="outline" onClick={recalculateLevels} disabled={isRecalculating}>
+            <Button variant="outline" onClick={recalculateLevels} disabled={isSaving || isRecalculating}>
               {isRecalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TrendingUp className="mr-2 h-4 w-4" />}
               Recalculate Levels
             </Button>
-            <Button onClick={saveConfig} disabled={isSaving}>
+            <Button onClick={saveConfig} disabled={isSaving || isRecalculating}>
               <Save className="mr-2 h-4 w-4" />
               {isSaving ? "Saving..." : "Save Configuration"}
             </Button>

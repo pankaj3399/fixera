@@ -131,6 +131,7 @@ export default function DashboardPage() {
   const [warrantyAnalytics, setWarrantyAnalytics] = useState<WarrantyAnalytics | null>(null)
   const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
   const [isRunningRfqCheck, setIsRunningRfqCheck] = useState(false)
+  const [isRecalculatingProfessionalLevels, setIsRecalculatingProfessionalLevels] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
@@ -950,17 +951,32 @@ export default function DashboardPage() {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        const token = getAuthToken()
-                        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professional-levels/recalculate`, {
-                          method: 'POST',
-                          credentials: 'include',
-                          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-                        }).then(() => fetchAdminData())
+                      onClick={async () => {
+                        if (isRecalculatingProfessionalLevels) return
+                        setIsRecalculatingProfessionalLevels(true)
+                        try {
+                          const token = getAuthToken()
+                          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professional-levels/recalculate`, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                          })
+                          if (!response.ok) {
+                            throw new Error(`Request failed with status ${response.status}`)
+                          }
+                          await fetchAdminData()
+                          toast.success('Professional levels recalculated')
+                        } catch (error) {
+                          console.error('Failed to recalculate professional levels:', error)
+                          toast.error('Failed to recalculate professional levels')
+                        } finally {
+                          setIsRecalculatingProfessionalLevels(false)
+                        }
                       }}
+                      disabled={isRecalculatingProfessionalLevels}
                       className="w-full"
                     >
-                      Recalculate Professional Levels
+                      {isRecalculatingProfessionalLevels ? 'Recalculating...' : 'Recalculate Professional Levels'}
                     </Button>
                   </CardContent>
                 </Card>

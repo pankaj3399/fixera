@@ -11,9 +11,9 @@ import { getAuthToken } from "@/lib/utils"
 type CustomerBenefitsResponse = {
   loyaltyStatus?: {
     level?: string
-    nextLevel?: string
-    amountToNextTier?: number
-    progress?: number
+    nextLevel?: string | null
+    amountToNextTier?: number | null
+    progress?: number | null
   }
   points?: {
     balance?: number
@@ -42,13 +42,30 @@ type ProfessionalBenefitsResponse = {
   }
 }
 
-export default function BenefitsProgramCard() {
+interface BenefitsProgramCardProps {
+  customerData?: CustomerBenefitsResponse | null
+  professionalData?: ProfessionalBenefitsResponse | null
+}
+
+export default function BenefitsProgramCard({
+  customerData: customerDataProp,
+  professionalData: professionalDataProp,
+}: BenefitsProgramCardProps) {
   const { user } = useAuth()
-  const [loading, setLoading] = useState(true)
-  const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(null)
-  const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(null)
+  const hasExternalData = customerDataProp !== undefined || professionalDataProp !== undefined
+  const [loading, setLoading] = useState(!hasExternalData)
+  const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(customerDataProp ?? null)
+  const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(professionalDataProp ?? null)
 
   useEffect(() => {
+    if (!hasExternalData) return
+    setCustomerData(customerDataProp ?? null)
+    setProfessionalData(professionalDataProp ?? null)
+    setLoading(false)
+  }, [customerDataProp, hasExternalData, professionalDataProp])
+
+  useEffect(() => {
+    if (hasExternalData) return
     const controller = new AbortController()
     const load = async () => {
       const role = user?.role
@@ -90,7 +107,7 @@ export default function BenefitsProgramCard() {
     }
     void load()
     return () => controller.abort()
-  }, [user])
+  }, [hasExternalData, user])
 
   if (!user || (user.role !== "customer" && user.role !== "professional")) return null
 
@@ -102,14 +119,14 @@ export default function BenefitsProgramCard() {
     ? customerData?.loyaltyStatus?.nextLevel
     : professionalData?.level?.nextLevel?.name
   const progress = isCustomer
-    ? customerData?.loyaltyStatus?.progress || 0
-    : professionalData?.level?.nextLevel?.progress || 0
+    ? customerData?.loyaltyStatus?.progress ?? 0
+    : professionalData?.level?.nextLevel?.progress ?? 0
   const pointsBalance = isCustomer
-    ? customerData?.points?.balance || user.points || 0
-    : professionalData?.points?.balance || user.points || 0
+    ? customerData?.points?.balance ?? user.points ?? 0
+    : professionalData?.points?.balance ?? user.points ?? 0
   const pointsExpiry = isCustomer
-    ? customerData?.points?.expiryDate || user.pointsExpiry
-    : professionalData?.points?.expiryDate || user.pointsExpiry
+    ? customerData?.points?.expiryDate ?? user.pointsExpiry
+    : professionalData?.points?.expiryDate ?? user.pointsExpiry
   const perks = isCustomer
     ? customerData?.benefits || []
     : professionalData?.level?.nextLevel?.missingCriteria || []
@@ -145,7 +162,7 @@ export default function BenefitsProgramCard() {
               <div className="rounded-lg border bg-slate-50 p-3">
                 <p className="text-xs text-slate-500">{isCustomer ? "Total spent" : "Next level"}</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">
-                  {isCustomer ? `EUR ${(customerData?.userStats?.totalSpent || user.totalSpent || 0).toLocaleString()}` : nextLevel || "Top level"}
+                  {isCustomer ? `EUR ${(customerData?.userStats?.totalSpent ?? user.totalSpent ?? 0).toLocaleString()}` : nextLevel || "Top level"}
                 </p>
               </div>
             </div>

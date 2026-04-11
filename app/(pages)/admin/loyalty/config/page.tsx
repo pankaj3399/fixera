@@ -80,14 +80,8 @@ export default function LoyaltyConfigPage() {
       }
     ]
   })
-  const [pointsConfig, setPointsConfig] = useState<PointsConfig>({
-    isEnabled: true,
-    conversionRate: 1,
-    expiryMonths: 6,
-    minRedemptionPoints: 1,
-    professionalEarningPerBooking: 10,
-    customerEarningPerBooking: 5,
-  })
+  const [pointsConfig, setPointsConfig] = useState<PointsConfig | null>(null)
+  const [pointsConfigLoaded, setPointsConfigLoaded] = useState(false)
   
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -131,9 +125,15 @@ export default function LoyaltyConfigPage() {
       if (pointsResponse.ok) {
         const data = await pointsResponse.json()
         setPointsConfig(data.data.config)
+        setPointsConfigLoaded(true)
+      } else {
+        setPointsConfig(null)
+        setPointsConfigLoaded(false)
       }
     } catch (error) {
       console.error('Failed to fetch loyalty config:', error)
+      setPointsConfig(null)
+      setPointsConfigLoaded(false)
     } finally {
       setIsLoading(false)
     }
@@ -169,22 +169,29 @@ export default function LoyaltyConfigPage() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       }
 
-      const [loyaltyResponse, pointsResponse] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/config`, {
-          method: 'PUT',
-          headers,
-          credentials: 'include',
-          body: JSON.stringify(config),
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/points/config`, {
-          method: 'PUT',
-          headers,
-          credentials: 'include',
-          body: JSON.stringify(pointsConfig),
-        }),
-      ])
+      const loyaltyPromise = fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/loyalty/config`, {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(config),
+      })
 
-      if (loyaltyResponse.ok && pointsResponse.ok) {
+      const requests: Promise<Response>[] = [loyaltyPromise]
+      if (pointsConfigLoaded && pointsConfig != null) {
+        requests.push(
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/points/config`, {
+            method: 'PUT',
+            headers,
+            credentials: 'include',
+            body: JSON.stringify(pointsConfig),
+          })
+        )
+      }
+
+      const responses = await Promise.all(requests)
+      const saveSucceeded = responses.every((response) => response.ok)
+
+      if (saveSucceeded) {
         toast.success('Configuration saved successfully!')
       } else {
         toast.error('Failed to save configuration')
@@ -406,69 +413,77 @@ export default function LoyaltyConfigPage() {
                 </CardTitle>
                 <CardDescription>Control reward value, redemption, and how many points customers and professionals earn per completed booking.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>
-                    <input
-                      type="checkbox"
-                      checked={pointsConfig.isEnabled}
-                      onChange={(e) => setPointsConfig((prev) => ({ ...prev, isEnabled: e.target.checked }))}
-                      className="mr-2"
-                    />
-                    Points Enabled
-                  </Label>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="conversionRate">Point Conversion Rate (EUR)</Label>
-                  <Input
-                    id="conversionRate"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={pointsConfig.conversionRate}
-                    onChange={(e) => setPointsConfig((prev) => ({ ...prev, conversionRate: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expiryMonths">Expiry Months</Label>
-                  <Input
-                    id="expiryMonths"
-                    type="number"
-                    min="1"
-                    value={pointsConfig.expiryMonths}
-                    onChange={(e) => setPointsConfig((prev) => ({ ...prev, expiryMonths: Number(e.target.value) || 1 }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="minRedemptionPoints">Minimum Redemption Points</Label>
-                  <Input
-                    id="minRedemptionPoints"
-                    type="number"
-                    min="1"
-                    value={pointsConfig.minRedemptionPoints}
-                    onChange={(e) => setPointsConfig((prev) => ({ ...prev, minRedemptionPoints: Number(e.target.value) || 1 }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="professionalEarningPerBooking">Professional Reward Points Per Booking</Label>
-                  <Input
-                    id="professionalEarningPerBooking"
-                    type="number"
-                    min="0"
-                    value={pointsConfig.professionalEarningPerBooking}
-                    onChange={(e) => setPointsConfig((prev) => ({ ...prev, professionalEarningPerBooking: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="customerEarningPerBooking">Customer Reward Points Per Booking</Label>
-                  <Input
-                    id="customerEarningPerBooking"
-                    type="number"
-                    min="0"
-                    value={pointsConfig.customerEarningPerBooking}
-                    onChange={(e) => setPointsConfig((prev) => ({ ...prev, customerEarningPerBooking: Number(e.target.value) || 0 }))}
-                  />
-                </div>
+              <CardContent>
+                {pointsConfig == null ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Points configuration could not be loaded, so point settings will not be changed on save.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>
+                        <input
+                          type="checkbox"
+                          checked={pointsConfig.isEnabled}
+                          onChange={(e) => setPointsConfig((prev) => prev ? { ...prev, isEnabled: e.target.checked } : prev)}
+                          className="mr-2"
+                        />
+                        Points Enabled
+                      </Label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="conversionRate">Point Conversion Rate (EUR)</Label>
+                      <Input
+                        id="conversionRate"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={pointsConfig.conversionRate}
+                        onChange={(e) => setPointsConfig((prev) => prev ? { ...prev, conversionRate: Number(e.target.value) || 0 } : prev)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="expiryMonths">Expiry Months</Label>
+                      <Input
+                        id="expiryMonths"
+                        type="number"
+                        min="1"
+                        value={pointsConfig.expiryMonths}
+                        onChange={(e) => setPointsConfig((prev) => prev ? { ...prev, expiryMonths: Number(e.target.value) || 1 } : prev)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="minRedemptionPoints">Minimum Redemption Points</Label>
+                      <Input
+                        id="minRedemptionPoints"
+                        type="number"
+                        min="1"
+                        value={pointsConfig.minRedemptionPoints}
+                        onChange={(e) => setPointsConfig((prev) => prev ? { ...prev, minRedemptionPoints: Number(e.target.value) || 1 } : prev)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="professionalEarningPerBooking">Professional Reward Points Per Booking</Label>
+                      <Input
+                        id="professionalEarningPerBooking"
+                        type="number"
+                        min="0"
+                        value={pointsConfig.professionalEarningPerBooking}
+                        onChange={(e) => setPointsConfig((prev) => prev ? { ...prev, professionalEarningPerBooking: Number(e.target.value) || 0 } : prev)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customerEarningPerBooking">Customer Reward Points Per Booking</Label>
+                      <Input
+                        id="customerEarningPerBooking"
+                        type="number"
+                        min="0"
+                        value={pointsConfig.customerEarningPerBooking}
+                        onChange={(e) => setPointsConfig((prev) => prev ? { ...prev, customerEarningPerBooking: Number(e.target.value) || 0 } : prev)}
+                      />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

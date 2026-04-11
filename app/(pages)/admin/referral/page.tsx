@@ -67,8 +67,8 @@ interface ReferralAnalytics {
   expiredReferrals: number;
   revokedReferrals: number;
   conversionRate: number;
-  totalCreditsIssued: number;
-  currentCreditsBalance: number;
+  totalPointsIssued: number;
+  totalReferralPointsEarned: number;
   topReferrers: Array<{
     _id: string;
     name: string;
@@ -570,10 +570,10 @@ export default function AdminReferralPage() {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 mb-2">
                     <Gift className="h-4 w-4 text-purple-600" />
-                    <p className="text-sm text-gray-500">Credits Issued</p>
+                    <p className="text-sm text-gray-500">Points Issued</p>
                   </div>
                   <p className="text-2xl font-bold">
-                    &euro;{analytics.totalCreditsIssued}
+                    &euro;{analytics.totalPointsIssued}
                   </p>
                 </CardContent>
               </Card>
@@ -581,10 +581,10 @@ export default function AdminReferralPage() {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 mb-2">
                     <Clock className="h-4 w-4 text-amber-600" />
-                    <p className="text-sm text-gray-500">Outstanding Credits</p>
+                    <p className="text-sm text-gray-500">Outstanding Points</p>
                   </div>
                   <p className="text-2xl font-bold">
-                    &euro;{analytics.currentCreditsBalance}
+                    &euro;{analytics.totalReferralPointsEarned}
                   </p>
                 </CardContent>
               </Card>

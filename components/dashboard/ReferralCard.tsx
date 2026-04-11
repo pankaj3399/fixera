@@ -21,19 +21,19 @@ import { getAuthToken } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ReferralData {
-  referralCode: string;
-  points: number;
-  pointsExpiry: string | null;
-  totalReferrals: number;
-  pendingReferrals: number;
-  completedReferrals: number;
-  totalPointsEarned: number;
-  programEnabled: boolean;
-  referrerRewardAmount: number;
-  referredCustomerDiscountType: string;
-  referredCustomerDiscountValue: number;
-  referredCustomerDiscountMaxAmount: number;
-  referrals: Array<{
+  referralCode?: string;
+  points?: number;
+  pointsExpiry?: string | null;
+  totalReferrals?: number;
+  pendingReferrals?: number;
+  completedReferrals?: number;
+  totalPointsEarned?: number;
+  programEnabled?: boolean;
+  referrerRewardAmount?: number;
+  referredCustomerDiscountType?: string;
+  referredCustomerDiscountValue?: number;
+  referredCustomerDiscountMaxAmount?: number;
+  referrals?: Array<{
     _id: string;
     referredUser: { name: string; email: string; createdAt: string } | null;
     status: string;
@@ -43,14 +43,25 @@ interface ReferralData {
   }>;
 }
 
-export default function ReferralCard() {
+interface ReferralCardProps {
+  referralData?: ReferralData | null
+}
+
+export default function ReferralCard({ referralData: referralDataProp }: ReferralCardProps) {
   const { user } = useAuth();
-  const [data, setData] = useState<ReferralData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const hasExternalData = referralDataProp !== undefined
+  const [data, setData] = useState<ReferralData | null>(referralDataProp ?? null);
+  const [loading, setLoading] = useState(!hasExternalData);
   const [fetchError, setFetchError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
   const isProfessional = user?.role === 'professional';
+
+  useEffect(() => {
+    if (!hasExternalData) return
+    setData(referralDataProp ?? null)
+    setLoading(false)
+  }, [hasExternalData, referralDataProp])
 
   const fetchReferralStats = async () => {
     try {
@@ -104,8 +115,9 @@ export default function ReferralCard() {
   };
 
   useEffect(() => {
+    if (hasExternalData) return
     fetchReferralStats();
-  }, []);
+  }, [hasExternalData]);
 
   const copyLink = () => {
     if (!data?.referralCode) return;
@@ -267,10 +279,10 @@ export default function ReferralCard() {
         </div>
 
         {/* Points */}
-        {data.points > 0 && (
+        {(data.points ?? 0) > 0 && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm font-medium text-green-800">
-              Available Points: <span className="text-lg font-bold">{data.points} pts (&euro;{data.points})</span>
+              Available Points: <span className="text-lg font-bold">{data.points ?? 0} pts (&euro;{data.points ?? 0})</span>
             </p>
             {data.pointsExpiry && (
               <p className="text-xs text-green-600 mt-1">
@@ -286,16 +298,16 @@ export default function ReferralCard() {
           <ul className="space-y-1">
             <li>1. Share your referral code or link</li>
             <li>2. {isProfessional ? 'A professional' : 'A customer'} signs up and completes their first booking</li>
-            <li>3. You earn {data.referrerRewardAmount} points (&euro;{data.referrerRewardAmount})!</li>
+            <li>3. You earn {data.referrerRewardAmount ?? 0} points (&euro;{data.referrerRewardAmount ?? 0})!</li>
           </ul>
         </div>
 
         {/* Recent Referrals */}
-        {data.referrals.length > 0 && (
+        {(data.referrals?.length ?? 0) > 0 && (
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">Recent Referrals</p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {data.referrals.slice(0, 5).map((ref) => (
+              {data.referrals?.slice(0, 5).map((ref) => (
                 <div key={ref._id} className="flex items-center justify-between text-sm p-2 bg-gray-50 rounded">
                   <div>
                     <p className="font-medium">{(ref.referredUser as { name?: string } | null)?.name || 'User'}</p>

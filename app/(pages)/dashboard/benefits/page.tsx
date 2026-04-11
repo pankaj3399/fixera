@@ -59,11 +59,26 @@ type ProfessionalBenefitsResponse = {
 }
 
 type ReferralData = {
+  referralCode?: string
+  points?: number
+  pointsExpiry?: string | null
   totalReferrals?: number
   completedReferrals?: number
   pendingReferrals?: number
+  totalPointsEarned?: number
+  programEnabled?: boolean
   referrerRewardAmount?: number
-  points?: number
+  referredCustomerDiscountType?: string
+  referredCustomerDiscountValue?: number
+  referredCustomerDiscountMaxAmount?: number
+  referrals?: Array<{
+    _id: string
+    referredUser: { name: string; email: string; createdAt: string } | null
+    status: string
+    rewardAmount: number
+    createdAt: string
+    expiresAt: string
+  }>
   conversionRate?: number
 }
 
@@ -91,54 +106,64 @@ export default function BenefitsPage() {
 
     const load = async () => {
       setPageLoading(true)
-      try {
-        const token = getAuthToken()
-        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-        const benefitsEndpoint =
-          user.role === "customer"
-            ? "/api/user/loyalty/status"
-            : "/api/user/professional-level"
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers.Authorization = `Bearer ${token}`
+      const benefitsEndpoint =
+        user.role === "customer"
+          ? "/api/user/loyalty/status"
+          : "/api/user/professional-level"
 
-        const [benefitsResponse, referralResponse] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${benefitsEndpoint}`, {
-            credentials: "include",
-            headers,
-            signal: controller.signal,
-          }),
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/referral/stats`, {
-            credentials: "include",
-            headers,
-            signal: controller.signal,
-          }),
-        ])
+      const readJsonSafely = async (response: Response) => {
+        try {
+          return await response.json()
+        } catch (error) {
+          console.error("Failed to parse benefits page response:", error)
+          return null
+        }
+      }
 
-        const [benefitsPayload, referralPayload] = await Promise.all([
-          benefitsResponse.json(),
-          referralResponse.json(),
-        ])
+      const [benefitsResult, referralResult] = await Promise.allSettled([
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${benefitsEndpoint}`, {
+          credentials: "include",
+          headers,
+          signal: controller.signal,
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/referral/stats`, {
+          credentials: "include",
+          headers,
+          signal: controller.signal,
+        }),
+      ])
 
-        if (controller.signal.aborted) return
+      if (controller.signal.aborted) return
 
-        if (benefitsResponse.ok && benefitsPayload?.success) {
+      if (benefitsResult.status === "fulfilled") {
+        const benefitsPayload = await readJsonSafely(benefitsResult.value)
+        if (!controller.signal.aborted && benefitsResult.value.ok && benefitsPayload?.success) {
           if (user.role === "customer") {
-            setCustomerData(benefitsPayload.data || null)
+            setCustomerData(benefitsPayload.data ?? null)
             setProfessionalData(null)
           } else {
-            setProfessionalData(benefitsPayload.data || null)
+            setProfessionalData(benefitsPayload.data ?? null)
             setCustomerData(null)
           }
         }
+      } else {
+        console.error("Failed to fetch benefits data:", benefitsResult.reason)
+      }
 
-        if (referralResponse.ok && referralPayload?.success) {
-          setReferralData(referralPayload.data || null)
+      if (referralResult.status === "fulfilled") {
+        const referralPayload = await readJsonSafely(referralResult.value)
+        if (!controller.signal.aborted && referralResult.value.ok && referralPayload?.success) {
+          setReferralData(referralPayload.data ?? null)
         }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return
-        console.error("Failed to load benefits page:", error)
-      } finally {
-        if (!controller.signal.aborted) {
-          setPageLoading(false)
-        }
+      } else {
+        console.error("Failed to fetch referral data:", referralResult.reason)
+      }
+
+      if (!controller.signal.aborted) {
+        setPageLoading(false)
       }
     }
 
@@ -154,14 +179,14 @@ export default function BenefitsPage() {
     ? customerData?.loyaltyStatus?.nextLevel || null
     : professionalData?.level?.nextLevel?.name || null
   const progress = isCustomer
-    ? customerData?.loyaltyStatus?.progress || 0
-    : professionalData?.level?.nextLevel?.progress || 0
+    ? customerData?.loyaltyStatus?.progress ?? 0
+    : professionalData?.level?.nextLevel?.progress ?? 0
   const points = isCustomer
-    ? customerData?.points?.balance || user?.points || 0
-    : professionalData?.points?.balance || user?.points || 0
+    ? customerData?.points?.balance ?? user?.points ?? 0
+    : professionalData?.points?.balance ?? user?.points ?? 0
   const rewardValue = isCustomer
-    ? customerData?.points?.euroValue || 0
-    : professionalData?.points?.euroValue || 0
+    ? customerData?.points?.euroValue ?? 0
+    : professionalData?.points?.euroValue ?? 0
   const benefitHighlights = useMemo(() => {
     if (isCustomer) {
       return customerData?.benefits || []
@@ -172,8 +197,8 @@ export default function BenefitsPage() {
 
     const items: string[] = []
     if (perks.badge) items.push(`Badge: ${perks.badge}`)
-    items.push(`Commission reduction: ${perks.commissionReduction || 0}%`)
-    items.push(`Search ranking boost: x${perks.searchRankingBoost || 1}`)
+    items.push(`Commission reduction: ${perks.commissionReduction ?? 0}%`)
+    items.push(`Search ranking boost: x${perks.searchRankingBoost ?? 1}`)
     return items
   }, [customerData?.benefits, isCustomer, professionalData?.level?.perks])
 
@@ -210,10 +235,10 @@ export default function BenefitsPage() {
     return null
   }
 
-  const customerDiscount = customerData?.userStats?.tierInfo?.discountPercentage || 0
+  const customerDiscount = customerData?.userStats?.tierInfo?.discountPercentage ?? 0
   const customerDiscountCap = customerData?.userStats?.tierInfo?.maxDiscountAmount
-  const professionalCommissionReduction = professionalData?.level?.perks?.commissionReduction || 0
-  const professionalSearchBoost = professionalData?.level?.perks?.searchRankingBoost || 1
+  const professionalCommissionReduction = professionalData?.level?.perks?.commissionReduction ?? 0
+  const professionalSearchBoost = professionalData?.level?.perks?.searchRankingBoost ?? 1
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white p-4">
@@ -253,7 +278,7 @@ export default function BenefitsPage() {
           <Card>
             <CardContent className="p-6">
               <p className="text-xs uppercase tracking-wide text-slate-500">Referral reward</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{referralData?.referrerRewardAmount || 0}</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{referralData?.referrerRewardAmount ?? 0}</p>
               <p className="mt-1 text-xs text-slate-500">
                 {isCustomer ? "Use value on future bookings" : "Boost trust and level progress faster"}
               </p>
@@ -308,7 +333,10 @@ export default function BenefitsPage() {
         </Card>
 
         <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-          <BenefitsProgramCard />
+          <BenefitsProgramCard
+            customerData={customerData}
+            professionalData={professionalData}
+          />
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -339,15 +367,15 @@ export default function BenefitsPage() {
                 <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
                   <div>
                     <p className="text-slate-500">Total</p>
-                    <p className="font-semibold text-slate-900">{referralData?.totalReferrals || 0}</p>
+                    <p className="font-semibold text-slate-900">{referralData?.totalReferrals ?? 0}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">Pending</p>
-                    <p className="font-semibold text-slate-900">{referralData?.pendingReferrals || 0}</p>
+                    <p className="font-semibold text-slate-900">{referralData?.pendingReferrals ?? 0}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">Completed</p>
-                    <p className="font-semibold text-slate-900">{referralData?.completedReferrals || 0}</p>
+                    <p className="font-semibold text-slate-900">{referralData?.completedReferrals ?? 0}</p>
                   </div>
                 </div>
               </div>
@@ -364,7 +392,7 @@ export default function BenefitsPage() {
           </Card>
         </div>
 
-        <ReferralCard />
+        <ReferralCard referralData={referralData} />
       </div>
     </div>
   )

@@ -35,7 +35,7 @@ export default function AdminProfessionalManagementPage() {
   const [customerName, setCustomerName] = useState("")
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [pointsToAward, setPointsToAward] = useState<Record<string, string>>({})
-  const [adjustingPointsId, setAdjustingPointsId] = useState<string | null>(null)
+  const [adjustingPointsById, setAdjustingPointsById] = useState<Record<string, boolean>>({})
   const abortRef = useRef<AbortController | null>(null)
   const loadRequestIdRef = useRef(0)
 
@@ -117,7 +117,7 @@ export default function AdminProfessionalManagementPage() {
       return
     }
 
-    setAdjustingPointsId(professionalId)
+    setAdjustingPointsById((prev) => ({ ...prev, [professionalId]: true }))
     try {
       const token = getAuthToken()
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/points/adjust`, {
@@ -145,7 +145,11 @@ export default function AdminProfessionalManagementPage() {
       console.error("Failed to reward professional points:", error)
       toast.error("Failed to reward points")
     } finally {
-      setAdjustingPointsId(null)
+      setAdjustingPointsById((prev) => {
+        const next = { ...prev }
+        delete next[professionalId]
+        return next
+      })
     }
   }
 
@@ -273,9 +277,9 @@ export default function AdminProfessionalManagementPage() {
                     <Button
                       size="sm"
                       onClick={() => void rewardProfessionalPoints(row._id)}
-                      disabled={adjustingPointsId === row._id}
+                      disabled={Boolean(adjustingPointsById[row._id])}
                     >
-                      {adjustingPointsId === row._id ? "Saving..." : "Reward"}
+                      {adjustingPointsById[row._id] ? "Saving..." : "Reward"}
                     </Button>
                   </div>
                   <Button variant="outline" onClick={() => void patchProfessional(row._id, { action: row.accountStatus === "suspended" ? "reactivate" : "suspend" })}>
