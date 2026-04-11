@@ -17,8 +17,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
 import StartChatButton from "@/components/chat/StartChatButton"
-import ReferralCard from "@/components/dashboard/ReferralCard"
-import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import {
   type BookingStatus,
   getBookingStatusMeta,
@@ -625,68 +623,91 @@ export default function CustomerDashboard() {
           </div>
         </div>
 
-        {/* Summary cards */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <Card className="bg-white/80 backdrop-blur border border-indigo-100 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-indigo-900">
-                <Package className="h-5 w-5 text-indigo-500" />
-                Total
-              </CardTitle>
-              <CardDescription>All quotes & bookings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold text-indigo-900">{totalBookings}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur border border-emerald-100 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-emerald-900">
-                <Clock className="h-5 w-5 text-emerald-500" />
-                Active
-              </CardTitle>
-              <CardDescription>In progress or awaiting action</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold text-emerald-900">{totalActive}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur border border-teal-100 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-teal-900">
-                <CheckCircle className="h-5 w-5 text-teal-500" />
-                Completed
-              </CardTitle>
-              <CardDescription>Finished bookings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold text-teal-900">{totalCompleted}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <BenefitsProgramCard />
-
-        {/* Referral Card */}
-        <ReferralCard />
-
-        {/* Tabs: Action Needed / Quotes / Bookings */}
-        <Tabs defaultValue="action_needed" className="space-y-6">
+        <Tabs defaultValue="quick_actions" className="space-y-6">
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
+              <TabsTrigger value="quick_actions" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
+                Quick Actions
+              </TabsTrigger>
               <TabsTrigger value="action_needed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 Action Needed {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
               </TabsTrigger>
-              <TabsTrigger value="quotes" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Quotes ({quoteBookings.length})
-              </TabsTrigger>
-              <TabsTrigger value="bookings" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Bookings ({activeBookings.length})
-              </TabsTrigger>
             </TabsList>
           </div>
+
+          <TabsContent value="quick_actions" className="space-y-6">
+            <div className="grid md:grid-cols-3 gap-4">
+              <Card className="bg-white/80 backdrop-blur border border-indigo-100 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-indigo-900">
+                    <Package className="h-5 w-5 text-indigo-500" />
+                    Total
+                  </CardTitle>
+                  <CardDescription>All quotes & bookings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-semibold text-indigo-900">{totalBookings}</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/80 backdrop-blur border border-emerald-100 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-emerald-900">
+                    <Clock className="h-5 w-5 text-emerald-500" />
+                    Active
+                  </CardTitle>
+                  <CardDescription>In progress or awaiting action</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-semibold text-emerald-900">{totalActive}</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/80 backdrop-blur border border-teal-100 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-teal-900">
+                    <CheckCircle className="h-5 w-5 text-teal-500" />
+                    Completed
+                  </CardTitle>
+                  <CardDescription>Finished bookings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-semibold text-teal-900">{totalCompleted}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Open the pages you use most without cluttering the main dashboard.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  <Button onClick={() => router.push("/")} className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Book Another Project
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push("/dashboard/quotes")} className="flex items-center gap-2">
+                    <GitCompareArrows className="h-4 w-4" />
+                    Quotes
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push("/dashboard/bookings")} className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Bookings
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push("/dashboard/benefits")} className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" />
+                    Benefits Program
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push("/profile")} className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" />
+                    Profile
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Action Needed Tab */}
           <TabsContent value="action_needed" className="space-y-4">
@@ -716,111 +737,8 @@ export default function CustomerDashboard() {
               </div>
             )}
           </TabsContent>
-
-          {/* Quotes Tab */}
-          <TabsContent value="quotes" className="space-y-4">
-            {renderSearchFilters(
-              quoteSearch, setQuoteSearch, debouncedQuoteSearch,
-              quoteStatusFilter, setQuoteStatusFilter, CUSTOMER_QUOTE_STATUS_FILTERS,
-              quoteServiceFilter, setQuoteServiceFilter,
-              "Search quotes..."
-            )}
-
-            {filteredQuotes.length > 1 && (
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500">
-                  {visibleSelectedCount > 0
-                    ? `${visibleSelectedCount} selected`
-                    : "Select quotes to compare"}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={visibleSelectedCount < 2}
-                  onClick={() => setShowComparison(true)}
-                  className="text-xs"
-                >
-                  <GitCompareArrows className="h-3.5 w-3.5 mr-1.5" />
-                  Compare ({visibleSelectedCount})
-                </Button>
-              </div>
-            )}
-
-            {bookingsLoading && renderLoadingSkeleton()}
-            {!bookingsLoading && bookingsError && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
-              </Card>
-            )}
-            {!bookingsLoading && !bookingsError && filteredQuotes.length === 0 && (
-              renderEmptyState(
-                quoteBookings.length === 0
-                  ? "No quotes yet. When you request a quote, it will appear here."
-                  : "No quotes match your filters."
-              )
-            )}
-            {!bookingsLoading && !bookingsError && filteredQuotes.length > 0 && (
-              <div className="space-y-4">
-                {filteredQuotes.map(b => renderBookingCard(b, "indigo", {
-                  selectable: true,
-                  selected: selectedQuoteIds.has(b._id),
-                  onToggle: () => toggleQuoteSelection(b._id),
-                }))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Bookings Tab */}
-          <TabsContent value="bookings" className="space-y-4">
-            {!bookingsLoading && !bookingsError && (
-              <BookingTimelineBoard
-                bookings={activeBookings}
-                viewerRole="customer"
-                onBookingUpdated={fetchAllBookings}
-                emptyLabel="No active customer bookings fall inside the centered two-month timeline."
-              />
-            )}
-
-            {renderSearchFilters(
-              bookingSearch, setBookingSearch, debouncedBookingSearch,
-              bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
-              bookingServiceFilter, setBookingServiceFilter,
-              "Search bookings..."
-            )}
-
-            {bookingsLoading && renderLoadingSkeleton()}
-            {!bookingsLoading && bookingsError && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
-              </Card>
-            )}
-            {!bookingsLoading && !bookingsError && filteredActiveBookings.length === 0 && (
-              renderEmptyState(
-                activeBookings.length === 0
-                  ? "No bookings yet. Once a quote is accepted, your booking will appear here."
-                  : "No bookings match your filters."
-              )
-            )}
-            {!bookingsLoading && !bookingsError && filteredActiveBookings.length > 0 && (
-              <div className="space-y-4">
-                {filteredActiveBookings.map(b => renderBookingCard(b, "indigo"))}
-              </div>
-            )}
-          </TabsContent>
         </Tabs>
       </div>
-
-      <QuoteComparisonModal
-        open={showComparison}
-        onOpenChange={(open) => {
-          setShowComparison(open)
-          if (!open) {
-            if (comparisonCleanupRef.current) clearTimeout(comparisonCleanupRef.current)
-            comparisonCleanupRef.current = setTimeout(() => setSelectedQuoteIds(new Set()), 300)
-          }
-        }}
-        bookings={comparisonBookings}
-      />
     </div>
   )
 }

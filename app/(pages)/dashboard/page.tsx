@@ -10,8 +10,6 @@ import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
-import ReferralCard from "@/components/dashboard/ReferralCard"
-import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
@@ -133,6 +131,7 @@ export default function DashboardPage() {
   const [warrantyAnalytics, setWarrantyAnalytics] = useState<WarrantyAnalytics | null>(null)
   const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
   const [isRunningRfqCheck, setIsRunningRfqCheck] = useState(false)
+  const [isRecalculatingProfessionalLevels, setIsRecalculatingProfessionalLevels] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
@@ -870,7 +869,7 @@ export default function DashboardPage() {
 
             <TabsContent value="loyalty" className="space-y-6">
               {/* Loyalty System Management */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-3 gap-6">
                 <Card className="border-violet-100 bg-gradient-to-br from-white via-violet-50 to-purple-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -913,13 +912,13 @@ export default function DashboardPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Settings className="h-5 w-5 text-gray-500" />
-                      Loyalty Configuration
+                      Loyalty And Points
                     </CardTitle>
-                    <CardDescription>Manage loyalty system settings</CardDescription>
+                    <CardDescription>Manage loyalty tiers, discounts, and points rewards</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <Button onClick={() => window.open('/admin/loyalty/config', '_blank')} className="w-full">
-                      Configure Loyalty Tiers
+                      Configure Loyalty And Points
                     </Button>
                     <Button
                       variant="outline"
@@ -934,6 +933,50 @@ export default function DashboardPage() {
                       className="w-full"
                     >
                       Recalculate All Tiers
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-blue-100 bg-gradient-to-br from-white via-blue-50 to-cyan-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Award className="h-5 w-5 text-blue-600" />
+                      Professional Levels
+                    </CardTitle>
+                    <CardDescription>Configure level thresholds, perks, and points boost rules</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Button onClick={() => window.open('/admin/professional-levels/config', '_blank')} className="w-full">
+                      Configure Professional Levels
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        if (isRecalculatingProfessionalLevels) return
+                        setIsRecalculatingProfessionalLevels(true)
+                        try {
+                          const token = getAuthToken()
+                          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/professional-levels/recalculate`, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                          })
+                          if (!response.ok) {
+                            throw new Error(`Request failed with status ${response.status}`)
+                          }
+                          await fetchAdminData()
+                          toast.success('Professional levels recalculated')
+                        } catch (error) {
+                          console.error('Failed to recalculate professional levels:', error)
+                          toast.error('Failed to recalculate professional levels')
+                        } finally {
+                          setIsRecalculatingProfessionalLevels(false)
+                        }
+                      }}
+                      disabled={isRecalculatingProfessionalLevels}
+                      className="w-full"
+                    >
+                      {isRecalculatingProfessionalLevels ? 'Recalculating...' : 'Recalculate Professional Levels'}
                     </Button>
                   </CardContent>
                 </Card>
@@ -1105,167 +1148,107 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <Tabs defaultValue="quick_actions" className="space-y-6">
+            <TabsList className="inline-flex h-auto min-w-full w-max rounded-md bg-muted p-1">
+              <TabsTrigger value="quick_actions">Quick Actions</TabsTrigger>
+              <TabsTrigger value="action_needed">
+                Action Needed {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Profile Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Profile Information
-                </CardTitle>
-                <CardDescription>Your professional account details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm">{user?.email}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm">{user?.phone}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm capitalize">{user?.role}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <TabsContent value="quick_actions">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Actions</CardTitle>
+                  <CardDescription>Keep the main dashboard focused and jump into the right workspace when needed.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/profile')}
+                      className="flex items-center gap-2"
+                    >
+                      <User className="h-4 w-4" />
+                      Edit Profile
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/dashboard/benefits')}
+                      className="flex items-center gap-2"
+                    >
+                      <Gift className="h-4 w-4" />
+                      Benefits Program
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/professional/projects/manage')}
+                      className="flex items-center gap-2"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      Manage Projects
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/dashboard/bookings')}
+                      className="flex items-center gap-2"
+                    >
+                      <Package className="h-4 w-4" />
+                      Manage Bookings
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/dashboard/quotes')}
+                      className="flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Manage Quotes
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/dashboard/payments')}
+                      className="flex items-center gap-2"
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      Payments & Stripe
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push(`/professional/${user?._id}`)}
+                      className="flex items-center gap-2"
+                    >
+                      <Star className="h-4 w-4" />
+                      My Reviews
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/dashboard/warranty-claims')}
+                      className="flex items-center gap-2"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Warranty Claims
+                    </Button>
+                    {(!user?.isEmailVerified || !user?.isPhoneVerified) && (
+                      <Button onClick={() => router.push('/verify-phone')} className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Complete Verification
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-            {/* Verification Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Verification Status
-                </CardTitle>
-                <CardDescription>Professional verification progress</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Email Verification</span>
-                  <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
-                    {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Phone Verification</span>
-                  <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
-                    {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quick Actions */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Common tasks for professionals</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/profile')}
-                  className="flex items-center gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  Edit Profile
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/professional/projects/manage')}
-                  className="flex items-center gap-2"
-                >
-                  <Briefcase className="h-4 w-4" />
-                  Manage Projects
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/dashboard/bookings')}
-                  className="flex items-center gap-2"
-                >
-                  <Package className="h-4 w-4" />
-                  Manage Bookings
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/dashboard/quotes')}
-                  className="flex items-center gap-2"
-                >
-                  <FileText className="h-4 w-4" />
-                  Manage Quotes
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/dashboard/payments')}
-                  className="flex items-center gap-2"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  Payments & Stripe
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push(`/professional/${user?._id}`)}
-                  className="flex items-center gap-2"
-                >
-                  <Star className="h-4 w-4" />
-                  My Reviews
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/dashboard/warranty-claims')}
-                  className="flex items-center gap-2"
-                >
-                  <Shield className="h-4 w-4" />
-                  Warranty Claims
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <BenefitsProgramCard />
-
-          {/* Referral Card */}
-          <ReferralCard />
-
-          {/* Account Stats */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Account Stats
-              </CardTitle>
-              <CardDescription>Your professional account activity</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Professional Since</span>
-                <span className="text-sm font-medium">
-                  {new Date(user?.createdAt || '').toLocaleDateString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Last Updated</span>
-                <span className="text-sm font-medium">
-                  {new Date(user?.updatedAt || '').toLocaleDateString()}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Action Needed Section */}
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Action Needed
-              </CardTitle>
-              <CardDescription>Quotations and bookings that are overdue or need your attention</CardDescription>
-            </CardHeader>
-            <CardContent>
+            <TabsContent value="action_needed">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    Action Needed
+                  </CardTitle>
+                  <CardDescription>Quotations and bookings that are overdue or need your attention</CardDescription>
+                </CardHeader>
+                <CardContent>
               {bookingsLoading && (
                 <div className="space-y-3 py-4">
                   {[1, 2, 3].map(i => (
@@ -1395,17 +1378,10 @@ export default function DashboardPage() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="mt-8 flex gap-4">
-            {(!user?.isEmailVerified || !user?.isPhoneVerified) && (
-              <Button onClick={() => router.push('/verify-phone')}>
-                Complete Verification
-              </Button>
-            )}
-          </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     )
