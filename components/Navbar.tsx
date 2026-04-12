@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 
 const otherLinks = [
   { name: "For Professionals", href: "/professionals" },
@@ -28,6 +29,12 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const { user, isAuthenticated, logout, loading } = useAuth();
   const { unreadCount, enabled: showChatIcon } = useUnreadCount();
+  const levelLabel =
+    user?.role === "customer"
+      ? user.loyaltyLevel || "Bronze"
+      : user?.role === "professional"
+        ? user.professionalLevel || "New"
+        : null;
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -108,7 +115,14 @@ const Navbar = () => {
                         <DropdownMenuContent className="w-56" align="end" forceMount>
                           <DropdownMenuLabel className="font-normal">
                             <div className="flex flex-col space-y-1">
-                              <p className="text-sm font-medium leading-none">{user?.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium leading-none">{user?.name}</p>
+                                {levelLabel && (
+                                  <Badge variant="outline" className="h-5 px-2 text-[10px]">
+                                    {levelLabel}
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-xs leading-none text-muted-foreground">
                                 {user?.email}
                               </p>
@@ -127,6 +141,14 @@ const Navbar = () => {
                               <span>Profile</span>
                             </Link>
                           </DropdownMenuItem>
+                          {(user?.role === "customer" || user?.role === "professional") && (
+                            <DropdownMenuItem asChild>
+                              <Link href="/dashboard/benefits">
+                                <User className="mr-2 h-4 w-4" />
+                                <span>Benefits Program</span>
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={logout}>
                             <LogOut className="mr-2 h-4 w-4" />
@@ -228,7 +250,14 @@ const Navbar = () => {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+                        {levelLabel && (
+                          <Badge variant="outline" className="h-5 px-2 text-[10px]">
+                            {levelLabel}
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 truncate">{user?.email}</p>
                     </div>
                 </div>
@@ -238,6 +267,11 @@ const Navbar = () => {
                   <Button asChild variant="outline" className="w-full">
                     <Link href="/profile">Profile</Link>
                   </Button>
+                  {(user?.role === "customer" || user?.role === "professional") && (
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href="/dashboard/benefits">Benefits Program</Link>
+                    </Button>
+                  )}
                   <Button onClick={logout} variant="outline" className="w-full">
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out

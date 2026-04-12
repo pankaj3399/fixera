@@ -67,8 +67,8 @@ interface ReferralAnalytics {
   expiredReferrals: number;
   revokedReferrals: number;
   conversionRate: number;
-  totalCreditsIssued: number;
-  currentCreditsBalance: number;
+  totalPointsIssued: number;
+  totalReferralPointsEarned: number;
   topReferrers: Array<{
     _id: string;
     name: string;
@@ -201,7 +201,7 @@ export default function AdminReferralPage() {
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const revokeReferral = async (referralId: string) => {
-    if (!window.confirm('Are you sure you want to revoke this referral? This will claw back any credits issued.')) {
+    if (!window.confirm('Are you sure you want to revoke this referral? This will claw back any points issued.')) {
       return;
     }
     if (revokingId) return; // prevent double-click
@@ -302,13 +302,13 @@ export default function AdminReferralPage() {
               <CardHeader>
                 <CardTitle>Referrer Rewards</CardTitle>
                 <CardDescription>
-                  Credits given to the person who refers
+                  Reward value for the person who refers. Customers use the value on bookings, professionals use it as points toward faster level growth.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Reward Amount (credits)</Label>
+                    <Label>Reward Amount (points / EUR value)</Label>
                     <Input
                       type="number"
                       min={0}
@@ -321,10 +321,10 @@ export default function AdminReferralPage() {
                         });
                       }}
                     />
-                    <p className="text-xs text-gray-500">1 credit = 1 EUR</p>
+                    <p className="text-xs text-gray-500">1 point currently equals 1 EUR of reward value.</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Credit Expiry (months)</Label>
+                    <Label>Reward Expiry (months)</Label>
                     <Input
                       type="number"
                       min={1}
@@ -570,10 +570,10 @@ export default function AdminReferralPage() {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 mb-2">
                     <Gift className="h-4 w-4 text-purple-600" />
-                    <p className="text-sm text-gray-500">Credits Issued</p>
+                    <p className="text-sm text-gray-500">Points Issued</p>
                   </div>
                   <p className="text-2xl font-bold">
-                    &euro;{analytics.totalCreditsIssued}
+                    &euro;{analytics.totalPointsIssued}
                   </p>
                 </CardContent>
               </Card>
@@ -581,10 +581,10 @@ export default function AdminReferralPage() {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 mb-2">
                     <Clock className="h-4 w-4 text-amber-600" />
-                    <p className="text-sm text-gray-500">Outstanding Credits</p>
+                    <p className="text-sm text-gray-500">Outstanding Points</p>
                   </div>
                   <p className="text-2xl font-bold">
-                    &euro;{analytics.currentCreditsBalance}
+                    &euro;{analytics.totalReferralPointsEarned}
                   </p>
                 </CardContent>
               </Card>
