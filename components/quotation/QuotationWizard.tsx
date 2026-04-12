@@ -37,7 +37,13 @@ const FIRST_MILESTONE: QuotationMilestone = {
   dueCondition: 'on_start',
 }
 
-const IMMEDIATELY_PAYABLE_CONDITIONS = ['on_start', 'on_milestone_start', 'custom_date'] as const
+const isImmediatelyPayableMilestone = (m: Pick<QuotationMilestone, 'dueCondition' | 'customDueDate'>): boolean => {
+  if (m.dueCondition === 'on_start' || m.dueCondition === 'on_milestone_start') return true
+  if (m.dueCondition === 'custom_date' && m.customDueDate) {
+    return new Date(m.customDueDate).getTime() <= Date.now()
+  }
+  return false
+}
 
 const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData => {
   if (existing) {
@@ -161,14 +167,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         toast.error('Please set a date for all milestones with custom date condition')
         return
       }
-      const hasImmediatelyPayable = validMilestones.some(m => {
-        if (m.dueCondition === 'on_start' || m.dueCondition === 'on_milestone_start') return true
-        if (m.dueCondition === 'custom_date' && m.customDueDate) {
-          return new Date(m.customDueDate).getTime() <= Date.now()
-        }
-        return false
-      })
-      if (!hasImmediatelyPayable) {
+      if (!validMilestones.some(isImmediatelyPayableMilestone)) {
         toast.error('At least one milestone must be payable up front. Set its due condition to "On Project Start" (typical deposit) so the customer can pay to kick off the work.')
         return
       }
@@ -416,7 +415,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                         </SelectContent>
                       </Select>
                     </div>
-                    {i === 0 && !['on_start', 'on_milestone_start', 'custom_date'].includes(ms.dueCondition) && (
+                    {i === 0 && !isImmediatelyPayableMilestone(ms) && (
                       <p className="text-xs text-amber-600">
                         Tip: the first milestone is typically an upfront deposit. Pick &quot;On Project Start&quot; so the customer can pay to kick off the work.
                       </p>
