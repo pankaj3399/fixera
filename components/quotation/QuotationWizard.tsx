@@ -32,6 +32,13 @@ const EMPTY_MILESTONE: QuotationMilestone = {
   status: 'pending',
 }
 
+const FIRST_MILESTONE: QuotationMilestone = {
+  ...EMPTY_MILESTONE,
+  dueCondition: 'on_start',
+}
+
+const IMMEDIATELY_PAYABLE_CONDITIONS = ['on_start', 'on_milestone_start', 'custom_date'] as const
+
 const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData => {
   if (existing) {
     return {
@@ -78,7 +85,7 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
     totalAmount: 0,
     currency: 'EUR',
     useMilestones: false,
-    milestones: [{ ...EMPTY_MILESTONE }],
+    milestones: [{ ...FIRST_MILESTONE }],
     preparationDuration: { value: 1, unit: 'days' },
     executionDuration: { value: 1, unit: 'days' },
     bufferDuration: { value: 0, unit: 'days' },
@@ -152,6 +159,17 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       const missingDate = validMilestones.find(m => m.dueCondition === 'custom_date' && !m.customDueDate)
       if (missingDate) {
         toast.error('Please set a date for all milestones with custom date condition')
+        return
+      }
+      const hasImmediatelyPayable = validMilestones.some(m => {
+        if (m.dueCondition === 'on_start' || m.dueCondition === 'on_milestone_start') return true
+        if (m.dueCondition === 'custom_date' && m.customDueDate) {
+          return new Date(m.customDueDate).getTime() <= Date.now()
+        }
+        return false
+      })
+      if (!hasImmediatelyPayable) {
+        toast.error('At least one milestone must be payable up front. Set its due condition to "On Project Start" (typical deposit) so the customer can pay to kick off the work.')
         return
       }
     }
@@ -398,6 +416,11 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                         </SelectContent>
                       </Select>
                     </div>
+                    {i === 0 && !['on_start', 'on_milestone_start', 'custom_date'].includes(ms.dueCondition) && (
+                      <p className="text-xs text-amber-600">
+                        Tip: the first milestone is typically an upfront deposit. Pick &quot;On Project Start&quot; so the customer can pay to kick off the work.
+                      </p>
+                    )}
                     {ms.dueCondition === 'custom_date' && (
                       <Input
                         type="date"

@@ -589,9 +589,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                       size="sm"
                       onClick={() => router.push(`/bookings/${booking._id}?action=quote`)}
                       className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                      title="Sends a single-amount quotation. To split into milestones, open View → Accept RFQ → Build Quotation."
                     >
                       <FileText className="h-3 w-3 mr-1" />
-                      Quote
+                      Quick Quote
                     </Button>
                   )}
                 </div>
