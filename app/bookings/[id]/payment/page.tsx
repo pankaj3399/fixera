@@ -234,13 +234,13 @@ export default function BookingPaymentPage() {
       if (typeof currentBooking?.selectedSubprojectIndex === 'number') {
         params.set('subprojectIndex', String(currentBooking.selectedSubprojectIndex));
       }
-      if (currentBooking?.executionDuration?.value) {
+      if (currentBooking?.executionDuration?.value != null) {
         params.set('executionValue', String(currentBooking.executionDuration.value));
         if (currentBooking.executionDuration.unit) {
           params.set('executionUnit', currentBooking.executionDuration.unit);
         }
       }
-      if (currentBooking?.preparationDuration?.value) {
+      if (currentBooking?.preparationDuration?.value != null) {
         params.set('preparationValue', String(currentBooking.preparationDuration.value));
         if (currentBooking.preparationDuration.unit) {
           params.set('preparationUnit', currentBooking.preparationDuration.unit);
@@ -342,13 +342,13 @@ export default function BookingPaymentPage() {
         if (scheduleMode === 'hours' && selectedStartTime) {
           params.set('startTime', selectedStartTime);
         }
-        if (booking?.executionDuration?.value) {
+        if (booking?.executionDuration?.value != null) {
           params.set('executionValue', String(booking.executionDuration.value));
           if (booking.executionDuration.unit) {
             params.set('executionUnit', booking.executionDuration.unit);
           }
         }
-        if (booking?.preparationDuration?.value) {
+        if (booking?.preparationDuration?.value != null) {
           params.set('preparationValue', String(booking.preparationDuration.value));
           if (booking.preparationDuration.unit) {
             params.set('preparationUnit', booking.preparationDuration.unit);

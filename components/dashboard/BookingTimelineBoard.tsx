@@ -631,6 +631,7 @@ export default function BookingTimelineBoard({
                           >
                             Extend Execution
                           </Button>
+                          {getNextMilestone(booking) === null && (
                           <Button
                             size="sm"
                             className="text-xs bg-emerald-600 text-white hover:bg-emerald-700"
@@ -644,6 +645,7 @@ export default function BookingTimelineBoard({
                             )}
                             Confirm Completion
                           </Button>
+                          )}
                         </>
                       )}
 

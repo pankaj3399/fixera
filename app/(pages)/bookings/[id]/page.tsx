@@ -2265,7 +2265,7 @@ export default function BookingDetailPage() {
                             {currentVersion.milestones.map((ms, i) => (
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
                                 <span className="text-gray-700">{ms.title}</span>
-                                <span className="font-medium">EUR {customerPrice(ms.amount).toFixed(2)}</span>
+                                <span className="font-medium">{booking.quote?.currency || 'EUR'} {customerPrice(ms.amount).toFixed(2)}</span>
                               </div>
                             ))}
                           </div>
@@ -2273,7 +2273,7 @@ export default function BookingDetailPage() {
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm font-semibold text-gray-900">Total</span>
-                        <span className="text-2xl font-bold text-green-600">EUR {customerPrice(currentVersion.totalAmount).toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-green-600">{booking.quote?.currency || 'EUR'} {customerPrice(currentVersion.totalAmount).toFixed(2)}</span>
                       </div>
                       <p className="text-xs text-gray-500">
                         Valid until: {formatValidUntilLabel(currentVersion?.validUntil)}
@@ -2298,7 +2298,7 @@ export default function BookingDetailPage() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">EUR {v.totalAmount.toFixed(2)}</p>
+                                <p className="text-xs text-gray-600">{booking.quote?.currency || 'EUR'} {v.totalAmount.toFixed(2)}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </div>
                             ))}
@@ -2343,7 +2343,7 @@ export default function BookingDetailPage() {
                     </div>
                     <div className="bg-white rounded-lg p-3 space-y-2 text-sm">
                       <p><span className="text-gray-500">Scope:</span> {currentVersion.scope}</p>
-                      <p><span className="text-gray-500">Total:</span> <strong>EUR {currentVersion.totalAmount.toFixed(2)}</strong></p>
+                      <p><span className="text-gray-500">Total:</span> <strong>{booking.quote?.currency || 'EUR'} {currentVersion.totalAmount.toFixed(2)}</strong></p>
                       <p><span className="text-gray-500">Valid until:</span> {formatValidUntilLabel(currentVersion?.validUntil)}</p>
                       <p className="text-xs text-gray-500">Waiting for customer response...</p>
                     </div>
@@ -2424,8 +2424,8 @@ export default function BookingDetailPage() {
                             </div>
                           </div>
                           <div className="flex justify-between text-xs text-gray-600">
-                            <span>EUR {customerPrice(completed).toFixed(2)} completed</span>
-                            <span>EUR {customerPrice(paid).toFixed(2)} paid</span>
+                            <span>{booking.quote?.currency || 'EUR'} {customerPrice(completed).toFixed(2)} completed</span>
+                            <span>{booking.quote?.currency || 'EUR'} {customerPrice(paid).toFixed(2)} paid</span>
                           </div>
                         </div>
                       )
@@ -2460,7 +2460,7 @@ export default function BookingDetailPage() {
                                 )}
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
-                                  <p className="text-xs text-gray-500">EUR {customerPrice(ms.amount).toFixed(2)}</p>
+                                  <p className="text-xs text-gray-500">{booking.quote?.currency || 'EUR'} {customerPrice(ms.amount).toFixed(2)}</p>
                                   {ms.startedAt && (
                                     <p className="text-[11px] text-gray-500">Started: {new Date(ms.startedAt).toLocaleDateString()}</p>
                                   )}
