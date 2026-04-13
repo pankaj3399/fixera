@@ -594,8 +594,10 @@ export default function BookingPaymentPage() {
       }
       setLoading(false);
 
-      // Check if payment is already authorized or completed
-      if (bookingInfo?.payment?.status === 'authorized' || bookingInfo?.payment?.status === 'completed') {
+      const hasUnpaidMilestones = Array.isArray(bookingInfo?.milestonePayments)
+        && bookingInfo.milestonePayments.some((milestone) => milestone.status !== 'paid');
+
+      if ((bookingInfo?.payment?.status === 'authorized' || bookingInfo?.payment?.status === 'completed') && !hasUnpaidMilestones) {
         router.push(`/bookings/${currentBookingId}/payment/success`);
         return;
       }
@@ -608,8 +610,7 @@ export default function BookingPaymentPage() {
 
       if (bookingInfo?.payment?.stripeClientSecret) {
         const paymentStatus = bookingInfo.payment.status || 'pending';
-        // Only use existing client secret if payment is pending or in a retriable state
-        if (!['failed', 'refunded', 'expired'].includes(paymentStatus)) {
+        if (paymentStatus === 'pending') {
           setClientSecret(bookingInfo.payment.stripeClientSecret);
           setInitializingPayment(false);
           return;
