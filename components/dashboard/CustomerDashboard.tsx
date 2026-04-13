@@ -688,14 +688,6 @@ export default function CustomerDashboard() {
                     <Plus className="h-4 w-4" />
                     Book Another Project
                   </Button>
-                  <Button variant="outline" onClick={() => router.push("/dashboard/quotes")} className="flex items-center gap-2">
-                    <GitCompareArrows className="h-4 w-4" />
-                    Quotes
-                  </Button>
-                  <Button variant="outline" onClick={() => router.push("/dashboard/bookings")} className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Bookings
-                  </Button>
                   <Button variant="outline" onClick={() => router.push("/dashboard/benefits")} className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4" />
                     Benefits Program
