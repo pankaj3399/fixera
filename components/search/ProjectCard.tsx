@@ -8,6 +8,7 @@ import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } f
 import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
 
 interface ProjectCardProps {
+  customerPrice: (value: number) => number;
   project: {
     _id: string;
     title: string;
@@ -92,9 +93,10 @@ interface ProjectCardProps {
   };
 }
 
-const ProjectCard = ({ project }: ProjectCardProps) => {
+const ProjectCard = ({ customerPrice, project }: ProjectCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
+  const formatAmount = (value: number) => `€${customerPrice(value).toLocaleString()}`;
   const professional = project.professionalId;
   const professionalName = professional?.username || professional?.name || 'Professional';
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]
@@ -123,11 +125,24 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
   };
 
   const formatSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
-    if (pricing.type === 'fixed' && pricing.amount) {
-      return `€${pricing.amount.toLocaleString()}`;
-    } else if (pricing.type === 'unit' && pricing.priceRange) {
-      return `€${pricing.priceRange.min}-€${pricing.priceRange.max}`;
-    } else if (pricing.type === 'rfq') {
+    const amount = pricing.amount;
+
+    if (pricing.type === 'fixed' && amount != null && Number.isFinite(amount)) {
+      return formatAmount(amount);
+    }
+    if (pricing.type === 'unit') {
+      if (
+        pricing.priceRange &&
+        Number.isFinite(pricing.priceRange.min) &&
+        Number.isFinite(pricing.priceRange.max)
+      ) {
+        return `${formatAmount(pricing.priceRange.min)}-${formatAmount(pricing.priceRange.max)}/unit`;
+      }
+      if (amount != null && Number.isFinite(amount)) {
+        return `${formatAmount(amount)}/unit`;
+      }
+    }
+    if (pricing.type === 'rfq') {
       return 'RFQ';
     }
     return 'Contact';

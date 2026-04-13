@@ -468,7 +468,7 @@ export default function ProfilePage() {
       try {
         setServiceCatalogLoading(true)
         setServiceCatalogError(null)
-        const country = user?.businessInfo?.country || 'BE'
+        const country = normalizeCountryCode(user?.businessInfo?.country || 'BE')
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=${encodeURIComponent(country)}`,
           { credentials: 'include', signal: controller.signal }

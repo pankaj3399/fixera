@@ -37,13 +37,40 @@ const FIRST_MILESTONE: QuotationMilestone = {
   dueCondition: 'on_start',
 }
 
+const toLocalDayTimestamp = (value: string): number => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return Number.NaN
+
+  const [, year, month, day] = match
+  return new Date(Number(year), Number(month) - 1, Number(day)).getTime()
+}
+
 const isImmediatelyPayableMilestone = (m: Pick<QuotationMilestone, 'dueCondition' | 'customDueDate'>): boolean => {
   if (m.dueCondition === 'on_start' || m.dueCondition === 'on_milestone_start') return true
   if (m.dueCondition === 'custom_date' && m.customDueDate) {
-    return new Date(m.customDueDate).getTime() <= Date.now()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const dueTimestamp = toLocalDayTimestamp(m.customDueDate)
+    return Number.isFinite(dueTimestamp) && dueTimestamp <= today.getTime()
   }
   return false
 }
+
+const isImmediatelyPayableAndPositive = (
+  m: Pick<QuotationMilestone, 'amount' | 'dueCondition' | 'customDueDate'>
+): boolean => isImmediatelyPayableMilestone(m) && m.amount > 0
+
+const getEarliestSubmittedMilestone = (
+  milestones: QuotationMilestone[]
+): QuotationMilestone | undefined =>
+  milestones
+    .filter((milestone) => milestone.title.trim())
+    .reduce<QuotationMilestone | undefined>(
+      (earliest, milestone) =>
+        !earliest || milestone.order < earliest.order ? milestone : earliest,
+      undefined
+    )
 
 const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData => {
   if (existing) {
@@ -66,7 +93,7 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
             order: m.order,
             status: 'pending' as const,
           }))
-        : [{ ...EMPTY_MILESTONE }],
+        : [{ ...FIRST_MILESTONE }],
       preparationDuration: { ...existing.preparationDuration },
       executionDuration: { ...existing.executionDuration },
       bufferDuration: existing.bufferDuration ? { ...existing.bufferDuration } : { value: 0, unit: 'days' },
@@ -104,6 +131,7 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
 export default function QuotationWizard({ bookingId, existingVersion, isEditing, commissionPercent, onSuccess, onCancel }: QuotationWizardProps) {
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
   const [submitting, setSubmitting] = useState(false)
+  const earliestSubmittedMilestone = getEarliestSubmittedMilestone(form.milestones)
 
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -167,7 +195,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         toast.error('Please set a date for all milestones with custom date condition')
         return
       }
-      if (!validMilestones.some(isImmediatelyPayableMilestone)) {
+      const earliestMilestone = getEarliestSubmittedMilestone(validMilestones)
+      if (!earliestMilestone || !isImmediatelyPayableAndPositive(earliestMilestone)) {
         toast.error('At least one milestone must be payable up front. Set its due condition to "On Project Start" (typical deposit) so the customer can pay to kick off the work.')
         return
       }
@@ -415,7 +444,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                         </SelectContent>
                       </Select>
                     </div>
-                    {i === 0 && !isImmediatelyPayableMilestone(ms) && (
+                    {earliestSubmittedMilestone?.order === ms.order && !isImmediatelyPayableAndPositive(ms) && (
                       <p className="text-xs text-amber-600">
                         Tip: the first milestone is typically an upfront deposit. Pick &quot;On Project Start&quot; so the customer can pay to kick off the work.
                       </p>

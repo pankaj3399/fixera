@@ -23,7 +23,7 @@ interface LoyaltyTier {
 
 interface LoyaltyConfig {
   globalSettings: {
-    enabled: boolean;
+    isEnabled: boolean;
   };
   tiers: LoyaltyTier[];
 }
@@ -37,13 +37,45 @@ interface PointsConfig {
   customerEarningPerBooking: number;
 }
 
+type LoyaltyConfigResponse = Partial<LoyaltyConfig> & {
+  globalSettings?: Partial<LoyaltyConfig['globalSettings']> & {
+    enabled?: boolean;
+  };
+};
+
+const normalizeLoyaltyConfig = (
+  config: LoyaltyConfigResponse | null | undefined,
+  fallback: LoyaltyConfig
+): LoyaltyConfig => {
+  const globalSettings = config?.globalSettings;
+  const normalizedGlobalSettings = globalSettings
+    ? Object.fromEntries(
+        Object.entries(globalSettings).filter(([key]) => key !== 'enabled')
+      ) as Partial<LoyaltyConfig['globalSettings']>
+    : {};
+
+  return {
+    ...fallback,
+    ...config,
+    globalSettings: {
+      ...fallback.globalSettings,
+      ...normalizedGlobalSettings,
+      isEnabled:
+        globalSettings?.isEnabled ??
+        globalSettings?.enabled ??
+        fallback.globalSettings?.isEnabled,
+    },
+    tiers: Array.isArray(config?.tiers) ? config.tiers : fallback.tiers,
+  };
+};
+
 export default function LoyaltyConfigPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   
   const [config, setConfig] = useState<LoyaltyConfig>({
     globalSettings: {
-      enabled: true,
+      isEnabled: true,
     },
     tiers: [
       {
@@ -82,6 +114,7 @@ export default function LoyaltyConfigPage() {
   })
   const [pointsConfig, setPointsConfig] = useState<PointsConfig | null>(null)
   const [pointsConfigLoaded, setPointsConfigLoaded] = useState(false)
+  const [loyaltyConfigLoaded, setLoyaltyConfigLoaded] = useState(false)
   
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -100,6 +133,7 @@ export default function LoyaltyConfigPage() {
 
   const fetchConfig = async () => {
     setIsLoading(true)
+    setLoyaltyConfigLoaded(false)
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
@@ -119,7 +153,18 @@ export default function LoyaltyConfigPage() {
 
       if (loyaltyResponse.ok) {
         const data = await loyaltyResponse.json()
-        setConfig(data.data.config)
+        const cfg = data?.data?.config
+
+        if (cfg !== undefined) {
+          setConfig((prev) => normalizeLoyaltyConfig(cfg, prev))
+          setLoyaltyConfigLoaded(true)
+        } else {
+          console.error('Malformed loyalty config response:', data)
+          toast.error('Loyalty configuration response was malformed. Save remains disabled until the real config loads.')
+          setLoyaltyConfigLoaded(false)
+        }
+      } else {
+        setLoyaltyConfigLoaded(false)
       }
 
       if (pointsResponse.ok) {
@@ -132,6 +177,7 @@ export default function LoyaltyConfigPage() {
       }
     } catch (error) {
       console.error('Failed to fetch loyalty config:', error)
+      setLoyaltyConfigLoaded(false)
       setPointsConfig(null)
       setPointsConfigLoaded(false)
     } finally {
@@ -140,6 +186,11 @@ export default function LoyaltyConfigPage() {
   }
 
   const saveConfig = async () => {
+    if (!loyaltyConfigLoaded) {
+      toast.error('Loyalty configuration could not be loaded, so save is disabled to avoid overwriting it with defaults.')
+      return
+    }
+
     const invalidPercentageTier = config.tiers.find(
       (tier) =>
         !Number.isFinite(tier.discountPercentage) ||
@@ -203,6 +254,8 @@ export default function LoyaltyConfigPage() {
       setIsSaving(false)
     }
   }
+
+  const canSaveConfig = loyaltyConfigLoaded && !isLoading && !isSaving
 
   const addTier = () => {
     setConfig(prev => ({
@@ -340,7 +393,7 @@ export default function LoyaltyConfigPage() {
             <Button onClick={() => router.push('/admin/professional-levels/config')} variant="outline">
               Professional Levels
             </Button>
-            <Button onClick={saveConfig} disabled={isSaving}>
+            <Button onClick={saveConfig} disabled={!canSaveConfig}>
               <Save className="h-4 w-4 mr-2" />
               {isSaving ? 'Saving...' : 'Save Configuration'}
             </Button>
@@ -391,10 +444,10 @@ export default function LoyaltyConfigPage() {
                   <Label>
                     <input
                       type="checkbox"
-                      checked={config.globalSettings.enabled}
+                      checked={config.globalSettings.isEnabled}
                       onChange={(e) => setConfig(prev => ({
                         ...prev,
-                        globalSettings: { ...prev.globalSettings, enabled: e.target.checked }
+                        globalSettings: { ...prev.globalSettings, isEnabled: e.target.checked }
                       }))}
                       className="mr-2"
                     />
@@ -638,7 +691,7 @@ export default function LoyaltyConfigPage() {
 
             {/* Save Button */}
             <div className="flex justify-end pt-6">
-              <Button onClick={saveConfig} disabled={isSaving} size="lg">
+              <Button onClick={saveConfig} disabled={!canSaveConfig} size="lg">
                 <Save className="h-4 w-4 mr-2" />
                 {isSaving ? 'Saving Configuration...' : 'Save Configuration'}
               </Button>
