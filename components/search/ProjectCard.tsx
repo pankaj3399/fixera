@@ -131,7 +131,7 @@ const ProjectCard = ({ project }: ProjectCardProps) => {
     }
     if (pricing.type === 'unit') {
       if (pricing.priceRange && (pricing.priceRange.min || pricing.priceRange.max)) {
-        return `${formatAmount(pricing.priceRange.min)}-${formatAmount(pricing.priceRange.max)}`;
+        return `${formatAmount(pricing.priceRange.min)}-${formatAmount(pricing.priceRange.max)}/unit`;
       }
       if (pricing.amount) {
         return `${formatAmount(pricing.amount)}/unit`;
