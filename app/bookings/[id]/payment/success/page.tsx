@@ -71,8 +71,8 @@ export default function PaymentSuccessPage() {
     : 'N/A';
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8">
+    <div className="min-h-screen bg-gray-50 flex items-start justify-center px-4 pt-24 pb-6">
+      <div className="max-w-md w-full max-h-[calc(100vh-7rem)] overflow-y-auto bg-white shadow-lg rounded-lg p-8">
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
             <svg
