@@ -623,19 +623,25 @@ export default function CustomerDashboard() {
           </div>
         </div>
 
-        <Tabs defaultValue="quick_actions" className="space-y-6">
+        <Tabs defaultValue="my_bookings" className="space-y-6">
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
-              <TabsTrigger value="quick_actions" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Quick Actions
+              <TabsTrigger value="my_bookings" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
+                My Bookings {activeBookings.length > 0 && `(${activeBookings.length})`}
+              </TabsTrigger>
+              <TabsTrigger value="my_quotes" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
+                My Quotes {quoteBookings.length > 0 && `(${quoteBookings.length})`}
               </TabsTrigger>
               <TabsTrigger value="action_needed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 Action Needed {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
               </TabsTrigger>
+              <TabsTrigger value="quick_actions" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
+                Quick Actions
+              </TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="quick_actions" className="space-y-6">
+          <TabsContent value="my_bookings" className="space-y-6">
             <div className="grid md:grid-cols-3 gap-4">
               <Card className="bg-white/80 backdrop-blur border border-indigo-100 shadow-sm">
                 <CardHeader>
@@ -677,6 +683,79 @@ export default function CustomerDashboard() {
               </Card>
             </div>
 
+            {bookingsLoading && renderLoadingSkeleton()}
+            {!bookingsLoading && bookingsError && (
+              <Card className="bg-rose-50 border border-rose-100">
+                <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
+              </Card>
+            )}
+            {!bookingsLoading && !bookingsError && (
+              <>
+                {renderSearchFilters(
+                  bookingSearch, setBookingSearch, debouncedBookingSearch,
+                  bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
+                  bookingServiceFilter, setBookingServiceFilter,
+                  "Search bookings..."
+                )}
+                {filteredActiveBookings.length > 0 && (
+                  <BookingTimelineBoard bookings={filteredActiveBookings} viewerRole="customer" />
+                )}
+                {filteredActiveBookings.length === 0 && (
+                  renderEmptyState("No bookings match your filters.")
+                )}
+                {filteredActiveBookings.length > 0 && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {filteredActiveBookings.map(b => renderBookingCard(b, "emerald"))}
+                  </div>
+                )}
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="my_quotes" className="space-y-6">
+            {bookingsLoading && renderLoadingSkeleton()}
+            {!bookingsLoading && bookingsError && (
+              <Card className="bg-rose-50 border border-rose-100">
+                <CardContent className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
+              </Card>
+            )}
+            {!bookingsLoading && !bookingsError && (
+              <>
+                {renderSearchFilters(
+                  quoteSearch, setQuoteSearch, debouncedQuoteSearch,
+                  quoteStatusFilter, setQuoteStatusFilter, CUSTOMER_QUOTE_STATUS_FILTERS,
+                  quoteServiceFilter, setQuoteServiceFilter,
+                  "Search quotes..."
+                )}
+                {visibleSelectedCount >= 2 && (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      onClick={() => setShowComparison(true)}
+                      className="text-xs"
+                    >
+                      <GitCompareArrows className="h-3 w-3 mr-1" />
+                      Compare {visibleSelectedCount} quotes
+                    </Button>
+                  </div>
+                )}
+                {filteredQuotes.length === 0 && (
+                  renderEmptyState("No quotes match your filters.")
+                )}
+                {filteredQuotes.length > 0 && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {filteredQuotes.map(b => renderBookingCard(b, "indigo", {
+                      selectable: true,
+                      selected: selectedQuoteIds.has(b._id),
+                      onToggle: () => toggleQuoteSelection(b._id),
+                    }))}
+                  </div>
+                )}
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="quick_actions" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
@@ -730,6 +809,20 @@ export default function CustomerDashboard() {
             )}
           </TabsContent>
         </Tabs>
+
+        {comparisonBookings.length >= 2 && (
+          <QuoteComparisonModal
+            open={showComparison}
+            onOpenChange={(open) => {
+              setShowComparison(open)
+              if (!open) {
+                if (comparisonCleanupRef.current) clearTimeout(comparisonCleanupRef.current)
+                comparisonCleanupRef.current = setTimeout(() => setSelectedQuoteIds(new Set()), 300)
+              }
+            }}
+            bookings={comparisonBookings}
+          />
+        )}
       </div>
     </div>
   )
