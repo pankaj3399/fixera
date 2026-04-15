@@ -204,7 +204,7 @@ export default function ProfessionalLevelConfigPage() {
               <Award className="h-8 w-8 text-indigo-600" />
               Professional Level Configuration
             </h1>
-            <p className="mt-1 text-gray-600">Configure the rules, perks, and point boost logic for every professional level.</p>
+            <p className="mt-1 text-gray-600">Configure the rules, perks, quote response thresholds, and points-to-booking conversion for every professional level.</p>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => router.push("/admin/loyalty/config")}>
@@ -285,7 +285,7 @@ export default function ProfessionalLevelConfigPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Response Rate</Label>
+                  <Label>Quote Response Rate</Label>
                   <Input
                     type="number"
                     min="0"
@@ -334,13 +334,14 @@ export default function ProfessionalLevelConfigPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Points Boost Ratio</Label>
+                  <Label>Points to Booking Conversion</Label>
                   <Input
                     type="number"
                     min="1"
                     value={level.pointsBoostRatio}
                     onChange={(e) => updateLevel(index, { ...level, pointsBoostRatio: Number(e.target.value) || 1 })}
                   />
+                  <p className="text-xs text-gray-500">Points required for 1 extra booking credit toward level progression.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Color</Label>
@@ -380,7 +381,8 @@ export default function ProfessionalLevelConfigPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-gray-600">
-            <p>Points boost ratio controls how many points equal one additional booking credit toward progression.</p>
+            <p>Quote response rate measures RFQs that received a quote out of total RFQs received.</p>
+            <p>Points-to-booking conversion controls how many points are required for one additional booking credit toward progression.</p>
             <p>Saving this page updates the level rules used for automatic progression and the admin override experience.</p>
           </CardContent>
         </Card>
