@@ -468,7 +468,7 @@ export default function ProfilePage() {
       try {
         setServiceCatalogLoading(true)
         setServiceCatalogError(null)
-        const country = normalizeCountryCode(user?.businessInfo?.country || 'BE')
+        const country = normalizeCountryCode(businessInfo.country || user?.businessInfo?.country || 'BE')
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=${encodeURIComponent(country)}`,
           { credentials: 'include', signal: controller.signal }
@@ -495,7 +495,7 @@ export default function ProfilePage() {
     return () => {
       controller.abort()
     }
-  }, [user?.role, user?.businessInfo?.country])
+  }, [user?.role, user?.businessInfo?.country, businessInfo.country])
 
   useEffect(() => {
     if (loading || !isAuthenticated || user?.role !== 'professional') {
@@ -1455,11 +1455,6 @@ export default function ProfilePage() {
   const hasVatChanges = vatNumber !== (user?.vatNumber || '')
   const canValidate = vatNumber.trim() && vatNumber !== (user?.vatNumber || '')
 
-  const fallbackServiceOptions = [
-    'Plumbing', 'Electrical', 'Carpentry', 'Painting', 'Cleaning',
-    'IT Support', 'Home Repair', 'Gardening', 'Moving', 'Tutoring'
-  ]
-
   const isProfessional = user?.role === 'professional'
   const stripePayoutsEnabled = Boolean(stripeAccountStatus?.payoutsEnabled ?? stripeAccountStatus?.payouts_enabled)
   const isStripeFullyReady = Boolean(
@@ -2067,19 +2062,9 @@ export default function ProfilePage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                          {fallbackServiceOptions.map((service) => (
-                            <Button
-                              key={service}
-                              type="button"
-                              variant={serviceCategories.includes(service) ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleServiceCategoryToggle(service)}
-                            >
-                              {service}
-                            </Button>
-                          ))}
-                        </div>
+                        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                          No services available for your country. Please make sure your country is set correctly above; the list will update when you change the country.
+                        </p>
                       )
                     )}
                   </div>

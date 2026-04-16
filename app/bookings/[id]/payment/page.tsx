@@ -5,13 +5,17 @@
  * Customer payment page for a specific booking
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { StripeProvider } from '@/components/stripe/StripeProvider';
 import { PaymentForm } from '@/components/stripe/PaymentForm';
-import { FileText, Loader2 } from 'lucide-react';
+import { FileText, Loader2, Calendar } from 'lucide-react';
 import type { ProjectAttachmentRef, ProjectDto } from '@/types/project';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { format, addDays, parseISO, startOfDay, isWeekend as dateFnsIsWeekend, eachDayOfInterval } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/dist/style.css';
 
 interface BookingPayment {
   stripeClientSecret?: string;
@@ -63,6 +67,19 @@ interface BookingMilestone {
   status?: string;
 }
 
+interface QuoteVersionDuration {
+  value: number;
+  unit: 'hours' | 'days';
+}
+
+interface QuoteVersion {
+  version?: number;
+  preparationDuration?: QuoteVersionDuration;
+  executionDuration?: QuoteVersionDuration;
+  bufferDuration?: QuoteVersionDuration;
+  [key: string]: unknown;
+}
+
 interface Booking {
   bookingNumber?: string;
   payment?: BookingPayment;
@@ -76,8 +93,8 @@ interface Booking {
   milestonePayments?: BookingMilestone[];
   quotationNumber?: string;
   selectedSubprojectIndex?: number;
-  executionDuration?: { value: number; unit: 'hours' | 'days' };
-  preparationDuration?: { value: number; unit: 'hours' | 'days' };
+  quoteVersions?: QuoteVersion[];
+  currentQuoteVersion?: number;
   selectedExtraOptions?: Array<{ extraOptionId: string; bookedPrice: number } | number>;
   postBookingData?: Array<{
     questionId: string;
@@ -86,14 +103,46 @@ interface Booking {
   }>;
 }
 
+interface ProposalWindow {
+  start: string;
+  end: string;
+  executionEnd: string;
+}
+
 interface ScheduleProposals {
   mode: 'hours' | 'days';
   earliestBookableDate: string;
-  earliestProposal?: {
-    start: string;
-    end: string;
-    executionEnd: string;
-  };
+  earliestProposal?: ProposalWindow;
+  shortestThroughputProposal?: ProposalWindow;
+}
+
+interface ResourcePolicy {
+  minResources: number;
+  totalResources: number;
+  minOverlapPercentage: number;
+}
+
+interface BlockedRange {
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}
+
+interface AvailabilityData {
+  blockedDates: string[];
+  blockedRanges: BlockedRange[];
+  resourcePolicy?: ResourcePolicy;
+  timezone?: string;
+}
+
+interface DayAvailability {
+  available?: boolean;
+  startTime?: string;
+  endTime?: string;
+}
+
+interface ProfessionalAvailability {
+  [day: string]: DayAvailability;
 }
 
 interface ScheduleWindowPreview {
@@ -132,7 +181,8 @@ export default function BookingPaymentPage() {
   const router = useRouter();
   const params = useParams();
   const bookingId = params.id as string;
-  const { customerPrice } = useCommissionRate();
+  const { commissionPercent, customerPrice } = useCommissionRate();
+  const commissionLoaded = commissionPercent != null;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -156,8 +206,67 @@ export default function BookingPaymentPage() {
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>([]);
   const [postBookingAnswers, setPostBookingAnswers] = useState<Record<number, string>>({});
   const [uploadingPostBookingQuestionIndexes, setUploadingPostBookingQuestionIndexes] = useState<Set<number>>(new Set());
+  const [availabilityData, setAvailabilityData] = useState<AvailabilityData | null>(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [professionalAvailability, setProfessionalAvailability] = useState<ProfessionalAvailability | null>(null);
+  const [loadingWorkingHours, setLoadingWorkingHours] = useState(false);
+  const [professionalTimezone, setProfessionalTimezone] = useState('UTC');
+  const [showCalendar, setShowCalendar] = useState(false);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+
+  const getQuotedDurations = (b: Booking | null) => {
+    if (!b?.quoteVersions?.length) return { execution: null, preparation: null, buffer: null };
+    const version = b.currentQuoteVersion != null
+      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion)
+      : b.quoteVersions[b.quoteVersions.length - 1];
+    if (!version) return { execution: null, preparation: null, buffer: null };
+    return {
+      execution: version.executionDuration ?? null,
+      preparation: version.preparationDuration ?? null,
+      buffer: version.bufferDuration ?? null,
+    };
+  };
+
+  const isProfessionalWorkingDay = useCallback((date: Date): boolean => {
+    if (!professionalAvailability) return true;
+    const weekday = formatInTimeZone(date, professionalTimezone, 'EEEE').toLowerCase();
+    const dayConfig = professionalAvailability[weekday];
+    if (!dayConfig) return true;
+    if (typeof dayConfig.available === 'boolean') return dayConfig.available;
+    return true;
+  }, [professionalAvailability, professionalTimezone]);
+
+  const toLocalDateKey = useCallback((date: Date) => formatInTimeZone(date, professionalTimezone, 'yyyy-MM-dd'), [professionalTimezone]);
+
+  const isDateBlocked = useCallback((dateStr: string): boolean => {
+    if (!availabilityData) return false;
+    if (availabilityData.blockedDates.includes(dateStr)) return true;
+    return availabilityData.blockedRanges.some(r => dateStr >= r.startDate && dateStr <= r.endDate);
+  }, [availabilityData]);
+
+  const shortestThroughputDetails = useMemo(() => {
+    if (!scheduleProposals?.shortestThroughputProposal?.start ||
+        !scheduleProposals.shortestThroughputProposal?.executionEnd) return null;
+    try {
+      const startUtc = parseISO(scheduleProposals.shortestThroughputProposal.start);
+      const endUtc = parseISO(scheduleProposals.shortestThroughputProposal.executionEnd);
+      if (Number.isNaN(startUtc.getTime()) || Number.isNaN(endUtc.getTime())) return null;
+      const diffMs = endUtc.getTime() - startUtc.getTime();
+      const totalDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      return { startDate: startUtc, endDate: endUtc, totalDays };
+    } catch { return null; }
+  }, [scheduleProposals]);
+
+  const shortestWindowDates = useMemo(() => {
+    if (!shortestThroughputDetails) return [];
+    try {
+      return eachDayOfInterval({
+        start: shortestThroughputDetails.startDate,
+        end: shortestThroughputDetails.endDate,
+      }).filter(d => isProfessionalWorkingDay(d) && !dateFnsIsWeekend(d));
+    } catch { return []; }
+  }, [shortestThroughputDetails, isProfessionalWorkingDay]);
 
   const storedExtrasToIndexes = (
     stored: Booking['selectedExtraOptions'],
@@ -234,17 +343,18 @@ export default function BookingPaymentPage() {
       if (typeof currentBooking?.selectedSubprojectIndex === 'number') {
         params.set('subprojectIndex', String(currentBooking.selectedSubprojectIndex));
       }
-      if (currentBooking?.executionDuration?.value != null) {
-        params.set('executionValue', String(currentBooking.executionDuration.value));
-        if (currentBooking.executionDuration.unit) {
-          params.set('executionUnit', currentBooking.executionDuration.unit);
-        }
+      const quoted = getQuotedDurations(currentBooking);
+      if (quoted.execution?.value != null) {
+        params.set('executionValue', String(quoted.execution.value));
+        if (quoted.execution.unit) params.set('executionUnit', quoted.execution.unit);
       }
-      if (currentBooking?.preparationDuration?.value != null) {
-        params.set('preparationValue', String(currentBooking.preparationDuration.value));
-        if (currentBooking.preparationDuration.unit) {
-          params.set('preparationUnit', currentBooking.preparationDuration.unit);
-        }
+      if (quoted.preparation?.value != null) {
+        params.set('preparationValue', String(quoted.preparation.value));
+        if (quoted.preparation.unit) params.set('preparationUnit', quoted.preparation.unit);
+      }
+      if (quoted.buffer?.value != null) {
+        params.set('bufferValue', String(quoted.buffer.value));
+        if (quoted.buffer.unit) params.set('bufferUnit', quoted.buffer.unit);
       }
 
       const response = await fetch(
@@ -270,6 +380,63 @@ export default function BookingPaymentPage() {
     }
   }, [API_URL]);
 
+  const loadAvailability = useCallback(async (currentBooking: Booking | null) => {
+    const projectId = currentBooking?.project?._id;
+    if (!projectId) return;
+
+    setLoadingAvailability(true);
+    try {
+      let url = `${API_URL}/api/public/projects/${encodeURIComponent(projectId)}/availability`;
+      if (typeof currentBooking?.selectedSubprojectIndex === 'number') {
+        url += `?subprojectIndex=${currentBooking.selectedSubprojectIndex}`;
+      }
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.success) {
+        const tz = data.timezone || 'UTC';
+        setProfessionalTimezone(tz);
+        const normalizedDates = (data.blockedDates || []).map((d: string) => {
+          try { return formatInTimeZone(parseISO(d), tz, 'yyyy-MM-dd'); } catch { return d; }
+        });
+        const normalizedRanges = (data.blockedRanges || []).map((r: BlockedRange) => ({
+          ...r,
+          startDate: (() => { try { return formatInTimeZone(parseISO(r.startDate), tz, 'yyyy-MM-dd'); } catch { return r.startDate; } })(),
+          endDate: (() => { try { return formatInTimeZone(parseISO(r.endDate), tz, 'yyyy-MM-dd'); } catch { return r.endDate; } })(),
+        }));
+        setAvailabilityData({
+          blockedDates: normalizedDates,
+          blockedRanges: normalizedRanges,
+          resourcePolicy: data.resourcePolicy,
+          timezone: tz,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load availability:', err);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  }, [API_URL]);
+
+  const loadWorkingHours = useCallback(async (currentBooking: Booking | null) => {
+    const projectId = currentBooking?.project?._id;
+    if (!projectId) return;
+
+    setLoadingWorkingHours(true);
+    try {
+      const response = await fetch(
+        `${API_URL}/api/public/projects/${encodeURIComponent(projectId)}/working-hours`
+      );
+      const data = await response.json();
+      if (data.success && data.availability) {
+        setProfessionalAvailability(data.availability);
+      }
+    } catch (err) {
+      console.error('Failed to load working hours:', err);
+    } finally {
+      setLoadingWorkingHours(false);
+    }
+  }, [API_URL]);
+
   useEffect(() => {
     if (!scheduleStep || !booking?.project?._id || !scheduleProposals) {
       return;
@@ -279,9 +446,8 @@ export default function BookingPaymentPage() {
     const proposalDate = scheduleProposals.earliestProposal?.start?.slice(0, 10) || fallbackDate;
     const proposalTime = scheduleProposals.earliestProposal?.start?.slice(11, 16) || '';
 
-    setSelectedStartDate((prev) => prev || proposalDate);
-
     if (scheduleProposals.mode === 'hours') {
+      setSelectedStartDate((prev) => prev || proposalDate);
       setSelectedStartTime((prev) => prev || proposalTime);
     } else {
       setSelectedStartTime('');
@@ -342,17 +508,18 @@ export default function BookingPaymentPage() {
         if (scheduleMode === 'hours' && selectedStartTime) {
           params.set('startTime', selectedStartTime);
         }
-        if (booking?.executionDuration?.value != null) {
-          params.set('executionValue', String(booking.executionDuration.value));
-          if (booking.executionDuration.unit) {
-            params.set('executionUnit', booking.executionDuration.unit);
-          }
+        const quoted = getQuotedDurations(booking);
+        if (quoted.execution?.value != null) {
+          params.set('executionValue', String(quoted.execution.value));
+          if (quoted.execution.unit) params.set('executionUnit', quoted.execution.unit);
         }
-        if (booking?.preparationDuration?.value != null) {
-          params.set('preparationValue', String(booking.preparationDuration.value));
-          if (booking.preparationDuration.unit) {
-            params.set('preparationUnit', booking.preparationDuration.unit);
-          }
+        if (quoted.preparation?.value != null) {
+          params.set('preparationValue', String(quoted.preparation.value));
+          if (quoted.preparation.unit) params.set('preparationUnit', quoted.preparation.unit);
+        }
+        if (quoted.buffer?.value != null) {
+          params.set('bufferValue', String(quoted.buffer.value));
+          if (quoted.buffer.unit) params.set('bufferUnit', quoted.buffer.unit);
         }
 
         const response = await fetch(
@@ -608,6 +775,8 @@ export default function BookingPaymentPage() {
       if ((bookingInfo?.status === 'quote_accepted' || bookingInfo?.status === 'payment_pending') && !bookingInfo?.scheduledStartDate) {
         setScheduleStep(true);
         void loadScheduleProposals(bookingInfo);
+        void loadAvailability(bookingInfo);
+        void loadWorkingHours(bookingInfo);
         return;
       }
 
@@ -645,7 +814,7 @@ export default function BookingPaymentPage() {
       setError(err instanceof Error ? err.message : 'Failed to load payment details');
       setLoading(false);
     }
-  }, [API_URL, ensurePaymentIntent, loadScheduleProposals, router]);
+  }, [API_URL, ensurePaymentIntent, loadScheduleProposals, loadAvailability, loadWorkingHours, router]);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -804,16 +973,13 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Professional:</span>
                   <span className="font-medium text-gray-900">
-                    {booking?.professional?.businessInfo?.companyName
-                      || booking?.professional?.name
-                      || booking?.professional?.username
-                      || 'N/A'}
+                    {booking?.professional?.username || 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Quote Amount:</span>
                   <span className="font-medium text-gray-900">
-                    {formatMoney(customerPrice(booking?.quote?.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                    {formatMoney(booking?.quote?.amount ?? 0, booking?.quote?.currency?.toUpperCase() || 'EUR')}
                   </span>
                 </div>
                 {booking?.milestonePayments && booking.milestonePayments.length > 0 && (
@@ -823,7 +989,7 @@ export default function BookingPaymentPage() {
                       {booking.milestonePayments.map((m, i) => (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-gray-600">{m.title || `Milestone ${i + 1}`}</span>
-                          <span className="text-gray-900">{formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR')}</span>
+                          <span className="text-gray-900">{commissionLoaded ? formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR') : '...'}</span>
                         </div>
                       ))}
                     </div>
@@ -838,18 +1004,29 @@ export default function BookingPaymentPage() {
             </div>
 
             <div className="px-6 py-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Start Date</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Choose Preferred Start Date</h2>
               <p className="text-sm text-gray-600 mb-4">
                 {requiresProjectSchedule
-                  ? 'Choose an available slot based on the linked project schedule.'
+                  ? 'Select when you\'d like the work to begin. Dates when team members are unavailable are disabled.'
                   : 'Choose when you would like the work to begin.'}
               </p>
 
+              {availabilityData?.resourcePolicy && availabilityData.resourcePolicy.minResources > 1 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Team requirement:</span>{' '}
+                    {availabilityData.resourcePolicy.minResources} of{' '}
+                    {availabilityData.resourcePolicy.totalResources} team members must be available
+                    for at least {availabilityData.resourcePolicy.minOverlapPercentage}% of the scheduled time.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-4">
-                {loadingScheduleProposals && (
+                {(loadingScheduleProposals || loadingAvailability || loadingWorkingHours) && (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Checking project availability...
+                    Loading availability and working hours...
                   </div>
                 )}
                 {scheduleProposalsFailed && !loadingScheduleProposals && (
@@ -862,32 +1039,99 @@ export default function BookingPaymentPage() {
                     Waiting for project availability before enabling scheduling.
                   </div>
                 )}
-                {scheduleProposals?.earliestBookableDate && (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-                    <p>
-                      Earliest schedulable date: <span className="font-semibold">{scheduleProposals.earliestBookableDate.slice(0, 10)}</span>
-                    </p>
+
+                {!loadingScheduleProposals && !loadingAvailability && !loadingWorkingHours && (scheduleProposals || !requiresProjectSchedule) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {requiresProjectSchedule ? 'Available Start Date *' : 'Preferred Start Date *'}
+                    </label>
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-start text-left font-normal h-10 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
+                        onClick={() => setShowCalendar(!showCalendar)}
+                      >
+                        <Calendar className="mr-2 h-4 w-4 text-gray-500" />
+                        {selectedStartDate
+                          ? format(parseISO(selectedStartDate), 'MMMM d, yyyy')
+                          : 'Select a date'}
+                      </button>
+
+                      {showCalendar && (
+                        <div className="mt-3 p-6 border rounded-lg bg-white shadow-xl">
+                          <DayPicker
+                            mode="single"
+                            selected={selectedStartDate ? parseISO(selectedStartDate) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                if (!isProfessionalWorkingDay(date)) return;
+                                const dateStr = toLocalDateKey(date);
+                                if (isDateBlocked(dateStr)) return;
+                                setSelectedStartDate(dateStr);
+                                setShowCalendar(false);
+                              }
+                            }}
+                            disabled={[
+                              {
+                                before: scheduleProposals?.earliestBookableDate
+                                  ? startOfDay(parseISO(scheduleProposals.earliestBookableDate))
+                                  : addDays(startOfDay(new Date()), 1),
+                              },
+                              { after: addDays(startOfDay(new Date()), 180) },
+                              (date: Date) => !isProfessionalWorkingDay(date),
+                              (date: Date) => isDateBlocked(toLocalDateKey(date)),
+                            ]}
+                            modifiers={{
+                              weekend: (date) => dateFnsIsWeekend(date) && !isProfessionalWorkingDay(date),
+                              blocked: (date) => isDateBlocked(toLocalDateKey(date)),
+                              nonWorking: (date) => !isProfessionalWorkingDay(date) && !dateFnsIsWeekend(date),
+                            }}
+                            styles={{
+                              months: { width: '100%' },
+                              month: { width: '100%' },
+                              table: { width: '100%', maxWidth: '100%' },
+                              head_cell: { width: '14.28%', textAlign: 'center' },
+                              cell: { width: '14.28%', textAlign: 'center' },
+                              day: { width: '40px', height: '40px', margin: '2px auto', fontSize: '14px' },
+                            }}
+                            modifiersStyles={{
+                              selected: { backgroundColor: '#3b82f6', color: 'white', fontWeight: 'bold' },
+                              disabled: { textDecoration: 'line-through', opacity: 0.3, cursor: 'not-allowed', backgroundColor: '#fee2e2', color: '#991b1b' },
+                              weekend: { backgroundColor: '#e5e7eb', color: '#6b7280', cursor: 'not-allowed', opacity: 0.7 },
+                              nonWorking: { backgroundColor: '#fef3c7', color: '#92400e', cursor: 'not-allowed', opacity: 0.5 },
+                              blocked: { backgroundColor: '#fee2e2', textDecoration: 'line-through', opacity: 0.5 },
+                              today: { fontWeight: 'bold', border: '2px solid #3b82f6' },
+                            }}
+                          />
+
+                          <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 bg-gray-200 border rounded opacity-70"></div>
+                              <span>Weekend (non-working)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 bg-red-100 border rounded line-through text-center text-red-900 opacity-50">X</div>
+                              <span>Blocked/Booked</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 bg-blue-500 border rounded"></div>
+                              <span>Selected</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 border-2 border-blue-500 rounded"></div>
+                              <span>Today</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-                <div>
-                  <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-                    {requiresProjectSchedule ? 'Available Start Date' : 'Preferred Start Date'}
-                  </label>
-                  <input
-                    id="startDate"
-                    type="date"
-                    min={minDate}
-                    value={selectedStartDate}
-                    onChange={(e) => setSelectedStartDate(e.target.value)}
-                    disabled={requiresProjectSchedule && (!scheduleProposals || loadingScheduleProposals)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
 
-                {scheduleMode === 'hours' && (
+                {scheduleMode === 'hours' && selectedStartDate && (
                   <div>
                     <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Time
+                      Start Time *
                     </label>
                     <input
                       id="startTime"
@@ -900,6 +1144,45 @@ export default function BookingPaymentPage() {
                     <p className="mt-1 text-xs text-gray-500">
                       This project is scheduled in hours mode, so the scheduler also needs a start time.
                     </p>
+                  </div>
+                )}
+
+                {scheduleProposals?.mode === 'days' && !selectedStartDate && shortestThroughputDetails && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm text-blue-900 font-semibold">
+                        Shortest Consecutive Window{' '}
+                        <span className="text-xs font-normal">
+                          ({shortestThroughputDetails.totalDays}{' '}
+                          {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'})
+                        </span>
+                      </p>
+                      <p className="text-xs text-blue-700">
+                        {format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} -{' '}
+                        {format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {shortestWindowDates.map((day) => (
+                        <span
+                          key={day.toISOString()}
+                          className="px-3 py-1 text-xs rounded-full bg-white border border-blue-200 text-blue-800"
+                        >
+                          {format(day, 'MMM d')}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs px-3 py-1.5 rounded border border-blue-300 text-blue-700 hover:bg-blue-100"
+                      onClick={() => {
+                        const startStr = toLocalDateKey(shortestThroughputDetails.startDate);
+                        setSelectedStartDate(startStr);
+                        setShowCalendar(false);
+                      }}
+                    >
+                      Use this window
+                    </button>
                   </div>
                 )}
 
@@ -917,8 +1200,34 @@ export default function BookingPaymentPage() {
                 )}
 
                 {hasValidatedProjectSelection && scheduleWindow && (
-                  <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                    Selected slot is available and ready to book.
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800 space-y-2">
+                    <p className="font-medium">Selected slot is available and ready to book.</p>
+                    <div className="text-xs space-y-1">
+                      <p>
+                        <span className="font-medium">Start:</span>{' '}
+                        {scheduleWindow.scheduledStartDate.slice(0, 10)}
+                        {scheduleWindow.scheduledStartTime ? ` at ${scheduleWindow.scheduledStartTime}` : ''}
+                      </p>
+                      {(() => {
+                        const quoted = getQuotedDurations(booking);
+                        const parts: string[] = [];
+                        if (quoted.preparation?.value) parts.push(`Preparation: ${quoted.preparation.value} ${quoted.preparation.unit}`);
+                        if (quoted.execution?.value) parts.push(`Execution: ${quoted.execution.value} ${quoted.execution.unit}`);
+                        if (quoted.buffer?.value) parts.push(`Buffer: ${quoted.buffer.value} ${quoted.buffer.unit}`);
+                        if (parts.length === 0) return null;
+                        return <p><span className="font-medium">Duration breakdown:</span> {parts.join(' → ')}</p>;
+                      })()}
+                      <p>
+                        <span className="font-medium">Execution ends:</span>{' '}
+                        {scheduleWindow.scheduledExecutionEndDate.slice(0, 10)}
+                      </p>
+                      {scheduleWindow.scheduledBufferEndDate && (
+                        <p>
+                          <span className="font-medium">Project completion (incl. buffer):</span>{' '}
+                          {scheduleWindow.scheduledBufferEndDate.slice(0, 10)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1142,10 +1451,7 @@ export default function BookingPaymentPage() {
               <div className="flex justify-between">
                 <span className="text-gray-600">Professional:</span>
                 <span className="font-medium text-gray-900">
-                  {booking?.professional?.businessInfo?.companyName
-                    || booking?.professional?.name
-                    || booking?.professional?.username
-                    || 'N/A'}
+                  {booking?.professional?.username || 'N/A'}
                 </span>
               </div>
               {booking?.scheduledStartDate && (

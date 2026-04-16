@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { addMonths, differenceInCalendarDays, eachDayOfInterval, endOfDay, format, isAfter, isBefore, parseISO, startOfDay } from "date-fns"
+import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, parseISO, startOfDay, isSameDay } from "date-fns"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,10 +30,13 @@ export interface TimelineBooking {
   bookingType: "professional" | "project"
   status: BookingStatus
   createdAt?: string
+  bookingNumber?: string
   rfqData?: {
     serviceType?: string
     description?: string
     preferredStartDate?: string
+    totalAmount?: number
+    budget?: { min?: number; max?: number; currency?: string }
   }
   scheduledStartDate?: string
   scheduledExecutionEndDate?: string
@@ -44,6 +47,12 @@ export interface TimelineBooking {
   payment?: {
     status?: string
     currency?: string
+    amount?: number
+  }
+  location?: {
+    address?: string
+    city?: string
+    country?: string
   }
   customer?: {
     _id?: string
@@ -59,6 +68,8 @@ export interface TimelineBooking {
   project?: {
     _id: string
     title?: string
+    category?: string
+    service?: string
   }
   milestonePayments?: Array<{
     title?: string
@@ -72,6 +83,9 @@ export interface TimelineBooking {
     note?: string
     proposedSchedule?: ScheduleSnapshot
     previousSchedule?: ScheduleSnapshot
+  }
+  pricingSnapshot?: {
+    totalAmount?: number
   }
 }
 
@@ -94,7 +108,10 @@ const ACTIVE_TIMELINE_STATUSES = new Set<BookingStatus>([
   "dispute",
 ])
 
-const DAY_WIDTH = 44
+const VISIBLE_DAYS = 30
+const MAX_SPAN_DAYS = 365
+const DAY_WIDTH = 40
+const ROW_LABEL_WIDTH = 200
 
 const BAR_META: Record<string, { label: string; className: string }> = {
   awaiting_payment: {
@@ -139,7 +156,7 @@ const formatDateLabel = (value?: string | Date | null) => {
   if (!value) return "Unscheduled"
   const parsed = value instanceof Date ? value : toDate(value)
   if (!parsed) return "Unscheduled"
-  return parsed.toLocaleDateString()
+  return format(parsed, "dd MMM yyyy")
 }
 
 const getDisplaySchedule = (booking: TimelineBooking) => {
@@ -182,6 +199,17 @@ const getTimelineBounds = (booking: TimelineBooking) => {
   }
 }
 
+const getBookingPrice = (booking: TimelineBooking): string | null => {
+  const amount =
+    booking.pricingSnapshot?.totalAmount
+    ?? booking.rfqData?.totalAmount
+    ?? booking.payment?.amount
+  if (amount == null) return null
+  const currency = booking.rfqData?.budget?.currency || booking.payment?.currency || "EUR"
+  const symbol = currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency === "USD" ? "$" : currency
+  return `${symbol}${amount.toFixed(2)}`
+}
+
 async function parseResponse(response: Response) {
   const contentType = response.headers.get("content-type") || ""
   if (contentType.includes("application/json")) {
@@ -198,11 +226,12 @@ export default function BookingTimelineBoard({
   bookings,
   viewerRole,
   title = "Project Timeline",
-  description = "Active bookings in a two-month window centered on today.",
-  emptyLabel = "No active bookings intersect this timeline window.",
+  description = "Active bookings timeline.",
+  emptyLabel = "No active bookings to display.",
   onBookingUpdated,
 }: BookingTimelineBoardProps) {
   const router = useRouter()
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [activeBooking, setActiveBooking] = useState<TimelineBooking | null>(null)
   const [dialogMode, setDialogMode] = useState<"cancel" | "reschedule" | "extend" | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -215,10 +244,6 @@ export default function BookingTimelineBoard({
   const [extendReason, setExtendReason] = useState("")
 
   const today = startOfDay(new Date())
-  const rangeStart = startOfDay(addMonths(today, -1))
-  const rangeEnd = endOfDay(addMonths(today, 1))
-  const days = useMemo(() => eachDayOfInterval({ start: rangeStart, end: rangeEnd }), [rangeEnd, rangeStart])
-  const boardWidth = days.length * DAY_WIDTH
 
   const timelineBookings = useMemo(() => {
     return bookings
@@ -228,9 +253,38 @@ export default function BookingTimelineBoard({
         return bounds ? { booking, bounds } : null
       })
       .filter((entry): entry is { booking: TimelineBooking; bounds: { start: Date; end: Date } } => !!entry)
-      .filter(({ bounds }) => !isBefore(bounds.end, rangeStart) && !isAfter(bounds.start, rangeEnd))
       .sort((a, b) => a.bounds.start.getTime() - b.bounds.start.getTime())
-  }, [bookings, rangeEnd, rangeStart])
+  }, [bookings])
+
+  const { rangeStart, rangeEnd, days } = useMemo(() => {
+    if (timelineBookings.length === 0) {
+      const s = today
+      const daysArr = eachDayOfInterval({ start: s, end: new Date(s.getTime() + (VISIBLE_DAYS - 1) * 86400000) })
+      return { rangeStart: s, rangeEnd: daysArr[daysArr.length - 1], days: daysArr }
+    }
+
+    let earliest = timelineBookings[0].bounds.start
+    let furthest = timelineBookings[0].bounds.end
+    for (const { bounds } of timelineBookings) {
+      if (isBefore(bounds.start, earliest)) earliest = bounds.start
+      if (isAfter(bounds.end, furthest)) furthest = bounds.end
+    }
+
+    const totalDays = differenceInCalendarDays(furthest, earliest) + 1
+    const span = Math.min(Math.max(totalDays, VISIBLE_DAYS), MAX_SPAN_DAYS)
+    const s = startOfDay(earliest)
+    const e = new Date(s.getTime() + (span - 1) * 86400000)
+    const daysArr = eachDayOfInterval({ start: s, end: e })
+    return { rangeStart: s, rangeEnd: e, days: daysArr }
+  }, [timelineBookings, today])
+
+  const gridWidth = days.length * DAY_WIDTH
+
+  const todayOffset = useMemo(() => {
+    const diff = differenceInCalendarDays(today, rangeStart)
+    if (diff < 0 || diff >= days.length) return null
+    return diff * DAY_WIDTH + DAY_WIDTH / 2
+  }, [today, rangeStart, days.length])
 
   const openDialog = (mode: "cancel" | "reschedule" | "extend", booking: TimelineBooking) => {
     setActiveBooking(booking)
@@ -429,6 +483,102 @@ export default function BookingTimelineBoard({
     )
   }
 
+  const handleBarDoubleClick = useCallback((bookingId: string) => {
+    router.push(`/bookings/${bookingId}`)
+  }, [router])
+
+  const buildTooltip = (booking: TimelineBooking, bounds: { start: Date; end: Date }) => {
+    const parts: string[] = []
+    if (booking.bookingNumber) parts.push(`Booking: ${booking.bookingNumber}`)
+    const addr = booking.location?.address
+    if (addr) parts.push(`Address: ${addr}`)
+    const price = getBookingPrice(booking)
+    if (price) parts.push(`Price: ${price}`)
+    parts.push(`Start: ${formatDateLabel(bounds.start)}`)
+    parts.push(`End: ${formatDateLabel(bounds.end)}`)
+    return parts.join("\n")
+  }
+
+  const renderActionButtons = (booking: TimelineBooking) => {
+    const btns: React.ReactNode[] = []
+    const busy = submittingBookingId === booking._id
+
+    if (viewerRole === "professional" && booking.status === "booked") {
+      btns.push(
+        <Button key="cancel" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => openDialog("cancel", booking)}>
+          <XCircle className="mr-1 h-3 w-3" />Cancel
+        </Button>,
+        <Button key="reschedule" variant="outline" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => openDialog("reschedule", booking)}>
+          <RefreshCw className="mr-1 h-3 w-3" />Reschedule
+        </Button>
+      )
+      const hasMilestones = booking.milestonePayments && booking.milestonePayments.length > 0
+      const next = getNextMilestone(booking)
+      if (next) {
+        btns.push(
+          <Button key="milestone" size="sm" className="h-6 text-[10px] px-1.5 bg-blue-600 text-white hover:bg-blue-700" onClick={() => handleMilestoneAction(booking._id, next.index, next.action)} disabled={busy}>
+            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
+            {next.action === "start" ? "Start milestone" : "Complete milestone"}
+          </Button>
+        )
+      } else if (!hasMilestones) {
+        btns.push(
+          <Button key="start" size="sm" className="h-6 text-[10px] px-1.5 bg-blue-600 text-white hover:bg-blue-700" onClick={() => handleStartExecution(booking._id)} disabled={busy}>
+            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
+            Start Execution
+          </Button>
+        )
+      }
+    }
+
+    if (viewerRole === "professional" && booking.status === "in_progress") {
+      const hasMilestones = booking.milestonePayments && booking.milestonePayments.length > 0
+      const next = getNextMilestone(booking)
+      if (next) {
+        btns.push(
+          <Button key="milestone-ip" size="sm" className="h-6 text-[10px] px-1.5 bg-blue-600 text-white hover:bg-blue-700" onClick={() => handleMilestoneAction(booking._id, next.index, next.action)} disabled={busy}>
+            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
+            {next.action === "start" ? "Start milestone" : "Complete milestone"}
+          </Button>
+        )
+      }
+      btns.push(
+        <Button key="extend" variant="outline" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => openDialog("extend", booking)}>
+          Extend
+        </Button>
+      )
+      if (!next && !hasMilestones) {
+        btns.push(
+          <Button key="complete" size="sm" className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleConfirmCompletion(booking._id)} disabled={busy}>
+            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
+            Complete
+          </Button>
+        )
+      }
+    }
+
+    if (viewerRole === "customer" && booking.status === "rescheduling_requested") {
+      btns.push(
+        <Button key="accept" size="sm" className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleRespondReschedule(booking._id, "accept")} disabled={busy}>
+          Accept
+        </Button>,
+        <Button key="decline" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => handleRespondReschedule(booking._id, "decline")} disabled={busy}>
+          Decline
+        </Button>
+      )
+    }
+
+    if (viewerRole === "customer" && (booking.status === "payment_pending" || booking.status === "quote_accepted")) {
+      btns.push(
+        <Button key="pay" size="sm" className="h-6 text-[10px] px-1.5 bg-amber-600 text-white hover:bg-amber-700" onClick={() => router.push(`/bookings/${booking._id}/payment`)}>
+          <CreditCard className="mr-1 h-3 w-3" />Pay
+        </Button>
+      )
+    }
+
+    return btns
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white/85 p-5 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -449,7 +599,7 @@ export default function BookingTimelineBoard({
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
         <div className="mb-3 flex items-center gap-2 text-xs text-slate-600">
           <Calendar className="h-3.5 w-3.5" />
-          Window: {format(rangeStart, "MMM d, yyyy")} to {format(rangeEnd, "MMM d, yyyy")}
+          Window: {format(rangeStart, "MMM d, yyyy")} &ndash; {format(rangeEnd, "MMM d, yyyy")}
         </div>
 
         {timelineBookings.length === 0 ? (
@@ -457,243 +607,110 @@ export default function BookingTimelineBoard({
             {emptyLabel}
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="overflow-x-auto pb-1">
-              <div
-                className="grid text-[11px] text-slate-500"
-                style={{ width: `${boardWidth}px`, gridTemplateColumns: `repeat(${days.length}, minmax(${DAY_WIDTH}px, 1fr))` }}
-              >
-                {days.map((day) => (
-                  <div key={day.toISOString()} className="border-r border-slate-200 px-1 pb-2 text-center">
-                    <div className="font-medium text-slate-700">{format(day, "d")}</div>
-                    <div>{format(day, "MMM")}</div>
+          <div className="flex">
+            {/* Fixed left column: booking labels + actions */}
+            <div className="flex-shrink-0" style={{ width: `${ROW_LABEL_WIDTH}px` }}>
+              {/* Header spacer */}
+              <div className="h-[42px] border-b border-slate-200" />
+              {/* Rows */}
+              {timelineBookings.map(({ booking }) => {
+                const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
+                const counterpartyName = viewerRole === "professional"
+                  ? booking.customer?.name
+                  : booking.professional?.businessInfo?.companyName || booking.professional?.name
+                const actions = renderActionButtons(booking)
+
+                return (
+                  <div key={booking._id} className="flex flex-col justify-center border-b border-slate-200 px-2 py-1.5" style={{ minHeight: "48px" }}>
+                    <p className="text-xs font-semibold text-slate-900 truncate leading-tight">{projectName}</p>
+                    {counterpartyName && (
+                      <p className="text-[10px] text-slate-500 truncate leading-tight">{counterpartyName}</p>
+                    )}
+                    {actions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {actions}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
 
-            {timelineBookings.map(({ booking, bounds }) => {
-              const titleLabel = getBookingTitle(booking)
-              const statusMeta = getBookingStatusMeta(booking.status)
-              const barMeta = BAR_META[getTimelineBarKey(booking.status)]
-              const clippedStart = isBefore(bounds.start, rangeStart) ? rangeStart : bounds.start
-              const clippedEnd = isAfter(bounds.end, rangeEnd) ? rangeEnd : bounds.end
-              const left = differenceInCalendarDays(clippedStart, rangeStart) * DAY_WIDTH
-              const width = Math.max((differenceInCalendarDays(clippedEnd, clippedStart) + 1) * DAY_WIDTH, DAY_WIDTH)
-              const schedule = getDisplaySchedule(booking)
-              const proposedStart = booking.rescheduleRequest?.proposedSchedule?.scheduledStartDate
-              const proposedEnd =
-                booking.rescheduleRequest?.proposedSchedule?.scheduledBufferEndDate
-                || booking.rescheduleRequest?.proposedSchedule?.scheduledExecutionEndDate
-
-              return (
-                <div key={booking._id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-sm font-semibold text-slate-900">{titleLabel}</h3>
-                        <Badge variant="outline" className={`text-[11px] ${statusMeta.className}`}>
-                          {statusMeta.label}
-                        </Badge>
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-                        {booking.rfqData?.serviceType && <span>{booking.rfqData.serviceType}</span>}
-                        <span>Start: {formatDateLabel(schedule.scheduledStartDate || bounds.start)}</span>
-                        <span>End: {formatDateLabel(schedule.scheduledBufferEndDate || schedule.scheduledExecutionEndDate || bounds.end)}</span>
-                        {booking.status === "rescheduling_requested" && proposedStart && (
-                          <span>Proposed: {formatDateLabel(proposedStart)} to {formatDateLabel(proposedEnd)}</span>
-                        )}
-                      </div>
-                      {booking.status === "rescheduling_requested" && booking.rescheduleRequest?.reason && (
-                        <p className="mt-2 text-xs text-slate-600">
-                          Reason: <span className="font-medium text-slate-800">{booking.rescheduleRequest.reason}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => router.push(`/bookings/${booking._id}`)}
-                      >
-                        View
-                      </Button>
-
-                      {viewerRole === "professional" && booking.status === "booked" && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs border-rose-200 text-rose-700 hover:bg-rose-50"
-                            onClick={() => openDialog("cancel", booking)}
-                          >
-                            <XCircle className="mr-1.5 h-3.5 w-3.5" />
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => openDialog("reschedule", booking)}
-                          >
-                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                            Request Rescheduling
-                          </Button>
-                          {(() => {
-                            const next = getNextMilestone(booking)
-                            if (next) {
-                              return (
-                                <Button
-                                  size="sm"
-                                  className="text-xs bg-blue-600 text-white hover:bg-blue-700"
-                                  onClick={() => handleMilestoneAction(booking._id, next.index, next.action)}
-                                  disabled={submittingBookingId === booking._id}
-                                >
-                                  {submittingBookingId === booking._id ? (
-                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Play className="mr-1.5 h-3.5 w-3.5" />
-                                  )}
-                                  {next.action === "start" ? "Start milestone" : "Complete milestone"}
-                                </Button>
-                              )
-                            }
-                            return (
-                              <Button
-                                size="sm"
-                                className="text-xs bg-blue-600 text-white hover:bg-blue-700"
-                                onClick={() => handleStartExecution(booking._id)}
-                                disabled={submittingBookingId === booking._id}
-                              >
-                                {submittingBookingId === booking._id ? (
-                                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Play className="mr-1.5 h-3.5 w-3.5" />
-                                )}
-                                Start Execution
-                              </Button>
-                            )
-                          })()}
-                        </>
-                      )}
-
-                      {viewerRole === "professional" && booking.status === "in_progress" && (() => {
-                        const next = getNextMilestone(booking)
-                        if (!next) return null
-                        return (
-                          <Button
-                            size="sm"
-                            className="text-xs bg-blue-600 text-white hover:bg-blue-700"
-                            onClick={() => handleMilestoneAction(booking._id, next.index, next.action)}
-                            disabled={submittingBookingId === booking._id}
-                          >
-                            {submittingBookingId === booking._id ? (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Play className="mr-1.5 h-3.5 w-3.5" />
-                            )}
-                            {next.action === "start" ? "Start milestone" : "Complete milestone"}
-                          </Button>
-                        )
-                      })()}
-
-                      {viewerRole === "customer" && booking.status === "rescheduling_requested" && (
-                        <>
-                          <Button
-                            size="sm"
-                            className="text-xs bg-emerald-600 text-white hover:bg-emerald-700"
-                            onClick={() => handleRespondReschedule(booking._id, "accept")}
-                            disabled={submittingBookingId === booking._id}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs border-rose-200 text-rose-700 hover:bg-rose-50"
-                            onClick={() => handleRespondReschedule(booking._id, "decline")}
-                            disabled={submittingBookingId === booking._id}
-                          >
-                            Decline
-                          </Button>
-                        </>
-                      )}
-
-                      {viewerRole === "professional" && booking.status === "in_progress" && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => openDialog("extend", booking)}
-                          >
-                            Extend Execution
-                          </Button>
-                          {getNextMilestone(booking) === null && (
-                          <Button
-                            size="sm"
-                            className="text-xs bg-emerald-600 text-white hover:bg-emerald-700"
-                            onClick={() => handleConfirmCompletion(booking._id)}
-                            disabled={submittingBookingId === booking._id}
-                          >
-                            {submittingBookingId === booking._id ? (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
-                            )}
-                            Confirm Completion
-                          </Button>
-                          )}
-                        </>
-                      )}
-
-                      {viewerRole === "customer" && (booking.status === "payment_pending" || booking.status === "quote_accepted") && (
-                        <Button
-                          size="sm"
-                          className="text-xs bg-amber-600 text-white hover:bg-amber-700"
-                          onClick={() => router.push(`/bookings/${booking._id}/payment`)}
-                        >
-                          <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-                          Pay
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 overflow-x-auto pb-1">
+            {/* Scrollable right area: timeline grid */}
+            <div className="flex-1 overflow-x-auto" ref={scrollRef}>
+              <div style={{ width: `${gridWidth}px`, position: "relative" }}>
+                {/* Header row */}
+                <div
+                  className="flex border-b border-slate-200"
+                  style={{ height: "42px" }}
+                >
+                  {days.map((day) => (
                     <div
-                      className="relative h-12 rounded-lg border border-slate-200 bg-slate-50"
-                      style={{ width: `${boardWidth}px` }}
+                      key={day.toISOString()}
+                      className={`flex-shrink-0 border-r border-slate-200 text-center text-[10px] flex flex-col justify-center ${isSameDay(day, today) ? "bg-blue-50 font-bold" : ""}`}
+                      style={{ width: `${DAY_WIDTH}px` }}
                     >
-                      <div
-                        className="grid h-full"
-                        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(${DAY_WIDTH}px, 1fr))` }}
-                      >
+                      <div className="font-medium text-slate-700 leading-tight">{format(day, "d")}</div>
+                      <div className="text-slate-500 leading-tight">{format(day, "MMM")}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Booking rows */}
+                {timelineBookings.map(({ booking, bounds }) => {
+                  const barMeta = BAR_META[getTimelineBarKey(booking.status)]
+                  const clippedStart = isBefore(bounds.start, rangeStart) ? rangeStart : bounds.start
+                  const clippedEnd = isAfter(bounds.end, rangeEnd) ? rangeEnd : bounds.end
+                  const left = differenceInCalendarDays(clippedStart, rangeStart) * DAY_WIDTH
+                  const width = Math.max((differenceInCalendarDays(clippedEnd, clippedStart) + 1) * DAY_WIDTH, DAY_WIDTH)
+
+                  const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
+                  const counterpartyName = viewerRole === "professional"
+                    ? booking.customer?.name
+                    : booking.professional?.businessInfo?.companyName || booking.professional?.name
+                  const barLabel = [projectName, counterpartyName].filter(Boolean).join(" — ")
+                  const actions = renderActionButtons(booking)
+                  const rowHeight = actions.length > 0 ? 48 + 24 : 48
+
+                  return (
+                    <div key={booking._id} className="relative border-b border-slate-200" style={{ height: `${rowHeight}px` }}>
+                      {/* Day grid background */}
+                      <div className="absolute inset-0 flex">
                         {days.map((day) => (
                           <div
-                            key={`${booking._id}-${day.toISOString()}`}
-                            className={`border-r border-slate-200 ${day.getDay() === 0 || day.getDay() === 6 ? "bg-slate-100/80" : ""}`}
+                            key={`bg-${booking._id}-${day.toISOString()}`}
+                            className={`flex-shrink-0 border-r border-slate-100 ${day.getDay() === 0 || day.getDay() === 6 ? "bg-slate-100/60" : ""}`}
+                            style={{ width: `${DAY_WIDTH}px`, height: "100%" }}
                           />
                         ))}
                       </div>
+                      {/* Bar */}
                       <div
-                        className={`absolute top-1/2 h-7 -translate-y-1/2 rounded-md px-2 text-[11px] font-medium leading-7 shadow-sm ${barMeta.className}`}
+                        className={`absolute top-2 h-7 rounded-md px-2 text-[10px] font-medium leading-7 shadow-sm cursor-pointer select-none ${barMeta.className}`}
                         style={{ left: `${left}px`, width: `${width}px` }}
-                        title={`${barMeta.label}: ${formatDateLabel(bounds.start)} to ${formatDateLabel(bounds.end)}`}
+                        title={buildTooltip(booking, bounds)}
+                        onDoubleClick={() => handleBarDoubleClick(booking._id)}
                       >
-                        <span className="truncate">{barMeta.label}</span>
+                        <span className="truncate block">{barLabel}</span>
                       </div>
                     </div>
-                  </div>
-                </div>
-              )
-            })}
+                  )
+                })}
+
+                {/* Today vertical line */}
+                {todayOffset !== null && (
+                  <div
+                    className="absolute top-0 bottom-0 w-px bg-red-500 z-10 pointer-events-none"
+                    style={{ left: `${todayOffset}px` }}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
+      {/* Dialogs */}
       <Dialog open={dialogMode === "cancel"} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent>
           <DialogHeader>

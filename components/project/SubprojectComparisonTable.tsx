@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Check, Clock, Shield, ArrowRight, Calendar } from 'lucide-react'
+import { Check, Clock, Shield, ArrowRight, Calendar, Info, Package } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
 import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing'
 import { useCommissionRate } from '@/hooks/useCommissionRate'
@@ -124,6 +124,19 @@ export default function SubprojectComparisonTable({
     });
     return names;
   }, [currentSubproject?.included]);
+
+  const enrichedIncludedItems = useMemo(() => {
+    const normalize = (s: string) =>
+      s.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase().trim();
+    const paramMap = new Map(
+      (currentSubproject?.professionalInputs || []).map((p) => [normalize(p.fieldName), p])
+    );
+    return allIncludedItems.map((item) => {
+      const match = paramMap.get(normalize(item.name));
+      const hasValue = match && match.value != null && match.value !== '';
+      return { ...item, paramValue: hasValue ? formatProfessionalInputValue(match.value) : undefined };
+    });
+  }, [allIncludedItems, currentSubproject?.professionalInputs]);
 
   if (!subprojects || subprojects.length === 0 || !currentSubproject) {
     return null;
@@ -299,17 +312,22 @@ export default function SubprojectComparisonTable({
             </div>
 
             {/* What's Included */}
-            {allIncludedItems.length > 0 && (
+            {enrichedIncludedItems.length > 0 && (
               <div className="mb-8 border-t border-gray-100 pt-6">
                 <h4 className="font-semibold text-base text-gray-900 mb-4">What&apos;s Included:</h4>
                 <div className="space-y-3">
-                  {allIncludedItems.map((item, itemIdx) => {
+                  {enrichedIncludedItems.map((item, itemIdx) => {
                     const isIncluded = currentIncludedNames.has(item.name);
                     return (
                       <div key={itemIdx} className="flex items-start space-x-3">
                         <Check className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isIncluded ? 'text-green-500' : 'text-gray-300'}`} />
                         <div>
-                          <p className={`text-sm font-medium ${isIncluded ? 'text-gray-900' : 'text-gray-400'}`}>{item.name}</p>
+                          <p className={`text-sm font-medium ${isIncluded ? 'text-gray-900' : 'text-gray-400'}`}>
+                            {item.name}
+                            {item.paramValue && (
+                              <span className="font-bold"> {item.paramValue}</span>
+                            )}
+                          </p>
                           {item.description && (
                             <p className={`text-xs mt-0.5 ${isIncluded ? 'text-gray-600' : 'text-gray-400'}`}>{item.description}</p>
                           )}
@@ -321,29 +339,42 @@ export default function SubprojectComparisonTable({
               </div>
             )}
 
-            {currentSubproject.professionalInputs &&
-              currentSubproject.professionalInputs.length > 0 && (
-                <div className="mb-8 border-t border-gray-100 pt-6">
-                  <h4 className="font-semibold text-base text-gray-900 mb-4">
-                    Service Parameters
-                  </h4>
-                  <div className="space-y-2">
-                    {currentSubproject.professionalInputs.map((input, index) => (
-                      <div
-                        key={`${input.fieldName}-${index}`}
-                        className="flex items-start justify-between gap-4 rounded-lg bg-gray-50 px-4 py-3"
-                      >
-                        <span className="text-sm font-medium text-gray-700">
-                          {input.fieldName}
+            {/* Materials - only show when included with items */}
+            {currentSubproject.materialsIncluded && currentSubproject.materials && currentSubproject.materials.length > 0 && (
+            <div className="mb-8 border-t border-gray-100 pt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Package className="w-4 h-4 text-gray-500" />
+                <h4 className="font-semibold text-base text-gray-900">
+                  Materials: <span className="text-green-600 font-semibold">Included</span>
+                </h4>
+              </div>
+              <div className="space-y-2">
+                {currentSubproject.materials.map((mat, matIdx) => (
+                  <div key={matIdx} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">{mat.name}</span>
+                      {mat.description && (
+                        <span className="relative group">
+                          <button type="button" aria-describedby={`mat-tooltip-${matIdx}`} className="inline-flex focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 rounded">
+                            <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" aria-hidden="true" />
+                            <span className="sr-only">Material info</span>
+                          </button>
+                          <span id={`mat-tooltip-${matIdx}`} role="tooltip" className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block group-focus-within:block w-48 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg z-10">
+                            {mat.description}
+                          </span>
                         </span>
-                        <span className="text-sm font-semibold text-gray-900 text-right">
-                          {formatProfessionalInputValue(input.value)}
-                        </span>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                    {(mat.quantity || mat.unit) && (
+                      <span className="text-sm font-semibold text-gray-900">
+                        {[mat.quantity, mat.unit].filter(Boolean).join(' ')}
+                      </span>
+                    )}
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
+            </div>
+            )}
 
             {/* Date Availability (Clean & Simplistic) */}
             <div className="mb-6 space-y-2">

@@ -26,12 +26,21 @@ export type ProjectAttachmentRef =
       _id?: string
     }
 
+export interface ProjectMaterial {
+  name: string
+  quantity?: string
+  unit?: string
+  description?: string
+}
+
 export interface ProjectSubproject {
   name: string
   description: string
   pricing: ProjectSubprojectPricing
   included: ProjectIncludedItem[]
   professionalInputs?: ProjectProfessionalInput[]
+  materialsIncluded?: boolean
+  materials?: ProjectMaterial[]
   preparationDuration?: {
     value: number
     unit: "hours" | "days"
