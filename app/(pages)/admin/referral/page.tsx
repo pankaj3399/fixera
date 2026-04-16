@@ -42,6 +42,8 @@ import { getAuthToken } from '@/lib/utils';
 interface ReferralConfig {
   isEnabled: boolean;
   referrerRewardAmount: number | undefined;
+  referrerCustomerRewardAmount: number | undefined;
+  referrerProfessionalRewardAmount: number | undefined;
   referredCustomerDiscountType: 'percentage' | 'fixed';
   referredCustomerDiscountValue: number | undefined;
   referredCustomerDiscountMaxAmount: number | undefined;
@@ -302,27 +304,45 @@ export default function AdminReferralPage() {
               <CardHeader>
                 <CardTitle>Referrer Rewards</CardTitle>
                 <CardDescription>
-                  Reward value for the person who refers. Customers use the value on bookings, professionals use it as points toward faster level growth.
+                  Configure separate reward amounts for customer and professional referrers. Customers earn booking credit, professionals earn level boost points.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Reward Amount (points / EUR value)</Label>
+                    <Label>Customer Referrer Reward (points)</Label>
                     <Input
                       type="number"
                       min={0}
-                      value={config.referrerRewardAmount}
+                      value={config.referrerCustomerRewardAmount}
                       onChange={(e) => {
                         const v = e.target.value;
                         setConfig({
                           ...config,
-                          referrerRewardAmount: numVal(v),
+                          referrerCustomerRewardAmount: numVal(v),
                         });
                       }}
                     />
-                    <p className="text-xs text-gray-500">1 point currently equals 1 EUR of reward value.</p>
+                    <p className="text-xs text-gray-500">Points awarded to customers who refer. 1 point = EUR 1 booking credit.</p>
                   </div>
+                  <div className="space-y-2">
+                    <Label>Professional Referrer Reward (points)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={config.referrerProfessionalRewardAmount}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setConfig({
+                          ...config,
+                          referrerProfessionalRewardAmount: numVal(v),
+                        });
+                      }}
+                    />
+                    <p className="text-xs text-gray-500">Points awarded to professionals who refer. Contributes to professional level progression.</p>
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Reward Expiry (months)</Label>
                     <Input

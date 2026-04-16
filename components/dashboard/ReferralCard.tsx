@@ -30,6 +30,7 @@ interface ReferralData {
   totalPointsEarned?: number;
   programEnabled?: boolean;
   referrerRewardAmount?: number;
+  referrerRewardType?: 'customer_credit' | 'professional_level_boost';
   referredCustomerDiscountType?: string;
   referredCustomerDiscountValue?: number;
   referredCustomerDiscountMaxAmount?: number;
@@ -227,8 +228,8 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
         )}
         <p className="text-sm text-gray-600">
           {isProfessional
-            ? 'Professional referrals help you build points and trust faster.'
-            : 'Customer referrals convert into booking value you can spend through your points balance.'}
+            ? 'Share your code and earn level boost points when your referrals complete their first booking. Points help you reach the next professional level faster.'
+            : 'Share your code and earn booking credit when your referrals complete their first booking. Use your credit as a discount on future bookings.'}
         </p>
         {/* Referral Code Display */}
         <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
@@ -282,7 +283,10 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
         {(data.points ?? 0) > 0 && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm font-medium text-green-800">
-              Available Points: <span className="text-lg font-bold">{data.points ?? 0} pts (&euro;{data.points ?? 0})</span>
+              {isProfessional
+                ? <>Level Boost Points: <span className="text-lg font-bold">{data.points ?? 0} pts</span></>
+                : <>Available Credit: <span className="text-lg font-bold">{data.points ?? 0} pts (&euro;{data.points ?? 0})</span></>
+              }
             </p>
             {data.pointsExpiry && (
               <p className="text-xs text-green-600 mt-1">
@@ -297,8 +301,11 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
           <p className="font-medium text-gray-700 mb-1">How it works:</p>
           <ul className="space-y-1">
             <li>1. Share your referral code or link</li>
-            <li>2. {isProfessional ? 'A professional' : 'A customer'} signs up and completes their first booking</li>
-            <li>3. You earn {data.referrerRewardAmount ?? 0} points (&euro;{data.referrerRewardAmount ?? 0})!</li>
+            <li>2. Someone signs up using your code and completes their first booking</li>
+            <li>3. {isProfessional
+              ? `You earn ${data.referrerRewardAmount ?? 0} level boost points toward your next professional level!`
+              : `You earn ${data.referrerRewardAmount ?? 0} points (\u20AC${data.referrerRewardAmount ?? 0} booking credit)!`
+            }</li>
           </ul>
         </div>
 

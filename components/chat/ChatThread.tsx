@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { reportChatMessage } from "@/lib/chatApi";
+import { useCommissionRate } from "@/hooks/useCommissionRate";
 
 interface ChatThreadProps {
   messages: ChatMessage[];
@@ -349,6 +350,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
   const [reportingId, setReportingId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const { customerPrice } = useCommissionRate();
 
   useEffect(() => {
     if (loading) return;
@@ -422,27 +424,21 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                   )}
                 </div>
                 <p className="text-xs text-gray-700 mb-1"><strong>Scope:</strong> {meta.scope}</p>
-                <p className="text-xs text-gray-700 mb-1"><strong>Amount:</strong> {meta.currency} {Number(meta.totalAmount).toFixed(2)}</p>
-                <p className="text-xs text-gray-500 mb-3">Valid until {(() => {
-                  const raw = meta.validUntil ? String(meta.validUntil).trim() : '';
-                  if (!raw) return 'N/A';
+                <p className="text-xs text-gray-700 mb-1"><strong>Amount:</strong> {meta.currency} {customerPrice(Number(meta.totalAmount)).toFixed(2)}</p>
+                {meta.validUntil && (() => {
+                  const raw = String(meta.validUntil).trim();
+                  if (!raw) return null;
                   const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                  let parsed: Date | null = null;
                   if (isoMatch) {
-                    const y = Number(isoMatch[1]);
-                    const m = Number(isoMatch[2]);
-                    const d = Number(isoMatch[3]);
-                    const parsedDate = new Date(y, m - 1, d);
-                    if (
-                      parsedDate.getFullYear() === y &&
-                      parsedDate.getMonth() + 1 === m &&
-                      parsedDate.getDate() === d
-                    ) {
-                      return parsedDate.toLocaleDateString();
-                    }
+                    parsed = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+                  } else {
+                    const fallback = new Date(raw);
+                    if (!isNaN(fallback.getTime())) parsed = fallback;
                   }
-                  const fallbackDate = new Date(raw);
-                  return isNaN(fallbackDate.getTime()) ? 'N/A' : fallbackDate.toLocaleDateString();
-                })()}</p>
+                  if (!parsed || isNaN(parsed.getTime())) return null;
+                  return <p className="text-xs text-gray-500 mb-3">Valid until {parsed.toLocaleDateString()}</p>;
+                })()}
                 <a
                   href={`/bookings/${meta.bookingId}`}
                   className="inline-block text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded transition-colors"

@@ -31,6 +31,7 @@ interface Booking {
   _id: string
   bookingType: "professional" | "project"
   status: BookingStatus
+  bookingNumber?: string
   customer?: {
     _id: string
     name?: string
@@ -39,6 +40,8 @@ interface Booking {
     serviceType?: string
     description?: string
     preferredStartDate?: string
+    totalAmount?: number
+    budget?: { min?: number; max?: number; currency?: string }
   }
   createdAt?: string
   scheduledStartDate?: string
@@ -50,6 +53,12 @@ interface Booking {
   payment?: {
     status?: string
     currency?: string
+    amount?: number
+  }
+  location?: {
+    address?: string
+    city?: string
+    country?: string
   }
   rescheduleRequest?: {
     status?: "pending" | "accepted" | "declined"
@@ -67,6 +76,8 @@ interface Booking {
   project?: {
     _id: string
     title?: string
+    category?: string
+    service?: string
   }
   professional?: {
     _id: string
@@ -75,6 +86,15 @@ interface Booking {
       companyName?: string
     }
   }
+  pricingSnapshot?: {
+    totalAmount?: number
+  }
+  milestonePayments?: Array<{
+    title?: string
+    status?: string
+    workStatus?: string
+    amount?: number
+  }>
 }
 
 interface ProfessionalBookingsQuotesManagerProps {
@@ -429,14 +449,19 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
 
-      const activeStatuses = ["booked", "rescheduling_requested", "in_progress", "professional_completed", "payment_pending", "quote_accepted", "dispute"].join(",")
+      const activeStatuses = statusFilter !== "all"
+        ? statusFilter
+        : ["booked", "rescheduling_requested", "in_progress", "professional_completed", "payment_pending", "quote_accepted", "dispute"].join(",")
       const allTimelineBookings: Booking[] = []
       let page = 1
       const limit = 50
 
       while (true) {
+        const params = new URLSearchParams({ page: String(page), limit: String(limit), status: activeStatuses })
+        if (serviceFilter !== "all") params.append("service", serviceFilter)
+        if (debouncedSearch) params.append("search", debouncedSearch)
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=${page}&limit=${limit}&status=${activeStatuses}`,
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params.toString()}`,
           { credentials: "include", headers }
         )
         const data = await response.json()
@@ -455,7 +480,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     } catch (error) {
       console.error("Failed to fetch timeline bookings:", error)
     }
-  }, [isAuthenticated, user?.role])
+  }, [isAuthenticated, user?.role, statusFilter, serviceFilter, debouncedSearch])
 
   useEffect(() => {
     void refreshBookings()

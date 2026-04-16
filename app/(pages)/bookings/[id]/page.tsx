@@ -40,30 +40,16 @@ const PRE_SERVICE_BOOKING_STATUSES: BookingStatus[] = BOOKING_STATUSES.filter((s
 ) as BookingStatus[]
 
 const formatValidUntilLabel = (value?: string) => {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return "N/A"
+  if (!value) return "N/A"
+  const raw = String(value).trim()
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) {
+    const parsed = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]))
+    if (!isNaN(parsed.getTime())) return parsed.toLocaleDateString()
   }
-
-  const [year, month, day] = value.split("-").map((part) => Number.parseInt(part, 10))
-  if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    !Number.isInteger(day)
-  ) {
-    return "N/A"
-  }
-
-  const parsed = new Date(year, month - 1, day)
-  if (
-    Number.isNaN(parsed.getTime()) ||
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
-  ) {
-    return "N/A"
-  }
-
-  return parsed.toLocaleDateString()
+  const fallback = new Date(raw)
+  if (!isNaN(fallback.getTime())) return fallback.toLocaleDateString()
+  return "N/A"
 }
 
 interface PostBookingQuestion {
@@ -2298,7 +2284,7 @@ export default function BookingDetailPage() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">{booking.quote?.currency || 'EUR'} {v.totalAmount.toFixed(2)}</p>
+                                <p className="text-xs text-gray-600">{booking.quote?.currency || 'EUR'} {customerPrice(v.totalAmount).toFixed(2)}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </div>
                             ))}

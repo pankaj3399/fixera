@@ -35,11 +35,13 @@ interface Booking {
   _id: string
   bookingType: "professional" | "project"
   status: BookingStatus
+  bookingNumber?: string
   customer?: { _id: string; name?: string; email?: string; phone?: string; customerType?: string }
   rfqData?: {
     serviceType?: string
     description?: string
     preferredStartDate?: string
+    totalAmount?: number
     budget?: { min?: number; max?: number; currency?: string }
   }
   scheduledStartDate?: string
@@ -52,7 +54,10 @@ interface Booking {
   createdAt?: string
   project?: { _id: string; title?: string; category?: string; service?: string }
   professional?: { _id: string; name?: string; username?: string; businessInfo?: { companyName?: string } }
-  payment?: { status?: string; currency?: string }
+  payment?: { status?: string; currency?: string; amount?: number }
+  location?: { address?: string; city?: string; country?: string }
+  pricingSnapshot?: { totalAmount?: number }
+  milestonePayments?: Array<{ title?: string; status?: string; workStatus?: string; amount?: number }>
   rescheduleRequest?: {
     status?: "pending" | "accepted" | "declined"
     reason?: string
@@ -261,19 +266,21 @@ export default function CustomerDashboard() {
 
   // Unique services across all bookings
   const allServices = useMemo(() => {
-    return Array.from(new Set(bookings.map(b => b.rfqData?.serviceType).filter(Boolean))) as string[]
+    return Array.from(new Set(bookings.map(b => b.project?.service || b.rfqData?.serviceType).filter(Boolean))) as string[]
   }, [bookings])
 
   // Filtered quotes
   const filteredQuotes = useMemo(() => {
     return quoteBookings.filter(b => {
       if (quoteStatusFilter !== "all" && b.status !== quoteStatusFilter) return false
-      if (quoteServiceFilter !== "all" && b.rfqData?.serviceType !== quoteServiceFilter) return false
+      if (quoteServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== quoteServiceFilter) return false
       if (debouncedQuoteSearch) {
         const term = debouncedQuoteSearch.toLowerCase()
         const title = getBookingTitle(b).toLowerCase()
-        const svc = (b.rfqData?.serviceType || "").toLowerCase()
-        if (!title.includes(term) && !svc.includes(term)) return false
+        const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
+        const addr = (b.location?.address || "").toLowerCase()
+        const bNum = (b.bookingNumber || "").toLowerCase()
+        if (!title.includes(term) && !svc.includes(term) && !addr.includes(term) && !bNum.includes(term)) return false
       }
       return true
     })
@@ -288,12 +295,14 @@ export default function CustomerDashboard() {
           (b.status === "payment_pending" || b.status === "quote_accepted")
         if (!matchesAwaitingPayment && b.status !== bookingStatusFilter) return false
       }
-      if (bookingServiceFilter !== "all" && b.rfqData?.serviceType !== bookingServiceFilter) return false
+      if (bookingServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== bookingServiceFilter) return false
       if (debouncedBookingSearch) {
         const term = debouncedBookingSearch.toLowerCase()
         const title = getBookingTitle(b).toLowerCase()
-        const svc = (b.rfqData?.serviceType || "").toLowerCase()
-        if (!title.includes(term) && !svc.includes(term)) return false
+        const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
+        const addr = (b.location?.address || "").toLowerCase()
+        const bNum = (b.bookingNumber || "").toLowerCase()
+        if (!title.includes(term) && !svc.includes(term) && !addr.includes(term) && !bNum.includes(term)) return false
       }
       return true
     })

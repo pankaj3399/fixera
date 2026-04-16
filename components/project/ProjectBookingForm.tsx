@@ -1880,8 +1880,7 @@ export default function ProjectBookingForm({
       }
     }
 
-    if (currentStep === 3) {
-      // Validate required RFQ questions
+    if (currentStep === 3 && selectedPackage?.pricing?.type === 'rfq') {
       for (let i = 0; i < project.rfqQuestions.length; i++) {
         const question = project.rfqQuestions[i];
         if (
@@ -3496,7 +3495,8 @@ export default function ProjectBookingForm({
                   </div>
                 )}
 
-                {/* RFQ Questions Section */}
+                {/* RFQ Questions Section — only for RFQ packages */}
+                {selectedPackage?.pricing?.type === 'rfq' && project.rfqQuestions.length > 0 && (<>
                 <div>
                   <h2 className='text-xl font-semibold mb-2'>
                     Project Details
@@ -3624,6 +3624,7 @@ export default function ProjectBookingForm({
                     )}
                   </div>
                 ))}
+                </>)}
 
                 {/* Additional Notes */}
                 <div className='space-y-2 pt-4 border-t'>
