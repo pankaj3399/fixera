@@ -441,17 +441,28 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     await fetchBookings(1, false)
   }, [fetchBookings])
 
+  const TIMELINE_STATUSES = ["booked", "rescheduling_requested", "in_progress", "professional_completed", "payment_pending", "quote_accepted", "dispute"]
+  const FINISHED_ONLY_STATUSES = new Set(["completed", "cancelled", "refunded"])
+
   const fetchTimelineBookings = useCallback(async () => {
     if (!isAuthenticated || user?.role !== "professional") return
+
+    if (statusFilter !== "all" && FINISHED_ONLY_STATUSES.has(statusFilter)) {
+      setTimelineBookings([])
+      return
+    }
 
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
 
+      const TIMELINE_STATUS_MAP: Record<string, string> = {
+        awaiting_payment: "quote_accepted,payment_pending",
+      }
       const activeStatuses = statusFilter !== "all"
-        ? (statusFilter === "awaiting_payment" ? "quote_accepted,payment_pending" : statusFilter)
-        : ["booked", "rescheduling_requested", "in_progress", "professional_completed", "payment_pending", "quote_accepted", "dispute"].join(",")
+        ? (TIMELINE_STATUS_MAP[statusFilter] ?? statusFilter)
+        : TIMELINE_STATUSES.join(",")
       const allTimelineBookings: Booking[] = []
       let page = 1
       const limit = 50
