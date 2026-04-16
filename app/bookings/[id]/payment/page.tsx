@@ -1205,7 +1205,7 @@ export default function BookingPaymentPage() {
                     <div className="text-xs space-y-1">
                       <p>
                         <span className="font-medium">Start:</span>{' '}
-                        {scheduleWindow.scheduledStartDate.slice(0, 10)}
+                        {formatInTimeZone(parseISO(scheduleWindow.scheduledStartDate), professionalTimezone, 'yyyy-MM-dd')}
                         {scheduleWindow.scheduledStartTime ? ` at ${scheduleWindow.scheduledStartTime}` : ''}
                       </p>
                       {(() => {
@@ -1219,12 +1219,12 @@ export default function BookingPaymentPage() {
                       })()}
                       <p>
                         <span className="font-medium">Execution ends:</span>{' '}
-                        {scheduleWindow.scheduledExecutionEndDate.slice(0, 10)}
+                        {formatInTimeZone(parseISO(scheduleWindow.scheduledExecutionEndDate), professionalTimezone, 'yyyy-MM-dd')}
                       </p>
                       {scheduleWindow.scheduledBufferEndDate && (
                         <p>
                           <span className="font-medium">Project completion (incl. buffer):</span>{' '}
-                          {scheduleWindow.scheduledBufferEndDate.slice(0, 10)}
+                          {formatInTimeZone(parseISO(scheduleWindow.scheduledBufferEndDate), professionalTimezone, 'yyyy-MM-dd')}
                         </p>
                       )}
                     </div>
