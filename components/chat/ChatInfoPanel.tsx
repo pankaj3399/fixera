@@ -159,21 +159,23 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
       </div>
 
       {/* Professional Level & Response Rate (when customer views professional) */}
-      {isCustomerViewing && stats && (
+      {isCustomerViewing && stats && (Boolean(stats.professionalLevel) || (stats.adminTags?.length ?? 0) > 0 || stats.avgResponseTimeMs > 0) && (
         <>
           <div className="border-t border-slate-200 mx-4" />
           <div className="p-4 space-y-3">
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Professional Info</h4>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                <Award className="h-3.5 w-3.5 text-indigo-500" />
-                <span>Level</span>
+            {stats.professionalLevel && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                  <Award className="h-3.5 w-3.5 text-indigo-500" />
+                  <span>Level</span>
+                </div>
+                <Badge className={`text-[10px] ${getLevelColor(stats.professionalLevel)}`}>
+                  {stats.professionalLevel}
+                </Badge>
               </div>
-              <Badge className={`text-[10px] ${getLevelColor(stats.professionalLevel)}`}>
-                {stats.professionalLevel}
-              </Badge>
-            </div>
+            )}
 
             {stats.adminTags && stats.adminTags.length > 0 && (
               <div className="flex items-center justify-between gap-2">
@@ -195,15 +197,17 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
               </div>
             )}
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                <Clock className="h-3.5 w-3.5 text-indigo-500" />
-                <span>Avg. Response</span>
+            {stats.avgResponseTimeMs > 0 && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                  <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                  <span>Avg. Response</span>
+                </div>
+                <span className="text-xs font-medium text-gray-700">
+                  {formatResponseTime(stats.avgResponseTimeMs)}
+                </span>
               </div>
-              <span className="text-xs font-medium text-gray-700">
-                {formatResponseTime(stats.avgResponseTimeMs)}
-              </span>
-            </div>
+            )}
           </div>
         </>
       )}
