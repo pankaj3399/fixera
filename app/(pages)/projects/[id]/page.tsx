@@ -55,8 +55,8 @@ import {
 import { useCommissionRate } from '@/hooks/useCommissionRate';
 import type { PublicProjectDto as Project } from '@/types/project';
 import {
-  LEVEL_COLORS,
-  ADMIN_TAG_STYLES,
+  getLevelColor,
+  getAdminTagStyle,
   formatAdminTagLabel,
   formatResponseTime,
 } from '@/lib/professionalLevel';

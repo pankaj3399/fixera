@@ -1,3 +1,5 @@
+import type { ProfessionalLevel } from '@/lib/professionalLevel'
+
 export interface ProjectProfessionalInput {
   fieldName: string
   value: string | number | { min: number; max: number } | undefined
@@ -65,7 +67,7 @@ export interface ProjectProfessionalDto {
   name: string
   username?: string
   profileImage?: string
-  professionalLevel?: "New" | "Level 1" | "Level 2" | "Level 3" | "Expert"
+  professionalLevel?: ProfessionalLevel
   adminTags?: string[]
   createdAt?: string
   businessInfo?: {

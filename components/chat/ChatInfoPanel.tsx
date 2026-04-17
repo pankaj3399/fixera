@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Star, MapPin, Calendar, User, Clock, Award, Briefcase } from "lucide-react";
+import { Loader2, Star, MapPin, Calendar, User, Clock, Award, Briefcase, Tag } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 import { fetchConversationInfo } from "@/lib/chatApi";
 import type { ChatConversation, ConversationInfoStats } from "@/types/chat";
 import {
-  LEVEL_COLORS,
-  ADMIN_TAG_STYLES,
+  getLevelColor,
+  getAdminTagStyle,
   formatAdminTagLabel,
   formatResponseTime,
 } from "@/lib/professionalLevel";
@@ -170,7 +170,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
                 <Award className="h-3.5 w-3.5 text-indigo-500" />
                 <span>Level</span>
               </div>
-              <Badge className={`text-[10px] ${LEVEL_COLORS[stats.professionalLevel] || "bg-gray-100 text-gray-600"}`}>
+              <Badge className={`text-[10px] ${getLevelColor(stats.professionalLevel)}`}>
                 {stats.professionalLevel}
               </Badge>
             </div>
@@ -178,7 +178,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             {stats.adminTags && stats.adminTags.length > 0 && (
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
-                  <Award className="h-3.5 w-3.5 text-indigo-500" />
+                  <Tag className="h-3.5 w-3.5 text-indigo-500" />
                   <span>Tags</span>
                 </div>
                 <div className="flex flex-wrap gap-1 justify-end">
@@ -186,7 +186,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
                     <Badge
                       key={tag}
                       variant="outline"
-                      className={`text-[10px] ${ADMIN_TAG_STYLES[tag] || ""}`}
+                      className={`text-[10px] ${getAdminTagStyle(tag)}`}
                     >
                       {formatAdminTagLabel(tag)}
                     </Badge>

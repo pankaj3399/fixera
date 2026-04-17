@@ -16,8 +16,8 @@ import LocationAutocomplete, { type LocationData } from '@/components/search/Loc
 import {
   PROFESSIONAL_LEVELS,
   ADMIN_TAG_PRESETS,
-  LEVEL_COLORS,
-  ADMIN_TAG_STYLES,
+  getLevelColor,
+  getAdminTagStyle,
   formatAdminTagLabel,
 } from '@/lib/professionalLevel';
 
@@ -361,7 +361,7 @@ const SearchFilters = ({
                   htmlFor={`level-${level}`}
                   className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                 >
-                  <Badge variant="secondary" className={`font-medium ${LEVEL_COLORS[level] || ''}`}>{level}</Badge>
+                  <Badge variant="secondary" className={`font-medium ${getLevelColor(level)}`}>{level}</Badge>
                 </Label>
               </div>
             ))}
@@ -394,7 +394,7 @@ const SearchFilters = ({
                   htmlFor={`tag-${tag}`}
                   className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                 >
-                  <Badge variant="outline" className={`font-medium ${ADMIN_TAG_STYLES[tag] || ''}`}>
+                  <Badge variant="outline" className={`font-medium ${getAdminTagStyle(tag)}`}>
                     {formatAdminTagLabel(tag)}
                   </Badge>
                 </Label>
@@ -425,7 +425,12 @@ const SearchFilters = ({
                   type="button"
                   variant={filters.minProjectRating === n ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => onFilterChange('minProjectRating', n)}
+                  onClick={() =>
+                    onFilterChange(
+                      'minProjectRating',
+                      filters.minProjectRating === n && n !== 0 ? 0 : n
+                    )
+                  }
                   className="flex items-center gap-1"
                 >
                   {n === 0 ? 'Any' : (

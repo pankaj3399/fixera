@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar, Star } from 'lucide-react';
 import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } from '@/lib/projectHighlights';
 import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
-import { LEVEL_COLORS, ADMIN_TAG_STYLES, formatAdminTagLabel } from '@/lib/professionalLevel';
+import { getLevelColor, getAdminTagStyle, formatAdminTagLabel } from '@/lib/professionalLevel';
+import type { PublicProfessionalDto } from '@/types/project';
 
 interface ProjectCardProps {
   customerPrice: (value: number) => number;
@@ -44,21 +45,7 @@ interface ProjectCardProps {
       images?: string[];
       video?: string;
     };
-    professionalId?: {
-      _id: string;
-      name: string;
-      username?: string;
-      email: string;
-      businessInfo?: {
-        city?: string;
-        country?: string;
-      };
-      hourlyRate?: number;
-      currency?: string;
-      profileImage?: string;
-      professionalLevel?: string;
-      adminTags?: string[];
-    };
+    professionalId?: PublicProfessionalDto;
     projectAvgRating?: number;
     projectTotalReviews?: number;
     subprojects?: Array<{
@@ -105,6 +92,7 @@ const ProjectCard = ({ customerPrice, project }: ProjectCardProps) => {
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
+  const extraTagCount = Math.max(0, (professional?.adminTags?.length ?? 0) - 2);
   const qualityCertificates = (project.certifications || []).filter((cert) => isQualityCertificate(cert.name));
 
   const images = project.media?.images || [];
@@ -377,7 +365,7 @@ const ProjectCard = ({ customerPrice, project }: ProjectCardProps) => {
                     {professionalName}
                   </p>
                   {professional?.professionalLevel && (
-                    <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${LEVEL_COLORS[professional.professionalLevel] || ''}`}>
+                    <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${getLevelColor(professional.professionalLevel)}`}>
                       {professional.professionalLevel}
                     </Badge>
                   )}
@@ -385,13 +373,13 @@ const ProjectCard = ({ customerPrice, project }: ProjectCardProps) => {
                     <Badge
                       key={tag}
                       variant="outline"
-                      className={`text-[9px] px-1.5 py-0 ${ADMIN_TAG_STYLES[tag] || ''}`}
+                      className={`text-[9px] px-1.5 py-0 ${getAdminTagStyle(tag)}`}
                     >
                       {formatAdminTagLabel(tag)}
                     </Badge>
                   ))}
-                  {(professional?.adminTags?.length || 0) > 2 && (
-                    <span className="text-[9px] text-gray-400">+{professional!.adminTags!.length - 2}</span>
+                  {extraTagCount > 0 && (
+                    <span className="text-[9px] text-gray-400">+{extraTagCount}</span>
                   )}
                 </div>
                 {location && (

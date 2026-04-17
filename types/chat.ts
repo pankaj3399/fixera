@@ -1,3 +1,5 @@
+import type { ProfessionalLevel } from "@/lib/professionalLevel";
+
 export interface ChatUserSummary {
   _id: string;
   name?: string;
@@ -116,7 +118,7 @@ export interface ConversationInfoStats {
   avgProfessionalRating: number;
   totalCustomerReviews: number;
   totalProfessionalReviews: number;
-  professionalLevel: string;
+  professionalLevel: ProfessionalLevel | "";
   adminTags: string[];
   avgResponseTimeMs: number;
   pendingBookings: PendingBooking[];
