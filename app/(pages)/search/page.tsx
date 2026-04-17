@@ -494,10 +494,11 @@ function SearchPageContent() {
 
   const handleSearchTypeChange = (newType: 'professionals' | 'projects') => {
     setSearchType(newType);
-    // Reset to page 1 when changing search type
     setPagination((prev) => ({ ...prev, page: 1 }));
-    // Clear results to show loading state
     setResults([]);
+    if (newType !== 'projects' && filters.minProjectRating > 0) {
+      setFilters((prev) => ({ ...prev, minProjectRating: 0 }));
+    }
   };
 
   return (

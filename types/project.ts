@@ -183,6 +183,8 @@ export interface ProjectDto {
     answer: string
   }>
   professionalId: ProjectProfessionalDto
+  projectAvgRating?: number
+  projectTotalReviews?: number
   professionalStats?: {
     avgRating: number
     totalReviews: number

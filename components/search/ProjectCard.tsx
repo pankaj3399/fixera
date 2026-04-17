@@ -56,11 +56,11 @@ interface ProjectCardProps {
       hourlyRate?: number;
       currency?: string;
       profileImage?: string;
-      avgRating?: number;
-      totalReviews?: number;
       professionalLevel?: string;
       adminTags?: string[];
     };
+    projectAvgRating?: number;
+    projectTotalReviews?: number;
     subprojects?: Array<{
       name: string;
       description: string;
@@ -248,23 +248,23 @@ const ProjectCard = ({ customerPrice, project }: ProjectCardProps) => {
             {project.title}
           </h3>
 
-          {professional?.avgRating != null && professional.avgRating > 0 && (
+          {project.projectAvgRating != null && project.projectAvgRating > 0 && (
             <div className="flex items-center gap-1 mb-3">
               <div className="flex gap-0.5">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
                     className={`h-4 w-4 ${
-                      star <= Math.round(professional.avgRating!)
+                      star <= Math.round(project.projectAvgRating!)
                         ? 'fill-yellow-400 text-yellow-400'
                         : 'text-gray-200'
                     }`}
                   />
                 ))}
               </div>
-              <span className="text-sm font-semibold text-gray-700">{professional.avgRating.toFixed(1)}</span>
-              {professional.totalReviews != null && (
-                <span className="text-xs text-gray-400">({professional.totalReviews})</span>
+              <span className="text-sm font-semibold text-gray-700">{project.projectAvgRating.toFixed(1)}</span>
+              {project.projectTotalReviews != null && (
+                <span className="text-xs text-gray-400">({project.projectTotalReviews})</span>
               )}
             </div>
           )}

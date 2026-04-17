@@ -23,14 +23,16 @@ export const ADMIN_TAG_STYLES: Record<string, string> = {
   "our choice": "bg-amber-50 text-amber-700 border-amber-200",
 };
 
-export const formatAdminTagLabel = (tag: string): string => {
-  if (tag === "our choice") return "Our Choice";
-  return tag.charAt(0).toUpperCase() + tag.slice(1);
-};
+export const formatAdminTagLabel = (tag: string): string =>
+  tag
+    .split(" ")
+    .map((w) => (w.length === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
 
 export const formatResponseTime = (ms: number): string => {
   if (!ms || ms <= 0) return "N/A";
   const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "<1m";
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ${minutes % 60}m`;
