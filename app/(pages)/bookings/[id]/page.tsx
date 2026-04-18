@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -428,6 +428,7 @@ export default function BookingDetailPage() {
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
+  const disputeAutoOpenedRef = useRef(false)
   const bookingId = (params?.id || params?.bookingId) as string | undefined
   const showPostBookingQuestions = searchParams?.get("postBookingQuestions") === "true"
   const autoOpenWarrantyClaim = searchParams?.get("openWarrantyClaim") === "true"
@@ -648,12 +649,14 @@ export default function BookingDetailPage() {
     ) {
       setShowQuotationWizard(true)
     }
-    // Auto-open dispute modal when navigated with ?dispute=1
+    // Auto-open dispute modal when navigated with ?dispute=1 (one-shot)
     if (
       booking?.status === "professional_completed" &&
       searchParams?.get("dispute") === "1" &&
-      user?.role === "customer"
+      user?.role === "customer" &&
+      !disputeAutoOpenedRef.current
     ) {
+      disputeAutoOpenedRef.current = true
       setShowDisputeModal(true)
     }
   }, [booking, searchParams, user?.role])
@@ -1674,8 +1677,17 @@ export default function BookingDetailPage() {
   const addExtraCost = (type: 'unit_adjustment' | 'condition' | 'option' | 'other') => {
     let unitDefaults: { estimatedUnits: number; actualUnits: number; unitPrice: number } | null = null
     if (type === 'unit_adjustment') {
-      const subIdx = booking?.selectedSubprojectIndex ?? 0
-      const sub = booking?.project?.subprojects?.[subIdx]
+      const subprojects = booking?.project?.subprojects || []
+      let subIdx: number
+      if (typeof booking?.selectedSubprojectIndex === 'number') {
+        subIdx = booking.selectedSubprojectIndex
+      } else if (subprojects.length === 1) {
+        subIdx = 0
+      } else {
+        toast.error('Cannot add a unit adjustment: no subproject is selected for this booking.')
+        return
+      }
+      const sub = subprojects[subIdx]
       const inputs = sub?.professionalInputs || []
       const quantityInput = inputs.find((p) => {
         const name = (p.fieldName || '').toLowerCase()
@@ -1686,7 +1698,7 @@ export default function BookingDetailPage() {
         return
       }
       const estimatedUnits = Number(quantityInput.value)
-      if (!Number.isFinite(estimatedUnits)) {
+      if (!Number.isFinite(estimatedUnits) || estimatedUnits <= 0) {
         toast.error('Cannot add a unit adjustment: the quantity input is not a valid number.')
         return
       }

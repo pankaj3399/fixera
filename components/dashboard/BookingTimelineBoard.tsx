@@ -592,7 +592,8 @@ export default function BookingTimelineBoard({
       const hasUnpaidExtras =
         typeof booking.extraCostTotal === "number" &&
         booking.extraCostTotal > 0 &&
-        booking.extraCostStatus !== "confirmed"
+        booking.extraCostStatus !== "confirmed" &&
+        booking.extraCostStatus !== "disputed"
       if (hasUnpaidMilestones) {
         btns.push(
           <Button key="pay-milestone" size="sm" className="h-6 text-[10px] px-1.5 bg-sky-600 text-white hover:bg-sky-700" onClick={() => router.push(`/bookings/${booking._id}`)}>
@@ -612,12 +613,14 @@ export default function BookingTimelineBoard({
           <Button key="confirm-complete" size="sm" className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleCustomerConfirmCompletion(booking._id)} disabled={busy}>
             {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
             Confirm
-          </Button>,
-          <Button key="dispute" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => router.push(`/bookings/${booking._id}?dispute=1`)}>
-            <XCircle className="mr-1 h-3 w-3" />Dispute
           </Button>
         )
       }
+      btns.push(
+        <Button key="dispute" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => router.push(`/bookings/${booking._id}?dispute=1`)}>
+          <XCircle className="mr-1 h-3 w-3" />Dispute
+        </Button>
+      )
     }
 
     if (viewerRole === "customer" && (booking.status === "payment_pending" || booking.status === "quote_accepted")) {
