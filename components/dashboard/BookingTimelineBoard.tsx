@@ -588,7 +588,7 @@ export default function BookingTimelineBoard({
     if (viewerRole === "customer" && booking.status === "professional_completed") {
       const hasUnpaidMilestones = Array.isArray(booking.milestonePayments)
         && booking.milestonePayments.length > 0
-        && booking.milestonePayments.some((m: any) => m.status !== "paid")
+        && booking.milestonePayments.some((m) => m.status !== "paid")
       if (hasUnpaidMilestones) {
         btns.push(
           <Button key="pay-milestone" size="sm" className="h-6 text-[10px] px-1.5 bg-sky-600 text-white hover:bg-sky-700" onClick={() => router.push(`/bookings/${booking._id}`)}>

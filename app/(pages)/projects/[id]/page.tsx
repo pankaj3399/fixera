@@ -763,7 +763,7 @@ export default function ProjectDetailPage() {
                           {priceModelLabel}
                         </p>
                         <p className='text-xs text-gray-500 mt-0.5'>
-                          Priced per {priceModelLabel}
+                          Pricing unit: {priceModelLabel}
                         </p>
                       </div>
                     </div>

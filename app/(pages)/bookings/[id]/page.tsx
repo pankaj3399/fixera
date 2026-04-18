@@ -3968,7 +3968,6 @@ export default function BookingDetailPage() {
                           <Input
                             type="number"
                             value={cost.estimatedUnits || ''}
-                            readOnly
                             disabled
                             className="h-8 text-sm bg-gray-100"
                           />
@@ -3982,7 +3981,6 @@ export default function BookingDetailPage() {
                           <Input
                             type="number"
                             value={cost.unitPrice || ''}
-                            readOnly
                             disabled
                             className="h-8 text-sm bg-gray-100"
                           />

@@ -456,7 +456,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                         </Select>
                       )}
                     </div>
-                    {i === 0 && !isImmediatelyPayableAndPositive(ms) && ms.amount <= 0 && (
+                    {i === 0 && ms.amount <= 0 && (
                       <p className="text-xs text-amber-600">
                         The first milestone is an upfront deposit that unlocks project start — set an amount greater than 0.
                       </p>
