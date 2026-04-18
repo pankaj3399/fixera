@@ -133,7 +133,7 @@ export default function AdminFavoritesPage() {
   }, []);
 
   const loadList = useCallback(
-    async (nextPage = page) => {
+    async (nextPage: number) => {
       setListLoading(true);
       try {
         const qs = new URLSearchParams();
@@ -159,7 +159,7 @@ export default function AdminFavoritesPage() {
         setListLoading(false);
       }
     },
-    [filterType, filterUserId, filterTargetId, page]
+    [filterType, filterUserId, filterTargetId]
   );
 
   useEffect(() => {
