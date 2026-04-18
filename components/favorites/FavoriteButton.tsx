@@ -152,9 +152,12 @@ export default function FavoriteButton({
         aria-pressed={favorited}
         title={disabled ? "Only customers can favorite" : undefined}
         className={cn(
-          "rounded-full bg-white/90 backdrop-blur border border-gray-200 shadow-sm",
-          "flex items-center justify-center transition-all",
-          "hover:scale-110 hover:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-200",
+          "rounded-full bg-white/95 backdrop-blur border shadow-md",
+          "flex items-center justify-center transition-all duration-200",
+          "hover:scale-110 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-pink-300",
+          favorited
+            ? "border-pink-300 shadow-pink-200/60"
+            : "border-gray-200 hover:border-pink-300",
           disabled && "opacity-60 cursor-not-allowed hover:scale-100",
           wrap
         )}
@@ -167,18 +170,22 @@ export default function FavoriteButton({
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="transition-colors"
+          className={cn(
+            "transition-all duration-200",
+            favorited && "drop-shadow-[0_0_4px_rgba(244,63,94,0.55)]"
+          )}
         >
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffb4c6" />
-              <stop offset="100%" stopColor="#c3b4ff" />
+              <stop offset="0%" stopColor="#ff5d8f" />
+              <stop offset="50%" stopColor="#f43f5e" />
+              <stop offset="100%" stopColor="#d946ef" />
             </linearGradient>
           </defs>
           <path
             d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
             fill={favorited ? `url(#${gradientId})` : "none"}
-            stroke={favorited ? `url(#${gradientId})` : "#9ca3af"}
+            stroke={favorited ? `url(#${gradientId})` : "#d1d5db"}
           />
         </svg>
       </button>

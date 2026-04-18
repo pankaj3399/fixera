@@ -4,9 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Heart } from "lucide-react";
-import { toast } from "sonner";
 
 interface PerProjectCount {
   projectId: string;
@@ -19,7 +17,6 @@ interface FavoritesStats {
   profileCount: number;
   perProject: PerProjectCount[];
   newSinceLastSeen: number;
-  emailFavorites: boolean;
 }
 
 export default function FavoritesWidget() {
@@ -47,28 +44,6 @@ export default function FavoritesWidget() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
-
-  const toggleEmailPref = useCallback(async (next: boolean) => {
-    setStats((prev) => (prev ? { ...prev, emailFavorites: next } : prev));
-    try {
-      const res = await authFetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/professional/favorites-email-preference`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ emailFavorites: next }),
-        }
-      );
-      const json = await res.json();
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.msg || "Failed");
-      }
-      toast.success(next ? "Email alerts enabled" : "Email alerts disabled");
-    } catch {
-      setStats((prev) => (prev ? { ...prev, emailFavorites: !next } : prev));
-      toast.error("Failed to update email preference");
-    }
-  }, []);
 
   const dismissNew = useCallback(async () => {
     if (dismissing) return;
@@ -153,13 +128,6 @@ export default function FavoritesWidget() {
           <span className="font-semibold text-gray-700">
             {stats.total - stats.profileCount}
           </span>
-        </div>
-        <div className="flex items-center justify-between mb-3 p-2 rounded-md bg-white/60 border border-pink-100">
-          <span className="text-xs text-gray-600">Weekly email digest</span>
-          <Switch
-            checked={stats.emailFavorites}
-            onCheckedChange={toggleEmailPref}
-          />
         </div>
         {topProjects.length > 0 ? (
           <div className="space-y-2">

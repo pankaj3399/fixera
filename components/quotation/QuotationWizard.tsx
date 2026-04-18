@@ -84,15 +84,17 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
       currency: existing.currency || 'EUR',
       useMilestones: (existing.milestones?.length || 0) > 0,
       milestones: existing.milestones?.length
-        ? existing.milestones.map(m => ({
-            title: m.title,
-            amount: m.amount,
-            description: m.description || '',
-            dueCondition: m.dueCondition,
-            customDueDate: m.customDueDate,
-            order: m.order,
-            status: 'pending' as const,
-          }))
+        ? [...existing.milestones]
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            .map((m, i) => ({
+              title: m.title,
+              amount: m.amount,
+              description: m.description || '',
+              dueCondition: i === 0 ? ('on_start' as const) : m.dueCondition,
+              customDueDate: m.customDueDate,
+              order: m.order,
+              status: 'pending' as const,
+            }))
         : [{ ...FIRST_MILESTONE }],
       preparationDuration: { ...existing.preparationDuration },
       executionDuration: { ...existing.executionDuration },
@@ -131,7 +133,6 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
 export default function QuotationWizard({ bookingId, existingVersion, isEditing, commissionPercent, onSuccess, onCancel }: QuotationWizardProps) {
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
   const [submitting, setSubmitting] = useState(false)
-  const earliestSubmittedMilestone = getEarliestSubmittedMilestone(form.milestones)
 
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -149,10 +150,17 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   // Milestones helpers
   const addMilestone = () => updateForm('milestones', [...form.milestones, { ...EMPTY_MILESTONE, order: form.milestones.length }])
   const removeMilestone = (index: number) => {
-    const updated = form.milestones.filter((_, i) => i !== index).map((m, i) => ({ ...m, order: i }))
+    const updated = form.milestones
+      .filter((_, i) => i !== index)
+      .map((m, i) => ({
+        ...m,
+        order: i,
+        dueCondition: i === 0 ? 'on_start' : m.dueCondition,
+      })) as QuotationMilestone[]
     updateForm('milestones', updated)
   }
   const updateMilestone = (index: number, field: keyof QuotationMilestone, value: string | number) => {
+    if (index === 0 && field === 'dueCondition') return
     const updated = [...form.milestones]
     updated[index] = { ...updated[index], [field]: value }
     updateForm('milestones', updated)
@@ -428,25 +436,29 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                         onChange={e => updateMilestone(i, 'amount', parseFloat(e.target.value) || 0)}
                         className="w-32"
                       />
-                      <Select
-                        value={ms.dueCondition}
-                        onValueChange={v => updateMilestone(i, 'dueCondition', v)}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="on_start">On Project Start</SelectItem>
-                          <SelectItem value="on_milestone_start">On Milestone Start</SelectItem>
-                          <SelectItem value="on_milestone_completion">On Milestone Completion</SelectItem>
-                          <SelectItem value="on_project_completion">On Project Completion</SelectItem>
-                          <SelectItem value="custom_date">Custom Date</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {i === 0 ? (
+                        <div className="flex-1 flex items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                          On Project Start (locked)
+                        </div>
+                      ) : (
+                        <Select
+                          value={ms.dueCondition}
+                          onValueChange={v => updateMilestone(i, 'dueCondition', v)}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="on_milestone_start">On Milestone Start</SelectItem>
+                            <SelectItem value="on_milestone_completion">On Milestone Completion</SelectItem>
+                            <SelectItem value="custom_date">Custom Date</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
-                    {earliestSubmittedMilestone?.order === ms.order && !isImmediatelyPayableAndPositive(ms) && (
+                    {i === 0 && ms.amount <= 0 && (
                       <p className="text-xs text-amber-600">
-                        Tip: the first milestone is typically an upfront deposit. Pick &quot;On Project Start&quot; so the customer can pay to kick off the work.
+                        The first milestone is an upfront deposit that unlocks project start — set an amount greater than 0.
                       </p>
                     )}
                     {ms.dueCondition === 'custom_date' && (

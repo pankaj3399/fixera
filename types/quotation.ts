@@ -2,7 +2,7 @@ export interface QuotationMilestone {
   title: string
   amount: number
   description?: string
-  dueCondition: 'on_start' | 'on_milestone_start' | 'on_milestone_completion' | 'on_project_completion' | 'custom_date'
+  dueCondition: 'on_start' | 'on_milestone_start' | 'on_milestone_completion' | 'custom_date'
   customDueDate?: string
   order: number
   status: 'pending' | 'invoiced' | 'paid' | 'overdue'

@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Heart, Loader2, RefreshCw, Trash2, Send } from "lucide-react";
+import { Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface OverviewTotals {
@@ -55,6 +55,7 @@ interface ListItem {
   user: { _id: string; name?: string; email?: string; role?: string } | null;
   targetType: "professional" | "project";
   targetId: string;
+  targetLabel: string;
   createdAt: string;
 }
 
@@ -88,7 +89,6 @@ export default function AdminFavoritesPage() {
   const [filterType, setFilterType] = useState<"" | "professional" | "project">("");
   const [filterUserId, setFilterUserId] = useState("");
   const [filterTargetId, setFilterTargetId] = useState("");
-  const [digesting, setDigesting] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -183,29 +183,6 @@ export default function AdminFavoritesPage() {
     [loadOverview]
   );
 
-  const runDigest = useCallback(async () => {
-    if (!confirm("Send the weekly favorites digest email to all eligible professionals now?")) return;
-    setDigesting(true);
-    try {
-      const res = await authFetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/run-favorites-digest`,
-        { method: "POST" }
-      );
-      const json = await res.json();
-      if (res.ok && json?.success) {
-        toast.success(
-          `Digest: sent ${json.data.sent}, skipped ${json.data.skipped}, errors ${json.data.errors?.length || 0}`
-        );
-      } else {
-        toast.error(json?.msg || "Digest failed");
-      }
-    } catch {
-      toast.error("Digest failed");
-    } finally {
-      setDigesting(false);
-    }
-  }, []);
-
   if (loading || user?.role !== "admin") {
     return null;
   }
@@ -224,14 +201,6 @@ export default function AdminFavoritesPage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={loadOverview} disabled={overviewLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
-          </Button>
-          <Button onClick={runDigest} disabled={digesting}>
-            {digesting ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4 mr-2" />
-            )}
-            Run Digest
           </Button>
         </div>
       </div>
@@ -441,7 +410,7 @@ export default function AdminFavoritesPage() {
                         <th className="py-2 pr-2">When</th>
                         <th className="py-2 pr-2">Customer</th>
                         <th className="py-2 pr-2">Type</th>
-                        <th className="py-2 pr-2">Target ID</th>
+                        <th className="py-2 pr-2">Target</th>
                         <th className="py-2 pr-2">Action</th>
                       </tr>
                     </thead>
@@ -455,7 +424,7 @@ export default function AdminFavoritesPage() {
                             {r.user?.name || r.user?.email || "(deleted)"}
                           </td>
                           <td className="py-2 pr-2 capitalize">{r.targetType}</td>
-                          <td className="py-2 pr-2 font-mono text-xs">{r.targetId}</td>
+                          <td className="py-2 pr-2">{r.targetLabel}</td>
                           <td className="py-2 pr-2">
                             <Button
                               size="sm"

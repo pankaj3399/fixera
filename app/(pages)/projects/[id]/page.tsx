@@ -723,6 +723,36 @@ export default function ProjectDetailPage() {
                   </p>
                 </div>
 
+                {(() => {
+                  const sub = project.subprojects?.[viewedSubprojectIndex]
+                  const inputs = sub?.professionalInputs || []
+                  if (inputs.length === 0) return null
+                  return (
+                    <div className='pt-4 border-t'>
+                      <h4 className='font-semibold mb-3'>Service Details{sub?.name ? ` — ${sub.name}` : ''}</h4>
+                      <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                        {inputs.map((input, idx) => {
+                          const value = input.value
+                          let display: string
+                          if (value && typeof value === 'object' && 'min' in value) {
+                            display = `${value.min} - ${value.max}`
+                          } else if (value === undefined || value === null || value === '') {
+                            display = '—'
+                          } else {
+                            display = String(value)
+                          }
+                          return (
+                            <div key={`${input.fieldName}-${idx}`} className='flex items-start justify-between gap-3 text-sm bg-gray-50 rounded-md px-3 py-2'>
+                              <span className='text-gray-600'>{input.fieldName}</span>
+                              <span className='font-medium text-gray-900 text-right'>{display}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t'>
                   {priceModelLabel && (
                     <div className='flex items-start gap-3'>
@@ -731,6 +761,9 @@ export default function ProjectDetailPage() {
                         <p className='text-sm text-gray-500'>Price Model</p>
                         <p className='font-medium text-gray-900'>
                           {priceModelLabel}
+                        </p>
+                        <p className='text-xs text-gray-500 mt-0.5'>
+                          Pricing unit: {priceModelLabel}
                         </p>
                       </div>
                     </div>
@@ -752,11 +785,9 @@ export default function ProjectDetailPage() {
                       <p className='font-medium'>
                         {project.resources.length} members
                       </p>
-                      {project.minResources && project.minResources > 1 && (
-                        <p className='text-xs text-blue-600'>
-                          {project.minResources} required ({project.minOverlapPercentage || 90}% overlap)
-                        </p>
-                      )}
+                      <p className='text-xs text-blue-600'>
+                        {project.minResources || 1} required ({project.minOverlapPercentage ?? 70}% overlap)
+                      </p>
                     </div>
                   </div>
                 </div>
