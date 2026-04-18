@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Euro, ArrowRight, Calendar, Star } from 'lucide-react';
 import StartChatButton from '@/components/chat/StartChatButton';
+import FavoriteButton from '@/components/favorites/FavoriteButton';
 
 interface ProfessionalCardProps {
   professional: {
@@ -26,9 +27,11 @@ interface ProfessionalCardProps {
     avgRating?: number;
     totalReviews?: number;
   };
+  initialFavorited?: boolean;
+  onFavoriteToggled?: (favorited: boolean, count: number) => void;
 }
 
-const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
+const ProfessionalCard = ({ professional, initialFavorited, onFavoriteToggled }: ProfessionalCardProps) => {
   const displayName = professional.username || professional.name;
   const location = [professional.businessInfo?.city, professional.businessInfo?.country]
     .filter(Boolean)
@@ -50,11 +53,20 @@ const ProfessionalCard = ({ professional }: ProfessionalCardProps) => {
           </div>
         )}
         {professional.availability && (
-          <Badge className="absolute top-3 right-3 bg-green-500 text-white">
+          <Badge className="absolute top-3 left-3 bg-green-500 text-white">
             <Calendar className="w-3 h-3 mr-1" />
             Available
           </Badge>
         )}
+        <div className="absolute top-3 right-3">
+          <FavoriteButton
+            targetType="professional"
+            targetId={professional._id}
+            initialFavorited={initialFavorited}
+            size="sm"
+            onToggled={onFavoriteToggled}
+          />
+        </div>
       </div>
 
       {/* Content Section */}

@@ -33,6 +33,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import StartChatButton from "@/components/chat/StartChatButton"
+import FavoriteButton from "@/components/favorites/FavoriteButton"
+import { useFavoriteStatus } from "@/hooks/useFavoriteStatus"
 
 interface ProfessionalData {
   _id: string
@@ -177,6 +179,30 @@ export default function ProfessionalProfilePage() {
 
   const isOwner = user?._id === professionalId && user?.role === "professional"
   const isAdmin = user?.role === "admin"
+
+  const [favoriteCount, setFavoriteCount] = useState<number | undefined>(undefined)
+  const favoriteIds = professionalId ? [professionalId] : []
+  const favoriteMap = useFavoriteStatus("professional", favoriteIds)
+  const isFavorited = professionalId ? Boolean(favoriteMap[professionalId]) : false
+
+  useEffect(() => {
+    if (!professionalId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/favorites-count`
+        )
+        const json = await res.json()
+        if (!cancelled && res.ok && json?.success) {
+          setFavoriteCount(json.data.count)
+        }
+      } catch {
+        // noop
+      }
+    })()
+    return () => { cancelled = true }
+  }, [professionalId])
 
   const fetchReviews = useCallback(async (pageNum: number, signal?: AbortSignal) => {
     try {
@@ -444,6 +470,16 @@ export default function ProfessionalProfilePage() {
                         label="Send Message"
                         variant="default"
                         size="default"
+                      />
+                      <FavoriteButton
+                        targetType="professional"
+                        targetId={professional._id}
+                        initialFavorited={isFavorited}
+                        initialCount={favoriteCount}
+                        showCount
+                        size="md"
+                        stopPropagation={false}
+                        onToggled={(_, c) => setFavoriteCount(c)}
                       />
                     </div>
                   )}

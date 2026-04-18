@@ -4,13 +4,14 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
+import FavoritesWidget from "@/components/dashboard/FavoritesWidget"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -653,6 +654,25 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
+              <Card className="border-pink-100 bg-gradient-to-br from-white via-pink-50 to-purple-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Heart className="h-5 w-5 text-pink-500" />
+                    Favorites
+                  </CardTitle>
+                  <CardDescription>Review favorites activity, leaderboards, and remove abusive entries</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/favorites', '_blank')}
+                    className="w-full bg-gradient-to-r from-pink-400 to-purple-500 hover:from-pink-500 hover:to-purple-600"
+                  >
+                    <Heart className="h-4 w-4 mr-2" />
+                    Manage Favorites
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card className="border-slate-200 bg-gradient-to-br from-white via-slate-50 to-gray-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1146,6 +1166,10 @@ export default function DashboardPage() {
               </h1>
               <p className="text-gray-600">Manage your profile, projects, bookings, and quotes, {user?.name}.</p>
             </div>
+          </div>
+
+          <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <FavoritesWidget />
           </div>
 
           <Tabs defaultValue="quick_actions" className="space-y-6">

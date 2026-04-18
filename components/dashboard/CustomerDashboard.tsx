@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Briefcase, Calendar, CheckCircle, Clock, CreditCard,
-  GitCompareArrows, Loader2, Package, Plus, Search,
+  GitCompareArrows, Heart, Loader2, Package, Plus, Search,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
@@ -779,6 +779,10 @@ export default function CustomerDashboard() {
                   <Button variant="outline" onClick={() => router.push("/dashboard/benefits")} className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4" />
                     Benefits Program
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push("/dashboard/favorites")} className="flex items-center gap-2">
+                    <Heart className="h-4 w-4" />
+                    Favorites
                   </Button>
                   <Button variant="outline" onClick={() => router.push("/profile")} className="flex items-center gap-2">
                     <Briefcase className="h-4 w-4" />

@@ -8,10 +8,13 @@ import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } f
 import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
 import { getLevelColor, getAdminTagStyle, formatAdminTagLabel } from '@/lib/professionalLevel';
 import type { PublicProfessionalDto } from '@/types/project';
+import FavoriteButton from '@/components/favorites/FavoriteButton';
 
 interface ProjectCardProps {
   customerPrice: (value: number) => number;
   originalPrice?: (value: number) => number;
+  initialFavorited?: boolean;
+  onFavoriteToggled?: (favorited: boolean, count: number) => void;
   project: {
     _id: string;
     title: string;
@@ -84,7 +87,7 @@ interface ProjectCardProps {
   };
 }
 
-const ProjectCard = ({ customerPrice, originalPrice, project }: ProjectCardProps) => {
+const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, onFavoriteToggled }: ProjectCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
   const formatAmount = (value: number) => `€${customerPrice(value).toLocaleString()}`;
@@ -196,9 +199,18 @@ const ProjectCard = ({ customerPrice, originalPrice, project }: ProjectCardProps
         )}
 
         {/* Category Badge */}
-        <Badge className="absolute top-3 right-3 bg-blue-600 text-white">
+        <Badge className="absolute top-3 right-14 bg-blue-600 text-white">
           {project.category}
         </Badge>
+        <div className="absolute top-3 right-3">
+          <FavoriteButton
+            targetType="project"
+            targetId={project._id}
+            initialFavorited={initialFavorited}
+            size="sm"
+            onToggled={onFavoriteToggled}
+          />
+        </div>
 
         {/* First Available Date Badge */}
         {project.firstAvailableDate && (

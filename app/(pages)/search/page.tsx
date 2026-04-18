@@ -11,6 +11,7 @@ import ProjectCard from '@/components/search/ProjectCard';
 import SearchFilters, { type SearchFiltersState, type ProjectFacetCounts } from '@/components/search/SearchFilters';
 import { useFilterOptions } from '@/hooks/useFilterOptions';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
 type ProjectResult = ComponentProps<typeof ProjectCard>['project'];
@@ -219,6 +220,17 @@ function SearchPageContent() {
 
   const professionalResults = results as ProfessionalResult[];
   const projectResults = results as ProjectResult[];
+
+  const professionalIds = useMemo(
+    () => (searchType === 'professionals' ? professionalResults.map((p) => p._id) : []),
+    [searchType, professionalResults]
+  );
+  const projectIds = useMemo(
+    () => (searchType === 'projects' ? projectResults.map((p) => p._id) : []),
+    [searchType, projectResults]
+  );
+  const favoritedProfessionals = useFavoriteStatus('professional', professionalIds);
+  const favoritedProjects = useFavoriteStatus('project', projectIds);
   const projectFacets = useMemo(() => {
     if (searchType !== 'projects') {
       return null;
@@ -586,10 +598,19 @@ function SearchPageContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                   {searchType === 'professionals'
                     ? professionalResults.map((professional) => (
-                        <ProfessionalCard key={professional._id} professional={professional} />
+                        <ProfessionalCard
+                          key={professional._id}
+                          professional={professional}
+                          initialFavorited={Boolean(favoritedProfessionals[professional._id])}
+                        />
                       ))
                     : projectResults.map((project) => (
-                        <ProjectCard key={project._id} project={project} customerPrice={customerPrice} />
+                        <ProjectCard
+                          key={project._id}
+                          project={project}
+                          customerPrice={customerPrice}
+                          initialFavorited={Boolean(favoritedProjects[project._id])}
+                        />
                       ))}
                 </div>
 
