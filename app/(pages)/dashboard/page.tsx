@@ -692,6 +692,25 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
+              <Card className="border-rose-100 bg-gradient-to-br from-white via-rose-50 to-pink-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-rose-500" />
+                    Content (CMS)
+                  </CardTitle>
+                  <CardDescription>Manage blog posts, news, FAQs, policies, and landing pages</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/cms', '_blank')}
+                    className="w-full bg-gradient-to-r from-rose-500 via-pink-500 to-orange-400 hover:from-rose-600 hover:via-pink-600 hover:to-orange-500"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Manage Content
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card className="border-blue-100 bg-gradient-to-br from-white via-blue-50 to-cyan-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

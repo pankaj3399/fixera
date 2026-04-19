@@ -1,19 +1,48 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from '@/components/ui/separator';
 import { Star, Heart, Award, ChevronRight } from 'lucide-react';
-import { professionalsForService, subNavbarCategories } from '@/data/content';
+import { professionalsForService, serviceCategories, subNavbarCategories } from '@/data/content';
 import { Button } from '@/components/ui/button';
 import ProfessionalFilters from '@/components/ProfessionalFilters';
+import JsonLd from '@/components/seo/JsonLd';
+import { breadcrumbSchema, serviceSchema } from '@/lib/seo/jsonLd';
+import { buildMetadata } from '@/lib/seo/metadata';
 
 type Props = {
   params: Promise<{
     serviceId: string;
   }>;
 };
+
+function findServiceMeta(serviceId: string) {
+  for (const cat of serviceCategories) {
+    for (const sub of cat.subCategories || []) {
+      for (const svc of sub.services || []) {
+        if (svc.id === serviceId) return { name: svc.name, description: svc.description, category: cat.name };
+      }
+    }
+  }
+  const navSvc = subNavbarCategories.flatMap((c) => c.services).find((s) => s.id === serviceId);
+  if (navSvc) return { name: navSvc.name, description: undefined as string | undefined, category: undefined as string | undefined };
+  return null;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { serviceId } = await params;
+  const meta = findServiceMeta(serviceId);
+  const title = meta?.name || 'Service';
+  const description = meta?.description || `Find verified professionals for ${title.toLowerCase()} on Fixera.`;
+  return buildMetadata({
+    title,
+    description,
+    path: `/services/${serviceId}`,
+  });
+}
 
 const ProfessionalCard = ({ professional }: { professional: (typeof professionalsForService)[0] }) => {
   return (
@@ -62,13 +91,26 @@ export default async function Page({ params }: Props) {
 
   const { serviceId } = await params;
 
-
-  const serviceName = subNavbarCategories
-    .flatMap(cat => cat.services)
-    .find(srv => srv.id === serviceId)?.name || 'Services';
+  const meta = findServiceMeta(serviceId);
+  const serviceName = meta?.name || 'Services';
 
   return (
     <div className="bg-white">
+      <JsonLd
+        data={[
+          serviceSchema({
+            name: serviceName,
+            description: meta?.description,
+            path: `/services/${serviceId}`,
+            category: meta?.category,
+          }),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Services', path: '/services' },
+            { name: serviceName, path: `/services/${serviceId}` },
+          ]),
+        ]}
+      />
       <div className="relative h-72 md:h-96 w-full">
         <Image
           src="/images/banner.jpg"

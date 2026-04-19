@@ -378,10 +378,10 @@ export const footerSections = [
     {
       title: 'Company',
       links: [
-        { name: 'About Fixera', href: '#' },
-        { name: 'Careers', href: '#' },
-        { name: 'Press & Media', href: '#' },
-        { name: 'Partner with Us', href: '#' },
+        { name: 'About Fixera', href: '/about' },
+        { name: 'Blog', href: '/blog' },
+        { name: 'News', href: '/news' },
+        { name: 'FAQ', href: '/faq' },
       ]
     }
 ];
@@ -400,10 +400,10 @@ export const socialLinks = [
 ];
 
 export const legalLinks = [
-    { name: 'Privacy Policy', href: '#' },
-    { name: 'Terms of Service', href: '#' },
-    { name: 'Cookie Policy', href: '#' },
-    { name: 'GDPR Compliance', href: '#' },
+    { name: 'Privacy Policy', href: '/privacy-policy' },
+    { name: 'Terms of Service', href: '/pages/terms-of-service' },
+    { name: 'Cookie Policy', href: '/pages/cookie-policy' },
+    { name: 'GDPR Compliance', href: '/pages/gdpr-compliance' },
 ];
 
 
