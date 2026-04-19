@@ -8,12 +8,15 @@ import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 
 export const dynamic = "force-dynamic";
 
+const RESERVED_SLUGS = new Set(["about", "privacy-policy"]);
+
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  if (RESERVED_SLUGS.has(slug)) return buildMetadata({ title: "Page not found", path: `/pages/${slug}`, noindex: true });
   const landing = await publicGetCms("landing", slug);
   const content = landing || (await publicGetCms("policy", slug));
   if (!content) return buildMetadata({ title: "Page not found", path: `/pages/${slug}`, noindex: true });
@@ -28,6 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function GenericCmsPage({ params }: Props) {
   const { slug } = await params;
+  if (RESERVED_SLUGS.has(slug)) notFound();
   const landing = await publicGetCms("landing", slug);
   const policy = !landing ? await publicGetCms("policy", slug) : null;
   const content = landing || policy;

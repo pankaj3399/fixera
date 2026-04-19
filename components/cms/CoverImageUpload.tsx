@@ -72,7 +72,7 @@ export default function CoverImageUpload({ value, onChange, required }: Props) {
                 <>
                   <ImagePlus size={28} className="text-rose-500" />
                   <span className="text-sm font-medium">Click to upload cover image</span>
-                  <span className="text-xs text-rose-400">JPEG, PNG, or WebP — up to 8MB</span>
+                  <span className="text-xs text-rose-400">JPEG, PNG, or WebP — up to 5MB</span>
                 </>
               )}
             </button>

@@ -20,16 +20,25 @@ const STATIC_ROUTES: Array<{ path: string; changeFrequency: MetadataRoute.Sitema
   { path: "/join", changeFrequency: "monthly", priority: 0.6 },
 ];
 
+const RESERVED_POLICY_SLUGS: Record<string, string> = {
+  about: "/about",
+  "privacy-policy": "/privacy-policy",
+};
+
 const CMS_PATH_PREFIX: Record<string, (slug: string) => string> = {
   blog: (slug) => `/blog/${slug}`,
   news: (slug) => `/news/${slug}`,
   landing: (slug) => `/pages/${slug}`,
-  policy: (slug) => `/pages/${slug}`,
+  policy: (slug) => RESERVED_POLICY_SLUGS[slug] || `/pages/${slug}`,
 };
+
+const STATIC_ROUTE_PATHS = new Set<string>();
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
   const now = new Date();
+
+  for (const r of STATIC_ROUTES) STATIC_ROUTE_PATHS.add(r.path);
 
   const entries: MetadataRoute.Sitemap = STATIC_ROUTES.map((r) => ({
     url: `${base}${r.path}`,
@@ -62,9 +71,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const item of cms) {
       const pathBuilder = CMS_PATH_PREFIX[item.type];
       if (!pathBuilder) continue;
+      const path = pathBuilder(item.slug);
+      if (STATIC_ROUTE_PATHS.has(path)) continue;
       const lastmod = item.updatedAt || item.publishedAt;
       entries.push({
-        url: `${base}${pathBuilder(item.slug)}`,
+        url: `${base}${path}`,
         lastModified: lastmod ? new Date(lastmod) : now,
         changeFrequency: item.type === "blog" || item.type === "news" ? "weekly" : "monthly",
         priority: item.type === "blog" || item.type === "news" ? 0.7 : 0.5,

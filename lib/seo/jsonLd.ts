@@ -1,6 +1,10 @@
 import { SITE_NAME, SITE_DESCRIPTION, absoluteUrl, siteUrl } from "./site";
 
 export function organizationSchema() {
+  const sameAs = (process.env.NEXT_PUBLIC_SOCIAL_URLS || "")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -8,12 +12,7 @@ export function organizationSchema() {
     url: siteUrl(),
     logo: absoluteUrl("/fixera-logo.png"),
     description: SITE_DESCRIPTION,
-    sameAs: [
-      "https://www.facebook.com/fixera",
-      "https://twitter.com/fixera",
-      "https://www.instagram.com/fixera",
-      "https://www.linkedin.com/company/fixera",
-    ],
+    ...(sameAs.length > 0 ? { sameAs } : {}),
   };
 }
 
