@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { authFetch } from '@/lib/utils';
@@ -132,12 +132,13 @@ export default function ProfessionalEarningsDashboard() {
     }
   }, [authLoading, isAuthenticated, user, router]);
 
-  const loadStats = useCallback(async (selectedRange: RangeKey, isRefresh = false) => {
+  const loadStats = useCallback(async (selectedRange: RangeKey, isRefresh = false, signal?: AbortSignal) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
       const response = await authFetch(
-        `${API_BASE}/api/professionals/dashboard/stats?range=${selectedRange}`
+        `${API_BASE}/api/professionals/dashboard/stats?range=${selectedRange}`,
+        { signal }
       );
       const payload = await response.json();
       if (response.ok && payload?.success) {
@@ -146,27 +147,34 @@ export default function ProfessionalEarningsDashboard() {
         toast.error(payload?.error?.message || 'Failed to load dashboard stats');
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast.error(err instanceof Error ? err.message : 'Failed to load dashboard stats');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
-  const loadBookings = useCallback(async (selectedRange: RangeKey) => {
+  const loadBookings = useCallback(async (selectedRange: RangeKey, signal?: AbortSignal) => {
     setBookingsLoading(true);
     try {
       const response = await authFetch(
-        `${API_BASE}/api/professionals/dashboard/bookings?range=${selectedRange}&limit=200`
+        `${API_BASE}/api/professionals/dashboard/bookings?range=${selectedRange}&limit=200`,
+        { signal }
       );
       const payload = await response.json();
       if (response.ok && payload?.success) {
         setBookings(payload.data.bookings || []);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       // silent — bookings table is secondary
     } finally {
-      setBookingsLoading(false);
+      if (!signal?.aborted) {
+        setBookingsLoading(false);
+      }
     }
   }, []);
 
@@ -244,8 +252,10 @@ export default function ProfessionalEarningsDashboard() {
 
   useEffect(() => {
     if (isAuthenticated && user?.role === 'professional') {
-      void loadStats(range);
-      void loadBookings(range);
+      const controller = new AbortController();
+      void loadStats(range, false, controller.signal);
+      void loadBookings(range, controller.signal);
+      return () => controller.abort();
     }
   }, [isAuthenticated, user, range, loadStats, loadBookings]);
 
@@ -285,17 +295,19 @@ export default function ProfessionalEarningsDashboard() {
     { label: 'Refunds Issued', value: formatEuro(kpis?.refundTotal ?? 0), icon: RefreshCcw, accent: 'text-red-600', gradient: 'from-red-200 via-rose-200 to-pink-200' },
   ];
 
-  const sortedBookings = [...bookings].sort((a, b) => {
-    let cmp = 0;
-    if (sortKey === 'createdAt') {
-      cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    } else if (sortKey === 'net') {
-      cmp = (a.net || 0) - (b.net || 0);
-    } else {
-      cmp = String(a[sortKey] || '').localeCompare(String(b[sortKey] || ''));
-    }
-    return sortDir === 'asc' ? cmp : -cmp;
-  });
+  const sortedBookings = useMemo(() => {
+    return [...bookings].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'createdAt') {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortKey === 'net') {
+        cmp = (a.net || 0) - (b.net || 0);
+      } else {
+        cmp = String(a[sortKey] || '').localeCompare(String(b[sortKey] || ''));
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [bookings, sortKey, sortDir]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {

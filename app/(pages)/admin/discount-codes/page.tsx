@@ -178,12 +178,23 @@ export default function AdminDiscountCodesPage() {
       return;
     }
 
+    const validFromDate = new Date(`${form.validFrom}T00:00:00Z`);
+    const validUntilDate = new Date(`${form.validUntil}T23:59:59Z`);
+    if (!Number.isFinite(validFromDate.getTime()) || !Number.isFinite(validUntilDate.getTime())) {
+      toast.error("Invalid date format");
+      return;
+    }
+    if (validUntilDate.getTime() < validFromDate.getTime()) {
+      toast.error("validUntil must be the same or after validFrom");
+      return;
+    }
+
     const payload: Record<string, unknown> = {
       code: form.code.trim().toUpperCase(),
       type: form.type,
       value,
-      validFrom: new Date(form.validFrom).toISOString(),
-      validUntil: new Date(form.validUntil + "T23:59:59").toISOString(),
+      validFrom: validFromDate.toISOString(),
+      validUntil: validUntilDate.toISOString(),
       perUserLimit: parseInt(form.perUserLimit, 10) || 1,
       isActive: form.isActive,
       activeCountries: form.activeCountries.split(",").map(s => s.trim()).filter(Boolean),
