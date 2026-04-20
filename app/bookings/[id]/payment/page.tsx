@@ -33,6 +33,8 @@ interface BookingPayment {
     repeatBuyerAmount?: number;
     pointsRedeemed?: number;
     pointsDiscountAmount?: number;
+    codeDiscountAmount?: number;
+    codeLabel?: string;
     totalDiscount?: number;
     originalAmount?: number;
   };
@@ -189,6 +191,10 @@ export default function BookingPaymentPage() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [clientSecret, setClientSecret] = useState<string>('');
   const [initializingPayment, setInitializingPayment] = useState(false);
+  const [discountCodeInput, setDiscountCodeInput] = useState('');
+  const [appliedDiscountCode, setAppliedDiscountCode] = useState<string | null>(null);
+  const [applyingCode, setApplyingCode] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [paymentRetryAttempt, setPaymentRetryAttempt] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [scheduleStep, setScheduleStep] = useState(false);
@@ -670,13 +676,16 @@ export default function BookingPaymentPage() {
     }
   };
 
-  const ensurePaymentIntent = useCallback(async (currentBookingId: string, currentBooking: Booking | null) => {
+  const ensurePaymentIntent = useCallback(async (currentBookingId: string, currentBooking: Booking | null, discountCode?: string): Promise<{ ok: boolean; errorMessage?: string }> => {
     setInitializingPayment(true);
+    const suppressGlobalError = discountCode !== undefined;
     try {
       const sanitizedId = encodeURIComponent(currentBookingId);
       const response = await fetch(`${API_URL}/api/bookings/${sanitizedId}/payment-intent`, {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(discountCode !== undefined ? { discountCode } : {}),
       });
       const contentType = response.headers.get('content-type') || '';
       const isJson = contentType.includes('application/json');
@@ -689,19 +698,18 @@ export default function BookingPaymentPage() {
           setBooking(nextBooking);
         }
 
-        // Check if backend wants us to redirect (payment already processed)
         if (data.data?.shouldRedirect && data.data?.redirectTo) {
           router.push(data.data.redirectTo);
-          return true;
+          return { ok: true };
         }
 
         if (data.data?.clientSecret) {
           setClientSecret(data.data.clientSecret);
-          return true;
+          return { ok: true };
         }
 
         console.warn('[PAYMENT PAGE] ensurePaymentIntent succeeded but no client secret returned.');
-        return false;
+        return { ok: false, errorMessage: 'Payment initialization did not return a client secret.' };
       }
 
       const message =
@@ -710,17 +718,54 @@ export default function BookingPaymentPage() {
           ? 'Payment initialization endpoint is unavailable. Please contact support.'
           : 'Failed to initialize payment intent.');
       console.error('[PAYMENT PAGE] ensurePaymentIntent failed:', message);
-      setError(message);
-      return false;
+      if (!suppressGlobalError) {
+        setError(message);
+      }
+      return { ok: false, errorMessage: message };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to initialize payment intent.';
       console.error('[PAYMENT PAGE] ensurePaymentIntent error:', err);
-      setError(message);
-      return false;
+      if (!suppressGlobalError) {
+        setError(message);
+      }
+      return { ok: false, errorMessage: message };
     } finally {
       setInitializingPayment(false);
     }
   }, [API_URL, router]);
+
+  const handleApplyDiscountCode = useCallback(async () => {
+    const code = discountCodeInput.trim().toUpperCase();
+    if (!code) {
+      setCodeError('Enter a code to apply.');
+      return;
+    }
+    if (!bookingId) return;
+    setApplyingCode(true);
+    setCodeError(null);
+    const result = await ensurePaymentIntent(bookingId, booking, code);
+    if (result.ok) {
+      setAppliedDiscountCode(code);
+      setDiscountCodeInput('');
+    } else {
+      setCodeError(result.errorMessage || 'Unable to apply discount code.');
+    }
+    setApplyingCode(false);
+  }, [bookingId, booking, discountCodeInput, ensurePaymentIntent]);
+
+  const handleRemoveDiscountCode = useCallback(async () => {
+    if (!bookingId) return;
+    setApplyingCode(true);
+    setCodeError(null);
+    const result = await ensurePaymentIntent(bookingId, booking, '');
+    if (result.ok) {
+      setAppliedDiscountCode(null);
+      setDiscountCodeInput('');
+    } else {
+      setCodeError(result.errorMessage || 'Unable to remove discount code.');
+    }
+    setApplyingCode(false);
+  }, [bookingId, booking, ensurePaymentIntent]);
 
   const loadBookingPaymentDetails = useCallback(async (currentBookingId: string, attempt = 1) => {
     if (retryTimeoutRef.current) {
@@ -790,8 +835,8 @@ export default function BookingPaymentPage() {
       }
 
       // Try to initialize payment intent on demand
-      const intentCreated = await ensurePaymentIntent(currentBookingId, bookingInfo);
-      if (intentCreated) {
+      const intentResult = await ensurePaymentIntent(currentBookingId, bookingInfo);
+      if (intentResult.ok) {
         return;
       }
 
@@ -882,6 +927,15 @@ export default function BookingPaymentPage() {
   const paymentCurrency = booking?.payment?.currency?.toUpperCase() || 'EUR';
   const discountInfo = booking?.payment?.discount;
   const hasDiscountBreakdown = (discountInfo?.totalDiscount ?? 0) > 0;
+  const persistedCodeLabel = discountInfo?.codeLabel ?? null;
+
+  useEffect(() => {
+    if (persistedCodeLabel && appliedDiscountCode !== persistedCodeLabel) {
+      setAppliedDiscountCode(persistedCodeLabel);
+    } else if (!persistedCodeLabel && appliedDiscountCode) {
+      setAppliedDiscountCode(null);
+    }
+  }, [persistedCodeLabel, appliedDiscountCode]);
   const originalServiceAmount =
     discountInfo?.originalAmount ??
     booking?.quote?.amount ??
@@ -1468,6 +1522,70 @@ export default function BookingPaymentPage() {
           {/* Payment Breakdown */}
           <div className="px-6 py-4 border-b bg-gray-50">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Payment Details</h2>
+
+            {booking?.payment?.status !== 'authorized' && booking?.payment?.status !== 'completed' && (
+              <div className="mb-4 rounded-md border border-gray-200 bg-white px-3 py-3">
+                {appliedDiscountCode ? (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Code applied: <span className="font-mono text-green-700">{appliedDiscountCode}</span>
+                      </p>
+                      {(discountInfo?.codeDiscountAmount ?? 0) > 0 && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Saving {formatMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency)}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveDiscountCode}
+                      disabled={applyingCode || initializingPayment}
+                      className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Have a discount code?
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={discountCodeInput}
+                        onChange={(e) => {
+                          setDiscountCodeInput(e.target.value.toUpperCase());
+                          if (codeError) setCodeError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void handleApplyDiscountCode();
+                          }
+                        }}
+                        placeholder="ENTER CODE"
+                        disabled={applyingCode || initializingPayment}
+                        className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono uppercase focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900 disabled:bg-gray-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyDiscountCode}
+                        disabled={applyingCode || initializingPayment || !discountCodeInput.trim()}
+                        className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                      >
+                        {applyingCode ? 'Applying...' : 'Apply'}
+                      </button>
+                    </div>
+                    {codeError && (
+                      <p className="mt-2 text-sm text-red-600">{codeError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {discountInfo?.loyaltyTier && (
               <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="text-sm font-medium text-amber-900">
@@ -1514,6 +1632,17 @@ export default function BookingPaymentPage() {
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {(discountInfo?.codeDiscountAmount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">
+                    Discount Code ({discountInfo?.codeLabel}):
+                  </span>
+                  <span className="text-green-700">
+                    -{formatMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}

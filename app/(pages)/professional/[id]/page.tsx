@@ -155,7 +155,7 @@ export default function ProfessionalProfilePage() {
   const params = useParams()
   const router = useRouter()
   const professionalId = params?.id as string
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
   const [professional, setProfessional] = useState<ProfessionalData | null>(null)
   const [reviews, setReviews] = useState<ReviewData[]>([])
@@ -184,6 +184,16 @@ export default function ProfessionalProfilePage() {
   const favoriteIds = professionalId ? [professionalId] : []
   const favoriteMap = useFavoriteStatus("professional", favoriteIds)
   const isFavorited = professionalId ? Boolean(favoriteMap[professionalId]) : false
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!professionalId) return
+    if (isOwner) return
+    fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/view`,
+      { method: 'POST', credentials: 'include' }
+    ).catch(() => { /* best-effort, silent */ })
+  }, [authLoading, professionalId, isOwner])
 
   useEffect(() => {
     if (!professionalId) return
