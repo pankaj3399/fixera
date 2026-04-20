@@ -20,7 +20,7 @@ export default function FaqAccordion({ groups }: Props) {
               <h2 className="bg-gradient-to-r from-rose-600 to-pink-500 bg-clip-text text-xl font-bold text-transparent">
                 {group.name}
               </h2>
-              <p className="text-xs text-rose-500">{group.items.length} article{group.items.length === 1 ? "" : "s"}</p>
+              <p className="text-xs text-rose-500">{group.items.length} question{group.items.length === 1 ? "" : "s"}</p>
             </div>
           </div>
           <div className="space-y-3">

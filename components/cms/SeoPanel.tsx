@@ -15,6 +15,7 @@ interface Props {
 
 export default function SeoPanel({ value, onChange, fallbackTitle, fallbackDescription, pathPreview }: Props) {
   const [open, setOpen] = useState(true);
+  const panelId = useId();
 
   const update = (patch: Partial<CmsSeo>) => onChange({ ...value, ...patch });
 
@@ -26,6 +27,8 @@ export default function SeoPanel({ value, onChange, fallbackTitle, fallbackDescr
       <div className="rounded-[calc(1rem-1.5px)] bg-white">
         <button
           type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
           onClick={() => setOpen((v) => !v)}
           className="flex w-full items-center justify-between rounded-t-[calc(1rem-1.5px)] bg-gradient-to-r from-rose-50 to-pink-50 px-5 py-3 text-rose-900"
         >
@@ -35,7 +38,7 @@ export default function SeoPanel({ value, onChange, fallbackTitle, fallbackDescr
           <ChevronDown size={16} className={cn("transition-transform", open && "rotate-180")} />
         </button>
         {open && (
-          <div className="space-y-5 p-5">
+          <div id={panelId} className="space-y-5 p-5">
             <div className="rounded-xl border border-pink-100 bg-gradient-to-br from-rose-50/60 to-white p-4">
               <div className="text-[11px] uppercase tracking-wide text-rose-500">Google preview</div>
               <div className="mt-2 text-xs text-emerald-700 truncate">{pathPreview || "fixera.com/..."}</div>

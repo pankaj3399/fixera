@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import type { Metadata } from "next";
@@ -16,7 +17,12 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = await publicGetCms("blog", slug);
+  let post;
+  try {
+    post = await publicGetCms("blog", slug);
+  } catch {
+    return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
+  }
   if (!post) return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
   return buildMetadata({
     title: post.seo?.titleTag || post.title,
@@ -34,7 +40,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
-  const post = await publicGetCms("blog", slug);
+  let post;
+  try {
+    post = await publicGetCms("blog", slug);
+  } catch {
+    notFound();
+  }
   if (!post) notFound();
 
   const authorName = typeof post.author === "object" && post.author ? post.author.name : undefined;
@@ -70,7 +81,16 @@ export default async function BlogDetailPage({ params }: Props) {
       {post.coverImage && (
         <div className="mx-auto mt-4 max-w-5xl px-6">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <img src={post.coverImage} alt={post.title} className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover" />
+            <div className="relative aspect-[16/7] w-full overflow-hidden rounded-[calc(1.5rem-1.5px)]">
+              <Image
+                src={post.coverImage}
+                alt={post.title}
+                fill
+                sizes="(max-width: 1024px) 100vw, 80rem"
+                className="object-cover"
+                priority
+              />
+            </div>
           </div>
         </div>
       )}

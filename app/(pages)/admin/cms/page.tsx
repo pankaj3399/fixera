@@ -13,7 +13,8 @@ import {
   CMS_TYPE_ORDER,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
-import { FileText, Loader2, Plus, Search, Sparkles } from "lucide-react";
+import { AlertCircle, FileText, Loader2, Plus, Search, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 const STATUS_FILTERS: Array<{ value: CmsContentStatus | "all"; label: string }> = [
   { value: "all", label: "All" },
@@ -31,6 +32,8 @@ export default function CmsAdminListPage() {
   const [debounced, setDebounced] = useState("");
   const [items, setItems] = useState<CmsContent[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [counts, setCounts] = useState<Record<CmsContentType, number>>({
     blog: 0,
     news: 0,
@@ -55,6 +58,7 @@ export default function CmsAdminListPage() {
     if (!isAuthenticated || user?.role !== "admin") return;
     let cancelled = false;
     setLoadingList(true);
+    setListError(null);
     adminListCms({
       type: activeType,
       status: status === "all" ? undefined : status,
@@ -65,9 +69,11 @@ export default function CmsAdminListPage() {
         if (cancelled) return;
         setItems(res.items);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return;
-        setItems([]);
+        const msg = err instanceof Error ? err.message : "Failed to load content";
+        setListError(msg);
+        toast.error(msg);
       })
       .finally(() => {
         if (cancelled) return;
@@ -76,18 +82,26 @@ export default function CmsAdminListPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeType, status, debounced, isAuthenticated, user]);
+  }, [activeType, status, debounced, isAuthenticated, user, refreshKey]);
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
     Promise.all(
       CMS_TYPE_ORDER.map((t) =>
-        adminListCms({ type: t, limit: 1 }).then((r) => [t, r.pagination.total] as const).catch(() => [t, 0] as const)
+        adminListCms({ type: t, limit: 1 })
+          .then((r) => [t, r.pagination.total, null] as const)
+          .catch((err: unknown) => [t, null, err instanceof Error ? err.message : "Failed"] as const)
       )
     ).then((entries) => {
-      const next = { ...counts };
-      for (const [t, c] of entries) next[t] = c;
-      setCounts(next);
+      setCounts((prev) => {
+        const next = { ...prev };
+        for (const [t, c] of entries) {
+          if (c !== null) next[t] = c;
+        }
+        return next;
+      });
+      const firstErr = entries.find(([, c]) => c === null);
+      if (firstErr) toast.error(`Failed to refresh counts: ${firstErr[2] ?? "unknown error"}`);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
@@ -188,11 +202,27 @@ export default function CmsAdminListPage() {
 
         {/* List */}
         <div className="mt-6">
+          {listError && (
+            <div className="mb-4 flex items-start gap-3 rounded-2xl border border-rose-300 bg-rose-50 px-5 py-4 text-sm text-rose-800">
+              <AlertCircle size={18} className="mt-0.5 shrink-0 text-rose-500" />
+              <div className="flex-1">
+                <div className="font-semibold">Couldn&apos;t load content</div>
+                <div className="text-xs text-rose-600">{listError}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="rounded-lg border border-rose-300 bg-white px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {loadingList ? (
             <div className="flex items-center justify-center rounded-2xl border border-pink-200 bg-white/70 py-20">
               <Loader2 className="animate-spin text-rose-500" />
             </div>
-          ) : items.length === 0 ? (
+          ) : listError && items.length === 0 ? null : items.length === 0 ? (
             <EmptyState type={activeType} />
           ) : (
             <div className="grid grid-cols-1 gap-3">

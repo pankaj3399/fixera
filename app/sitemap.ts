@@ -67,22 +67,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   try {
-    const cms = await publicListSitemapEntries();
-    for (const item of cms) {
-      const pathBuilder = CMS_PATH_PREFIX[item.type as keyof typeof CMS_PATH_PREFIX];
-      if (!pathBuilder) continue;
-      const path = pathBuilder(item.slug);
-      if (STATIC_ROUTE_PATHS.has(path)) continue;
-      const lastmod = item.updatedAt || item.publishedAt;
-      entries.push({
-        url: `${base}${path}`,
-        lastModified: lastmod ? new Date(lastmod) : now,
-        changeFrequency: item.type === "blog" || item.type === "news" ? "weekly" : "monthly",
-        priority: item.type === "blog" || item.type === "news" ? 0.7 : 0.5,
-      });
+    let page = 1;
+    while (true) {
+      const { items, pagination } = await publicListSitemapEntries({ page });
+      for (const item of items) {
+        const pathBuilder = CMS_PATH_PREFIX[item.type as keyof typeof CMS_PATH_PREFIX];
+        if (!pathBuilder) continue;
+        const path = pathBuilder(item.slug);
+        if (STATIC_ROUTE_PATHS.has(path)) continue;
+        const lastmod = item.updatedAt || item.publishedAt;
+        entries.push({
+          url: `${base}${path}`,
+          lastModified: lastmod ? new Date(lastmod) : now,
+          changeFrequency: item.type === "blog" || item.type === "news" ? "weekly" : "monthly",
+          priority: item.type === "blog" || item.type === "news" ? 0.7 : 0.5,
+        });
+      }
+      if (!pagination.hasMore) break;
+      page += 1;
     }
-  } catch {
-    // CMS unreachable — skip dynamic entries
+  } catch (err) {
+    console.error(
+      "[sitemap] CMS fetch failed — dynamic CMS entries skipped. event=sitemap.cms.fetch_failure",
+      err
+    );
   }
 
   return entries;

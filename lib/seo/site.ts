@@ -1,5 +1,5 @@
 export const siteUrl = (): string => {
-  const raw = process.env.NEXT_PUBLIC_SITE_URL;
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (!raw) {
     const isBuild = process.env.NEXT_PHASE === "phase-production-build";
     if (process.env.NODE_ENV === "production" && !isBuild) {
@@ -14,7 +14,20 @@ export const siteUrl = (): string => {
     }
     return "http://localhost:3000";
   }
-  return raw.replace(/\/$/, "");
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(
+      `siteUrl: NEXT_PUBLIC_SITE_URL="${raw}" is not a valid URL. Expected an absolute http(s) origin like https://fixera.com.`
+    );
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      `siteUrl: NEXT_PUBLIC_SITE_URL="${raw}" must use http: or https: protocol (got "${parsed.protocol}").`
+    );
+  }
+  return parsed.origin;
 };
 
 export const SITE_NAME = "Fixera";
