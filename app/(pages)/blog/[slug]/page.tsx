@@ -16,7 +16,12 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = await publicGetCms("blog", slug);
+  let post;
+  try {
+    post = await publicGetCms("blog", slug);
+  } catch {
+    return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
+  }
   if (!post) return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
   return buildMetadata({
     title: post.seo?.titleTag || post.title,
@@ -34,7 +39,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
-  const post = await publicGetCms("blog", slug);
+  let post;
+  try {
+    post = await publicGetCms("blog", slug);
+  } catch {
+    notFound();
+  }
   if (!post) notFound();
 
   const authorName = typeof post.author === "object" && post.author ? post.author.name : undefined;

@@ -44,6 +44,24 @@ export interface CmsContent {
   updatedAt: string;
 }
 
+export interface CmsUpsertPayload {
+  type?: CmsContentType;
+  title?: string;
+  slug?: string;
+  locale?: string;
+  body?: string;
+  excerpt?: string;
+  coverImage?: string;
+  category?: string;
+  tags?: string[];
+  status?: CmsContentStatus;
+  author?: string;
+  publishedAt?: string;
+  seo?: CmsSeo;
+  relatedContent?: string[];
+  relatedServices?: string[];
+}
+
 export interface FaqCategory {
   slug: string;
   name: string;
@@ -101,7 +119,7 @@ export async function adminGetCms(id: string): Promise<CmsContent> {
   return parseJson<CmsContent>(res);
 }
 
-export async function adminCreateCms(payload: Partial<CmsContent>): Promise<CmsContent> {
+export async function adminCreateCms(payload: CmsUpsertPayload): Promise<CmsContent> {
   const res = await authFetch(`${API()}/api/admin/cms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -110,7 +128,7 @@ export async function adminCreateCms(payload: Partial<CmsContent>): Promise<CmsC
   return parseJson<CmsContent>(res);
 }
 
-export async function adminUpdateCms(id: string, payload: Partial<CmsContent>): Promise<CmsContent> {
+export async function adminUpdateCms(id: string, payload: CmsUpsertPayload): Promise<CmsContent> {
   const res = await authFetch(`${API()}/api/admin/cms/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

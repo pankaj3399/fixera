@@ -12,6 +12,7 @@ import {
   CmsContent,
   CmsContentStatus,
   CmsContentType,
+  CmsUpsertPayload,
   CMS_TYPE_LABELS,
   CMS_TYPE_ORDER,
   FaqCategory,
@@ -103,7 +104,7 @@ export default function CmsContentForm({ mode, initial, lockedType }: Props) {
     }
     setSaving(true);
     try {
-      const payload: Partial<CmsContent> = {
+      const payload: CmsUpsertPayload = {
         type: form.type,
         title: form.title?.trim(),
         slug: slugify(form.slug || ""),
