@@ -1540,6 +1540,12 @@ export default function ProjectBookingForm({
     if (Number.isNaN(dateObj.getTime())) return true;
 
     if (projectMode === 'hours') {
+      if (dateString === selectedDate) {
+        if (loadingServerSlots) return false;
+        if (Array.isArray(serverSlotsForSelectedDate)) {
+          return serverSlotsForSelectedDate.length === 0;
+        }
+      }
       return generateTimeSlotsForDate(dateObj).length === 0;
     }
 
@@ -1685,6 +1691,14 @@ export default function ProjectBookingForm({
       }
 
       if (projectMode === 'hours') {
+        if (
+          dateStr === selectedDate &&
+          (loadingServerSlots ||
+            (Array.isArray(serverSlotsForSelectedDate) && serverSlotsForSelectedDate.length > 0))
+        ) {
+          debugLog?.(`[getMinDate] ${dateStr} - using server slots → available`);
+          return dateStr;
+        }
         const slots = generateTimeSlotsForDate(checkDate);
         debugLog?.(`[getMinDate] ${dateStr} - Available slots:`, slots.length);
         if (slots.length > 0) {

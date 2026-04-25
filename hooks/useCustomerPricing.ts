@@ -63,6 +63,11 @@ export function useCustomerPricing(): CustomerPricing {
       .then((json) => {
         if (controller.signal.aborted) return
         if (!json) return
+        if (!json.success) {
+          console.error('Loyalty status payload error:', json?.msg || json?.error || json)
+          setLoyalty(null)
+          return
+        }
         const tierInfo = json?.data?.userStats?.tierInfo
         const level = json?.data?.loyaltyStatus?.level || tierInfo?.name
         const percentage = Number(tierInfo?.discountPercentage) || 0
