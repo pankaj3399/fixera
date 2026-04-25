@@ -181,8 +181,8 @@ export default function BookingPaymentPage() {
   const router = useRouter();
   const params = useParams();
   const bookingId = params.id as string;
-  const { commissionPercent, customerPrice } = useCustomerPricing();
-  const commissionLoaded = commissionPercent != null;
+  const { commissionPercent, customerPrice, loyaltyLoaded } = useCustomerPricing();
+  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -877,7 +877,9 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Quote Amount:</span>
                   <span className="font-medium text-gray-900">
-                    {formatMoney(booking?.quote?.amount ?? 0, booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                    {customerPricingReady
+                      ? formatMoney(customerPrice(booking?.quote?.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                      : '...'}
                   </span>
                 </div>
                 {booking?.milestonePayments && booking.milestonePayments.length > 0 && (
@@ -887,7 +889,7 @@ export default function BookingPaymentPage() {
                       {booking.milestonePayments.map((m, i) => (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-gray-600">{m.title || `Milestone ${i + 1}`}</span>
-                          <span className="text-gray-900">{commissionLoaded ? formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR') : '...'}</span>
+                          <span className="text-gray-900">{customerPricingReady ? formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR') : '...'}</span>
                         </div>
                       ))}
                     </div>

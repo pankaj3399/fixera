@@ -36,7 +36,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyRequired } from '@/lib/formatters';
 import Image from 'next/image';
 import ProjectBookingForm from '@/components/project/ProjectBookingForm';
 import SubprojectComparisonTable from '@/components/project/SubprojectComparisonTable';
@@ -149,7 +149,7 @@ type ProvidedByCardProps = {
 
 const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
   const proName =
-    pro.username || pro.name || 'Professional';
+    pro.username || pro.name || pro.businessInfo?.companyName || 'Professional';
   const proLocation = [pro.businessInfo?.city, pro.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
@@ -1011,7 +1011,7 @@ export default function ProjectDetailPage() {
                                 Number.isFinite(term.additionalCost) &&
                                 term.additionalCost > 0 && (
                                   <div className='shrink-0 text-sm font-semibold text-orange-600'>
-                                    +{formatCurrency(customerPrice(term.additionalCost)) ?? `€${term.additionalCost.toFixed(2)}`}
+                                    +{formatCurrencyRequired(customerPrice(term.additionalCost))}
                                   </div>
                                 )}
                             </div>

@@ -7,6 +7,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import type { ProjectDto } from '@/types/project';
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 if (!API_URL && process.env.NODE_ENV !== 'production') {
@@ -23,7 +24,7 @@ interface Booking {
   bookingNumber?: string;
   payment?: BookingPayment;
   project?: {
-    postBookingQuestions?: Array<unknown>;
+    postBookingQuestions?: ProjectDto['postBookingQuestions'];
   };
 }
 
@@ -53,14 +54,14 @@ export default function PaymentSuccessPage() {
       }
 
       if (data?.success && data.booking) {
-        setBooking(data.booking);
         const hasQuestions =
           Array.isArray(data.booking.project?.postBookingQuestions) &&
           data.booking.project.postBookingQuestions.length > 0;
         if (hasQuestions) {
-          router.replace(`/bookings/${bookingId}?postBookingQuestions=true`);
+          router.replace(`/bookings/${bookingId}?postBookingQuestions=true&paymentJustAuthorized=true`);
           return;
         }
+        setBooking(data.booking);
       }
     } catch (err) {
       console.error('Error loading booking:', err);

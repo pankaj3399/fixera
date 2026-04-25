@@ -12,7 +12,6 @@ const LEGAL_SLOTS: Array<{ slug: string; label: string }> = [
   { slug: 'gdpr-compliance', label: 'GDPR Compliance' },
 ]
 
-// Mandatory fallbacks so transient fetch errors don't drop required legal links
 const MANDATORY_FALLBACKS: PolicyLink[] = [
   { slug: 'privacy-policy', title: 'Privacy Policy', path: '/privacy-policy' },
   { slug: 'terms-of-service', title: 'Terms of Service', path: '/pages/terms-of-service' },
@@ -56,19 +55,10 @@ const FooterLinkColumn = ({ title, links }: { title: string; links: { name: stri
 export default async function Footer() {
   const currentYear = new Date().getFullYear()
 
-  let policies: PolicyLink[] = []
-  let policiesFetchFailed = false
-  try {
-    policies = await publicListPolicyLinks()
-  } catch {
-    policiesFetchFailed = true
-  }
+  const policies = await publicListPolicyLinks()
   const settings = await publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings))
 
-  // If the CMS fetch errored, fall back to hardcoded placeholders so legal links never disappear
-  // due to transient failures. If the fetch succeeded but returned no policies, render only what's
-  // actually in the CMS (admin controls visibility by creating the policy entry).
-  const sourceLinks = policiesFetchFailed ? MANDATORY_FALLBACKS : policies
+  const sourceLinks = [...MANDATORY_FALLBACKS, ...policies]
   const bySlug: Record<string, PolicyLink> = Object.fromEntries(
     sourceLinks.map((p) => [p.slug, p])
   )

@@ -718,7 +718,12 @@ export default function BookingDetailPage() {
     if (user?.role !== "professional") return
     if (booking?.status !== "in_progress") return
     setShowCompletionModal(true)
-  }, [autoOpenCompletion, user?.role, booking?.status])
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("openCompletion")
+      router.replace(`${url.pathname}${url.search}${url.hash}`)
+    }
+  }, [autoOpenCompletion, user?.role, booking?.status, router])
 
   useEffect(() => {
     if (!autoPayExtras) return
@@ -728,9 +733,14 @@ export default function BookingDetailPage() {
     if (extraCostClientSecret) return
     if (booking?.extraCostStatus === "confirmed" || booking?.extraCostStatus === "disputed") return
     initializeExtraCostPayment()
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("payExtras")
+      router.replace(`${url.pathname}${url.search}${url.hash}`)
+    }
     // initializeExtraCostPayment is stable enough — intentionally not in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPayExtras, user?.role, booking?.status, booking?.extraCostTotal, booking?.extraCostStatus, extraCostClientSecret])
+  }, [autoPayExtras, user?.role, booking?.status, booking?.extraCostTotal, booking?.extraCostStatus, extraCostClientSecret, router])
 
   const handleAnswerChange = (index: number, answer: string) => {
     setPostBookingAnswers(prev => ({ ...prev, [index]: answer }))
@@ -1732,8 +1742,8 @@ export default function BookingDetailPage() {
       const isNumericValue = (v: unknown) => {
         if (typeof v === 'number' && Number.isFinite(v) && v > 0) return true
         if (typeof v === 'object' && v != null && 'min' in v && 'max' in v) {
-          const minVal = (v as { min: unknown }).min
-          return Number.isFinite(Number(minVal))
+          const minNum = Number((v as { min: unknown }).min)
+          return Number.isFinite(minNum) && minNum > 0
         }
         return false
       }
@@ -2537,8 +2547,8 @@ export default function BookingDetailPage() {
                             </div>
                           </div>
                           <div className="flex justify-between text-xs text-gray-600">
-                            <span>{booking.quote?.currency || 'EUR'} {customerPrice(completed).toFixed(2)} completed</span>
-                            <span>{booking.quote?.currency || 'EUR'} {customerPrice(paid).toFixed(2)} paid</span>
+                            <span>{booking.quote?.currency || 'EUR'} {(user?.role === 'customer' ? customerPrice(completed) : completed).toFixed(2)} completed</span>
+                            <span>{booking.quote?.currency || 'EUR'} {(user?.role === 'customer' ? customerPrice(paid) : paid).toFixed(2)} paid</span>
                           </div>
                         </div>
                       )
@@ -2591,7 +2601,7 @@ export default function BookingDetailPage() {
                                 )}
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
-                                  <p className="text-xs text-gray-500">{booking.quote?.currency || 'EUR'} {customerPrice(ms.amount).toFixed(2)}</p>
+                                  <p className="text-xs text-gray-500">{booking.quote?.currency || 'EUR'} {(user?.role === 'customer' ? customerPrice(ms.amount) : ms.amount).toFixed(2)}</p>
                                   {dueLabel && !isPaid && (
                                     <p className="text-[11px] text-sky-700">{dueLabel}</p>
                                   )}

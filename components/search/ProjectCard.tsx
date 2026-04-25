@@ -97,7 +97,9 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     !!originalPrice && originalPrice(value) - customerPrice(value) >= 0.01;
   const unitSuffix = project.priceModel
     ? formatPriceModelLabel(project.priceModel)
-    : '';
+    : project.pricing?.type === 'unit'
+      ? 'unit'
+      : '';
   const professional = project.professionalId;
   const professionalName = professional?.username || professional?.name || 'Professional';
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]

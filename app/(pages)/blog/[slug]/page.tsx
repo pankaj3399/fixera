@@ -17,12 +17,18 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   let post;
+  let fetchError = false;
   try {
     post = await publicGetCms("blog", slug);
   } catch {
+    fetchError = true;
+  }
+  if (fetchError) {
+    return buildMetadata({ title: "Blog", path: `/blog/${slug}` });
+  }
+  if (!post) {
     return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
   }
-  if (!post) return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
   return buildMetadata({
     title: post.seo?.titleTag || post.title,
     description: post.seo?.metaDescription || post.excerpt,
@@ -93,6 +99,8 @@ export default async function BlogDetailPage({ params }: Props) {
             <img
               src={post.coverImage}
               alt={post.title}
+              fetchPriority="high"
+              decoding="async"
               className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
             />
           </div>

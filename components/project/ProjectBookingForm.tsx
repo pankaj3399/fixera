@@ -575,25 +575,29 @@ export default function ProjectBookingForm({
         }
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) {
-          setServerSlotsForSelectedDate([]);
           return;
         }
         const data = await res.json();
-        const slots: string[] = Array.isArray(data?.slots) ? data.slots : [];
-        setServerSlotsForSelectedDate(slots);
-        if (selectedTime && !slots.includes(selectedTime)) {
-          setSelectedTime(slots[0] || '');
+        if (!Array.isArray(data?.slots)) {
+          return;
         }
+        setServerSlotsForSelectedDate(data.slots as string[]);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        setServerSlotsForSelectedDate([]);
       } finally {
         setLoadingServerSlots(false);
       }
     };
     run();
     return () => controller.abort();
-  }, [project._id, selectedDate, selectedPackageIndex, projectMode, selectedTime]);
+  }, [project._id, selectedDate, selectedPackageIndex, projectMode]);
+
+  useEffect(() => {
+    if (!serverSlotsForSelectedDate) return;
+    if (!selectedTime) return;
+    if (serverSlotsForSelectedDate.includes(selectedTime)) return;
+    setSelectedTime(serverSlotsForSelectedDate[0] || '');
+  }, [serverSlotsForSelectedDate, selectedTime]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
     try {

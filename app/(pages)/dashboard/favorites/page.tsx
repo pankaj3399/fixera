@@ -36,7 +36,7 @@ export default function FavoritesPage() {
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const requestIdRef = useRef(0);
-  const { customerPrice } = useCustomerPricing();
+  const { customerPrice, originalPrice } = useCustomerPricing();
 
   useEffect(() => {
     if (loading) return;
@@ -173,6 +173,7 @@ export default function FavoritesPage() {
                       professionalId: item.project.professional,
                     }}
                     customerPrice={customerPrice}
+                    originalPrice={originalPrice}
                     initialFavorited
                     onFavoriteToggled={(fav) => handleToggle(item.targetId, fav)}
                   />

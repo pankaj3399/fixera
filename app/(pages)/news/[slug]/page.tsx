@@ -13,17 +13,21 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-async function fetchNewsPost(slug: string) {
+async function fetchNewsPost(slug: string): Promise<{ post: Awaited<ReturnType<typeof publicGetCms>>; fetchError: boolean }> {
   try {
-    return await publicGetCms("news", slug);
+    const post = await publicGetCms("news", slug);
+    return { post, fetchError: false };
   } catch {
-    return null;
+    return { post: null, fetchError: true };
   }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = await fetchNewsPost(slug);
+  const { post, fetchError } = await fetchNewsPost(slug);
+  if (fetchError) {
+    return buildMetadata({ title: "News", path: `/news/${slug}` });
+  }
   if (!post) return buildMetadata({ title: "News article not found", path: `/news/${slug}`, noindex: true });
   return buildMetadata({
     title: post.seo?.titleTag || post.title,
@@ -39,7 +43,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
-  const post = await fetchNewsPost(slug);
+  const { post, fetchError } = await fetchNewsPost(slug);
+  if (!post && fetchError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">
+        <h1 className="text-3xl font-bold text-rose-700">This article is temporarily unavailable</h1>
+        <p className="mt-3 text-rose-500">Please try again in a moment.</p>
+        <Link href="/news" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">All news</Link>
+      </div>
+    );
+  }
   if (!post) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">

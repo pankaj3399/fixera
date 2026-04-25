@@ -9,6 +9,8 @@ import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricin
 import { useCustomerPricing } from '@/hooks/useCustomerPricing'
 import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
 
+const NON_UNIT_PRICE_MODELS = new Set(['rfq', 'fixed', 'total', 'unit'])
+
 interface DateLabels {
   firstAvailable?: string | null
   shortestThroughput?: string | null
@@ -359,41 +361,42 @@ export default function SubprojectComparisonTable({
             )}
 
             {/* Service parameters — show all professionalInputs with values */}
-            {(currentSubproject.professionalInputs || []).length > 0 && (
-              <div className="mb-8 border-t border-gray-100 pt-6">
-                <h4 className="font-semibold text-base text-gray-900 mb-4">Details:</h4>
-                <div className="space-y-2">
-                  {(currentSubproject.professionalInputs || []).map((input, idx) => {
-                    const label = (input.fieldName || '')
-                      .replace(/([a-z])([A-Z])/g, '$1 $2')
-                      .replace(/_/g, ' ')
-                      .trim()
-                      .replace(/^./, (c) => c.toUpperCase())
-                    const formattedValue = formatProfessionalInputValue(input.value)
-                    const NON_UNIT_PRICE_MODELS = new Set(['rfq', 'fixed', 'total', 'unit'])
-                    const subprojectPricingType = (currentSubproject.pricing?.type || '').toLowerCase()
-                    const priceModelLower = (priceModel || '').toLowerCase()
-                    const priceModelIsRealUnit =
-                      Boolean(priceModel) &&
-                      !NON_UNIT_PRICE_MODELS.has(priceModelLower) &&
-                      subprojectPricingType !== 'rfq' &&
-                      subprojectPricingType !== 'fixed'
-                    const unitSuffixForValue =
-                      priceModelIsRealUnit && typeof input.value === 'number' && !label.toLowerCase().includes(priceModelLower)
-                        ? ` ${priceModel}`
-                        : ''
-                    return (
-                      <div key={`${input.fieldName}-${idx}`} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
-                        <span className="text-sm font-medium text-gray-900">{label || 'Parameter'}</span>
-                        <span className="text-sm font-semibold text-gray-900">
-                          {formattedValue}{unitSuffixForValue}
-                        </span>
-                      </div>
-                    )
-                  })}
+            {(currentSubproject.professionalInputs || []).length > 0 && (() => {
+              const subprojectPricingType = (currentSubproject.pricing?.type || '').toLowerCase()
+              const priceModelLower = (priceModel || '').toLowerCase()
+              const priceModelIsRealUnit =
+                Boolean(priceModel) &&
+                !NON_UNIT_PRICE_MODELS.has(priceModelLower) &&
+                subprojectPricingType !== 'rfq' &&
+                subprojectPricingType !== 'fixed'
+              return (
+                <div className="mb-8 border-t border-gray-100 pt-6">
+                  <h4 className="font-semibold text-base text-gray-900 mb-4">Details:</h4>
+                  <div className="space-y-2">
+                    {(currentSubproject.professionalInputs || []).map((input, idx) => {
+                      const label = (input.fieldName || '')
+                        .replace(/([a-z])([A-Z])/g, '$1 $2')
+                        .replace(/_/g, ' ')
+                        .trim()
+                        .replace(/^./, (c) => c.toUpperCase())
+                      const formattedValue = formatProfessionalInputValue(input.value)
+                      const unitSuffixForValue =
+                        priceModelIsRealUnit && typeof input.value === 'number' && !label.toLowerCase().includes(priceModelLower)
+                          ? ` ${priceModel}`
+                          : ''
+                      return (
+                        <div key={`${input.fieldName}-${idx}`} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
+                          <span className="text-sm font-medium text-gray-900">{label || 'Parameter'}</span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formattedValue}{unitSuffixForValue}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Materials — always shown with included / not included indicator */}
             <div className="mb-8 border-t border-gray-100 pt-6">

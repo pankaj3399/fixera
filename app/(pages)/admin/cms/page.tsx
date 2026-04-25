@@ -117,16 +117,22 @@ export default function CmsAdminListPage() {
       { slug: "cookie-policy", label: "Cookie Policy", usedFor: "Footer link" },
       { slug: "gdpr-compliance", label: "GDPR Compliance", usedFor: "Footer link" },
     ];
+    let cancelled = false;
     adminListCms({ type: "policy", limit: 100 })
       .then((res) => {
+        if (cancelled) return;
         const bySlug = new Map(res.items.map((i) => [i.slug, i]));
         setReservedSlots(
           RESERVED.map((r) => ({ ...r, item: bySlug.get(r.slug) || null }))
         );
       })
       .catch(() => {
+        if (cancelled) return;
         setReservedSlots(RESERVED.map((r) => ({ ...r, item: null })));
       });
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, user, refreshKey]);
 
   const headerGradient = useMemo(
@@ -213,7 +219,7 @@ export default function CmsAdminListPage() {
                       <div className="shrink-0">
                         {present ? (
                           <Link
-                            href={`/admin/cms/${slot.item!._id}`}
+                            href={`/admin/cms/${slot.item!._id}/edit`}
                             className={cn(
                               "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
                               published
@@ -221,7 +227,7 @@ export default function CmsAdminListPage() {
                                 : "bg-amber-500 text-white hover:bg-amber-600"
                             )}
                           >
-                            {published ? "Edit" : "Publish"}
+                            {published ? "Edit" : "Review"}
                           </Link>
                         ) : (
                           <Link

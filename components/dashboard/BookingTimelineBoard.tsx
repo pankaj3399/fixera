@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useRef, useCallback } from "react"
+import { useMemo, useState, useRef, useCallback, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, parseISO, startOfDay, isSameDay } from "date-fns"
 import { toast } from "sonner"
@@ -274,6 +274,7 @@ export default function BookingTimelineBoard({
   const [dialogMode, setDialogMode] = useState<"cancel" | "reschedule" | "extend" | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submittingBookingId, setSubmittingBookingId] = useState<string | null>(null)
+  const [isNavigating, startNavigation] = useTransition()
   const [cancelReason, setCancelReason] = useState("")
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [rescheduleTime, setRescheduleTime] = useState("")
@@ -587,8 +588,14 @@ export default function BookingTimelineBoard({
       )
       if (!next) {
         btns.push(
-          <Button key="complete" size="sm" className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => router.push(`/bookings/${booking._id}?openCompletion=1`)} disabled={busy}>
-            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
+          <Button
+            key="complete"
+            size="sm"
+            className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+            onClick={() => startNavigation(() => router.push(`/bookings/${booking._id}?openCompletion=1`))}
+            disabled={isNavigating}
+          >
+            {isNavigating ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
             Complete
           </Button>
         )

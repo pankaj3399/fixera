@@ -721,7 +721,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
             )}
             <Input
-              placeholder={`Search ${mode}...`}
+              aria-label={`Search ${mode} by title, number, or service`}
+              placeholder={`Search ${mode} by title, #, service…`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10"
@@ -759,6 +760,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
             )}
             <Input
+              aria-label="Filter by customer name"
               placeholder="Filter by customer name"
               value={customerNameFilter}
               onChange={(e) => setCustomerNameFilter(e.target.value)}
