@@ -36,7 +36,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { formatCurrency, formatCurrencyRequired } from '@/lib/formatters';
+import { formatCurrency } from '@/lib/formatters';
 import Image from 'next/image';
 import ProjectBookingForm from '@/components/project/ProjectBookingForm';
 import SubprojectComparisonTable from '@/components/project/SubprojectComparisonTable';
@@ -1011,7 +1011,7 @@ export default function ProjectDetailPage() {
                                 Number.isFinite(term.additionalCost) &&
                                 term.additionalCost > 0 && (
                                   <div className='shrink-0 text-sm font-semibold text-orange-600'>
-                                    +{formatCurrencyRequired(customerPrice(term.additionalCost))}
+                                    +{formatCurrency(customerPrice(term.additionalCost)) ?? 'N/A'}
                                   </div>
                                 )}
                             </div>

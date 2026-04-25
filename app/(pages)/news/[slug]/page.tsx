@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import type { Metadata } from "next";
-import { publicGetCms, cmsAuthorName } from "@/lib/cms";
+import { fetchCmsPostWithError, cmsAuthorName } from "@/lib/cms";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -13,18 +14,9 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-async function fetchNewsPost(slug: string): Promise<{ post: Awaited<ReturnType<typeof publicGetCms>>; fetchError: boolean }> {
-  try {
-    const post = await publicGetCms("news", slug);
-    return { post, fetchError: false };
-  } catch {
-    return { post: null, fetchError: true };
-  }
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const { post, fetchError } = await fetchNewsPost(slug);
+  const { post, fetchError } = await fetchCmsPostWithError("news", slug);
   if (fetchError) {
     return buildMetadata({ title: "News", path: `/news/${slug}` });
   }
@@ -43,21 +35,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
-  const { post, fetchError } = await fetchNewsPost(slug);
-  if (!post && fetchError) {
+  const { post, fetchError } = await fetchCmsPostWithError("news", slug);
+  if (!post && !fetchError) notFound();
+  if (!post) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">
         <h1 className="text-3xl font-bold text-rose-700">This article is temporarily unavailable</h1>
         <p className="mt-3 text-rose-500">Please try again in a moment.</p>
-        <Link href="/news" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">All news</Link>
-      </div>
-    );
-  }
-  if (!post) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">
-        <h1 className="text-3xl font-bold text-rose-700">Article not found</h1>
-        <p className="mt-3 text-rose-500">It may have been removed or is not yet published.</p>
         <Link href="/news" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">All news</Link>
       </div>
     );
@@ -94,7 +78,13 @@ export default async function NewsDetailPage({ params }: Props) {
       {post.coverImage && (
         <div className="mx-auto mt-4 max-w-5xl px-6">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <img src={post.coverImage} alt={post.title} className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover" />
+            <img
+              src={post.coverImage}
+              alt={post.title}
+              fetchPriority="high"
+              decoding="async"
+              className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
+            />
           </div>
         </div>
       )}

@@ -2,22 +2,16 @@ import React from 'react'
 import Link from 'next/link'
 import { Hammer, Facebook, Twitter, Instagram, Linkedin, Youtube, Music2 } from 'lucide-react'
 import { footerSections } from '@/data/content'
-import { publicListPolicyLinks, PolicyLink } from '@/lib/cms'
+import { publicListPolicyLinks, PolicyLink, CMS_RESERVED_POLICIES } from '@/lib/cms'
 import { publicGetSiteSettings, SiteSettings } from '@/lib/siteSettings'
 
-const LEGAL_SLOTS: Array<{ slug: string; label: string }> = [
-  { slug: 'privacy-policy', label: 'Privacy Policy' },
-  { slug: 'terms-of-service', label: 'Terms of Service' },
-  { slug: 'cookie-policy', label: 'Cookie Policy' },
-  { slug: 'gdpr-compliance', label: 'GDPR Compliance' },
-]
+const LEGAL_SLOTS = CMS_RESERVED_POLICIES.map(({ slug, label }) => ({ slug, label }))
 
-const MANDATORY_FALLBACKS: PolicyLink[] = [
-  { slug: 'privacy-policy', title: 'Privacy Policy', path: '/privacy-policy' },
-  { slug: 'terms-of-service', title: 'Terms of Service', path: '/pages/terms-of-service' },
-  { slug: 'cookie-policy', title: 'Cookie Policy', path: '/pages/cookie-policy' },
-  { slug: 'gdpr-compliance', title: 'GDPR Compliance', path: '/pages/gdpr-compliance' },
-]
+const MANDATORY_FALLBACKS: PolicyLink[] = CMS_RESERVED_POLICIES.map(({ slug, label, path }) => ({
+  slug,
+  title: label,
+  path,
+}))
 
 function isSafeHttpUrl(href: string): boolean {
   try {
@@ -55,8 +49,10 @@ const FooterLinkColumn = ({ title, links }: { title: string; links: { name: stri
 export default async function Footer() {
   const currentYear = new Date().getFullYear()
 
-  const policies = await publicListPolicyLinks()
-  const settings = await publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings))
+  const [policies, settings] = await Promise.all([
+    publicListPolicyLinks(),
+    publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings)),
+  ])
 
   const sourceLinks = [...MANDATORY_FALLBACKS, ...policies]
   const bySlug: Record<string, PolicyLink> = Object.fromEntries(

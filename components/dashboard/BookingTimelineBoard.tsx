@@ -699,7 +699,7 @@ export default function BookingTimelineBoard({
                 const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
                 const counterpartyName = viewerRole === "professional"
                   ? booking.customer?.name
-                  : booking.professional?.username || booking.professional?.name
+                  : booking.professional?.username || booking.professional?.name || booking.professional?.businessInfo?.companyName
                 const actions = renderActionButtons(booking)
 
                 return (
@@ -749,7 +749,7 @@ export default function BookingTimelineBoard({
                   const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
                   const counterpartyName = viewerRole === "professional"
                     ? booking.customer?.name
-                    : booking.professional?.username || booking.professional?.name
+                    : booking.professional?.username || booking.professional?.name || booking.professional?.businessInfo?.companyName
                   const barLabel = [projectName, counterpartyName].filter(Boolean).join(" — ")
                   const actions = renderActionButtons(booking)
                   const rowHeight = actions.length > 0 ? 48 + 24 : 48

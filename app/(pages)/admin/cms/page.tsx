@@ -11,6 +11,7 @@ import {
   CmsContentType,
   CMS_TYPE_LABELS,
   CMS_TYPE_ORDER,
+  CMS_RESERVED_POLICIES,
   getPublicPathForCms,
   getLandingServicePath,
 } from "@/lib/cms";
@@ -44,6 +45,7 @@ export default function CmsAdminListPage() {
     landing: 0,
   });
   const [reservedSlots, setReservedSlots] = useState<Array<{ slug: string; label: string; usedFor: string; item: CmsContent | null }>>([]);
+  const [reservedSlotsError, setReservedSlotsError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -111,24 +113,35 @@ export default function CmsAdminListPage() {
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
-    const RESERVED: Array<{ slug: string; label: string; usedFor: string }> = [
-      { slug: "privacy-policy", label: "Privacy Policy", usedFor: "Footer link" },
-      { slug: "terms-of-service", label: "Terms of Service", usedFor: "Footer link + Pro onboarding T&C (read) link" },
-      { slug: "cookie-policy", label: "Cookie Policy", usedFor: "Footer link" },
-      { slug: "gdpr-compliance", label: "GDPR Compliance", usedFor: "Footer link" },
-    ];
     let cancelled = false;
     adminListCms({ type: "policy", limit: 100 })
       .then((res) => {
         if (cancelled) return;
         const bySlug = new Map(res.items.map((i) => [i.slug, i]));
         setReservedSlots(
-          RESERVED.map((r) => ({ ...r, item: bySlug.get(r.slug) || null }))
+          CMS_RESERVED_POLICIES.map((r) => ({
+            slug: r.slug,
+            label: r.label,
+            usedFor: r.usedFor,
+            item: bySlug.get(r.slug) || null,
+          }))
         );
+        setReservedSlotsError(null);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return;
-        setReservedSlots(RESERVED.map((r) => ({ ...r, item: null })));
+        const msg = err instanceof Error ? err.message : "Failed to refresh policy slots";
+        setReservedSlotsError(msg);
+        setReservedSlots((prev) =>
+          prev.length > 0
+            ? prev
+            : CMS_RESERVED_POLICIES.map((r) => ({
+                slug: r.slug,
+                label: r.label,
+                usedFor: r.usedFor,
+                item: null,
+              }))
+        );
       });
     return () => {
       cancelled = true;
@@ -184,6 +197,22 @@ export default function CmsAdminListPage() {
               </p>
             </div>
           </div>
+          {reservedSlotsError && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+              <div className="flex-1">
+                <span className="font-semibold">Couldn&apos;t refresh policy slots:</span>{" "}
+                <span>{reservedSlotsError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {reservedSlots.length === 0 ? (
               <p className="col-span-full text-xs text-gray-500">Loading…</p>

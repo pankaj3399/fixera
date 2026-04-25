@@ -2601,7 +2601,7 @@ export default function BookingDetailPage() {
                                 )}
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
-                                  <p className="text-xs text-gray-500">{booking.quote?.currency || 'EUR'} {(user?.role === 'customer' ? customerPrice(ms.amount) : ms.amount).toFixed(2)}</p>
+                                  <p className="text-xs text-gray-500">{booking.quote?.currency || 'EUR'} {ms.amount.toFixed(2)}</p>
                                   {dueLabel && !isPaid && (
                                     <p className="text-[11px] text-sky-700">{dueLabel}</p>
                                   )}
@@ -3020,7 +3020,7 @@ export default function BookingDetailPage() {
                       <div className="bg-white/60 rounded p-2 space-y-2">
                         <p className="text-xs font-semibold text-gray-700">Extra Costs:</p>
                         {booking.extraCosts.map((cost, i) => {
-                          const displayAmount = user?.role === "customer" ? customerPrice(cost.amount) : cost.amount
+                          const displayAmount = cost.amount
                           return (
                             <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
                               <div className="flex justify-between items-center">
@@ -4073,9 +4073,8 @@ export default function BookingDetailPage() {
                           <Input
                             type="number"
                             value={cost.estimatedUnits || ''}
-                            disabled={!!cost.estimatedUnits && cost.estimatedUnits > 0}
                             onChange={(e) => updateExtraCost(i, 'estimatedUnits', parseFloat(e.target.value) || 0)}
-                            className={`h-8 text-sm ${cost.estimatedUnits && cost.estimatedUnits > 0 ? 'bg-gray-100' : ''}`}
+                            className="h-8 text-sm"
                           />
                         </div>
                         <div>

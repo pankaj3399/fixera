@@ -58,7 +58,7 @@ export default function PaymentSuccessPage() {
           Array.isArray(data.booking.project?.postBookingQuestions) &&
           data.booking.project.postBookingQuestions.length > 0;
         if (hasQuestions) {
-          router.replace(`/bookings/${bookingId}?postBookingQuestions=true&paymentJustAuthorized=true`);
+          router.replace(`/bookings/${bookingId}?postBookingQuestions=true`);
           return;
         }
         setBooking(data.booking);

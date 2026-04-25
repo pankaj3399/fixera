@@ -375,7 +375,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       }
       if (serviceFilter !== "all") params.append("service", serviceFilter)
       if (debouncedSearch) params.append("search", debouncedSearch)
-      if (debouncedCustomerNameFilter) params.append("customerNameFilter", debouncedCustomerNameFilter)
+      const trimmedCustomerName = debouncedCustomerNameFilter?.trim()
+      if (trimmedCustomerName) params.append("customerNameFilter", trimmedCustomerName)
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params}`,
@@ -479,7 +480,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         const params = new URLSearchParams({ page: String(page), limit: String(limit), status: activeStatuses })
         if (serviceFilter !== "all") params.append("service", serviceFilter)
         if (debouncedSearch) params.append("search", debouncedSearch)
-        if (debouncedCustomerNameFilter) params.append("customerNameFilter", debouncedCustomerNameFilter)
+        const trimmedCustomerName = debouncedCustomerNameFilter?.trim()
+        if (trimmedCustomerName) params.append("customerNameFilter", trimmedCustomerName)
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params.toString()}`,
           { credentials: "include", headers }

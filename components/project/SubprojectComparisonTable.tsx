@@ -9,7 +9,13 @@ import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricin
 import { useCustomerPricing } from '@/hooks/useCustomerPricing'
 import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
 
-const NON_UNIT_PRICE_MODELS = new Set(['rfq', 'fixed', 'total', 'unit'])
+const NON_UNIT_PRICE_MODEL_PREFIXES = ['rfq', 'fixed', 'total', 'unit'] as const
+
+const isNonUnitPriceModel = (model: string): boolean => {
+  const normalized = model.trim().toLowerCase()
+  if (!normalized) return false
+  return NON_UNIT_PRICE_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+}
 
 interface DateLabels {
   firstAvailable?: string | null
@@ -91,15 +97,25 @@ export default function SubprojectComparisonTable({
       repeatBuyerDiscount,
     })
     if (amount == null || !Number.isFinite(amount)) {
-      return withRepeatBuyer
+      return { ...withRepeatBuyer, hasLoyaltyDiscount: false, hasRepeatBuyerDiscount: false }
     }
     const noDiscountAmount = originalPrice(amount)
     const afterAllDiscounts = withRepeatBuyer.discountedAmount ?? withRepeatBuyer.customerAmount
     const hasAnyDiscount =
       afterAllDiscounts != null && noDiscountAmount != null && afterAllDiscounts < noDiscountAmount
+    const hasRepeatBuyerDiscount =
+      withRepeatBuyer.discountedAmount != null &&
+      withRepeatBuyer.customerAmount != null &&
+      withRepeatBuyer.discountedAmount < withRepeatBuyer.customerAmount
+    const hasLoyaltyDiscount =
+      withRepeatBuyer.customerAmount != null &&
+      noDiscountAmount != null &&
+      withRepeatBuyer.customerAmount < noDiscountAmount
     return {
       customerAmount: noDiscountAmount,
       discountedAmount: hasAnyDiscount ? afterAllDiscounts : null,
+      hasLoyaltyDiscount,
+      hasRepeatBuyerDiscount,
     }
   }
 
@@ -299,12 +315,12 @@ export default function SubprojectComparisonTable({
                       )}
                     </p>
                   )}
-                  {repeatBuyerDiscount?.enabled && hasCurrentDiscount && (
+                  {repeatBuyerDiscount?.enabled && currentPricing.hasRepeatBuyerDiscount && (
                     <p className="text-sm text-green-600 mt-2">
                       Returning customer price available
                     </p>
                   )}
-                  {loyalty && loyalty.percentage > 0 && hasCurrentDiscount && (
+                  {loyalty && loyalty.percentage > 0 && currentPricing.hasLoyaltyDiscount && (
                     <p className="text-sm text-amber-700 mt-1">
                       {loyalty.level} member savings applied
                     </p>
@@ -366,7 +382,7 @@ export default function SubprojectComparisonTable({
               const priceModelLower = (priceModel || '').toLowerCase()
               const priceModelIsRealUnit =
                 Boolean(priceModel) &&
-                !NON_UNIT_PRICE_MODELS.has(priceModelLower) &&
+                !isNonUnitPriceModel(priceModelLower) &&
                 subprojectPricingType !== 'rfq' &&
                 subprojectPricingType !== 'fixed'
               return (

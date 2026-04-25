@@ -568,6 +568,7 @@ export default function ProjectBookingForm({
     const controller = new AbortController();
     const run = async () => {
       try {
+        setServerSlotsForSelectedDate(null);
         setLoadingServerSlots(true);
         let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/available-slots?date=${selectedDate}`;
         if (typeof selectedPackageIndex === 'number') {
@@ -578,6 +579,7 @@ export default function ProjectBookingForm({
           return;
         }
         const data = await res.json();
+        if (controller.signal.aborted) return;
         if (!Array.isArray(data?.slots)) {
           return;
         }
@@ -585,7 +587,9 @@ export default function ProjectBookingForm({
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
       } finally {
-        setLoadingServerSlots(false);
+        if (!controller.signal.aborted) {
+          setLoadingServerSlots(false);
+        }
       }
     };
     run();

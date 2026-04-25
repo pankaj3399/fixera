@@ -200,6 +200,18 @@ export async function publicGetCms(
   return parseJsonRequired<CmsContent>(res);
 }
 
+export async function fetchCmsPostWithError(
+  type: CmsContentType,
+  slug: string
+): Promise<{ post: CmsContent | null; fetchError: boolean }> {
+  try {
+    const post = await publicGetCms(type, slug);
+    return { post, fetchError: false };
+  } catch {
+    return { post: null, fetchError: true };
+  }
+}
+
 export interface FaqGroup {
   slug: string;
   name: string;
@@ -252,6 +264,20 @@ export async function publicListSitemapEntries(
 }
 
 // ---------- Utils ----------
+
+export interface CmsReservedPolicy {
+  slug: string;
+  label: string;
+  path: string;
+  usedFor: string;
+}
+
+export const CMS_RESERVED_POLICIES: CmsReservedPolicy[] = [
+  { slug: "privacy-policy", label: "Privacy Policy", path: "/privacy-policy", usedFor: "Footer link" },
+  { slug: "terms-of-service", label: "Terms of Service", path: "/pages/terms-of-service", usedFor: "Footer link + Pro onboarding T&C (read) link" },
+  { slug: "cookie-policy", label: "Cookie Policy", path: "/pages/cookie-policy", usedFor: "Footer link" },
+  { slug: "gdpr-compliance", label: "GDPR Compliance", path: "/pages/gdpr-compliance", usedFor: "Footer link" },
+];
 
 const RESERVED_POLICY_PATHS: Record<string, string> = {
   "privacy-policy": "/privacy-policy",

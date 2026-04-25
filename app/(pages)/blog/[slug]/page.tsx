@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import type { Metadata } from "next";
-import { publicGetCms, cmsAuthorName } from "@/lib/cms";
+import { fetchCmsPostWithError, cmsAuthorName } from "@/lib/cms";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -16,13 +16,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  let post;
-  let fetchError = false;
-  try {
-    post = await publicGetCms("blog", slug);
-  } catch {
-    fetchError = true;
-  }
+  const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (fetchError) {
     return buildMetadata({ title: "Blog", path: `/blog/${slug}` });
   }
@@ -45,13 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
-  let post;
-  let fetchError = false;
-  try {
-    post = await publicGetCms("blog", slug);
-  } catch {
-    fetchError = true;
-  }
+  const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (!post && !fetchError) notFound();
   if (!post) {
     return (
