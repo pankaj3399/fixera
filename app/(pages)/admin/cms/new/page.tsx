@@ -15,6 +15,8 @@ function NewCmsPageClient() {
   const lockedType: CmsContentType | undefined = CMS_TYPE_ORDER.includes(typeParam as CmsContentType)
     ? (typeParam as CmsContentType)
     : undefined;
+  const initialSlug = params.get("slug") || undefined;
+  const initialTitle = params.get("title") || undefined;
 
   useEffect(() => {
     if (loading) return;
@@ -27,7 +29,7 @@ function NewCmsPageClient() {
     return <NewCmsFallback />;
   }
 
-  return <CmsContentForm mode="create" lockedType={lockedType} />;
+  return <CmsContentForm mode="create" lockedType={lockedType} initialSlug={initialSlug} initialTitle={initialTitle} />;
 }
 
 function NewCmsFallback() {

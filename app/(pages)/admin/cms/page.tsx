@@ -15,7 +15,7 @@ import {
   getLandingServicePath,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
-import { AlertCircle, FileText, Loader2, Plus, Search, Share2, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Loader2, Plus, Search, Share2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_FILTERS: Array<{ value: CmsContentStatus | "all"; label: string }> = [
@@ -43,6 +43,7 @@ export default function CmsAdminListPage() {
     policy: 0,
     landing: 0,
   });
+  const [reservedSlots, setReservedSlots] = useState<Array<{ slug: string; label: string; usedFor: string; item: CmsContent | null }>>([]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -108,6 +109,26 @@ export default function CmsAdminListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== "admin") return;
+    const RESERVED: Array<{ slug: string; label: string; usedFor: string }> = [
+      { slug: "privacy-policy", label: "Privacy Policy", usedFor: "Footer link" },
+      { slug: "terms-of-service", label: "Terms of Service", usedFor: "Footer link + Pro onboarding T&C (read) link" },
+      { slug: "cookie-policy", label: "Cookie Policy", usedFor: "Footer link" },
+      { slug: "gdpr-compliance", label: "GDPR Compliance", usedFor: "Footer link" },
+    ];
+    adminListCms({ type: "policy", limit: 100 })
+      .then((res) => {
+        const bySlug = new Map(res.items.map((i) => [i.slug, i]));
+        setReservedSlots(
+          RESERVED.map((r) => ({ ...r, item: bySlug.get(r.slug) || null }))
+        );
+      })
+      .catch(() => {
+        setReservedSlots(RESERVED.map((r) => ({ ...r, item: null })));
+      });
+  }, [isAuthenticated, user, refreshKey]);
+
   const headerGradient = useMemo(
     () => "bg-gradient-to-br from-rose-400 via-pink-400 to-orange-300",
     []
@@ -144,6 +165,78 @@ export default function CmsAdminListPage() {
                 <Plus size={16} /> New content
               </Link>
             </div>
+          </div>
+        </div>
+
+        {/* Reserved policy slots */}
+        <div className="mt-6 rounded-2xl border border-pink-200 bg-white/70 p-5 shadow-sm">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-rose-900">Reserved policy slots</h2>
+              <p className="text-xs text-rose-500">
+                These slugs are wired to specific places in the app. Create a Policy with the exact slug to fill the slot.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {reservedSlots.length === 0 ? (
+              <p className="col-span-full text-xs text-gray-500">Loading…</p>
+            ) : (
+              reservedSlots.map((slot) => {
+                const present = !!slot.item;
+                const published = slot.item?.status === "published";
+                return (
+                  <div
+                    key={slot.slug}
+                    className={cn(
+                      "rounded-xl border p-3 transition",
+                      present && published
+                        ? "border-emerald-200 bg-emerald-50/40"
+                        : present
+                          ? "border-amber-200 bg-amber-50/40"
+                          : "border-rose-200 bg-rose-50/40"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          {present && published ? (
+                            <CheckCircle2 size={14} className="text-emerald-600" />
+                          ) : (
+                            <AlertCircle size={14} className={present ? "text-amber-600" : "text-rose-600"} />
+                          )}
+                          <span className="text-sm font-semibold text-gray-900">{slot.label}</span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] font-mono text-gray-600">slug: {slot.slug}</p>
+                        <p className="mt-1 text-[11px] text-gray-600">{slot.usedFor}</p>
+                      </div>
+                      <div className="shrink-0">
+                        {present ? (
+                          <Link
+                            href={`/admin/cms/${slot.item!._id}`}
+                            className={cn(
+                              "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
+                              published
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                : "bg-amber-500 text-white hover:bg-amber-600"
+                            )}
+                          >
+                            {published ? "Edit" : "Publish"}
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/admin/cms/new?type=policy&slug=${encodeURIComponent(slot.slug)}&title=${encodeURIComponent(slot.label)}`}
+                            className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
+                          >
+                            Create
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 

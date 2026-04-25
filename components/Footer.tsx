@@ -56,14 +56,21 @@ const FooterLinkColumn = ({ title, links }: { title: string; links: { name: stri
 export default async function Footer() {
   const currentYear = new Date().getFullYear()
 
-  const [policies, settings] = await Promise.all([
-    publicListPolicyLinks().catch(() => [] as PolicyLink[]),
-    publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings)),
-  ])
+  let policies: PolicyLink[] = []
+  let policiesFetchFailed = false
+  try {
+    policies = await publicListPolicyLinks()
+  } catch {
+    policiesFetchFailed = true
+  }
+  const settings = await publicGetSiteSettings().catch(() => ({ socialLinks: {} } as SiteSettings))
 
-  // Merge: fetched wins on duplicate slug, fallbacks fill gaps for mandatory links
+  // If the CMS fetch errored, fall back to hardcoded placeholders so legal links never disappear
+  // due to transient failures. If the fetch succeeded but returned no policies, render only what's
+  // actually in the CMS (admin controls visibility by creating the policy entry).
+  const sourceLinks = policiesFetchFailed ? MANDATORY_FALLBACKS : policies
   const bySlug: Record<string, PolicyLink> = Object.fromEntries(
-    [...MANDATORY_FALLBACKS, ...policies].map((p) => [p.slug, p])
+    sourceLinks.map((p) => [p.slug, p])
   )
 
   return (

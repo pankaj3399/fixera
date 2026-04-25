@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Check, Clock, Shield, ArrowRight, Calendar, Info, Package } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
 import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing'
-import { useCommissionRate } from '@/hooks/useCommissionRate'
+import { useCustomerPricing } from '@/hooks/useCustomerPricing'
 import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
 
 interface DateLabels {
@@ -54,7 +54,7 @@ export default function SubprojectComparisonTable({
   companyBlockedRanges,
   onContactProfessional
 }: SubprojectComparisonTableProps) {
-  const { customerPrice } = useCommissionRate()
+  const { customerPrice, originalPrice, loyalty } = useCustomerPricing()
 
 
   const formatDuration = (duration?: { value?: number; unit: 'hours' | 'days' }): string => {
@@ -81,13 +81,25 @@ export default function SubprojectComparisonTable({
   const effectivePricingType = (sp: (typeof subprojects)[number]) =>
     sp.pricing?.type ?? (priceModel ? 'unit' : 'fixed')
   const repeatBuyerEligible = repeatBuyerEligibility?.eligible === true
-  const getCustomerPricing = (amount?: number | null) =>
-    computeCustomerPriceWithRepeatBuyerDiscount({
+  const getCustomerPricing = (amount?: number | null) => {
+    const withRepeatBuyer = computeCustomerPriceWithRepeatBuyerDiscount({
       amount,
       customerPrice,
       eligible: repeatBuyerEligible,
       repeatBuyerDiscount,
     })
+    if (amount == null || !Number.isFinite(amount)) {
+      return withRepeatBuyer
+    }
+    const noDiscountAmount = originalPrice(amount)
+    const afterAllDiscounts = withRepeatBuyer.discountedAmount ?? withRepeatBuyer.customerAmount
+    const hasAnyDiscount =
+      afterAllDiscounts != null && noDiscountAmount != null && afterAllDiscounts < noDiscountAmount
+    return {
+      customerAmount: noDiscountAmount,
+      discountedAmount: hasAnyDiscount ? afterAllDiscounts : null,
+    }
+  }
 
   const allIncludedItems = useMemo(() => {
     // Collect all unique included items across all subprojects, preserving their order of appearance
@@ -227,9 +239,11 @@ export default function SubprojectComparisonTable({
                         ) : (
                           formatCurrency(currentCustomerAmount ?? currentSubproject.pricing.amount)
                         )}
-                        <span className="text-lg font-normal text-gray-500 ml-2">
-                          /{priceModel || 'unit'}
-                        </span>
+                        {priceModel && (
+                          <span className="text-lg font-normal text-gray-500 ml-2">
+                            /{priceModel}
+                          </span>
+                        )}
                       </>
                     ) : (
                       hasCurrentDiscount ? (
@@ -288,6 +302,11 @@ export default function SubprojectComparisonTable({
                       Returning customer price available
                     </p>
                   )}
+                  {loyalty && loyalty.percentage > 0 && hasCurrentDiscount && (
+                    <p className="text-sm text-amber-700 mt-1">
+                      {loyalty.level} member savings applied
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -339,42 +358,84 @@ export default function SubprojectComparisonTable({
               </div>
             )}
 
-            {/* Materials - only show when included with items */}
-            {currentSubproject.materialsIncluded && currentSubproject.materials && currentSubproject.materials.length > 0 && (
+            {/* Service parameters — show all professionalInputs with values */}
+            {(currentSubproject.professionalInputs || []).length > 0 && (
+              <div className="mb-8 border-t border-gray-100 pt-6">
+                <h4 className="font-semibold text-base text-gray-900 mb-4">Details:</h4>
+                <div className="space-y-2">
+                  {(currentSubproject.professionalInputs || []).map((input, idx) => {
+                    const label = (input.fieldName || '')
+                      .replace(/([a-z])([A-Z])/g, '$1 $2')
+                      .replace(/_/g, ' ')
+                      .trim()
+                      .replace(/^./, (c) => c.toUpperCase())
+                    const formattedValue = formatProfessionalInputValue(input.value)
+                    const NON_UNIT_PRICE_MODELS = new Set(['rfq', 'fixed', 'total', 'unit'])
+                    const subprojectPricingType = (currentSubproject.pricing?.type || '').toLowerCase()
+                    const priceModelLower = (priceModel || '').toLowerCase()
+                    const priceModelIsRealUnit =
+                      Boolean(priceModel) &&
+                      !NON_UNIT_PRICE_MODELS.has(priceModelLower) &&
+                      subprojectPricingType !== 'rfq' &&
+                      subprojectPricingType !== 'fixed'
+                    const unitSuffixForValue =
+                      priceModelIsRealUnit && typeof input.value === 'number' && !label.toLowerCase().includes(priceModelLower)
+                        ? ` ${priceModel}`
+                        : ''
+                    return (
+                      <div key={`${input.fieldName}-${idx}`} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
+                        <span className="text-sm font-medium text-gray-900">{label || 'Parameter'}</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formattedValue}{unitSuffixForValue}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Materials — always shown with included / not included indicator */}
             <div className="mb-8 border-t border-gray-100 pt-6">
               <div className="flex items-center gap-2 mb-4">
                 <Package className="w-4 h-4 text-gray-500" />
                 <h4 className="font-semibold text-base text-gray-900">
-                  Materials: <span className="text-green-600 font-semibold">Included</span>
+                  Materials:{' '}
+                  {currentSubproject.materialsIncluded ? (
+                    <span className="text-green-600 font-semibold">Included</span>
+                  ) : (
+                    <span className="text-gray-500 font-semibold">Not included</span>
+                  )}
                 </h4>
               </div>
-              <div className="space-y-2">
-                {currentSubproject.materials.map((mat, matIdx) => (
-                  <div key={matIdx} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{mat.name}</span>
-                      {mat.description && (
-                        <span className="relative group">
-                          <button type="button" aria-describedby={`mat-tooltip-${matIdx}`} className="inline-flex focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 rounded">
-                            <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" aria-hidden="true" />
-                            <span className="sr-only">Material info</span>
-                          </button>
-                          <span id={`mat-tooltip-${matIdx}`} role="tooltip" className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block group-focus-within:block w-48 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg z-10">
-                            {mat.description}
+              {currentSubproject.materialsIncluded && currentSubproject.materials && currentSubproject.materials.length > 0 && (
+                <div className="space-y-2">
+                  {currentSubproject.materials.map((mat, matIdx) => (
+                    <div key={matIdx} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">{mat.name}</span>
+                        {mat.description && (
+                          <span className="relative group">
+                            <button type="button" aria-describedby={`mat-tooltip-${matIdx}`} className="inline-flex focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 rounded">
+                              <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" aria-hidden="true" />
+                              <span className="sr-only">Material info</span>
+                            </button>
+                            <span id={`mat-tooltip-${matIdx}`} role="tooltip" className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block group-focus-within:block w-48 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg z-10">
+                              {mat.description}
+                            </span>
                           </span>
+                        )}
+                      </div>
+                      {(mat.quantity || mat.unit) && (
+                        <span className="text-sm font-semibold text-gray-900">
+                          {[mat.quantity, mat.unit].filter(Boolean).join(' ')}
                         </span>
                       )}
                     </div>
-                    {(mat.quantity || mat.unit) && (
-                      <span className="text-sm font-semibold text-gray-900">
-                        {[mat.quantity, mat.unit].filter(Boolean).join(' ')}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-            )}
 
             {/* Date Availability (Clean & Simplistic) */}
             <div className="mb-6 space-y-2">

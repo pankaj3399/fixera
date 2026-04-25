@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import type { Metadata } from "next";
@@ -41,12 +40,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
   let post;
+  let fetchError = false;
   try {
     post = await publicGetCms("blog", slug);
   } catch {
-    notFound();
+    fetchError = true;
   }
-  if (!post) notFound();
+  if (!post && !fetchError) notFound();
+  if (!post) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">
+        <h1 className="text-3xl font-bold text-rose-700">This post is temporarily unavailable</h1>
+        <p className="mt-3 text-rose-500">Please try again in a moment.</p>
+        <Link href="/blog" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">Back to blog</Link>
+      </div>
+    );
+  }
 
   const authorName = cmsAuthorName(post);
   const date = post.publishedAt || post.updatedAt;
@@ -81,16 +90,11 @@ export default async function BlogDetailPage({ params }: Props) {
       {post.coverImage && (
         <div className="mx-auto mt-4 max-w-5xl px-6">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <div className="relative aspect-[16/7] w-full overflow-hidden rounded-[calc(1.5rem-1.5px)]">
-              <Image
-                src={post.coverImage}
-                alt={post.title}
-                fill
-                sizes="(max-width: 1024px) 100vw, 80rem"
-                className="object-cover"
-                priority
-              />
-            </div>
+            <img
+              src={post.coverImage}
+              alt={post.title}
+              className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
+            />
           </div>
         </div>
       )}

@@ -24,7 +24,7 @@ import { StripeProvider } from "@/components/stripe/StripeProvider"
 import { PaymentForm } from "@/components/stripe/PaymentForm"
 import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
-import { useCommissionRate } from "@/hooks/useCommissionRate"
+import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { createOrGetConversation } from "@/lib/chatApi"
 
 const PRE_SERVICE_BOOKING_STATUSES: BookingStatus[] = BOOKING_STATUSES.filter((status) =>
@@ -424,7 +424,7 @@ const validateWarrantyFiles = (fileList: FileList | File[] | null | undefined) =
 
 export default function BookingDetailPage() {
   const { user, isAuthenticated, loading } = useAuth()
-  const { commissionPercent, customerPrice } = useCommissionRate()
+  const { commissionPercent, customerPrice } = useCustomerPricing()
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -437,6 +437,8 @@ export default function BookingDetailPage() {
 
   const showPostBookingQuestions = searchParams?.get("postBookingQuestions") === "true"
   const autoOpenWarrantyClaim = searchParams?.get("openWarrantyClaim") === "true"
+  const autoOpenCompletion = searchParams?.get("openCompletion") === "1"
+  const autoPayExtras = searchParams?.get("payExtras") === "1"
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
   const [viewerRole, setViewerRole] = useState<'admin' | 'customer' | 'professional' | null>(null)
@@ -710,6 +712,25 @@ export default function BookingDetailPage() {
       setWarrantyDialogAutoOpened(true)
     }
   }, [autoOpenWarrantyClaim, warrantyDialogAutoOpened, canOpenWarrantyClaim])
+
+  useEffect(() => {
+    if (!autoOpenCompletion) return
+    if (user?.role !== "professional") return
+    if (booking?.status !== "in_progress") return
+    setShowCompletionModal(true)
+  }, [autoOpenCompletion, user?.role, booking?.status])
+
+  useEffect(() => {
+    if (!autoPayExtras) return
+    if (user?.role !== "customer") return
+    if (booking?.status !== "professional_completed") return
+    if ((booking?.extraCostTotal || 0) <= 0) return
+    if (extraCostClientSecret) return
+    if (booking?.extraCostStatus === "confirmed" || booking?.extraCostStatus === "disputed") return
+    initializeExtraCostPayment()
+    // initializeExtraCostPayment is stable enough — intentionally not in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPayExtras, user?.role, booking?.status, booking?.extraCostTotal, booking?.extraCostStatus, extraCostClientSecret])
 
   const handleAnswerChange = (index: number, answer: string) => {
     setPostBookingAnswers(prev => ({ ...prev, [index]: answer }))
@@ -1693,20 +1714,6 @@ export default function BookingDetailPage() {
         return
       }
       const sub = subprojects[subIdx]
-      const inputs = sub?.professionalInputs || []
-      const quantityInput = inputs.find((p) => {
-        const name = (p.fieldName || '').toLowerCase()
-        return name.includes('quantity') || name.includes('units') || name.includes('amount') || name.includes('size') || name.includes('area')
-      })
-      if (!quantityInput || quantityInput.value == null) {
-        toast.error('Cannot add a unit adjustment: this booking has no quantity input.')
-        return
-      }
-      const estimatedUnits = Number(quantityInput.value)
-      if (!Number.isFinite(estimatedUnits) || estimatedUnits <= 0) {
-        toast.error('Cannot add a unit adjustment: the quantity input is not a valid number.')
-        return
-      }
       if (sub?.pricing?.type !== 'unit') {
         toast.error('Cannot add a unit adjustment: this subproject is not priced per unit.')
         return
@@ -1716,6 +1723,42 @@ export default function BookingDetailPage() {
         toast.error('Cannot add a unit adjustment: the unit price is not set.')
         return
       }
+
+      const inputs = sub?.professionalInputs || []
+      const priceModelToken = ((booking?.project as { priceModel?: string } | undefined)?.priceModel || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+      const quantityTokens = ['quantity', 'units', 'unit', 'amount', 'size', 'area', 'surface', 'length', 'width', 'height', 'volume', 'weight', 'pieces', 'count', 'hours', 'days', 'm2', 'm3']
+      if (priceModelToken) quantityTokens.unshift(priceModelToken)
+
+      const isNumericValue = (v: unknown) => {
+        if (typeof v === 'number' && Number.isFinite(v) && v > 0) return true
+        if (typeof v === 'object' && v != null && 'min' in v && 'max' in v) {
+          const minVal = (v as { min: unknown }).min
+          return Number.isFinite(Number(minVal))
+        }
+        return false
+      }
+
+      let quantityInput = inputs.find((p) => {
+        const name = (p.fieldName || '').toLowerCase()
+        return quantityTokens.some((t) => t && name.includes(t)) && isNumericValue(p.value)
+      })
+      if (!quantityInput) {
+        quantityInput = inputs.find((p) => isNumericValue(p.value))
+      }
+
+      let estimatedUnits = 0
+      if (quantityInput) {
+        const rawValue: unknown = quantityInput.value
+        if (typeof rawValue === 'object' && rawValue != null && 'min' in rawValue) {
+          estimatedUnits = Number((rawValue as { min: unknown }).min)
+        } else {
+          estimatedUnits = Number(rawValue)
+        }
+      }
+      if (!Number.isFinite(estimatedUnits) || estimatedUnits <= 0) {
+        estimatedUnits = 0
+      }
+
       unitDefaults = { estimatedUnits, actualUnits: estimatedUnits, unitPrice }
     }
     setCompletionExtraCosts(prev => [...prev, {
@@ -1735,6 +1778,22 @@ export default function BookingDetailPage() {
       if (updated[index].type === 'unit_adjustment' && (field === 'actualUnits' || field === 'estimatedUnits' || field === 'unitPrice')) {
         const diff = (updated[index].actualUnits || 0) - (updated[index].estimatedUnits || 0)
         updated[index].amount = diff * (updated[index].unitPrice || 0)
+      }
+      if (field === 'referenceIndex' && (updated[index].type === 'condition' || updated[index].type === 'option')) {
+        const refIndex = typeof value === 'number' ? value : parseInt(String(value), 10)
+        if (Number.isFinite(refIndex) && refIndex >= 0) {
+          if (updated[index].type === 'condition') {
+            const condition = booking?.project?.termsConditions?.[refIndex]
+            const conditionCost = Number(condition?.additionalCost)
+            updated[index].amount = Number.isFinite(conditionCost) && conditionCost >= 0 ? conditionCost : 0
+            updated[index].name = condition?.name || updated[index].name
+          } else {
+            const option = booking?.project?.extraOptions?.[refIndex]
+            const optionPrice = Number(option?.price)
+            updated[index].amount = Number.isFinite(optionPrice) && optionPrice >= 0 ? optionPrice : 0
+            updated[index].name = option?.name || updated[index].name
+          }
+        }
       }
       return updated
     })
@@ -2496,6 +2555,7 @@ export default function BookingDetailPage() {
                           if (dueCondition === 'on_milestone_start') return workStatus === 'in_progress' || workStatus === 'completed'
                           if (dueCondition === 'on_milestone_completion') return workStatus === 'completed'
                           if (dueCondition === 'custom_date') {
+                            if (workStatus === 'completed') return true
                             return !!ms.customDueDate && new Date(ms.customDueDate) <= new Date()
                           }
                           return true
@@ -2856,7 +2916,7 @@ export default function BookingDetailPage() {
                 )}
 
                 {/* Professional: Confirm Completion (when status is in_progress) */}
-                {user?.role === "professional" && booking.status === "in_progress" && allMilestonesCompleted && !(booking.milestonePayments && booking.milestonePayments.length > 0) && (
+                {user?.role === "professional" && booking.status === "in_progress" && allMilestonesCompleted && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -2949,25 +3009,28 @@ export default function BookingDetailPage() {
                     {booking.extraCosts && booking.extraCosts.length > 0 && (
                       <div className="bg-white/60 rounded p-2 space-y-2">
                         <p className="text-xs font-semibold text-gray-700">Extra Costs:</p>
-                        {booking.extraCosts.map((cost, i) => (
-                          <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-medium text-gray-800">{cost.name}</span>
-                              <span className={`text-xs font-semibold ${cost.amount >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                {cost.amount >= 0 ? '+' : ''}{booking.payment?.currency || 'EUR'} {cost.amount.toFixed(2)}
-                              </span>
+                        {booking.extraCosts.map((cost, i) => {
+                          const displayAmount = user?.role === "customer" ? customerPrice(cost.amount) : cost.amount
+                          return (
+                            <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs font-medium text-gray-800">{cost.name}</span>
+                                <span className={`text-xs font-semibold ${displayAmount >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {displayAmount >= 0 ? '+' : ''}{booking.payment?.currency || 'EUR'} {displayAmount.toFixed(2)}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                <span className="capitalize">{cost.type.replace('_', ' ')}</span>
+                                {cost.type === 'unit_adjustment' && ` (estimated: ${cost.estimatedUnits}, actual: ${cost.actualUnits})`}
+                              </p>
+                              <p className="text-xs text-gray-500 italic">{cost.justification}</p>
                             </div>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              <span className="capitalize">{cost.type.replace('_', ' ')}</span>
-                              {cost.type === 'unit_adjustment' && ` (estimated: ${cost.estimatedUnits}, actual: ${cost.actualUnits})`}
-                            </p>
-                            <p className="text-xs text-gray-500 italic">{cost.justification}</p>
-                          </div>
-                        ))}
+                          )
+                        })}
                         <div className="flex justify-between items-center pt-1 border-t border-gray-200">
                           <span className="text-xs font-semibold text-gray-800">Total Extra Costs</span>
                           <span className={`text-sm font-bold ${(booking.extraCostTotal || 0) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {(booking.extraCostTotal || 0) >= 0 ? '+' : ''}{booking.payment?.currency || 'EUR'} {(booking.extraCostTotal || 0).toFixed(2)}
+                            {(booking.extraCostTotal || 0) >= 0 ? '+' : ''}{booking.payment?.currency || 'EUR'} {(user?.role === "customer" ? customerPrice(booking.extraCostTotal || 0) : (booking.extraCostTotal || 0)).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -4000,8 +4063,9 @@ export default function BookingDetailPage() {
                           <Input
                             type="number"
                             value={cost.estimatedUnits || ''}
-                            disabled
-                            className="h-8 text-sm bg-gray-100"
+                            disabled={!!cost.estimatedUnits && cost.estimatedUnits > 0}
+                            onChange={(e) => updateExtraCost(i, 'estimatedUnits', parseFloat(e.target.value) || 0)}
+                            className={`h-8 text-sm ${cost.estimatedUnits && cost.estimatedUnits > 0 ? 'bg-gray-100' : ''}`}
                           />
                         </div>
                         <div>
@@ -4086,7 +4150,7 @@ export default function BookingDetailPage() {
                       <Textarea value={cost.justification} onChange={(e) => updateExtraCost(i, 'justification', e.target.value)} placeholder="Explain why this cost is necessary..." className="min-h-[50px] text-sm" />
                     </div>
 
-                    {cost.type === 'unit_adjustment' && (
+                    {(cost.type === 'unit_adjustment' || cost.type === 'condition' || cost.type === 'option') && (
                       <p className="text-xs text-gray-600">
                         Calculated: {cost.amount >= 0 ? '+' : ''}{cost.amount.toFixed(2)}
                       </p>

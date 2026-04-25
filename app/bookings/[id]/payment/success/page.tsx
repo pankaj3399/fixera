@@ -22,6 +22,9 @@ interface BookingPayment {
 interface Booking {
   bookingNumber?: string;
   payment?: BookingPayment;
+  project?: {
+    postBookingQuestions?: Array<unknown>;
+  };
 }
 
 export default function PaymentSuccessPage() {
@@ -51,13 +54,20 @@ export default function PaymentSuccessPage() {
 
       if (data?.success && data.booking) {
         setBooking(data.booking);
+        const hasQuestions =
+          Array.isArray(data.booking.project?.postBookingQuestions) &&
+          data.booking.project.postBookingQuestions.length > 0;
+        if (hasQuestions) {
+          router.replace(`/bookings/${bookingId}?postBookingQuestions=true`);
+          return;
+        }
       }
     } catch (err) {
       console.error('Error loading booking:', err);
     } finally {
       setLoading(false);
     }
-  }, [bookingId]);
+  }, [bookingId, router]);
 
   useEffect(() => {
     void loadBookingDetails();

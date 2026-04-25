@@ -97,7 +97,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     !!originalPrice && originalPrice(value) - customerPrice(value) >= 0.01;
   const unitSuffix = project.priceModel
     ? formatPriceModelLabel(project.priceModel)
-    : 'unit';
+    : '';
   const professional = project.professionalId;
   const professionalName = professional?.username || professional?.name || 'Professional';
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]
@@ -141,23 +141,24 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
       return formatAmount(amount);
     }
     if (pricing.type === 'unit') {
+      const perUnit = unitSuffix ? `/${unitSuffix}` : '';
       if (
         pricing.priceRange &&
         Number.isFinite(pricing.priceRange.min) &&
         Number.isFinite(pricing.priceRange.max)
       ) {
-        return `${formatAmount(pricing.priceRange.min)}-${formatAmount(pricing.priceRange.max)}/${unitSuffix}`;
+        return `${formatAmount(pricing.priceRange.min)}-${formatAmount(pricing.priceRange.max)}${perUnit}`;
       }
       if (amount != null && Number.isFinite(amount)) {
         if (hasDiscount(amount)) {
           return (
             <span className="flex items-baseline gap-1">
               <span className="text-gray-400 line-through text-[9px]">{formatOriginalAmount(amount)}</span>
-              <span>{formatAmount(amount)}/{unitSuffix}</span>
+              <span>{formatAmount(amount)}{perUnit}</span>
             </span>
           );
         }
-        return `${formatAmount(amount)}/${unitSuffix}`;
+        return `${formatAmount(amount)}${perUnit}`;
       }
     }
     if (pricing.type === 'rfq') {

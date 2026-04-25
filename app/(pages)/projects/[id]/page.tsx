@@ -53,7 +53,7 @@ import {
   formatDateOnlyProfessionalViewer,
   getViewerTimezone,
 } from '@/lib/timezoneDisplay';
-import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto as Project } from '@/types/project';
 import {
   getLevelColor,
@@ -149,7 +149,7 @@ type ProvidedByCardProps = {
 
 const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
   const proName =
-    pro.name || pro.businessInfo?.companyName || pro.username || 'Professional';
+    pro.username || pro.name || 'Professional';
   const proLocation = [pro.businessInfo?.city, pro.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
@@ -312,7 +312,7 @@ export default function ProjectDetailPage() {
   const [reviewPage, setReviewPage] = useState(1);
   const [reviewTotalPages, setReviewTotalPages] = useState(1);
   const [initialFavorited, setInitialFavorited] = useState<boolean | null>(null);
-  const { customerPrice } = useCommissionRate();
+  const { customerPrice } = useCustomerPricing();
 
   const projectId = params.id as string;
 
@@ -772,36 +772,6 @@ export default function ProjectDetailPage() {
                     {project.description}
                   </p>
                 </div>
-
-                {(() => {
-                  const sub = project.subprojects?.[viewedSubprojectIndex]
-                  const inputs = sub?.professionalInputs || []
-                  if (inputs.length === 0) return null
-                  return (
-                    <div className='pt-4 border-t'>
-                      <h4 className='font-semibold mb-3'>Service Details{sub?.name ? ` — ${sub.name}` : ''}</h4>
-                      <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-                        {inputs.map((input, idx) => {
-                          const value = input.value
-                          let display: string
-                          if (value && typeof value === 'object' && 'min' in value) {
-                            display = `${value.min} - ${value.max}`
-                          } else if (value === undefined || value === null || value === '') {
-                            display = '—'
-                          } else {
-                            display = String(value)
-                          }
-                          return (
-                            <div key={`${input.fieldName}-${idx}`} className='flex items-start justify-between gap-3 text-sm bg-gray-50 rounded-md px-3 py-2'>
-                              <span className='text-gray-600'>{input.fieldName}</span>
-                              <span className='font-medium text-gray-900 text-right'>{display}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })()}
 
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t'>
                   {priceModelLabel && (

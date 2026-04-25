@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import type { Metadata } from "next";
 import { publicGetCms, cmsAuthorName } from "@/lib/cms";
@@ -41,7 +40,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
   const post = await fetchNewsPost(slug);
-  if (!post) notFound();
+  if (!post) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">
+        <h1 className="text-3xl font-bold text-rose-700">Article not found</h1>
+        <p className="mt-3 text-rose-500">It may have been removed or is not yet published.</p>
+        <Link href="/news" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">All news</Link>
+      </div>
+    );
+  }
 
   const date = post.publishedAt || post.updatedAt;
   const authorName = cmsAuthorName(post);

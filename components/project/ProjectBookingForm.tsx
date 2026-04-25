@@ -36,7 +36,7 @@ import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
 import { formatCurrency } from '@/lib/formatters';
 import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing';
 import { getAuthToken } from '@/lib/utils';
-import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
@@ -251,7 +251,7 @@ export default function ProjectBookingForm({
   onBack,
   selectedSubprojectIndex,
 }: ProjectBookingFormProps) {
-  const { customerPrice, commissionPercent } = useCommissionRate();
+  const { customerPrice, commissionPercent } = useCustomerPricing();
   const router = useRouter();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
@@ -283,6 +283,8 @@ export default function ProjectBookingForm({
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [showCalendar, setShowCalendar] = useState(false);
   const [hasUserSelectedDate, setHasUserSelectedDate] = useState(false);
+  const [serverSlotsForSelectedDate, setServerSlotsForSelectedDate] = useState<string[] | null>(null);
+  const [loadingServerSlots, setLoadingServerSlots] = useState(false);
   const [scheduleWindow, setScheduleWindow] = useState<{
     scheduledStartDate: string;
     scheduledExecutionEndDate: string;
@@ -556,6 +558,42 @@ export default function ProjectBookingForm({
     selectedPackage,
     selectedTime,
   ]);
+
+  useEffect(() => {
+    if (projectMode !== 'hours' || !selectedDate) {
+      setServerSlotsForSelectedDate(null);
+      setLoadingServerSlots(false);
+      return;
+    }
+    const controller = new AbortController();
+    const run = async () => {
+      try {
+        setLoadingServerSlots(true);
+        let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/available-slots?date=${selectedDate}`;
+        if (typeof selectedPackageIndex === 'number') {
+          url += `&subprojectIndex=${selectedPackageIndex}`;
+        }
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) {
+          setServerSlotsForSelectedDate([]);
+          return;
+        }
+        const data = await res.json();
+        const slots: string[] = Array.isArray(data?.slots) ? data.slots : [];
+        setServerSlotsForSelectedDate(slots);
+        if (selectedTime && !slots.includes(selectedTime)) {
+          setSelectedTime(slots[0] || '');
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setServerSlotsForSelectedDate([]);
+      } finally {
+        setLoadingServerSlots(false);
+      }
+    };
+    run();
+    return () => controller.abort();
+  }, [project._id, selectedDate, selectedPackageIndex, projectMode, selectedTime]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
     try {
@@ -3099,29 +3137,22 @@ export default function ProjectBookingForm({
                           </p>
                         </div>
 
-                        {generateTimeSlots().length === 0 ? (
+                        {loadingServerSlots ? (
+                          <div className='flex items-center justify-center py-6 text-sm text-gray-500'>
+                            <Loader2 className='animate-spin mr-2' size={16} /> Loading available times...
+                          </div>
+                        ) : (serverSlotsForSelectedDate ?? generateTimeSlots()).length === 0 ? (
                           <div className='bg-red-50 border border-red-200 rounded-lg p-4'>
                             <p className='text-sm text-red-900 font-semibold mb-2'>
                               No Time Slots Available
                             </p>
                             <p className='text-sm text-red-800'>
-                              This project&apos;s execution time (
-                              {selectedPackage?.executionDuration?.value ||
-                                project.executionDuration?.value}{' '}
-                              {selectedPackage?.executionDuration?.unit ||
-                                project.executionDuration?.unit}
-                              ) exceeds a single working day. This project
-                              should be configured in <strong>days mode</strong>{' '}
-                              instead of hours mode.
-                            </p>
-                            <p className='text-sm text-red-800 mt-2'>
-                              Please contact the professional to update the
-                              project configuration.
+                              No times match team availability requirements on this date. Please pick another date.
                             </p>
                           </div>
                         ) : (
                           <div className='grid grid-cols-3 sm:grid-cols-4 gap-2'>
-                            {generateTimeSlots().map((timeSlot) => {
+                            {(serverSlotsForSelectedDate ?? generateTimeSlots()).map((timeSlot) => {
                               const isPast = isTimeSlotPast(timeSlot);
                               const isSelected = selectedTime === timeSlot;
 

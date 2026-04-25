@@ -30,6 +30,8 @@ interface Props {
   mode: "create" | "edit";
   initial?: CmsContent;
   lockedType?: CmsContentType;
+  initialSlug?: string;
+  initialTitle?: string;
 }
 
 const EMPTY: Partial<CmsContent> = {
@@ -47,7 +49,7 @@ const EMPTY: Partial<CmsContent> = {
   seo: {},
 };
 
-export default function CmsContentForm({ mode, initial, lockedType }: Props) {
+export default function CmsContentForm({ mode, initial, lockedType, initialSlug, initialTitle }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<Partial<CmsContent>>(() => {
     if (initial) {
@@ -57,9 +59,14 @@ export default function CmsContentForm({ mode, initial, lockedType }: Props) {
         seo: initial.seo || {},
       };
     }
-    return { ...EMPTY, type: lockedType || "blog" };
+    return {
+      ...EMPTY,
+      type: lockedType || "blog",
+      slug: initialSlug || "",
+      title: initialTitle || "",
+    };
   });
-  const [slugTouched, setSlugTouched] = useState(mode === "edit");
+  const [slugTouched, setSlugTouched] = useState(mode === "edit" || Boolean(initialSlug));
   const [tagInput, setTagInput] = useState("");
   const [faqCategories, setFaqCategories] = useState<FaqCategory[]>([]);
   const [faqCategoriesError, setFaqCategoriesError] = useState<string | null>(null);

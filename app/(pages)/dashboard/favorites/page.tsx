@@ -12,7 +12,7 @@ import ProfessionalCard from "@/components/search/ProfessionalCard";
 import ProjectCard from "@/components/search/ProjectCard";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useCommissionRate } from "@/hooks/useCommissionRate";
+import { useCustomerPricing } from "@/hooks/useCustomerPricing";
 
 type ProfessionalPayload = ComponentProps<typeof ProfessionalCard>["professional"];
 type ProjectCardProject = ComponentProps<typeof ProjectCard>["project"];
@@ -36,7 +36,7 @@ export default function FavoritesPage() {
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const requestIdRef = useRef(0);
-  const { customerPrice } = useCommissionRate();
+  const { customerPrice } = useCustomerPricing();
 
   useEffect(() => {
     if (loading) return;
