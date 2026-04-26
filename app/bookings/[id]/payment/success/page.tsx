@@ -7,6 +7,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import type { ProjectDto } from '@/types/project';
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 if (!API_URL && process.env.NODE_ENV !== 'production') {
@@ -22,6 +23,9 @@ interface BookingPayment {
 interface Booking {
   bookingNumber?: string;
   payment?: BookingPayment;
+  project?: {
+    postBookingQuestions?: ProjectDto['postBookingQuestions'];
+  };
 }
 
 export default function PaymentSuccessPage() {
@@ -50,6 +54,13 @@ export default function PaymentSuccessPage() {
       }
 
       if (data?.success && data.booking) {
+        const hasQuestions =
+          Array.isArray(data.booking.project?.postBookingQuestions) &&
+          data.booking.project.postBookingQuestions.length > 0;
+        if (hasQuestions) {
+          router.replace(`/bookings/${bookingId}?postBookingQuestions=true`);
+          return;
+        }
         setBooking(data.booking);
       }
     } catch (err) {
@@ -57,7 +68,7 @@ export default function PaymentSuccessPage() {
     } finally {
       setLoading(false);
     }
-  }, [bookingId]);
+  }, [bookingId, router]);
 
   useEffect(() => {
     void loadBookingDetails();

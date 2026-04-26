@@ -10,7 +10,7 @@ import ProfessionalCard from '@/components/search/ProfessionalCard';
 import ProjectCard from '@/components/search/ProjectCard';
 import SearchFilters, { type SearchFiltersState, type ProjectFacetCounts } from '@/components/search/SearchFilters';
 import { useFilterOptions } from '@/hooks/useFilterOptions';
-import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
@@ -216,7 +216,7 @@ function SearchPageContent() {
 
   // Fetch dynamic filter options using the custom hook
   const { filterOptions } = useFilterOptions({ country: 'BE' });
-  const { customerPrice } = useCommissionRate();
+  const { customerPrice, originalPrice } = useCustomerPricing();
 
   const professionalResults = results as ProfessionalResult[];
   const projectResults = results as ProjectResult[];
@@ -609,6 +609,7 @@ function SearchPageContent() {
                           key={project._id}
                           project={project}
                           customerPrice={customerPrice}
+                          originalPrice={originalPrice}
                           initialFavorited={Boolean(favoritedProjects[project._id])}
                         />
                       ))}

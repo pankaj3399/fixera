@@ -11,7 +11,7 @@ import { StripeProvider } from '@/components/stripe/StripeProvider';
 import { PaymentForm } from '@/components/stripe/PaymentForm';
 import { FileText, Loader2, Calendar } from 'lucide-react';
 import type { ProjectAttachmentRef, ProjectDto } from '@/types/project';
-import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { format, addDays, parseISO, startOfDay, isWeekend as dateFnsIsWeekend, eachDayOfInterval } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
@@ -181,8 +181,8 @@ export default function BookingPaymentPage() {
   const router = useRouter();
   const params = useParams();
   const bookingId = params.id as string;
-  const { commissionPercent, customerPrice } = useCommissionRate();
-  const commissionLoaded = commissionPercent != null;
+  const { commissionPercent, customerPrice, loyaltyLoaded } = useCustomerPricing();
+  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -204,8 +204,6 @@ export default function BookingPaymentPage() {
   const [validatedScheduleSelectionKey, setValidatedScheduleSelectionKey] = useState('');
   const [scheduleValidationMessage, setScheduleValidationMessage] = useState('');
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>([]);
-  const [postBookingAnswers, setPostBookingAnswers] = useState<Record<number, string>>({});
-  const [uploadingPostBookingQuestionIndexes, setUploadingPostBookingQuestionIndexes] = useState<Set<number>>(new Set());
   const [availabilityData, setAvailabilityData] = useState<AvailabilityData | null>(null);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [professionalAvailability, setProfessionalAvailability] = useState<ProfessionalAvailability | null>(null);
@@ -283,47 +281,6 @@ export default function BookingPaymentPage() {
     setSelectedExtraOptions((prev) =>
       prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index]
     );
-  };
-
-  const handleAnswerChange = (index: number, answer: string) => {
-    setPostBookingAnswers((prev) => ({ ...prev, [index]: answer }));
-  };
-
-  const handlePostBookingAttachmentUpload = async (index: number, file: File | null) => {
-    if (!file || !booking?.project?._id) return;
-
-    setUploadingPostBookingQuestionIndexes((prev) => new Set(prev).add(index));
-    try {
-      const formData = new FormData();
-      formData.append('attachment', file);
-      formData.append('projectId', booking.project._id);
-      formData.append(
-        'questionId',
-        booking.project.postBookingQuestions?.[index]?._id ||
-          booking.project.postBookingQuestions?.[index]?.id ||
-          `post-booking-${index}`
-      );
-
-      const response = await fetch(`${API_URL}/api/user/projects/upload/attachment`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-      const data = await response.json();
-      if (response.ok && data?.success && data?.data?.url) {
-        handleAnswerChange(index, data.data.url);
-      } else {
-        setError(data?.message || 'Failed to upload attachment');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload attachment');
-    } finally {
-      setUploadingPostBookingQuestionIndexes((prev) => {
-        const next = new Set(prev);
-        next.delete(index);
-        return next;
-      });
-    }
   };
 
   const loadScheduleProposals = useCallback(async (currentBooking: Booking | null) => {
@@ -597,49 +554,6 @@ export default function BookingPaymentPage() {
         }
       }
 
-      if (uploadingPostBookingQuestionIndexes.size > 0) {
-        setError('Please wait for all uploads to finish before continuing.');
-        return;
-      }
-      const postBookingQuestions = booking?.project?.postBookingQuestions || [];
-      const alreadySubmitted = Array.isArray(booking?.postBookingData) && booking.postBookingData.length > 0;
-      if (postBookingQuestions.length > 0) {
-        const missingRequired = postBookingQuestions.some((question, index) => {
-          if (!question.isRequired) return false;
-          return !postBookingAnswers[index]?.trim();
-        });
-
-        if (missingRequired) {
-          setError('Please answer all required post-booking questions before continuing.');
-          return;
-        }
-
-        if (!alreadySubmitted) {
-          const answers = postBookingQuestions
-            .map((question, index) => ({
-              questionId: question._id || question.id || `post-booking-${index}`,
-              question: question.question,
-              answer: postBookingAnswers[index] || '',
-            }))
-            .filter((answer) => answer.answer.trim());
-
-          if (answers.length > 0) {
-            const answersResponse = await fetch(`${API_URL}/api/bookings/${encodeURIComponent(bookingId)}/post-booking-answers`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ answers }),
-            });
-            const answersData = await answersResponse.json();
-            if (!answersResponse.ok || !answersData?.success) {
-              setError(answersData?.msg || 'Failed to save post-booking answers');
-              return;
-            }
-            setBooking((prev) => prev ? { ...prev, postBookingData: answersData.postBookingData || answers } : prev);
-          }
-        }
-      }
-
       const sanitizedId = encodeURIComponent(bookingId);
       const response = await fetch(`${API_URL}/api/bookings/${sanitizedId}/schedule`, {
         method: 'POST',
@@ -747,21 +661,6 @@ export default function BookingPaymentPage() {
       const bookingInfo = bookingData.booking as Booking; // Backend returns { success, booking }
       setBooking(bookingInfo);
       setSelectedExtraOptions(storedExtrasToIndexes(bookingInfo?.selectedExtraOptions, bookingInfo?.project?.extraOptions));
-      if (Array.isArray(bookingInfo?.postBookingData) && bookingInfo.postBookingData.length > 0) {
-        const savedLookup = new Map(
-          bookingInfo.postBookingData.map((a: { questionId: string; answer: string }) => [a.questionId, a.answer])
-        );
-        const questions = bookingInfo?.project?.postBookingQuestions || [];
-        const hydratedAnswers = questions.reduce<Record<number, string>>((acc, q, index) => {
-          const qid = q._id || q.id || `post-booking-${index}`;
-          const saved = savedLookup.get(qid);
-          if (saved) acc[index] = saved;
-          return acc;
-        }, {});
-        setPostBookingAnswers(hydratedAnswers);
-      } else {
-        setPostBookingAnswers({});
-      }
       setLoading(false);
 
       const hasUnpaidMilestones = Array.isArray(bookingInfo?.milestonePayments)
@@ -944,7 +843,6 @@ export default function BookingPaymentPage() {
         validatedScheduleSelectionKey === currentSelectionKey &&
         Boolean(scheduleWindow));
     const projectExtraOptions = booking?.project?.extraOptions || [];
-    const postBookingQuestions = booking?.project?.postBookingQuestions || [];
     const selectedOptionTotal = selectedExtraOptions.reduce(
       (sum, optionIndex) => sum + (projectExtraOptions[optionIndex]?.price || 0),
       0
@@ -979,7 +877,9 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Quote Amount:</span>
                   <span className="font-medium text-gray-900">
-                    {formatMoney(booking?.quote?.amount ?? 0, booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                    {customerPricingReady
+                      ? formatMoney(customerPrice(booking?.quote?.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                      : '...'}
                   </span>
                 </div>
                 {booking?.milestonePayments && booking.milestonePayments.length > 0 && (
@@ -989,7 +889,7 @@ export default function BookingPaymentPage() {
                       {booking.milestonePayments.map((m, i) => (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-gray-600">{m.title || `Milestone ${i + 1}`}</span>
-                          <span className="text-gray-900">{commissionLoaded ? formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR') : '...'}</span>
+                          <span className="text-gray-900">{customerPricingReady ? formatMoney(customerPrice(m.amount ?? 0), booking?.quote?.currency?.toUpperCase() || 'EUR') : '...'}</span>
                         </div>
                       ))}
                     </div>
@@ -1269,108 +1169,6 @@ export default function BookingPaymentPage() {
                         Selected options total: {formatMoney(selectedOptionTotal, booking?.quote?.currency?.toUpperCase() || 'EUR')}
                       </p>
                     )}
-                  </div>
-                )}
-
-                {postBookingQuestions.length > 0 && (
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Post-Booking Questions</h3>
-                    <div className="space-y-4">
-                      {postBookingQuestions.map((question, index) => (
-                        <div key={question._id || question.id || index}>
-                          <label className="mb-1 block text-sm font-medium text-gray-700">
-                            {question.question}
-                            {question.isRequired && <span className="ml-1 text-red-500">*</span>}
-                          </label>
-
-                          {(question.professionalAttachments?.length ?? 0) > 0 && (
-                            <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
-                              <p className="mb-2 text-xs font-semibold text-blue-900">
-                                Files from the professional
-                              </p>
-                              <div className="space-y-1">
-                                {question.professionalAttachments?.map((attachment, attachmentIndex) => {
-                                  const attachmentUrl = getAttachmentUrl(attachment);
-                                  return (
-                                    <a
-                                      key={
-                                        typeof attachment === 'string'
-                                          ? `${question._id || question.id || index}-${attachmentIndex}`
-                                          : attachment._id || `${question._id || question.id || index}-${attachmentIndex}`
-                                      }
-                                      href={attachmentUrl}
-                                      target="_blank"
-                                      rel="noreferrer noopener"
-                                      className="inline-flex items-center text-sm text-blue-700 hover:underline"
-                                    >
-                                      <FileText className="mr-2 h-4 w-4" />
-                                      {getAttachmentLabel(attachment, attachmentIndex)}
-                                    </a>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {question.type === 'text' && (
-                            <textarea
-                              rows={3}
-                              value={postBookingAnswers[index] || ''}
-                              onChange={(e) => handleAnswerChange(index, e.target.value)}
-                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          )}
-
-                          {question.type === 'multiple_choice' && (
-                            <div className="space-y-2">
-                              {(question.options || []).map((option) => (
-                                <label key={option} className="flex items-center gap-2 text-sm text-gray-700">
-                                  <input
-                                    type="radio"
-                                    name={`post-booking-${index}`}
-                                    checked={postBookingAnswers[index] === option}
-                                    onChange={() => handleAnswerChange(index, option)}
-                                  />
-                                  <span>{option}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-
-                          {question.type === 'attachment' && (
-                            <div className="rounded-lg border border-dashed border-gray-300 p-3">
-                              <input
-                                type="file"
-                                accept=".pdf,image/*"
-                                disabled={uploadingPostBookingQuestionIndexes.has(index)}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0] || null;
-                                  void handlePostBookingAttachmentUpload(index, file);
-                                  e.currentTarget.value = '';
-                                }}
-                                className="w-full text-sm"
-                              />
-                              {uploadingPostBookingQuestionIndexes.has(index) && (
-                                <div className="mt-2 inline-flex items-center text-xs text-blue-600">
-                                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                                  Uploading...
-                                </div>
-                              )}
-                              {postBookingAnswers[index] && (
-                                <a
-                                  href={postBookingAnswers[index]}
-                                  target="_blank"
-                                  rel="noreferrer noopener"
-                                  className="mt-2 inline-flex text-sm text-blue-600 hover:underline"
-                                >
-                                  Open uploaded attachment
-                                </a>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 )}
 

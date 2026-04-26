@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Briefcase, Calendar, CheckCircle, Clock, CreditCard,
-  GitCompareArrows, Heart, Loader2, Package, Plus, Search,
+  GitCompareArrows, Heart, Loader2, Package, Plus, Search, X,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
@@ -157,6 +157,8 @@ export default function CustomerDashboard() {
   const [debouncedBookingSearch, setDebouncedBookingSearch] = useState("")
   const [bookingStatusFilter, setBookingStatusFilter] = useState("all")
   const [bookingServiceFilter, setBookingServiceFilter] = useState("all")
+  const [addressFilter, setAddressFilter] = useState("")
+  const [debouncedAddressFilter, setDebouncedAddressFilter] = useState("")
 
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
@@ -177,6 +179,10 @@ export default function CustomerDashboard() {
     const t = setTimeout(() => setDebouncedBookingSearch(bookingSearch), 500)
     return () => clearTimeout(t)
   }, [bookingSearch])
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAddressFilter(addressFilter), 500)
+    return () => clearTimeout(t)
+  }, [addressFilter])
 
   const fetchAllBookings = useCallback(async () => {
     setBookingsLoading(true)
@@ -288,6 +294,7 @@ export default function CustomerDashboard() {
 
   // Filtered bookings
   const filteredActiveBookings = useMemo(() => {
+    const addressTerm = debouncedAddressFilter.trim().toLowerCase()
     return activeBookings.filter(b => {
       if (bookingStatusFilter !== "all") {
         const matchesAwaitingPayment =
@@ -300,13 +307,18 @@ export default function CustomerDashboard() {
         const term = debouncedBookingSearch.toLowerCase()
         const title = getBookingTitle(b).toLowerCase()
         const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
-        const addr = (b.location?.address || "").toLowerCase()
         const bNum = (b.bookingNumber || "").toLowerCase()
-        if (!title.includes(term) && !svc.includes(term) && !addr.includes(term) && !bNum.includes(term)) return false
+        if (!title.includes(term) && !svc.includes(term) && !bNum.includes(term)) return false
+      }
+      if (addressTerm) {
+        const addr = (b.location?.address || "").toLowerCase()
+        const city = (b.location?.city || "").toLowerCase()
+        const country = (b.location?.country || "").toLowerCase()
+        if (!addr.includes(addressTerm) && !city.includes(addressTerm) && !country.includes(addressTerm)) return false
       }
       return true
     })
-  }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch])
+  }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter])
 
   const toggleQuoteSelection = useCallback((bookingId: string) => {
     setSelectedQuoteIds(prev => {
@@ -706,6 +718,30 @@ export default function CustomerDashboard() {
                   bookingServiceFilter, setBookingServiceFilter,
                   "Search bookings..."
                 )}
+                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    {addressFilter !== debouncedAddressFilter ? (
+                      <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
+                    ) : addressFilter ? (
+                      <button
+                        type="button"
+                        aria-label="Clear address filter"
+                        onClick={() => setAddressFilter("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-rose-400 rounded"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                    <Input
+                      aria-label="Filter by address"
+                      placeholder="Filter by address"
+                      value={addressFilter}
+                      onChange={(e) => setAddressFilter(e.target.value)}
+                      className="pl-10 pr-10"
+                    />
+                  </div>
+                </div>
                 {filteredActiveBookings.length > 0 && (
                   <BookingTimelineBoard bookings={filteredActiveBookings} viewerRole="customer" />
                 )}

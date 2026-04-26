@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useRef, useCallback } from "react"
+import { useMemo, useState, useRef, useCallback, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, parseISO, startOfDay, isSameDay } from "date-fns"
 import { toast } from "sonner"
@@ -61,6 +61,7 @@ export interface TimelineBooking {
   professional?: {
     _id: string
     name?: string
+    username?: string
     businessInfo?: {
       companyName?: string
     }
@@ -112,7 +113,7 @@ const ACTIVE_TIMELINE_STATUSES = new Set<BookingStatus>([
   "dispute",
 ])
 
-const VISIBLE_DAYS = 30
+const VISIBLE_DAYS = 60
 const MAX_SPAN_DAYS = 365
 const DAY_WIDTH = 40
 const ROW_LABEL_WIDTH = 200
@@ -272,6 +273,7 @@ export default function BookingTimelineBoard({
   const [dialogMode, setDialogMode] = useState<"cancel" | "reschedule" | "extend" | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submittingBookingId, setSubmittingBookingId] = useState<string | null>(null)
+  const [isNavigating, startNavigation] = useTransition()
   const [cancelReason, setCancelReason] = useState("")
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [rescheduleTime, setRescheduleTime] = useState("")
@@ -483,21 +485,6 @@ export default function BookingTimelineBoard({
     return null
   }
 
-  const handleConfirmCompletion = async (bookingId: string) => {
-    const formData = new FormData()
-    await runMutation(
-      bookingId,
-      () =>
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/professional-complete`, {
-          method: "POST",
-          credentials: "include",
-          headers: withAuthHeaders(false),
-          body: formData,
-        }),
-      "Completion confirmed. Awaiting customer confirmation."
-    )
-  }
-
   const handleCustomerConfirmCompletion = async (bookingId: string) => {
     const confirmed = window.confirm("Confirm that the work is complete? Funds will be released to the professional.")
     if (!confirmed) return
@@ -598,10 +585,16 @@ export default function BookingTimelineBoard({
           Extend
         </Button>
       )
-      if (!next && !hasMilestones) {
+      if (!next) {
         btns.push(
-          <Button key="complete" size="sm" className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleConfirmCompletion(booking._id)} disabled={busy}>
-            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
+          <Button
+            key="complete"
+            size="sm"
+            className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+            onClick={() => startNavigation(() => router.push(`/bookings/${booking._id}?openCompletion=1`))}
+            disabled={isNavigating}
+          >
+            {isNavigating ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
             Complete
           </Button>
         )
@@ -636,7 +629,7 @@ export default function BookingTimelineBoard({
       }
       if (hasUnpaidExtras) {
         btns.push(
-          <Button key="pay-extras" size="sm" className="h-6 text-[10px] px-1.5 bg-amber-600 text-white hover:bg-amber-700" onClick={() => router.push(`/bookings/${booking._id}/payment?openExtras=1`)}>
+          <Button key="pay-extras" size="sm" className="h-6 text-[10px] px-1.5 bg-amber-600 text-white hover:bg-amber-700" onClick={() => router.push(`/bookings/${booking._id}?payExtras=1`)}>
             <CreditCard className="mr-1 h-3 w-3" />Pay extras
           </Button>
         )
@@ -705,7 +698,7 @@ export default function BookingTimelineBoard({
                 const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
                 const counterpartyName = viewerRole === "professional"
                   ? booking.customer?.name
-                  : booking.professional?.businessInfo?.companyName || booking.professional?.name
+                  : booking.professional?.username || booking.professional?.name || booking.professional?.businessInfo?.companyName
                 const actions = renderActionButtons(booking)
 
                 return (
@@ -755,7 +748,7 @@ export default function BookingTimelineBoard({
                   const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
                   const counterpartyName = viewerRole === "professional"
                     ? booking.customer?.name
-                    : booking.professional?.businessInfo?.companyName || booking.professional?.name
+                    : booking.professional?.username || booking.professional?.name || booking.professional?.businessInfo?.companyName
                   const barLabel = [projectName, counterpartyName].filter(Boolean).join(" — ")
                   const actions = renderActionButtons(booking)
                   const rowHeight = actions.length > 0 ? 48 + 24 : 48

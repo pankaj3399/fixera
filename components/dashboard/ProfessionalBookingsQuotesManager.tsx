@@ -119,6 +119,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [serviceFilter, setServiceFilter] = useState("all")
+  const [customerNameFilter, setCustomerNameFilter] = useState("")
+  const [debouncedCustomerNameFilter, setDebouncedCustomerNameFilter] = useState("")
   const [allServices, setAllServices] = useState<string[]>([])
   const [showCreateQuoteModal, setShowCreateQuoteModal] = useState(false)
   const [activeCustomers, setActiveCustomers] = useState<Array<{ _id: string; name?: string; email?: string }>>([])
@@ -264,6 +266,11 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   }, [searchTerm])
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedCustomerNameFilter(customerNameFilter), 500)
+    return () => clearTimeout(timer)
+  }, [customerNameFilter])
+
+  useEffect(() => {
     if (!showCreateQuoteModal) {
       setSelectedProjectId("none")
       fetchActiveCustomersControllerRef.current?.abort()
@@ -368,6 +375,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       }
       if (serviceFilter !== "all") params.append("service", serviceFilter)
       if (debouncedSearch) params.append("search", debouncedSearch)
+      const trimmedCustomerName = debouncedCustomerNameFilter?.trim()
+      if (trimmedCustomerName) params.append("customerNameFilter", trimmedCustomerName)
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params}`,
@@ -435,7 +444,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         setIsLoading(false)
       }
     }
-  }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch])
+  }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim()])
 
   const refreshBookings = useCallback(async () => {
     await fetchBookings(1, false)
@@ -471,6 +480,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         const params = new URLSearchParams({ page: String(page), limit: String(limit), status: activeStatuses })
         if (serviceFilter !== "all") params.append("service", serviceFilter)
         if (debouncedSearch) params.append("search", debouncedSearch)
+        const trimmedCustomerName = debouncedCustomerNameFilter?.trim()
+        if (trimmedCustomerName) params.append("customerNameFilter", trimmedCustomerName)
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params.toString()}`,
           { credentials: "include", headers }
@@ -491,7 +502,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     } catch (error) {
       console.error("Failed to fetch timeline bookings:", error)
     }
-  }, [isAuthenticated, user?.role, statusFilter, serviceFilter, debouncedSearch])
+  }, [isAuthenticated, user?.role, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim()])
 
   useEffect(() => {
     void refreshBookings()
@@ -712,7 +723,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
             )}
             <Input
-              placeholder={`Search ${mode}...`}
+              aria-label={`Search ${mode} by title, number, or service`}
+              placeholder={`Search ${mode} by title, #, service…`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10"
@@ -740,6 +752,22 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2 -mt-2 mb-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            {customerNameFilter.trim() !== debouncedCustomerNameFilter.trim() && (
+              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
+            )}
+            <Input
+              aria-label="Filter by customer name"
+              placeholder="Filter by customer name"
+              value={customerNameFilter}
+              onChange={(e) => setCustomerNameFilter(e.target.value)}
+              className="pl-10 pr-10"
+            />
           </div>
         </div>
 

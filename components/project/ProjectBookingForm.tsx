@@ -36,7 +36,7 @@ import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
 import { formatCurrency } from '@/lib/formatters';
 import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing';
 import { getAuthToken } from '@/lib/utils';
-import { useCommissionRate } from '@/hooks/useCommissionRate';
+import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
@@ -251,7 +251,8 @@ export default function ProjectBookingForm({
   onBack,
   selectedSubprojectIndex,
 }: ProjectBookingFormProps) {
-  const { customerPrice, commissionPercent } = useCommissionRate();
+  const { customerPrice, commissionPercent, loyaltyLoaded } = useCustomerPricing();
+  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
   const router = useRouter();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
@@ -283,6 +284,8 @@ export default function ProjectBookingForm({
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [showCalendar, setShowCalendar] = useState(false);
   const [hasUserSelectedDate, setHasUserSelectedDate] = useState(false);
+  const [serverSlotsForSelectedDate, setServerSlotsForSelectedDate] = useState<string[] | null>(null);
+  const [loadingServerSlots, setLoadingServerSlots] = useState(false);
   const [scheduleWindow, setScheduleWindow] = useState<{
     scheduledStartDate: string;
     scheduledExecutionEndDate: string;
@@ -356,6 +359,7 @@ export default function ProjectBookingForm({
       .filter(Boolean)
     : [];
   const debugSignatureRef = useRef('');
+  const latestSlotsRequestRef = useRef(0);
   const isDebugProject =
     Boolean(debugProjectId) && String(project._id) === debugProjectId;
   const debugLog = useMemo(
@@ -556,6 +560,55 @@ export default function ProjectBookingForm({
     selectedPackage,
     selectedTime,
   ]);
+
+  useEffect(() => {
+    if (projectMode !== 'hours' || !selectedDate) {
+      latestSlotsRequestRef.current += 1;
+      setServerSlotsForSelectedDate(null);
+      setLoadingServerSlots(false);
+      return;
+    }
+    const requestId = ++latestSlotsRequestRef.current;
+    const controller = new AbortController();
+    const isCurrent = () =>
+      requestId === latestSlotsRequestRef.current && !controller.signal.aborted;
+    const run = async () => {
+      try {
+        setServerSlotsForSelectedDate(null);
+        setLoadingServerSlots(true);
+        let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/available-slots?date=${selectedDate}`;
+        if (typeof selectedPackageIndex === 'number') {
+          url += `&subprojectIndex=${selectedPackageIndex}`;
+        }
+        const res = await fetch(url, { signal: controller.signal });
+        if (!isCurrent()) return;
+        if (!res.ok) {
+          return;
+        }
+        const data = await res.json();
+        if (!isCurrent()) return;
+        if (!Array.isArray(data?.slots)) {
+          return;
+        }
+        setServerSlotsForSelectedDate(data.slots as string[]);
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      } finally {
+        if (isCurrent()) {
+          setLoadingServerSlots(false);
+        }
+      }
+    };
+    run();
+    return () => controller.abort();
+  }, [project._id, selectedDate, selectedPackageIndex, projectMode]);
+
+  useEffect(() => {
+    if (!serverSlotsForSelectedDate) return;
+    if (!selectedTime) return;
+    if (serverSlotsForSelectedDate.includes(selectedTime)) return;
+    setSelectedTime(serverSlotsForSelectedDate[0] || '');
+  }, [serverSlotsForSelectedDate, selectedTime]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
     try {
@@ -1487,6 +1540,12 @@ export default function ProjectBookingForm({
     if (Number.isNaN(dateObj.getTime())) return true;
 
     if (projectMode === 'hours') {
+      if (dateString === selectedDate) {
+        if (loadingServerSlots) return false;
+        if (Array.isArray(serverSlotsForSelectedDate)) {
+          return serverSlotsForSelectedDate.length === 0;
+        }
+      }
       return generateTimeSlotsForDate(dateObj).length === 0;
     }
 
@@ -1632,6 +1691,14 @@ export default function ProjectBookingForm({
       }
 
       if (projectMode === 'hours') {
+        if (
+          dateStr === selectedDate &&
+          (loadingServerSlots ||
+            (Array.isArray(serverSlotsForSelectedDate) && serverSlotsForSelectedDate.length > 0))
+        ) {
+          debugLog?.(`[getMinDate] ${dateStr} - using server slots → available`);
+          return dateStr;
+        }
         const slots = generateTimeSlotsForDate(checkDate);
         debugLog?.(`[getMinDate] ${dateStr} - Available slots:`, slots.length);
         if (slots.length > 0) {
@@ -1948,6 +2015,11 @@ export default function ProjectBookingForm({
   const handleSubmit = async () => {
     if (uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment) {
       toast.error('Please wait for all uploads to finish before submitting.');
+      return;
+    }
+
+    if (shouldPayAtCheckoutFlow && !customerPricingReady) {
+      toast.error('Please wait while we finalize pricing.');
       return;
     }
 
@@ -2762,7 +2834,9 @@ export default function ProjectBookingForm({
                             {selectedPackage.pricing.type === 'fixed' &&
                               selectedPackage.pricing.amount && (
                                 <div className='text-2xl font-bold text-blue-600'>
-                                  {hasDisplayPackageDiscount ? (
+                                  {!customerPricingReady ? (
+                                    <span className='inline-block h-7 w-24 animate-pulse rounded bg-gray-200' aria-label='Loading price' />
+                                  ) : hasDisplayPackageDiscount ? (
                                     <div className='flex flex-col items-end'>
                                       <span className='text-base font-semibold text-gray-400 line-through'>
                                         {formatCurrency(displayPackagePrice)}
@@ -2857,7 +2931,9 @@ export default function ProjectBookingForm({
                                 Estimated Price:
                               </p>
                               <div className='text-4xl font-bold text-blue-600'>
-                                {hasDisplayPackageDiscount ? (
+                                {!customerPricingReady ? (
+                                  <span className='inline-block h-10 w-32 animate-pulse rounded bg-gray-200' aria-label='Loading price' />
+                                ) : hasDisplayPackageDiscount ? (
                                   <div className='flex flex-col'>
                                     <span className='text-base font-semibold text-gray-400 line-through'>
                                       {formatCurrency(displayPackagePrice)}
@@ -3099,29 +3175,22 @@ export default function ProjectBookingForm({
                           </p>
                         </div>
 
-                        {generateTimeSlots().length === 0 ? (
+                        {loadingServerSlots ? (
+                          <div className='flex items-center justify-center py-6 text-sm text-gray-500'>
+                            <Loader2 className='animate-spin mr-2' size={16} /> Loading available times...
+                          </div>
+                        ) : (serverSlotsForSelectedDate ?? generateTimeSlots()).length === 0 ? (
                           <div className='bg-red-50 border border-red-200 rounded-lg p-4'>
                             <p className='text-sm text-red-900 font-semibold mb-2'>
                               No Time Slots Available
                             </p>
                             <p className='text-sm text-red-800'>
-                              This project&apos;s execution time (
-                              {selectedPackage?.executionDuration?.value ||
-                                project.executionDuration?.value}{' '}
-                              {selectedPackage?.executionDuration?.unit ||
-                                project.executionDuration?.unit}
-                              ) exceeds a single working day. This project
-                              should be configured in <strong>days mode</strong>{' '}
-                              instead of hours mode.
-                            </p>
-                            <p className='text-sm text-red-800 mt-2'>
-                              Please contact the professional to update the
-                              project configuration.
+                              No times match team availability requirements on this date. Please pick another date.
                             </p>
                           </div>
                         ) : (
                           <div className='grid grid-cols-3 sm:grid-cols-4 gap-2'>
-                            {generateTimeSlots().map((timeSlot) => {
+                            {(serverSlotsForSelectedDate ?? generateTimeSlots()).map((timeSlot) => {
                               const isPast = isTimeSlotPast(timeSlot);
                               const isSelected = selectedTime === timeSlot;
 
@@ -3397,7 +3466,9 @@ export default function ProjectBookingForm({
                         <div className='flex justify-between items-center text-sm'>
                           <span className='text-gray-700'>Package Price:</span>
                           <span className='font-semibold'>
-                            {typeof displayPackagePrice === 'number'
+                            {!customerPricingReady ? (
+                              <span className='inline-block h-4 w-20 animate-pulse rounded bg-gray-200' aria-label='Loading price' />
+                            ) : typeof displayPackagePrice === 'number'
                               ? formatCurrency(displayPackagePrice)
                               : 'Quote Required'}
                           </span>
@@ -3474,7 +3545,11 @@ export default function ProjectBookingForm({
                               Grand Total:
                             </span>
                             <span className='text-2xl font-bold text-blue-600'>
-                              {formatCurrency(finalDisplayTotal)}
+                              {customerPricingReady ? (
+                                formatCurrency(finalDisplayTotal)
+                              ) : (
+                                <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label='Loading total' />
+                              )}
                             </span>
                           </div>
                         )}
@@ -4044,7 +4119,11 @@ export default function ProjectBookingForm({
                             Grand Total:
                           </span>
                           <span className='text-2xl font-bold text-blue-600'>
-                            {formatCurrency(finalDisplayTotal)}
+                            {customerPricingReady ? (
+                              formatCurrency(finalDisplayTotal)
+                            ) : (
+                              <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label='Loading total' />
+                            )}
                           </span>
                         </div>
                       )}
@@ -4076,7 +4155,7 @@ export default function ProjectBookingForm({
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && commissionPercent == null)}
+              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && !customerPricingReady)}
               className='bg-blue-600 hover:bg-blue-700'
             >
               {loading ? (
