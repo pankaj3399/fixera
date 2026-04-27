@@ -2419,7 +2419,7 @@ export default function BookingDetailPage() {
                             {currentVersion.milestones.map((ms, i) => (
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
                                 <span className="text-gray-700">{ms.title}</span>
-                                <span className="font-medium">{booking.quote?.currency || 'EUR'} {customerPricingReady ? customerPrice(ms.amount).toFixed(2) : '...'}</span>
+                                <span className="font-medium">{customerPricingReady ? formatMoney(customerPrice(ms.amount), booking.quote?.currency || 'EUR') : '...'}</span>
                               </div>
                             ))}
                           </div>
@@ -2427,7 +2427,7 @@ export default function BookingDetailPage() {
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm font-semibold text-gray-900">Total</span>
-                        <span className="text-2xl font-bold text-green-600">{booking.quote?.currency || 'EUR'} {customerPricingReady ? customerPrice(currentVersion.totalAmount).toFixed(2) : '...'}</span>
+                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(customerPrice(currentVersion.totalAmount), booking.quote?.currency || 'EUR') : '...'}</span>
                       </div>
                       {customerPricingReady && loyalty && loyalty.percentage > 0 && (
                         <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
@@ -2435,7 +2435,7 @@ export default function BookingDetailPage() {
                             <span className="font-semibold">{loyalty.level} Member</span> · {loyalty.percentage}% loyalty discount applied
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            You save {booking.quote?.currency || 'EUR'} {(originalPrice(currentVersion.totalAmount) - customerPrice(currentVersion.totalAmount)).toFixed(2)}
+                            You save {formatMoney(originalPrice(currentVersion.totalAmount) - customerPrice(currentVersion.totalAmount), booking.quote?.currency || 'EUR')}
                           </div>
                         </div>
                       )}
@@ -2462,7 +2462,7 @@ export default function BookingDetailPage() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">{booking.quote?.currency || 'EUR'} {customerPricingReady ? customerPrice(v.totalAmount).toFixed(2) : '...'}</p>
+                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(customerPrice(v.totalAmount), booking.quote?.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </div>
                             ))}

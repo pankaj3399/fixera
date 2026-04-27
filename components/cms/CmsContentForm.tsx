@@ -101,7 +101,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const requiresCover = type === "blog" || type === "news";
   const hasTags = type === "blog" || type === "news";
   const isFaq = type === "faq";
-  const slugPrefix = getPublicSlugPrefixForCms(type);
+  const slugPrefix = getPublicSlugPrefixForCms(type, form.slug);
   const publicPreviewPath = form.slug ? getPublicPathForCms(type, form.slug) : null;
 
   const update = (patch: Partial<CmsContent>) => setForm((f) => ({ ...f, ...patch }));

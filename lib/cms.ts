@@ -197,6 +197,11 @@ export async function adminListLandingSlots(): Promise<CmsLandingSlot[]> {
   return data.slots;
 }
 
+export async function adminSyncLandingSlots(): Promise<{ created: number }> {
+  const res = await authFetch(`${API()}/api/admin/cms/landing-slots/sync`, { method: "POST" });
+  return parseJsonRequired<{ created: number }>(res);
+}
+
 // ---------- Public ----------
 
 export async function publicListCms(
@@ -334,7 +339,11 @@ export function getLandingServicePath(slug: string): string | null {
   return `/services/${slug}`;
 }
 
-export function getPublicSlugPrefixForCms(type: CmsContentType): string | null {
+export function getPublicSlugPrefixForCms(type: CmsContentType, slug?: string): string | null {
+  if (slug) {
+    if (type === "landing" && RESERVED_LANDING_PATHS[slug]) return RESERVED_LANDING_PATHS[slug];
+    if (type === "policy" && RESERVED_POLICY_PATHS[slug]) return RESERVED_POLICY_PATHS[slug];
+  }
   switch (type) {
     case "blog":
       return "/blog/";

@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   adminListCms,
   adminListLandingSlots,
+  adminSyncLandingSlots,
   CmsContent,
   CmsContentStatus,
   CmsContentType,
@@ -158,11 +159,13 @@ export default function CmsAdminListPage() {
     if (!isAuthenticated || user?.role !== "admin") return;
     let cancelled = false;
     setLandingSlotsLoading(true);
-    adminListLandingSlots()
+    setLandingSlotsError(null);
+    adminSyncLandingSlots()
+      .catch(() => { /* sync failure shouldn't block listing — list fetch surfaces the error */ })
+      .then(() => adminListLandingSlots())
       .then((slots) => {
-        if (cancelled) return;
+        if (cancelled || !slots) return;
         setLandingSlots(slots);
-        setLandingSlotsError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -247,60 +250,9 @@ export default function CmsAdminListPage() {
             {reservedSlots.length === 0 ? (
               <p className="col-span-full text-xs text-gray-500">Loading…</p>
             ) : (
-              reservedSlots.map((slot) => {
-                const present = !!slot.item;
-                const published = slot.item?.status === "published";
-                return (
-                  <div
-                    key={slot.slug}
-                    className={cn(
-                      "rounded-xl border p-3 transition",
-                      present && published
-                        ? "border-emerald-200 bg-emerald-50/40"
-                        : present
-                          ? "border-amber-200 bg-amber-50/40"
-                          : "border-rose-200 bg-rose-50/40"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {present && published ? (
-                            <CheckCircle2 size={14} className="text-emerald-600" />
-                          ) : (
-                            <AlertCircle size={14} className={present ? "text-amber-600" : "text-rose-600"} />
-                          )}
-                          <span className="text-sm font-semibold text-gray-900">{slot.label}</span>
-                        </div>
-                        <p className="mt-0.5 text-[11px] font-mono text-gray-600">slug: {slot.slug}</p>
-                        <p className="mt-1 text-[11px] text-gray-600">{slot.usedFor}</p>
-                      </div>
-                      <div className="shrink-0">
-                        {present ? (
-                          <Link
-                            href={`/admin/cms/${slot.item!._id}/edit`}
-                            className={cn(
-                              "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
-                              published
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                : "bg-amber-500 text-white hover:bg-amber-600"
-                            )}
-                          >
-                            {published ? "Edit" : "Review"}
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/admin/cms/new?type=policy&slug=${encodeURIComponent(slot.slug)}&title=${encodeURIComponent(slot.label)}`}
-                            className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
-                          >
-                            Create
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              reservedSlots.map((slot) => (
+                <ReservedSlotCard key={slot.slug} slot={slot} createType="policy" />
+              ))
             )}
           </div>
         </div>
@@ -345,66 +297,15 @@ export default function CmsAdminListPage() {
                 </div>
               )}
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {landingSlotsLoading ? (
-              <p className="col-span-full text-xs text-gray-500">Loading…</p>
-            ) : !landingSlotsError && landingSlots.length === 0 ? (
-              <p className="col-span-full text-xs text-gray-500">No landing slots configured.</p>
-            ) : (
-              landingSlots.map((slot) => {
-                const present = !!slot.item;
-                const published = slot.item?.status === "published";
-                return (
-                  <div
-                    key={slot.slug}
-                    className={cn(
-                      "rounded-xl border p-3 transition",
-                      present && published
-                        ? "border-emerald-200 bg-emerald-50/40"
-                        : present
-                          ? "border-amber-200 bg-amber-50/40"
-                          : "border-rose-200 bg-rose-50/40"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {present && published ? (
-                            <CheckCircle2 size={14} className="text-emerald-600" />
-                          ) : (
-                            <AlertCircle size={14} className={present ? "text-amber-600" : "text-rose-600"} />
-                          )}
-                          <span className="text-sm font-semibold text-gray-900">{slot.label}</span>
-                        </div>
-                        <p className="mt-0.5 text-[11px] font-mono text-gray-600">slug: {slot.slug}</p>
-                        <p className="mt-1 text-[11px] text-gray-600">{slot.usedFor}</p>
-                      </div>
-                      <div className="shrink-0">
-                        {present ? (
-                          <Link
-                            href={`/admin/cms/${slot.item!._id}/edit`}
-                            className={cn(
-                              "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
-                              published
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                : "bg-amber-500 text-white hover:bg-amber-600"
-                            )}
-                          >
-                            {published ? "Edit" : "Review"}
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/admin/cms/new?type=landing&slug=${encodeURIComponent(slot.slug)}&title=${encodeURIComponent(slot.label)}`}
-                            className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
-                          >
-                            Create
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                {landingSlotsLoading ? (
+                  <p className="col-span-full text-xs text-gray-500">Loading…</p>
+                ) : !landingSlotsError && landingSlots.length === 0 ? (
+                  <p className="col-span-full text-xs text-gray-500">No landing slots configured.</p>
+                ) : (
+                  landingSlots.map((slot) => (
+                    <ReservedSlotCard key={slot.slug} slot={slot} createType="landing" />
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -571,6 +472,73 @@ function StatusPill({ status }: { status: CmsContentStatus }) {
     >
       {status}
     </span>
+  );
+}
+
+interface ReservedSlotShape {
+  slug: string;
+  label: string;
+  usedFor: string;
+  item: { _id: string; status: CmsContentStatus } | CmsContent | null;
+}
+
+function ReservedSlotCard({
+  slot,
+  createType,
+}: {
+  slot: ReservedSlotShape;
+  createType: CmsContentType;
+}) {
+  const present = !!slot.item;
+  const published = slot.item?.status === "published";
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3 transition",
+        present && published
+          ? "border-emerald-200 bg-emerald-50/40"
+          : present
+            ? "border-amber-200 bg-amber-50/40"
+            : "border-rose-200 bg-rose-50/40"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {present && published ? (
+              <CheckCircle2 size={14} className="text-emerald-600" />
+            ) : (
+              <AlertCircle size={14} className={present ? "text-amber-600" : "text-rose-600"} />
+            )}
+            <span className="text-sm font-semibold text-gray-900">{slot.label}</span>
+          </div>
+          <p className="mt-0.5 text-[11px] font-mono text-gray-600">slug: {slot.slug}</p>
+          <p className="mt-1 text-[11px] text-gray-600">{slot.usedFor}</p>
+        </div>
+        <div className="shrink-0">
+          {present ? (
+            <Link
+              href={`/admin/cms/${slot.item!._id}/edit`}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
+                published
+                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                  : "bg-amber-500 text-white hover:bg-amber-600"
+              )}
+            >
+              {published ? "Edit" : "Review"}
+            </Link>
+          ) : (
+            <Link
+              href={`/admin/cms/new?type=${createType}&slug=${encodeURIComponent(slot.slug)}&title=${encodeURIComponent(slot.label)}`}
+              className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
+            >
+              Create
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
