@@ -49,6 +49,7 @@ export default function CmsAdminListPage() {
   });
   const [reservedSlots, setReservedSlots] = useState<Array<{ slug: string; label: string; usedFor: string; item: CmsContent | null }>>([]);
   const [reservedSlotsError, setReservedSlotsError] = useState<string | null>(null);
+  const [reservedSlotsLoading, setReservedSlotsLoading] = useState(true);
   const [landingSlots, setLandingSlots] = useState<CmsLandingSlot[]>([]);
   const [landingSlotsError, setLandingSlotsError] = useState<string | null>(null);
   const [landingSlotsSyncError, setLandingSlotsSyncError] = useState<string | null>(null);
@@ -122,6 +123,8 @@ export default function CmsAdminListPage() {
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
     let cancelled = false;
+    setReservedSlotsLoading(true);
+    setReservedSlotsError(null);
     adminListCms({ type: "policy", limit: 100 })
       .then((res) => {
         if (cancelled) return;
@@ -134,7 +137,6 @@ export default function CmsAdminListPage() {
             item: bySlug.get(r.slug) || null,
           }))
         );
-        setReservedSlotsError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -150,6 +152,10 @@ export default function CmsAdminListPage() {
                 item: null,
               }))
         );
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setReservedSlotsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -253,8 +259,10 @@ export default function CmsAdminListPage() {
             </div>
           )}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {reservedSlots.length === 0 ? (
+            {reservedSlotsLoading ? (
               <p className="col-span-full text-xs text-gray-500">Loading…</p>
+            ) : !reservedSlotsError && reservedSlots.length === 0 ? (
+              <p className="col-span-full text-xs text-gray-500">No policy slots configured.</p>
             ) : (
               reservedSlots.map((slot) => (
                 <ReservedSlotCard key={slot.slug} slot={slot} createType="policy" />
