@@ -177,6 +177,31 @@ export async function adminListFaqCategories(): Promise<FaqCategory[]> {
   return parseJsonRequired<FaqCategory[]>(res);
 }
 
+export interface CmsLandingSlot {
+  slug: string;
+  label: string;
+  usedFor: string;
+  category?: string;
+  reserved: boolean;
+  item: {
+    _id: string;
+    status: CmsContentStatus;
+    title: string;
+    updatedAt: string;
+  } | null;
+}
+
+export async function adminListLandingSlots(): Promise<CmsLandingSlot[]> {
+  const res = await authFetch(`${API()}/api/admin/cms/landing-slots`);
+  const data = await parseJsonRequired<{ slots: CmsLandingSlot[] }>(res);
+  return data.slots;
+}
+
+export async function adminSyncLandingSlots(): Promise<{ created: number }> {
+  const res = await authFetch(`${API()}/api/admin/cms/landing-slots/sync`, { method: "POST" });
+  return parseJsonRequired<{ created: number }>(res);
+}
+
 // ---------- Public ----------
 
 export async function publicListCms(
@@ -279,12 +304,17 @@ export const CMS_RESERVED_POLICIES: CmsReservedPolicy[] = [
   { slug: "gdpr-compliance", label: "GDPR Compliance", path: "/pages/gdpr-compliance", usedFor: "Footer link" },
 ];
 
-const RESERVED_POLICY_PATHS: Record<string, string> = {
-  "privacy-policy": "/privacy-policy",
-  about: "/about",
-};
+export const CMS_RESERVED_LANDINGS: CmsReservedPolicy[] = [
+  { slug: "about", label: "About", path: "/about", usedFor: "About page (overrides hardcoded content)" },
+];
 
-const RESERVED_LANDING_PATHS: Record<string, string> = {};
+const RESERVED_POLICY_PATHS: Record<string, string> = Object.fromEntries(
+  CMS_RESERVED_POLICIES.map((r) => [r.slug, r.path])
+);
+
+const RESERVED_LANDING_PATHS: Record<string, string> = Object.fromEntries(
+  CMS_RESERVED_LANDINGS.map((r) => [r.slug, r.path])
+);
 
 export function getPublicPathForCms(type: CmsContentType, slug: string): string | null {
   if (!slug) return null;

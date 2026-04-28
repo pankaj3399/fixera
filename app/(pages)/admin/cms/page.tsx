@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   adminListCms,
+  adminListLandingSlots,
+  adminSyncLandingSlots,
   CmsContent,
   CmsContentStatus,
   CmsContentType,
+  CmsLandingSlot,
   CMS_TYPE_LABELS,
   CMS_TYPE_ORDER,
   CMS_RESERVED_POLICIES,
@@ -16,7 +19,7 @@ import {
   getLandingServicePath,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
-import { AlertCircle, CheckCircle2, FileText, Loader2, Plus, Search, Share2, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, Plus, Search, Share2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_FILTERS: Array<{ value: CmsContentStatus | "all"; label: string }> = [
@@ -46,6 +49,12 @@ export default function CmsAdminListPage() {
   });
   const [reservedSlots, setReservedSlots] = useState<Array<{ slug: string; label: string; usedFor: string; item: CmsContent | null }>>([]);
   const [reservedSlotsError, setReservedSlotsError] = useState<string | null>(null);
+  const [reservedSlotsLoading, setReservedSlotsLoading] = useState(true);
+  const [landingSlots, setLandingSlots] = useState<CmsLandingSlot[]>([]);
+  const [landingSlotsError, setLandingSlotsError] = useState<string | null>(null);
+  const [landingSlotsSyncError, setLandingSlotsSyncError] = useState<string | null>(null);
+  const [landingSlotsLoading, setLandingSlotsLoading] = useState(true);
+  const [landingSlotsOpen, setLandingSlotsOpen] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -114,6 +123,8 @@ export default function CmsAdminListPage() {
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
     let cancelled = false;
+    setReservedSlotsLoading(true);
+    setReservedSlotsError(null);
     adminListCms({ type: "policy", limit: 100 })
       .then((res) => {
         if (cancelled) return;
@@ -126,7 +137,6 @@ export default function CmsAdminListPage() {
             item: bySlug.get(r.slug) || null,
           }))
         );
-        setReservedSlotsError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -142,7 +152,42 @@ export default function CmsAdminListPage() {
                 item: null,
               }))
         );
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setReservedSlotsLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user, refreshKey]);
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== "admin") return;
+    let cancelled = false;
+    setLandingSlotsLoading(true);
+    setLandingSlotsError(null);
+    setLandingSlotsSyncError(null);
+    (async () => {
+      try {
+        await adminSyncLandingSlots();
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to sync landing slots";
+        setLandingSlotsSyncError(msg);
+      }
+      try {
+        const slots = await adminListLandingSlots();
+        if (cancelled) return;
+        setLandingSlots(slots);
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to refresh landing slots";
+        setLandingSlotsError(msg);
+      } finally {
+        if (!cancelled) setLandingSlotsLoading(false);
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -214,65 +259,87 @@ export default function CmsAdminListPage() {
             </div>
           )}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {reservedSlots.length === 0 ? (
+            {reservedSlotsLoading ? (
               <p className="col-span-full text-xs text-gray-500">Loading…</p>
+            ) : !reservedSlotsError && reservedSlots.length === 0 ? (
+              <p className="col-span-full text-xs text-gray-500">No policy slots configured.</p>
             ) : (
-              reservedSlots.map((slot) => {
-                const present = !!slot.item;
-                const published = slot.item?.status === "published";
-                return (
-                  <div
-                    key={slot.slug}
-                    className={cn(
-                      "rounded-xl border p-3 transition",
-                      present && published
-                        ? "border-emerald-200 bg-emerald-50/40"
-                        : present
-                          ? "border-amber-200 bg-amber-50/40"
-                          : "border-rose-200 bg-rose-50/40"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {present && published ? (
-                            <CheckCircle2 size={14} className="text-emerald-600" />
-                          ) : (
-                            <AlertCircle size={14} className={present ? "text-amber-600" : "text-rose-600"} />
-                          )}
-                          <span className="text-sm font-semibold text-gray-900">{slot.label}</span>
-                        </div>
-                        <p className="mt-0.5 text-[11px] font-mono text-gray-600">slug: {slot.slug}</p>
-                        <p className="mt-1 text-[11px] text-gray-600">{slot.usedFor}</p>
-                      </div>
-                      <div className="shrink-0">
-                        {present ? (
-                          <Link
-                            href={`/admin/cms/${slot.item!._id}/edit`}
-                            className={cn(
-                              "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
-                              published
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                : "bg-amber-500 text-white hover:bg-amber-600"
-                            )}
-                          >
-                            {published ? "Edit" : "Review"}
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/admin/cms/new?type=policy&slug=${encodeURIComponent(slot.slug)}&title=${encodeURIComponent(slot.label)}`}
-                            className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
-                          >
-                            Create
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              reservedSlots.map((slot) => (
+                <ReservedSlotCard key={slot.slug} slot={slot} createType="policy" />
+              ))
             )}
           </div>
+        </div>
+
+        {/* Reserved landing slots */}
+        <div className="mt-6 rounded-2xl border border-pink-200 bg-white/70 p-5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setLandingSlotsOpen((v) => !v)}
+            aria-expanded={landingSlotsOpen}
+            className="flex w-full items-start justify-between gap-3 text-left"
+          >
+            <div>
+              <h2 className="text-sm font-semibold text-rose-900">Reserved landing slots</h2>
+              <p className="text-xs text-rose-500">
+                About + every service. Create a Landing with the matching slug to fill the slot — it overrides the default page content.
+                {landingSlots.length > 0 && (
+                  <span className="ml-1 text-rose-400">({landingSlots.length})</span>
+                )}
+              </p>
+            </div>
+            <span className="mt-0.5 shrink-0 rounded-full p-1 text-rose-500 transition hover:bg-rose-50">
+              {landingSlotsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
+          </button>
+          {landingSlotsOpen && (
+            <div className="mt-3">
+              {landingSlotsError && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                  <div className="flex-1">
+                    <span className="font-semibold">Couldn&apos;t refresh landing slots:</span>{" "}
+                    <span>{landingSlotsError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRefreshKey((k) => k + 1)}
+                    className="rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {landingSlotsSyncError && !landingSlotsError && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                  <div className="flex-1">
+                    <span className="font-semibold">Couldn&apos;t auto-create missing landing drafts:</span>{" "}
+                    <span>{landingSlotsSyncError}</span>{" "}
+                    <span className="text-amber-700">Existing slots are still shown — new ones may not appear until sync succeeds.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRefreshKey((k) => k + 1)}
+                    className="rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {landingSlotsLoading ? (
+                  <p className="col-span-full text-xs text-gray-500">Loading…</p>
+                ) : !landingSlotsError && landingSlots.length === 0 ? (
+                  <p className="col-span-full text-xs text-gray-500">No landing slots configured.</p>
+                ) : (
+                  landingSlots.map((slot) => (
+                    <ReservedSlotCard key={slot.slug} slot={slot} createType="landing" />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Type tabs */}
@@ -436,6 +503,73 @@ function StatusPill({ status }: { status: CmsContentStatus }) {
     >
       {status}
     </span>
+  );
+}
+
+interface ReservedSlotShape {
+  slug: string;
+  label: string;
+  usedFor: string;
+  item: { _id: string; status: CmsContentStatus } | CmsContent | null;
+}
+
+function ReservedSlotCard({
+  slot,
+  createType,
+}: {
+  slot: ReservedSlotShape;
+  createType: CmsContentType;
+}) {
+  const present = !!slot.item;
+  const published = slot.item?.status === "published";
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3 transition",
+        present && published
+          ? "border-emerald-200 bg-emerald-50/40"
+          : present
+            ? "border-amber-200 bg-amber-50/40"
+            : "border-rose-200 bg-rose-50/40"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {present && published ? (
+              <CheckCircle2 size={14} className="text-emerald-600" />
+            ) : (
+              <AlertCircle size={14} className={present ? "text-amber-600" : "text-rose-600"} />
+            )}
+            <span className="text-sm font-semibold text-gray-900">{slot.label}</span>
+          </div>
+          <p className="mt-0.5 text-[11px] font-mono text-gray-600">slug: {slot.slug}</p>
+          <p className="mt-1 text-[11px] text-gray-600">{slot.usedFor}</p>
+        </div>
+        <div className="shrink-0">
+          {present ? (
+            <Link
+              href={`/admin/cms/${slot.item!._id}/edit`}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition",
+                published
+                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                  : "bg-amber-500 text-white hover:bg-amber-600"
+              )}
+            >
+              {published ? "Edit" : "Review"}
+            </Link>
+          ) : (
+            <Link
+              href={`/admin/cms/new?type=${createType}&slug=${encodeURIComponent(slot.slug)}&title=${encodeURIComponent(slot.label)}`}
+              className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
+            >
+              Create
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

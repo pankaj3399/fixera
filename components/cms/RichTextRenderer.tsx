@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -20,10 +20,26 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTR = ["href", "target", "rel", "src", "alt", "title", "class", "id", "loading"];
 
 export default function RichTextRenderer({ html, className }: Props) {
-  const clean = DOMPurify.sanitize(html || "", {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|\/|#)/i,
+  const allowedAttributes: Record<string, string[]> = { "*": ALLOWED_ATTR };
+  const clean = sanitizeHtml(html || "", {
+    allowedTags: ALLOWED_TAGS,
+    allowedAttributes,
+    allowedSchemes: ["http", "https", "mailto"],
+    allowedSchemesByTag: { a: ["http", "https", "mailto"] },
+    allowProtocolRelative: false,
+    allowedSchemesAppliedToAttributes: ["href", "src"],
+    transformTags: {
+      a: (tagName, attribs) => {
+        if (attribs.target === "_blank") {
+          const existing = (attribs.rel || "").split(/\s+/).filter(Boolean);
+          for (const required of ["noopener", "noreferrer"]) {
+            if (!existing.includes(required)) existing.push(required);
+          }
+          attribs.rel = existing.join(" ");
+        }
+        return { tagName, attribs };
+      },
+    },
   });
 
   return (

@@ -1152,7 +1152,9 @@ export default function BookingPaymentPage() {
                             </div>
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-gray-900">
-                                {formatMoney(option.price || 0, booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                                {customerPricingReady
+                                  ? formatMoney(customerPrice(option.price || 0), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                                  : '...'}
                               </span>
                               <input
                                 type="checkbox"
@@ -1166,7 +1168,9 @@ export default function BookingPaymentPage() {
                     </div>
                     {selectedOptionTotal > 0 && (
                       <p className="mt-3 text-xs font-medium text-gray-700">
-                        Selected options total: {formatMoney(selectedOptionTotal, booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                        Selected options total: {customerPricingReady
+                          ? formatMoney(customerPrice(selectedOptionTotal), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                          : '...'}
                       </p>
                     )}
                   </div>
