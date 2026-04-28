@@ -55,6 +55,7 @@ function humanizeSlug(slug: string): string {
 
 function hasMeaningfulBody(html: string | undefined | null): boolean {
   if (!html) return false;
+  if (/<(img|video|iframe|picture|audio|object|embed)\b/i.test(html)) return true;
   return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim().length > 0;
 }
 
