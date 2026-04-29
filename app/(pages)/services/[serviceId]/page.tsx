@@ -1,12 +1,11 @@
 import React, { cache } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from '@/components/ui/separator';
-import { Star, Heart, Award, ChevronRight } from 'lucide-react';
+import { Star, Heart, Award, ChevronRight, Sparkles, Hammer, ArrowRight, Mail } from 'lucide-react';
 import { professionalsForService, serviceCategories, subNavbarCategories } from '@/data/content';
 import { Button } from '@/components/ui/button';
 import ProfessionalFilters from '@/components/ProfessionalFilters';
@@ -19,11 +18,7 @@ import RichTextRenderer from '@/components/cms/RichTextRenderer';
 export const dynamic = "force-dynamic";
 
 const fetchServiceLanding = cache(async (serviceId: string) => {
-  try {
-    return await publicGetCms("landing", serviceId);
-  } catch {
-    return null;
-  }
+  return await publicGetCms("landing", serviceId);
 });
 
 type Props = {
@@ -45,10 +40,29 @@ function findServiceMeta(serviceId: string) {
   return null;
 }
 
+function humanizeSlug(slug: string): string {
+  const cleaned = (slug || "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "Service";
+  return cleaned
+    .split(" ")
+    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(" ");
+}
+
+function hasMeaningfulBody(html: string | undefined | null): boolean {
+  if (!html) return false;
+  if (/<(img|video|iframe|picture|audio|object|embed)\b/i.test(html)) return true;
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;|&#0*160;|&#x0*a0;/gi, "")
+    .replace(/[\s ]+/g, "")
+    .length > 0;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { serviceId } = await params;
   const landing = await fetchServiceLanding(serviceId);
-  if (landing) {
+  if (landing && hasMeaningfulBody(landing.body)) {
     return buildMetadata({
       title: landing.seo?.titleTag || landing.title,
       description: landing.seo?.metaDescription || landing.excerpt,
@@ -58,12 +72,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     });
   }
   const meta = findServiceMeta(serviceId);
-  if (!meta) notFound();
-  const description = meta.description || `Find verified professionals for ${meta.name.toLowerCase()} on Fixera.`;
+  if (meta) {
+    const description = meta.description || `Find verified professionals for ${meta.name.toLowerCase()} on Fixera.`;
+    return buildMetadata({
+      title: meta.name,
+      description,
+      path: `/services/${encodeURIComponent(serviceId)}`,
+    });
+  }
+  const fallbackTitle = landing?.title || humanizeSlug(serviceId);
   return buildMetadata({
-    title: meta.name,
-    description,
+    title: fallbackTitle,
+    description: `Information for ${fallbackTitle} on Fixera is being prepared. Browse our other services in the meantime.`,
     path: `/services/${encodeURIComponent(serviceId)}`,
+    noindex: true,
   });
 }
 
@@ -117,7 +139,7 @@ export default async function Page({ params }: Props) {
   const landing = await fetchServiceLanding(serviceId);
   const meta = findServiceMeta(serviceId);
 
-  if (landing) {
+  if (landing && hasMeaningfulBody(landing.body)) {
     const safePath = `/services/${encodeURIComponent(serviceId)}`;
     return (
       <div className="bg-white">
@@ -162,7 +184,71 @@ export default async function Page({ params }: Props) {
     );
   }
 
-  if (!meta) notFound();
+  if (!meta) {
+    const serviceName = landing?.title || humanizeSlug(serviceId);
+    return (
+      <div className="bg-gradient-to-b from-rose-50 via-white to-white min-h-screen">
+        <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
+          <div className="flex items-center text-sm text-gray-500 mb-6">
+            <Link href="/" className="hover:underline">Home</Link>
+            <ChevronRight className="w-4 h-4 mx-1" />
+            <Link href="/services" className="hover:underline">Services</Link>
+            <ChevronRight className="w-4 h-4 mx-1" />
+            <span className="text-gray-700">{serviceName}</span>
+          </div>
+
+          <div className="relative overflow-hidden rounded-3xl border border-rose-100 bg-white shadow-sm">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full bg-gradient-to-br from-rose-200 via-pink-100 to-transparent blur-3xl"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-tr from-pink-100 via-rose-50 to-transparent blur-3xl"
+            />
+
+            <div className="relative px-6 sm:px-12 py-14 sm:py-20 text-center">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-200 mb-6">
+                <Hammer className="w-10 h-10" />
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-rose-50 border border-rose-100 px-3 py-1 text-xs font-semibold text-rose-700 mb-4">
+                <Sparkles className="w-3.5 h-3.5" />
+                Coming soon
+              </div>
+              <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-gray-900">
+                {serviceName}
+              </h1>
+              <p className="mt-4 text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
+                We&apos;re putting the finishing touches on this page. In the meantime, explore the other services available on Fixera or get in touch and we&apos;ll help you find the right professional.
+              </p>
+
+              <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+                <Button asChild size="lg" className="bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white">
+                  <Link href="/services">
+                    Browse all services
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="lg" className="border-rose-200 text-rose-700 hover:bg-rose-50">
+                  <Link href="/contact">
+                    <Mail className="w-4 h-4 mr-2" />
+                    Contact us
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-10 text-center">
+            <Link href="/" className="text-sm text-gray-500 hover:text-rose-700 hover:underline">
+              ← Back to homepage
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const serviceName = meta.name;
   const safePath = `/services/${encodeURIComponent(serviceId)}`;
 
