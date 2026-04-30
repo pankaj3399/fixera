@@ -3085,12 +3085,36 @@ export default function BookingDetailPage() {
                             </div>
                           )
                         })}
-                        <div className="flex justify-between items-center pt-1 border-t border-gray-200">
-                          <span className="text-xs font-semibold text-gray-800">Total Extra Costs</span>
-                          <span className={`text-sm font-bold ${(booking.extraCostTotal || 0) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {(booking.extraCostTotal || 0) >= 0 ? '+' : ''}{booking.payment?.currency || 'EUR'} {customerPrice(booking.extraCostTotal || 0).toFixed(2)}
-                          </span>
-                        </div>
+                        {(() => {
+                          const currency = booking.payment?.currency || 'EUR'
+                          const rawTotal = booking.extraCostTotal || 0
+                          const subtotalInclCommission = originalPrice(rawTotal)
+                          const finalTotal = customerPrice(rawTotal)
+                          const loyaltyDiscount = rawTotal > 0 ? Math.max(0, +(subtotalInclCommission - finalTotal).toFixed(2)) : 0
+                          const showLoyalty = loyaltyDiscount > 0 && loyalty && loyalty.percentage > 0
+                          return (
+                            <div className="space-y-1 pt-1 border-t border-gray-200 text-xs">
+                              {commissionPercent != null && rawTotal !== 0 && (
+                                <div className="flex justify-between text-gray-600">
+                                  <span>Subtotal (incl. {commissionPercent}% platform fee)</span>
+                                  <span>{subtotalInclCommission >= 0 ? '+' : ''}{currency} {subtotalInclCommission.toFixed(2)}</span>
+                                </div>
+                              )}
+                              {showLoyalty && (
+                                <div className="flex justify-between text-green-600">
+                                  <span>{loyalty!.level} loyalty ({loyalty!.percentage}%)</span>
+                                  <span>−{currency} {loyaltyDiscount.toFixed(2)}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                                <span className="text-xs font-semibold text-gray-800">Total Extra Costs</span>
+                                <span className={`text-sm font-bold ${finalTotal >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {finalTotal >= 0 ? '+' : ''}{currency} {finalTotal.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
 
@@ -3143,7 +3167,7 @@ export default function BookingDetailPage() {
                         <StripeProvider>
                           <PaymentForm
                             clientSecret={extraCostClientSecret}
-                            amount={booking.payment?.extraCostAmount ?? ((booking.extraCostTotal || 0) > 0 ? customerPrice(booking.extraCostTotal!) : 0)}
+                            amount={booking.payment?.extraCostAmount ?? customerPrice(booking.extraCostTotal || 0)}
                             currency={booking.payment?.currency || "EUR"}
                             onSuccess={handleExtraCostPaymentSuccess}
                             onError={handleExtraCostPaymentError}
