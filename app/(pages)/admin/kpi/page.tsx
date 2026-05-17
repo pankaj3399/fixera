@@ -47,13 +47,16 @@ interface RegionRow {
   refundRate: number
 }
 
-interface ServiceRow {
-  service: string
+interface ServiceViewRow {
+  serviceId: string
   views: number
+}
+
+interface ServiceBookingRow {
+  serviceType: string
   totalRfqs: number
   quotedCount: number
   bookingsCount: number
-  viewsToBookingRate: number
   quotationConversionRate: number
   avgTtfqHours: number | null
 }
@@ -139,7 +142,8 @@ export default function AdminKpiDashboard() {
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [regions, setRegions] = useState<RegionRow[]>([])
-  const [services, setServices] = useState<ServiceRow[]>([])
+  const [serviceViews, setServiceViews] = useState<ServiceViewRow[]>([])
+  const [serviceBookings, setServiceBookings] = useState<ServiceBookingRow[]>([])
   const [responses, setResponses] = useState<ResponseRow[]>([])
   const [loading, setLoading] = useState(true)
   const [sendingReport, setSendingReport] = useState(false)
@@ -206,7 +210,8 @@ export default function AdminKpiDashboard() {
       if (requestId !== requestIdRef.current) return
       setSummary(sumJson.data || null)
       setRegions(regJson.data?.rows || [])
-      setServices(svcJson.data?.rows || [])
+      setServiceViews(svcJson.data?.serviceViews || [])
+      setServiceBookings(svcJson.data?.serviceBookings || [])
       setResponses(respJson.data?.rows || [])
     } catch (err) {
       if (requestId !== requestIdRef.current) return
@@ -222,7 +227,7 @@ export default function AdminKpiDashboard() {
     load(appliedRange, appliedFrom, appliedTo)
   }, [user, load, appliedRange, appliedFrom, appliedTo])
 
-  const downloadCsv = (section: 'region' | 'service' | 'response') => {
+  const downloadCsv = (section: 'region' | 'service' | 'service-views' | 'response') => {
     if (!isRangeValid(appliedFrom, appliedTo)) {
       toast.error('"From" date must be on or before "To" date')
       return
@@ -257,7 +262,8 @@ export default function AdminKpiDashboard() {
   if (!user || user.role !== 'admin') return null
 
   const regionBarData = regions.slice(0, 10).map((r) => ({ name: r.city, bookedValue: r.bookedValue, platformRevenue: r.platformRevenue }))
-  const serviceBarData = services.slice(0, 10).map((s) => ({ name: s.service, views: s.views, bookings: s.bookingsCount }))
+  const serviceViewBarData = serviceViews.slice(0, 10).map((s) => ({ name: s.serviceId, views: s.views }))
+  const serviceBookingBarData = serviceBookings.slice(0, 10).map((s) => ({ name: s.serviceType, bookings: s.bookingsCount, rfqs: s.totalRfqs }))
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -409,61 +415,105 @@ export default function AdminKpiDashboard() {
           </TabsContent>
 
           <TabsContent value="service">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">Top 10 services — views vs. bookings</CardTitle>
-                <Button variant="outline" size="sm" onClick={() => downloadCsv('service')}>
-                  <Download className="h-4 w-4 mr-2" />Download CSV
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={serviceBarData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="views" fill="#6366f1" name="Views" />
-                      <Bar dataKey="bookings" fill="#f59e0b" name="Bookings" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="overflow-x-auto mt-4">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Service</th>
-                        <th className="px-3 py-2 text-right">Views</th>
-                        <th className="px-3 py-2 text-right">RFQs</th>
-                        <th className="px-3 py-2 text-right">Quotes</th>
-                        <th className="px-3 py-2 text-right">Bookings</th>
-                        <th className="px-3 py-2 text-right">Views→Booking %</th>
-                        <th className="px-3 py-2 text-right">Quote conv. %</th>
-                        <th className="px-3 py-2 text-right">Avg TTFQ (h)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {services.length === 0 && !loading && (
-                        <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400">No data in this range</td></tr>
-                      )}
-                      {services.map((s) => (
-                        <tr key={s.service}>
-                          <td className="px-3 py-2 capitalize">{s.service}</td>
-                          <td className="px-3 py-2 text-right">{s.views}</td>
-                          <td className="px-3 py-2 text-right">{s.totalRfqs}</td>
-                          <td className="px-3 py-2 text-right">{s.quotedCount}</td>
-                          <td className="px-3 py-2 text-right">{s.bookingsCount}</td>
-                          <td className="px-3 py-2 text-right">{s.viewsToBookingRate}</td>
-                          <td className="px-3 py-2 text-right">{s.quotationConversionRate}</td>
-                          <td className="px-3 py-2 text-right">{s.avgTtfqHours ?? '—'}</td>
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">Most-viewed service pages</CardTitle>
+                  <Button variant="outline" size="sm" onClick={() => downloadCsv('service-views')}>
+                    <Download className="h-4 w-4 mr-2" />Download CSV
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={serviceViewBarData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="views" fill="#6366f1" name="Views" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="overflow-x-auto mt-4">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Service slug</th>
+                          <th className="px-3 py-2 text-right">Views</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {serviceViews.length === 0 && !loading && (
+                          <tr><td colSpan={2} className="px-3 py-6 text-center text-gray-400">No data in this range</td></tr>
+                        )}
+                        {serviceViews.map((s) => (
+                          <tr key={s.serviceId}>
+                            <td className="px-3 py-2">{s.serviceId}</td>
+                            <td className="px-3 py-2 text-right">{s.views}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">Top booked service types (from RFQs)</CardTitle>
+                  <Button variant="outline" size="sm" onClick={() => downloadCsv('service')}>
+                    <Download className="h-4 w-4 mr-2" />Download CSV
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Service types come from free-text RFQ entries and aren&apos;t mergeable with service-page slugs.
+                  </p>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={serviceBookingBarData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="rfqs" fill="#a78bfa" name="RFQs" />
+                        <Bar dataKey="bookings" fill="#f59e0b" name="Bookings" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="overflow-x-auto mt-4">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Service type</th>
+                          <th className="px-3 py-2 text-right">RFQs</th>
+                          <th className="px-3 py-2 text-right">Quotes</th>
+                          <th className="px-3 py-2 text-right">Bookings</th>
+                          <th className="px-3 py-2 text-right">Quote conv. %</th>
+                          <th className="px-3 py-2 text-right">Avg TTFQ (h)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {serviceBookings.length === 0 && !loading && (
+                          <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">No data in this range</td></tr>
+                        )}
+                        {serviceBookings.map((s) => (
+                          <tr key={s.serviceType}>
+                            <td className="px-3 py-2 capitalize">{s.serviceType}</td>
+                            <td className="px-3 py-2 text-right">{s.totalRfqs}</td>
+                            <td className="px-3 py-2 text-right">{s.quotedCount}</td>
+                            <td className="px-3 py-2 text-right">{s.bookingsCount}</td>
+                            <td className="px-3 py-2 text-right">{s.quotationConversionRate}</td>
+                            <td className="px-3 py-2 text-right">{s.avgTtfqHours ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="response">
