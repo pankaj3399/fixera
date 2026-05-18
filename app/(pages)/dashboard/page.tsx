@@ -421,17 +421,26 @@ export default function DashboardPage() {
               </h1>
               <p className="text-gray-600">Welcome back, {user?.name}! Manage your platform here.</p>
             </div>
-            <Link
-              className="text-pink-800 underline flex items-center gap-2"
-              href='/admin/projects/approval'
-            >
-              Approve Projects
-              {projectStats && projectStats.pendingProjects > 0 && (
-                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
-                  {projectStats.pendingProjects}
-                </span>
-              )}
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+                href='/admin/kpi'
+              >
+                <BarChart3 className="h-4 w-4" />
+                View KPI Dashboard
+              </Link>
+              <Link
+                className="text-pink-800 underline flex items-center gap-2"
+                href='/admin/projects/approval'
+              >
+                Approve Projects
+                {projectStats && projectStats.pendingProjects > 0 && (
+                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                    {projectStats.pendingProjects}
+                  </span>
+                )}
+              </Link>
+            </div>
           </div>
 
           <Tabs defaultValue="overview" className="space-y-6">
