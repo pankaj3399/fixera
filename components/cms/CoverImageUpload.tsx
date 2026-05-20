@@ -11,9 +11,10 @@ interface Props {
   value?: string;
   onChange: (url: string | undefined) => void;
   required?: boolean;
+  recommendedSize?: string;
 }
 
-export default function CoverImageUpload({ value, onChange, required }: Props) {
+export default function CoverImageUpload({ value, onChange, required, recommendedSize }: Props) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +86,9 @@ export default function CoverImageUpload({ value, onChange, required }: Props) {
                 <>
                   <ImagePlus size={28} className="text-rose-500" />
                   <span className="text-sm font-medium">Click to upload cover image</span>
+                  {recommendedSize && (
+                    <span className="px-4 text-center text-xs font-medium text-rose-500">{recommendedSize}</span>
+                  )}
                   <span className="text-xs text-rose-400">JPEG, PNG, or WebP — up to 5MB</span>
                 </>
               )}
@@ -100,14 +104,19 @@ export default function CoverImageUpload({ value, onChange, required }: Props) {
         onChange={(e) => handle(e.target.files?.[0])}
       />
       {value && (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-rose-100 to-pink-100 px-3 py-1.5 text-xs font-medium text-rose-700 hover:from-rose-200 hover:to-pink-200"
-        >
-          {uploading ? <Loader2 className="animate-spin" size={12} /> : <ImagePlus size={12} />} Replace image
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-rose-100 to-pink-100 px-3 py-1.5 text-xs font-medium text-rose-700 hover:from-rose-200 hover:to-pink-200"
+          >
+            {uploading ? <Loader2 className="animate-spin" size={12} /> : <ImagePlus size={12} />} Replace image
+          </button>
+          {recommendedSize && (
+            <span className="text-xs font-medium text-rose-500">{recommendedSize}</span>
+          )}
+        </div>
       )}
     </div>
   );

@@ -36,6 +36,14 @@ interface Props {
   initialTitle?: string;
 }
 
+const COVER_RECOMMENDATIONS: Partial<Record<CmsContentType, string>> = {
+  blog: "Recommended: 1600 × 900 px (16:9) — used on cards and the article hero",
+  news: "Recommended: 1600 × 900 px (16:9) — used on cards and the article hero",
+  landing: "Recommended: 1600 × 700 px (16:7) — full-width page hero",
+  policy: "Recommended: 1600 × 700 px (16:7) — page hero (optional)",
+};
+const DEFAULT_COVER_RECOMMENDATION = "Recommended: 1600 × 900 px (16:9)";
+
 const EMPTY: Partial<CmsContent> = {
   type: "blog",
   title: "",
@@ -120,6 +128,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const isFaq = type === "faq";
   const slugPrefix = getPublicSlugPrefixForCms(type);
   const publicPreviewPath = form.slug ? getPublicPathForCms(type, form.slug) : null;
+  const coverRecommendation = COVER_RECOMMENDATIONS[type] ?? DEFAULT_COVER_RECOMMENDATION;
 
   const update = (patch: Partial<CmsContent>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -380,6 +389,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                 value={form.coverImage}
                 onChange={(url) => update({ coverImage: url })}
                 required={requiresCover}
+                recommendedSize={coverRecommendation}
               />
             </div>
           </GradientCard>
