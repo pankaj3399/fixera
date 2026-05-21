@@ -142,8 +142,12 @@ export default function AdminDiscountCodesPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [serviceCategories, setServiceCategories] = useState<ServiceCategoryItem[]>([]);
+  const [isLoadingServices, setIsLoadingServices] = useState(false);
+  const [servicesError, setServicesError] = useState<string | null>(null);
   const [servicesOpen, setServicesOpen] = useState(false);
   const servicesPopoverRef = useRef<HTMLDivElement | null>(null);
+  const servicesButtonRef = useRef<HTMLButtonElement | null>(null);
+  const servicesContentRef = useRef<HTMLDivElement | null>(null);
   const latestLoadCodesRequestId = useRef(0);
 
   useEffect(() => {
@@ -188,6 +192,8 @@ export default function AdminDiscountCodesPage() {
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
     const ac = new AbortController();
+    setIsLoadingServices(true);
+    setServicesError(null);
     (async () => {
       try {
         const url = serviceCatalogCountry
@@ -197,12 +203,18 @@ export default function AdminDiscountCodesPage() {
           signal: ac.signal,
           cache: "no-store",
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          setServicesError(`Failed to load services (${res.status})`);
+          return;
+        }
         const data = await res.json();
         if (Array.isArray(data)) setServiceCategories(data as ServiceCategoryItem[]);
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
         console.error("Failed to load service categories:", err);
+        setServicesError(err instanceof Error ? err.message : "Failed to load services");
+      } finally {
+        if (!ac.signal.aborted) setIsLoadingServices(false);
       }
     })();
     return () => ac.abort();
@@ -215,8 +227,23 @@ export default function AdminDiscountCodesPage() {
         setServicesOpen(false);
       }
     };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setServicesOpen(false);
+        servicesButtonRef.current?.focus();
+      }
+    };
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    const focusTimer = window.setTimeout(() => {
+      servicesContentRef.current?.focus();
+    }, 0);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+      window.clearTimeout(focusTimer);
+    };
   }, [servicesOpen]);
 
   const openCreate = () => {
@@ -599,10 +626,11 @@ export default function AdminDiscountCodesPage() {
               <Label>Applicable services</Label>
               <div className="relative" ref={servicesPopoverRef}>
                 <button
+                  ref={servicesButtonRef}
                   type="button"
                   onClick={() => setServicesOpen((o) => !o)}
                   className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                  aria-haspopup="listbox"
+                  aria-haspopup="dialog"
                   aria-expanded={servicesOpen}
                 >
                   <span className="truncate text-left">
@@ -615,7 +643,13 @@ export default function AdminDiscountCodesPage() {
                   <ChevronDown className="w-4 h-4 text-slate-500 shrink-0 ml-2" />
                 </button>
                 {servicesOpen && (
-                  <div className="absolute z-50 mt-1 w-full max-h-72 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                  <div
+                    ref={servicesContentRef}
+                    role="dialog"
+                    aria-label="Select applicable services"
+                    tabIndex={-1}
+                    className="absolute z-50 mt-1 w-full max-h-72 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg outline-none"
+                  >
                     <label className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 cursor-pointer hover:bg-slate-50">
                       <Checkbox
                         checked={form.applicableServices.length === 0}
@@ -625,8 +659,12 @@ export default function AdminDiscountCodesPage() {
                       />
                       <span className="text-sm font-medium">All services</span>
                     </label>
-                    {serviceCategories.length === 0 ? (
+                    {isLoadingServices ? (
                       <div className="px-3 py-2 text-sm text-slate-500">Loading services...</div>
+                    ) : servicesError ? (
+                      <div className="px-3 py-2 text-sm text-rose-600">{servicesError}</div>
+                    ) : serviceCategories.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">No services available</div>
                     ) : (
                       serviceCategories.map((cat) => (
                         <div key={cat.name}>
