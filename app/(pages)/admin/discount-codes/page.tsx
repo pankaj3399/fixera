@@ -214,12 +214,14 @@ export default function AdminDiscountCodesPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setServicesOpen(false);
     setDialogOpen(true);
   };
 
   const openEdit = (code: DiscountCode) => {
     setEditingId(code._id);
     setForm(toForm(code));
+    setServicesOpen(false);
     setDialogOpen(true);
   };
 
@@ -480,7 +482,7 @@ export default function AdminDiscountCodesPage() {
         </Card>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setServicesOpen(false); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200 shrink-0">
             <DialogTitle>{editingId ? "Edit discount code" : "Create discount code"}</DialogTitle>

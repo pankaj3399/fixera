@@ -1873,12 +1873,16 @@ export default function BookingDetailPage() {
       toast.error("New date and reason are required")
       return
     }
+    const isDaysMode = booking?.project?.timeMode === 'days'
+    if (!isDaysMode && !rescheduleTime) {
+      toast.error("Start time is required")
+      return
+    }
     setSubmittingReschedule(true)
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (token) headers.Authorization = `Bearer ${token}`
-      const isDaysMode = booking?.project?.timeMode === 'days'
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/reschedule-request`,
         {
@@ -1887,7 +1891,7 @@ export default function BookingDetailPage() {
           headers,
           body: JSON.stringify({
             scheduledStartDate: rescheduleDate,
-            scheduledStartTime: isDaysMode ? undefined : (rescheduleTime || undefined),
+            ...(isDaysMode ? {} : { scheduledStartTime: rescheduleTime }),
             reason: rescheduleReason,
             description: rescheduleDescription.trim() || undefined,
           }),
@@ -2444,7 +2448,9 @@ export default function BookingDetailPage() {
                         )}
                       </div>
                     )}
-                    {user?.role === "customer" && booking.rescheduleRequest?.status === "pending" && (
+                    {user?.role === "customer"
+                      && booking.rescheduleRequest?.status === "pending"
+                      && booking.rescheduleRequest?.requestedBy !== user?._id && (
                       <div className="flex flex-wrap gap-2 justify-end">
                         <Button
                           size="sm"
@@ -4868,7 +4874,12 @@ export default function BookingDetailPage() {
                 <Button variant="outline" onClick={() => setShowRescheduleModal(false)} disabled={submittingReschedule}>Back</Button>
                 <Button
                   onClick={handleCustomerReschedule}
-                  disabled={submittingReschedule || !rescheduleDate || !rescheduleReason}
+                  disabled={
+                    submittingReschedule ||
+                    !rescheduleDate ||
+                    !rescheduleReason ||
+                    (booking?.project?.timeMode !== 'days' && !rescheduleTime)
+                  }
                 >
                   {submittingReschedule ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                   Send Request

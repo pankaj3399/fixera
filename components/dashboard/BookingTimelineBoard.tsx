@@ -403,6 +403,10 @@ export default function BookingTimelineBoard({
     }
 
     const isDaysMode = activeBooking.project?.timeMode === 'days'
+    if (!isDaysMode && !rescheduleTime) {
+      toast.error("Start time is required")
+      return
+    }
 
     setIsSubmitting(true)
     await runMutation(
@@ -414,7 +418,7 @@ export default function BookingTimelineBoard({
           headers: withAuthHeaders(),
           body: JSON.stringify({
             scheduledStartDate: rescheduleDate,
-            scheduledStartTime: isDaysMode ? undefined : (rescheduleTime || undefined),
+            ...(isDaysMode ? {} : { scheduledStartTime: rescheduleTime }),
             reason: rescheduleReason,
             description: rescheduleDescription.trim() || undefined,
           }),
@@ -877,7 +881,15 @@ export default function BookingTimelineBoard({
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>Back</Button>
-              <Button onClick={submitReschedule} disabled={isSubmitting}>
+              <Button
+                onClick={submitReschedule}
+                disabled={
+                  isSubmitting ||
+                  !rescheduleDate ||
+                  !rescheduleReason ||
+                  (activeBooking?.project?.timeMode !== 'days' && !rescheduleTime)
+                }
+              >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Send Request
               </Button>

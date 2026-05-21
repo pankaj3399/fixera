@@ -130,6 +130,15 @@ const formatDate = (value?: string | null) => {
 
 const formatDateOnly = (value?: string | null) => {
   if (!value) return '—'
+  const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (isoDateOnly) {
+    const year = Number(isoDateOnly[1])
+    const month = Number(isoDateOnly[2])
+    const day = Number(isoDateOnly[3])
+    const utc = new Date(Date.UTC(year, month - 1, day))
+    if (utc.getUTCFullYear() !== year || utc.getUTCMonth() + 1 !== month || utc.getUTCDate() !== day) return '—'
+    return utc.toLocaleDateString(undefined, { timeZone: 'UTC' })
+  }
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString()
@@ -308,6 +317,10 @@ export default function AdminDisputesPage() {
 
   const handleResolve = async () => {
     if (!selectedDispute || !resolveResolution.trim()) return
+    if (uploadingAttachment) {
+      toast.error('Please wait for the attachment upload to finish before resolving')
+      return
+    }
 
     let parsedAdjustedAmount: number | undefined
     if (resolveAction === 'adjust') {
@@ -899,7 +912,7 @@ export default function AdminDisputesPage() {
                   </Button>
                   <Button
                     onClick={handleResolve}
-                    disabled={resolving || !resolveResolution.trim() || (resolveAction === 'adjust' && !resolveAdjustedAmount)}
+                    disabled={resolving || uploadingAttachment || !resolveResolution.trim() || (resolveAction === 'adjust' && !resolveAdjustedAmount)}
                   >
                     {resolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Resolve Dispute

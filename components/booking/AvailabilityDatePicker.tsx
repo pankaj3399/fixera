@@ -59,7 +59,12 @@ export default function AvailabilityDatePicker({
   }, [initialMonth])
 
   useEffect(() => {
-    if (!projectId) return
+    if (!projectId) {
+      setBlockedDates(new Set())
+      setBlockedRanges([])
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     const fetchAvailability = async () => {
@@ -79,6 +84,9 @@ export default function AvailabilityDatePicker({
         if (data.success) {
           setBlockedDates(new Set((data.blockedDates || []).map((d) => d.slice(0, 10))))
           setBlockedRanges(data.blockedRanges || [])
+        } else {
+          setBlockedDates(new Set())
+          setBlockedRanges([])
         }
       } catch (err) {
         if (!cancelled) {
