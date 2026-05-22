@@ -1992,21 +1992,30 @@ export default function BookingDetailPage() {
       const quantityTokens = ['quantity', 'units', 'unit', 'amount', 'size', 'area', 'surface', 'length', 'width', 'height', 'volume', 'weight', 'pieces', 'count', 'hours', 'days', 'm2', 'm3']
       if (priceModelToken) quantityTokens.unshift(priceModelToken)
 
-      const pickRangeValue = (v: object): unknown => {
-        if ('min' in v) return (v as { min: unknown }).min
-        if ('max' in v) return (v as { max: unknown }).max
+      const toPositiveFinite = (raw: unknown): number | undefined => {
+        if (raw == null || raw === '') return undefined
+        const n = typeof raw === 'number' ? raw : Number(typeof raw === 'string' ? raw.trim() : raw)
+        return Number.isFinite(n) && n > 0 ? n : undefined
+      }
+
+      const pickRangeValue = (v: object): number | undefined => {
+        if ('min' in v) {
+          const minNum = toPositiveFinite((v as { min: unknown }).min)
+          if (minNum !== undefined) return minNum
+        }
+        if ('max' in v) {
+          const maxNum = toPositiveFinite((v as { max: unknown }).max)
+          if (maxNum !== undefined) return maxNum
+        }
         return undefined
       }
 
       const isNumericValue = (v: unknown) => {
-        if (typeof v === 'number' && Number.isFinite(v) && v > 0) return true
-        if (typeof v === 'string') {
-          const n = Number(v.trim())
-          return Number.isFinite(n) && n > 0
+        if (typeof v === 'number' || typeof v === 'string') {
+          return toPositiveFinite(v) !== undefined
         }
         if (typeof v === 'object' && v != null && ('min' in v || 'max' in v)) {
-          const n = Number(pickRangeValue(v))
-          return Number.isFinite(n) && n > 0
+          return pickRangeValue(v) !== undefined
         }
         return false
       }
@@ -2032,9 +2041,9 @@ export default function BookingDetailPage() {
         if (quantityInput) {
           const rawValue: unknown = quantityInput.value
           if (typeof rawValue === 'object' && rawValue != null && ('min' in rawValue || 'max' in rawValue)) {
-            estimatedUnits = Number(pickRangeValue(rawValue))
+            estimatedUnits = pickRangeValue(rawValue) ?? 0
           } else {
-            estimatedUnits = Number(rawValue)
+            estimatedUnits = toPositiveFinite(rawValue) ?? 0
           }
         }
       }
