@@ -1992,15 +1992,21 @@ export default function BookingDetailPage() {
       const quantityTokens = ['quantity', 'units', 'unit', 'amount', 'size', 'area', 'surface', 'length', 'width', 'height', 'volume', 'weight', 'pieces', 'count', 'hours', 'days', 'm2', 'm3']
       if (priceModelToken) quantityTokens.unshift(priceModelToken)
 
+      const pickRangeValue = (v: object): unknown => {
+        if ('min' in v) return (v as { min: unknown }).min
+        if ('max' in v) return (v as { max: unknown }).max
+        return undefined
+      }
+
       const isNumericValue = (v: unknown) => {
         if (typeof v === 'number' && Number.isFinite(v) && v > 0) return true
         if (typeof v === 'string') {
           const n = Number(v.trim())
           return Number.isFinite(n) && n > 0
         }
-        if (typeof v === 'object' && v != null && 'min' in v && 'max' in v) {
-          const minNum = Number((v as { min: unknown }).min)
-          return Number.isFinite(minNum) && minNum > 0
+        if (typeof v === 'object' && v != null && ('min' in v || 'max' in v)) {
+          const n = Number(pickRangeValue(v))
+          return Number.isFinite(n) && n > 0
         }
         return false
       }
@@ -2025,8 +2031,8 @@ export default function BookingDetailPage() {
 
         if (quantityInput) {
           const rawValue: unknown = quantityInput.value
-          if (typeof rawValue === 'object' && rawValue != null && 'min' in rawValue) {
-            estimatedUnits = Number((rawValue as { min: unknown }).min)
+          if (typeof rawValue === 'object' && rawValue != null && ('min' in rawValue || 'max' in rawValue)) {
+            estimatedUnits = Number(pickRangeValue(rawValue))
           } else {
             estimatedUnits = Number(rawValue)
           }
