@@ -574,7 +574,7 @@ export default function ProjectDetailPage() {
     ? CUSTOMER_PRESENCE_LABELS[project.customerPresence] || project.customerPresence
     : 'Not specified';
   const projectTermsConditions = project.termsConditions || [];
-  const hasPresenceConditionsSection = true;
+  const hasPresenceConditionsSection = projectTermsConditions.length > 0 || !!project.customerPresence;
 
   const getComparisonTableDateLabels = () => {
     // We strictly use viewerTimeZone
@@ -962,9 +962,11 @@ export default function ProjectDetailPage() {
                     <p className='mt-1 text-sm text-blue-800'>
                       {customerPresenceLabel}
                     </p>
-                    <p className='mt-2 text-xs text-blue-700'>
-                      If this presence requirement is not met at the time of service, an additional fee may be charged.
-                    </p>
+                    {project.customerPresence && (
+                      <p className='mt-2 text-xs text-blue-700'>
+                        If this presence requirement is not met at the time of service, an additional fee may be charged.
+                      </p>
+                    )}
                   </div>
 
                   {projectTermsConditions.length > 0 && (

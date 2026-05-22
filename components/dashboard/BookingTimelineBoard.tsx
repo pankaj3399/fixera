@@ -716,7 +716,7 @@ export default function BookingTimelineBoard({
                       <p className="text-[10px] text-slate-500 truncate leading-tight">{counterpartyName}</p>
                     )}
                     {actions.length > 0 && (
-                      <div className="flex flex-nowrap gap-1 mt-1 overflow-hidden">
+                      <div className="flex flex-nowrap gap-1 mt-1 overflow-x-auto">
                         {actions}
                       </div>
                     )}

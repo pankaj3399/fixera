@@ -174,8 +174,10 @@ const SortableTable = ({ columns, rows, loading, emptyLabel = 'No data in this r
           {sortedRows.length === 0 && !loading && (
             <tr><td colSpan={columns.length} className="px-3 py-6 text-center text-gray-400">{emptyLabel}</td></tr>
           )}
-          {sortedRows.map((row, idx) => (
-            <tr key={idx} className="hover:bg-blue-50/40">
+          {sortedRows.map((row, idx) => {
+            const stableKey = columns.map((c) => String(row[c.key] ?? '')).join('|') || String(idx)
+            return (
+            <tr key={stableKey} className="hover:bg-blue-50/40">
               {columns.map((c) => {
                 const v = row[c.key]
                 const display = c.format ? c.format(v) : (v == null || v === '' ? '—' : String(v))
@@ -184,7 +186,8 @@ const SortableTable = ({ columns, rows, loading, emptyLabel = 'No data in this r
                 )
               })}
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -201,6 +204,25 @@ const fmtPct = (v: unknown) => {
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n)) return '—'
   return `${n}%`
+}
+
+const maskEmail = (v: unknown): string => {
+  if (v == null || v === '') return '—'
+  const s = String(v)
+  const at = s.indexOf('@')
+  if (at <= 0) return '***'
+  const local = s.slice(0, at)
+  const domain = s.slice(at + 1)
+  const head = local.charAt(0)
+  return `${head}***@${domain}`
+}
+
+const TAB_SECTION_MAP: Record<TabKey, string> = {
+  city: 'region',
+  service: 'service',
+  subproject: 'subproject',
+  professional: 'professional',
+  customer: 'customer',
 }
 
 export default function AdminKpiDashboard() {
@@ -225,6 +247,7 @@ export default function AdminKpiDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>('city')
   const [loading, setLoading] = useState(true)
   const [sendingReport, setSendingReport] = useState(false)
+  const [showEmails, setShowEmails] = useState(false)
   const requestIdRef = useRef(0)
 
   const editingRangeValid = isRangeValid(from, to)
@@ -375,14 +398,6 @@ export default function AdminKpiDashboard() {
     }
   }
 
-  const tabSectionMap: Record<TabKey, string> = useMemo(() => ({
-    city: 'region',
-    service: 'service',
-    subproject: 'subproject',
-    professional: 'professional',
-    customer: 'customer',
-  }), [])
-
   const tabRowsMap: Record<TabKey, Row[]> = useMemo(() => ({
     city: regions,
     service: serviceBookings,
@@ -446,9 +461,10 @@ export default function AdminKpiDashboard() {
     { key: 'grossRevenue', label: 'Gross €', numeric: true, format: fmtMoney },
     { key: 'price', label: 'Price', numeric: true, format: fmtMoney },
   ]
+  const emailFormat = showEmails ? undefined : maskEmail
   const professionalColumns = [
     { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email' },
+    { key: 'email', label: 'Email', format: emailFormat },
     { key: 'city', label: 'City' },
     { key: 'professionalLevel', label: 'Level' },
     { key: 'createdProjects', label: 'Projects', numeric: true },
@@ -463,7 +479,7 @@ export default function AdminKpiDashboard() {
   ]
   const customerColumns = [
     { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email' },
+    { key: 'email', label: 'Email', format: emailFormat },
     { key: 'city', label: 'City' },
     { key: 'loyaltyLevel', label: 'Loyalty' },
     { key: 'rfqsCreated', label: 'RFQs', numeric: true },
@@ -487,6 +503,9 @@ export default function AdminKpiDashboard() {
             <p className="text-sm text-gray-500">Platform health by city, service, subproject, professional and customer.</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowEmails((s) => !s)}>
+              {showEmails ? 'Hide emails' : 'Reveal emails'}
+            </Button>
             <Button variant="outline" onClick={() => load(appliedRange, appliedFrom, appliedTo)} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
@@ -603,10 +622,10 @@ export default function AdminKpiDashboard() {
                 <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
                   <CardTitle className="text-base capitalize">{tab === 'city' ? 'By Region (City)' : `By ${tab.charAt(0).toUpperCase() + tab.slice(1)}`}</CardTitle>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => downloadExport(tabSectionMap[tab], 'csv')}>
+                    <Button variant="outline" size="sm" onClick={() => downloadExport(TAB_SECTION_MAP[tab], 'csv')}>
                       <Download className="h-4 w-4 mr-2" />CSV
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => downloadExport(tabSectionMap[tab], 'xlsx')}>
+                    <Button variant="outline" size="sm" onClick={() => downloadExport(TAB_SECTION_MAP[tab], 'xlsx')}>
                       <Download className="h-4 w-4 mr-2" />XLSX
                     </Button>
                   </div>
@@ -636,6 +655,11 @@ export default function AdminKpiDashboard() {
                       )}
                     </ResponsiveContainer>
                   </div>
+                  {tab !== 'city' && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                      Note: this evolution line is a linear projection of period totals, not an actual time series. Use the totals in the table for accuracy.
+                    </p>
+                  )}
                   <SortableTable
                     columns={
                       tab === 'city' ? regionColumns

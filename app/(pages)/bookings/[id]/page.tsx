@@ -194,7 +194,7 @@ interface BookingDetail {
     subprojects?: Array<{
       name?: string
       pricing?: { type?: 'fixed' | 'unit' | 'rfq'; amount?: number }
-      professionalInputs?: Array<{ fieldName?: string; value?: string | number }>
+      professionalInputs?: Array<{ fieldName?: string; value?: string | number | { min?: number | string; max?: number | string } }>
     }>
     minResources?: number
     minOverlapPercentage?: number
