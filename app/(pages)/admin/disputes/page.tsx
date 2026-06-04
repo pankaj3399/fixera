@@ -231,7 +231,9 @@ export default function AdminDisputesPage() {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes?${params}`)
       const json = await res.json()
       if (json.success) {
-        setDisputes(Array.isArray(json.data?.disputes) ? json.data.disputes : [])
+        const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
+        const external = Array.isArray(json.data?.externalDisputes) ? json.data.externalDisputes : []
+        setDisputes([...external, ...paginated])
         setTotalPages(Number(json.data?.pagination?.pages) || 1)
       }
     } catch {
