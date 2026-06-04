@@ -122,7 +122,7 @@ function AdminChatInner() {
     }
   }
 
-  if (loading || !user) return null
+  if (loading || !user || user.role !== 'admin') return null
 
   const target = conversation?.supportTargetUserId
   const isClosed = conversation?.status === "archived"

@@ -157,6 +157,18 @@ const fileNameFromUrl = (url: string) => {
   }
 }
 
+const isValidHttpUrl = (url: string): boolean => {
+  try {
+    const u = new URL(url)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const isInternalHref = (href?: string): href is string =>
+  typeof href === 'string' && href.startsWith('/') && !href.startsWith('//')
+
 export default function AdminDisputesPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -275,7 +287,7 @@ export default function AdminDisputesPage() {
         return
       }
       toast.success(`Support conversation ready (id: ${conversationId})`)
-      window.open(`/admin/chat?conversationId=${conversationId}`, '_blank', 'noopener')
+      window.open(`/admin/chat?${new URLSearchParams({ conversationId }).toString()}`, '_blank', 'noopener')
     } catch (e) {
       console.error('start support chat failed', e)
       toast.error('Failed to start support chat')
@@ -292,7 +304,7 @@ export default function AdminDisputesPage() {
         toast.error(json?.msg || 'No customer↔professional chat found for this booking')
         return
       }
-      window.open(`/admin/chat?conversationId=${json.data.conversationId}`, '_blank', 'noopener')
+      window.open(`/admin/chat?${new URLSearchParams({ conversationId: json.data.conversationId }).toString()}`, '_blank', 'noopener')
     } catch {
       toast.error('Failed to open customer↔professional chat')
     }
@@ -553,7 +565,7 @@ export default function AdminDisputesPage() {
                           <Button
                             size="sm"
                             className="h-7 text-xs"
-                            onClick={() => router.push(d.resolveHref || '/admin')}
+                            onClick={() => router.push(isInternalHref(d.resolveHref) ? d.resolveHref : '/admin')}
                           >
                             Review in dashboard
                           </Button>
@@ -622,7 +634,7 @@ export default function AdminDisputesPage() {
                   {selectedDispute.dispute?.attachments && selectedDispute.dispute.attachments.length > 0 && (
                     <div className="pt-2 flex flex-wrap gap-2">
                       {selectedDispute.dispute.attachments.map((url) => (
-                        <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline text-red-700 break-all">
+                        <a key={url} href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="text-xs underline text-red-700 break-all">
                           <Paperclip className="h-3 w-3 inline mr-1" />
                           {fileNameFromUrl(url)}
                         </a>
@@ -664,7 +676,7 @@ export default function AdminDisputesPage() {
                     {selectedDispute.completionAttestation?.attachments && selectedDispute.completionAttestation.attachments.length > 0 && (
                       <div className="pt-1 flex flex-wrap gap-2">
                         {selectedDispute.completionAttestation.attachments.map((url) => (
-                          <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline text-blue-700 break-all">
+                          <a key={url} href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="text-xs underline text-blue-700 break-all">
                             <Paperclip className="h-3 w-3 inline mr-1" />
                             {fileNameFromUrl(url)}
                           </a>
@@ -685,7 +697,7 @@ export default function AdminDisputesPage() {
                     {selectedDispute.completionAttestation?.attachments && selectedDispute.completionAttestation.attachments.length > 0 && (
                       <div className="pt-1 flex flex-wrap gap-2">
                         {selectedDispute.completionAttestation.attachments.map((url) => (
-                          <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
+                          <a key={url} href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
                             <Paperclip className="h-3 w-3 inline mr-1" />
                             {fileNameFromUrl(url)}
                           </a>
@@ -710,7 +722,7 @@ export default function AdminDisputesPage() {
                     {selectedDispute.dispute?.attachments && selectedDispute.dispute.attachments.length > 0 && (
                       <div className="pt-1 flex flex-wrap gap-2">
                         {selectedDispute.dispute.attachments.map((url) => (
-                          <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
+                          <a key={url} href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
                             <Paperclip className="h-3 w-3 inline mr-1" />
                             {fileNameFromUrl(url)}
                           </a>
@@ -734,7 +746,7 @@ export default function AdminDisputesPage() {
                     {selectedDispute.dispute?.attachments && selectedDispute.dispute.attachments.length > 0 && (
                       <div className="pt-1 flex flex-wrap gap-2">
                         {selectedDispute.dispute.attachments.map((url) => (
-                          <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
+                          <a key={url} href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
                             <Paperclip className="h-3 w-3 inline mr-1" />
                             {fileNameFromUrl(url)}
                           </a>
@@ -947,7 +959,7 @@ export default function AdminDisputesPage() {
                     <div className="flex flex-col gap-1 pt-1">
                       {resolutionAttachments.map((url) => (
                         <div key={url} className="flex items-center justify-between gap-2 text-xs bg-gray-50 rounded px-2 py-1">
-                          <a href={url} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all truncate">
+                          <a href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all truncate">
                             <Paperclip className="h-3 w-3 inline mr-1" />
                             {fileNameFromUrl(url)}
                           </a>

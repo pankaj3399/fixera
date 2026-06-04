@@ -647,8 +647,9 @@ export default function AdminKpiDashboard() {
               : tab === 'subproject' ? subprojectColumns
               : tab === 'professional' ? professionalColumns
               : customerColumns
+            const isActive = tab === activeTab
             const sort = sortByTab[tab]
-            const sorted = sortRows(tabRowsMap[tab], sort.key, sort.dir)
+            const sorted = isActive ? sortRows(tabRowsMap[tab], sort.key, sort.dir) : []
             const selectedKey = selectedByTab[tab]
             const sortColumn = columns.find((c) => c.key === sort.key)
             const chartKey = sortColumn?.numeric ? sort.key : 'platformRevenue'
@@ -683,13 +684,21 @@ export default function AdminKpiDashboard() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={50} />
                         <YAxis />
                         <Tooltip formatter={(v: number | string) => (chartFmt ? chartFmt(v) : v)} />
-                        <Bar dataKey="value" name={chartLabel} isAnimationActive={false}>
+                        <Bar
+                          dataKey="value"
+                          name={chartLabel}
+                          isAnimationActive={false}
+                          cursor="pointer"
+                          onClick={(_data: unknown, index: number) => {
+                            const rowKey = chartData[index]?.rowKey
+                            if (rowKey) setSelectedByTab((p) => ({ ...p, [tab]: p[tab] === rowKey ? null : rowKey }))
+                          }}
+                        >
                           {chartData.map((d) => (
                             <Cell
                               key={d.rowKey}
                               fill={selectedKey && d.rowKey === selectedKey ? '#1d4ed8' : '#93c5fd'}
                               cursor="pointer"
-                              onClick={() => setSelectedByTab((p) => ({ ...p, [tab]: p[tab] === d.rowKey ? null : d.rowKey }))}
                             />
                           ))}
                         </Bar>

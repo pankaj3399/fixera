@@ -27,9 +27,13 @@ export default function CustomerRefundOffer({ bookingId, currency = 'EUR', onRes
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/cancellation`)
       const json = await res.json()
-      if (json?.success) setRequest(json.data?.request || null)
+      if (res.ok && json?.success) {
+        setRequest(json.data?.request || null)
+      } else {
+        setRequest(null)
+      }
     } catch {
-      // silent
+      setRequest(null)
     }
   }, [bookingId])
 

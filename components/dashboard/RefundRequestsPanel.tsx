@@ -35,15 +35,21 @@ export default function RefundRequestsPanel() {
   const [counterFor, setCounterFor] = useState<string | null>(null)
   const [counterAmount, setCounterAmount] = useState("")
   const [note, setNote] = useState("")
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/refund-requests`)
       const json = await res.json()
-      if (json?.success) setRequests(Array.isArray(json.data?.requests) ? json.data.requests : [])
+      if (res.ok && json?.success) {
+        setRequests(Array.isArray(json.data?.requests) ? json.data.requests : [])
+      } else {
+        setLoadError(json?.msg || 'Failed to load refund requests')
+      }
     } catch {
-      // silent
+      setLoadError('Failed to load refund requests')
     } finally {
       setLoading(false)
     }
@@ -72,7 +78,7 @@ export default function RefundRequestsPanel() {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/cancellation/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision, amount, note: note.trim() || undefined }),
+        body: JSON.stringify({ decision, amount, note: decision === 'counter' ? (note.trim() || undefined) : undefined }),
       })
       const json = await res.json()
       if (!res.ok || !json?.success) {
@@ -99,6 +105,17 @@ export default function RefundRequestsPanel() {
     return (
       <Card>
         <CardContent className="py-6 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></CardContent>
+      </Card>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <Card className="border-rose-200">
+        <CardContent className="py-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-rose-700">{loadError}</p>
+          <Button size="sm" variant="outline" onClick={load}>Retry</Button>
+        </CardContent>
       </Card>
     )
   }
