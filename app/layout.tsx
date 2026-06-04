@@ -8,6 +8,8 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ChatWidget from "@/components/chat/ChatWidget";
 import CookieConsent from "@/components/cookie-consent/CookieConsent";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import ClarityAnalytics from "@/components/analytics/ClarityAnalytics";
 import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
@@ -66,6 +68,13 @@ export default function RootLayout({
       >
         <JsonLd data={[organizationSchema(), websiteSchema()]} />
         <AuthProvider>
+          <GoogleAnalytics
+            measurementId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || ''}
+            clarityProjectId={process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID || ''}
+          />
+          <ClarityAnalytics
+            projectId={process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID || ''}
+          />
           <Navbar/>
           <SubNavbar />
           <main className="flex flex-col min-h-screen">

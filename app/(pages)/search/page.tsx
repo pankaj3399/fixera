@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, Suspense, ComponentProps, useMemo } from 'react';
+import React, { useState, useEffect, Suspense, ComponentProps, useMemo, useRef } from 'react';
+import { trackProjectSearch, trackSearchFilterApplied } from '@/lib/analyticsEvents';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, AlertCircle, Search as SearchIcon } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -451,6 +452,13 @@ function SearchPageContent() {
       }
       setResults(data.results ?? []);
       setPagination((prev) => data.pagination ?? prev);
+
+      // GA4: Track search event
+      trackProjectSearch({
+        search_query: filters.query || '',
+        search_type: searchType,
+        results_count: data.pagination?.total ?? data.results?.length ?? 0,
+      });
       if (searchType === 'projects' && data.results?.length) {
         const priceModelsOnPage = data.results.map((project) => {
           const projectData = project as ProjectResult;
