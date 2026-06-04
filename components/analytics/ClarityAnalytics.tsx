@@ -52,7 +52,14 @@ export default function ClarityAnalytics({ projectId }: ClarityAnalyticsProps) {
         'unknown'
     )
     setClarityTag('customerType', user.customerType || 'unknown')
-  }, [user?._id, user?.role, user?.location?.country])
+  }, [
+    user?._id,
+    user?.role,
+    user?.location?.country,
+    user?.businessInfo?.country,
+    user?.companyAddress?.country,
+    user?.customerType,
+  ])
 
   return null
 }

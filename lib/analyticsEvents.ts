@@ -81,7 +81,7 @@ export function trackCompleteRFQ(params: {
     item_id: params.project_id,
     service_type: params.service_type,
     urgency: params.urgency,
-    value: params.budget_max || params.budget_min,
+    value: params.budget_max ?? params.budget_min,
     currency: params.currency || 'EUR',
     country: params.country,
   });

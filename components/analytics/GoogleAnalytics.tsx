@@ -69,7 +69,7 @@ export default function GoogleAnalytics({
     } else {
       setUserId(null)
     }
-  }, [user?._id, user?.role, user?.location?.country])
+  }, [user])
 
   // No visible UI
   return null

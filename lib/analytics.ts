@@ -190,6 +190,8 @@ export function trackPageView(pathname: string, title?: string) {
 /** Set GA4 user properties */
 export function setUserProperties(properties: Record<string, string | number | boolean | undefined>) {
   if (!isBrowser() || !window.gtag) return;
+  const consent = getConsent();
+  if (!consent?.analytics) return;
 
   const cleanProps: Record<string, string | number | boolean> = {};
   for (const [k, v] of Object.entries(properties)) {
@@ -202,8 +204,13 @@ export function setUserProperties(properties: Record<string, string | number | b
 /** Set the GA4 user ID */
 export function setUserId(userId: string | null) {
   if (!isBrowser() || !window.gtag) return;
+  const consent = getConsent();
+  if (!consent?.analytics) return;
+
   if (userId) {
     window.gtag('set', { user_id: userId });
+  } else {
+    window.gtag('set', { user_id: null });
   }
 }
 
@@ -240,12 +247,16 @@ export function initClarity(projectId: string) {
 /** Set a Clarity custom tag */
 export function setClarityTag(key: string, value: string) {
   if (!isBrowser() || !window.clarity) return;
+  const consent = getConsent();
+  if (!consent?.analytics) return;
   window.clarity('set', key, value);
 }
 
 /** Identify a user in Clarity */
 export function setClarityUserId(userId: string, sessionId?: string, pageId?: string) {
   if (!isBrowser() || !window.clarity) return;
+  const consent = getConsent();
+  if (!consent?.analytics) return;
   window.clarity('identify', userId, sessionId, pageId);
 }
 
