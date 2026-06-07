@@ -14,11 +14,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { Ban, CheckCircle2, RefreshCw, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import { CANCEL_REASONS } from "@/lib/constants/cancelReasons"
 
 interface CancellationRequestItem {
   _id: string
   status: 'pending' | 'approved' | 'denied'
-  reason: string
+  reasonCategory?: string
+  reason?: string
+  evidence?: string[]
   denyReason?: string
   refundAmount?: number
   refundedAt?: string
@@ -198,6 +201,16 @@ export default function AdminCancellationRequestsPage() {
             {items.map((item) => {
               const total = item.booking?.payment?.totalWithVat || 0
               const currency = item.booking?.payment?.currency || 'EUR'
+              const categoryLabel = item.reasonCategory
+                ? (CANCEL_REASONS.find((r) => r.value === item.reasonCategory)?.label || item.reasonCategory)
+                : undefined
+              const safeEvidence = (Array.isArray(item.evidence) ? item.evidence : []).filter((e) => {
+                try {
+                  return ['http:', 'https:'].includes(new URL(e).protocol)
+                } catch {
+                  return false
+                }
+              })
               return (
                 <Card key={item._id} className="hover:shadow-md transition-shadow">
                   <CardContent className="pt-4 pb-4">
@@ -222,7 +235,24 @@ export default function AdminCancellationRequestsPage() {
                           {' | '}
                           Professional: {item.booking?.professional?.name || '—'}
                         </p>
-                        <p className="text-xs text-red-600 font-medium mt-1">Reason: {item.reason}</p>
+                        {categoryLabel && (
+                          <p className="text-xs text-red-600 font-medium mt-1">
+                            Category: {categoryLabel}
+                          </p>
+                        )}
+                        {item.reason && item.reason !== categoryLabel && (
+                          <p className="text-xs text-red-600 font-medium mt-1">Reason: {item.reason}</p>
+                        )}
+                        {safeEvidence.length > 0 && (
+                          <p className="text-xs text-gray-600 mt-0.5 flex flex-wrap gap-2">
+                            <span>Attachments:</span>
+                            {safeEvidence.map((url, i) => (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                File {i + 1}
+                              </a>
+                            ))}
+                          </p>
+                        )}
                         {item.booking?.payment && (
                           <p className="text-xs text-gray-600">
                             Payment: {currency} {total.toFixed(2)} ({item.booking.payment.status})

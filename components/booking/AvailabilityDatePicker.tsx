@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { format, isSameDay, parseISO, startOfDay, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
 
 interface BlockedRange {
   startDate: string
@@ -13,6 +14,7 @@ interface BlockedRange {
 
 interface AvailabilityApiResponse {
   success: boolean
+  timezone?: string
   blockedDates?: string[]
   blockedRanges?: BlockedRange[]
 }
@@ -82,8 +84,19 @@ export default function AvailabilityDatePicker({
         const data: AvailabilityApiResponse = await res.json()
         if (cancelled) return
         if (data.success) {
-          setBlockedDates(new Set((data.blockedDates || []).map((d) => d.slice(0, 10))))
-          setBlockedRanges(data.blockedRanges || [])
+          const tz = data.timezone || 'UTC'
+          const toLocalYmd = (value: string) => {
+            const parsed = parseISO(value)
+            return isNaN(parsed.getTime()) ? value.slice(0, 10) : formatInTimeZone(parsed, tz, 'yyyy-MM-dd')
+          }
+          setBlockedDates(new Set((data.blockedDates || []).map(toLocalYmd)))
+          setBlockedRanges(
+            (data.blockedRanges || []).map((r) => ({
+              ...r,
+              startDate: toLocalYmd(r.startDate),
+              endDate: toLocalYmd(r.endDate),
+            }))
+          )
         } else {
           setBlockedDates(new Set())
           setBlockedRanges([])

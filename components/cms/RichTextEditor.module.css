@@ -1,0 +1,39 @@
+.editor :global(.ProseMirror) table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  table-layout: fixed;
+  overflow: hidden;
+}
+
+.editor :global(.ProseMirror) td,
+.editor :global(.ProseMirror) th {
+  border: 1px solid #f9a8d4;
+  padding: 0.5rem 0.625rem;
+  vertical-align: top;
+  position: relative;
+}
+
+.editor :global(.ProseMirror) th {
+  background: #fdf2f8;
+  font-weight: 600;
+  text-align: left;
+}
+
+.editor :global(.ProseMirror) .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(244, 114, 182, 0.18);
+  pointer-events: none;
+}
+
+.editor :global(.ProseMirror) .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #ec4899;
+  pointer-events: none;
+}

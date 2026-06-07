@@ -1541,6 +1541,48 @@ export default function ProjectBookingForm({
     return slotTime < now;
   };
 
+  // Strict multi-resource projects (all resources required for 100% of the window)
+  // can only start on a date whose entire execution window is free. Disabling such
+  // colliding start dates up-front avoids the "does not meet team availability"
+  // error the customer would otherwise hit only after selecting the date.
+  const strictWindowBlocking = useMemo(() => {
+    const rp = blockedDates.resourcePolicy;
+    if (!rp) return false;
+    return (
+      (rp.totalResources ?? 0) > 1 &&
+      (rp.minResources ?? 0) >= (rp.totalResources ?? 0) &&
+      (rp.minOverlapPercentage ?? 100) >= 100
+    );
+  }, [blockedDates.resourcePolicy]);
+
+  const executionDaysForBlocking = useMemo(() => {
+    if (projectMode !== 'days') return 0;
+    const executionSource = selectedPackage?.executionDuration || project.executionDuration;
+    const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
+    const days = Math.ceil(convertDurationToDays(executionSource, preferRange));
+    return Number.isFinite(days) && days > 0 ? days : 0;
+  }, [projectMode, selectedPackage, project.executionDuration]);
+
+  const isExecutionWindowBlockedForStart = (startDate: Date): boolean => {
+    if (executionDaysForBlocking <= 1) return false;
+    let counted = 0;
+    let cursor = startDate;
+    let iterations = 0;
+    while (counted < executionDaysForBlocking && iterations < 366) {
+      iterations++;
+      if (isProfessionalWorkingDay(cursor)) {
+        const dayKey = toLocalDateKey(cursor);
+        const intervals = getBlockedIntervalsForDate(cursor);
+        if (blockedDates.blockedDates.includes(dayKey) || shouldBlockDayForIntervals(cursor, intervals)) {
+          return true;
+        }
+        counted++;
+      }
+      cursor = addDays(cursor, 1);
+    }
+    return false;
+  };
+
   const isDateBlocked = (dateString: string): boolean => {
     let dateObj: Date;
     try {
@@ -1562,6 +1604,12 @@ export default function ProjectBookingForm({
 
     // For days mode, check if explicitly blocked
     if (blockedDates.blockedDates.includes(dateString)) {
+      return true;
+    }
+
+    // Strict projects: also block start dates whose execution window collides
+    // with an existing booking / unavailable day.
+    if (strictWindowBlocking && isExecutionWindowBlockedForStart(dateObj)) {
       return true;
     }
 

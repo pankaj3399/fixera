@@ -6,6 +6,7 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TableKit } from "@tiptap/extension-table";
 import { useCallback, useEffect } from "react";
 import {
   Bold,
@@ -23,10 +24,17 @@ import {
   Undo,
   Redo,
   Minus,
+  Table as TableIcon,
+  BetweenHorizontalStart,
+  BetweenVerticalStart,
+  Rows2,
+  Columns2,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { adminUploadCmsImage } from "@/lib/cms";
 import { cn } from "@/lib/utils";
+import styles from "./RichTextEditor.module.css";
 
 interface Props {
   value: string;
@@ -42,6 +50,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
       Image.configure({ HTMLAttributes: { class: "rounded-xl my-4 max-w-full h-auto" } }),
       Placeholder.configure({ placeholder: placeholder || "Start writing..." }),
+      TableKit.configure({ table: { resizable: true } }),
     ],
     content: value || "",
     immediatelyRender: false,
@@ -103,7 +112,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
   }
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-rose-100 via-pink-100 to-orange-100 p-[1.5px] shadow-sm">
+    <div className={cn("rounded-2xl bg-gradient-to-br from-rose-100 via-pink-100 to-orange-100 p-[1.5px] shadow-sm", styles.editor)}>
       <div className="rounded-[calc(1rem-1.5px)] bg-white">
         <div className="flex flex-wrap items-center gap-1 border-b border-pink-100 bg-gradient-to-r from-rose-50 via-pink-50 to-white p-2 rounded-t-[calc(1rem-1.5px)]">
           <ToolbarBtn active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1"><Heading1 size={16} /></ToolbarBtn>
@@ -122,6 +131,17 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
           <ToolbarBtn active={editor.isActive("link")} onClick={setLink} title="Link"><LinkIcon size={16} /></ToolbarBtn>
           <ToolbarBtn onClick={insertImage} title="Insert image"><ImageIcon size={16} /></ToolbarBtn>
           <ToolbarBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider"><Minus size={16} /></ToolbarBtn>
+          <Divider />
+          <ToolbarBtn active={editor.isActive("table")} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insert table"><TableIcon size={16} /></ToolbarBtn>
+          {editor.isActive("table") && (
+            <>
+              <ToolbarBtn onClick={() => editor.chain().focus().addRowAfter().run()} title="Add row"><BetweenHorizontalStart size={16} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add column"><BetweenVerticalStart size={16} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().deleteRow().run()} title="Delete row"><Rows2 size={16} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete column"><Columns2 size={16} /></ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().deleteTable().run()} title="Delete table"><Trash2 size={16} /></ToolbarBtn>
+            </>
+          )}
           <Divider />
           <ToolbarBtn onClick={() => editor.chain().focus().undo().run()} title="Undo"><Undo size={16} /></ToolbarBtn>
           <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} title="Redo"><Redo size={16} /></ToolbarBtn>
