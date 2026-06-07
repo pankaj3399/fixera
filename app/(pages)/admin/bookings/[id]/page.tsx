@@ -11,17 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, RefreshCw, MessageSquare } from "lucide-react"
 import { toast } from "sonner"
-
-const FORCEABLE_STATUSES = [
-  "payment_pending",
-  "booked",
-  "in_progress",
-  "professional_completed",
-  "completed",
-  "cancelled",
-  "dispute",
-  "refunded",
-]
+import { FORCEABLE_BOOKING_STATUSES } from "@/lib/constants/adminBookingStatus"
 
 interface Refund {
   amount: number
@@ -270,7 +260,7 @@ export default function AdminBookingDetailPage() {
                       <SelectValue placeholder="Select status…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {FORCEABLE_STATUSES.filter((s) => s !== data.booking.status).map((s) => (
+                      {FORCEABLE_BOOKING_STATUSES.filter((s) => s !== data.booking.status).map((s) => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
                     </SelectContent>
