@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { trackBeginRFQ, trackCompleteRFQ } from '@/lib/analyticsEvents'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,6 +42,15 @@ export default function RFQForm({
     budgetMax: '',
     currency: 'EUR'
   })
+
+  // GA4: Track begin_rfq on mount
+  useEffect(() => {
+    trackBeginRFQ({
+      booking_type: bookingType,
+      professional_id: professionalId,
+      project_id: projectId,
+    })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,6 +106,19 @@ export default function RFQForm({
 
       if (response.ok && data.success) {
         toast.success('Booking request submitted successfully!')
+
+        // GA4: Track complete_rfq
+        trackCompleteRFQ({
+          booking_type: bookingType,
+          professional_id: professionalId,
+          project_id: projectId,
+          service_type: formData.serviceType,
+          urgency: formData.urgency,
+          budget_min: formData.budgetMin ? parseFloat(formData.budgetMin) : undefined,
+          budget_max: formData.budgetMax ? parseFloat(formData.budgetMax) : undefined,
+          currency: formData.currency,
+        })
+
         if (onSuccess) {
           onSuccess(data.booking)
         }

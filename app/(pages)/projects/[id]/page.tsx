@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { trackProjectView } from '@/lib/analyticsEvents';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -418,6 +419,15 @@ export default function ProjectDetailPage() {
 
       if (data.success) {
         setProject(data.project);
+
+        // GA4: Track project_view event
+        trackProjectView({
+          project_id: data.project._id,
+          project_title: data.project.title,
+          category: data.project.category,
+          service: data.project.service,
+          professional_id: data.project.professionalId?._id,
+        });
       } else {
         toast.error('Project not found');
         router.push('/search');

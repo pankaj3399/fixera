@@ -5,9 +5,10 @@
  * Stripe Elements payment form with 3DS/SCA handling
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { PaymentStatus } from '../../types/stripe';
+import { trackBeginCheckout, trackCompleteBooking } from '@/lib/analyticsEvents';
 
 interface PaymentFormProps {
   clientSecret: string;
@@ -29,6 +30,14 @@ export function PaymentForm({
 
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // GA4: Track begin_checkout on mount
+  useEffect(() => {
+    trackBeginCheckout({
+      value: amount,
+      currency: currency,
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +78,13 @@ export function PaymentForm({
           // Success! Payment charged
           setPaymentStatus('success');
           onSuccess(paymentIntent.id);
+
+          // GA4: Track purchase event
+          trackCompleteBooking({
+            transaction_id: paymentIntent.id,
+            value: amount,
+            currency: currency,
+          });
           break;
 
         case 'requires_action':

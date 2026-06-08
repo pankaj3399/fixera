@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
 import { PENDING_FAVORITE_KEY } from '@/lib/constants/favorites'
+import { trackLogin, trackSignUp } from '@/lib/analyticsEvents'
 
 interface User {
   _id: string
@@ -366,6 +367,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAuthToken(data.token)
         toast.success('Login successful!')
 
+        // GA4: Track login event
+        trackLogin({
+          method: 'email',
+          role: data.user?.role,
+          country: data.user?.location?.country || data.user?.businessInfo?.country,
+        })
+
         if (!options?.skipRedirect) {
           if (mustCompleteProfessionalAccessFlow(data.user)) {
             router.push('/professional/onboarding')
@@ -412,6 +420,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.user)
         setAuthToken(data.token)
         toast.success('Account created successfully!')
+
+        // GA4: Track sign_up event
+        trackSignUp({
+          method: 'email',
+          role: data.user?.role || userData.role,
+          country: data.user?.location?.country || userData.country,
+        })
         
         if (data.welcomeEmailSent) {
           setTimeout(() => {

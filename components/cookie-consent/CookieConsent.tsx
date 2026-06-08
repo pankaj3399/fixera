@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { CONSENT_EVENT, STORAGE_KEY, getConsent, setConsent, type ConsentState } from '@/lib/consent'
+import { trackCookieConsentDecision } from '@/lib/analyticsEvents'
+import { updateGA4Consent } from '@/lib/analytics'
 
 export default function CookieConsent() {
   const [decided, setDecided] = useState<ConsentState | null | undefined>(undefined)
@@ -33,17 +35,23 @@ export default function CookieConsent() {
   const handleAcceptAll = () => {
     const state = setConsent({ analytics: true, marketing: true })
     setDecided(state)
+    updateGA4Consent(true, true)
+    trackCookieConsentDecision({ action: 'accept_all', analytics_accepted: true, marketing_accepted: true })
   }
 
   const handleRejectAll = () => {
     const state = setConsent({ analytics: false, marketing: false })
     setDecided(state)
+    updateGA4Consent(false, false)
+    trackCookieConsentDecision({ action: 'reject_all', analytics_accepted: false, marketing_accepted: false })
   }
 
   const handleSave = () => {
     const state = setConsent({ analytics: analyticsOn, marketing: marketingOn })
     setDecided(state)
     setCustomizeOpen(false)
+    updateGA4Consent(analyticsOn, marketingOn)
+    trackCookieConsentDecision({ action: 'custom', analytics_accepted: analyticsOn, marketing_accepted: marketingOn })
   }
 
   return (
