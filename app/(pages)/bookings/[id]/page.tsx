@@ -189,6 +189,7 @@ interface BookingDetail {
     service?: string
     description?: string
     timeMode?: 'hours' | 'days' | 'mixed'
+    executionDuration?: { value?: number; unit?: 'hours' | 'days' }
     rfqQuestions?: PostBookingQuestion[]
     postBookingQuestions?: PostBookingQuestion[]
     extraOptions?: Array<{ name?: string; price?: number }>
@@ -197,6 +198,7 @@ interface BookingDetail {
       name?: string
       pricing?: { type?: 'fixed' | 'unit' | 'rfq'; amount?: number }
       professionalInputs?: Array<{ fieldName?: string; value?: string | number | { min?: number | string; max?: number | string } }>
+      executionDuration?: { value?: number; unit?: 'hours' | 'days' }
     }>
     minResources?: number
     minOverlapPercentage?: number
@@ -370,6 +372,25 @@ type BookingApiResponse = {
   booking?: BookingDetail
   viewerRole?: 'admin' | 'customer' | 'professional'
   msg?: string
+}
+
+const resolveBookingIsDaysMode = (booking?: BookingDetail | null): boolean => {
+  const project = booking?.project
+  const subprojects = project?.subprojects
+  const selectedIndex = booking?.selectedSubprojectIndex
+  let unit: 'hours' | 'days' | undefined
+  if (subprojects && subprojects.length > 0) {
+    const sub =
+      typeof selectedIndex === 'number'
+        ? subprojects[selectedIndex]
+        : subprojects.length === 1
+        ? subprojects[0]
+        : undefined
+    unit = sub?.executionDuration?.unit
+  }
+  if (!unit) unit = project?.executionDuration?.unit
+  if (unit) return unit === 'days'
+  return project?.timeMode === 'days'
 }
 
 interface DiscountPreview {
@@ -1948,7 +1969,7 @@ export default function BookingDetailPage() {
       toast.error("New date and reason are required")
       return
     }
-    const isDaysMode = booking?.project?.timeMode === 'days'
+    const isDaysMode = resolveBookingIsDaysMode(booking)
     if (!isDaysMode && !rescheduleTime) {
       toast.error("Start time is required")
       return
@@ -4970,18 +4991,19 @@ export default function BookingDetailPage() {
               <DialogDescription>Pick a new start date. Your professional will be notified.</DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
-              <div className={`grid gap-3 ${booking?.project?.timeMode === 'days' ? '' : 'sm:grid-cols-2'}`}>
+              <div className={`grid gap-3 ${resolveBookingIsDaysMode(booking) ? '' : 'sm:grid-cols-2'}`}>
                 <div className="space-y-2">
                   <Label htmlFor="customer-reschedule-date">New start date</Label>
                   <AvailabilityDatePicker
                     id="customer-reschedule-date"
                     projectId={booking?.project?._id}
+                    excludeBookingId={booking?._id}
                     value={rescheduleDate}
                     onChange={setRescheduleDate}
                     ariaLabel="New start date"
                   />
                 </div>
-                {booking?.project?.timeMode !== 'days' && (
+                {!resolveBookingIsDaysMode(booking) && (
                   <div className="space-y-2">
                     <Label htmlFor="customer-reschedule-time">Start time</Label>
                     <Input
@@ -5024,7 +5046,7 @@ export default function BookingDetailPage() {
                     submittingReschedule ||
                     !rescheduleDate ||
                     !rescheduleReason ||
-                    (booking?.project?.timeMode !== 'days' && !rescheduleTime)
+                    (!resolveBookingIsDaysMode(booking) && !rescheduleTime)
                   }
                 >
                   {submittingReschedule ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}

@@ -15,6 +15,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, CheckCircle, Loader2, MessageSquare, Paperclip, RefreshCw, Scale, Shield, Upload, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import { type WarrantyClaimStatus, STATUS_LABELS as WARRANTY_STATUS_LABELS } from "@/lib/warrantyClaim"
+
+const WARRANTY_STATUS_VALUES: WarrantyClaimStatus[] = [
+  'open',
+  'proposal_sent',
+  'proposal_accepted',
+  'resolved',
+  'escalated',
+  'closed',
+]
 
 type DisputeType =
   | 'extra_costs'
@@ -95,6 +105,8 @@ interface DisputeBooking {
   readOnly?: boolean
   source?: 'warranty' | 'refund'
   resolveHref?: string
+  bookingId?: string
+  claimStatus?: string
 }
 
 interface DisputeAnalytics {
@@ -169,9 +181,6 @@ const isValidHttpUrl = (url: string): boolean => {
   }
 }
 
-const isInternalHref = (href?: string): href is string =>
-  typeof href === 'string' && href.startsWith('/') && !href.startsWith('//')
-
 export default function AdminDisputesPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -197,6 +206,14 @@ export default function AdminDisputesPage() {
   const [resolveForcedStartDate, setResolveForcedStartDate] = useState('')
   const [resolveForcedStartTime, setResolveForcedStartTime] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const [externalDispute, setExternalDispute] = useState<DisputeBooking | null>(null)
+  const [externalAction, setExternalAction] = useState<'approve' | 'decline' | 'adjust' | 'status'>('approve')
+  const [externalNote, setExternalNote] = useState('')
+  const [externalAmount, setExternalAmount] = useState('')
+  const [externalResolveDate, setExternalResolveDate] = useState('')
+  const [externalWarrantyStatus, setExternalWarrantyStatus] = useState<WarrantyClaimStatus>('closed')
+  const [externalResolving, setExternalResolving] = useState(false)
 
   const selectedDisputeType: DisputeType = useMemo(() => {
     return (selectedDispute?.dispute?.type as DisputeType | undefined) ?? 'extra_costs'
@@ -307,8 +324,13 @@ export default function AdminDisputesPage() {
   }, [])
 
   const viewCustomerProChat = useCallback(async (dispute: DisputeBooking) => {
+    const bookingId = dispute.bookingId || dispute._id
+    if (!bookingId || bookingId.includes(':')) {
+      toast.error('No booking linked to this dispute')
+      return
+    }
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/bookings/${dispute._id}/conversation`)
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/bookings/${bookingId}/conversation`)
       const json = await res.json()
       if (!res.ok || !json?.success || !json?.data?.conversationId) {
         toast.error(json?.msg || 'No customer↔professional chat found for this booking')
@@ -319,6 +341,142 @@ export default function AdminDisputesPage() {
       toast.error('Failed to open customer↔professional chat')
     }
   }, [])
+
+  const openExternalDialog = useCallback((dispute: DisputeBooking) => {
+    const dType = (dispute.dispute?.type as DisputeType | undefined) ?? 'refund_request'
+    setExternalDispute(dispute)
+    setExternalAction(dType === 'warranty_resolve' ? 'approve' : 'approve')
+    setExternalNote('')
+    setExternalAmount('')
+    setExternalResolveDate(
+      dispute.dispute?.proposedResolveDate ? String(dispute.dispute.proposedResolveDate).slice(0, 10) : ''
+    )
+    setExternalWarrantyStatus('closed')
+  }, [])
+
+  const parseExternalId = (rawId: string): string | null => {
+    const idx = rawId.indexOf(':')
+    if (idx < 0) return null
+    const realId = rawId.slice(idx + 1)
+    return realId || null
+  }
+
+  const handleResolveExternal = useCallback(async () => {
+    if (!externalDispute) return
+    const realId = parseExternalId(externalDispute._id)
+    if (!realId) {
+      toast.error('Could not parse the underlying record id')
+      return
+    }
+    const isWarranty = externalDispute.source === 'warranty'
+
+    setExternalResolving(true)
+    try {
+      if (isWarranty) {
+        const isResolveProposal = externalDispute.dispute?.type === 'warranty_resolve'
+        const note = externalNote.trim()
+
+        let endpoint = ''
+        let payload: Record<string, unknown> = {}
+        let successMessage = ''
+
+        if (externalAction === 'decline') {
+          if (!note) {
+            toast.error('A reason is required to decline a warranty claim')
+            return
+          }
+          endpoint = `/api/warranty-claims/admin/${realId}/decline`
+          payload = { reason: note }
+          successMessage = 'Warranty claim declined and closed'
+        } else if (externalAction === 'status') {
+          endpoint = `/api/warranty-claims/admin/${realId}/status`
+          payload = { status: externalWarrantyStatus, ...(note ? { note } : {}) }
+          successMessage = `Warranty claim status set to ${WARRANTY_STATUS_LABELS[externalWarrantyStatus]}`
+        } else if (externalAction === 'adjust') {
+          endpoint = `/api/warranty-claims/admin/${realId}/adjust-resolve`
+          payload = {
+            ...(note ? { resolveDescription: note } : {}),
+            ...(externalResolveDate ? { resolveByDate: externalResolveDate } : {}),
+          }
+          successMessage = 'Resolution adjusted and marked resolved'
+        } else if (isResolveProposal) {
+          endpoint = `/api/warranty-claims/admin/${realId}/approve-resolve`
+          payload = {}
+          successMessage = 'Proposed resolution approved'
+        } else {
+          endpoint = `/api/warranty-claims/admin/${realId}/approve`
+          payload = { ...(note ? { note } : {}) }
+          successMessage = 'Warranty claim approved'
+        }
+
+        const res = await authFetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}${endpoint}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+        )
+        const json = await res.json()
+        if (!res.ok || !json?.success) {
+          toast.error(json?.msg || 'Failed to resolve warranty claim')
+          return
+        }
+        toast.success(successMessage)
+      } else {
+        if (externalAction === 'decline') {
+          if (!externalNote.trim()) {
+            toast.error('A deny reason is required')
+            return
+          }
+          const res = await authFetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/cancellation-requests/${realId}/deny`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ denyReason: externalNote.trim() }) }
+          )
+          const json = await res.json()
+          if (!res.ok || !json?.success) {
+            toast.error(json?.msg || 'Failed to deny refund request')
+            return
+          }
+          toast.success('Refund request denied')
+        } else {
+          let approveBody: Record<string, unknown> = {}
+          if (externalAction === 'adjust') {
+            const parsedAmount = Number(externalAmount)
+            const maxRefundable = externalDispute.payment?.totalWithVat ?? externalDispute.payment?.amount
+            if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+              toast.error('Custom refund amount must be a number greater than 0')
+              return
+            }
+            if (typeof maxRefundable === 'number' && maxRefundable > 0 && parsedAmount > maxRefundable) {
+              toast.error(`Custom refund amount cannot exceed the payment total of ${maxRefundable.toFixed(2)}`)
+              return
+            }
+            approveBody = { amount: parsedAmount }
+          }
+          const res = await authFetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/cancellation-requests/${realId}/approve`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(approveBody) }
+          )
+          const json = await res.json()
+          if (!res.ok || !json?.success) {
+            toast.error(json?.msg || 'Failed to approve refund request')
+            return
+          }
+          const refunded = typeof json?.data?.refundAmount === 'number' ? json.data.refundAmount : undefined
+          toast.success(
+            refunded != null
+              ? `Refund approved (${externalDispute.payment?.currency || 'EUR'} ${refunded.toFixed(2)})`
+              : 'Refund approved'
+          )
+        }
+      }
+      setExternalDispute(null)
+      fetchDisputes()
+      fetchAnalytics()
+    } catch (e) {
+      console.error('resolve external dispute failed', e)
+      toast.error('Failed to resolve')
+    } finally {
+      setExternalResolving(false)
+    }
+  }, [externalDispute, externalAction, externalNote, externalAmount, externalResolveDate, externalWarrantyStatus, fetchDisputes, fetchAnalytics])
 
   const handleUploadAttachment = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
@@ -530,11 +688,6 @@ export default function AdminDisputesPage() {
                           </p>
                         )}
                         <div className="flex flex-wrap gap-2 pt-2">
-                          {d.readOnly ? (
-                            <Badge variant="outline" className="text-xs">
-                              {d.source === 'warranty' ? 'Warranty claim' : 'Refund request'} · manage in its dashboard
-                            </Badge>
-                          ) : (
                           <Button
                             size="sm"
                             variant="secondary"
@@ -544,9 +697,6 @@ export default function AdminDisputesPage() {
                             <MessageSquare className="h-3 w-3 mr-1" />
                             View customer↔pro chat
                           </Button>
-                          )}
-                          {!d.readOnly && (
-                          <>
                           <Button
                             size="sm"
                             variant="secondary"
@@ -567,8 +717,6 @@ export default function AdminDisputesPage() {
                             {startingPro ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
                             Open dispute chat with professional
                           </Button>
-                          </>
-                          )}
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 items-end shrink-0">
@@ -576,13 +724,24 @@ export default function AdminDisputesPage() {
                           {d.dispute?.raisedAt ? new Date(d.dispute.raisedAt).toLocaleDateString() : ''}
                         </p>
                         {d.readOnly ? (
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => router.push(isInternalHref(d.resolveHref) ? d.resolveHref : '/admin')}
-                          >
-                            Review in dashboard
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => openExternalDialog(d)}
+                            >
+                              Resolve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              disabled={!d.bookingId}
+                              onClick={() => d.bookingId && router.push(`/bookings/${d.bookingId}`)}
+                            >
+                              View Booking
+                            </Button>
+                          </>
                         ) : (
                           <>
                             {!d.dispute?.resolvedAt && (
@@ -1096,6 +1255,235 @@ export default function AdminDisputesPage() {
                 )}
                 <div className="flex justify-end">
                   <Button variant="outline" size="sm" onClick={() => setResolveInfoDispute(null)}>Close</Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!externalDispute} onOpenChange={(open) => !open && setExternalDispute(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Resolve {externalDispute?.source === 'warranty' ? 'Warranty Claim' : 'Refund Request'} — {externalDispute?.bookingNumber}
+              </DialogTitle>
+              <DialogDescription>
+                Resolve this directly without leaving the dispute dashboard.
+              </DialogDescription>
+            </DialogHeader>
+
+            {externalDispute && externalDispute.source === 'warranty' && (
+              <div className="space-y-4">
+                <div className="bg-gray-50 rounded p-3 space-y-1.5 text-xs">
+                  <p className="font-semibold text-gray-700">
+                    {externalDispute.dispute?.type === 'warranty_resolve' ? 'Resolve proposal' : 'Warranty claim'}
+                    {externalDispute.claimStatus ? ` · ${externalDispute.claimStatus.replace(/_/g, ' ')}` : ''}
+                  </p>
+                  <p>
+                    <span className="text-gray-500">Project warranty duration:</span>{' '}
+                    {externalDispute.warrantyCoverage?.duration?.value != null && externalDispute.warrantyCoverage?.duration?.unit
+                      ? `${externalDispute.warrantyCoverage.duration.value} ${externalDispute.warrantyCoverage.duration.unit}`
+                      : '—'}
+                  </p>
+                  <p><span className="text-gray-500">Booking completion date:</span> {formatDateOnly(externalDispute.actualEndDate)}</p>
+                  <p><span className="text-gray-500">Claim date:</span> {formatDateOnly(externalDispute.dispute?.raisedAt)}</p>
+                  <p><span className="text-gray-500">Claim description:</span> {externalDispute.dispute?.description || '—'}</p>
+                  {externalDispute.dispute?.attachments && externalDispute.dispute.attachments.length > 0 && (
+                    <div className="pt-1 flex flex-wrap gap-2">
+                      {externalDispute.dispute.attachments.map((url) => (
+                        <a key={url} href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
+                          <Paperclip className="h-3 w-3 inline mr-1" />
+                          {fileNameFromUrl(url)}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {externalDispute.dispute?.type === 'warranty_resolve' && (
+                    <>
+                      <p><span className="text-gray-500">Proposed resolve message:</span> {externalDispute.dispute?.resolution || '—'}</p>
+                      <p><span className="text-gray-500">Proposed resolve date:</span> {formatDateOnly(externalDispute.dispute?.proposedResolveDate)}</p>
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Action</Label>
+                  <Select value={externalAction} onValueChange={(value) => setExternalAction(value as typeof externalAction)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {externalDispute.dispute?.type === 'warranty_resolve' ? (
+                        <>
+                          <SelectItem value="approve">
+                            <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3 text-green-500" /> Approve resolution &amp; close</span>
+                          </SelectItem>
+                          <SelectItem value="adjust">
+                            <span className="flex items-center gap-1"><Scale className="h-3 w-3 text-amber-500" /> Adjust resolution &amp; close</span>
+                          </SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="approve">
+                            <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3 text-green-500" /> Approve claim &amp; close</span>
+                          </SelectItem>
+                          <SelectItem value="decline">
+                            <span className="flex items-center gap-1"><XCircle className="h-3 w-3 text-red-500" /> Decline claim &amp; close</span>
+                          </SelectItem>
+                        </>
+                      )}
+                      <SelectItem value="status">
+                        <span className="flex items-center gap-1"><Shield className="h-3 w-3 text-blue-500" /> Set warranty status &amp; close</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {externalAction === 'adjust' && (
+                  <div className="space-y-2">
+                    <Label>Adjusted resolve date (optional)</Label>
+                    <input
+                      type="date"
+                      value={externalResolveDate}
+                      onChange={(e) => setExternalResolveDate(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                )}
+
+                {externalAction === 'status' && (
+                  <div className="space-y-2">
+                    <Label>Warranty status</Label>
+                    <Select value={externalWarrantyStatus} onValueChange={(value) => setExternalWarrantyStatus(value as WarrantyClaimStatus)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WARRANTY_STATUS_VALUES.map((s) => (
+                          <SelectItem key={s} value={s}>{WARRANTY_STATUS_LABELS[s]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>{externalAction === 'decline' ? 'Decline / close note (required)' : 'Resolution note (optional)'}</Label>
+                  <Textarea
+                    value={externalNote}
+                    onChange={(e) => setExternalNote(e.target.value)}
+                    placeholder={externalAction === 'adjust'
+                      ? 'Describe the adjusted resolution...'
+                      : 'Add a note for the audit trail...'}
+                    className="min-h-[80px]"
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setExternalDispute(null)}>Cancel</Button>
+                  <Button
+                    onClick={handleResolveExternal}
+                    disabled={externalResolving || (externalAction === 'decline' && !externalNote.trim())}
+                  >
+                    {externalResolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {externalDispute && externalDispute.source === 'refund' && (
+              <div className="space-y-4">
+                <div className="bg-gray-50 rounded p-3 space-y-1.5 text-xs">
+                  <p className="font-semibold text-gray-700">Refund request{externalDispute.status ? ` · booking ${externalDispute.status}` : ''}</p>
+                  <p><span className="text-gray-500">Request date:</span> {formatDateOnly(externalDispute.dispute?.raisedAt)}</p>
+                  <p><span className="text-gray-500">Start date:</span> {formatDateOnly(externalDispute.actualStartDate || externalDispute.scheduledStartDate)}</p>
+                  <p><span className="text-gray-500">Booking status:</span> {externalDispute.status || '—'}</p>
+                  <p><span className="text-gray-500">Cancel reason:</span> {externalDispute.cancellation?.reason || externalDispute.dispute?.description || '—'}</p>
+                  {externalDispute.dispute?.attachments && externalDispute.dispute.attachments.length > 0 && (
+                    <div className="pt-1 flex flex-wrap gap-2">
+                      {externalDispute.dispute.attachments.map((url) => (
+                        <a key={url} href={isValidHttpUrl(url) ? url : '#'} target="_blank" rel="noopener noreferrer" className="underline text-blue-700 break-all">
+                          <Paperclip className="h-3 w-3 inline mr-1" />
+                          {fileNameFromUrl(url)}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  <p><span className="text-gray-500">Negotiation date:</span> {formatDateOnly(externalDispute.dispute?.negotiationDate)}</p>
+                  <p>
+                    <span className="text-gray-500">Negotiation amount:</span>{' '}
+                    {typeof externalDispute.dispute?.negotiationAmount === 'number'
+                      ? `${externalDispute.payment?.currency || 'EUR'} ${externalDispute.dispute.negotiationAmount.toFixed(2)}`
+                      : '—'}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Action</Label>
+                  <Select value={externalAction} onValueChange={(value) => setExternalAction(value as typeof externalAction)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="approve">
+                        <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3 text-green-500" /> Approve (full refund &amp; cancel)</span>
+                      </SelectItem>
+                      <SelectItem value="decline">
+                        <span className="flex items-center gap-1"><XCircle className="h-3 w-3 text-red-500" /> Decline refund</span>
+                      </SelectItem>
+                      <SelectItem value="adjust">
+                        <span className="flex items-center gap-1"><Scale className="h-3 w-3 text-amber-500" /> Custom refund amount</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {externalAction === 'adjust' && (
+                  <div className="space-y-2">
+                    <Label>Custom refund amount</Label>
+                    <Input
+                      type="number"
+                      value={externalAmount}
+                      onChange={(e) => setExternalAmount(e.target.value)}
+                      placeholder="Enter amount"
+                    />
+                    {(() => {
+                      const maxRefundable = externalDispute.payment?.totalWithVat ?? externalDispute.payment?.amount
+                      return typeof maxRefundable === 'number' && maxRefundable > 0 ? (
+                        <p className="text-xs text-gray-500">
+                          Max refundable: {externalDispute.payment?.currency || 'EUR'} {maxRefundable.toFixed(2)}
+                        </p>
+                      ) : null
+                    })()}
+                  </div>
+                )}
+
+                {externalAction === 'decline' && (
+                  <div className="space-y-2">
+                    <Label>Deny reason (required)</Label>
+                    <Textarea
+                      value={externalNote}
+                      onChange={(e) => setExternalNote(e.target.value)}
+                      placeholder="Explain why the refund is denied..."
+                      className="min-h-[80px]"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setExternalDispute(null)}>Cancel</Button>
+                  <Button
+                    onClick={handleResolveExternal}
+                    disabled={
+                      externalResolving ||
+                      (externalAction === 'adjust' && !externalAmount.trim()) ||
+                      (externalAction === 'decline' && !externalNote.trim())
+                    }
+                  >
+                    {externalResolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Apply
+                  </Button>
                 </div>
               </div>
             )}

@@ -860,6 +860,16 @@ export default function BookingPaymentPage() {
     booking?.quote?.amount ??
     booking?.payment?.netAmount ??
     0;
+  const breakdownOptionsBaseTotal = selectedExtraOptions.reduce(
+    (sum, optionIndex) => sum + (booking?.project?.extraOptions?.[optionIndex]?.price || 0),
+    0
+  );
+  const breakdownBaseTotal = (booking?.quote?.amount || 0) + breakdownOptionsBaseTotal;
+  const commissionedOptionsAmount =
+    breakdownBaseTotal > 0 && breakdownOptionsBaseTotal > 0
+      ? +((originalServiceAmount * breakdownOptionsBaseTotal) / breakdownBaseTotal).toFixed(2)
+      : 0;
+  const serviceOnlyAmount = +(originalServiceAmount - commissionedOptionsAmount).toFixed(2);
 
   if (loading) {
     return (
@@ -1460,7 +1470,16 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Original Service Amount:</span>
                   <span className="text-gray-900">
-                    {formatMoney(originalServiceAmount, paymentCurrency)}
+                    {formatMoney(serviceOnlyAmount, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {hasDiscountBreakdown && commissionedOptionsAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Selected Options:</span>
+                  <span className="text-gray-900">
+                    {formatMoney(commissionedOptionsAmount, paymentCurrency)}
                   </span>
                 </div>
               )}

@@ -830,6 +830,24 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
+              <Card className="border-blue-100 bg-gradient-to-br from-white via-blue-50 to-indigo-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-blue-600" />
+                    Booking Management
+                  </CardTitle>
+                  <CardDescription>Browse and search any booking, force its status, and open a chat with the customer or professional</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/bookings', '_blank')}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800"
+                  >
+                    Open Booking Management
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card className="border-red-100 bg-gradient-to-br from-white via-red-50 to-amber-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

@@ -28,6 +28,7 @@ interface AvailabilityDatePickerProps {
   disabled?: boolean
   id?: string
   ariaLabel?: string
+  excludeBookingId?: string
 }
 
 const formatYMD = (d: Date) => format(d, 'yyyy-MM-dd')
@@ -41,6 +42,7 @@ export default function AvailabilityDatePicker({
   disabled = false,
   id,
   ariaLabel,
+  excludeBookingId,
 }: AvailabilityDatePickerProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -71,7 +73,10 @@ export default function AvailabilityDatePicker({
     setLoading(true)
     const fetchAvailability = async () => {
       try {
-        const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${projectId}/availability`
+        let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${projectId}/availability`
+        if (excludeBookingId) {
+          url += `${url.includes('?') ? '&' : '?'}excludeBookingId=${encodeURIComponent(excludeBookingId)}`
+        }
         const res = await fetch(url)
         if (!res.ok) {
           if (!cancelled) {
@@ -115,7 +120,7 @@ export default function AvailabilityDatePicker({
     return () => {
       cancelled = true
     }
-  }, [projectId])
+  }, [projectId, excludeBookingId])
 
   useEffect(() => {
     if (!open) return

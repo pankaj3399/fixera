@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import AvailabilityDatePicker from "@/components/booking/AvailabilityDatePicker"
+import PlanningDialog from "@/components/dashboard/PlanningDialog"
 import { RESCHEDULE_REASONS } from "@/lib/constants/rescheduleReasons"
 import { getAuthToken } from "@/lib/utils"
 import { getBookingStatusMeta, getBookingTitle, type BookingStatus } from "@/lib/dashboardBookingHelpers"
-import { Calendar, CheckCheck, CreditCard, Loader2, Play, RefreshCw, XCircle } from "lucide-react"
+import { Calendar, CalendarRange, CheckCheck, CreditCard, Loader2, Play, RefreshCw, XCircle } from "lucide-react"
 
 type ViewerRole = "customer" | "professional"
 
@@ -69,12 +70,17 @@ export interface TimelineBooking {
       companyName?: string
     }
   }
+  selectedSubprojectIndex?: number
   project?: {
     _id: string
     title?: string
     category?: string
     service?: string
     timeMode?: 'hours' | 'days' | 'mixed'
+    executionDuration?: { value?: number; unit?: 'hours' | 'days' }
+    subprojects?: Array<{
+      executionDuration?: { value?: number; unit?: 'hours' | 'days' }
+    }>
   }
   milestonePayments?: Array<{
     title?: string
@@ -119,6 +125,25 @@ const VISIBLE_DAYS = 60
 const MAX_SPAN_DAYS = 365
 const DAY_WIDTH = 40
 const ROW_LABEL_WIDTH = 200
+
+const resolveIsDaysMode = (booking?: TimelineBooking | null): boolean => {
+  const project = booking?.project
+  const subprojects = project?.subprojects
+  const selectedIndex = booking?.selectedSubprojectIndex
+  let unit: 'hours' | 'days' | undefined
+  if (subprojects && subprojects.length > 0) {
+    const sub =
+      typeof selectedIndex === 'number'
+        ? subprojects[selectedIndex]
+        : subprojects.length === 1
+        ? subprojects[0]
+        : undefined
+    unit = sub?.executionDuration?.unit
+  }
+  if (!unit) unit = project?.executionDuration?.unit
+  if (unit) return unit === 'days'
+  return project?.timeMode === 'days'
+}
 
 const BAR_META: Record<string, { label: string; className: string }> = {
   booked: {
@@ -268,7 +293,8 @@ export default function BookingTimelineBoard({
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [activeBooking, setActiveBooking] = useState<TimelineBooking | null>(null)
-  const [dialogMode, setDialogMode] = useState<"cancel" | "reschedule" | "extend" | null>(null)
+  const [dialogMode, setDialogMode] = useState<"cancel" | "reschedule" | null>(null)
+  const [planningBookingId, setPlanningBookingId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submittingBookingId, setSubmittingBookingId] = useState<string | null>(null)
   const [isNavigating, startNavigation] = useTransition()
@@ -277,8 +303,6 @@ export default function BookingTimelineBoard({
   const [rescheduleTime, setRescheduleTime] = useState("")
   const [rescheduleReason, setRescheduleReason] = useState("")
   const [rescheduleDescription, setRescheduleDescription] = useState("")
-  const [extendDate, setExtendDate] = useState("")
-  const [extendReason, setExtendReason] = useState("")
 
   const today = startOfDay(new Date())
 
@@ -323,7 +347,7 @@ export default function BookingTimelineBoard({
     return diff * DAY_WIDTH + DAY_WIDTH / 2
   }, [today, rangeStart, days.length])
 
-  const openDialog = (mode: "cancel" | "reschedule" | "extend", booking: TimelineBooking) => {
+  const openDialog = (mode: "cancel" | "reschedule", booking: TimelineBooking) => {
     setActiveBooking(booking)
     setDialogMode(mode)
     setCancelReason("")
@@ -331,8 +355,6 @@ export default function BookingTimelineBoard({
     setRescheduleTime(booking.rescheduleRequest?.proposedSchedule?.scheduledStartTime || booking.scheduledStartTime || "")
     setRescheduleReason("")
     setRescheduleDescription("")
-    setExtendDate(booking.scheduledExecutionEndDate?.slice(0, 10) || "")
-    setExtendReason("")
   }
 
   const closeDialog = () => {
@@ -396,7 +418,7 @@ export default function BookingTimelineBoard({
       return
     }
 
-    const isDaysMode = activeBooking.project?.timeMode === 'days'
+    const isDaysMode = resolveIsDaysMode(activeBooking)
     if (!isDaysMode && !rescheduleTime) {
       toast.error("Start time is required")
       return
@@ -418,30 +440,6 @@ export default function BookingTimelineBoard({
           }),
         }),
       "Rescheduling request sent."
-    )
-    setIsSubmitting(false)
-  }
-
-  const submitExtendExecution = async () => {
-    if (!activeBooking || !extendDate) {
-      toast.error("New execution end date is required")
-      return
-    }
-
-    setIsSubmitting(true)
-    await runMutation(
-      activeBooking._id,
-      () =>
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${activeBooking._id}/extend-execution`, {
-          method: "POST",
-          credentials: "include",
-          headers: withAuthHeaders(),
-          body: JSON.stringify({
-            newExecutionEndDate: extendDate,
-            note: extendReason.trim() || undefined,
-          }),
-        }),
-      "Execution extended."
     )
     setIsSubmitting(false)
   }
@@ -555,6 +553,9 @@ export default function BookingTimelineBoard({
         </Button>,
         <Button key="reschedule" variant="outline" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => openDialog("reschedule", booking)}>
           <RefreshCw className="mr-1 h-3 w-3" />Reschedule
+        </Button>,
+        <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
+          <CalendarRange className="mr-1 h-3 w-3" />Planning
         </Button>
       )
       const hasMilestones = booking.milestonePayments && booking.milestonePayments.length > 0
@@ -588,8 +589,8 @@ export default function BookingTimelineBoard({
         )
       }
       btns.push(
-        <Button key="extend" variant="outline" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => openDialog("extend", booking)}>
-          Extend
+        <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
+          <CalendarRange className="mr-1 h-3 w-3" />Planning
         </Button>
       )
       if (!next) {
@@ -606,6 +607,14 @@ export default function BookingTimelineBoard({
           </Button>
         )
       }
+    }
+
+    if (viewerRole === "professional" && booking.status === "professional_completed") {
+      btns.push(
+        <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
+          <CalendarRange className="mr-1 h-3 w-3" />Planning
+        </Button>
+      )
     }
 
     if (viewerRole === "customer" && booking.status === "rescheduling_requested") {
@@ -837,17 +846,18 @@ export default function BookingTimelineBoard({
             <DialogDescription>Propose a new start date for the customer to approve.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className={`grid gap-3 ${activeBooking?.project?.timeMode === 'days' ? '' : 'sm:grid-cols-2'}`}>
+            <div className={`grid gap-3 ${resolveIsDaysMode(activeBooking) ? '' : 'sm:grid-cols-2'}`}>
               <div className="space-y-2">
                 <Label htmlFor="timeline-reschedule-date">New start date</Label>
                 <AvailabilityDatePicker
                   id="timeline-reschedule-date"
                   projectId={activeBooking?.project?._id}
+                  excludeBookingId={activeBooking?._id}
                   value={rescheduleDate}
                   onChange={setRescheduleDate}
                 />
               </div>
-              {activeBooking?.project?.timeMode !== 'days' && (
+              {!resolveIsDaysMode(activeBooking) && (
                 <div className="space-y-2">
                   <Label htmlFor="timeline-reschedule-time">Start time</Label>
                   <Input id="timeline-reschedule-time" type="time" value={rescheduleTime} onChange={(event) => setRescheduleTime(event.target.value)} />
@@ -885,7 +895,7 @@ export default function BookingTimelineBoard({
                   isSubmitting ||
                   !rescheduleDate ||
                   !rescheduleReason ||
-                  (activeBooking?.project?.timeMode !== 'days' && !rescheduleTime)
+                  (!resolveIsDaysMode(activeBooking) && !rescheduleTime)
                 }
               >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -896,36 +906,12 @@ export default function BookingTimelineBoard({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialogMode === "extend"} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Extend Execution</DialogTitle>
-            <DialogDescription>Move the execution end date forward.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="timeline-extend-date">New execution end date</Label>
-              <Input id="timeline-extend-date" type="date" value={extendDate} onChange={(event) => setExtendDate(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="timeline-extend-reason">Reason</Label>
-              <Textarea
-                id="timeline-extend-reason"
-                value={extendReason}
-                onChange={(event) => setExtendReason(event.target.value)}
-                className="min-h-[90px]"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>Back</Button>
-              <Button onClick={submitExtendExecution} disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Extend
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PlanningDialog
+        open={planningBookingId !== null}
+        bookingId={planningBookingId}
+        onClose={() => setPlanningBookingId(null)}
+        onUpdated={onBookingUpdated}
+      />
     </div>
   )
 }

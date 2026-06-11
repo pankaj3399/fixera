@@ -4,6 +4,8 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { authFetch } from "@/lib/utils"
+import { useChatPolling } from "@/hooks/useChatPolling"
+import { setAdminActiveConversationId, markAdminConversationSeen } from "@/hooks/useAdminUnreadCount"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,12 +50,12 @@ function AdminChatInner() {
     }
   }, [user, loading, router])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!conversationId) {
       setIsLoading(false)
       return
     }
-    setIsLoading(true)
+    if (!silent) setIsLoading(true)
     try {
       const [convRes, msgRes] = await Promise.all([
         authFetch(`${BACKEND}/api/admin/conversations/${conversationId}`),
@@ -62,17 +64,49 @@ function AdminChatInner() {
       const convJson = await convRes.json()
       const msgJson = await msgRes.json()
       if (convJson?.success) setConversation(convJson.data)
-      if (msgJson?.success) setMessages(Array.isArray(msgJson.data?.items) ? msgJson.data.items : [])
+      if (msgJson?.success) {
+        const items = Array.isArray(msgJson.data?.items) ? msgJson.data.items : []
+        setMessages(items)
+        markAdminConversationSeen(conversationId)
+      }
     } catch {
-      toast.error("Failed to load conversation")
+      if (!silent) toast.error("Failed to load conversation")
     } finally {
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     }
   }, [conversationId])
 
   useEffect(() => {
+    if (user?.role === 'admin' && conversationId) {
+      setAdminActiveConversationId(conversationId)
+    }
+  }, [user, conversationId])
+
+  useEffect(() => {
     if (user?.role === 'admin') load()
   }, [user, load])
+
+  const pollMessages = useCallback(async () => {
+    if (!conversationId) return
+    try {
+      const [convRes, msgRes] = await Promise.all([
+        authFetch(`${BACKEND}/api/admin/conversations/${conversationId}`),
+        authFetch(`${BACKEND}/api/admin/conversations/${conversationId}/messages?limit=100`),
+      ])
+      const convJson = await convRes.json()
+      const msgJson = await msgRes.json()
+      if (convJson?.success) setConversation(convJson.data)
+      if (msgJson?.success) {
+        const items = Array.isArray(msgJson.data?.items) ? msgJson.data.items : []
+        setMessages(items)
+        markAdminConversationSeen(conversationId)
+      }
+    } catch {
+      // silently ignore polling errors
+    }
+  }, [conversationId])
+
+  useChatPolling(pollMessages, 6000, user?.role === 'admin' && !!conversationId, [conversationId])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -143,12 +177,18 @@ function AdminChatInner() {
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={load} disabled={isLoading}>
+            <Button variant="outline" size="sm" onClick={() => load()} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
             {!isClosed && conversation && (
-              <Button variant="outline" size="sm" onClick={closeChat} disabled={closing}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={closeChat}
+                disabled={closing}
+                aria-label="Close support chat"
+              >
                 {closing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Lock className="h-4 w-4 mr-2" />}
                 Close chat
               </Button>

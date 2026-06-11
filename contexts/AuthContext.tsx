@@ -310,13 +310,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const userRef = useRef<User | null>(null)
-  const isInitializedRef = useRef(false)
   const idExpiryAlertRef = useRef<string | null>(null)
   const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
-  const checkAuth = async () => {
+  const fetchCurrentUser = async (): Promise<
+    | { status: 'ok'; user: User }
+    | { status: 'unauthorized' }
+    | { status: 'transient' }
+  > => {
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
@@ -329,20 +332,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         credentials: 'include',
         headers
       })
+
       if (response.ok) {
         const data = await response.json()
-        setUser(data.user)
-        return data.user
-      } else {
+        return { status: 'ok', user: data.user }
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        return { status: 'unauthorized' }
+      }
+
+      return { status: 'transient' }
+    } catch (error) {
+      console.error('Auth check failed:', error)
+      return { status: 'transient' }
+    }
+  }
+
+  const checkAuth = async (): Promise<User | null> => {
+    try {
+      let result = await fetchCurrentUser()
+
+      if (result.status === 'transient') {
+        await new Promise(resolve => setTimeout(resolve, 600))
+        result = await fetchCurrentUser()
+      }
+
+      if (result.status === 'ok') {
+        setUser(result.user)
+        return result.user
+      }
+
+      if (result.status === 'unauthorized') {
         setUser(null)
         setAuthToken(null)
         return null
       }
-    } catch (error) {
-      console.error('Auth check failed:', error)
-      setUser(null)
-      setAuthToken(null)
-      return null
+
+      return userRef.current
     } finally {
       setLoading(false)
     }
@@ -502,48 +529,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user])
 
   useEffect(() => {
-    isInitializedRef.current = isInitialized
-  }, [isInitialized])
+    let cancelled = false
 
-  // Initial auth check and route protection
-  useEffect(() => {
     const initializeAuth = async () => {
-      setLoading(true)
+      const currentUser = await checkAuth()
 
-      // Check if this route has role restrictions (takes priority over public routes)
+      if (cancelled) return
+
       const allowedRoles = getAllowedRoles(pathname)
       const isRoleRestrictedRoute = allowedRoles.length > 0
       const needsProtection = isRoleRestrictedRoute || isProtectedRoute(pathname) || !isPublicRoute(pathname)
-
-      // Always check auth on first load to properly show user state in navbar
-      // On subsequent navigations to truly public routes, we can skip if already initialized
-      const skipAuthCheck = isInitializedRef.current && !needsProtection
-
-      let currentUser = userRef.current
-
-      if (!skipAuthCheck) {
-        currentUser = await checkAuth()
-      } else {
-        setLoading(false)
-      }
-
-      // Apply route protection logic for protected/role-restricted routes
       if (needsProtection) {
         await handleRouteProtection(currentUser)
       }
 
-      setIsInitialized(true)
+      if (!cancelled) {
+        setIsInitialized(true)
+      }
     }
 
     initializeAuth()
-  }, [pathname]) // Re-run on pathname change
 
-  // Handle route protection when user state changes
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (isInitialized && !loading) {
       handleRouteProtection(user)
     }
-  }, [user, isInitialized, loading])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, user, isInitialized, loading])
 
   // Replay pending favorite once a customer logs in
   useEffect(() => {

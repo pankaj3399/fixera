@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { getAuthToken } from "@/lib/utils"
+import { getAuthToken, authFetch } from "@/lib/utils"
+import { toast } from "sonner"
 
 interface CustomerRow {
   _id: string
@@ -35,6 +36,35 @@ export default function AdminCustomersPage() {
   const loadRequestIdRef = useRef(0)
   const [patching, setPatching] = useState<string | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [chattingId, setChattingId] = useState<string | null>(null)
+
+  const startChat = async (customerId: string) => {
+    if (chattingId) return
+    setChattingId(customerId)
+    const w = window.open('about:blank', '_blank')
+    try {
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/chat/start-support`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: customerId, initialMessage: "Hello from Fixera support." }),
+      })
+      const json = await res.json().catch(() => null)
+      const conversationId = json?.data?.conversationId
+      if (res.ok && json?.success && conversationId) {
+        const url = `/admin/chat?conversationId=${conversationId}`
+        if (w) w.location.href = url
+        else window.open(url, '_blank')
+      } else {
+        w?.close()
+        toast.error(json?.msg || "Failed to start chat")
+      }
+    } catch {
+      w?.close()
+      toast.error("Failed to start chat")
+    } finally {
+      setChattingId(null)
+    }
+  }
 
   const load = useCallback(async () => {
     abortRef.current?.abort()
@@ -183,6 +213,13 @@ export default function AdminCustomersPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={chattingId === row._id}
+                    onClick={() => void startChat(row._id)}
+                  >
+                    {chattingId === row._id ? "Opening..." : "Chat"}
+                  </Button>
                   <Select onValueChange={(value) => void patchCustomer(row._id, { loyaltyLevel: value })}>
                     <SelectTrigger className="w-[150px]"><SelectValue placeholder="Adjust level" /></SelectTrigger>
                     <SelectContent>

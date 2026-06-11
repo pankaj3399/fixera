@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Menu, X, Hammer, User, LogOut, MessageSquare, LifeBuoy, Heart } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { useAdminUnreadCount } from "@/hooks/useAdminUnreadCount";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +30,7 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const { user, isAuthenticated, logout, loading } = useAuth();
   const { unreadCount, enabled: showChatIcon } = useUnreadCount();
+  const { unreadCount: adminUnreadCount, enabled: showAdminChatIcon } = useAdminUnreadCount();
   const levelLabel =
     user?.role === "customer"
       ? user.loyaltyLevel || "Bronze"
@@ -107,6 +109,20 @@ const Navbar = () => {
                           {unreadCount > 0 && (
                             <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                               {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                          )}
+                        </Link>
+                      )}
+                      {showAdminChatIcon && (
+                        <Link
+                          href="/admin/chat"
+                          className="relative inline-flex items-center justify-center h-8 w-8 rounded-full text-gray-600 hover:text-blue-600 hover:bg-gray-100 transition-colors"
+                          aria-label="Support chat"
+                        >
+                          <MessageSquare className="h-5 w-5" />
+                          {adminUnreadCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                              {adminUnreadCount > 99 ? "99+" : adminUnreadCount}
                             </span>
                           )}
                         </Link>
@@ -261,6 +277,26 @@ const Navbar = () => {
                 {unreadCount > 0 && (
                   <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
                     {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </Link>
+            </>
+          )}
+          {showAdminChatIcon && (
+            <>
+              <hr className="my-2" />
+              <Link
+                href="/admin/chat"
+                className="flex items-center justify-between p-2 text-lg font-medium text-gray-800 hover:text-blue-600 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <span className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Support chat
+                </span>
+                {adminUnreadCount > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                    {adminUnreadCount > 99 ? "99+" : adminUnreadCount}
                   </span>
                 )}
               </Link>
