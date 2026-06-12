@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, LifeBuoy, CalendarClock, MessageCircle, Send, Plus } from "lucide-react";
@@ -15,6 +15,13 @@ import {
   SupportTicket,
   MeetingRequest,
 } from "@/lib/support";
+import {
+  fetchConversations,
+  fetchConversationMessages,
+  sendConversationMessage,
+  markConversationAsRead,
+} from "@/lib/chatApi";
+import type { ChatConversation, ChatMessage } from "@/types/chat";
 
 type Tab = "ticket" | "meeting" | "chat";
 
@@ -92,7 +99,7 @@ export default function ProfessionalSupportPage() {
         )}
         {tab === "chat" && (
           <div role="tabpanel" id="chat-panel" aria-labelledby="chat-tab" className="mt-6">
-            <ChatPlaceholder />
+            <SupportChatTab />
           </div>
         )}
       </div>
@@ -417,17 +424,232 @@ function MeetingsTab() {
   );
 }
 
-function ChatPlaceholder() {
+const SUPPORT_POLL_MS = 6000;
+
+function SupportChatTab() {
+  const [conversation, setConversation] = useState<ChatConversation | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const shouldStickToBottom = useRef(true);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, []);
+
+  const findSupportConversation = useCallback(async (): Promise<ChatConversation | null> => {
+    const { conversations } = await fetchConversations({ limit: 100 });
+    const support = conversations.filter((c) => c.type === "support");
+    if (support.length === 0) return null;
+    support.sort((a, b) => {
+      const at = new Date(a.lastMessageAt || a.updatedAt || a.createdAt).getTime();
+      const bt = new Date(b.lastMessageAt || b.updatedAt || b.createdAt).getTime();
+      return bt - at;
+    });
+    return support[0];
+  }, []);
+
+  const loadMessages = useCallback(async (conversationId: string) => {
+    const data = await fetchConversationMessages(conversationId, { limit: 100 });
+    setMessages(data.messages);
+    setConversation(data.conversation);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        const conv = await findSupportConversation();
+        if (cancelled) return;
+        if (!conv) {
+          setConversation(null);
+          setLoading(false);
+          return;
+        }
+        conversationIdRef.current = conv._id;
+        setConversation(conv);
+        await loadMessages(conv._id);
+        if (cancelled) return;
+        markConversationAsRead(conv._id).catch(() => {});
+      } catch (e) {
+        if (!cancelled) {
+          toast.error(e instanceof Error ? e.message : "Failed to load support chat");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    init();
+
+    const interval = setInterval(async () => {
+      const id = conversationIdRef.current;
+      try {
+        if (id) {
+          await loadMessages(id);
+          markConversationAsRead(id).catch(() => {});
+        } else {
+          const conv = await findSupportConversation();
+          if (cancelled || !conv) return;
+          conversationIdRef.current = conv._id;
+          setConversation(conv);
+          await loadMessages(conv._id);
+        }
+      } catch {
+        // transient polling errors are ignored
+      }
+    }, SUPPORT_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [findSupportConversation, loadMessages]);
+
+  useEffect(() => {
+    if (shouldStickToBottom.current) {
+      scrollToBottom();
+    }
+  }, [messages, loading, scrollToBottom]);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldStickToBottom.current = distanceFromBottom < 80;
+  };
+
+  const send = async () => {
+    const id = conversationIdRef.current;
+    const text = draft.trim();
+    if (!id || !text || sending) return;
+    setSending(true);
+    try {
+      shouldStickToBottom.current = true;
+      await sendConversationMessage(id, { text });
+      setDraft("");
+      await loadMessages(id);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <div className="flex justify-center py-16">
+          <Loader2 className="animate-spin text-indigo-500" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <Card>
+        <div className="p-10 text-center">
+          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-indigo-400 to-blue-500 text-white shadow-md shadow-indigo-200">
+            <MessageCircle size={24} />
+          </div>
+          <h2 className="text-lg font-semibold text-indigo-900">No support conversation yet</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-indigo-600/80">
+            Our team will reach out here, or raise a support ticket above and we&apos;ll follow up.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <div className="p-10 text-center">
-        <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-indigo-400 to-blue-500 text-white shadow-md shadow-indigo-200">
-          <MessageCircle size={24} />
+      <div className="flex h-[28rem] flex-col">
+        <div className="flex items-center gap-2 border-b border-indigo-100 px-5 py-3">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-400 to-blue-500 text-white shadow-sm">
+            <LifeBuoy size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-indigo-900">Fixera Support</p>
+            <p className="text-[11px] text-indigo-500">You&apos;re chatting with our support team</p>
+          </div>
         </div>
-        <h2 className="text-lg font-semibold text-indigo-900">AI chat is coming soon</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-indigo-600/80">
-          You&apos;ll be able to chat with our AI assistant here. If your question needs a human, we&apos;ll escalate to a live agent automatically.
-        </p>
+
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 space-y-3 overflow-y-auto px-5 py-4"
+        >
+          {messages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-center text-sm text-indigo-400">
+              No messages yet. Say hello to start the conversation.
+            </div>
+          ) : (
+            messages.map((m) => {
+              const fromAdmin = m.senderRole === "admin" || m.senderRole === "system";
+              return (
+                <div key={m._id} className={cn("flex", fromAdmin ? "justify-start" : "justify-end")}>
+                  <div
+                    className={cn(
+                      "max-w-[78%] rounded-2xl px-4 py-2 text-sm shadow-sm",
+                      fromAdmin
+                        ? "rounded-tl-sm bg-indigo-50 text-indigo-900"
+                        : "rounded-tr-sm bg-gradient-to-r from-indigo-500 to-blue-500 text-white"
+                    )}
+                  >
+                    <div className={cn("mb-0.5 text-[10px] font-semibold uppercase tracking-wide", fromAdmin ? "text-indigo-500" : "text-indigo-100")}>
+                      {fromAdmin ? "Support" : "You"}
+                    </div>
+                    {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
+                    {Array.isArray(m.images) && m.images.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        {m.images.map((src, idx) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={idx} src={src} alt="attachment" className="max-h-48 rounded-lg" />
+                        ))}
+                      </div>
+                    )}
+                    <div className={cn("mt-1 text-[10px]", fromAdmin ? "text-indigo-400" : "text-indigo-100/80")}>
+                      {new Date(m.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-indigo-100 px-4 py-3">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            disabled={sending}
+            placeholder="Type a message…"
+            aria-label="Message to support"
+            maxLength={2000}
+            className="flex-1 rounded-xl border border-indigo-200 bg-white/60 px-4 py-2 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
+          />
+          <button
+            onClick={send}
+            disabled={sending || !draft.trim()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition hover:shadow-lg hover:shadow-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {sending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />} Send
+          </button>
+        </div>
       </div>
     </Card>
   );
