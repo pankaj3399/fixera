@@ -435,6 +435,14 @@ function SupportChatTab() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const conversationIdRef = useRef<string | null>(null);
   const shouldStickToBottom = useRef(true);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -457,6 +465,7 @@ function SupportChatTab() {
 
   const loadMessages = useCallback(async (conversationId: string) => {
     const data = await fetchConversationMessages(conversationId, { limit: 100 });
+    if (!mountedRef.current) return;
     setMessages(data.messages);
     setConversation(data.conversation);
   }, []);
