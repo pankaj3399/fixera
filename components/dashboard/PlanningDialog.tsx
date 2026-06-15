@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { format, isValid, parseISO } from "date-fns"
+import { format, isValid, parseISO, addDays, differenceInCalendarDays } from "date-fns"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -43,6 +43,17 @@ interface PlanningDialogProps {
   onUpdated?: () => void | Promise<void>
 }
 
+const safeFormatDate = (dateStr?: string | null, pattern = "dd MMM yyyy", fallback = "Unscheduled"): string => {
+  if (!dateStr) return fallback
+  const d = parseISO(dateStr)
+  if (!isValid(d)) return fallback
+  try {
+    return format(d, pattern)
+  } catch {
+    return fallback
+  }
+}
+
 const toDateInput = (value?: string | null): string => {
   if (!value) return ""
   const d = parseISO(value)
@@ -60,7 +71,7 @@ const getDaysBetweenDates = (startStr: string, endStr: string): string[] => {
   let curr = new Date(start)
   while (curr <= end) {
     dates.push(format(curr, "yyyy-MM-dd"))
-    curr.setDate(curr.getDate() + 1)
+    curr = addDays(curr, 1)
   }
   return dates
 }
@@ -219,8 +230,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
     for (let i = 1; i < sorted.length; i++) {
       const dateA = parseISO(currentEnd)
       const dateB = parseISO(sorted[i])
-      const diffTime = Math.abs(dateB.getTime() - dateA.getTime())
-      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+      const diffDays = differenceInCalendarDays(dateB, dateA)
       
       if (diffDays === 1) {
         currentEnd = sorted[i]
@@ -294,9 +304,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
     const start = parseISO(timelineStart)
     if (!isValid(start)) return []
     for (let i = 0; i < 30; i++) {
-      const d = new Date(start)
-      d.setDate(d.getDate() + i)
-      dates.push(d)
+      dates.push(addDays(start, i))
     }
     return dates
   }, [timelineStart])
@@ -384,7 +392,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
               <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <span className="font-semibold">Planning window:</span> Starts on{" "}
-                <strong>{startDate ? format(new Date(startDate), "dd MMM yyyy") : "Unscheduled"}</strong>.
+                <strong>{safeFormatDate(startDate, "dd MMM yyyy", "Unscheduled")}</strong>.
                 {isInProgress && " Project is in progress: past days are locked and preserved automatically. You can schedule new days starting from today."}
               </div>
             </div>
@@ -488,10 +496,17 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                               const dateStr = format(date, "yyyy-MM-dd")
                               const isUnavailable = cand?.unavailableDates?.includes(dateStr)
                               const isPlanned = row.plannedDates.includes(dateStr)
+                              const isPastLocked = isInProgress && dateStr < todayStr
                               
                               let cellBg = "bg-white hover:bg-slate-50 active:bg-slate-100 cursor-pointer"
                               if (isUnavailable) {
                                 cellBg = "bg-sky-50 text-sky-800 cursor-not-allowed"
+                              } else if (isPastLocked) {
+                                if (isPlanned) {
+                                  cellBg = "bg-emerald-500/70 text-white cursor-not-allowed font-semibold opacity-80"
+                                } else {
+                                  cellBg = "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
+                                }
                               } else if (isPlanned) {
                                 cellBg = "bg-emerald-500 hover:bg-emerald-600 text-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] font-semibold"
                               } else if (date.getDay() === 0 || date.getDay() === 6) {
@@ -503,7 +518,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                                   key={dateStr}
                                   className={`border-r border-slate-200/50 p-0 text-center text-xs h-9 select-none transition-colors ${cellBg}`}
                                   onClick={() => {
-                                    if (isUnavailable) return
+                                    if (isUnavailable || isPastLocked) return
                                     togglePlannedDate(index, dateStr)
                                   }}
                                 >
@@ -558,9 +573,9 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 flex items-center justify-between gap-3">
               <div>
                 Project Timeline bounds:{" "}
-                <strong>{startDate ? format(new Date(startDate), "dd MMM yyyy") : "Unscheduled"}</strong>
+                <strong>{safeFormatDate(startDate, "dd MMM yyyy", "Unscheduled")}</strong>
                 {" → "}
-                <strong>{projectTimelineEnd ? format(new Date(projectTimelineEnd), "dd MMM yyyy") : "—"}</strong>
+                <strong>{safeFormatDate(projectTimelineEnd, "dd MMM yyyy", "Unscheduled")}</strong>
               </div>
               <div className="text-slate-400 font-medium">30 days grid</div>
             </div>
