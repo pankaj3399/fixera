@@ -545,6 +545,7 @@ export default function BookingTimelineBoard({
   const renderActionButtons = (booking: TimelineBooking) => {
     const btns: React.ReactNode[] = []
     const busy = submittingBookingId === booking._id
+    const isDaysMode = resolveIsDaysMode(booking)
 
     if (viewerRole === "professional" && booking.status === "booked") {
       btns.push(
@@ -553,11 +554,15 @@ export default function BookingTimelineBoard({
         </Button>,
         <Button key="reschedule" variant="outline" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => openDialog("reschedule", booking)}>
           <RefreshCw className="mr-1 h-3 w-3" />Reschedule
-        </Button>,
-        <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
-          <CalendarRange className="mr-1 h-3 w-3" />Planning
         </Button>
       )
+      if (isDaysMode) {
+        btns.push(
+          <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
+            <CalendarRange className="mr-1 h-3 w-3" />Planning
+          </Button>
+        )
+      }
       const hasMilestones = booking.milestonePayments && booking.milestonePayments.length > 0
       const next = getNextMilestone(booking)
       if (next) {
@@ -588,11 +593,13 @@ export default function BookingTimelineBoard({
           </Button>
         )
       }
-      btns.push(
-        <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
-          <CalendarRange className="mr-1 h-3 w-3" />Planning
-        </Button>
-      )
+      if (isDaysMode) {
+        btns.push(
+          <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
+            <CalendarRange className="mr-1 h-3 w-3" />Planning
+          </Button>
+        )
+      }
       if (!next) {
         btns.push(
           <Button
@@ -607,14 +614,6 @@ export default function BookingTimelineBoard({
           </Button>
         )
       }
-    }
-
-    if (viewerRole === "professional" && booking.status === "professional_completed") {
-      btns.push(
-        <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
-          <CalendarRange className="mr-1 h-3 w-3" />Planning
-        </Button>
-      )
     }
 
     if (viewerRole === "customer" && booking.status === "rescheduling_requested") {
