@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertTriangle, CheckCircle, Loader2, MessageSquare, Paperclip, RefreshCw, Scale, Shield, Upload, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle, Loader2, MessageSquare, Paperclip, RefreshCw, Scale, Shield, Upload, XCircle, X } from "lucide-react"
 import { toast } from "sonner"
 import { type WarrantyClaimStatus, STATUS_LABELS as WARRANTY_STATUS_LABELS } from "@/lib/warrantyClaim"
 
@@ -38,6 +38,7 @@ type DisputeType =
 interface DisputeBooking {
   _id: string
   bookingNumber: string
+  claimNumber?: string
   status: string
   customer?: { _id: string; name?: string; email?: string }
   professional?: { _id: string; name?: string; email?: string; username?: string }
@@ -214,6 +215,9 @@ export default function AdminDisputesPage() {
   const [externalResolveDate, setExternalResolveDate] = useState('')
   const [externalWarrantyStatus, setExternalWarrantyStatus] = useState<WarrantyClaimStatus>('closed')
   const [externalResolving, setExternalResolving] = useState(false)
+  const [externalAttachments, setExternalAttachments] = useState<string[]>([])
+  const [uploadingExternalAttachment, setUploadingExternalAttachment] = useState(false)
+  const externalFileInputRef = useRef<HTMLInputElement>(null)
 
   const selectedDisputeType: DisputeType = useMemo(() => {
     return (selectedDispute?.dispute?.type as DisputeType | undefined) ?? 'extra_costs'
@@ -352,6 +356,7 @@ export default function AdminDisputesPage() {
       dispute.dispute?.proposedResolveDate ? String(dispute.dispute.proposedResolveDate).slice(0, 10) : ''
     )
     setExternalWarrantyStatus('closed')
+    setExternalAttachments([])
   }, [])
 
   const parseExternalId = (rawId: string): string | null => {
@@ -386,7 +391,7 @@ export default function AdminDisputesPage() {
             return
           }
           endpoint = `/api/warranty-claims/admin/${realId}/decline`
-          payload = { reason: note }
+          payload = { reason: note, ...(externalAttachments.length > 0 ? { attachments: externalAttachments } : {}) }
           successMessage = 'Warranty claim declined and closed'
         } else if (externalAction === 'status') {
           endpoint = `/api/warranty-claims/admin/${realId}/status`
@@ -397,15 +402,16 @@ export default function AdminDisputesPage() {
           payload = {
             ...(note ? { resolveDescription: note } : {}),
             ...(externalResolveDate ? { resolveByDate: externalResolveDate } : {}),
+            ...(externalAttachments.length > 0 ? { attachments: externalAttachments } : {}),
           }
           successMessage = 'Resolution adjusted and marked resolved'
         } else if (isResolveProposal) {
           endpoint = `/api/warranty-claims/admin/${realId}/approve-resolve`
-          payload = {}
+          payload = { ...(externalAttachments.length > 0 ? { attachments: externalAttachments } : {}) }
           successMessage = 'Proposed resolution approved'
         } else {
           endpoint = `/api/warranty-claims/admin/${realId}/approve`
-          payload = { ...(note ? { note } : {}) }
+          payload = { ...(note ? { note } : {}), ...(externalAttachments.length > 0 ? { attachments: externalAttachments } : {}) }
           successMessage = 'Warranty claim approved'
         }
 
@@ -425,9 +431,13 @@ export default function AdminDisputesPage() {
             toast.error('A deny reason is required')
             return
           }
+          const body: Record<string, unknown> = {
+            denyReason: externalNote.trim(),
+            ...(externalAttachments.length > 0 ? { attachments: externalAttachments } : {})
+          }
           const res = await authFetch(
             `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/cancellation-requests/${realId}/deny`,
-            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ denyReason: externalNote.trim() }) }
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
           )
           const json = await res.json()
           if (!res.ok || !json?.success) {
@@ -461,6 +471,12 @@ export default function AdminDisputesPage() {
             }
             approveBody = { amount: parsedAmount }
           }
+          if (externalNote.trim()) {
+            approveBody.note = externalNote.trim()
+          }
+          if (externalAttachments.length > 0) {
+            approveBody.attachments = externalAttachments
+          }
           const res = await authFetch(
             `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/cancellation-requests/${realId}/approve`,
             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(approveBody) }
@@ -487,7 +503,41 @@ export default function AdminDisputesPage() {
     } finally {
       setExternalResolving(false)
     }
-  }, [externalDispute, externalAction, externalNote, externalAmount, externalResolveDate, externalWarrantyStatus, fetchDisputes, fetchAnalytics])
+  }, [externalDispute, externalAction, externalNote, externalAmount, externalResolveDate, externalWarrantyStatus, externalAttachments, fetchDisputes, fetchAnalytics])
+
+  const handleUploadExternalAttachment = useCallback(async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return
+    setUploadingExternalAttachment(true)
+    try {
+      const formData = new FormData()
+      Array.from(fileList).forEach((file) => formData.append('files', file))
+
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes/upload-attachment`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: formData,
+      })
+      const json = await res.json()
+      if (!res.ok || !json?.success) {
+        toast.error(json?.error?.message || 'Failed to upload attachment(s)')
+        return
+      }
+      const urls: string[] = (json.data?.files || []).map((f: { url: string }) => f.url)
+      setExternalAttachments((prev) => [...prev, ...urls])
+      toast.success(`Uploaded ${urls.length} file${urls.length === 1 ? '' : 's'}`)
+    } catch (e) {
+      console.error('external attachment upload failed', e)
+      toast.error('Failed to upload attachment(s)')
+    } finally {
+      setUploadingExternalAttachment(false)
+      if (externalFileInputRef.current) externalFileInputRef.current.value = ''
+    }
+  }, [])
 
   const handleUploadAttachment = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
@@ -835,6 +885,41 @@ export default function AdminDisputesPage() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                <div className="flex flex-wrap gap-2 py-1">
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    onClick={() => viewCustomerProChat(selectedDispute)}
+                  >
+                    <MessageSquare className="h-3 w-3 mr-1" />
+                    View customer↔pro chat
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    disabled={startingChatFor === `${selectedDispute._id}:customer` || !selectedDispute.customer?._id}
+                    onClick={() => startSupportChat(selectedDispute, 'customer')}
+                  >
+                    {startingChatFor === `${selectedDispute._id}:customer` ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                    Open dispute chat with customer
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    disabled={startingChatFor === `${selectedDispute._id}:professional` || !selectedDispute.professional?._id}
+                    onClick={() => startSupportChat(selectedDispute, 'professional')}
+                  >
+                    {startingChatFor === `${selectedDispute._id}:professional` ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                    Open dispute chat with professional
+                  </Button>
                 </div>
 
                 {selectedDisputeType === 'extra_costs' && selectedDispute.extraCosts && selectedDispute.extraCosts.length > 0 && (
@@ -1290,6 +1375,9 @@ export default function AdminDisputesPage() {
                     {externalDispute.dispute?.type === 'warranty_resolve' ? 'Resolve proposal' : 'Warranty claim'}
                     {externalDispute.claimStatus ? ` · ${externalDispute.claimStatus.replace(/_/g, ' ')}` : ''}
                   </p>
+                  {externalDispute.claimNumber && (
+                    <p><span className="text-gray-500">WC number:</span> {externalDispute.claimNumber}</p>
+                  )}
                   <p>
                     <span className="text-gray-500">Project warranty duration:</span>{' '}
                     {externalDispute.warrantyCoverage?.duration?.value != null && externalDispute.warrantyCoverage?.duration?.unit
@@ -1315,6 +1403,41 @@ export default function AdminDisputesPage() {
                       <p><span className="text-gray-500">Proposed resolve date:</span> {formatDateOnly(externalDispute.dispute?.proposedResolveDate)}</p>
                     </>
                   )}
+                </div>
+
+                <div className="flex flex-wrap gap-2 py-1">
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    onClick={() => viewCustomerProChat(externalDispute)}
+                  >
+                    <MessageSquare className="h-3 w-3 mr-1" />
+                    View customer↔pro chat
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    disabled={startingChatFor === `${externalDispute._id}:customer` || !externalDispute.customer?._id}
+                    onClick={() => startSupportChat(externalDispute, 'customer')}
+                  >
+                    {startingChatFor === `${externalDispute._id}:customer` ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                    Open dispute chat with customer
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    disabled={startingChatFor === `${externalDispute._id}:professional` || !externalDispute.professional?._id}
+                    onClick={() => startSupportChat(externalDispute, 'professional')}
+                  >
+                    {startingChatFor === `${externalDispute._id}:professional` ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                    Open dispute chat with professional
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
@@ -1390,11 +1513,59 @@ export default function AdminDisputesPage() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Resolution Attachments (optional)</Label>
+                    {externalAttachments.length > 0 && (
+                      <span className="text-xs text-gray-500">{externalAttachments.length} attached</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingExternalAttachment}
+                      onClick={() => externalFileInputRef.current?.click()}
+                    >
+                      {uploadingExternalAttachment ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Paperclip className="h-3 w-3 mr-1" />}
+                      Upload files
+                    </Button>
+                    <input
+                      type="file"
+                      ref={externalFileInputRef}
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleUploadExternalAttachment(e.target.files)}
+                    />
+                  </div>
+                  {externalAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {externalAttachments.map((url) => (
+                        <div key={url} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1 text-xs text-gray-700">
+                          <span className="truncate max-w-[150px]">{fileNameFromUrl(url)}</span>
+                          <button
+                            type="button"
+                            className="text-red-500 hover:text-red-700"
+                            onClick={() => setExternalAttachments((prev) => prev.filter((u) => u !== url))}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" onClick={() => setExternalDispute(null)}>Cancel</Button>
                   <Button
                     onClick={handleResolveExternal}
-                    disabled={externalResolving || (externalAction === 'decline' && !externalNote.trim())}
+                    disabled={
+                      externalResolving ||
+                      uploadingExternalAttachment ||
+                      (externalAction === 'decline' && !externalNote.trim())
+                    }
                   >
                     {externalResolving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Apply
@@ -1428,6 +1599,41 @@ export default function AdminDisputesPage() {
                       ? `${externalDispute.payment?.currency || 'EUR'} ${externalDispute.dispute.negotiationAmount.toFixed(2)}`
                       : '—'}
                   </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 py-1">
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    onClick={() => viewCustomerProChat(externalDispute)}
+                  >
+                    <MessageSquare className="h-3 w-3 mr-1" />
+                    View customer↔pro chat
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    disabled={startingChatFor === `${externalDispute._id}:customer` || !externalDispute.customer?._id}
+                    onClick={() => startSupportChat(externalDispute, 'customer')}
+                  >
+                    {startingChatFor === `${externalDispute._id}:customer` ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                    Open dispute chat with customer
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    disabled={startingChatFor === `${externalDispute._id}:professional` || !externalDispute.professional?._id}
+                    onClick={() => startSupportChat(externalDispute, 'professional')}
+                  >
+                    {startingChatFor === `${externalDispute._id}:professional` ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                    Open dispute chat with professional
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
@@ -1470,6 +1676,20 @@ export default function AdminDisputesPage() {
                   </div>
                 )}
 
+                {(externalAction === 'approve' || externalAction === 'adjust') && (
+                  <div className="space-y-2">
+                    <Label>Resolution note (optional)</Label>
+                    <Textarea
+                      value={externalNote}
+                      onChange={(e) => setExternalNote(e.target.value)}
+                      placeholder={externalAction === 'adjust'
+                        ? 'Describe the custom refund resolution details...'
+                        : 'Explain the approval resolution details...'}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+                )}
+
                 {externalAction === 'decline' && (
                   <div className="space-y-2">
                     <Label>Deny reason (required)</Label>
@@ -1482,12 +1702,57 @@ export default function AdminDisputesPage() {
                   </div>
                 )}
 
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Resolution Attachments (optional)</Label>
+                    {externalAttachments.length > 0 && (
+                      <span className="text-xs text-gray-500">{externalAttachments.length} attached</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingExternalAttachment}
+                      onClick={() => externalFileInputRef.current?.click()}
+                    >
+                      {uploadingExternalAttachment ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Paperclip className="h-3 w-3 mr-1" />}
+                      Upload files
+                    </Button>
+                    <input
+                      type="file"
+                      ref={externalFileInputRef}
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleUploadExternalAttachment(e.target.files)}
+                    />
+                  </div>
+                  {externalAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {externalAttachments.map((url) => (
+                        <div key={url} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1 text-xs text-gray-700">
+                          <span className="truncate max-w-[150px]">{fileNameFromUrl(url)}</span>
+                          <button
+                            type="button"
+                            className="text-red-500 hover:text-red-700"
+                            onClick={() => setExternalAttachments((prev) => prev.filter((u) => u !== url))}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" onClick={() => setExternalDispute(null)}>Cancel</Button>
                   <Button
                     onClick={handleResolveExternal}
                     disabled={
                       externalResolving ||
+                      uploadingExternalAttachment ||
                       (externalAction === 'adjust' && !externalAmount.trim()) ||
                       (externalAction === 'decline' && !externalNote.trim())
                     }
