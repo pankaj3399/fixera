@@ -16,6 +16,7 @@ import { format, addDays, parseISO, startOfDay, isWeekend as dateFnsIsWeekend, e
 import { formatInTimeZone } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
+import { trackBeginCheckout, trackEvent } from '@/lib/analytics';
 
 interface BookingPayment {
   stripeClientSecret?: string;
@@ -627,6 +628,9 @@ export default function BookingPaymentPage() {
 
         if (data.data?.clientSecret) {
           setClientSecret(data.data.clientSecret);
+          if (nextBooking) {
+            trackBeginCheckout(currentBookingId, nextBooking);
+          }
           return { ok: true, booking: nextBooking };
         }
 
@@ -746,6 +750,7 @@ export default function BookingPaymentPage() {
         if (paymentStatus === 'pending') {
           setClientSecret(bookingInfo.payment.stripeClientSecret);
           setInitializingPayment(false);
+          trackBeginCheckout(currentBookingId, bookingInfo);
           return;
         }
       }
@@ -813,6 +818,14 @@ export default function BookingPaymentPage() {
       const data = await response.json();
 
       if (data.success) {
+        if (booking) {
+          trackEvent('payment_authorized', {
+            booking_id: bookingId,
+            transaction_id: booking.bookingNumber || bookingId,
+            value: booking.payment?.totalWithVat ?? booking.payment?.netAmount ?? booking.quote?.amount ?? 0,
+            currency: (booking.payment?.currency || booking.quote?.currency || 'EUR').toUpperCase(),
+          });
+        }
         // Redirect to success page
         router.push(`/bookings/${bookingId}/payment/success`);
       } else {

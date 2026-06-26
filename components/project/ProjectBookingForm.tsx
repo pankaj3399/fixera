@@ -38,6 +38,7 @@ import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricin
 import { getAuthToken } from '@/lib/utils';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
+import { trackBeginCheckout, trackCompleteRfq, trackEvent } from '@/lib/analytics';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -2216,6 +2217,20 @@ export default function ProjectBookingForm({
 
         if (response.ok && data.success) {
           if (shouldPayAtCheckout && data.booking?._id) {
+            trackBeginCheckout(data.booking._id, {
+              bookingNumber: data.booking.bookingNumber,
+              payment: {
+                currency: 'EUR',
+                totalWithVat: totalPrice,
+              },
+              quote: {
+                amount: totalPrice,
+                currency: 'EUR',
+                description: serviceDescription,
+              },
+              project,
+              selectedSubprojectIndex: selectedPackageIndex,
+            });
             router.replace(`/bookings/${data.booking._id}/payment`);
             return;
           }
@@ -2223,10 +2238,20 @@ export default function ProjectBookingForm({
           const isRfq = selectedPackage?.pricing?.type === 'rfq';
 
           if (isRfq) {
+            trackCompleteRfq(project, data.booking?._id, selectedPackageIndex);
             toast.success('Your quotation request has been submitted successfully! The professional will review your request and provide a quote.');
             router.replace('/dashboard');
             return;
           }
+
+          trackEvent('booking_request_submitted', {
+            project_id: project._id,
+            project_category: project.category,
+            project_service: project.service,
+            booking_id: data.booking?._id,
+            value: totalPrice,
+            currency: 'EUR',
+          });
 
           if (
             project.postBookingQuestions &&

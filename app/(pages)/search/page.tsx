@@ -12,6 +12,7 @@ import SearchFilters, { type SearchFiltersState, type ProjectFacetCounts } from 
 import { useFilterOptions } from '@/hooks/useFilterOptions';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
+import { trackProjectSearch } from '@/lib/analytics';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
 type ProjectResult = ComponentProps<typeof ProjectCard>['project'];
@@ -34,6 +35,26 @@ const incrementFacetCount = (target: Record<string, number>, rawValue?: string |
   const normalized = normalizeText(rawValue);
   if (!normalized) return;
   target[normalized] = (target[normalized] || 0) + 1;
+};
+
+const countActiveFilters = (filters: SearchFiltersState): number => {
+  return [
+    filters.priceMin,
+    filters.priceMax,
+    filters.category,
+    filters.availability,
+    filters.geographicArea,
+    filters.minProjectRating > 0,
+    filters.services.length > 0,
+    filters.priceModel.length > 0,
+    filters.projectTypes.length > 0,
+    filters.includedItems.length > 0,
+    filters.areasOfWork.length > 0,
+    Boolean(filters.startDateFrom),
+    Boolean(filters.startDateTo),
+    filters.professionalLevels.length > 0,
+    filters.adminTags.length > 0,
+  ].filter(Boolean).length;
 };
 
 const buildProjectFacets = (projects: ProjectResult[]): ProjectFacetCounts => {
@@ -451,6 +472,14 @@ function SearchPageContent() {
       }
       setResults(data.results ?? []);
       setPagination((prev) => data.pagination ?? prev);
+      trackProjectSearch({
+        searchType,
+        query: filters.query,
+        location: filters.location || filters.geographicArea,
+        resultsCount: data.pagination?.total ?? data.results?.length ?? 0,
+        page: pagination.page,
+        filtersCount: countActiveFilters(filters),
+      });
       if (searchType === 'projects' && data.results?.length) {
         const priceModelsOnPage = data.results.map((project) => {
           const projectData = project as ProjectResult;

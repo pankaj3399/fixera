@@ -61,6 +61,7 @@ import {
   formatAdminTagLabel,
   formatResponseTime,
 } from '@/lib/professionalLevel';
+import { trackBeginRfq, trackEvent, trackProfessionalContact, trackProjectView } from '@/lib/analytics';
 
 interface ScheduleProposalsResponse {
   success: boolean;
@@ -418,6 +419,7 @@ export default function ProjectDetailPage() {
 
       if (data.success) {
         setProject(data.project);
+        trackProjectView(data.project);
       } else {
         toast.error('Project not found');
         router.push('/search');
@@ -450,6 +452,8 @@ export default function ProjectDetailPage() {
   };
 
   const handleSelectPackage = (index: number) => {
+    if (!project) return;
+
     if (!isAuthenticated) {
       toast.error('Please sign in to book this project');
       router.push(`/login?redirect=/projects/${projectId}`);
@@ -461,11 +465,26 @@ export default function ProjectDetailPage() {
       return;
     }
 
+    const selectedPackage = project.subprojects[index];
+    if (selectedPackage?.pricing?.type === 'rfq') {
+      trackBeginRfq(project, index);
+    } else {
+      trackEvent('begin_booking', {
+        project_id: project._id,
+        project_category: project.category,
+        project_service: project.service,
+        package_index: index,
+        package_type: selectedPackage?.pricing?.type || 'unknown',
+      });
+    }
+
     setSelectedSubprojectIndex(index);
     setShowBookingForm(true);
   };
 
   const handleContactProfessional = () => {
+    if (!project) return;
+
     const profId = project?.professionalId?._id;
     if (!profId) return;
 
@@ -484,6 +503,7 @@ export default function ProjectDetailPage() {
       return;
     }
 
+    trackProfessionalContact(project);
     emitChatWidgetOpen({ open: true, professionalId: profId });
   };
 
@@ -1360,4 +1380,3 @@ export default function ProjectDetailPage() {
     </div >
   );
 }
-

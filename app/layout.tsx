@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ChatWidget from "@/components/chat/ChatWidget";
 import CookieConsent from "@/components/cookie-consent/CookieConsent";
+import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
@@ -65,6 +66,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <JsonLd data={[organizationSchema(), websiteSchema()]} />
+        <AnalyticsProvider />
         <AuthProvider>
           <Navbar/>
           <SubNavbar />

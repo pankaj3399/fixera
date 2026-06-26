@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { ProjectDto } from '@/types/project';
+import { trackCompleteBooking } from '@/lib/analytics';
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 if (!API_URL && process.env.NODE_ENV !== 'production') {
@@ -23,9 +24,19 @@ interface BookingPayment {
 interface Booking {
   bookingNumber?: string;
   payment?: BookingPayment;
+  quote?: {
+    amount?: number;
+    currency?: string;
+    description?: string;
+  };
   project?: {
+    _id?: string;
+    title?: string;
+    category?: string;
+    service?: string;
     postBookingQuestions?: ProjectDto['postBookingQuestions'];
   };
+  selectedSubprojectIndex?: number;
 }
 
 export default function PaymentSuccessPage() {
@@ -54,6 +65,7 @@ export default function PaymentSuccessPage() {
       }
 
       if (data?.success && data.booking) {
+        trackCompleteBooking(bookingId, data.booking);
         const hasQuestions =
           Array.isArray(data.booking.project?.postBookingQuestions) &&
           data.booking.project.postBookingQuestions.length > 0;
