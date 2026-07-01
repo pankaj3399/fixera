@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/generate-fcm-sw-config.mjs && next dev",
+    "build": "node scripts/generate-fcm-sw-config.mjs && next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -42,6 +42,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
+    "firebase": "^12.15.0",
     "html2canvas-pro": "^2.0.2",
     "input-otp": "^1.4.2",
     "jose": "^6.0.12",

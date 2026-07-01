@@ -8,6 +8,7 @@ import { Menu, X, Hammer, User, LogOut, MessageSquare, LifeBuoy, Heart } from "l
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useAdminUnreadCount } from "@/hooks/useAdminUnreadCount";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -127,6 +128,7 @@ const Navbar = () => {
                           )}
                         </Link>
                       )}
+                      <NotificationBell />
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="relative h-8 w-8 rounded-full">

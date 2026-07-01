@@ -12,6 +12,7 @@ import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
+import FCMLayoutWrapper from "@/components/notifications/FCMLayoutWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -68,15 +69,17 @@ export default function RootLayout({
         <JsonLd data={[organizationSchema(), websiteSchema()]} />
         <AnalyticsProvider />
         <AuthProvider>
-          <Navbar/>
-          <SubNavbar />
-          <main className="flex flex-col min-h-screen">
-            <Toaster></Toaster>
-            {children}
-          </main>
-          <ChatWidget />
-          <Footer />
-          <CookieConsent />
+          <FCMLayoutWrapper>
+            <Navbar/>
+            <SubNavbar />
+            <main className="flex flex-col min-h-screen">
+              <Toaster></Toaster>
+              {children}
+            </main>
+            <ChatWidget />
+            <Footer />
+            <CookieConsent />
+          </FCMLayoutWrapper>
         </AuthProvider>
       </body>
     </html>
