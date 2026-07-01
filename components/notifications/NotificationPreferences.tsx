@@ -63,7 +63,7 @@ const TYPE_META: { type: NotificationType; label: string; desc: string; icon: Re
 // Helpers
 // ------------------------------------------------------------------
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? '').replace(/\/+$/, '');
 
 async function fetchPrefs(): Promise<Preferences | null> {
   const token = getAuthToken();

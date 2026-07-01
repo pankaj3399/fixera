@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env
+.env.local
+
+# Generated at build/dev from NEXT_PUBLIC_FIREBASE_* — never commit (contains project config from .env)
+/public/firebase-messaging-sw-config.js
 
 # vercel
 .vercel
@@ -42,4 +46,3 @@ next-env.d.ts
 nul
 package-lock.json
 /seo.md
-.env.local

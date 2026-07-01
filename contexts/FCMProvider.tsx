@@ -34,7 +34,7 @@ export const useFCM = () => useContext(FCMContext);
 // Helpers
 // ------------------------------------------------------------------
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? '').replace(/\/+$/, '');
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? '';
 
 async function saveTokenToServer(token: string): Promise<void> {
@@ -46,7 +46,7 @@ async function saveTokenToServer(token: string): Promise<void> {
     method: 'POST',
     credentials: 'include',
     headers,
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token, origin: window.location.origin }),
   });
 
   if (!response.ok) {
@@ -128,9 +128,9 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
   // ------------------------------------------------------------------
   // Obtain FCM token
   // ------------------------------------------------------------------
-  const obtainToken = useCallback(async (swReg: ServiceWorkerRegistration) => {
+  const obtainToken = useCallback(async (swReg: ServiceWorkerRegistration): Promise<boolean> => {
     const messaging = getFirebaseMessaging();
-    if (!messaging) return;
+    if (!messaging) return false;
 
     try {
       const token = await getToken(messaging, {
@@ -138,13 +138,17 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
         serviceWorkerRegistration: swReg,
       });
 
-      if (token && token !== currentToken.current) {
+      if (!token) return false;
+
+      if (token !== currentToken.current) {
         await saveTokenToServer(token);
         currentToken.current = token;
         setFcmToken(token);
       }
+      return true;
     } catch (err) {
       console.warn('[FCM] Failed to obtain token:', err);
+      return false;
     }
   }, []);
 
@@ -152,9 +156,9 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
     const swReg = await registerServiceWorker();
     if (!swReg) return false;
 
-    await obtainToken(swReg);
-    setPermissionGranted(true);
-    return true;
+    const ready = await obtainToken(swReg);
+    if (ready) setPermissionGranted(true);
+    return ready;
   }, [obtainToken]);
 
   // ------------------------------------------------------------------
