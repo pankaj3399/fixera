@@ -1462,6 +1462,13 @@ export default function ProfilePage() {
     }
   }, [searchParams, user?.role])
 
+  const handleProfileTabChange = useCallback((value: string) => {
+    setProfileTab(value)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', value)
+    router.replace(`/profile?${params.toString()}`, { scroll: false })
+  }, [router, searchParams])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -1597,7 +1604,7 @@ export default function ProfilePage() {
         </div>
 
         {isProfessional ? (
-          <Tabs value={profileTab} onValueChange={setProfileTab} className="w-full">
+          <Tabs value={profileTab} onValueChange={handleProfileTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-9">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="business">Business Info</TabsTrigger>
@@ -2700,7 +2707,7 @@ export default function ProfilePage() {
           </Tabs >
         ) : (
           // Non-professional users (customers, employees, etc.)
-          <Tabs value={profileTab} onValueChange={setProfileTab} className="w-full">
+          <Tabs value={profileTab} onValueChange={handleProfileTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>

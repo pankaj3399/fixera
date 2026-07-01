@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Bell } from 'lucide-react';
 import { useFCM } from '@/contexts/FCMProvider';
 
@@ -16,7 +17,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) =
   const { unreadPushCount } = useFCM();
 
   return (
-    <a
+    <Link
       id="notification-bell"
       href="/profile?tab=notifications"
       aria-label={`Notifications${unreadPushCount > 0 ? ` (${unreadPushCount} unread)` : ''}`}
@@ -31,7 +32,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) =
           {unreadPushCount > 99 ? '99+' : unreadPushCount}
         </span>
       )}
-    </a>
+    </Link>
   );
 };
 

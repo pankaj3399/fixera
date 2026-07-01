@@ -20,7 +20,7 @@ const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : get
  */
 export function getFirebaseMessaging(): Messaging | null {
   if (typeof window === 'undefined') return null;
-  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     console.warn('Firebase config missing – push notifications disabled');
     return null;
   }

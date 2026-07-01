@@ -1,6 +1,15 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
+import { useRouter } from 'next/navigation';
 import { getToken, onMessage, deleteToken } from 'firebase/messaging';
 import { toast } from 'sonner';
 import { firebaseConfig, getFirebaseMessaging } from '@/lib/firebase';
@@ -11,13 +20,9 @@ import { getAuthToken } from '@/lib/utils';
 // ------------------------------------------------------------------
 
 interface FCMContextValue {
-  /** Whether the browser has granted notification permission */
   permissionGranted: boolean;
-  /** The current FCM registration token (if obtained) */
   fcmToken: string | null;
-  /** Manually request notification permission */
   requestPermission: () => Promise<boolean>;
-  /** Number of unread push notifications (resets on page focus) */
   unreadPushCount: number;
 }
 
@@ -36,13 +41,30 @@ export const useFCM = () => useContext(FCMContext);
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? '').replace(/\/+$/, '');
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? '';
+const FETCH_TIMEOUT_MS = 15_000;
+const SW_ACTIVATION_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('FCM token request timed out');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 async function saveTokenToServer(token: string): Promise<void> {
   const authToken = getAuthToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const response = await fetch(`${BACKEND_URL}/api/user/fcm/token`, {
+  const response = await fetchWithTimeout(`${BACKEND_URL}/api/user/fcm/token`, {
     method: 'POST',
     credentials: 'include',
     headers,
@@ -57,9 +79,9 @@ async function saveTokenToServer(token: string): Promise<void> {
 async function removeTokenFromServer(token: string): Promise<void> {
   const authToken = getAuthToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const response = await fetch(`${BACKEND_URL}/api/user/fcm/token`, {
+  const response = await fetchWithTimeout(`${BACKEND_URL}/api/user/fcm/token`, {
     method: 'DELETE',
     credentials: 'include',
     headers,
@@ -76,7 +98,10 @@ function injectFirebaseConfigIntoSw(worker: ServiceWorker | null): void {
   worker.postMessage({ type: 'FIREBASE_CONFIG', config: firebaseConfig });
 }
 
-async function waitForActiveWorker(reg: ServiceWorkerRegistration): Promise<ServiceWorker | null> {
+async function waitForActiveWorker(
+  reg: ServiceWorkerRegistration,
+  timeoutMs = SW_ACTIVATION_TIMEOUT_MS,
+): Promise<ServiceWorker | null> {
   if (reg.active) return reg.active;
 
   const worker = reg.installing ?? reg.waiting;
@@ -85,10 +110,24 @@ async function waitForActiveWorker(reg: ServiceWorkerRegistration): Promise<Serv
   return new Promise((resolve) => {
     const onStateChange = () => {
       if (worker.state === 'activated') {
-        worker.removeEventListener('statechange', onStateChange);
+        cleanup();
         resolve(reg.active);
+      } else if (worker.state === 'redundant') {
+        cleanup();
+        resolve(null);
       }
     };
+
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      resolve(reg.active);
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      worker.removeEventListener('statechange', onStateChange);
+    };
+
     worker.addEventListener('statechange', onStateChange);
   });
 }
@@ -108,26 +147,36 @@ async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null
   }
 }
 
+function navigateToUrl(router: ReturnType<typeof useRouter>, url: string): void {
+  try {
+    const target = new URL(url, window.location.origin);
+    if (target.origin === window.location.origin) {
+      router.push(`${target.pathname}${target.search}${target.hash}`);
+      return;
+    }
+  } catch {
+    // fall through
+  }
+  window.location.href = url;
+}
+
 // ------------------------------------------------------------------
 // Provider
 // ------------------------------------------------------------------
 
 interface FCMProviderProps {
-  /** Set to true only when the user is authenticated */
   isAuthenticated: boolean;
   children: React.ReactNode;
 }
 
 export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, children }) => {
+  const router = useRouter();
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const [unreadPushCount, setUnreadPushCount] = useState(0);
   const initialised = useRef(false);
   const currentToken = useRef<string | null>(null);
 
-  // ------------------------------------------------------------------
-  // Obtain FCM token
-  // ------------------------------------------------------------------
   const obtainToken = useCallback(async (swReg: ServiceWorkerRegistration): Promise<boolean> => {
     const messaging = getFirebaseMessaging();
     if (!messaging) return false;
@@ -161,9 +210,6 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
     return ready;
   }, [obtainToken]);
 
-  // ------------------------------------------------------------------
-  // Request permission imperatively (called by UI prompt)
-  // ------------------------------------------------------------------
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (typeof window === 'undefined' || !('Notification' in window)) return false;
 
@@ -179,9 +225,6 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
     return false;
   }, [bootstrapFcm]);
 
-  // ------------------------------------------------------------------
-  // Initialise on first mount (when user is authenticated)
-  // ------------------------------------------------------------------
   useEffect(() => {
     if (!isAuthenticated) return;
     if (initialised.current) return;
@@ -195,12 +238,9 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
       }
     };
 
-    init();
+    void init();
   }, [isAuthenticated, bootstrapFcm]);
 
-  // ------------------------------------------------------------------
-  // Foreground message listener
-  // ------------------------------------------------------------------
   useEffect(() => {
     if (!permissionGranted) return;
 
@@ -214,60 +254,67 @@ export const FCMProvider: React.FC<FCMProviderProps> = ({ isAuthenticated, child
 
       setUnreadPushCount((n) => n + 1);
 
-      // Show an in-app toast that acts as the foreground notification
       toast(title, {
         description: body,
         duration: 6000,
         action: {
           label: 'View',
-          onClick: () => { window.location.href = url; },
+          onClick: () => navigateToUrl(router, url),
         },
       });
     });
 
     return unsubscribe;
-  }, [permissionGranted]);
+  }, [permissionGranted, router]);
 
-  // Reset badge count when window is focused
   useEffect(() => {
     const onFocus = () => setUnreadPushCount(0);
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, []);
 
-  // Remove token when user logs out
   useEffect(() => {
-    if (!isAuthenticated && currentToken.current) {
-      const token = currentToken.current;
+    if (isAuthenticated) return;
 
-      const cleanup = async () => {
-        try {
-          await removeTokenFromServer(token);
-        } catch (err) {
-          console.warn('[FCM] Failed to remove token from server:', err);
-        }
+    initialised.current = false;
+    setPermissionGranted(false);
 
-        const messaging = getFirebaseMessaging();
-        if (messaging) {
-          try {
-            await deleteToken(messaging);
-          } catch (err) {
-            console.warn('[FCM] Failed to delete browser token:', err);
-          }
-        }
-
-        currentToken.current = null;
-        setFcmToken(null);
-        setPermissionGranted(false);
-        initialised.current = false;
-      };
-
-      void cleanup();
+    const token = currentToken.current;
+    if (!token) {
+      setFcmToken(null);
+      return;
     }
+
+    const cleanup = async () => {
+      try {
+        await removeTokenFromServer(token);
+      } catch (err) {
+        console.warn('[FCM] Failed to remove token from server:', err);
+      }
+
+      const messaging = getFirebaseMessaging();
+      if (messaging) {
+        try {
+          await deleteToken(messaging);
+        } catch (err) {
+          console.warn('[FCM] Failed to delete browser token:', err);
+        }
+      }
+
+      currentToken.current = null;
+      setFcmToken(null);
+    };
+
+    void cleanup();
   }, [isAuthenticated]);
 
+  const contextValue = useMemo(
+    () => ({ permissionGranted, fcmToken, requestPermission, unreadPushCount }),
+    [permissionGranted, fcmToken, requestPermission, unreadPushCount],
+  );
+
   return (
-    <FCMContext.Provider value={{ permissionGranted, fcmToken, requestPermission, unreadPushCount }}>
+    <FCMContext.Provider value={contextValue}>
       {children}
     </FCMContext.Provider>
   );

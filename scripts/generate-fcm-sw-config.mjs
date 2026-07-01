@@ -6,7 +6,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function loadEnv() {
   const env = {};
-  for (const file of ['.env.local', '.env']) {
+  for (const file of ['.env', '.env.local']) {
     const path = resolve(root, file);
     if (!existsSync(path)) continue;
     for (const line of readFileSync(path, 'utf8').split('\n')) {
@@ -45,7 +45,7 @@ const config = {
 const isProductionBuild =
   process.env.VERCEL === '1' ||
   process.env.CI === 'true' ||
-  process.argv.includes('build');
+  process.env.npm_lifecycle_event === 'build';
 
 const missing = REQUIRED_KEYS.filter((key) => !envVar(key));
 if (isProductionBuild && missing.length > 0) {

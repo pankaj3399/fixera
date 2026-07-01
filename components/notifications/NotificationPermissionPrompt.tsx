@@ -95,6 +95,7 @@ const NotificationPermissionPrompt: React.FC = () => {
       <div className="flex items-center gap-2 shrink-0">
         <button
           id="fcm-enable-btn"
+          type="button"
           onClick={handleAllow}
           disabled={requesting}
           className="rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all text-white text-xs font-medium px-3.5 py-2 disabled:opacity-60"
@@ -103,6 +104,7 @@ const NotificationPermissionPrompt: React.FC = () => {
         </button>
         <button
           id="fcm-dismiss-btn"
+          type="button"
           onClick={handleDismiss}
           aria-label="Dismiss"
           className="rounded-lg p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
