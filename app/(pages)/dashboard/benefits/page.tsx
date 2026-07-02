@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -96,6 +96,37 @@ export default function BenefitsPage() {
       router.push("/login?redirect=/dashboard/benefits")
     }
   }, [isAuthenticated, loading, router])
+
+  const refreshBenefitsSummary = useCallback(async () => {
+    if (!user || (user.role !== "customer" && user.role !== "professional")) return
+
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+    const benefitsEndpoint =
+      user.role === "customer"
+        ? "/api/user/loyalty/status"
+        : "/api/user/professional-level"
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${benefitsEndpoint}`, {
+        credentials: "include",
+        headers,
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok || !payload?.success) return
+
+      if (user.role === "customer") {
+        setCustomerData(payload.data ?? null)
+        setProfessionalData(null)
+      } else {
+        setProfessionalData(payload.data ?? null)
+        setCustomerData(null)
+      }
+    } catch (error) {
+      console.error("Failed to refresh benefits summary:", error)
+    }
+  }, [user])
 
   useEffect(() => {
     if (!user || (user.role !== "customer" && user.role !== "professional")) {
@@ -385,7 +416,7 @@ export default function BenefitsPage() {
         </div>
 
         <ReferralCard referralData={referralData} />
-        <BacklinkCard />
+        <BacklinkCard onPointsBalanceChange={refreshBenefitsSummary} />
       </div>
     </div>
   )

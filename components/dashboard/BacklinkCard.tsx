@@ -205,11 +205,34 @@ function SubmissionRow({
   );
 }
 
+function shouldRefreshPointsBalance(
+  previous: BacklinkStats | null,
+  next: BacklinkStats,
+): boolean {
+  if (!previous) return false;
+  if (next.totalPointsEarned > previous.totalPointsEarned) return true;
+  if (next.verifiedCount > previous.verifiedCount) return true;
+
+  const previousById = new Map(previous.submissions.map((s) => [s._id, s]));
+  return next.submissions.some((submission) => {
+    const prior = previousById.get(submission._id);
+    return (
+      submission.status === 'verified' &&
+      prior != null &&
+      prior.status !== 'verified'
+    );
+  });
+}
+
 // ------------------------------------------------------------------
 // Main component
 // ------------------------------------------------------------------
 
-export default function BacklinkCard() {
+interface BacklinkCardProps {
+  onPointsBalanceChange?: () => void;
+}
+
+export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProps) {
   const [stats, setStats] = useState<BacklinkStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -244,6 +267,10 @@ export default function BacklinkCard() {
       const json = await res.json();
       if (json.success && mountedRef.current) {
         const data = json.data as BacklinkStats;
+        const previous = statsRef.current;
+        if (shouldRefreshPointsBalance(previous, data)) {
+          onPointsBalanceChange?.();
+        }
         statsRef.current = data;
         setStats(data);
         return data;
@@ -262,7 +289,7 @@ export default function BacklinkCard() {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, []);
+  }, [onPointsBalanceChange]);
 
   // ------------------------------------------------------------------
   // Polling: keep going while any submission is pending

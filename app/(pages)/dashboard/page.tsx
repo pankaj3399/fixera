@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon, Link2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -627,6 +627,35 @@ export default function DashboardPage() {
                   >
                     <Gift className="h-4 w-4 mr-2" />
                     Manage Referral Program
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50 to-blue-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Link2 className="h-5 w-5 text-indigo-600" />
+                    Backlink Rewards
+                  </CardTitle>
+                  <CardDescription>Configure backlink rewards, review submissions, and manage verification</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
+                      <p className="text-xs text-indigo-700">Rewards</p>
+                      <p className="text-sm font-semibold text-slate-900">Points for verified Fixera links</p>
+                    </div>
+                    <div className="rounded-xl border border-blue-100 bg-white/80 p-3 shadow-sm">
+                      <p className="text-xs text-blue-700">Moderation</p>
+                      <p className="text-sm font-semibold text-slate-900">Approve, reject, or revoke submissions</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => window.open('/admin/backlinks', '_blank')}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Manage Backlink Program
                   </Button>
                 </CardContent>
               </Card>
