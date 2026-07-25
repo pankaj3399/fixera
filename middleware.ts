@@ -31,8 +31,14 @@ export function middleware(request: NextRequest) {
     .toUpperCase()
     .slice(0, 2);
 
-  // Allow local/dev override via query (?geo=BE) or existing cookie
-  const queryGeo = request.nextUrl.searchParams.get("geo")?.trim().toUpperCase().slice(0, 2);
+  // Dev/local override only — production uses Vercel geo header.
+  const allowGeoOverride =
+    process.env.NODE_ENV === "development" ||
+    request.nextUrl.hostname === "localhost" ||
+    request.nextUrl.hostname === "127.0.0.1";
+  const queryGeo = allowGeoOverride
+    ? request.nextUrl.searchParams.get("geo")?.trim().toUpperCase().slice(0, 2)
+    : undefined;
   const existing = request.cookies.get(COUNTRY_COOKIE)?.value?.toUpperCase();
 
   const country =
@@ -53,9 +59,6 @@ export function middleware(request: NextRequest) {
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 7,
   });
-
-  response.headers.set("x-fixera-country", country);
-  response.headers.set("x-fixera-locale", locale);
 
   return response;
 }

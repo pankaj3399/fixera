@@ -825,7 +825,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <Button
-                    onClick={() => window.open('/admin/site-announcements', '_blank')}
+                    onClick={() => window.open("/admin/site-announcements", "_blank", "noopener,noreferrer")}
                     className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
                   >
                     <Megaphone className="h-4 w-4 mr-2" />

@@ -21,7 +21,10 @@ import { Plus, Pencil, Megaphone, Loader2, ChevronDown, Check, Eye } from "lucid
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useSiteAnnouncementPreview } from "@/components/marketing/SiteAnnouncements";
-import type { SiteAnnouncement as LiveSiteAnnouncement } from "@/components/marketing/SiteAnnouncements";
+import type {
+  AnnouncementType,
+  SiteAnnouncement as LiveSiteAnnouncement,
+} from "@/components/marketing/SiteAnnouncements";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
@@ -54,28 +57,13 @@ const PRIORITY_OPTIONS = [
   { value: "10", label: "Highest" },
 ] as const;
 
-type AnnouncementType = "top_bar" | "modal" | "exit_intent";
-
-interface SiteAnnouncement {
-  _id: string;
-  name: string;
-  type: AnnouncementType;
-  title: string;
-  message: string;
-  ctaLabel?: string;
-  ctaUrl?: string;
-  discountCode?: string;
-  activeCountries: string[];
-  locale: string;
+type AdminSiteAnnouncement = LiveSiteAnnouncement & {
   startsAt: string;
   endsAt: string;
   isActive: boolean;
   priority: number;
-  delaySeconds: number;
-  dismissible: boolean;
-  requireMarketingConsent: boolean;
   createdAt: string;
-}
+};
 
 interface FormState {
   name: string;
@@ -379,7 +367,7 @@ const buildPayload = (form: FormState) => {
   };
 };
 
-const toForm = (a: SiteAnnouncement): FormState => ({
+const toForm = (a: AdminSiteAnnouncement): FormState => ({
   name: a.name,
   type: a.type,
   title: a.title,
@@ -398,7 +386,7 @@ const toForm = (a: SiteAnnouncement): FormState => ({
   requireMarketingConsent: a.requireMarketingConsent !== false,
 });
 
-const toLiveAnnouncement = (a: SiteAnnouncement): LiveSiteAnnouncement => ({
+const toLiveAnnouncement = (a: AdminSiteAnnouncement): LiveSiteAnnouncement => ({
   _id: a._id,
   name: a.name,
   type: a.type,
@@ -420,7 +408,7 @@ const typeLabel = (t: AnnouncementType) => {
   return "Exit offer";
 };
 
-const statusLabel = (a: SiteAnnouncement): { label: string; tone: string } => {
+const statusLabel = (a: AdminSiteAnnouncement): { label: string; tone: string } => {
   const now = new Date();
   if (!a.isActive) return { label: "Disabled", tone: "bg-slate-200 text-slate-700" };
   if (now < new Date(a.startsAt)) return { label: "Scheduled", tone: "bg-amber-100 text-amber-700" };
@@ -433,7 +421,7 @@ export default function AdminSiteAnnouncementsPage() {
   const router = useRouter();
   const { startPreview } = useSiteAnnouncementPreview();
 
-  const [items, setItems] = useState<SiteAnnouncement[]>([]);
+  const [items, setItems] = useState<AdminSiteAnnouncement[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -489,19 +477,23 @@ export default function AdminSiteAnnouncementsPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (a: SiteAnnouncement) => {
+  const openEdit = (a: AdminSiteAnnouncement) => {
     setEditingId(a._id);
     setForm(toForm(a));
     setDialogOpen(true);
   };
 
-  const openPreview = (a: SiteAnnouncement) => {
+  const openPreview = (a: AdminSiteAnnouncement) => {
     startPreview(toLiveAnnouncement(a));
   };
 
   const save = async () => {
     if (!form.name.trim() || !form.title.trim() || !form.message.trim()) {
       toast.error("Name, title, and message are required");
+      return;
+    }
+    if (form.endsAt < form.startsAt) {
+      toast.error("End date must be on or after the start date");
       return;
     }
     try {
@@ -528,15 +520,14 @@ export default function AdminSiteAnnouncementsPage() {
     }
   };
 
-  const toggleActive = async (a: SiteAnnouncement, isActive: boolean) => {
+  const toggleActive = async (a: AdminSiteAnnouncement, isActive: boolean) => {
     setTogglingId(a._id);
     setItems((prev) => prev.map((item) => (item._id === a._id ? { ...item, isActive } : item)));
     try {
-      const payload = buildPayload({ ...toForm(a), isActive });
-      const res = await authFetch(`${API_BASE}/api/admin/site-announcements/${a._id}`, {
+      const res = await authFetch(`${API_BASE}/api/admin/site-announcements/${a._id}/active`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ isActive }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.msg || "Update failed");

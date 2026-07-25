@@ -317,7 +317,6 @@ function AnnouncementTopBar({
         href={href}
         data-testid="site-announce-top-bar"
         className={`${barClass} block transition hover:bg-[#d64535]`}
-        role="region"
         aria-label="Site promotion"
         onClick={onCta}
       >
@@ -378,27 +377,28 @@ export function SiteAnnouncementOverlays() {
       setShowModal(false);
       return;
     }
-    trackOnce("promo_view", `modal:${modal._id}`, {
-      promo_id: modal._id,
-      promo_type: "modal",
-      promo_name: modal.name,
-    });
     const t = setTimeout(() => setShowModal(true), (modal.delaySeconds ?? 3) * 1000);
     return () => clearTimeout(t);
   }, [modal]);
 
   useEffect(() => {
-    if (!exitIntent) return;
-    trackOnce("promo_view", `exit:${exitIntent._id}`, {
-      promo_id: exitIntent._id,
-      promo_type: "exit_intent",
-      promo_name: exitIntent.name,
+    if (!showModal || !modal) return;
+    trackOnce("promo_view", `modal:${modal._id}`, {
+      promo_id: modal._id,
+      promo_type: "modal",
+      promo_name: modal.name,
     });
+  }, [showModal, modal]);
+
+  useEffect(() => {
+    if (!exitIntent) return;
 
     let armed = false;
     const armTimer = setTimeout(() => {
       armed = true;
     }, Math.max(1500, (exitIntent.delaySeconds ?? 3) * 1000));
+
+    let lastScrollY = window.scrollY;
 
     const onMouseOut = (e: MouseEvent) => {
       if (!armed || showExit) return;
@@ -408,7 +408,10 @@ export function SiteAnnouncementOverlays() {
     const onScroll = () => {
       if (!armed || showExit) return;
       if (window.innerWidth >= 768) return;
-      if (window.scrollY < 40) setShowExit(true);
+      const y = window.scrollY;
+      const scrollingUp = y < lastScrollY;
+      lastScrollY = y;
+      if (scrollingUp && y < 80) setShowExit(true);
     };
 
     document.addEventListener("mouseout", onMouseOut);
@@ -420,6 +423,15 @@ export function SiteAnnouncementOverlays() {
       window.removeEventListener("scroll", onScroll);
     };
   }, [exitIntent, showExit]);
+
+  useEffect(() => {
+    if (!showExit || !exitIntent) return;
+    trackOnce("promo_view", `exit:${exitIntent._id}`, {
+      promo_id: exitIntent._id,
+      promo_type: "exit_intent",
+      promo_name: exitIntent.name,
+    });
+  }, [showExit, exitIntent]);
 
   if (skip) return null;
 
@@ -470,6 +482,28 @@ function PromoOverlay({
 }) {
   const href = resolveHref(announcement);
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const canDismiss = announcement.dismissible || isPreview;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+
+    const onCancel = (event: Event) => {
+      if (!canDismiss) {
+        event.preventDefault();
+        return;
+      }
+      onClose();
+    };
+
+    dialog.addEventListener("cancel", onCancel);
+    return () => {
+      dialog.removeEventListener("cancel", onCancel);
+      if (dialog.open) dialog.close();
+    };
+  }, [canDismiss, onClose]);
 
   const copyCode = async () => {
     if (!announcement.discountCode) return;
@@ -484,14 +518,13 @@ function PromoOverlay({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref={dialogRef}
+      className="fixed inset-0 z-[70] m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-4 backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:flex open:items-center open:justify-center"
       aria-labelledby={`${testId}-title`}
       data-testid={testId}
       onClick={(e) => {
-        if (e.target === e.currentTarget && (announcement.dismissible || isPreview)) onClose();
+        if (e.target === dialogRef.current && canDismiss) onClose();
       }}
     >
       <div className="relative w-full max-w-md overflow-hidden rounded-lg bg-white shadow-xl ring-1 ring-black/5">
@@ -538,9 +571,11 @@ function PromoOverlay({
           )}
 
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button variant="ghost" size="sm" className="order-2 sm:order-1" onClick={onClose}>
-              Maybe later
-            </Button>
+            {canDismiss && (
+              <Button variant="ghost" size="sm" className="order-2 sm:order-1" onClick={onClose}>
+                Maybe later
+              </Button>
+            )}
             {href && !isPreview ? (
               <Button asChild size="sm" className="order-1 sm:order-2" onClick={onCta}>
                 <Link href={href} className="gap-1.5">
@@ -557,6 +592,6 @@ function PromoOverlay({
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
