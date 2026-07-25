@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   resolveAnnouncementHref,
   type SiteAnnouncement,
@@ -27,28 +34,7 @@ export function PromoOverlay({
 }) {
   const href = resolveAnnouncementHref(announcement);
   const [copied, setCopied] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const canDismiss = announcement.dismissible || isPreview;
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog || dialog.open) return;
-    dialog.showModal();
-
-    const onCancel = (event: Event) => {
-      if (!canDismiss) {
-        event.preventDefault();
-        return;
-      }
-      onClose();
-    };
-
-    dialog.addEventListener("cancel", onCancel);
-    return () => {
-      dialog.removeEventListener("cancel", onCancel);
-      if (dialog.open) dialog.close();
-    };
-  }, [canDismiss, onClose]);
 
   const copyCode = async () => {
     if (!announcement.discountCode) return;
@@ -63,16 +49,23 @@ export function PromoOverlay({
   };
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="fixed inset-0 z-[70] m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-4 backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:flex open:items-center open:justify-center"
-      aria-labelledby={`${testId}-title`}
-      data-testid={testId}
-      onClick={(event) => {
-        if (event.target === dialogRef.current && canDismiss) onClose();
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next && canDismiss) onClose();
       }}
     >
-      <div className="relative w-full max-w-md overflow-hidden rounded-lg bg-white shadow-xl ring-1 ring-black/5">
+      <DialogContent
+        showCloseButton={false}
+        data-testid={testId}
+        className="gap-0 overflow-hidden p-0 sm:max-w-md"
+        onPointerDownOutside={(event) => {
+          if (!canDismiss) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (!canDismiss) event.preventDefault();
+        }}
+      >
         {canDismiss ? (
           <button
             type="button"
@@ -84,20 +77,19 @@ export function PromoOverlay({
           </button>
         ) : null}
 
-        <div className="border-b border-slate-100 bg-slate-50 px-6 pb-5 pt-6">
+        <DialogHeader className="space-y-1 border-b border-slate-100 bg-slate-50 px-6 pb-5 pt-6 text-left">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
             {variant === "exit" ? "Before you go" : "Limited offer"}
           </p>
-          <h2
-            id={`${testId}-title`}
-            className="mt-1 pr-8 text-xl font-semibold leading-snug text-slate-900"
-          >
+          <DialogTitle className="pr-8 text-xl font-semibold leading-snug text-slate-900">
             {announcement.title}
-          </h2>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="px-6 py-5">
-          <p className="text-sm leading-relaxed text-slate-600">{announcement.message}</p>
+          <DialogDescription className="text-sm leading-relaxed text-slate-600">
+            {announcement.message}
+          </DialogDescription>
 
           {announcement.discountCode ? (
             <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
@@ -140,7 +132,7 @@ export function PromoOverlay({
             ) : null}
           </div>
         </div>
-      </div>
-    </dialog>
+      </DialogContent>
+    </Dialog>
   );
 }

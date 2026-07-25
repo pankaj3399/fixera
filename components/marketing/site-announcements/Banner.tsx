@@ -3,11 +3,14 @@
 import { useEffect, type ReactNode } from "react";
 import {
   ANNOUNCE_BANNER_HEIGHT_PX,
-  ANNOUNCE_BANNER_HEIGHT_VAR,
   trackPromoView,
 } from "@/lib/marketing/siteAnnouncements";
-import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
+import { useAnnouncementsCtx } from "./context";
 import { AnnouncementTopBar } from "./TopBar";
+import { useActiveTopBar } from "./useActiveTopBar";
+
+const NAV_HEIGHT = "4rem";
+const BANNER_HEIGHT = ANNOUNCE_BANNER_HEIGHT_PX;
 
 /** Fixed header stack: navbar + thin banner */
 export function SiteHeaderStack({ children }: { children: ReactNode }) {
@@ -20,31 +23,19 @@ export function SiteHeaderStack({ children }: { children: ReactNode }) {
 }
 
 export function SiteHeaderSpacer() {
+  const { bar } = useActiveTopBar();
   return (
     <div
       className="shrink-0"
-      style={{ height: "calc(4rem + var(--announce-banner-h, 0px))" }}
+      style={{ height: bar ? `calc(${NAV_HEIGHT} + ${BANNER_HEIGHT})` : NAV_HEIGHT }}
       aria-hidden
     />
   );
 }
 
 export function SiteAnnouncementBanner() {
-  const { skip, topBar, onCta } = useAnnouncementsCtx();
-  const { preview } = useSiteAnnouncementPreview();
-  const previewBar = preview?.type === "top_bar" ? preview : undefined;
-  const bar = previewBar ?? (!skip ? topBar : undefined);
-  const isPreview = Boolean(previewBar);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      ANNOUNCE_BANNER_HEIGHT_VAR,
-      bar ? ANNOUNCE_BANNER_HEIGHT_PX : "0px",
-    );
-    return () => {
-      document.documentElement.style.setProperty(ANNOUNCE_BANNER_HEIGHT_VAR, "0px");
-    };
-  }, [bar]);
+  const { onCta, topBar } = useAnnouncementsCtx();
+  const { bar, isPreview } = useActiveTopBar();
 
   useEffect(() => {
     if (!topBar || isPreview) return;
