@@ -84,3 +84,13 @@ export function getNextDateValue(value: string): string {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+/**
+ * Formats a Date as yyyy-MM-dd in local time (for HTML date inputs).
+ */
+export function formatLocalIsoDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
