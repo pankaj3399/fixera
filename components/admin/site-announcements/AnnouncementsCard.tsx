@@ -14,7 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AdminSiteAnnouncement } from "@/lib/admin/siteAnnouncements";
+import type {
+  AdminSiteAnnouncement,
+  AnnouncementListFilters,
+} from "@/lib/admin/siteAnnouncements";
 import { announcementStatus } from "@/lib/admin/siteAnnouncements";
 import {
   localeLabel,
@@ -27,13 +30,9 @@ import {
 interface AnnouncementsCardProps {
   items: AdminSiteAnnouncement[];
   loading: boolean;
-  statusFilter: string;
-  typeFilter: string;
-  search: string;
+  filters: AnnouncementListFilters;
+  onFiltersChange: (partial: Partial<AnnouncementListFilters>) => void;
   togglingId: string | null;
-  onStatusFilterChange: (value: string) => void;
-  onTypeFilterChange: (value: string) => void;
-  onSearchChange: (value: string) => void;
   onPreview: (item: AdminSiteAnnouncement) => void;
   onEdit: (item: AdminSiteAnnouncement) => void;
   onToggleActive: (item: AdminSiteAnnouncement, isActive: boolean) => void;
@@ -42,13 +41,9 @@ interface AnnouncementsCardProps {
 export function AnnouncementsCard({
   items,
   loading,
-  statusFilter,
-  typeFilter,
-  search,
+  filters,
+  onFiltersChange,
   togglingId,
-  onStatusFilterChange,
-  onTypeFilterChange,
-  onSearchChange,
   onPreview,
   onEdit,
   onToggleActive,
@@ -63,11 +58,14 @@ export function AnnouncementsCard({
         <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_11rem]">
           <Input
             placeholder="Search name or title…"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
+            value={filters.search}
+            onChange={(e) => onFiltersChange({ search: e.target.value })}
             className="h-9 w-full text-sm"
           />
-          <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+          <Select
+            value={filters.status}
+            onValueChange={(status) => onFiltersChange({ status })}
+          >
             <SelectTrigger className={SELECT_TRIGGER_CLASS}>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -79,8 +77,10 @@ export function AnnouncementsCard({
               ))}
             </SelectContent>
           </Select>
-          <Select value={typeFilter} onValueChange={onTypeFilterChange}>
-            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+          <Select
+            value={filters.type}
+            onValueChange={(type) => onFiltersChange({ type })}
+          >            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>

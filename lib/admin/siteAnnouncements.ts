@@ -46,6 +46,12 @@ export interface AnnouncementListFilters {
   search: string;
 }
 
+/** Closed = null; create = id null; edit = concrete id. */
+export type AnnouncementEditor = {
+  id: string | null;
+  form: AnnouncementFormState;
+} | null;
+
 export function emptyAnnouncementForm(): AnnouncementFormState {
   const now = new Date();
   const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -148,13 +154,19 @@ export function validateAnnouncementForm(form: AnnouncementFormState): string | 
   return null;
 }
 
-export async function fetchSiteAnnouncements(filters: AnnouncementListFilters) {
+export async function fetchSiteAnnouncements(
+  filters: AnnouncementListFilters,
+  init?: RequestInit,
+) {
   const params = new URLSearchParams();
   if (filters.status !== "all") params.set("status", filters.status);
   if (filters.type !== "all") params.set("type", filters.type);
   if (filters.search.trim()) params.set("search", filters.search.trim());
 
-  const res = await authFetch(`${API_BASE}/api/admin/site-announcements?${params}`);
+  const res = await authFetch(
+    `${API_BASE}/api/admin/site-announcements?${params}`,
+    init,
+  );
   const json = await res.json();
   if (!res.ok || !json.success) {
     throw new Error(json.msg || "Failed to load announcements");

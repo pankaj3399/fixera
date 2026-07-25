@@ -1,123 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Megaphone, Plus } from "lucide-react";
-import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSiteAnnouncementPreview } from "@/components/marketing/SiteAnnouncements";
 import { AnnouncementFormDialog } from "@/components/admin/site-announcements/AnnouncementFormDialog";
 import { AnnouncementsCard } from "@/components/admin/site-announcements/AnnouncementsCard";
-import {
-  type AdminSiteAnnouncement,
-  type AnnouncementFormState,
-  announcementToForm,
-  emptyAnnouncementForm,
-  fetchSiteAnnouncements,
-  saveSiteAnnouncement,
-  setSiteAnnouncementActive,
-  toLiveAnnouncement,
-  validateAnnouncementForm,
-} from "@/lib/admin/siteAnnouncements";
+import { useSiteAnnouncementsAdmin } from "@/hooks/useSiteAnnouncementsAdmin";
+import { toLiveAnnouncement } from "@/lib/admin/siteAnnouncements";
 
 export default function AdminSiteAnnouncementsPage() {
-  const { user, isAuthenticated, loading } = useAuth();
-  const router = useRouter();
   const { startPreview } = useSiteAnnouncementPreview();
+  const {
+    authLoading,
+    showPage,
+    filters,
+    patchFilters,
+    items,
+    listLoading,
+    editor,
+    openCreate,
+    openEdit,
+    closeEditor,
+    patchForm,
+    saving,
+    save,
+    togglingId,
+    toggleActive,
+  } = useSiteAnnouncementsAdmin();
 
-  const [items, setItems] = useState<AdminSiteAnnouncement[]>([]);
-  const [listLoading, setListLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [search, setSearch] = useState("");
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<AnnouncementFormState>(emptyAnnouncementForm);
-  const [saving, setSaving] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-  const latestReq = useRef(0);
-
-  useEffect(() => {
-    if (loading) return;
-    if (!isAuthenticated || user?.role !== "admin") {
-      router.replace("/login");
-    }
-  }, [user, isAuthenticated, loading, router]);
-
-  const loadItems = useCallback(async () => {
-    const id = ++latestReq.current;
-    try {
-      setListLoading(true);
-      const announcements = await fetchSiteAnnouncements({ status: statusFilter, type: typeFilter, search });
-      if (id !== latestReq.current) return;
-      setItems(announcements);
-    } catch (err) {
-      if (id !== latestReq.current) return;
-      toast.error(err instanceof Error ? err.message : "Could not load announcements");
-    } finally {
-      if (id === latestReq.current) setListLoading(false);
-    }
-  }, [statusFilter, typeFilter, search]);
-
-  useEffect(() => {
-    if (!isAuthenticated || user?.role !== "admin") return;
-    const t = setTimeout(loadItems, 200);
-    return () => clearTimeout(t);
-  }, [isAuthenticated, user, loadItems]);
-
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(emptyAnnouncementForm());
-    setDialogOpen(true);
-  };
-
-  const openEdit = (item: AdminSiteAnnouncement) => {
-    setEditingId(item._id);
-    setForm(announcementToForm(item));
-    setDialogOpen(true);
-  };
-
-  const save = async () => {
-    const error = validateAnnouncementForm(form);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    try {
-      setSaving(true);
-      await saveSiteAnnouncement(editingId, form);
-      toast.success(editingId ? "Announcement updated" : "Announcement created");
-      setDialogOpen(false);
-      loadItems();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleActive = async (item: AdminSiteAnnouncement, isActive: boolean) => {
-    setTogglingId(item._id);
-    setItems((prev) =>
-      prev.map((row) => (row._id === item._id ? { ...row, isActive } : row)),
-    );
-    try {
-      await setSiteAnnouncementActive(item._id, isActive);
-      toast.success(isActive ? "Announcement is live" : "Announcement hidden");
-    } catch (err) {
-      setItems((prev) =>
-        prev.map((row) => (row._id === item._id ? { ...row, isActive: !isActive } : row)),
-      );
-      toast.error(err instanceof Error ? err.message : "Could not update");
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  if (loading || !isAuthenticated || user?.role !== "admin") {
+  if (authLoading || !showPage) {
     return (
       <div className="container mx-auto max-w-6xl p-6">
         <Skeleton className="h-10 w-64" />
@@ -145,24 +57,18 @@ export default function AdminSiteAnnouncementsPage() {
       <AnnouncementsCard
         items={items}
         loading={listLoading}
-        statusFilter={statusFilter}
-        typeFilter={typeFilter}
-        search={search}
+        filters={filters}
+        onFiltersChange={patchFilters}
         togglingId={togglingId}
-        onStatusFilterChange={setStatusFilter}
-        onTypeFilterChange={setTypeFilter}
-        onSearchChange={setSearch}
         onPreview={(item) => startPreview(toLiveAnnouncement(item))}
         onEdit={openEdit}
         onToggleActive={toggleActive}
       />
 
       <AnnouncementFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        editingId={editingId}
-        form={form}
-        onFormChange={setForm}
+        editor={editor}
+        onClose={closeEditor}
+        onFormChange={patchForm}
         saving={saving}
         onSave={save}
       />
