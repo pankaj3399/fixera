@@ -27,7 +27,7 @@ const otherLinks = [
   { name: "About", href: "/about" },
 ];
 
-const Navbar = () => {
+const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const { user, isAuthenticated, logout, loading } = useAuth();
@@ -57,10 +57,17 @@ const Navbar = () => {
     <>
       <header
         className={cn(
-          "fixed top-0 w-full z-50 transition-all duration-300",
-          isScrolled
-            ? "bg-white/95 backdrop-blur-lg shadow-lg border-b border-gray-100"
-            : "bg-white/80 backdrop-blur-sm",
+          "w-full transition-all duration-300",
+          stacked
+            ? cn(
+                "relative bg-white border-b border-gray-100",
+                isScrolled && "shadow-sm",
+              )
+            : "fixed top-0 z-50",
+          !stacked &&
+            (isScrolled
+              ? "bg-white/95 backdrop-blur-lg shadow-lg border-b border-gray-100"
+              : "bg-white/80 backdrop-blur-sm"),
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

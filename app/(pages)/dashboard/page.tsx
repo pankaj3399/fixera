@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon, Link2 } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon, Link2, Megaphone } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -811,6 +811,25 @@ export default function DashboardPage() {
                   >
                     <Ticket className="h-4 w-4 mr-2" />
                     Manage Discount Codes
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="border-orange-100 bg-gradient-to-br from-white via-orange-50 to-amber-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Megaphone className="h-5 w-5 text-orange-500" />
+                    Site Announcements
+                  </CardTitle>
+                  <CardDescription>Top bar, modal, and exit-intent promos by region</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => window.open('/admin/site-announcements', '_blank')}
+                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
+                  >
+                    <Megaphone className="h-4 w-4 mr-2" />
+                    Manage Announcements
                   </Button>
                 </CardContent>
               </Card>

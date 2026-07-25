@@ -9,6 +9,13 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ChatWidget from "@/components/chat/ChatWidget";
 import CookieConsent from "@/components/cookie-consent/CookieConsent";
 import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
+import {
+  SiteAnnouncementsProvider,
+  SiteHeaderStack,
+  SiteHeaderSpacer,
+  SiteAnnouncementOverlays,
+  SiteAnnouncementPreviewOverlays,
+} from "@/components/marketing/SiteAnnouncements";
 import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
@@ -73,15 +80,22 @@ export default function RootLayout({
         <AnalyticsProvider />
         <AuthProvider>
           <FCMLayoutWrapper>
-            <Navbar/>
-            <SubNavbar />
-            <main className="flex flex-col min-h-screen">
-              <Toaster></Toaster>
-              {children}
-            </main>
-            <ChatWidget />
-            <Footer />
-            <CookieConsent />
+            <SiteAnnouncementsProvider>
+              <SiteHeaderStack>
+                <Navbar stacked />
+              </SiteHeaderStack>
+              <SiteHeaderSpacer />
+              <SubNavbar />
+              <main className="flex flex-col min-h-screen">
+                <Toaster></Toaster>
+                {children}
+              </main>
+              <ChatWidget />
+              <Footer />
+              <CookieConsent />
+              <SiteAnnouncementOverlays />
+              <SiteAnnouncementPreviewOverlays />
+            </SiteAnnouncementsProvider>
           </FCMLayoutWrapper>
         </AuthProvider>
       </body>

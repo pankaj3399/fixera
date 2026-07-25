@@ -52,7 +52,7 @@ export default function CookieConsent() {
         role="region"
         aria-label="Cookie consent"
         aria-live="polite"
-        className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background p-4 shadow-lg sm:p-6"
+        className="fixed bottom-0 left-0 right-0 z-[100] border-t bg-background p-4 shadow-lg sm:p-6"
       >
         <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
