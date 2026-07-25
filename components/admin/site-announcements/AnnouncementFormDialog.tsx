@@ -20,15 +20,16 @@ import type {
   AnnouncementEditor,
   AnnouncementFormState,
 } from "@/lib/admin/siteAnnouncements";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import {
   DELAY_OPTIONS,
   LOCALE_OPTIONS,
   PLACEMENT_OPTIONS,
   PRIORITY_OPTIONS,
   SELECT_TRIGGER_CLASS,
+  SITE_ANNOUNCEMENT_COUNTRY_OPTIONS,
   announcementUsesOverlay,
 } from "@/lib/constants/siteAnnouncements";
-import { CountryMultiSelect } from "./CountryMultiSelect";
 import { FormField, FormFieldLabel, FormSettingRow } from "./FormPrimitives";
 
 interface AnnouncementFormDialogProps {
@@ -204,9 +205,13 @@ function AnnouncementFormDialogBody({
           <div className="grid w-full grid-cols-2 gap-4">
             <FormField>
               <FormFieldLabel>Countries</FormFieldLabel>
-              <CountryMultiSelect
+              <MultiSelectCombobox
+                options={SITE_ANNOUNCEMENT_COUNTRY_OPTIONS}
                 value={form.countries}
                 onChange={(countries) => patch({ countries })}
+                emptySelectionLabel="Everywhere"
+                searchPlaceholder="Search countries…"
+                ariaLabel="Countries"
               />
             </FormField>
             <FormField>
