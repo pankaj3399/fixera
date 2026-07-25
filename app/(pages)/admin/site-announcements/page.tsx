@@ -3,7 +3,7 @@
 import { Megaphone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSiteAnnouncementPreview } from "@/components/marketing/SiteAnnouncements";
+import { useSiteAnnouncementPreview } from "@/components/marketing/site-announcements";
 import { AnnouncementFormDialog } from "@/components/admin/site-announcements/AnnouncementFormDialog";
 import { AnnouncementsCard } from "@/components/admin/site-announcements/AnnouncementsCard";
 import { useSiteAnnouncementsAdmin } from "@/hooks/useSiteAnnouncementsAdmin";

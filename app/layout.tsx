@@ -15,7 +15,7 @@ import {
   SiteHeaderSpacer,
   SiteAnnouncementOverlays,
   SiteAnnouncementPreviewOverlays,
-} from "@/components/marketing/SiteAnnouncements";
+} from "@/components/marketing/site-announcements";
 import JsonLd from "@/components/seo/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";

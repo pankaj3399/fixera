@@ -1,7 +1,7 @@
 import type {
   AnnouncementType,
   SiteAnnouncement as LiveSiteAnnouncement,
-} from "@/components/marketing/SiteAnnouncements";
+} from "@/lib/marketing/siteAnnouncements";
 import { authFetch } from "@/lib/utils";
 import { formatLocalIsoDate } from "@/lib/dateUtils";
 import {

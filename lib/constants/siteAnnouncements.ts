@@ -1,4 +1,4 @@
-import type { AnnouncementType } from "@/components/marketing/SiteAnnouncements";
+import type { AnnouncementType } from "@/lib/marketing/siteAnnouncements";
 import { EU_COUNTRIES } from "@/lib/countries";
 
 /** Primary markets for site announcement targeting. */
