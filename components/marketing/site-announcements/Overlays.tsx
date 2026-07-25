@@ -1,33 +1,48 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { hasAnalyticsConsent } from "@/lib/analytics";
+import { CONSENT_EVENT } from "@/lib/consent";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements";
 import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
 import { PromoOverlay } from "./PromoOverlay";
 import { useDelayedReveal } from "./useDelayedReveal";
 import { useExitIntent } from "./useExitIntent";
 
+function useAnalyticsConsentFlag(): boolean {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    const refresh = () => setOk(hasAnalyticsConsent());
+    refresh();
+    window.addEventListener(CONSENT_EVENT, refresh);
+    return () => window.removeEventListener(CONSENT_EVENT, refresh);
+  }, []);
+  return ok;
+}
+
 export function SiteAnnouncementOverlays() {
   const { skip, modal, exitIntent, hide, onCta } = useAnnouncementsCtx();
+  const analyticsOk = useAnalyticsConsentFlag();
 
   const showModal = useDelayedReveal(
     modal?._id ?? null,
     (modal?.delaySeconds ?? 3) * 1000,
   );
+  // Do not arm exit while a timed modal campaign is still present.
   const showExit = useExitIntent(
-    Boolean(exitIntent),
+    Boolean(exitIntent) && !modal,
     Math.max(1500, (exitIntent?.delaySeconds ?? 3) * 1000),
   );
 
   useEffect(() => {
-    if (!showModal || !modal) return;
+    if (!analyticsOk || !showModal || !modal) return;
     trackPromoView(modal);
-  }, [showModal, modal]);
+  }, [analyticsOk, showModal, modal]);
 
   useEffect(() => {
-    if (!showExit || !exitIntent) return;
+    if (!analyticsOk || showModal || !showExit || !exitIntent) return;
     trackPromoView(exitIntent);
-  }, [showExit, exitIntent]);
+  }, [analyticsOk, showModal, showExit, exitIntent]);
 
   if (skip) return null;
 
@@ -42,7 +57,7 @@ export function SiteAnnouncementOverlays() {
           onCta={() => onCta(modal)}
         />
       ) : null}
-      {exitIntent && showExit ? (
+      {!showModal && exitIntent && showExit ? (
         <PromoOverlay
           testId="site-announce-exit"
           variant="exit"

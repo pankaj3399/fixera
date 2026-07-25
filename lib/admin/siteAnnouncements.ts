@@ -3,13 +3,34 @@ import type {
   SiteAnnouncement as LiveSiteAnnouncement,
 } from "@/lib/marketing/siteAnnouncements";
 import { authFetch } from "@/lib/utils";
-import { formatLocalIsoDate } from "@/lib/dateUtils";
 import {
   LOCALE_OPTIONS,
   announcementUsesOverlay,
   nearestDelay,
   nearestPriority,
 } from "@/lib/constants/siteAnnouncements";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+
+/** Match server: date-only schedules use Europe/Brussels. */
+export const ANNOUNCEMENT_MARKET_TZ = "Europe/Brussels";
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+export function formatAnnouncementMarketDate(d: Date): string {
+  return formatInTimeZone(d, ANNOUNCEMENT_MARKET_TZ, "yyyy-MM-dd");
+}
+
+/** Date-only → start/end of that market day as UTC ISO; other strings pass through if valid. */
+export function toAnnouncementScheduleIso(value: string, isEnd: boolean): string {
+  const trimmed = value.trim();
+  if (DATE_ONLY.test(trimmed)) {
+    const wall = isEnd ? `${trimmed}T23:59:59.999` : `${trimmed}T00:00:00.000`;
+    return fromZonedTime(wall, ANNOUNCEMENT_MARKET_TZ).toISOString();
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return trimmed;
+  return parsed.toISOString();
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
@@ -65,8 +86,8 @@ export function emptyAnnouncementForm(): AnnouncementFormState {
     discountCode: "",
     countries: [],
     locale: "en",
-    startsAt: formatLocalIsoDate(now),
-    endsAt: formatLocalIsoDate(in30),
+    startsAt: formatAnnouncementMarketDate(now),
+    endsAt: formatAnnouncementMarketDate(in30),
     isActive: true,
     priority: "0",
     delaySeconds: "3",
@@ -87,8 +108,8 @@ export function buildAnnouncementPayload(form: AnnouncementFormState) {
     discountCode: form.discountCode.trim() || undefined,
     activeCountries: form.countries,
     locale: form.locale || "en",
-    startsAt: form.startsAt,
-    endsAt: form.endsAt,
+    startsAt: toAnnouncementScheduleIso(form.startsAt, false),
+    endsAt: toAnnouncementScheduleIso(form.endsAt, true),
     isActive: form.isActive,
     priority: Number(form.priority) || 0,
     delaySeconds: usesOverlay ? Number(form.delaySeconds) || 0 : 0,
@@ -108,8 +129,8 @@ export function announcementToForm(a: AdminSiteAnnouncement): AnnouncementFormSt
     discountCode: a.discountCode || "",
     countries: [...a.activeCountries],
     locale: LOCALE_OPTIONS.some((l) => l.value === a.locale) ? a.locale : "en",
-    startsAt: formatLocalIsoDate(new Date(a.startsAt)),
-    endsAt: formatLocalIsoDate(new Date(a.endsAt)),
+    startsAt: formatAnnouncementMarketDate(new Date(a.startsAt)),
+    endsAt: formatAnnouncementMarketDate(new Date(a.endsAt)),
     isActive: a.isActive,
     priority: nearestPriority(a.priority ?? 0),
     delaySeconds: nearestDelay(a.delaySeconds ?? 3),

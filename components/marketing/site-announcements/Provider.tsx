@@ -10,7 +10,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { hasConsented, CONSENT_EVENT, getConsent } from "@/lib/consent";
+import { hasConsented, CONSENT_EVENT } from "@/lib/consent";
 import {
   PREVIEW_DURATION_MS,
   dismissAnnouncement,
@@ -32,7 +32,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
   const skip = shouldSkipAnnouncements(pathname);
 
   const [items, setItems] = useState<SiteAnnouncement[]>([]);
-  const [consent, setConsent] = useState({ ready: false, marketingOk: false });
+  const [consent, setConsent] = useState({ marketingOk: false });
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(() => new Set());
   const [preview, setPreview] = useState<SiteAnnouncement | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -62,10 +62,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
 
   useEffect(() => {
     const refresh = () => {
-      setConsent({
-        ready: !!getConsent(),
-        marketingOk: hasConsented("marketing"),
-      });
+      setConsent({ marketingOk: hasConsented("marketing") });
     };
     refresh();
     window.addEventListener(CONSENT_EVENT, refresh);
@@ -102,18 +99,17 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
   }, []);
 
   const announcementsValue = useMemo<AnnouncementsCtx>(() => {
-    const visible =
-      skip || !consent.ready
-        ? []
-        : items.filter((item) => {
-            if (hiddenIds.has(item._id) || isAnnouncementDismissed(item._id)) {
-              return false;
-            }
-            if (item.requireMarketingConsent && !consent.marketingOk) {
-              return false;
-            }
-            return true;
-          });
+    const visible = skip
+      ? []
+      : items.filter((item) => {
+          if (hiddenIds.has(item._id) || isAnnouncementDismissed(item._id)) {
+            return false;
+          }
+          if (item.requireMarketingConsent && !consent.marketingOk) {
+            return false;
+          }
+          return true;
+        });
 
     return {
       skip,
@@ -123,7 +119,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
       hide,
       onCta,
     };
-  }, [skip, consent, items, hiddenIds, hide, onCta]);
+  }, [skip, consent.marketingOk, items, hiddenIds, hide, onCta]);
 
   const previewValue = useMemo<PreviewCtx>(
     () => ({ preview, startPreview, clearPreview }),

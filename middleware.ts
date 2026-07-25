@@ -45,20 +45,30 @@ export function middleware(request: NextRequest) {
     (queryGeo && /^[A-Z]{2}$/.test(queryGeo) && queryGeo) ||
     (vercelCountry && /^[A-Z]{2}$/.test(vercelCountry) && vercelCountry) ||
     (existing && /^[A-Z]{2}$/.test(existing) && existing) ||
-    "BE"; // default market for local/dev when geo headers missing
+    (allowGeoOverride ? "BE" : undefined);
 
-  const locale = localeForCountry(country);
-
-  response.cookies.set(COUNTRY_COOKIE, country, {
-    path: "/",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-  response.cookies.set(LOCALE_COOKIE, locale, {
-    path: "/",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  if (country) {
+    response.cookies.set(COUNTRY_COOKIE, country, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    response.cookies.set(LOCALE_COOKIE, localeForCountry(country), {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+  } else {
+    // Unknown production geo: do not invent a country; keep a neutral locale default.
+    const existingLocale = request.cookies.get(LOCALE_COOKIE)?.value;
+    if (!existingLocale) {
+      response.cookies.set(LOCALE_COOKIE, "en", {
+        path: "/",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    }
+  }
 
   return response;
 }

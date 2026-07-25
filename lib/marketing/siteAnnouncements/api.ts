@@ -7,9 +7,12 @@ const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 export async function fetchPublicSiteAnnouncements(
   init?: RequestInit,
 ): Promise<SiteAnnouncement[]> {
-  const country = readCookie(GEO_COUNTRY_COOKIE) || "BE";
+  const country = readCookie(GEO_COUNTRY_COOKIE)?.toUpperCase();
   const locale = readCookie(GEO_LOCALE_COOKIE) || "en";
-  const params = new URLSearchParams({ country, locale });
+  const params = new URLSearchParams({ locale });
+  if (country && /^[A-Z]{2}$/.test(country)) {
+    params.set("country", country);
+  }
 
   const res = await fetch(
     `${API_BASE}/api/public/site-announcements?${params}`,

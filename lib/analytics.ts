@@ -145,7 +145,7 @@ export function trackEvent(eventName: string, params: AnalyticsEventParams = {})
 }
 
 export function trackOnce(eventName: string, dedupeId: string, params: AnalyticsEventParams = {}): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || !hasAnalyticsConsent()) return;
   const key = `${EVENT_DEDUPE_PREFIX}${eventName}:${dedupeId}`;
   const legacyKey = `${LEGACY_EVENT_DEDUPE_PREFIX}${eventName}:${dedupeId}`;
   if (getMigratedItem('session', key, legacyKey)) return;
