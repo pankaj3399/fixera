@@ -11,15 +11,14 @@ import {
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { hasConsented, CONSENT_EVENT } from "@/lib/consent";
+import { PREVIEW_DURATION_MS, shouldSkipAnnouncements } from "@/lib/marketing/siteAnnouncements/constants";
+import { fetchPublicSiteAnnouncements } from "@/lib/marketing/siteAnnouncements/api";
 import {
-  PREVIEW_DURATION_MS,
   dismissAnnouncement,
-  fetchPublicSiteAnnouncements,
   isAnnouncementDismissed,
-  shouldSkipAnnouncements,
-  trackPromoClick,
-  type SiteAnnouncement,
-} from "@/lib/marketing/siteAnnouncements";
+} from "@/lib/marketing/siteAnnouncements/dismissStorage";
+import { trackPromoClick } from "@/lib/marketing/siteAnnouncements/analytics";
+import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements/types";
 import {
   AnnouncementsContext,
   PreviewContext,

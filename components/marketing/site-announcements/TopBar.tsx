@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import {
-  resolveAnnouncementHref,
-  type SiteAnnouncement,
-} from "@/lib/marketing/siteAnnouncements";
+import { resolveAnnouncementHref } from "@/lib/marketing/siteAnnouncements/href";
+import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements/types";
 
 export function AnnouncementTopBar({
   announcement,

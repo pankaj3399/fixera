@@ -14,18 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type {
-  AdminSiteAnnouncement,
-  AnnouncementListFilters,
-} from "@/lib/admin/siteAnnouncements";
-import { announcementStatus } from "@/lib/admin/siteAnnouncements";
 import {
+  announcementStatus,
   localeLabel,
   SELECT_TRIGGER_CLASS,
   STATUS_FILTER_OPTIONS,
   TYPE_FILTER_OPTIONS,
   TYPE_LABELS,
-} from "@/lib/constants/siteAnnouncements";
+  type AdminSiteAnnouncement,
+  type AnnouncementListFilters,
+} from "@/lib/admin/siteAnnouncements";
 
 interface AnnouncementsCardProps {
   items: AdminSiteAnnouncement[];

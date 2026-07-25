@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import {
-  ANNOUNCE_BANNER_HEIGHT_PX,
-  trackPromoView,
-} from "@/lib/marketing/siteAnnouncements";
-import { hasAnalyticsConsent } from "@/lib/analytics";
-import { CONSENT_EVENT } from "@/lib/consent";
+import { useEffect, type ReactNode } from "react";
+import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
+import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
 import { useAnnouncementsCtx } from "./context";
 import { AnnouncementTopBar } from "./TopBar";
 import { useActiveTopBar } from "./useActiveTopBar";
+import { useAnalyticsConsentFlag } from "./useAnalyticsConsentFlag";
 
 const NAV_HEIGHT = "4rem";
 const BANNER_HEIGHT = ANNOUNCE_BANNER_HEIGHT_PX;
@@ -38,14 +35,7 @@ export function SiteHeaderSpacer() {
 export function SiteAnnouncementBanner() {
   const { onCta, topBar } = useAnnouncementsCtx();
   const { bar, isPreview } = useActiveTopBar();
-  const [analyticsOk, setAnalyticsOk] = useState(false);
-
-  useEffect(() => {
-    const refresh = () => setAnalyticsOk(hasAnalyticsConsent());
-    refresh();
-    window.addEventListener(CONSENT_EVENT, refresh);
-    return () => window.removeEventListener(CONSENT_EVENT, refresh);
-  }, []);
+  const analyticsOk = useAnalyticsConsentFlag();
 
   useEffect(() => {
     if (!analyticsOk || !topBar || isPreview) return;

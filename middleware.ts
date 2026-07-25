@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-const COUNTRY_COOKIE = "fixera_geo_country";
-const LOCALE_COOKIE = "fixera_geo_locale";
+import {
+  GEO_COUNTRY_COOKIE,
+  GEO_LOCALE_COOKIE,
+} from "@/lib/marketing/siteAnnouncements/constants";
 
 /** Map ISO country → default locale for Fixera markets */
 function localeForCountry(country: string): string {
@@ -39,7 +40,7 @@ export function middleware(request: NextRequest) {
   const queryGeo = allowGeoOverride
     ? request.nextUrl.searchParams.get("geo")?.trim().toUpperCase().slice(0, 2)
     : undefined;
-  const existing = request.cookies.get(COUNTRY_COOKIE)?.value?.toUpperCase();
+  const existing = request.cookies.get(GEO_COUNTRY_COOKIE)?.value?.toUpperCase();
 
   const country =
     (queryGeo && /^[A-Z]{2}$/.test(queryGeo) && queryGeo) ||
@@ -48,21 +49,21 @@ export function middleware(request: NextRequest) {
     (allowGeoOverride ? "BE" : undefined);
 
   if (country) {
-    response.cookies.set(COUNTRY_COOKIE, country, {
+    response.cookies.set(GEO_COUNTRY_COOKIE, country, {
       path: "/",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
     });
-    response.cookies.set(LOCALE_COOKIE, localeForCountry(country), {
+    response.cookies.set(GEO_LOCALE_COOKIE, localeForCountry(country), {
       path: "/",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
     });
   } else {
     // Unknown production geo: do not invent a country; keep a neutral locale default.
-    const existingLocale = request.cookies.get(LOCALE_COOKIE)?.value;
+    const existingLocale = request.cookies.get(GEO_LOCALE_COOKIE)?.value;
     if (!existingLocale) {
-      response.cookies.set(LOCALE_COOKIE, "en", {
+      response.cookies.set(GEO_LOCALE_COOKIE, "en", {
         path: "/",
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7,

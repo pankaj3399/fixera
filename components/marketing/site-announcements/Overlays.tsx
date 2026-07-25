@@ -1,24 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { hasAnalyticsConsent } from "@/lib/analytics";
-import { CONSENT_EVENT } from "@/lib/consent";
-import { trackPromoView } from "@/lib/marketing/siteAnnouncements";
+import { useEffect } from "react";
+import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
 import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
 import { PromoOverlay } from "./PromoOverlay";
+import { useAnalyticsConsentFlag } from "./useAnalyticsConsentFlag";
 import { useDelayedReveal } from "./useDelayedReveal";
 import { useExitIntent } from "./useExitIntent";
-
-function useAnalyticsConsentFlag(): boolean {
-  const [ok, setOk] = useState(false);
-  useEffect(() => {
-    const refresh = () => setOk(hasAnalyticsConsent());
-    refresh();
-    window.addEventListener(CONSENT_EVENT, refresh);
-    return () => window.removeEventListener(CONSENT_EVENT, refresh);
-  }, []);
-  return ok;
-}
 
 export function SiteAnnouncementOverlays() {
   const { skip, modal, exitIntent, hide, onCta } = useAnnouncementsCtx();

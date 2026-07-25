@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements";
+import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements/types";
 
 export type AnnouncementsCtx = {
   skip: boolean;

@@ -1,6 +1,6 @@
 "use client";
 
-import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements";
+import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements/types";
 import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
 
 /** Active top bar: live announcement or admin preview override. */

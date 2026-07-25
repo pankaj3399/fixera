@@ -1,8 +1,14 @@
 import type { SiteAnnouncement } from "./types";
 import { GEO_COUNTRY_COOKIE, GEO_LOCALE_COOKIE } from "./constants";
-import { readCookie } from "./cookies";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 export async function fetchPublicSiteAnnouncements(
   init?: RequestInit,

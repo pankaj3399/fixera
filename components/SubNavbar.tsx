@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { getServiceIcon, getCategoryIcon } from "@/lib/serviceIcons";
-import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements";
+import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
 import { useActiveTopBar } from "@/components/marketing/site-announcements/useActiveTopBar";
 
 interface Service {

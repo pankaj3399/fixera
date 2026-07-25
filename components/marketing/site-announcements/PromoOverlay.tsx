@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   resolveAnnouncementHref,
-  type SiteAnnouncement,
-} from "@/lib/marketing/siteAnnouncements";
+} from "@/lib/marketing/siteAnnouncements/href";
+import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements/types";
 
 export function PromoOverlay({
   announcement,
