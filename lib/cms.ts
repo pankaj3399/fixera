@@ -57,6 +57,8 @@ export interface CmsContent {
   >;
   relatedServices?: Array<{ _id: string; name?: string; slug?: string } | string>;
   relatedServiceSlug?: string;
+  /** ISO 3166-1 alpha-2 codes; empty = visible in all countries */
+  activeCountries?: string[];
   viewCount?: number;
   createdAt: string;
   updatedAt: string;
@@ -81,6 +83,7 @@ export interface CmsUpsertPayload {
   relatedContent?: string[];
   relatedServices?: string[];
   relatedServiceSlug?: string;
+  activeCountries?: string[];
 }
 
 export interface CmsServiceOption {

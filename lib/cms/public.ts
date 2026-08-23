@@ -31,13 +31,14 @@ async function parseJsonRequired<T>(res: Response): Promise<T> {
 
 export async function publicListCms(
   type: CmsContentType,
-  params: { page?: number; limit?: number; tag?: string; serviceSlug?: string } = {}
+  params: { page?: number; limit?: number; tag?: string; serviceSlug?: string; country?: string } = {}
 ): Promise<CmsListResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.tag) qs.set("tag", params.tag);
   if (params.serviceSlug) qs.set("serviceSlug", params.serviceSlug);
+  if (params.country) qs.set("country", params.country);
   const res = await fetch(`${API}/api/public/cms/${type}?${qs.toString()}`, {
     next: { revalidate: 60, tags: ["cms", `cms:${type}`] },
   });
@@ -48,11 +49,18 @@ export async function publicListCms(
 
 export async function publicGetCms(
   type: CmsContentType,
-  slug: string
+  slug: string,
+  country?: string
 ): Promise<CmsContent | null> {
-  const res = await fetch(`${API}/api/public/cms/${type}/${encodeURIComponent(slug)}`, {
-    next: { revalidate: 60, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
-  });
+  const qs = new URLSearchParams();
+  if (country) qs.set("country", country);
+  const query = qs.toString();
+  const res = await fetch(
+    `${API}/api/public/cms/${type}/${encodeURIComponent(slug)}${query ? `?${query}` : ""}`,
+    {
+      next: { revalidate: 60, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
+    },
+  );
   if (res.status === 404) return null;
   const data = await parseJsonRequired<CmsContent>(res);
   return { ...data, body: sanitizeRichText(data.body || "") };
@@ -60,18 +68,22 @@ export async function publicGetCms(
 
 export async function fetchCmsPostWithError(
   type: CmsContentType,
-  slug: string
+  slug: string,
+  country?: string
 ): Promise<{ post: CmsContent | null; fetchError: boolean }> {
   try {
-    const post = await publicGetCms(type, slug);
+    const post = await publicGetCms(type, slug, country);
     return { post, fetchError: false };
   } catch {
     return { post: null, fetchError: true };
   }
 }
 
-export async function publicGetFaq(): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
-  const res = await fetch(`${API}/api/public/cms/faq`, {
+export async function publicGetFaq(country?: string): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
+  const qs = new URLSearchParams();
+  if (country) qs.set("country", country);
+  const query = qs.toString();
+  const res = await fetch(`${API}/api/public/cms/faq${query ? `?${query}` : ""}`, {
     next: { revalidate: 60, tags: ["cms", "cms:faq"] },
   });
   const data = await parseJsonRequired<{ groups: FaqGroup[]; categories: FaqCategory[] }>(res);

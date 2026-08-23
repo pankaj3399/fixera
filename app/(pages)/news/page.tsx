@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { type CmsContent } from "@/lib/cms";
 import { publicListCms } from "@/lib/cms/public";
+import { getVisitorCountryCode } from "@/lib/cms/visitorCountry";
 import BlogCard from "@/components/cms/BlogCard";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -22,8 +23,9 @@ interface PageProps {
 export default async function NewsIndexPage({ searchParams }: PageProps) {
   const { page: pageRaw, tag } = await searchParams;
   const page = Math.max(1, parseInt(pageRaw || "1", 10) || 1);
+  const country = await getVisitorCountryCode();
 
-  const res = await publicListCms("news", { page, limit: 12, tag });
+  const res = await publicListCms("news", { page, limit: 12, tag, country });
   const items: CmsContent[] = res.items;
   const pagination = res.pagination;
 

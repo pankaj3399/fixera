@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar } from "lucide-react";
 import type { Metadata } from "next";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
+import { getVisitorCountryCode } from "@/lib/cms/visitorCountry";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -19,7 +20,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const { post, fetchError } = await fetchCmsPostWithError("news", slug);
+  const country = await getVisitorCountryCode();
+  const { post, fetchError } = await fetchCmsPostWithError("news", slug, country);
   if (fetchError) {
     return buildMetadata({ title: "News", path: `/news/${slug}` });
   }
@@ -38,7 +40,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
-  const { post, fetchError } = await fetchCmsPostWithError("news", slug);
+  const country = await getVisitorCountryCode();
+  const { post, fetchError } = await fetchCmsPostWithError("news", slug, country);
   if (fetchError) throw new Error(`Failed to load news article ${slug}`);
   if (!post && !fetchError) notFound();
   if (!post) {

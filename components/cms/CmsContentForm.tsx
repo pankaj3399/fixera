@@ -29,6 +29,9 @@ import dynamic from "next/dynamic";
 import CoverImageUpload from "./CoverImageUpload";
 import SeoPanel from "./SeoPanel";
 import RelatedContentPicker, { relatedItemsFromCms } from "./RelatedContentPicker";
+import { EU_COUNTRIES } from "@/lib/countries";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import { Label } from "@/components/ui/label";
 
 const RichTextEditor = dynamic(() => import("./RichTextEditor"), {
   ssr: false,
@@ -51,6 +54,11 @@ const COVER_RECOMMENDATIONS: Partial<Record<CmsContentType, string>> = {
 };
 const DEFAULT_COVER_RECOMMENDATION = "Recommended: 1600 × 900 px (16:9)";
 
+const CMS_COUNTRY_OPTIONS = EU_COUNTRIES.map((country) => ({
+  value: country.code,
+  label: `${country.name} (${country.code})`,
+}));
+
 const EMPTY: Partial<CmsContent> = {
   type: "blog",
   title: "",
@@ -66,6 +74,7 @@ const EMPTY: Partial<CmsContent> = {
   status: "draft",
   seo: {},
   relatedServiceSlug: "",
+  activeCountries: [],
 };
 
 export default function CmsContentForm({ mode, initial, lockedType, initialSlug, initialTitle }: Props) {
@@ -77,6 +86,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         tags: Array.isArray(initial.tags) ? initial.tags : [],
         seo: initial.seo || {},
         coverImageAlt: initial.coverImageAlt || "",
+        activeCountries: Array.isArray(initial.activeCountries) ? initial.activeCountries : [],
       };
     }
     return {
@@ -158,6 +168,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const requiresCover = type === "blog" || type === "news";
   const hasTags = type === "blog" || type === "news";
   const isFaq = type === "faq";
+  const supportsCountryTargeting = hasTags || isFaq;
   const slugPrefix = getPublicSlugPrefixForCms(type);
   const publicPreviewPath = form.slug ? getPublicPathForCms(type, form.slug) : null;
   const coverRecommendation = COVER_RECOMMENDATIONS[type] ?? DEFAULT_COVER_RECOMMENDATION;
@@ -209,6 +220,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         seo: form.seo || {},
         relatedServiceSlug: hasTags ? (form.relatedServiceSlug || "").trim() : undefined,
         relatedContent: hasTags ? relatedItems.map((r) => r._id) : [],
+        activeCountries: supportsCountryTargeting ? form.activeCountries || [] : [],
       };
       if (mode === "create") {
         const created = await adminCreateCms(payload);
@@ -221,6 +233,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
           tags: Array.isArray(updated.tags) ? updated.tags : [],
           seo: updated.seo || {},
           coverImageAlt: updated.coverImageAlt || "",
+          activeCountries: Array.isArray(updated.activeCountries) ? updated.activeCountries : [],
         });
         setRelatedItems(relatedItemsFromCms(updated.relatedContent));
         toast.success(status === "published" ? "Published!" : "Draft saved");
@@ -434,6 +447,27 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
               />
             </div>
           </GradientCard>
+
+          {supportsCountryTargeting && (
+            <GradientCard>
+              <div className="p-6 space-y-2">
+                <Label className="text-sm font-semibold uppercase tracking-wide text-rose-700">
+                  Target countries
+                </Label>
+                <MultiSelectCombobox
+                  options={CMS_COUNTRY_OPTIONS}
+                  value={form.activeCountries || []}
+                  onChange={(countries) => update({ activeCountries: countries })}
+                  placeholder="All countries (default)"
+                  emptySelectionLabel="All countries (default)"
+                  searchPlaceholder="Search countries..."
+                />
+                <p className="text-[11px] text-rose-400">
+                  Leave empty to show this {CMS_TYPE_LABELS[type].toLowerCase()} to everyone. When set, only visitors from the selected countries can see it.
+                </p>
+              </div>
+            </GradientCard>
+          )}
 
           {hasTags && (
             <GradientCard>

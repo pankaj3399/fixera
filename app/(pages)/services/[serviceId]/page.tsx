@@ -14,6 +14,7 @@ import { breadcrumbSchema, serviceSchema } from '@/lib/seo/jsonLd';
 import { buildMetadata } from '@/lib/seo/metadata';
 import { CmsContent, cmsCoverAlt, humanizeCmsSlug } from '@/lib/cms';
 import { publicGetCms, publicListCms } from '@/lib/cms/public';
+import { getVisitorCountryCode } from '@/lib/cms/visitorCountry';
 import RichTextRenderer from '@/components/cms/RichTextRenderer';
 import BlogCard from '@/components/cms/BlogCard';
 import PopularProjectsCarousel from '@/components/PopularProjectsCarousel';
@@ -84,11 +85,11 @@ function relatedCatalogName(landing: CmsContent | null): string | undefined {
   return slug || undefined;
 }
 
-const fetchRelatedArticles = cache(async (serviceSlug: string) => {
+const fetchRelatedArticles = cache(async (serviceSlug: string, country?: string) => {
   try {
     const [blogs, news] = await Promise.all([
-      publicListCms('blog', { serviceSlug, limit: 6 }).then((r) => r.items).catch(() => [] as CmsContent[]),
-      publicListCms('news', { serviceSlug, limit: 4 }).then((r) => r.items).catch(() => [] as CmsContent[]),
+      publicListCms('blog', { serviceSlug, limit: 6, country }).then((r) => r.items).catch(() => [] as CmsContent[]),
+      publicListCms('news', { serviceSlug, limit: 4, country }).then((r) => r.items).catch(() => [] as CmsContent[]),
     ]);
     return { blogs, news };
   } catch {
@@ -219,7 +220,8 @@ export default async function Page({ params }: Props) {
     const queryName = meta?.name || relatedCatalogName(landing) || serviceId;
     const coverSrc = landing.coverImage || getServiceCoverImage(serviceId, meta?.categorySlug);
     const { html: bodyHtml, toc } = extractTocAndAddIds(landing.body);
-    const { blogs, news } = await fetchRelatedArticles(serviceId);
+    const country = await getVisitorCountryCode();
+    const { blogs, news } = await fetchRelatedArticles(serviceId, country);
 
     return (
       <div className="bg-white">
