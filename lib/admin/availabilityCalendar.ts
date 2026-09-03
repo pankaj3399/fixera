@@ -29,6 +29,35 @@ export function hasStoredScheduleTimes(
   return Object.values(availability).some((day) => day?.startTime || day?.endTime)
 }
 
+/** Accept HH:mm, H:mm, and browser time values that include seconds. */
+export function parseClockTime(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const match = value.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d{1,3})?)?$/)
+  if (!match) return undefined
+  return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
+export type AdminDaySchedule = { available: boolean; startTime?: string; endTime?: string }
+
+const WEEKDAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
+
+export function defaultAdminDaySchedule(day: string): AdminDaySchedule {
+  return {
+    available: (WEEKDAY_KEYS as readonly string[]).includes(day),
+    startTime: '09:00',
+    endTime: '17:00',
+  }
+}
+
+export function mergeAdminDaySchedule(day: string, loaded: AdminDaySchedule | undefined): AdminDaySchedule {
+  const defaults = defaultAdminDaySchedule(day)
+  return {
+    available: loaded?.available === true,
+    startTime: parseClockTime(loaded?.startTime) || defaults.startTime,
+    endTime: parseClockTime(loaded?.endTime) || defaults.endTime,
+  }
+}
+
 export function addIsoDays(value: string, days: number) {
   const date = new Date(`${value}T00:00:00Z`)
   date.setUTCDate(date.getUTCDate() + days)

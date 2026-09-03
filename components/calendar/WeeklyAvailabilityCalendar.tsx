@@ -264,8 +264,16 @@ export default function WeeklyAvailabilityCalendar({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="gap-3" style={{ display: 'grid', gridTemplateColumns: `90px repeat(${days.length}, 1fr)` }}>
+      <CardContent className="min-w-0">
+        <div className="max-h-[min(70vh,44rem)] overflow-auto">
+          <div
+            className="gap-3"
+            style={{
+              display: 'grid',
+              minWidth: `calc(4.5rem + ${days.length} * 7.5rem)`,
+              gridTemplateColumns: `4.5rem repeat(${days.length}, minmax(7.5rem, 1fr))`,
+            }}
+          >
           <div />
           {days.map((day) => (
             <div key={day.toISOString()} className="text-sm font-semibold text-slate-700">
@@ -392,6 +400,7 @@ export default function WeeklyAvailabilityCalendar({
               </div>
             )
           })}
+        </div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3 text-xs">

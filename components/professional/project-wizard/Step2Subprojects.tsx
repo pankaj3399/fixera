@@ -115,6 +115,7 @@ interface IDynamicField {
 
 interface ProjectData {
   subprojects?: ISubproject[];
+  requiredProfessionalFields?: Array<{ fieldName: string; label?: string }>;
   category?: string;
   service?: string;
   areaOfWork?: string;
@@ -322,6 +323,7 @@ export default function Step2Subprojects({
 
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);
+  const [dynamicFieldsLoaded, setDynamicFieldsLoaded] = useState(false);
   const [projectTypes, setProjectTypes] = useState<string[]>([]);
   const [configPricingOptions, setConfigPricingOptions] = useState<Array<{ name: string; pricingType: string; unit?: string }>>([]);
   const [configIncludedItems, setConfigIncludedItems] = useState<
@@ -343,6 +345,7 @@ export default function Step2Subprojects({
   );
 
   const fetchDynamicFields = async () => {
+    setDynamicFieldsLoaded(false);
     try {
       const params = new URLSearchParams({
         category: data.category || '',
@@ -369,6 +372,8 @@ export default function Step2Subprojects({
     } catch (error) {
       console.error('Failed to fetch dynamic fields:', error);
       toast.error('Failed to load service configuration');
+    } finally {
+      setDynamicFieldsLoaded(true);
     }
   };
 
@@ -415,6 +420,7 @@ export default function Step2Subprojects({
   // Fetch dynamic fields when category/service changes
   useEffect(() => {
     if (data.category && data.service) {
+      setDynamicFieldsLoaded(false);
       fetchDynamicFields();
       fetchServiceIncludedItems();
     }
@@ -422,10 +428,13 @@ export default function Step2Subprojects({
   }, [data.category, data.service, data.areaOfWork]);
 
   useEffect(() => {
-    onChange({ ...data, subprojects });
-    validateForm();
+    const requiredProfessionalFields = dynamicFields
+      .filter((field) => field.isRequired)
+      .map((field) => ({ fieldName: field.fieldName, label: field.label }));
+    onChange({ ...data, subprojects, requiredProfessionalFields });
+    validateForm(requiredProfessionalFields);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subprojects]);
+  }, [subprojects, dynamicFields]);
 
   // Fix pricing types when priceModel changes (ensure they match available options)
   useEffect(() => {
@@ -454,22 +463,16 @@ export default function Step2Subprojects({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.priceModel, data.selectedPricingOption, data.category, configPricingOptions]);
 
-  const validateForm = () => {
+  const validateForm = (
+    requiredFields: Array<{ fieldName: string; label?: string }> = dynamicFields
+      .filter((field) => field.isRequired)
+      .map((field) => ({ fieldName: field.fieldName, label: field.label })),
+  ) => {
+    const awaitingConfiguration = Boolean(data.category && data.service && !dynamicFieldsLoaded);
     const isValid =
+      !awaitingConfiguration &&
       subprojects.length > 0 &&
-      subprojects.every((sub, index) => {
-        if (collectSubprojectErrors(sub, index).length > 0) return false;
-
-        const requiredFieldsMissing = dynamicFields
-          .filter((f) => f.isRequired)
-          .some((f) => {
-            const input = sub.professionalInputs?.find(
-              (i) => i.fieldName === f.fieldName
-            );
-            return !input || input.value === undefined || input.value === '' || input.value === null;
-          });
-        return !requiredFieldsMissing;
-      });
+      subprojects.every((sub, index) => collectSubprojectErrors(sub, index, requiredFields).length === 0);
     onValidate(isValid);
   };
 

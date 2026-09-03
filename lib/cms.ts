@@ -107,6 +107,101 @@ export function cmsCoverAlt(item: Pick<CmsContent, "title" | "coverImageAlt">): 
   return alt || item.title || "Cover image";
 }
 
+/** Persist unsigned S3 locators. Preview may use a presigned URL; the API must not. */
+export function persistableCmsMediaUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    const isS3 =
+      /^[\w.-]+\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(host) ||
+      /^s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(host);
+    if (!isS3) return trimmed;
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString() || undefined;
+  } catch {
+    return trimmed;
+  }
+}
+
+function rewriteImgSrcAttributes(attrs: string, rewriteSrc: (src: string) => string): string {
+  let out = "";
+  let i = 0;
+  while (i < attrs.length) {
+    const ch = attrs[i];
+    if (ch === '"' || ch === "'") {
+      const end = attrs.indexOf(ch, i + 1);
+      const take = end === -1 ? attrs.length : end + 1;
+      out += attrs.slice(i, take);
+      i = take;
+      continue;
+    }
+
+    const rest = attrs.slice(i);
+    const m = rest.match(/^(src)(\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'>=]+))/i);
+    const prev = i === 0 ? " " : attrs[i - 1];
+    if (m && /[\s/]/.test(prev)) {
+      const raw = m[3] ?? m[4] ?? m[5] ?? "";
+      const next = rewriteSrc(raw);
+      const quote = m[3] !== undefined ? '"' : m[4] !== undefined ? "'" : "";
+      out += `src${m[2]}${quote}${next}${quote}`;
+      i += m[0].length;
+      continue;
+    }
+
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+function replaceImgTags(html: string, rewriteAttrs: (attrs: string) => string): string {
+  let result = "";
+  let i = 0;
+  const needle = "<img";
+  const lower = html.toLowerCase();
+  while (i < html.length) {
+    const start = lower.indexOf(needle, i);
+    if (start === -1) {
+      result += html.slice(i);
+      break;
+    }
+    result += html.slice(i, start);
+    let j = start + needle.length;
+    let quote: '"' | "'" | null = null;
+    while (j < html.length) {
+      const ch = html[j];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === ">") {
+        const attrs = html.slice(start + needle.length, j);
+        result += `<img${rewriteAttrs(attrs)}>`;
+        i = j + 1;
+        break;
+      }
+      j += 1;
+    }
+    if (j >= html.length) {
+      result += html.slice(start);
+      break;
+    }
+  }
+  return result;
+}
+
+export function persistableCmsHtml(html?: string): string {
+  if (!html) return "";
+  if (!/<img\b/i.test(html)) return html;
+  return replaceImgTags(html, (attrs) =>
+    rewriteImgSrcAttributes(attrs, (src) => persistableCmsMediaUrl(src) || src),
+  );
+}
+
 export function relatedContentIds(item: Pick<CmsContent, "relatedContent">): string[] {
   if (!Array.isArray(item.relatedContent)) return [];
   return item.relatedContent

@@ -14,7 +14,10 @@ import WeeklyAvailabilityCalendar, { type CalendarEvent } from '@/components/cal
 import {
   addIsoDays,
   buildBlockedCalendarEvents,
+  defaultAdminDaySchedule,
   hasStoredScheduleTimes,
+  mergeAdminDaySchedule,
+  parseClockTime,
   resolveAdminAvailabilityTimeZone,
   safeFormatInTimeZone,
 } from '@/lib/admin/availabilityCalendar'
@@ -32,8 +35,15 @@ const DAYS: Array<{ key: DayKey; label: string }> = [
 ]
 
 const defaultAvailability = (): Record<DayKey, DaySchedule> => Object.fromEntries(
-  DAYS.map(({ key }) => [key, { available: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(key), startTime: '09:00', endTime: '17:00' }]),
+  DAYS.map(({ key }) => [key, defaultAdminDaySchedule(key)]),
 ) as Record<DayKey, DaySchedule>
+
+function mergeLoadedAvailability(loaded: unknown): Record<DayKey, DaySchedule> {
+  const raw = loaded && typeof loaded === 'object' ? loaded as Record<string, DaySchedule> : {}
+  return Object.fromEntries(
+    DAYS.map(({ key }) => [key, mergeAdminDaySchedule(key, raw[key])]),
+  ) as Record<DayKey, DaySchedule>
+}
 
 export default function AdminAvailability() {
   const { checkAuth } = useAuth()
@@ -71,14 +81,16 @@ export default function AdminAvailability() {
         }]
       }
 
-      if (!day.available || !day.startTime || !day.endTime) return []
+      const startTime = parseClockTime(day.startTime)
+      const endTime = parseClockTime(day.endTime)
+      if (!day.available || !startTime || !endTime || endTime <= startTime) return []
 
       return [{
         id: `admin-availability-${key}`,
         type: 'personal' as const,
         title: 'Available',
-        start: fromZonedTime(`${date}T${day.startTime}:00`, resolvedTimeZone),
-        end: fromZonedTime(`${date}T${day.endTime}:00`, resolvedTimeZone),
+        start: fromZonedTime(`${date}T${startTime}:00`, resolvedTimeZone),
+        end: fromZonedTime(`${date}T${endTime}:00`, resolvedTimeZone),
         readOnly: true,
       }]
     })
@@ -97,9 +109,9 @@ export default function AdminAvailability() {
         setLoadError(false)
         const loadedTimeZone = json.data?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
         const normalizedTimeZone = resolveAdminAvailabilityTimeZone(loadedTimeZone, viewerTimeZone)
-        setAvailability({ ...defaultAvailability(), ...(json.data?.availability || {}) })
+        setAvailability(mergeLoadedAvailability(json.data?.availability))
         setBlockedDates((json.data?.blockedDates || []).map((item: BlockedDate) => ({ date: item.date ? safeFormatInTimeZone(new Date(item.date), normalizedTimeZone, 'yyyy-MM-dd', viewerTimeZone) : '', reason: item.reason || '' })).filter((item: BlockedDate) => item.date))
-        setBlockedRanges((json.data?.blockedRanges || []).map((range: BlockedRange) => ({ startDate: range.startDate ? safeFormatInTimeZone(new Date(range.startDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', endDate: range.endDate ? safeFormatInTimeZone(new Date(range.endDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', reason: range.reason || '' })))
+        setBlockedRanges((json.data?.blockedRanges || []).map((range: BlockedRange) => ({ startDate: range.startDate ? safeFormatInTimeZone(new Date(range.startDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', endDate: range.endDate ? safeFormatInTimeZone(new Date(range.endDate), normalizedTimeZone, "yyyy-MM-dd'T'HH:mm", viewerTimeZone) : '', reason: range.reason || '' })).filter((range: BlockedRange) => range.startDate && range.endDate))
         setTimeZone(normalizedTimeZone)
       })
       .catch((error: unknown) => { setLoadError(true); toast.error(error instanceof Error ? error.message : 'Failed to load availability') })
@@ -108,22 +120,41 @@ export default function AdminAvailability() {
 
   const save = async () => {
     if (loadError || loading) return
+    const payload = mergeLoadedAvailability(availability)
+    for (const { key, label } of DAYS) {
+      const day = payload[key]
+      if (day.available && (!day.startTime || !day.endTime || day.endTime <= day.startTime)) {
+        toast.error(`${label} end time must be after start time`)
+        return
+      }
+    }
     setSaving(true)
     try {
       const normalizedTimeZone = resolveAdminAvailabilityTimeZone(timeZone, viewerTimeZone)
-      const blockedDatesUtc = blockedDates.map((item) => ({
-        ...item,
-        date: fromZonedTime(`${item.date}T00:00:00`, normalizedTimeZone).toISOString(),
-      }))
-      const blockedRangesUtc = blockedRanges.map((range) => ({
-        ...range,
-        startDate: fromZonedTime(range.startDate, normalizedTimeZone).toISOString(),
-        endDate: fromZonedTime(range.endDate, normalizedTimeZone).toISOString(),
-      }))
+      const blockedDatesUtc = blockedDates
+        .filter((item) => item.date)
+        .map((item) => ({
+          ...item,
+          date: fromZonedTime(`${item.date}T00:00:00`, normalizedTimeZone).toISOString(),
+        }))
+      const blockedRangesUtc = blockedRanges
+        .filter((range) => range.startDate && range.endDate)
+        .map((range) => {
+          const start = fromZonedTime(range.startDate, normalizedTimeZone)
+          const end = fromZonedTime(range.endDate, normalizedTimeZone)
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+            throw new Error('Blocked slots need a valid start and end')
+          }
+          return {
+            ...range,
+            startDate: start.toISOString(),
+            endDate: end.toISOString(),
+          }
+        })
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/admin/availability`, {
         method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          availability,
+          availability: payload,
           blockedDates: blockedDatesUtc,
           blockedRanges: blockedRangesUtc,
           timeZone: resolveAdminAvailabilityTimeZone(timeZone, viewerTimeZone),
@@ -157,7 +188,52 @@ export default function AdminAvailability() {
           timeZone={resolvedTimeZone}
         />
         <div className="space-y-2">
-          {DAYS.map(({ key, label }) => { const day = availability[key]; return <div key={key} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[130px_110px_1fr_1fr] sm:items-center"><span className="font-medium">{label}</span><label className="flex items-center gap-2 text-sm"><Checkbox checked={day.available} onCheckedChange={(checked) => setAvailability((current) => ({ ...current, [key]: { ...current[key], available: checked === true } }))} />Available</label><div className="grid gap-1"><Label htmlFor={`admin-${key}-start`} className="text-xs text-slate-500">Start</Label><Input id={`admin-${key}-start`} type="time" value={day.startTime || '09:00'} disabled={!day.available} onChange={(event) => setAvailability((current) => ({ ...current, [key]: { ...current[key], startTime: event.target.value } }))} /></div><div className="grid gap-1"><Label htmlFor={`admin-${key}-end`} className="text-xs text-slate-500">End</Label><Input id={`admin-${key}-end`} type="time" value={day.endTime || '17:00'} disabled={!day.available} onChange={(event) => setAvailability((current) => ({ ...current, [key]: { ...current[key], endTime: event.target.value } }))} /></div></div> })}
+          {DAYS.map(({ key, label }) => {
+            const day = availability[key]
+            return (
+              <div key={key} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[130px_110px_1fr_1fr] sm:items-center">
+                <span className="font-medium">{label}</span>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={day.available}
+                    onCheckedChange={(checked) => setAvailability((current) => ({
+                      ...current,
+                      [key]: mergeAdminDaySchedule(key, { ...current[key], available: checked === true }),
+                    }))}
+                  />
+                  Available
+                </label>
+                <div className="grid gap-1">
+                  <Label htmlFor={`admin-${key}-start`} className="text-xs text-slate-500">Start</Label>
+                  <Input
+                    id={`admin-${key}-start`}
+                    type="time"
+                    step={60}
+                    value={parseClockTime(day.startTime) || '09:00'}
+                    disabled={!day.available}
+                    onChange={(event) => setAvailability((current) => ({
+                      ...current,
+                      [key]: { ...current[key], startTime: parseClockTime(event.target.value) || event.target.value },
+                    }))}
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor={`admin-${key}-end`} className="text-xs text-slate-500">End</Label>
+                  <Input
+                    id={`admin-${key}-end`}
+                    type="time"
+                    step={60}
+                    value={parseClockTime(day.endTime) || '17:00'}
+                    disabled={!day.available}
+                    onChange={(event) => setAvailability((current) => ({
+                      ...current,
+                      [key]: { ...current[key], endTime: parseClockTime(event.target.value) || event.target.value },
+                    }))}
+                  />
+                </div>
+              </div>
+            )
+          })}
         </div>
       </CardContent>
     </Card>

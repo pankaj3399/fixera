@@ -36,6 +36,7 @@ import {
   addIsoDays,
   buildBlockedCalendarEvents,
   hasStoredScheduleTimes,
+  parseClockTime,
   resolveAdminAvailabilityTimeZone,
   safeFormatInTimeZone,
 } from '@/lib/admin/availabilityCalendar';
@@ -103,8 +104,12 @@ function buildAvailabilityCalendar(member: StaffMember, viewerTimeZone: string) 
 
     if (!schedule?.available || !schedule.startTime || !schedule.endTime) continue;
 
-    const start = fromZonedTime(`${sourceDate}T${schedule.startTime}:00`, sourceTimeZone);
-    const end = fromZonedTime(`${sourceDate}T${schedule.endTime}:00`, sourceTimeZone);
+    const startTime = parseClockTime(schedule.startTime);
+    const endTime = parseClockTime(schedule.endTime);
+    if (!startTime || !endTime || endTime <= startTime) continue;
+
+    const start = fromZonedTime(`${sourceDate}T${startTime}:00`, sourceTimeZone);
+    const end = fromZonedTime(`${sourceDate}T${endTime}:00`, sourceTimeZone);
     if (end <= viewerWeekStart || start >= viewerWeekEnd) continue;
     events.push({
       id: `admin-availability-${sourceDate}`,
@@ -744,14 +749,14 @@ function StaffPageInner() {
         </Card>
 
         <Dialog open={Boolean(availabilityMember)} onOpenChange={(open) => { if (!open) setAvailabilityMember(null); }}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="flex max-h-[90vh] min-h-0 w-[calc(100vw-2rem)] max-w-5xl flex-col overflow-hidden">
             <DialogHeader>
               <DialogTitle>{availabilityMember?.name}&apos;s availability calendar</DialogTitle>
               <DialogDescription>
                 Converted to your timezone ({viewerTimeZone}). The source schedule is stored in {availabilityMember?.timeZone || 'UTC'}.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3">
+            <div className="min-h-0 flex-1 space-y-3 overflow-auto pr-1">
               <WeeklyAvailabilityCalendar
                 title="Weekly availability"
                 description={availabilityCalendar.hasConfiguredSchedule

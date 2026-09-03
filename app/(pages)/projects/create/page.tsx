@@ -168,6 +168,7 @@ interface ProjectData {
     isRequired: boolean
   }>
   subprojects?: ISubproject[]
+  requiredProfessionalFields?: Array<{ fieldName: string; label?: string }>
   extraOptions?: IExtraOption[]
   termsConditions?: ITermCondition[]
   repeatBuyerDiscount?: {
@@ -415,8 +416,9 @@ function ProjectCreateContent() {
         return 'fixed'
       })()
 
+      const { requiredProfessionalFields: _requiredProfessionalFields, ...projectFields } = projectData
       const dataToSave = {
-        ...projectData,
+        ...projectFields,
         subprojects: normalizePreparationDuration(projectData.subprojects),
         priceModel: computedPriceModel,
         currentStep
@@ -735,7 +737,13 @@ function ProjectCreateContent() {
     }
     if (errors.length > 0) {
       toast.error(errors.join('. '))
+      return
     }
+    if (currentStep === 8) {
+      void handleSubmit()
+      return
+    }
+    handleNext()
   }
 
   const renderCurrentStep = () => {

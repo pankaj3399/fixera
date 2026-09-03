@@ -21,6 +21,8 @@ import {
   FaqCategory,
   getPublicPathForCms,
   getPublicSlugPrefixForCms,
+  persistableCmsHtml,
+  persistableCmsMediaUrl,
   slugify,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
@@ -206,9 +208,9 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         title: form.title?.trim(),
         slug: slugify(form.slug || ""),
         locale: form.locale || "en",
-        body: form.body || "",
+        body: persistableCmsHtml(form.body || ""),
         excerpt: form.excerpt || "",
-        coverImage: form.coverImage || undefined,
+        coverImage: persistableCmsMediaUrl(form.coverImage) ?? (mode === "edit" ? "" : undefined),
         coverImageAlt:
           mode === "edit"
             ? (form.coverImageAlt || "").trim() || null
@@ -217,7 +219,12 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         tags: hasTags ? form.tags || [] : [],
         authorOverride: hasTags ? (form.authorOverride || "").trim() : undefined,
         status,
-        seo: form.seo || {},
+        seo: {
+          ...(form.seo || {}),
+          ...(form.seo?.ogImage
+            ? { ogImage: persistableCmsMediaUrl(form.seo.ogImage) || form.seo.ogImage }
+            : {}),
+        },
         relatedServiceSlug: hasTags ? (form.relatedServiceSlug || "").trim() : undefined,
         relatedContent: hasTags ? relatedItems.map((r) => r._id) : [],
         activeCountries: supportsCountryTargeting ? form.activeCountries || [] : [],

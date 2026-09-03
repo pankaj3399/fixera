@@ -34,6 +34,10 @@ type SubprojectSnapshot = {
     value?: number
     range?: { min?: number; max?: number }
   }
+  professionalInputs?: Array<{
+    fieldName?: string
+    value?: string | number | { min?: number; max?: number } | null
+  }>
 }
 
 export type WizardProjectSnapshot = {
@@ -55,6 +59,7 @@ export type WizardProjectSnapshot = {
   faq?: Array<{ question?: string; answer?: string }>
   rfqQuestions?: Array<{ question?: string; type?: string; options?: string[] }>
   postBookingQuestions?: Array<{ question?: string; type?: string; options?: string[] }>
+  requiredProfessionalFields?: Array<{ fieldName: string; label?: string }>
 }
 
 export type Step1ProfessionalVatQuestion = {
@@ -156,7 +161,11 @@ function packageLabel(sub: SubprojectSnapshot, index: number): string {
   return sub.name?.trim() || `Package ${index + 1}`
 }
 
-export function collectSubprojectErrors(sub: SubprojectSnapshot, index: number): string[] {
+export function collectSubprojectErrors(
+  sub: SubprojectSnapshot,
+  index: number,
+  requiredFields: Array<{ fieldName: string; label?: string }> = [],
+): string[] {
   const label = packageLabel(sub, index)
   const errors: string[] = []
 
@@ -219,7 +228,34 @@ export function collectSubprojectErrors(sub: SubprojectSnapshot, index: number):
   if (sub.errors?.priceRange) errors.push(`${label}: ${sub.errors.priceRange}`)
   if (sub.errors?.executionDurationRange) errors.push(`${label}: ${sub.errors.executionDurationRange}`)
 
+  errors.push(...collectRequiredProfessionalInputErrors(sub, index, requiredFields))
   return errors
+}
+
+type ProfessionalInputValue = string | number | { min?: number; max?: number } | null | undefined
+
+export function isProfessionalInputMissing(value: ProfessionalInputValue): boolean {
+  if (value === undefined || value === null) return true
+  if (typeof value === "string") return value.trim() === ""
+  if (typeof value === "object") {
+    return (value.min == null) && (value.max == null)
+  }
+  return false
+}
+
+export function collectRequiredProfessionalInputErrors(
+  sub: SubprojectSnapshot,
+  index: number,
+  requiredFields: Array<{ fieldName: string; label?: string }> = [],
+): string[] {
+  if (requiredFields.length === 0) return []
+  const label = packageLabel(sub, index)
+  return requiredFields.flatMap((field) => {
+    const input = (sub.professionalInputs || []).find((item) => item.fieldName === field.fieldName)
+    return isProfessionalInputMissing(input?.value)
+      ? [`${label}: ${field.label || field.fieldName} is required`]
+      : []
+  })
 }
 
 export function collectStepErrors(step: number, data: WizardProjectSnapshot): string[] {
@@ -252,7 +288,9 @@ export function collectStepErrors(step: number, data: WizardProjectSnapshot): st
       if (!data.subprojects || data.subprojects.length === 0) {
         return ["At least one package / subproject is required"]
       }
-      return data.subprojects.flatMap((sub, index) => collectSubprojectErrors(sub, index))
+      return data.subprojects.flatMap((sub, index) =>
+        collectSubprojectErrors(sub, index, data.requiredProfessionalFields),
+      )
     }
     case 3: {
       const errors: string[] = []
