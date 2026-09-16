@@ -71,6 +71,7 @@ interface ISubproject {
     amount?: number;
     priceRange?: { min?: number; max?: number };
     minOrderQuantity?: number; // Unit pricing: minimum order quantity
+    unit?: string; // Unit pricing: real service unit (m², hour, room...) persisted for invoices
   };
   errors?: {
     priceRange?: string;
@@ -299,6 +300,20 @@ export default function Step2Subprojects({
   // Determine if this is a total price model or unit-based model
   const unitLabel = getUnitLabel(data.selectedPricingOption, data.priceModel);
 
+  // Persist the real service unit on unit-priced subprojects so invoices can
+  // print it (e.g. "50 m²"). Fixed/RFQ pricing must not carry a unit.
+  // The authoritative unit comes from the Step 1 selection; otherwise keep an
+  // already-persisted unit (edit flow, where Step 1 is not re-mounted) and only
+  // then fall back to the derived label.
+  const withPricingUnit = (
+    pricing: ISubproject['pricing'],
+    fallbackUnit: string
+  ): ISubproject['pricing'] => {
+    if (pricing.type !== 'unit') return { ...pricing, unit: undefined };
+    const authoritativeUnit = data.selectedPricingOption?.unit;
+    return { ...pricing, unit: authoritativeUnit || pricing.unit || fallbackUnit };
+  };
+
   const normalizePreparationDuration = (subproject?: ISubproject) => {
     const value =
       typeof subproject?.preparationDuration?.value === 'number'
@@ -315,6 +330,7 @@ export default function Step2Subprojects({
   const [subprojects, setSubprojects] = useState<ISubproject[]>(() =>
     (data.subprojects || []).map((sub) => ({
       ...sub,
+      pricing: withPricingUnit(sub.pricing, unitLabel),
       preparationDuration: normalizePreparationDuration(sub),
     }))
   );
@@ -454,7 +470,7 @@ export default function Step2Subprojects({
         if (!validTypes.includes(sub.pricing.type)) {
           return {
             ...sub,
-            pricing: { ...sub.pricing, type: defaultType },
+            pricing: withPricingUnit({ ...sub.pricing, type: defaultType }, unitLabel),
           };
         }
         return sub;
@@ -462,6 +478,26 @@ export default function Step2Subprojects({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.priceModel, data.selectedPricingOption, data.category, configPricingOptions]);
+
+  // Keep the persisted unit in sync when the professional changes the selected
+  // pricing option in Step 1 (unit label may change).
+  useEffect(() => {
+    setSubprojects((prev) => {
+      const next = prev.map((sub) => {
+        if (sub.pricing.type === 'unit') {
+          const resolvedUnit = data.selectedPricingOption?.unit || sub.pricing.unit || unitLabel;
+          return resolvedUnit === sub.pricing.unit
+            ? sub
+            : { ...sub, pricing: { ...sub.pricing, unit: resolvedUnit } };
+        }
+        return sub.pricing.unit === undefined
+          ? sub
+          : { ...sub, pricing: { ...sub.pricing, unit: undefined } };
+      });
+      const changed = next.some((sub, index) => sub !== prev[index]);
+      return changed ? next : prev;
+    });
+  }, [unitLabel, data.selectedPricingOption]);
 
   const validateForm = (
     requiredFields: Array<{ fieldName: string; label?: string }> = dynamicFields
@@ -496,10 +532,13 @@ export default function Step2Subprojects({
       description: '',
       projectType: [], // NEW: Empty types array
       professionalInputs: [], // NEW: Empty inputs array
-      pricing: {
-        type: defaultPricingType,
-        amount: 0,
-      },
+      pricing: withPricingUnit(
+        {
+          type: defaultPricingType,
+          amount: 0,
+        },
+        unitLabel
+      ),
       included: [],
       materialsIncluded: undefined,
       materials: [],
@@ -902,7 +941,7 @@ export default function Step2Subprojects({
                         value={subproject.pricing.type}
                         onValueChange={(value: 'fixed' | 'unit' | 'rfq') => {
                           updateSubproject(subproject.id, {
-                            pricing: { ...subproject.pricing, type: value },
+                            pricing: withPricingUnit({ ...subproject.pricing, type: value }, unitLabel),
                           });
                         }}
                       >

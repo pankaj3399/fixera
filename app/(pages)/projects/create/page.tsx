@@ -46,6 +46,7 @@ interface ISubproject {
     priceRange?: { min?: number; max?: number }
     minProjectValue?: number
     minOrderQuantity?: number
+    unit?: string
   }
   errors?: {
     priceRange?: string
