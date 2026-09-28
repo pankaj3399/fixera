@@ -90,11 +90,14 @@ interface RFQAnswer {
 }
 
 interface ExtraCostChargeSummary {
+  paymentIntentClientSecret: string
   customerChargeAmount: number
   customerNetChargeAmount: number
   vatAmount: number
   subtotalInclCommission: number
-  loyaltyDiscountAmount: number
+  loyaltyDiscountAmount?: number
+  loyaltyLevel: string
+  loyaltyPercentage: number
 }
 
 interface BookingDetail {
@@ -129,6 +132,8 @@ interface BookingDetail {
     extraCostCustomerNetAmount?: number
     extraCostVatAmount?: number
     extraCostCustomerDiscount?: number
+    extraCostLoyaltyTier?: string
+    extraCostLoyaltyPercentage?: number
     authorizedAt?: string
     capturedAt?: string
     transferredAt?: string
@@ -1856,11 +1861,14 @@ function BookingDetailContent() {
         const customerNet = Number(result.data.customerNetChargeAmount)
         if (Number.isFinite(chargeAmount)) {
           setExtraCostCharge({
+            paymentIntentClientSecret: String(result.data.clientSecret),
             customerChargeAmount: chargeAmount,
             customerNetChargeAmount: Number.isFinite(customerNet) ? customerNet : chargeAmount - vatAmount,
             vatAmount,
             subtotalInclCommission: Number(result.data.subtotalInclCommission) || 0,
             loyaltyDiscountAmount: Number(result.data.loyaltyDiscount?.amount) || 0,
+            loyaltyLevel: String(result.data.loyaltyDiscount?.level || ""),
+            loyaltyPercentage: Number(result.data.loyaltyDiscount?.percentage) || 0,
           })
         }
         // Refresh so the persisted VAT-inclusive payment fields stay in sync
@@ -2331,17 +2339,36 @@ function BookingDetailContent() {
   useEffect(() => {
     setExtraCostClientSecret(booking?.payment?.extraCostClientSecret || "")
     const persistedChargeAmount = booking?.payment?.extraCostAmount
-    if (booking?.payment?.extraCostClientSecret && typeof persistedChargeAmount === "number") {
+    const persistedClientSecret = booking?.payment?.extraCostClientSecret
+    if (persistedClientSecret && typeof persistedChargeAmount === "number") {
       // Seed the VAT-inclusive summary from the persisted payment so a page
       // reload (or an existing PaymentIntent) still shows the charged amount.
-      setExtraCostCharge({
-        customerChargeAmount: persistedChargeAmount,
-        customerNetChargeAmount: booking?.payment?.extraCostCustomerNetAmount ?? persistedChargeAmount,
-        vatAmount: booking?.payment?.extraCostVatAmount ?? 0,
-        subtotalInclCommission: 0,
-        loyaltyDiscountAmount: booking?.payment?.extraCostCustomerDiscount ?? 0,
+      // Keep the response breakdown when it belongs to the same PaymentIntent;
+      // rebuild it whenever the secret or the charged amount changed so a
+      // previous intent can never leak stale amounts.
+      setExtraCostCharge(previous => {
+        if (
+          previous?.paymentIntentClientSecret === persistedClientSecret &&
+          previous.customerChargeAmount === persistedChargeAmount
+        ) {
+          return previous
+        }
+        const vatAmount = booking?.payment?.extraCostVatAmount ?? 0
+        return {
+          paymentIntentClientSecret: persistedClientSecret,
+          customerChargeAmount: persistedChargeAmount,
+          customerNetChargeAmount: booking?.payment?.extraCostCustomerNetAmount
+            ?? +(persistedChargeAmount - vatAmount).toFixed(2),
+          vatAmount,
+          subtotalInclCommission: 0,
+          // Leave the amount undefined when it was not persisted: the render
+          // path derives the loyalty discount from the charge difference.
+          loyaltyDiscountAmount: booking?.payment?.extraCostCustomerDiscount,
+          loyaltyLevel: booking?.payment?.extraCostLoyaltyTier ?? "",
+          loyaltyPercentage: booking?.payment?.extraCostLoyaltyPercentage ?? 0,
+        }
       })
-    } else if (!booking?.payment?.extraCostClientSecret) {
+    } else if (!persistedClientSecret) {
       setExtraCostCharge(null)
     }
     if (booking?.status !== "professional_completed") {
@@ -2353,6 +2380,8 @@ function BookingDetailContent() {
     booking?.payment?.extraCostCustomerNetAmount,
     booking?.payment?.extraCostVatAmount,
     booking?.payment?.extraCostCustomerDiscount,
+    booking?.payment?.extraCostLoyaltyTier,
+    booking?.payment?.extraCostLoyaltyPercentage,
     booking?.status,
   ])
 
@@ -3919,11 +3948,16 @@ function BookingDetailContent() {
                           const computedLoyalty = rawTotal > 0
                             ? Math.max(0, +(subtotalInclCommission - netCharge).toFixed(2))
                             : 0
+                          const persistedLoyaltyDiscount = booking.payment?.extraCostCustomerDiscount
                           const loyaltyDiscount = extraCostCharge
-                            ? extraCostCharge.loyaltyDiscountAmount
-                            : (Number(booking.payment?.extraCostCustomerDiscount) || computedLoyalty)
+                            ? (extraCostCharge.loyaltyDiscountAmount ?? computedLoyalty)
+                            : (typeof persistedLoyaltyDiscount === "number" ? persistedLoyaltyDiscount : computedLoyalty)
                           const displayedTotal = chargedTotal ?? customerPrice(rawTotal)
-                          const showLoyalty = loyaltyDiscount > 0 && loyalty && loyalty.percentage > 0
+                          // Prefer the terms stored with the PaymentIntent: the
+                          // customer's current tier may have changed since.
+                          const loyaltyLevel = extraCostCharge?.loyaltyLevel || loyalty?.level || 'Loyalty'
+                          const loyaltyPercentage = extraCostCharge?.loyaltyPercentage ?? loyalty?.percentage ?? 0
+                          const showLoyalty = loyaltyDiscount > 0 && loyaltyPercentage > 0
                           return (
                             <div className="space-y-1 pt-1 border-t border-gray-200 text-xs">
                               {commissionPercent != null && rawTotal !== 0 && (
@@ -3934,7 +3968,7 @@ function BookingDetailContent() {
                               )}
                               {showLoyalty && (
                                 <div className="flex justify-between text-green-600">
-                                  <span>{loyalty!.level} loyalty ({loyalty!.percentage}%)</span>
+                                  <span>{loyaltyLevel} loyalty ({loyaltyPercentage}%)</span>
                                   <span>−{currency} {loyaltyDiscount.toFixed(2)}</span>
                                 </div>
                               )}
