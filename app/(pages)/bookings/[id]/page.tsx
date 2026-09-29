@@ -30,6 +30,7 @@ import { PaymentForm } from "@/components/stripe/PaymentForm"
 import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
+import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { createOrGetConversation } from "@/lib/chatApi"
 import {
   calculateMilestoneGrossAmounts,
@@ -118,6 +119,11 @@ interface BookingDetail {
     extraCostStripePaymentIntentId?: string
     extraCostClientSecret?: string
     extraCostAmount?: number
+    extraCostCustomerNetAmount?: number
+    extraCostVatAmount?: number
+    extraCostCustomerDiscount?: number
+    extraCostLoyaltyTier?: string
+    extraCostLoyaltyPercentage?: number
     authorizedAt?: string
     capturedAt?: string
     transferredAt?: string
@@ -646,6 +652,7 @@ function BookingDetailContent() {
   const [rescheduleRefundNote, setRescheduleRefundNote] = useState("")
   const [confirmingCompletion, setConfirmingCompletion] = useState(false)
   const [extraCostClientSecret, setExtraCostClientSecret] = useState("")
+  const [extraCostCharge, setExtraCostCharge] = useState<ExtraCostChargeSummary | null>(null)
   const [loadingExtraCostPayment, setLoadingExtraCostPayment] = useState(false)
   const extraCostInitInFlightRef = useRef(false)
   const [extraCostPaymentCompleted, setExtraCostPaymentCompleted] = useState(false)
@@ -1839,6 +1846,24 @@ function BookingDetailContent() {
 
       if (response.ok && result.success && result.data?.clientSecret) {
         setExtraCostClientSecret(result.data.clientSecret)
+        const chargeAmount = Number(result.data.customerChargeAmount)
+        const vatAmount = result.data.vatAmount == null ? undefined : Number(result.data.vatAmount)
+        const customerNet = result.data.customerNetChargeAmount == null ? undefined : Number(result.data.customerNetChargeAmount)
+        if (Number.isFinite(chargeAmount)) {
+          setExtraCostCharge({
+            paymentIntentClientSecret: String(result.data.clientSecret),
+            customerChargeAmount: chargeAmount,
+            customerNetChargeAmount: Number.isFinite(customerNet) ? customerNet : undefined,
+            vatAmount: Number.isFinite(vatAmount) ? vatAmount : undefined,
+            subtotalInclCommission: result.data.subtotalInclCommission == null ? undefined : Number(result.data.subtotalInclCommission),
+            loyaltyDiscountAmount: Number(result.data.loyaltyDiscount?.amount) || 0,
+            loyaltyLevel: String(result.data.loyaltyDiscount?.level || ""),
+            loyaltyPercentage: Number(result.data.loyaltyDiscount?.percentage) || 0,
+          })
+        }
+        // Refresh so the persisted VAT-inclusive payment fields stay in sync
+        // for reloads and for the confirm-completion flow.
+        await refreshBooking()
         return true
       }
 
@@ -2303,10 +2328,35 @@ function BookingDetailContent() {
 
   useEffect(() => {
     setExtraCostClientSecret(booking?.payment?.extraCostClientSecret || "")
+    setExtraCostCharge(previous => mergePersistedExtraCostCharge(previous, {
+      extraCostClientSecret: booking?.payment?.extraCostClientSecret,
+      extraCostAmount: booking?.payment?.extraCostAmount,
+      extraCostCustomerNetAmount: booking?.payment?.extraCostCustomerNetAmount,
+      extraCostVatAmount: booking?.payment?.extraCostVatAmount,
+      extraCostCustomerDiscount: booking?.payment?.extraCostCustomerDiscount,
+      extraCostLoyaltyTier: booking?.payment?.extraCostLoyaltyTier,
+      extraCostLoyaltyPercentage: booking?.payment?.extraCostLoyaltyPercentage,
+    }))
     if (booking?.status !== "professional_completed") {
       setExtraCostPaymentCompleted(false)
     }
-  }, [booking?.payment?.extraCostClientSecret, booking?.status])
+  }, [
+    booking?.payment?.extraCostClientSecret,
+    booking?.payment?.extraCostAmount,
+    booking?.payment?.extraCostCustomerNetAmount,
+    booking?.payment?.extraCostVatAmount,
+    booking?.payment?.extraCostCustomerDiscount,
+    booking?.payment?.extraCostLoyaltyTier,
+    booking?.payment?.extraCostLoyaltyPercentage,
+    booking?.status,
+  ])
+
+  const extraCostAmounts = getExtraCostAmounts(
+    extraCostCharge,
+    booking?.payment,
+    // Extra-cost loyalty is capped at the commission, preserving the supplier's net.
+    Math.max(booking?.extraCostTotal || 0, customerPrice(booking?.extraCostTotal || 0)),
+  )
 
   if (loading || isLoading) {
     return (
@@ -3857,12 +3907,20 @@ function BookingDetailContent() {
                         {customerPricingReady ? (() => {
                           const currency = booking.payment?.currency || 'EUR'
                           const rawTotal = booking.extraCostTotal || 0
-                          const subtotalInclCommission = originalPrice(rawTotal)
-                          const displayedTotal = typeof booking.payment?.extraCostAmount === 'number'
-                            ? booking.payment.extraCostAmount
-                            : customerPrice(rawTotal)
-                          const loyaltyDiscount = rawTotal > 0 ? Math.max(0, +(subtotalInclCommission - displayedTotal).toFixed(2)) : 0
-                          const showLoyalty = loyaltyDiscount > 0 && loyalty && loyalty.percentage > 0
+                          const subtotalInclCommission = extraCostCharge?.subtotalInclCommission ?? originalPrice(rawTotal)
+                          const { vat: vatAmount, vatRate, net: netCharge, total: displayedTotal } = extraCostAmounts
+                          const computedLoyalty = rawTotal > 0
+                            ? Math.max(0, +(subtotalInclCommission - netCharge).toFixed(2))
+                            : 0
+                          const persistedLoyaltyDiscount = booking.payment?.extraCostCustomerDiscount
+                          const loyaltyDiscount = extraCostCharge
+                            ? (extraCostCharge.loyaltyDiscountAmount ?? computedLoyalty)
+                            : (typeof persistedLoyaltyDiscount === "number" ? persistedLoyaltyDiscount : computedLoyalty)
+                          // Prefer the terms stored with the PaymentIntent: the
+                          // customer's current tier may have changed since.
+                          const loyaltyLevel = extraCostCharge?.loyaltyLevel || loyalty?.level || 'Loyalty'
+                          const loyaltyPercentage = extraCostCharge?.loyaltyPercentage ?? loyalty?.percentage ?? 0
+                          const showLoyalty = loyaltyDiscount > 0 && loyaltyPercentage > 0
                           return (
                             <div className="space-y-1 pt-1 border-t border-gray-200 text-xs">
                               {commissionPercent != null && rawTotal !== 0 && (
@@ -3873,8 +3931,14 @@ function BookingDetailContent() {
                               )}
                               {showLoyalty && (
                                 <div className="flex justify-between text-green-600">
-                                  <span>{loyalty!.level} loyalty ({loyalty!.percentage}%)</span>
+                                  <span>{loyaltyLevel} loyalty ({loyaltyPercentage}%)</span>
                                   <span>−{currency} {loyaltyDiscount.toFixed(2)}</span>
+                                </div>
+                              )}
+                              {vatAmount > 0 && (
+                                <div className="flex justify-between text-gray-600">
+                                  <span>VAT{vatRate > 0 ? ` (${vatRate}%)` : ''}</span>
+                                  <span>+{currency} {vatAmount.toFixed(2)}</span>
                                 </div>
                               )}
                               <div className="flex justify-between items-center pt-1 border-t border-gray-200">
@@ -3943,7 +4007,7 @@ function BookingDetailContent() {
                         <StripeProvider>
                           <PaymentForm
                             clientSecret={extraCostClientSecret}
-                            amount={booking.payment?.extraCostAmount ?? customerPrice(booking.extraCostTotal || 0)}
+                            amount={extraCostAmounts.total}
                             currency={booking.payment?.currency || "EUR"}
                             onSuccess={handleExtraCostPaymentSuccess}
                             onError={handleExtraCostPaymentError}
