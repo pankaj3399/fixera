@@ -1,0 +1,35 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "leads": [
+        {
+          "_id": "66af00000000000000000408",
+          "email": "zulu.lead@example.com",
+          "country": "BE",
+          "locale": "nl",
+          "serviceKeys": [
+            "plumbing"
+          ],
+          "interestedServices": [
+            "Plumbing"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": false,
+          "suppressionReason": null,
+          "createdAt": "2026-04-01T00:00:00.000Z",
+          "updatedAt": "2026-04-01T00:00:00.000Z"
+        }
+      ],
+      "pagination": {
+        "page": 3,
+        "limit": 8,
+        "total": 17,
+        "totalPages": 3
+      }
+    }
+  }
+}

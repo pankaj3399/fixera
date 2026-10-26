@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { EU_COUNTRIES } from "@/lib/countries";
 import { authFetch } from "@/lib/utils";
 import { useAdminAccess } from "@/hooks/useAdminAccess";
-import { errMessage, formatDate, normalizeLanguages, requireApiBase, type LanguageOption, type ServiceOption } from "@/lib/admin/marketing";
+import { errMessage, formatDate, normalizeLanguages, requireApiBase, subscriberSyncSummary, type LanguageOption, type ServiceOption } from "@/lib/admin/marketing";
 import { Loader2, RefreshCw, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,8 +41,9 @@ type Subscriber = {
 export default function MarketingSubscribersPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-  const { canAccessPath } = useAdminAccess();
+  const { canAccessPath, canWriteArea } = useAdminAccess();
   const allowed = !authLoading && Boolean(isAuthenticated && user?.role === "admin") && canAccessPath("/admin/campaigns/subscribers");
+  const canWrite = allowed && canWriteArea("campaigns");
   const [rows, setRows] = useState<Subscriber[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [languages, setLanguages] = useState<LanguageOption[]>(() => normalizeLanguages([]));
@@ -118,12 +119,15 @@ export default function MarketingSubscribersPage() {
   const countryOptions = useMemo(() => EU_COUNTRIES.map((country) => ({ value: country.code, label: `${country.name} (${country.code})` })), []);
 
   const sync = async () => {
+    if (!canWrite) return;
     setSyncing(true);
     try {
       const response = await authFetch(`${requireApiBase()}/api/admin/marketing-subscribers/sync`, { method: "POST" });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.success) throw new Error(messageFromApiBody(json, "Subscriber sync failed"));
-      toast.success(`Subscriber sync complete: ${json.data?.upserted || 0} updated`);
+      const summary = subscriberSyncSummary(json.data);
+      if (summary.tone === "warning") toast.warning(summary.message);
+      else toast.success(summary.message);
       await load();
     } catch (error) { toast.error(errMessage(error, "Subscriber sync failed")); }
     finally { setSyncing(false); }
@@ -134,7 +138,7 @@ export default function MarketingSubscribersPage() {
   return <div className="mx-auto max-w-7xl space-y-6 p-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="text-2xl font-semibold tracking-tight">Marketing subscribers</h1><p className="mt-1 text-sm text-muted-foreground">Consent-backed subscribers synchronized from user notification preferences.</p></div>
-      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => router.push("/admin/campaigns")}><Users className="mr-2 h-4 w-4" />Campaigns</Button><Button onClick={() => void sync()} disabled={syncing}>{syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Sync subscribers</Button></div>
+      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => router.push("/admin/campaigns")}><Users className="mr-2 h-4 w-4" />Campaigns</Button>{canWrite ? <Button onClick={() => void sync()} disabled={syncing}>{syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Sync subscribers</Button> : null}</div>
     </div>
     <Card><CardContent className="grid gap-3 p-4 md:grid-cols-[1.6fr_repeat(4,1fr)]">
       <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search email" aria-label="Search subscribers" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></div>

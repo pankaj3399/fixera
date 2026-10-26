@@ -1,0 +1,36 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "leads": [
+        {
+          "_id": "6adfb0c5210d91f37feff859",
+          "email": "person@example.com",
+          "country": "FR",
+          "locale": "fr",
+          "serviceKeys": [
+            "painting"
+          ],
+          "interestedServices": [
+            "Painting"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": false,
+          "suppressionReason": null,
+          "sourceImportId": "6adfb0c53a75b668ca348f69",
+          "createdAt": "2026-10-26T19:57:57.659Z",
+          "updatedAt": "2026-10-26T19:57:57.659Z"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 8,
+        "total": 1,
+        "totalPages": 1
+      }
+    }
+  }
+}

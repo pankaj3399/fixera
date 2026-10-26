@@ -1,0 +1,174 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "leads": [
+        {
+          "_id": "6adfb0c5210d91f37feff859",
+          "email": "person@example.com",
+          "country": "FR",
+          "locale": "fr",
+          "serviceKeys": [
+            "painting"
+          ],
+          "interestedServices": [
+            "Painting"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": false,
+          "suppressionReason": null,
+          "sourceImportId": "6adfb0c53a75b668ca348f69",
+          "createdAt": "2026-10-26T19:57:57.659Z",
+          "updatedAt": "2026-10-26T19:57:57.659Z"
+        },
+        {
+          "_id": "66af00000000000000000403",
+          "email": "sub.only-cust@example.com",
+          "country": "BE",
+          "locale": "nl",
+          "serviceKeys": [
+            "electrical"
+          ],
+          "interestedServices": [
+            "Electrical"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": false,
+          "suppressionReason": null,
+          "createdAt": "2026-04-01T00:00:00.000Z",
+          "updatedAt": "2026-04-01T00:00:00.000Z"
+        },
+        {
+          "_id": "66af00000000000000000401",
+          "email": "sub.pro@example.com",
+          "country": "BE",
+          "locale": "nl",
+          "serviceKeys": [
+            "electrical"
+          ],
+          "interestedServices": [
+            "Electrical"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": false,
+          "suppressionReason": null,
+          "createdAt": "2026-04-01T00:00:00.000Z",
+          "updatedAt": "2026-04-01T00:00:00.000Z"
+        },
+        {
+          "_id": "6adfb0c5210d91f37feff856",
+          "email": "suppressed@example.com",
+          "country": "BE",
+          "locale": "nl",
+          "serviceKeys": [
+            "plumbing"
+          ],
+          "interestedServices": [
+            "Plumbing"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": true,
+          "suppressionReason": "provider",
+          "sourceImportId": "6adfb0c53a75b668ca348f69",
+          "createdAt": "2026-10-26T19:57:57.659Z",
+          "updatedAt": "2026-10-26T19:57:57.659Z"
+        },
+        {
+          "_id": "6adfb0c5210d91f37feff86f",
+          "email": "suppressed@example.com",
+          "country": "BE",
+          "locale": "fr",
+          "serviceKeys": [
+            "painting"
+          ],
+          "interestedServices": [
+            "Painting"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": true,
+          "suppressionReason": "provider",
+          "sourceImportId": "6adfb0c53a75b668ca348f84",
+          "createdAt": "2026-10-26T19:57:57.729Z",
+          "updatedAt": "2026-10-26T19:57:57.729Z"
+        },
+        {
+          "_id": "6adfb0c5210d91f37feff870",
+          "email": "suppressed@example.com",
+          "country": "FR",
+          "locale": "fr",
+          "serviceKeys": [
+            "painting"
+          ],
+          "interestedServices": [
+            "Painting"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": true,
+          "suppressionReason": "provider",
+          "sourceImportId": "6adfb0c53a75b668ca348f84",
+          "createdAt": "2026-10-26T19:57:57.729Z",
+          "updatedAt": "2026-10-26T19:57:57.729Z"
+        },
+        {
+          "_id": "6adfb0c5210d91f37feff871",
+          "email": "suppressed@example.com",
+          "country": "US",
+          "locale": "en",
+          "serviceKeys": [
+            "plumbing"
+          ],
+          "interestedServices": [
+            "Plumbing"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": true,
+          "suppressionReason": "provider",
+          "sourceImportId": "6adfb0c53a75b668ca348f84",
+          "createdAt": "2026-10-26T19:57:57.729Z",
+          "updatedAt": "2026-10-26T19:57:57.729Z"
+        },
+        {
+          "_id": "6adfb0c5210d91f37feff857",
+          "email": "us.lead@example.com",
+          "country": "US",
+          "locale": "en",
+          "serviceKeys": [
+            "plumbing"
+          ],
+          "interestedServices": [
+            "Plumbing"
+          ],
+          "status": "active",
+          "unsubscribedAt": null,
+          "lastCampaignSentAt": null,
+          "suppressed": false,
+          "suppressionReason": null,
+          "sourceImportId": "6adfb0c53a75b668ca348f69",
+          "createdAt": "2026-10-26T19:57:57.659Z",
+          "updatedAt": "2026-10-26T19:57:57.659Z"
+        }
+      ],
+      "pagination": {
+        "page": 2,
+        "limit": 8,
+        "total": 17,
+        "totalPages": 3
+      }
+    }
+  }
+}
