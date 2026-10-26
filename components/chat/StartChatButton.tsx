@@ -17,6 +17,8 @@ interface StartChatButtonProps {
   variant?: "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
   size?: "default" | "sm" | "lg" | "icon";
   initialMessage?: string;
+  /** A disabled button keeps the action visible but prevents an unavailable recipient from being contacted. */
+  disabledReason?: string;
 }
 
 export default function StartChatButton({
@@ -26,6 +28,7 @@ export default function StartChatButton({
   variant = "outline",
   size = "sm",
   initialMessage,
+  disabledReason,
 }: StartChatButtonProps) {
   const t = useTranslations("chat");
   const router = useRouter();
@@ -46,7 +49,7 @@ export default function StartChatButton({
   }
 
   const handleClick = () => {
-    if (loading) return;
+    if (loading || disabledReason) return;
 
     if (!isAuthenticated) {
       if (typeof window !== "undefined") {
@@ -70,7 +73,16 @@ export default function StartChatButton({
   };
 
   return (
-    <Button type="button" variant={variant} size={size} className={className} onClick={handleClick}>
+    <Button
+      type="button"
+      variant={variant}
+      size={size}
+      className={className}
+      onClick={handleClick}
+      disabled={Boolean(disabledReason)}
+      title={disabledReason}
+      aria-label={disabledReason ? `${label ?? t("startChatButton.label")}: ${disabledReason}` : undefined}
+    >
       <MessageSquare className="h-4 w-4 mr-2" />
       {label ?? t("startChatButton.label")}
     </Button>

@@ -1,0 +1,116 @@
+{
+  "success": true,
+  "data": {
+    "target": {
+      "id": "665f1f77bcf86cd799439014",
+      "role": "professional",
+      "name": null,
+      "email": null,
+      "accountStatus": "rejected",
+      "professionalStatus": "approved",
+      "deletedAt": "2026-10-26T12:00:00.000Z",
+      "isAnonymized": true,
+      "identityRemoved": true,
+      "accessDisabled": true,
+      "needsRedaction": false
+    },
+    "status": "already_anonymized",
+    "eligible": false,
+    "alreadyAnonymized": true,
+    "recoveryRequired": false,
+    "fullyAnonymized": false,
+    "blockers": [],
+    "impact": {
+      "bookings": {
+        "total": 0,
+        "active": 0,
+        "asCustomer": 0,
+        "asProfessional": 0
+      },
+      "payments": {
+        "total": 0,
+        "invoiceRecords": 0,
+        "pendingObligations": 0
+      },
+      "refunds": {
+        "total": 0,
+        "pending": 0
+      },
+      "disputes": {
+        "total": 0,
+        "active": 0
+      },
+      "warrantyClaims": {
+        "total": 0,
+        "active": 0
+      },
+      "cancellationRequests": {
+        "total": 0,
+        "active": 0
+      },
+      "supportTickets": 0,
+      "chatMessages": 0,
+      "meetings": 0,
+      "projects": 0,
+      "marketingSubscribers": 0,
+      "notifications": 0,
+      "emailLogs": 0
+    },
+    "retained": [
+      {
+        "category": "bookings",
+        "label": "Booking and service facts",
+        "reason": "Kept for contract history, schedule history, and counterparty access. Party display values and owned files are redacted."
+      },
+      {
+        "category": "payments",
+        "label": "Payments, refunds, and transfers",
+        "reason": "Kept for settlement, reconciliation, and financial audit. Amounts, statuses, provider ids, and stable user ids stay unchanged."
+      },
+      {
+        "category": "invoices",
+        "label": "Invoices and credit notes",
+        "reason": "Invoice numbers, credit-note numbers, artifact history, and files under the invoice root are retained evidence and are not deleted."
+      },
+      {
+        "category": "disputes",
+        "label": "Dispute and cancellation decisions",
+        "reason": "Financial outcomes, admin decisions, and statuses stay. Target-authored narrative and target-owned evidence files are redacted."
+      },
+      {
+        "category": "warranty",
+        "label": "Warranty decisions",
+        "reason": "Warranty status, deadlines, and resolution outcomes stay. Target-authored narrative and target-owned evidence files are redacted."
+      },
+      {
+        "category": "support",
+        "label": "Support history",
+        "reason": "Ticket, meeting, and reply rows stay without the target's content so support audit and counterparty context still resolve."
+      },
+      {
+        "category": "audit",
+        "label": "Anonymization audit",
+        "reason": "A minimal record keeps the stable target id, admin id, action, time, outcome, and counts. It does not store the old name or email."
+      }
+    ],
+    "cleanup": {
+      "pendingFiles": 2,
+      "pendingCalendarReleases": 1,
+      "deletedFiles": 0,
+      "failedFiles": 2,
+      "completedAt": null,
+      "lastError": "Could not delete 2 stored files. A repeated request will retry them."
+    },
+    "confirmation": {
+      "requiredText": "ANONYMIZE"
+    },
+    "warnings": [
+      "External provider records (for example Stripe, Brevo, and Odoo) are not changed by this endpoint.",
+      "Invoices and credit-note files are retained as financial evidence and are not deleted.",
+      "Counterparty-authored, admin-authored, and unknown-authorship free text inside retained records is preserved by policy and is not rewritten.",
+      "Legacy notifications and email logs without recorded actor provenance are only redacted when their entity relationship identifies a target-owned booking, conversation, project, or request. Records with no such provenance are retained and are not matched by name or email text.",
+      "2 stored files still need deletion. A repeated request will retry them.",
+      "1 calendar cleanup task still need a retry."
+    ]
+  }
+}

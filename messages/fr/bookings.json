@@ -664,6 +664,8 @@
     "answerEmpty": "Aucune réponse enregistrée",
     "answerEmptyList": "Aucune option sélectionnée",
     "partyContactNote": "Les coordonnées sont celles du profil actuel, pas un instantané de la réservation.",
+    "partyAnonymized": "Utilisateur supprimé",
+    "partyAnonymizedNote": "Ce compte a été anonymisé. Les données personnelles et coordonnées ne sont plus disponibles.",
     "tabs": {
       "overview": "Aperçu",
       "booking": "Réservation",
@@ -1040,6 +1042,7 @@
       "peppolStatusLabel": "Statut Peppol :"
     },
     "activity": {
+      "deletedActor": "Utilisateur supprimé",
       "title": "Historique d'activité",
       "descriptionLong": "Événements chronologiques regroupés par jour à partir des données enregistrées. Ouvrez un événement pour ses détails.",
       "complete": "Historique enregistré",

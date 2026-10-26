@@ -30,6 +30,7 @@ import {
   ProvenanceBadge,
   StatusText,
   TimeZoneNote,
+  actorDisplayName,
   useDetailDisplayTimeZone,
   useDetailT,
 } from "./DetailPrimitives"
@@ -108,15 +109,15 @@ function ActivityEvent({
     ? t(activityTitleKey(item.type) as never)
     : activityTypeFallback(item.type)
   const actor = item.actor
-  const actorLabel = actor?.name
-    ? actor.name
-    : item.actorRecorded === false
-    ? dt("fields.actorNotRecorded", "actor not recorded")
-    : actor?.role === "system"
-    ? dt("activity.systemActor", "System")
-    : actor?.id
-    ? dt("fields.actorNameUnknown", "recorded user (name unavailable)")
-    : dt("fields.actorNotRecorded", "actor not recorded")
+  const actorLabel =
+    actorDisplayName(actor, dt("activity.deletedActor", "Deleted user")) ||
+    (item.actorRecorded === false
+      ? dt("fields.actorNotRecorded", "actor not recorded")
+      : actor?.role === "system"
+        ? dt("activity.systemActor", "System")
+        : actor?.id
+          ? dt("fields.actorNameUnknown", "recorded user (name unavailable)")
+          : dt("fields.actorNotRecorded", "actor not recorded"))
   const actorRole = actor?.role && actor.role !== "unknown" && actor.role !== "system" ? actor.role : null
   const quotationNumber = item.metadata?.quotationNumber || item.references?.quotationNumber || null
   const quotationVersion = item.metadata?.version ?? item.references?.version ?? null

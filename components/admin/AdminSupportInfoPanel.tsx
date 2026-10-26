@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { authFetch } from "@/lib/utils"
 import { getLevelColor } from "@/lib/professionalLevel"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 interface ParticipantUser {
   _id: string
@@ -16,6 +17,8 @@ interface ParticipantUser {
   phone: string | null
   username: string | null
   role: string
+  deletedAt?: string | null
+  isAnonymized?: boolean
 }
 
 interface ParticipantKpis {
@@ -125,7 +128,14 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
         ) : (
           <div className="p-4 space-y-5">
             <div>
-              <p className="text-base font-semibold text-gray-900">{user.name || user.username || "User"}</p>
+              <p className="text-base font-semibold text-gray-900">
+                {isAnonymizedIdentity(user) ? "Deleted user" : user.name || user.username || "User"}
+              </p>
+              {isAnonymizedIdentity(user) && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Personal details are no longer available. Financial KPIs are retained.
+                </p>
+              )}
               {user.role === "professional" && kpis.level && (
                 <Badge className={`mt-2 text-[10px] ${getLevelColor(kpis.level)}`}>
                   <Award className="mr-1 h-3 w-3" />
@@ -137,20 +147,22 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
               )}
             </div>
 
-            <div className="space-y-2 text-sm">
-              <div className="flex items-start gap-2 text-gray-700">
-                <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-                <span className="break-all">{user.email || "—"}</span>
+            {!isAnonymizedIdentity(user) && (
+              <div className="space-y-2 text-sm">
+                <div className="flex items-start gap-2 text-gray-700">
+                  <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span className="break-all">{user.email || "—"}</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-700">
+                  <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span>{user.phone || "—"}</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-700">
+                  <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span>{user.username || "—"}</span>
+                </div>
               </div>
-              <div className="flex items-start gap-2 text-gray-700">
-                <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-                <span>{user.phone || "—"}</span>
-              </div>
-              <div className="flex items-start gap-2 text-gray-700">
-                <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-                <span>{user.username || "—"}</span>
-              </div>
-            </div>
+            )}
 
             <div className="border-t border-gray-100 pt-4 space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">KPIs</h3>

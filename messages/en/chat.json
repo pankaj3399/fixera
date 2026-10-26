@@ -16,7 +16,10 @@
     "chat": "Chat",
     "retry": "Retry",
     "image": "[Image]",
-    "attachment": "[Attachment]"
+    "attachment": "[Attachment]",
+    "deletedUser": "Deleted user",
+    "accountUnavailable": "Account no longer available",
+    "messageDeleted": "Message removed"
   },
   "page": {
     "title": "Messages",
@@ -42,7 +45,8 @@
     "supportReadOnlyBlocked": "Support chat is no longer available for this conversation. You can still read earlier messages.",
     "supportReadOnlyRetry": "Check again",
     "selectConversation": "Select a conversation to view messages",
-    "absence": "Professional is absent from <date>{from}</date> to <date>{to}</date>"
+    "absence": "Professional is absent from <date>{from}</date> to <date>{to}</date>",
+    "recipientUnavailable": "You cannot send messages because this account is no longer available."
   },
   "quotationDialog": {
     "title": "Create Direct Quotation",
@@ -190,7 +194,8 @@
     "adminTags": {
       "verified": "Verified",
       "ourChoice": "Our Choice"
-    }
+    },
+    "deletedUserDescription": "This account was anonymized. Profile details and contact options are no longer available."
   },
   "widget": {
     "button": "Chat",
@@ -204,6 +209,7 @@
   },
   "startChatButton": {
     "label": "Start Chat",
-    "onlyCustomers": "Only customers can start conversations"
+    "onlyCustomers": "Only customers can start conversations",
+    "recipientUnavailable": "This professional is no longer available for chat."
   }
 }

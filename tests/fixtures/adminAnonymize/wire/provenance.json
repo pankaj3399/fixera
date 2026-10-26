@@ -1,0 +1,56 @@
+{
+  "generator": "tests/fixtures/adminAnonymize/wire/generate-wire-fixtures.mjs",
+  "command": "FIXERA_TEST_MONGODB_URI=mongodb://127.0.0.1:27147/fixera_admin_wire_fixtures_test ../fixera-server/node_modules/.bin/tsx tests/fixtures/adminAnonymize/wire/generate-wire-fixtures.mjs",
+  "backendRoot": "/home/abstergo/Programming/Projects/fixera/fixera-server",
+  "backendRevision": {
+    "head": "5fbe0761afd48bb262b9073cf12112765c5b5e61",
+    "branch": "feat/admin-anonymize",
+    "dirty": true
+  },
+  "frontendRevision": {
+    "head": "d7e6b48faf42b54f21a7b4c58a60e1e736de461a",
+    "branch": "feat/admin-anonymize",
+    "dirty": true
+  },
+  "database": "fixera_admin_wire_fixtures_test",
+  "ids": {
+    "admin": "665f1f77bcf86cd799439000",
+    "partial": "665f1f77bcf86cd799439014",
+    "tombstone": "665f1f77bcf86cd799439016",
+    "legacy": "665f1f77bcf86cd799439017",
+    "currentSupportTarget": "665f1f77bcf86cd799439021",
+    "liveProfessional": "665f1f77bcf86cd799439022",
+    "currentTicket": "665f1f77bcf86cd799439031",
+    "legacyMeeting": "665f1f77bcf86cd799439032",
+    "booking": "665f1f77bcf86cd799439041",
+    "calendarSource": "665f1f77bcf86cd799439051"
+  },
+  "seededAt": {
+    "partialStarted": "2026-10-26T12:00:00.000Z",
+    "tombstoneDeleted": "2026-10-25T12:00:00.000Z",
+    "legacyDeleted": "2025-01-01T00:00:00.000Z",
+    "supportCreated": "2026-10-20T10:00:00.000Z",
+    "meetingAt": "2026-11-02T10:00:00.000Z",
+    "bookingCreated": "2026-10-01T08:00:00.000Z"
+  },
+  "handlers": {
+    "preview": "src/handlers/Admin/userAnonymize.ts adminAnonymizePreview -> previewAccountAnonymization",
+    "recovery": "src/handlers/Admin/userAnonymize.ts adminAnonymizeRecoveryList -> listRecoverableAnonymizations",
+    "support": "src/handlers/Admin/supportItems.ts adminGetSupportItem -> serializeSupportTicketAdmin/serializeLegacyMeetingRequestAdmin",
+    "booking": "src/handlers/Admin/bookingDetail.ts getAdminBookingDetail -> buildDetailsForBookingDocument -> buildBookingDetails parties"
+  },
+  "sourceHashes": {
+    "src/utils/anonymizeUser.ts": "3b59d52a5fbd9315",
+    "src/utils/support/serializers.ts": "b069eb67ba464286",
+    "src/utils/bookingDetails/projection.ts": "eca34bceef9aaea7",
+    "src/handlers/Admin/userAnonymize.ts": "2b584f15ef6b33d4",
+    "src/handlers/Admin/supportItems.ts": "52a03f3abf0534e4",
+    "src/handlers/Admin/bookingDetail.ts": "3973ae3e56864256",
+    "src/models/user.ts": "743c12cc65333f2d",
+    "src/models/accountDataGuard.ts": "27a90209950a8ce3",
+    "src/models/supportTicket.ts": "bc05edf259f959db",
+    "src/models/meetingRequest.ts": "39f19077136fe324",
+    "src/models/booking.ts": "019a297eab4a0358"
+  },
+  "deniedNetwork": []
+}

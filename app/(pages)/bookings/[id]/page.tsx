@@ -44,6 +44,7 @@ import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 import {
   calculateMilestoneGrossAmounts,
   calculateQuoteVersionVatTotals,
@@ -263,6 +264,8 @@ interface BookingDetail {
   }
   professional?: {
     _id: string
+    deletedAt?: string | null
+    isAnonymized?: boolean
     name?: string
     email?: string
     phone?: string
@@ -278,6 +281,8 @@ interface BookingDetail {
   }
   customer?: {
     _id: string
+    deletedAt?: string | null
+    isAnonymized?: boolean
     name?: string
     email?: string
     phone?: string
@@ -553,6 +558,7 @@ export default function BookingDetailPage() {
 function BookingDetailContent() {
   const { user, isAuthenticated, loading } = useAuth()
   const t = useTranslations("bookings")
+  const tChat = useTranslations("chat")
   const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
   const { formatMoney } = useCurrency()
@@ -593,6 +599,8 @@ function BookingDetailContent() {
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
   const [details, setDetails] = useState<BookingDetailsDto | null>(null)
+  const professionalUnavailable = isAnonymizedIdentity(details?.parties?.professional || booking?.professional)
+  const customerUnavailable = isAnonymizedIdentity(details?.parties?.customer || booking?.customer)
   const [viewerRole, setViewerRole] = useState<'admin' | 'customer' | 'professional' | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -2540,6 +2548,11 @@ function BookingDetailContent() {
               <StartChatButton
                 professionalId={booking.professional._id}
                 className="bg-white/80 backdrop-blur border-indigo-100 hover:border-indigo-300"
+                disabledReason={
+                  professionalUnavailable
+                    ? tChat("startChatButton.recipientUnavailable")
+                    : undefined
+                }
               />
             )}
             <Button
@@ -2865,6 +2878,11 @@ function BookingDetailContent() {
                         <StartChatButton
                           professionalId={booking.professional._id}
                           className="bg-white border-amber-200 hover:border-amber-300"
+                          disabledReason={
+                            professionalUnavailable
+                              ? tChat("startChatButton.recipientUnavailable")
+                              : undefined
+                          }
                         />
                       )}
                       <Button
@@ -2998,6 +3016,8 @@ function BookingDetailContent() {
                           <Button
                             variant="outline"
                             size="sm"
+                            disabled={customerUnavailable}
+                            title={customerUnavailable ? tChat("common.accountUnavailable") : undefined}
                             onClick={async () => {
                               const customerId = booking.customer?._id
                               if (customerId) {

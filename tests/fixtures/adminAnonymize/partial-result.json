@@ -1,0 +1,36 @@
+{
+  "outcome": "partially_completed",
+  "fullyAnonymized": false,
+  "target": {
+    "id": "665f1f77bcf86cd799439011",
+    "role": "customer",
+    "deletedAt": "2026-10-26T12:00:00.000Z",
+    "isAnonymized": true,
+    "anonymizedAt": "2026-10-26T12:00:00.000Z",
+    "identityRemoved": true
+  },
+  "redacted": {
+    "profile": true,
+    "supportTickets": 1,
+    "chatMessages": 12,
+    "meetings": 1,
+    "bookingRecords": 2,
+    "projects": 0,
+    "marketingSubscribers": 1,
+    "notifications": 4,
+    "emailLogs": 3,
+    "s3Objects": 2
+  },
+  "cleanup": {
+    "pendingFiles": 1,
+    "pendingCalendarReleases": 1,
+    "deletedFiles": 1,
+    "failedFiles": 1,
+    "completedAt": null,
+    "lastError": "One owned file could not be deleted."
+  },
+  "warnings": [
+    "1 stored file still needs deletion. Repeat the confirmed request to retry them.",
+    "1 calendar cleanup task still needs a retry."
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "target": {
+    "id": "665f1f77bcf86cd799439011",
+    "role": "customer",
+    "name": "Ada Customer",
+    "email": "ada@example.com",
+    "accountStatus": "active",
+    "professionalStatus": null,
+    "deletedAt": null,
+    "isAnonymized": false,
+    "identityRemoved": false,
+    "accessDisabled": false,
+    "needsRedaction": true
+  },
+  "status": "eligible",
+  "eligible": true,
+  "alreadyAnonymized": false,
+  "recoveryRequired": false,
+  "fullyAnonymized": false,
+  "blockers": [],
+  "impact": {
+    "bookings": {
+      "total": 2,
+      "active": 0,
+      "asCustomer": 2,
+      "asProfessional": 0
+    },
+    "payments": {
+      "total": 2,
+      "invoiceRecords": 2,
+      "pendingObligations": 0
+    },
+    "refunds": {
+      "total": 1,
+      "pending": 0
+    },
+    "disputes": {
+      "total": 0,
+      "active": 0
+    },
+    "warrantyClaims": {
+      "total": 1,
+      "active": 0
+    },
+    "cancellationRequests": {
+      "total": 0,
+      "active": 0
+    },
+    "supportTickets": 1,
+    "chatMessages": 12,
+    "meetings": 1,
+    "projects": 0,
+    "marketingSubscribers": 1,
+    "notifications": 4,
+    "emailLogs": 3
+  },
+  "retained": [
+    {
+      "category": "bookings",
+      "label": "Booking and service facts",
+      "reason": "Kept for contract history, schedule history, and counterparty access. Party display values are redacted."
+    },
+    {
+      "category": "invoices",
+      "label": "Invoice and credit-note records",
+      "reason": "Kept as financial evidence and remain accessible under the existing role rules."
+    }
+  ],
+  "cleanup": {
+    "pendingFiles": 0,
+    "pendingCalendarReleases": 0,
+    "deletedFiles": 0,
+    "failedFiles": 0,
+    "completedAt": null,
+    "lastError": null
+  },
+  "confirmation": {
+    "requiredText": "ANONYMIZE"
+  },
+  "warnings": [
+    "External provider records (for example Stripe, Brevo, and Odoo) are not changed by this endpoint."
+  ]
+}

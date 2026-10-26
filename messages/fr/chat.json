@@ -16,7 +16,10 @@
     "chat": "Discuter",
     "retry": "Réessayer",
     "image": "[Image]",
-    "attachment": "[Pièce jointe]"
+    "attachment": "[Pièce jointe]",
+    "deletedUser": "Utilisateur supprimé",
+    "accountUnavailable": "Compte indisponible",
+    "messageDeleted": "Message supprimé"
   },
   "page": {
     "title": "Messages",
@@ -42,7 +45,8 @@
     "supportReadOnlyBlocked": "La messagerie d'assistance n'est plus disponible pour cette conversation. Vous pouvez toujours lire les messages précédents.",
     "supportReadOnlyRetry": "Vérifier à nouveau",
     "selectConversation": "Sélectionnez une conversation pour afficher les messages",
-    "absence": "Le professionnel est absent du <date>{from}</date> au <date>{to}</date>"
+    "absence": "Le professionnel est absent du <date>{from}</date> au <date>{to}</date>",
+    "recipientUnavailable": "Vous ne pouvez pas envoyer de messages car ce compte n'est plus disponible."
   },
   "quotationDialog": {
     "title": "Créer un devis direct",
@@ -190,7 +194,8 @@
     "adminTags": {
       "verified": "Vérifié",
       "ourChoice": "Notre sélection"
-    }
+    },
+    "deletedUserDescription": "Ce compte a été anonymisé. Les détails du profil et les options de contact ne sont plus disponibles."
   },
   "widget": {
     "button": "Discuter",
@@ -204,6 +209,7 @@
   },
   "startChatButton": {
     "label": "Démarrer la conversation",
-    "onlyCustomers": "Seuls les clients peuvent démarrer des conversations"
+    "onlyCustomers": "Seuls les clients peuvent démarrer des conversations",
+    "recipientUnavailable": "Ce professionnel n'est plus disponible pour discuter."
   }
 }

@@ -32,6 +32,7 @@ import {
   ProvenanceBadge,
   StatusText,
   TimeZoneNote,
+  actorDisplayName,
   useDetailDisplayTimeZone,
   useDetailT,
 } from "./DetailPrimitives"
@@ -1090,7 +1091,9 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
                     {request.reason || (index === 0 ? finalCancellation?.reason : null)}
                   </DetailField>
                   <DetailField label={dt("payments.requestedBy", "Requested by")} empty={!request.requestedBy?.name && !request.requestedRole}>
-                    {request.requestedBy?.name || request.requestedRole || null}
+                    {actorDisplayName(request.requestedBy, dt("activity.deletedActor", "Deleted user")) ||
+                      request.requestedRole ||
+                      null}
                   </DetailField>
                   <DetailField label={dt("payments.professionalDecision", "Professional decision")} empty={!request.professionalDecision}>
                     {request.professionalDecision ? <StatusText value={request.professionalDecision} /> : null}

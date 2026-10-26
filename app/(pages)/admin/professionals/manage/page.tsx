@@ -12,6 +12,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { getAuthToken } from "@/lib/utils"
 import { toast } from "sonner"
+import { canManageUserDeletion } from "@/lib/adminRbac"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
+import { AnonymizeAccountDialog, type AnonymizeAccountTarget } from "@/components/admin/AnonymizeAccountDialog"
+import { AnonymizeCleanupRecovery } from "@/components/admin/AnonymizeCleanupRecovery"
+import { useAnonymizeRecovery } from "@/hooks/useAnonymizeRecovery"
+import {
+  anonymizeRecoveryRecord,
+  anonymizeRefreshFailureMessage,
+  anonymizeResultAnnouncement,
+  isAnonymizationComplete,
+  upsertAnonymizeRecoveryRecord,
+  type AnonymizeExecutionData,
+  type AnonymizeRecoveryRecord,
+} from "@/lib/adminAnonymize"
 
 interface ProfessionalRow {
   _id: string
@@ -24,6 +38,8 @@ interface ProfessionalRow {
   accountStatus?: string
   adminTags?: string[]
   businessInfo?: { companyName?: string; country?: string }
+  deletedAt?: string | null
+  isAnonymized?: boolean
 }
 
 export default function AdminProfessionalManagementPage() {
@@ -38,10 +54,27 @@ export default function AdminProfessionalManagementPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [pointsToAward, setPointsToAward] = useState<Record<string, string>>({})
   const [adjustingPointsById, setAdjustingPointsById] = useState<Record<string, boolean>>({})
+  const [anonymizeTarget, setAnonymizeTarget] = useState<AnonymizeAccountTarget | null>(null)
+  const {
+    entries: anonymizeRecovery,
+    setEntries: setAnonymizeRecovery,
+    sync: recoverySync,
+    retry: retryRecovery,
+    listMeta: recoveryListMeta,
+    loadMore: loadMoreRecovery,
+    loadingMore: recoveryLoadingMore,
+    loadMoreError: recoveryLoadMoreError,
+  } = useAnonymizeRecovery(
+    "professionals-manage",
+    user?._id,
+    canManageUserDeletion(user),
+  )
+  const [listAnnouncement, setListAnnouncement] = useState("")
+  const canManageUserDeletionNow = canManageUserDeletion(user)
   const abortRef = useRef<AbortController | null>(null)
   const loadRequestIdRef = useRef(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -70,16 +103,50 @@ export default function AdminProfessionalManagementPage() {
       const isLatestRequest = requestId === loadRequestIdRef.current
       if (!controller.signal.aborted && isLatestRequest && response.ok && payload?.success) {
         setRows(payload.data?.professionals || [])
-        return
+        return true
       }
       if (!controller.signal.aborted && isLatestRequest && !response.ok) {
         console.error("Failed to load professionals:", messageFromApiBody(payload, `Request failed with status ${response.status}`))
       }
+      return false
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return
+      if (error instanceof DOMException && error.name === "AbortError") return false
       console.error("Failed to load professionals:", error)
+      return false
     }
   }, [country, customerName, level, search, tag])
+
+  const rememberRecovery = useCallback((recovery: AnonymizeRecoveryRecord) => {
+    setAnonymizeRecovery((prev) => upsertAnonymizeRecoveryRecord(prev, recovery))
+  }, [setAnonymizeRecovery])
+
+  const resolveRecovery = useCallback((targetId: string) => {
+    setAnonymizeRecovery((prev) => prev.filter((entry) => entry.targetId !== targetId))
+  }, [setAnonymizeRecovery])
+
+  const handleAnonymized = useCallback((result: AnonymizeExecutionData) => {
+    const targetId = result.target.id
+    setRows((prev) => prev.filter((row) => row._id !== targetId))
+    setListAnnouncement(anonymizeResultAnnouncement(result))
+    if (isAnonymizationComplete(result)) {
+      setAnonymizeRecovery((prev) => prev.filter((entry) => entry.targetId !== targetId))
+    } else {
+      rememberRecovery(anonymizeRecoveryRecord({
+        targetId,
+        role: result.target.role,
+        state: "already_anonymized",
+        identityRemoved: result.target.identityRemoved ?? result.target.isAnonymized === true,
+        legacyAnonymized: result.target.legacyAnonymized === true,
+        cleanup: result.cleanup,
+        source: "session",
+      }))
+    }
+    void load().then((ok) => {
+      if (!ok) {
+        toast.error(anonymizeRefreshFailureMessage(result))
+      }
+    })
+  }, [load, rememberRecovery, setAnonymizeRecovery])
 
   const patchProfessional = async (professionalId: string, body: Record<string, unknown>) => {
     try {
@@ -193,11 +260,36 @@ export default function AdminProfessionalManagementPage() {
       <div className="mx-auto max-w-7xl pt-20 space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Professional Management</h1>
-            <p className="text-sm text-slate-600">Search, filter, adjust levels, apply tags, and manage account status.</p>
+            <h1
+              id="admin-professionals-manage-heading"
+              tabIndex={-1}
+              className="text-3xl font-bold text-slate-900 outline-none"
+            >
+              Professional Management
+            </h1>
+            <p className="text-sm text-slate-600">
+              Search, filter, adjust levels, apply tags, and manage account status.
+              Anonymization is irreversible and separate from suspension or
+              permanent deletion.
+            </p>
           </div>
           <Button variant="outline" onClick={() => router.push("/dashboard")}>Back</Button>
         </div>
+
+        <p className="sr-only" role="status" aria-live="polite">{listAnnouncement}</p>
+
+        {canManageUserDeletionNow && (
+          <AnonymizeCleanupRecovery
+            entries={anonymizeRecovery}
+            sync={recoverySync}
+            listMeta={recoveryListMeta}
+            onRetry={retryRecovery}
+            onLoadMore={loadMoreRecovery}
+            loadingMore={recoveryLoadingMore}
+            loadMoreError={recoveryLoadMoreError}
+            onResume={(entry) => setAnonymizeTarget({ id: entry.targetId, role: entry.role })}
+          />
+        )}
 
         <Card>
           <CardHeader>
@@ -220,32 +312,61 @@ export default function AdminProfessionalManagementPage() {
         </Card>
 
         <div className="space-y-3">
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const rowAnonymized = isAnonymizedIdentity(row)
+            return (
             <Card key={row._id}>
               <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="font-semibold text-slate-900">{row.businessInfo?.companyName || row.name}</p>
-                  {row.username && <p className="text-xs text-slate-500">@{row.username}</p>}
-                  <p className="text-sm text-slate-600">{row.email}</p>
+                  {rowAnonymized ? (
+                    <>
+                      <p className="font-semibold text-slate-900">Deleted user</p>
+                      <p className="text-sm text-slate-600">Personal details are no longer available.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-slate-900">{row.businessInfo?.companyName || row.name}</p>
+                      {row.username && <p className="text-xs text-slate-500">@{row.username}</p>}
+                      <p className="text-sm text-slate-600">{row.email}</p>
+                    </>
+                  )}
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
                     <Badge variant="outline">{row.professionalLevel || "New"}</Badge>
                     <Badge variant="outline">{row.points || 0} pts</Badge>
                     <Badge variant="outline">EUR {(row.moneyEarned || 0).toLocaleString()}</Badge>
                     <Badge variant="outline">{row.accountStatus || "active"}</Badge>
-                    <Badge variant="outline">{row.businessInfo?.country || "No country"}</Badge>
+                    {!rowAnonymized && (
+                      <Badge variant="outline">{row.businessInfo?.country || "No country"}</Badge>
+                    )}
                     {(row.adminTags || []).map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => void patchProfessional(row._id, { tags: (row.adminTags || []).filter((tag) => tag !== item) })}
-                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                      >
-                        <span>{item}</span>
-                        <span aria-hidden="true">×</span>
-                      </button>
+                      rowAnonymized ? (
+                        <span
+                          key={item}
+                          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700"
+                        >
+                          {item}
+                        </span>
+                      ) : (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => void patchProfessional(row._id, { tags: (row.adminTags || []).filter((tag) => tag !== item) })}
+                          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          <span>{item}</span>
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      )
                     ))}
                   </div>
                 </div>
+                {rowAnonymized ? (
+                  <p className="max-w-sm rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    This account is anonymized. Level, tag, reward, suspension,
+                    anonymization and permanent deletion controls are disabled.
+                    Financial history remains visible.
+                  </p>
+                ) : (
                 <div className="flex flex-wrap gap-2">
                   <Select onValueChange={(value) => void patchProfessional(row._id, { professionalLevel: value })}>
                     <SelectTrigger className="w-[150px]"><SelectValue placeholder="Adjust level" /></SelectTrigger>
@@ -287,24 +408,62 @@ export default function AdminProfessionalManagementPage() {
                   <Button variant="outline" onClick={() => void patchProfessional(row._id, { action: row.accountStatus === "suspended" ? "reactivate" : "suspend" })}>
                     {row.accountStatus === "suspended" ? "Reactivate" : "Suspend"}
                   </Button>
-                  <Button
-                    variant="destructive"
-                    disabled={deletingIds.has(row._id)}
-                    onClick={() => {
-                      if (!window.confirm(`Permanently delete ${row.businessInfo?.companyName || row.name || row.email}? This will remove the user and ALL their data (bookings, messages, files, projects, etc). This cannot be undone.`)) {
-                        return
-                      }
-                      void deleteProfessional(row._id)
-                    }}
-                  >
-                    {deletingIds.has(row._id) ? "Deleting..." : "Delete"}
-                  </Button>
+                  {canManageUserDeletionNow && (
+                    <Button
+                      variant="outline"
+                      className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                      onClick={() => setAnonymizeTarget({
+                        id: row._id,
+                        role: "professional",
+                      })}
+                    >
+                      Anonymize
+                    </Button>
+                  )}
+                  {canManageUserDeletionNow && (
+                    <Button
+                      variant="destructive"
+                      disabled={deletingIds.has(row._id)}
+                      onClick={() => {
+                        if (!window.confirm(`Permanently delete ${row.businessInfo?.companyName || row.name || row.email}? This will remove the user and ALL their data (bookings, messages, files, projects, etc). This cannot be undone.`)) {
+                          return
+                        }
+                        void deleteProfessional(row._id)
+                      }}
+                    >
+                      {deletingIds.has(row._id) ? "Deleting..." : "Delete permanently"}
+                    </Button>
+                  )}
                 </div>
+                )}
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
         </div>
       </div>
+      <AnonymizeAccountDialog
+        open={Boolean(anonymizeTarget)}
+        target={anonymizeTarget}
+        focusFallbackId="admin-professionals-manage-heading"
+        onOpenChange={(open) => { if (!open) setAnonymizeTarget(null) }}
+        onAnonymized={handleAnonymized}
+        onAlreadyAnonymized={(targetId) => {
+          setRows((prev) => prev.filter((row) => row._id !== targetId))
+          setAnonymizeRecovery((prev) => prev.filter((entry) => entry.targetId !== targetId))
+          setListAnnouncement("Account was already anonymized and no cleanup is pending. The row was removed from this list.")
+        }}
+        onRecoveryResolved={resolveRecovery}
+        onRecoveryRequired={(recovery) => {
+          setRows((prev) => prev.filter((row) => row._id !== recovery.targetId))
+          setListAnnouncement(
+            recovery.state === "status_unknown"
+              ? "The anonymization outcome is unknown. Check the recovery card before retrying."
+              : "Account access is disabled. Cleanup or identity recovery is still pending; use the recovery card.",
+          )
+          rememberRecovery(recovery)
+        }}
+      />
     </div>
   )
 }

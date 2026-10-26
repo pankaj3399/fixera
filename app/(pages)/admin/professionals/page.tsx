@@ -12,6 +12,20 @@ import { User, Phone, Calendar, CheckCircle, XCircle, Eye, LucideChartNoAxesColu
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { startAdminSupportChat } from "@/lib/admin-chat-utils"
+import { canManageUserDeletion } from "@/lib/adminRbac"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
+import { AnonymizeAccountDialog, type AnonymizeAccountTarget } from "@/components/admin/AnonymizeAccountDialog"
+import { AnonymizeCleanupRecovery } from "@/components/admin/AnonymizeCleanupRecovery"
+import { useAnonymizeRecovery } from "@/hooks/useAnonymizeRecovery"
+import {
+  anonymizeRecoveryRecord,
+  anonymizeRefreshFailureMessage,
+  anonymizeResultAnnouncement,
+  isAnonymizationComplete,
+  upsertAnonymizeRecoveryRecord,
+  type AnonymizeExecutionData,
+  type AnonymizeRecoveryRecord,
+} from "@/lib/adminAnonymize"
 import { toast } from "sonner"
 import { MessageSquare } from "lucide-react"
 
@@ -68,6 +82,8 @@ interface Professional {
   createdAt: string;
   approvedAt?: string;
   rejectionReason?: string;
+  deletedAt?: string | null;
+  isAnonymized?: boolean;
 }
 
 export default function ProfessionalsAdminPage() {
@@ -129,6 +145,23 @@ export default function ProfessionalsAdminPage() {
   })
   const [idChangeLoading, setIdChangeLoading] = useState(false)
   const [chattingId, setChattingId] = useState<string | null>(null)
+  const [anonymizeTarget, setAnonymizeTarget] = useState<AnonymizeAccountTarget | null>(null)
+  const {
+    entries: anonymizeRecovery,
+    setEntries: setAnonymizeRecovery,
+    sync: recoverySync,
+    retry: retryRecovery,
+    listMeta: recoveryListMeta,
+    loadMore: loadMoreRecovery,
+    loadingMore: recoveryLoadingMore,
+    loadMoreError: recoveryLoadMoreError,
+  } = useAnonymizeRecovery(
+    "professionals",
+    user?._id,
+    canManageUserDeletion(user),
+  )
+  const [listAnnouncement, setListAnnouncement] = useState("")
+  const canManageUserDeletionNow = canManageUserDeletion(user)
 
   const startChat = (professionalId: string) => {
     if (chattingId) return
@@ -141,7 +174,7 @@ export default function ProfessionalsAdminPage() {
     }
   }, [isAuthenticated, loading, user, router])
 
-  const fetchProfessionals = useCallback(async () => {
+  const fetchProfessionals = useCallback(async (): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true)
     setLoadError(null)
@@ -155,10 +188,12 @@ export default function ProfessionalsAdminPage() {
       }
       if (requestId !== requestIdRef.current) return;
       setProfessionals(data.data.professionals)
+      return true
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
       console.error('Failed to fetch professionals:', error)
       setLoadError(getErrorMessage(error, 'Failed to load professionals'))
+      return false
     } finally {
       if (requestId !== requestIdRef.current) return;
       setIsLoading(false)
@@ -170,6 +205,38 @@ export default function ProfessionalsAdminPage() {
       fetchProfessionals()
     }
   }, [user, status, fetchProfessionals])
+
+  const rememberRecovery = useCallback((recovery: AnonymizeRecoveryRecord) => {
+    setAnonymizeRecovery((prev) => upsertAnonymizeRecoveryRecord(prev, recovery))
+  }, [setAnonymizeRecovery])
+
+  const resolveRecovery = useCallback((targetId: string) => {
+    setAnonymizeRecovery((prev) => prev.filter((entry) => entry.targetId !== targetId))
+  }, [setAnonymizeRecovery])
+
+  const handleAnonymized = useCallback((result: AnonymizeExecutionData) => {
+    const targetId = result.target.id
+    setProfessionals((prev) => prev.filter((professional) => professional._id !== targetId))
+    setListAnnouncement(anonymizeResultAnnouncement(result))
+    if (isAnonymizationComplete(result)) {
+      setAnonymizeRecovery((prev) => prev.filter((entry) => entry.targetId !== targetId))
+    } else {
+      rememberRecovery(anonymizeRecoveryRecord({
+        targetId,
+        role: result.target.role,
+        state: "already_anonymized",
+        identityRemoved: result.target.identityRemoved ?? result.target.isAnonymized === true,
+        legacyAnonymized: result.target.legacyAnonymized === true,
+        cleanup: result.cleanup,
+        source: "session",
+      }))
+    }
+    void fetchProfessionals().then((ok) => {
+      if (!ok) {
+        toast.error(anonymizeRefreshFailureMessage(result))
+      }
+    })
+  }, [fetchProfessionals, rememberRecovery, setAnonymizeRecovery])
 
   const handleVerifyIdProof = async (professionalId: string) => {
     setActionLoading(professionalId)
@@ -436,7 +503,11 @@ export default function ProfessionalsAdminPage() {
       <div className="max-w-7xl mx-auto pt-20">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1
+              id="admin-professionals-heading"
+              tabIndex={-1}
+              className="text-3xl font-bold text-gray-900 mb-2 outline-none"
+            >
               Professional Management
             </h1>
             <p className="text-gray-600">Review and manage professional applications</p>
@@ -445,6 +516,8 @@ export default function ProfessionalsAdminPage() {
             Back to Dashboard
           </Button>
         </div>
+
+        <p className="sr-only" role="status" aria-live="polite">{listAnnouncement}</p>
 
         {/* Status Filter Tabs */}
         <div className="mb-6 flex space-x-1 bg-gray-100 rounded-lg p-1">
@@ -464,6 +537,21 @@ export default function ProfessionalsAdminPage() {
             </Button>
           ))}
         </div>
+
+        {canManageUserDeletionNow && (
+          <div className="mb-4">
+            <AnonymizeCleanupRecovery
+              entries={anonymizeRecovery}
+              sync={recoverySync}
+              listMeta={recoveryListMeta}
+              onRetry={retryRecovery}
+              onLoadMore={loadMoreRecovery}
+              loadingMore={recoveryLoadingMore}
+              loadMoreError={recoveryLoadMoreError}
+              onResume={(entry) => setAnonymizeTarget({ id: entry.targetId, role: entry.role })}
+            />
+          </div>
+        )}
 
         {loadError && (
           <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -486,16 +574,22 @@ export default function ProfessionalsAdminPage() {
           </Card>
         ) : (
           <div className="grid gap-6">
-            {professionals.map((professional) => (
+            {professionals.map((professional) => {
+              const anonymized = isAnonymizedIdentity(professional)
+              return (
               <Card key={professional._id}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <User className="h-5 w-5" />
-                        {professional.name}
+                        {anonymized ? 'Deleted user' : professional.name}
                       </CardTitle>
-                      <CardDescription>{professional.email}</CardDescription>
+                      <CardDescription>
+                        {anonymized
+                          ? 'Personal details are no longer available.'
+                          : professional.email}
+                      </CardDescription>
                     </div>
                     <Badge className={getStatusColor(professional.professionalStatus)}>
                       {getStatusIcon(professional.professionalStatus)}
@@ -504,6 +598,7 @@ export default function ProfessionalsAdminPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {!anonymized && (
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm">
@@ -552,8 +647,9 @@ export default function ProfessionalsAdminPage() {
                       )}
                     </div>
                   </div>
+                  )}
 
-                  {professional.rejectionReason && (
+                  {!anonymized && professional.rejectionReason && (
                     <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                       <div className="text-sm font-medium text-red-800 mb-1">Rejection Reason:</div>
                       <div className="text-sm text-red-700">{professional.rejectionReason}</div>
@@ -561,7 +657,7 @@ export default function ProfessionalsAdminPage() {
                   )}
 
                   {/* Verification Requirements Status */}
-                  {professional.professionalStatus === 'pending' && (
+                  {!anonymized && professional.professionalStatus === 'pending' && (
                     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
                         <Shield className="h-4 w-4" />
@@ -626,7 +722,7 @@ export default function ProfessionalsAdminPage() {
                   )}
 
                   {/* Pending ID Changes Indicator */}
-                  {professional.pendingIdChanges && professional.pendingIdChanges.length > 0 && (
+                  {!anonymized && professional.pendingIdChanges && professional.pendingIdChanges.length > 0 && (
                     <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <div className="text-sm font-medium text-amber-800 mb-2 flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4" />
@@ -689,6 +785,14 @@ export default function ProfessionalsAdminPage() {
                     </div>
                   )}
 
+                  {anonymized && (
+                    <p className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      This account has been anonymized. Personal and business
+                      details, approval, suspension, chat and management actions are
+                      no longer available.
+                    </p>
+                  )}
+                  {!anonymized && (
                   <div className="flex gap-2">
                     <Button
                       onClick={() => setSelectedProfessional(professional)}
@@ -701,13 +805,27 @@ export default function ProfessionalsAdminPage() {
 
                     <Button
                       onClick={() => startChat(professional._id)}
-                      disabled={chattingId === professional._id}
+                      disabled={chattingId === professional._id || isAnonymizedIdentity(professional)}
                       variant="outline"
                       size="sm"
                     >
                       <MessageSquare className="h-4 w-4 mr-1" />
                       {chattingId === professional._id ? 'Opening…' : 'Chat'}
                     </Button>
+
+                    {canManageUserDeletionNow && (
+                      <Button
+                        onClick={() => setAnonymizeTarget({
+                          id: professional._id,
+                          role: 'professional',
+                        })}
+                        variant="outline"
+                        size="sm"
+                        className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                      >
+                        Anonymize
+                      </Button>
+                    )}
 
                     {professional.professionalStatus === 'pending' && (
                       <>
@@ -756,9 +874,11 @@ export default function ProfessionalsAdminPage() {
                       </Button>
                     )}
                   </div>
+                  )}
                 </CardContent>
               </Card>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -775,6 +895,14 @@ export default function ProfessionalsAdminPage() {
                 </div>
               </div>
 
+              {isAnonymizedIdentity(selectedProfessional) ? (
+                <div className="p-6">
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    This account has been anonymized. Personal and business details,
+                    identity documents and approval actions are no longer available.
+                  </p>
+                </div>
+              ) : (
               <div className="p-6 space-y-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
@@ -959,6 +1087,7 @@ export default function ProfessionalsAdminPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
         )}
@@ -1257,6 +1386,28 @@ export default function ProfessionalsAdminPage() {
           </div>
         </div>
       )}
+      <AnonymizeAccountDialog
+        open={Boolean(anonymizeTarget)}
+        target={anonymizeTarget}
+        focusFallbackId="admin-professionals-heading"
+        onOpenChange={(open) => { if (!open) setAnonymizeTarget(null) }}
+        onAnonymized={handleAnonymized}
+        onAlreadyAnonymized={(targetId) => {
+          setProfessionals((prev) => prev.filter((professional) => professional._id !== targetId))
+          setAnonymizeRecovery((prev) => prev.filter((entry) => entry.targetId !== targetId))
+          setListAnnouncement("Account was already anonymized and no cleanup is pending. The row was removed from this list.")
+        }}
+        onRecoveryResolved={resolveRecovery}
+        onRecoveryRequired={(recovery) => {
+          setProfessionals((prev) => prev.filter((professional) => professional._id !== recovery.targetId))
+          setListAnnouncement(
+            recovery.state === "status_unknown"
+              ? "The anonymization outcome is unknown. Check the recovery card before retrying."
+              : "Account access is disabled. Cleanup or identity recovery is still pending; use the recovery card.",
+          )
+          rememberRecovery(recovery)
+        }}
+      />
     </div>
   )
 }

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Star, MapPin, Calendar, User, Clock, Award, Briefcase, Tag, ShieldCheck } from "lucide-react";
+import { Star, MapPin, Calendar, User, Clock, Award, Briefcase, Tag, ShieldCheck, UserX } from "lucide-react";
+import { isAnonymizedIdentity, conversationCounterparty } from "@/lib/anonymizedUsers";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,14 +24,6 @@ interface ChatInfoPanelProps {
   conversation: ChatConversation | null;
   currentUserRole: string | undefined;
 }
-
-const getOtherParticipant = (conversation: ChatConversation, role?: string) => {
-  if (conversation.type === "support") {
-    return role === "admin" ? conversation.supportTargetUserId : conversation.supportAdminId;
-  }
-  if (role === "professional") return conversation.customerId;
-  return conversation.professionalId;
-};
 
 const PROFESSIONAL_LEVEL_KEYS = {
   new: "info.professionalLevels.new",
@@ -137,10 +130,15 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
     );
   }
 
-  const other = getOtherParticipant(displayConversation, currentUserRole);
-  const name = other?.username || other?.name || t("common.user");
-  const location = [other?.businessInfo?.city, other?.businessInfo?.country].filter(Boolean).join(", ");
-  const memberSince = other?.createdAt
+  const other = conversationCounterparty(displayConversation, currentUserRole);
+  const deleted = isAnonymizedIdentity(other);
+  const name = deleted
+    ? t("common.deletedUser")
+    : other?.username || other?.name || t("common.user");
+  const location = deleted
+    ? ""
+    : [other?.businessInfo?.city, other?.businessInfo?.country].filter(Boolean).join(", ");
+  const memberSince = !deleted && other?.createdAt
     ? new Date(other.createdAt).toLocaleDateString(intl, { month: "long", year: "numeric" })
     : null;
 
@@ -159,7 +157,11 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
       {/* Profile Section */}
       <div className="p-4 flex flex-col items-center text-center">
         <Avatar className="h-16 w-16 mb-3">
-          {other?.profileImage ? (
+          {deleted ? (
+            <AvatarFallback className="bg-slate-100 text-slate-500">
+              <UserX className="h-6 w-6" aria-hidden />
+            </AvatarFallback>
+          ) : other?.profileImage ? (
             <img src={other.profileImage} alt="" className="h-full w-full object-cover rounded-full" />
           ) : (
             <AvatarFallback className="bg-indigo-100 text-indigo-600 text-xl">
@@ -168,6 +170,11 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
           )}
         </Avatar>
         <p className="text-sm font-semibold text-gray-900">{name}</p>
+        {deleted && (
+          <p className="mt-2 text-xs leading-relaxed text-gray-500">
+            {t("info.deletedUserDescription")}
+          </p>
+        )}
 
         {location && (
           <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
@@ -183,7 +190,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
           </div>
         )}
 
-        {isCustomerViewing && other?._id && (
+        {isCustomerViewing && !deleted && other?._id && (
           <div className="mt-3 grid w-full gap-2">
             <Button asChild variant="outline" size="sm" className="w-full text-xs">
               <Link href={`/professional/${other._id}`}>
@@ -204,7 +211,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
       </div>
 
       {/* Professional Level & Response Rate (when customer views professional) */}
-      {isCustomerViewing && stats && (Boolean(stats.professionalLevel) || (stats.adminTags?.length ?? 0) > 0 || stats.avgResponseTimeMs > 0) && (
+      {isCustomerViewing && !deleted && stats && (Boolean(stats.professionalLevel) || (stats.adminTags?.length ?? 0) > 0 || stats.avgResponseTimeMs > 0) && (
         <>
           <div className="border-t border-slate-200 mx-4" />
           <div className="p-4 space-y-3">
@@ -261,7 +268,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
       )}
 
       {/* Ratings Section */}
-      {stats && (
+      {stats && !deleted && (
         <>
           {/* When customer views professional: show 3 category ratings */}
           {isCustomerViewing && stats.avgCustomerRating > 0 && (
@@ -322,7 +329,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
       )}
 
       {/* Booking Stats */}
-      {stats && (
+      {stats && !deleted && (
         <>
           <div className="border-t border-slate-200 mx-4" />
           <div className="p-4 space-y-3">

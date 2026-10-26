@@ -15,6 +15,7 @@ import { ArrowLeft, RefreshCw, MessageSquare } from "lucide-react"
 import { toast } from "sonner"
 import { FORCEABLE_BOOKING_STATUSES } from "@/lib/constants/adminBookingStatus"
 import { useAdminAccess } from "@/hooks/useAdminAccess"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 interface Refund {
   amount: number
@@ -56,8 +57,8 @@ interface BookingDoc {
   status: string
   scheduledStartDate?: string
   scheduledExecutionEndDate?: string
-  customer?: { _id: string; name?: string; email?: string }
-  professional?: { _id: string; name?: string; email?: string }
+  customer?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
+  professional?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
   project?: { _id: string; title?: string; service?: string }
   payment?: { totalWithVat?: number; currency?: string; status?: string; refundedAt?: string; refundReason?: string }
   rescheduleHistory?: RescheduleHistoryEntry[]
@@ -250,8 +251,16 @@ export default function AdminBookingDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm space-y-1">
-                <p>Customer: {data.booking.customer?.name || data.booking.customer?.email || '-'}</p>
-                <p>Professional: {data.booking.professional?.name || data.booking.professional?.email || '-'}</p>
+                <p>
+                  Customer: {isAnonymizedIdentity(data.booking.customer)
+                    ? 'Deleted user'
+                    : data.booking.customer?.name || data.booking.customer?.email || '-'}
+                </p>
+                <p>
+                  Professional: {isAnonymizedIdentity(data.booking.professional)
+                    ? 'Deleted user'
+                    : data.booking.professional?.name || data.booking.professional?.email || '-'}
+                </p>
                 <p>Project: {data.booking.project?.title || '-'}</p>
                 <p>Scheduled: {formatDateTime(data.booking.scheduledStartDate)} → {formatDateTime(data.booking.scheduledExecutionEndDate)}</p>
                 {data.booking.payment && (
@@ -272,7 +281,7 @@ export default function AdminBookingDetailPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={startingChat === 'customer' || !data.booking.customer?._id}
+                        disabled={startingChat === 'customer' || !data.booking.customer?._id || isAnonymizedIdentity(data.booking.customer)}
                         onClick={() => handleStartSupportChat('customer')}
                       >
                         <MessageSquare className="h-4 w-4 mr-1" />
@@ -281,7 +290,7 @@ export default function AdminBookingDetailPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={startingChat === 'professional' || !data.booking.professional?._id}
+                        disabled={startingChat === 'professional' || !data.booking.professional?._id || isAnonymizedIdentity(data.booking.professional)}
                         onClick={() => handleStartSupportChat('professional')}
                       >
                         <MessageSquare className="h-4 w-4 mr-1" />

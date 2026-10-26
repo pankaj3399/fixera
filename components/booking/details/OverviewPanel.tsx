@@ -503,6 +503,8 @@ export function OverviewPanel({
           }
           party={parties?.customer || (booking.customer ? {
             id: booking.customer._id,
+            deletedAt: booking.customer.deletedAt,
+            isAnonymized: booking.customer.isAnonymized,
             name: booking.customer.name,
             username: booking.customer.username,
             customerType: booking.customer.customerType,
@@ -538,6 +540,8 @@ export function OverviewPanel({
           }
           party={parties?.professional || (booking.professional ? {
             id: booking.professional._id,
+            deletedAt: booking.professional.deletedAt,
+            isAnonymized: booking.professional.isAnonymized,
             name: viewerRole === "customer" ? null : booking.professional.name,
             username: booking.professional.username,
             companyName: booking.professional.businessInfo?.companyName,

@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useChatPolling } from "@/hooks/useChatPolling";
 import { useSupportChatAccess } from "@/hooks/useSupportChatAccess";
 import { supportChatBlockReasonFromError } from "@/lib/support/chatAccess";
+import { isAnonymizedIdentity, conversationCounterparty, isConversationCounterpartyAnonymized } from "@/lib/anonymizedUsers";
 import ChatList from "@/components/chat/ChatList";
 import ChatThread from "@/components/chat/ChatThread";
 import ChatComposer from "@/components/chat/ChatComposer";
@@ -67,15 +68,18 @@ const clearPendingChatRequestIfCurrent = (expected: string) => {
 };
 
 const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: string) => {
+  if (conversation.type === "support") {
+    return null;
+  }
+  const counterparty = conversationCounterparty(conversation, userRole);
+  if (isAnonymizedIdentity(counterparty)) {
+    return null;
+  }
   if (userRole === "professional") {
-    return conversation.customerId?.name || null;
+    return counterparty?.name || null;
   }
 
-  return (
-    conversation.professionalId?.username ||
-    conversation.professionalId?.name ||
-    null
-  );
+  return counterparty?.username || counterparty?.name || null;
 };
 
 export default function ChatWidget() {
@@ -147,6 +151,10 @@ export default function ChatWidget() {
 
   const handleSendQuotation = async () => {
     if (!selectedConversation || userRole !== "professional") return;
+    if (isAnonymizedIdentity(selectedConversation.customerId)) {
+      toast.error(t("page.recipientUnavailable"));
+      return;
+    }
     const customerId = selectedConversation.customerId?._id;
     if (!customerId) { toast.error(t("toasts.customerNotFound")); return; }
 
@@ -185,6 +193,7 @@ export default function ChatWidget() {
   };
 
   const openQuotationDialog = () => {
+    if (isAnonymizedIdentity(selectedConversation?.customerId)) return;
     setShowQuotationDialog(true);
     void loadActiveProjects();
   };
@@ -202,6 +211,10 @@ export default function ChatWidget() {
     [conversations, selectedConversationId]
   );
   const isSupportConversation = selectedConversation?.type === "support";
+  const recipientUnavailable = isConversationCounterpartyAnonymized(
+    selectedConversation,
+    userRole
+  );
   const isSupportClosed =
     isSupportConversation && selectedConversation?.status === "archived";
   const supportChatAccess = useSupportChatAccess(
@@ -594,6 +607,9 @@ export default function ChatWidget() {
     if (isSupportReadOnly) {
       throw new Error(supportReadOnlyNotice);
     }
+    if (recipientUnavailable) {
+      throw new Error(t("page.recipientUnavailable"));
+    }
 
     setSending(true);
     try {
@@ -665,8 +681,10 @@ export default function ChatWidget() {
               <div className="min-w-0">
                 <CardTitle className="text-sm font-semibold truncate">
                   {selectedConversation
-                    ? getOtherParticipantLabel(selectedConversation, userRole) ||
-                      (userRole === "professional" ? t("common.customer") : t("common.professional"))
+                    ? recipientUnavailable
+                      ? t("common.deletedUser")
+                      : getOtherParticipantLabel(selectedConversation, userRole) ||
+                        (userRole === "professional" ? t("common.customer") : t("common.professional"))
                     : shouldShowNewChatPanel
                     ? t("widget.newChat")
                     : t("page.title")}
@@ -694,9 +712,9 @@ export default function ChatWidget() {
                         size="icon"
                         className="h-8 w-8 text-white hover:bg-white/20"
                         onClick={openQuotationDialog}
-                        disabled={creatingSendQuotation}
+                        disabled={creatingSendQuotation || recipientUnavailable}
                         aria-label={t("page.sendQuotation")}
-                        title={t("page.sendQuotationTitle")}
+                        title={recipientUnavailable ? t("page.recipientUnavailable") : t("page.sendQuotationTitle")}
                       >
                         {creatingSendQuotation ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                       </Button>
@@ -896,6 +914,13 @@ export default function ChatWidget() {
                         {t("page.supportReadOnlyRetry")}
                       </button>
                     )}
+                  </div>
+                ) : recipientUnavailable ? (
+                  <div
+                    role="status"
+                    className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-xs text-slate-600"
+                  >
+                    {t("page.recipientUnavailable")}
                   </div>
                 ) : (
                   <ChatComposer

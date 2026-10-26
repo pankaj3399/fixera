@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Loader2, MessageSquare, Search, PanelRightOpen, PanelRightClose, ArrowLeft, Plus, X, AlertTriangle, FileText, ShieldCheck } from "lucide-react";
+import { Loader2, MessageSquare, Search, PanelRightOpen, PanelRightClose, ArrowLeft, Plus, X, AlertTriangle, FileText, ShieldCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -36,19 +36,17 @@ import {
 } from "@/lib/chatApi";
 import type { ProfessionalOption } from "@/lib/chatApi";
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatFilter } from "@/types/chat";
+import {
+  conversationCounterparty,
+  isAnonymizedIdentity,
+  isConversationCounterpartyAnonymized,
+  isRedactedPlaceholderText,
+} from "@/lib/anonymizedUsers";
 import { cn, getAuthToken } from "@/lib/utils";
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
-
-const getOtherParticipant = (conversation: ChatConversation, role?: string) => {
-  if (conversation.type === "support") {
-    return role === "admin" ? conversation.supportTargetUserId : conversation.supportAdminId;
-  }
-  if (role === "professional") return conversation.customerId;
-  return conversation.professionalId;
-};
 
 export default function ChatPage() {
   return (
@@ -127,6 +125,10 @@ function ChatContent() {
 
   const handleSendQuotation = async () => {
     if (!selectedConversation || userRole !== "professional") return;
+    if (isAnonymizedIdentity(selectedConversation.customerId)) {
+      toast.error(t("page.recipientUnavailable"));
+      return;
+    }
     if (loadingProjects) return;
     const customerId = selectedConversation.customerId?._id;
     if (!customerId) { toast.error(t("toasts.customerNotFound")); return; }
@@ -165,6 +167,7 @@ function ChatContent() {
   };
 
   const openQuotationDialog = () => {
+    if (isAnonymizedIdentity(selectedConversation?.customerId)) return;
     setShowQuotationDialog(true);
     void loadActiveProjects();
   };
@@ -191,7 +194,7 @@ function ChatContent() {
     if (!searchQuery.trim()) return conversations;
     const q = searchQuery.toLowerCase();
     return conversations.filter((c) => {
-      const other = getOtherParticipant(c, userRole);
+      const other = conversationCounterparty(c, userRole);
       const name = other?.username || other?.name || "";
       const email = other?.email || "";
       return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
@@ -220,9 +223,13 @@ function ChatContent() {
   }, [conversations, user?._id, chatFilter]);
 
   const otherParticipant = selectedConversation
-    ? getOtherParticipant(selectedConversation, userRole)
+    ? conversationCounterparty(selectedConversation, userRole)
     : null;
   const isSupportConversation = selectedConversation?.type === "support";
+  const recipientUnavailable = isConversationCounterpartyAnonymized(
+    selectedConversation,
+    userRole
+  );
   const isSupportClosed = isSupportConversation && selectedConversation?.status === "archived";
   const supportChatAccess = useSupportChatAccess(
     Boolean(isSupportConversation),
@@ -243,7 +250,9 @@ function ChatContent() {
             : t("page.supportReadOnlyBlocked");
   const otherName = isSupportConversation
     ? t("common.fixtractSupport")
-    : otherParticipant?.username || otherParticipant?.name || t("common.conversation");
+    : recipientUnavailable
+      ? t("common.deletedUser")
+      : otherParticipant?.username || otherParticipant?.name || t("common.conversation");
 
   const loadConversationList = useCallback(
     async (showBusy: boolean) => {
@@ -422,6 +431,10 @@ function ChatContent() {
     }
     if (isSupportReadOnly) {
       toast.error(supportReadOnlyNotice);
+      return;
+    }
+    if (recipientUnavailable) {
+      toast.error(t("page.recipientUnavailable"));
       return;
     }
 
@@ -719,7 +732,7 @@ function ChatContent() {
         {selectedConversation ? (
           <>
             {/* Absence Banner */}
-            {absence && (
+            {absence && !recipientUnavailable && (
               <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                 <p className="text-xs text-amber-700">
@@ -748,7 +761,9 @@ function ChatContent() {
                   "h-8 w-8 rounded-full flex items-center justify-center overflow-hidden shrink-0",
                   isSupportConversation ? "bg-gradient-to-br from-indigo-500 to-purple-600" : "bg-indigo-100"
                 )}>
-                  {!isSupportConversation && otherParticipant?.profileImage ? (
+                  {!isSupportConversation && recipientUnavailable ? (
+                    <UserX className="h-4 w-4 text-slate-500" aria-hidden />
+                  ) : !isSupportConversation && otherParticipant?.profileImage ? (
                     <img src={otherParticipant.profileImage} alt="" className="h-full w-full object-cover" />
                   ) : isSupportConversation ? (
                     <ShieldCheck className="h-4 w-4 text-white" />
@@ -777,9 +792,9 @@ function ChatContent() {
                     size="icon"
                     className="h-8 w-8 text-gray-500 hover:text-indigo-600"
                     onClick={openQuotationDialog}
-                    disabled={creatingSendQuotation}
+                    disabled={creatingSendQuotation || recipientUnavailable}
                     aria-label={t("page.sendQuotation")}
-                    title={t("page.sendQuotationTitle")}
+                    title={recipientUnavailable ? t("page.recipientUnavailable") : t("page.sendQuotationTitle")}
                   >
                     {creatingSendQuotation ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                   </Button>
@@ -892,7 +907,9 @@ function ChatContent() {
                     <span className="text-gray-400 mr-1">
                       {new Date(result.createdAt).toLocaleDateString(intl)}
                     </span>
-                    {result.text?.slice(0, 80)}
+                    {isRedactedPlaceholderText(result.text)
+                      ? t("common.messageDeleted")
+                      : result.text?.slice(0, 80)}
                   </button>
                 ))}
               </div>
@@ -916,6 +933,13 @@ function ChatContent() {
             {isSupportClosed ? (
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
                 {t("page.supportClosed")}
+              </div>
+            ) : recipientUnavailable ? (
+              <div
+                role="status"
+                className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-600"
+              >
+                {t("page.recipientUnavailable")}
               </div>
             ) : (
               <>

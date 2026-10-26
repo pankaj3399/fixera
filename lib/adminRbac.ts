@@ -298,3 +298,21 @@ export function canWriteAdminArea(
 ): boolean {
   return resolveAdminAreaLevel(user, area) === 'write';
 }
+
+/**
+ * The server authorizes both anonymization and hard deletion by the effective
+ * `user_delete` write level. Keep the UI aligned with that same check and, when
+ * the permission pack is present, require the documented `users.delete` entry
+ * as well. A missing pack falls back to the effective area matrix because that
+ * is what the server enforces for legacy accounts.
+ */
+export function canManageUserDeletion(
+  user: AdminAccessUser | null | undefined
+): boolean {
+  if (!user || user.role !== 'admin') return false;
+  if (!canWriteAdminArea(user, 'user_delete')) return false;
+  if (Array.isArray(user.adminPermissions)) {
+    return hasAdminPermission(user.adminPermissions, 'users.delete');
+  }
+  return true;
+}
