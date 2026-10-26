@@ -1,0 +1,81 @@
+{
+  "generator": "tests/fixtures/leadCampaigns/wire/generate-wire-fixtures.mjs",
+  "command": "tests/fixtures/leadCampaigns/wire/run-wire-fixtures.sh",
+  "backendRoot": "/home/abstergo/Programming/Projects/fixera/fixera-server",
+  "backendRevision": {
+    "head": "82f1abdd32d3f5a344f5e930971a9df3b873ba42",
+    "branch": "feat/professional-lead-campaigns",
+    "dirty": true
+  },
+  "frontendRevision": {
+    "head": "5472e1a0914d7209983fb6727676a85e4f46cef5",
+    "branch": "feat/professional-lead-campaigns",
+    "dirty": true
+  },
+  "database": "fixera_lead_campaign_wire_fixtures_test",
+  "ids": {
+    "admin": "66af00000000000000000101",
+    "servicePlumbing": "66af00000000000000000201",
+    "servicePainting": "66af00000000000000000202",
+    "serviceSolar": "66af00000000000000000203",
+    "serviceElectrical": "66af00000000000000000204",
+    "subscriberPro": "66af00000000000000000301",
+    "subscriberCustomer": "66af00000000000000000302",
+    "subscriberOnlyCustomer": "66af00000000000000000303",
+    "leadSubscriberPro": "66af00000000000000000401",
+    "leadOne": "66af00000000000000000402",
+    "leadOnlyCustomer": "66af00000000000000000403",
+    "leadSuppressed": "66af00000000000000000404",
+    "leadOptedOut": "66af00000000000000000405",
+    "leadFrance": "66af00000000000000000406",
+    "leadAlpha": "66af00000000000000000407",
+    "leadZulu": "66af00000000000000000408",
+    "leadMulti": "66af00000000000000000409",
+    "syncProfessional": "66af00000000000000000501",
+    "syncCustomer": "66af00000000000000000502",
+    "syncOptedOut": "66af00000000000000000503",
+    "campaignLegacyUnknown": "66af00000000000000000601",
+    "campaignLegacyMissing": "66af00000000000000000602",
+    "campaignLegacyNewsletterBoth": "66af00000000000000000603",
+    "missingLead": "66af0000000000000000ffff"
+  },
+  "seededAt": {
+    "seed": "2026-01-01T00:00:00.000Z",
+    "consent": "2026-02-01T00:00:00.000Z",
+    "subscribed": "2026-02-02T00:00:00.000Z",
+    "optOut": "2026-03-01T00:00:00.000Z",
+    "leadCreated": "2026-04-01T00:00:00.000Z",
+    "legacyCampaign": "2025-12-01T00:00:00.000Z"
+  },
+  "routes": {
+    "import": "POST /api/admin/marketing-leads/import -> importMarketingLeads",
+    "list": "GET /api/admin/marketing-leads -> listMarketingLeads",
+    "update": "PATCH /api/admin/marketing-leads/:id -> updateMarketingLead",
+    "delete": "DELETE /api/admin/marketing-leads/:id -> deleteMarketingLead",
+    "history": "GET /api/admin/marketing-lead-imports -> listMarketingLeadImports",
+    "services": "GET /api/admin/marketing-campaigns/service-options -> listMarketingServiceOptions",
+    "campaignCreate": "POST /api/admin/marketing-campaigns -> createMarketingCampaign",
+    "campaignUpdate": "PATCH /api/admin/marketing-campaigns/:id -> updateMarketingCampaign",
+    "campaignList": "GET /api/admin/marketing-campaigns -> listMarketingCampaigns",
+    "preview": "POST /api/admin/marketing-campaigns/preview-audience -> previewMarketingAudience",
+    "sync": "POST /api/admin/marketing-subscribers/sync -> syncMarketingSubscribers",
+    "footer": "src/utils/marketing/renderCampaign.ts renderMarketingFooter(locale, token, \"invitation\")"
+  },
+  "sourceHashes": {
+    "src/handlers/Admin/marketingLeads.ts": "b9bf0700cc5742f2",
+    "src/handlers/Admin/marketingCampaigns.ts": "49296264853b268b",
+    "src/handlers/Admin/marketingServiceOptions.ts": "f06c3bcf93ab209c",
+    "src/utils/marketing/leadImport.ts": "2d73b660a8d1e1a2",
+    "src/utils/marketing/audience.ts": "ba978396671608c6",
+    "src/utils/marketing/audienceResolver.ts": "6e02f991eb41e587",
+    "src/utils/marketing/renderCampaign.ts": "4b71528f41a7c15a",
+    "src/utils/marketing/serviceCatalog.ts": "3f8401579ddab0ab",
+    "src/utils/marketing/suppression.ts": "92700fb94a1e217a",
+    "src/models/marketingLead.ts": "600ca42b691a84c7",
+    "src/models/marketingLeadImport.ts": "157572286cb8856a",
+    "src/models/marketingCampaign.ts": "f5491cfd82902e96",
+    "src/models/marketingSubscriber.ts": "a6291ba0bc44abfe",
+    "src/models/user.ts": "743c12cc65333f2d"
+  },
+  "deniedNetwork": []
+}

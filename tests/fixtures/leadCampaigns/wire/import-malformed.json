@@ -1,0 +1,25 @@
+{
+  "status": 400,
+  "body": {
+    "success": false,
+    "msg": "The uploaded file is not a valid .xlsx or .xls workbook",
+    "code": "VALIDATION",
+    "data": {
+      "import": {
+        "_id": "6adfb0c53a75b668ca348f9a",
+        "filename": "lead-campaign-malformed.xlsx",
+        "uploadedAt": "2026-10-26T19:57:57.763Z",
+        "uploadedBy": "66af00000000000000000101",
+        "status": "failed",
+        "totalRows": 0,
+        "importedRows": 0,
+        "duplicateRows": 0,
+        "failedRows": 0,
+        "suppressedRows": 0,
+        "fileError": "The uploaded file is not a valid .xlsx or .xls workbook",
+        "errorCount": 0
+      },
+      "errors": []
+    }
+  }
+}

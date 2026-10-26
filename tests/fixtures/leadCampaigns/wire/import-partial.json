@@ -1,0 +1,36 @@
+{
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "import": {
+        "_id": "6adfb0c53a75b668ca348f69",
+        "filename": "lead-campaign-partial-october.xlsx",
+        "uploadedAt": "2026-10-26T19:57:57.640Z",
+        "uploadedBy": "66af00000000000000000101",
+        "status": "partial",
+        "totalRows": 7,
+        "importedRows": 5,
+        "duplicateRows": 1,
+        "failedRows": 1,
+        "suppressedRows": 1,
+        "fileError": null,
+        "errorCount": 1
+      },
+      "summary": {
+        "totalRows": 7,
+        "importedRows": 5,
+        "duplicateRows": 1,
+        "failedRows": 1,
+        "suppressedRows": 1
+      },
+      "errors": [
+        {
+          "row": 5,
+          "field": "email",
+          "message": "Enter a valid email address"
+        }
+      ]
+    }
+  }
+}

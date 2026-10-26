@@ -83,7 +83,14 @@ export type AdminPermission =
   | 'users.delete';
 
 /** Path → permission for client-side route gating (keep aligned with server routePermissions). */
-export const ADMIN_PAGE_PERMISSIONS: Array<{ prefix: string; permission: AdminPermission }> = [
+export interface AdminPagePermission {
+  prefix: string;
+  permission: AdminPermission;
+  /** When set, effective read access to the area also opens the page. */
+  area?: AdminAccessArea;
+}
+
+export const ADMIN_PAGE_PERMISSIONS: AdminPagePermission[] = [
   { prefix: '/admin/staff', permission: 'staff.manage' },
   { prefix: '/admin/professionals/manage', permission: 'professionals.manage' },
   { prefix: '/admin/professionals', permission: 'professionals.approve' },
@@ -93,12 +100,12 @@ export const ADMIN_PAGE_PERMISSIONS: Array<{ prefix: string; permission: AdminPe
   { prefix: '/admin/cancellation-requests', permission: 'cancellations.manage' },
   { prefix: '/admin/chat-reports', permission: 'chat.reports' },
   { prefix: '/admin/chat', permission: 'chat.support' },
-  { prefix: '/admin/support', permission: 'support.tickets' },
+  { prefix: '/admin/support', permission: 'support.tickets', area: 'support' },
   { prefix: '/admin/payments', permission: 'payments.manage' },
   { prefix: '/admin/kpi', permission: 'kpi.read' },
   { prefix: '/admin/audit-logs', permission: 'audit.read' },
   { prefix: '/admin/cms', permission: 'cms.manage' },
-  { prefix: '/admin/campaigns', permission: 'campaigns.manage' },
+  { prefix: '/admin/campaigns', permission: 'campaigns.manage', area: 'campaigns' },
   { prefix: '/admin/discount-codes', permission: 'discounts.manage' },
   { prefix: '/admin/loyalty', permission: 'loyalty.manage' },
   { prefix: '/admin/professional-levels', permission: 'loyalty.manage' },
@@ -298,3 +305,36 @@ export function canWriteAdminArea(
 ): boolean {
   return resolveAdminAreaLevel(user, area) === 'write';
 }
+
+export function adminPageAreaForPath(pathname: string): AdminAccessArea | null {
+  const match = ADMIN_PAGE_PERMISSIONS.find(
+    (rule) => pathname === rule.prefix || pathname.startsWith(`${rule.prefix}/`)
+  );
+  return match?.area ?? null;
+}
+
+/**
+ * Client page gate. A read-only campaigns admin may open campaign and lead
+ * pages, matching the server's GET authorization, but write controls stay
+ * hidden. Pages without an area map keep the permission-pack behavior.
+ */
+export function canAccessAdminPage(
+  user: AdminAccessUser | null | undefined,
+  pathname: string
+): boolean {
+  if (!user || user.role !== 'admin') return false;
+  const required = permissionForAdminPage(pathname);
+  if (!required) return true;
+  const area = adminPageAreaForPath(pathname);
+  if (area) {
+    if (canReadAdminArea(user, area)) return true;
+    const hasEffectiveLevels =
+      (user.adminAccessLevels && Object.keys(user.adminAccessLevels).length > 0) ||
+      (user.adminPermissionLevels && Object.keys(user.adminPermissionLevels).length > 0);
+    // An explicit effective matrix is authoritative, including `none`.
+    if (hasEffectiveLevels) return false;
+  }
+  return hasAdminPermission(user.adminPermissions, required);
+}
+
+

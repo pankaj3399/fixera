@@ -1,0 +1,29 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "services": [
+        {
+          "key": "plumbing",
+          "label": "Plumbing",
+          "countries": [
+            "BE",
+            "NL",
+            "FR",
+            "US",
+            "CA"
+          ]
+        },
+        {
+          "key": "solar-panels",
+          "label": "Solar Panels",
+          "countries": [
+            "US",
+            "CA"
+          ]
+        }
+      ]
+    }
+  }
+}

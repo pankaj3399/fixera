@@ -1,0 +1,41 @@
+{
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "import": {
+        "_id": "6adfb0c53a75b668ca348f92",
+        "filename": "lead-campaign-invalid-rows.xlsx",
+        "uploadedAt": "2026-10-26T19:57:57.747Z",
+        "uploadedBy": "66af00000000000000000101",
+        "status": "failed",
+        "totalRows": 2,
+        "importedRows": 0,
+        "duplicateRows": 0,
+        "failedRows": 2,
+        "suppressedRows": 0,
+        "fileError": null,
+        "errorCount": 2
+      },
+      "summary": {
+        "totalRows": 2,
+        "importedRows": 0,
+        "duplicateRows": 0,
+        "failedRows": 2,
+        "suppressedRows": 0
+      },
+      "errors": [
+        {
+          "row": 2,
+          "field": "email",
+          "message": "Enter a valid email address"
+        },
+        {
+          "row": 3,
+          "field": "email",
+          "message": "Enter a valid email address"
+        }
+      ]
+    }
+  }
+}

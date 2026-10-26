@@ -1,0 +1,108 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "imports": [
+        {
+          "_id": "6adfb0c53a75b668ca348f9a",
+          "filename": "lead-campaign-malformed.xlsx",
+          "uploadedAt": "2026-10-26T19:57:57.763Z",
+          "uploadedBy": "66af00000000000000000101",
+          "status": "failed",
+          "totalRows": 0,
+          "importedRows": 0,
+          "duplicateRows": 0,
+          "failedRows": 0,
+          "suppressedRows": 0,
+          "fileError": "The uploaded file is not a valid .xlsx or .xls workbook",
+          "errorCount": 0,
+          "errors": []
+        },
+        {
+          "_id": "6adfb0c53a75b668ca348f92",
+          "filename": "lead-campaign-invalid-rows.xlsx",
+          "uploadedAt": "2026-10-26T19:57:57.747Z",
+          "uploadedBy": "66af00000000000000000101",
+          "status": "failed",
+          "totalRows": 2,
+          "importedRows": 0,
+          "duplicateRows": 0,
+          "failedRows": 2,
+          "suppressedRows": 0,
+          "fileError": null,
+          "errorCount": 2,
+          "errors": [
+            {
+              "row": 2,
+              "field": "email",
+              "message": "Enter a valid email address"
+            },
+            {
+              "row": 3,
+              "field": "email",
+              "message": "Enter a valid email address"
+            }
+          ]
+        },
+        {
+          "_id": "6adfb0c53a75b668ca348f84",
+          "filename": "lead-campaign-suppressed-identities.xlsx",
+          "uploadedAt": "2026-10-26T19:57:57.721Z",
+          "uploadedBy": "66af00000000000000000101",
+          "status": "completed",
+          "totalRows": 4,
+          "importedRows": 3,
+          "duplicateRows": 1,
+          "failedRows": 0,
+          "suppressedRows": 3,
+          "fileError": null,
+          "errorCount": 0,
+          "errors": []
+        },
+        {
+          "_id": "6adfb0c53a75b668ca348f79",
+          "filename": "lead-campaign-duplicate-only.xlsx",
+          "uploadedAt": "2026-10-26T19:57:57.692Z",
+          "uploadedBy": "66af00000000000000000101",
+          "status": "duplicate_only",
+          "totalRows": 2,
+          "importedRows": 0,
+          "duplicateRows": 2,
+          "failedRows": 0,
+          "suppressedRows": 0,
+          "fileError": null,
+          "errorCount": 0,
+          "errors": []
+        },
+        {
+          "_id": "6adfb0c53a75b668ca348f69",
+          "filename": "lead-campaign-partial-october.xlsx",
+          "uploadedAt": "2026-10-26T19:57:57.640Z",
+          "uploadedBy": "66af00000000000000000101",
+          "status": "partial",
+          "totalRows": 7,
+          "importedRows": 5,
+          "duplicateRows": 1,
+          "failedRows": 1,
+          "suppressedRows": 1,
+          "fileError": null,
+          "errorCount": 1,
+          "errors": [
+            {
+              "row": 5,
+              "field": "email",
+              "message": "Enter a valid email address"
+            }
+          ]
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 25,
+        "total": 5,
+        "totalPages": 1
+      }
+    }
+  }
+}

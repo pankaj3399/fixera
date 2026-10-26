@@ -1,0 +1,8 @@
+{
+  "status": 409,
+  "body": {
+    "success": false,
+    "msg": "A lead with this email, country, language and service already exists.",
+    "code": "CONFLICT"
+  }
+}
