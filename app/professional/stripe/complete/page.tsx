@@ -70,7 +70,7 @@ function StripeCompleteContent() {
   };
 
   const handleGoToDashboard = () => {
-    router.push(isFromOnboarding ? '/professional/onboarding' : '/dashboard');
+    router.push(isFromOnboarding ? '/professional/onboarding?step=3' : '/dashboard');
   };
 
   if (status === 'checking') {

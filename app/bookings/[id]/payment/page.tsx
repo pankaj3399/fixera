@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { StripeProvider } from '@/components/stripe/StripeProvider';
@@ -1041,6 +1042,14 @@ export default function BookingPaymentPage() {
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
+          <div className="mb-4">
+            <Link
+              href={`/bookings/${bookingId}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+            >
+              <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
+            </Link>
+          </div>
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="bg-blue-600 px-6 py-4">
               <h1 className="text-2xl font-bold text-white">{t('paymentPage.completeBooking')}</h1>
@@ -1502,6 +1511,21 @@ export default function BookingPaymentPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Link
+            href={`/bookings/${bookingId}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+          >
+            <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setScheduleStep(true)}
+            className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+          >
+            <span aria-hidden="true">←</span> {t('paymentPage.previousToSchedule')}
+          </button>
+        </div>
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Header */}
           <div className="bg-blue-600 px-6 py-4">

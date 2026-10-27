@@ -336,7 +336,9 @@
       "rejected": "Quotation rejected. The professional will be notified.",
       "respondFailed": "Failed to respond to quotation"
     },
-    "currentPreviewNote": "Current payment preview using today's checkout pricing. The recorded quotation is in the Quotation tab."
+    "currentPreviewNote": "Current payment preview using today's checkout pricing. The recorded quotation is in the Quotation tab.",
+    "viewingPinnedVersion": "Viewing pinned version v{version}. Accept & Pay always uses the current valid version.",
+    "backToCurrentVersion": "Back to current version"
   },
   "loyalty": {
     "member": "{level} Member",

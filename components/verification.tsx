@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,6 +8,12 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Mail, Phone, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
+import {
+  restartOtpResend,
+  tickOtpResend,
+  formatOtpCooldown,
+  type OtpResendState,
+} from "@/lib/auth/signupOtpCooldown"
 
 interface VerificationComponentProps {
   email: string
@@ -22,6 +28,18 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   const [emailVerified, setEmailVerified] = useState(false)
   const [phoneVerified, setPhoneVerified] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  // Resend cooldown (120s, UX only — OTP validity is server-side). Both
+  // channels share the DualVerificationComponent cooldown semantics.
+  const [emailResend, setEmailResend] = useState<OtpResendState>({ disabled: false, remainingSeconds: 0 })
+  const [phoneResend, setPhoneResend] = useState<OtpResendState>({ disabled: false, remainingSeconds: 0 })
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEmailResend((prev) => tickOtpResend(prev))
+      setPhoneResend((prev) => tickOtpResend(prev))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   const handleEmailVerification = async () => {
     if (emailOtp.length !== 6) {
@@ -80,6 +98,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   const resendEmailOtp = async () => {
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-email-otp`, { email })
+      setEmailResend(restartOtpResend())
       toast.success(t("verification.emailResent"))
     } catch {
       toast.error(t("verification.emailResendFailed"))
@@ -89,6 +108,7 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   const resendPhoneOtp = async () => {
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-phone-otp`, { phone })
+      setPhoneResend(restartOtpResend())
       toast.success(t("verification.phoneResent"))
     } catch {
       toast.error(t("verification.phoneResendFailed"))
@@ -129,8 +149,10 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
                   <Button onClick={handleEmailVerification} disabled={isLoading || emailOtp.length !== 6} size="sm">
                     {t("verification.verifyEmail")}
                   </Button>
-                  <Button variant="outline" onClick={resendEmailOtp} size="sm">
-                    {t("verification.resend")}
+                  <Button variant="outline" onClick={resendEmailOtp} size="sm" disabled={emailResend.disabled}>
+                    {emailResend.disabled
+                      ? t("verification.resendIn", { time: formatOtpCooldown(emailResend.remainingSeconds) })
+                      : t("verification.resend")}
                   </Button>
                 </div>
               )}
@@ -161,8 +183,10 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
                   <Button onClick={handlePhoneVerification} disabled={isLoading || phoneOtp.length !== 6} size="sm">
                     {t("verification.verifyPhone")}
                   </Button>
-                  <Button variant="outline" onClick={resendPhoneOtp} size="sm">
-                    {t("verification.resend")}
+                  <Button variant="outline" onClick={resendPhoneOtp} size="sm" disabled={phoneResend.disabled}>
+                    {phoneResend.disabled
+                      ? t("verification.resendIn", { time: formatOtpCooldown(phoneResend.remainingSeconds) })
+                      : t("verification.resend")}
                   </Button>
                 </div>
               )}

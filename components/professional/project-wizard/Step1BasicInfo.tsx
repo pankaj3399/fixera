@@ -453,6 +453,30 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     ? serviceConfig.vatManagement.professionalVatQuestions || []
     : []
 
+  // Prune stale professional VAT answers whenever the fetched question list
+  // changes — even when the service configuration id is unchanged (a
+  // classification edit keeps the same _id but drops the Article 47
+  // question). Answers for removed questions are dropped, never applied.
+  const professionalVatQuestionKeys = JSON.stringify(
+    professionalVatQuestions.map((question) => question.fieldName).sort(),
+  )
+  useEffect(() => {
+    if (!serviceConfigLoaded) return
+    const allowed = new Set(
+      (JSON.parse(professionalVatQuestionKeys) as string[]).filter(
+        (fieldName) => typeof fieldName === 'string',
+      ),
+    )
+    setFormData((prev) => {
+      const answers = prev.vatProfessionalAnswers || []
+      if (answers.length === 0) return prev
+      const pruned = answers.filter((answer) => allowed.has(answer.fieldName))
+      if (pruned.length === answers.length) return prev
+      return { ...prev, vatProfessionalAnswers: pruned }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceConfigLoaded, professionalVatQuestionKeys])
+
   const getProfessionalVatAnswer = (fieldName: string) =>
     formData.vatProfessionalAnswers?.find((answer) => answer.fieldName === fieldName)?.value
 

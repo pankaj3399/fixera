@@ -336,7 +336,9 @@
       "rejected": "Offerte afgewezen. De vakman krijgt hiervan bericht.",
       "respondFailed": "Reageren op de offerte is mislukt"
     },
-    "currentPreviewNote": "Huidig betalingsoverzicht met de huidige afrekenprijzen. De vastgelegde offerte staat in het tabblad Offerte."
+    "currentPreviewNote": "Huidig betalingsoverzicht met de huidige afrekenprijzen. De vastgelegde offerte staat in het tabblad Offerte.",
+    "viewingPinnedVersion": "Vastgezette versie v{version} wordt weergegeven. Accepteren en betalen gebruikt altijd de huidige geldige versie.",
+    "backToCurrentVersion": "Terug naar huidige versie"
   },
   "loyalty": {
     "member": "{level}-lid",

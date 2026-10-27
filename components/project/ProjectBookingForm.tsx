@@ -2140,6 +2140,31 @@ export default function ProjectBookingForm({
     setVatAnswers(prev => ({ ...prev, [fieldName]: { fieldName, value } }));
   };
 
+  // Prune stale VAT answers when the fetched question list changes: answers
+  // for removed questions are never submitted, even if the project id (and
+  // any cached config) is unchanged.
+  const vatQuestionKeys = JSON.stringify(
+    (project.vatManagement?.reducedVatQuestions || []).map((question) => question.fieldName).sort(),
+  );
+  useEffect(() => {
+    const allowed = new Set(
+      (JSON.parse(vatQuestionKeys) as unknown[]).filter(
+        (fieldName): fieldName is string => typeof fieldName === 'string',
+      ),
+    );
+    setVatAnswers((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length === 0) return prev;
+      if (keys.every((key) => allowed.has(key))) return prev;
+      const pruned: Record<string, VatAnswer> = {};
+      for (const key of keys) {
+        if (allowed.has(key)) pruned[key] = prev[key];
+      }
+      return pruned;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vatQuestionKeys]);
+
   const handleRFQAttachmentUpload = async (index: number, file: File | null) => {
     if (!file) return;
 
@@ -3905,6 +3930,12 @@ export default function ProjectBookingForm({
                               onCheckedChange={() =>
                                 handleExtraOptionToggle(idx)
                               }
+                              // Stop the click from bubbling to the card's
+                              // onClick: without this the checkbox fires both
+                              // handlers (checked-change + bubbled click) and
+                              // toggles twice = net no-op. Keyboard
+                              // operation is unaffected (no click event).
+                              onClick={(e) => e.stopPropagation()}
                               className='mt-1'
                             />
                             <div className='flex-1'>

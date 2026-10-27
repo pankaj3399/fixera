@@ -89,7 +89,7 @@ function StripeRefreshContent() {
 
         <button
           type="button"
-          onClick={() => router.push(isFromOnboarding ? '/professional/onboarding' : '/dashboard')}
+          onClick={() => router.push(isFromOnboarding ? '/professional/onboarding?step=3' : '/dashboard')}
           className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
         >
           {isFromOnboarding ? t('stripePages.shared.backToOnboarding') : t('stripePages.shared.backToDashboard')}

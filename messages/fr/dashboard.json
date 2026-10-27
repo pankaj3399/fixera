@@ -358,6 +358,20 @@
       "customer": "Client : {name}",
       "quote": "Devis",
       "warrantyAction": "Action de garantie pour la réservation {bookingId}"
+    },
+    "summary": {
+      "pendingBookings": "Réservations en cours",
+      "pendingBookingsHint": "En attente de réalisation ou de versement",
+      "finishedBookings": "Réservations terminées",
+      "finishedBookingsHint": "Réservations terminées",
+      "earnings": "Gains",
+      "earningsHint": "Versements reçus pour les réservations terminées",
+      "pendingEarnings": "Gains en attente",
+      "reviews": "Avis",
+      "reviewsHint": "Note moyenne des clients",
+      "reviewsCount": "{count} avis",
+      "noReviews": "Aucun avis pour le moment",
+      "loadFailed": "Impossible de charger le résumé."
     }
   },
   "actionNeeded": {
@@ -426,6 +440,21 @@
       "benefits": "Avantages",
       "noBenefits": "Aucun avantage supplémentaire configuré pour l'instant.",
       "referralPerformance": "Performance des parrainages"
+    },
+    "savings": {
+      "title": "Vos économies",
+      "subtitle": "Argent économisé grâce aux remises sur la plateforme.",
+      "recordedSavings": "Économies enregistrées",
+      "recurring": "Remise client fidèle",
+      "loyalty": "Remise de fidélité",
+      "discountCode": "Codes de réduction",
+      "points": "Points échangés",
+      "referral": "Remise de parrainage",
+      "referralUnknown": "Non enregistré séparément",
+      "noSavingsYet": "Aucune économie enregistrée pour le moment — vos remises apparaîtront ici.",
+      "unknownCoverage": "{count} réservations réglées sont antérieures aux relevés de remises : le total est donc une borne basse.",
+      "excludedUncertain": "{count} réservations sont exclues (remboursement partiel ou litige : aucune répartition exacte enregistrée).",
+      "bookingsCount": "{count} réservations réglées"
     }
   },
   "disputes": {
@@ -480,7 +509,11 @@
       "professional": "Professionnel",
       "amount": "Montant",
       "status": "Statut",
-      "date": "Date"
+      "date": "Date",
+      "search": "Rechercher n° de réservation, professionnel…",
+      "filterService": "Filtrer par service",
+      "allServices": "Tous les services",
+      "unknownDate": "—"
     },
     "status": {
       "all": "Tous les statuts",
@@ -517,7 +550,10 @@
       "allTime": "Depuis le début",
       "recentTransactions": "Transactions récentes",
       "noTransactions": "Aucune transaction pour l'instant",
-      "noTransactionsDescription": "Les transactions apparaîtront ici dès que vous aurez terminé des réservations"
+      "noTransactionsDescription": "Les transactions apparaîtront ici dès que vous aurez terminé des réservations",
+      "pendingBookingsCount": "{count} versements en attente",
+      "transferPending": "Virement en attente",
+      "transferFailed": "Virement échoué"
     }
   },
   "warranty": {
@@ -575,6 +611,9 @@
       "professional2": "Utilisez la page de détail de la réservation pour envoyer des propositions, marquer les réparations comme résolues et suivre les confirmations.",
       "customer1": "Ouvrez la réservation concernée pour consulter les détails de la réclamation, les mises à jour des propositions et l'avancement de la réparation.",
       "customer2": "Utilisez la page de réservation pour accepter ou refuser les propositions, confirmer les résolutions ou escalader si le problème persiste."
-    }
+    },
+    "search": "Rechercher n° de dossier ou de réservation…",
+    "filterService": "Filtrer par service",
+    "allServices": "Tous les services"
   }
 }

@@ -15,7 +15,10 @@
     "allServices": "Tous les services",
     "professional": "Professionnel",
     "field": "Champ",
-    "bookingFallback": "Réservation"
+    "bookingFallback": "Réservation",
+    "pageOf": "Page {page} sur {total}",
+    "previous": "Précédent",
+    "next": "Suivant"
   },
   "unit": {
     "hours": "heures",
@@ -382,7 +385,10 @@
       "acceptOrDeclineRescheduling": "Accepter ou refuser la nouvelle planification",
       "reviewCompletion": "Vérifier la fin des travaux et confirmer",
       "reviewDispute": "Examiner le litige"
-    }
+    },
+    "invoice": "Facture",
+    "download": "Télécharger",
+    "acceptPay": "Accepter et payer"
   },
   "professionalManager": {
     "page": {
@@ -444,5 +450,29 @@
     },
     "filterByStatus": "Filtrer par statut",
     "filterByService": "Filtrer par service"
+  },
+  "tables": {
+    "colProject": "Projet / sous-projet",
+    "colBooking": "Réservation",
+    "colQuotation": "Devis",
+    "colAddress": "Adresse d’intervention",
+    "colProfessional": "Professionnel",
+    "colCustomer": "Client",
+    "colOrderDate": "Date de commande",
+    "colRequested": "Demandé le",
+    "colPlanned": "Début / fin prévus",
+    "colReal": "Début / fin réels",
+    "colPriceModel": "Modèle de prix",
+    "colPaidPrice": "Prix payé",
+    "colQuoteDate": "Devis / expiration",
+    "colFirstStart": "Premier démarrage",
+    "colDuration": "Durée",
+    "colPrice": "Prix",
+    "colStatus": "Statut",
+    "colInvoice": "Facture",
+    "colPayoutDate": "Date de versement",
+    "colPayoutRefund": "Versement / remboursement",
+    "colActions": "Actions rapides",
+    "colDetails": "Détails"
   }
 }

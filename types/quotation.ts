@@ -53,6 +53,7 @@ export interface QuoteVersion {
   validUntil: string
   createdAt: string
   changeNote?: string
+  firstPossibleStart?: string | null
 }
 
 export interface QuotationServiceLocation {

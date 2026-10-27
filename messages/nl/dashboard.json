@@ -358,6 +358,20 @@
       "customer": "Klant: {name}",
       "quote": "Offerte",
       "warrantyAction": "Garantieactie voor boeking {bookingId}"
+    },
+    "summary": {
+      "pendingBookings": "Openstaande boekingen",
+      "pendingBookingsHint": "Wachten op afronding of uitbetaling",
+      "finishedBookings": "Afgeronde boekingen",
+      "finishedBookingsHint": "Voltooide boekingen",
+      "earnings": "Inkomsten",
+      "earningsHint": "Ontvangen uitbetalingen van voltooide boekingen",
+      "pendingEarnings": "Openstaande inkomsten",
+      "reviews": "Beoordelingen",
+      "reviewsHint": "Gemiddelde klantbeoordeling",
+      "reviewsCount": "{count} beoordelingen",
+      "noReviews": "Nog geen beoordelingen",
+      "loadFailed": "Samenvatting kon niet worden geladen."
     }
   },
   "actionNeeded": {
@@ -426,6 +440,21 @@
       "benefits": "Voordelen",
       "noBenefits": "Er zijn nog geen extra voordelen ingesteld.",
       "referralPerformance": "Prestaties van doorverwijzingen"
+    },
+    "savings": {
+      "title": "Jouw besparingen",
+      "subtitle": "Geld bespaard via kortingen op het platform.",
+      "recordedSavings": "Geregistreerde besparingen",
+      "recurring": "Korting voor terugkerende klant",
+      "loyalty": "Loyaliteitskorting",
+      "discountCode": "Kortingscodes",
+      "points": "Ingewisselde punten",
+      "referral": "Verwijzingskorting",
+      "referralUnknown": "Niet afzonderlijk geregistreerd",
+      "noSavingsYet": "Nog geen geregistreerde besparingen — gebruikte kortingen verschijnen hier.",
+      "unknownCoverage": "{count} afgeronde boekingen zijn van vóór de kortingsregistratie, dus het totaal is een ondergrens.",
+      "excludedUncertain": "{count} boekingen zijn uitgesloten (gedeeltelijke terugbetaling of geschil: geen exacte kortingstoewijzing geregistreerd).",
+      "bookingsCount": "{count} afgeronde boekingen"
     }
   },
   "disputes": {
@@ -480,7 +509,11 @@
       "professional": "Vakman",
       "amount": "Bedrag",
       "status": "Status",
-      "date": "Datum"
+      "date": "Datum",
+      "search": "Zoeken op boekingsnr., professional…",
+      "filterService": "Filteren op service",
+      "allServices": "Alle services",
+      "unknownDate": "—"
     },
     "status": {
       "all": "Alle statussen",
@@ -517,7 +550,10 @@
       "allTime": "Sinds het begin",
       "recentTransactions": "Recente transacties",
       "noTransactions": "Nog geen transacties",
-      "noTransactionsDescription": "Transacties verschijnen hier zodra je boekingen afrondt"
+      "noTransactionsDescription": "Transacties verschijnen hier zodra je boekingen afrondt",
+      "pendingBookingsCount": "{count} openstaande uitbetalingen",
+      "transferPending": "Overboeking in behandeling",
+      "transferFailed": "Overboeking mislukt"
     }
   },
   "warranty": {
@@ -575,6 +611,9 @@
       "professional2": "Gebruik de boekingsdetailpagina om voorstellen te versturen, herstellingen als opgelost te markeren en bevestigingen op te volgen.",
       "customer1": "Open de bijbehorende boeking om claimdetails, voorstellen en de voortgang van de herstelling te bekijken.",
       "customer2": "Gebruik de boekingspagina om voorstellen te accepteren of af te wijzen, oplossingen te bevestigen of te escaleren als het probleem blijft bestaan."
-    }
+    },
+    "search": "Zoeken op claim- of boekingsnr.…",
+    "filterService": "Filteren op service",
+    "allServices": "Alle services"
   }
 }

@@ -15,7 +15,10 @@
     "allServices": "All services",
     "professional": "Professional",
     "field": "Field",
-    "bookingFallback": "Booking"
+    "bookingFallback": "Booking",
+    "pageOf": "Page {page} of {total}",
+    "previous": "Previous",
+    "next": "Next"
   },
   "unit": {
     "hours": "hours",
@@ -382,7 +385,10 @@
       "acceptOrDeclineRescheduling": "Accept or decline rescheduling",
       "reviewCompletion": "Review completion and confirm",
       "reviewDispute": "Review dispute"
-    }
+    },
+    "invoice": "Invoice",
+    "download": "Download",
+    "acceptPay": "Accept & Pay"
   },
   "professionalManager": {
     "page": {
@@ -444,5 +450,29 @@
     },
     "filterByStatus": "Filter by status",
     "filterByService": "Filter by service"
+  },
+  "tables": {
+    "colProject": "Project / subproject",
+    "colBooking": "Booking",
+    "colQuotation": "Quotation",
+    "colAddress": "Service address",
+    "colProfessional": "Professional",
+    "colCustomer": "Customer",
+    "colOrderDate": "Order date",
+    "colRequested": "Requested",
+    "colPlanned": "Planned start / end",
+    "colReal": "Real start / end",
+    "colPriceModel": "Price model",
+    "colPaidPrice": "Paid price",
+    "colQuoteDate": "Quote / expiry",
+    "colFirstStart": "First start",
+    "colDuration": "Duration",
+    "colPrice": "Price",
+    "colStatus": "Status",
+    "colInvoice": "Invoice",
+    "colPayoutDate": "Payout date",
+    "colPayoutRefund": "Payout / refund",
+    "colActions": "Quick actions",
+    "colDetails": "Details"
   }
 }

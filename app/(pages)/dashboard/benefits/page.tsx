@@ -62,8 +62,27 @@ type ProfessionalBenefitsResponse = {
   }
 }
 
-type ReferralData = {
-  referralCode?: string
+type SavingsSummaryResponse = {
+  groups?: Array<{
+    currency?: string;
+    byType?: { recurring?: number; loyalty?: number; discountCode?: number; points?: number };
+    referral?: number | null;
+    totalRecorded?: number;
+    bookingCount?: number;
+    coverage?: 'complete' | 'partial';
+    excludedUncertain?: number;
+    unrecorded?: number;
+  }>;
+  complete?: boolean;
+  settledBookingCount?: number;
+  unrecordedBookingCount?: number;
+  excludedUncertainCount?: number;
+  referral?: null;
+  referralStatus?: string;
+  totalLabel?: string;
+}
+
+type ReferralData = {  referralCode?: string
   points?: number
   pointsExpiry?: string | null
   totalReferrals?: number
@@ -105,6 +124,7 @@ export default function BenefitsPage() {
   const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(null)
   const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(null)
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
+  const [savingsData, setSavingsData] = useState<SavingsSummaryResponse | null>(null)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -172,6 +192,22 @@ export default function BenefitsPage() {
           signal: controller.signal,
         }),
       ])
+
+      if (user.role === "customer") {
+        try {
+          const savingsResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/savings/summary`, {
+            credentials: "include",
+            headers,
+            signal: controller.signal,
+          })
+          const savingsPayload = await readJsonSafely(savingsResponse)
+          if (!controller.signal.aborted && savingsResponse.ok && savingsPayload?.success) {
+            setSavingsData(savingsPayload.data ?? null)
+          }
+        } catch (error) {
+          if ((error as Error)?.name !== 'AbortError') console.error("Failed to fetch savings data:", error)
+        }
+      }
 
       if (controller.signal.aborted) return
 
@@ -337,6 +373,70 @@ export default function BenefitsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {isCustomer && (
+          <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gift className="h-5 w-5 text-emerald-600" />
+                {t("benefits.savings.title")}
+                <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+                  {t("benefits.savings.recordedSavings")}
+                </Badge>
+              </CardTitle>
+              <CardDescription>{t("benefits.savings.subtitle")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!savingsData || savingsData.settledBookingCount === 0 ? (
+                <p className="text-sm text-slate-600">{t("benefits.savings.noSavingsYet")}</p>
+              ) : (
+                <>
+                  {(savingsData.groups ?? []).map((group) => (
+                    <div key={group.currency ?? 'UNKNOWN'} className="rounded-lg border bg-white p-4">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-500">
+                          {t("benefits.savings.bookingsCount", { count: group.bookingCount ?? 0 })}
+                        </p>
+                        <p className="text-2xl font-bold text-emerald-700">
+                          {formatMoney(group.totalRecorded ?? 0, group.currency)}
+                        </p>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm">
+                        {(
+                          [
+                            ['recurring', group.byType?.recurring ?? 0],
+                            ['loyalty', group.byType?.loyalty ?? 0],
+                            ['discountCode', group.byType?.discountCode ?? 0],
+                            ['points', group.byType?.points ?? 0],
+                          ] as const
+                        ).map(([key, amount]) => (
+                          <div key={key} className="flex items-center justify-between gap-3">
+                            <span className="text-slate-600">{t(`benefits.savings.${key}`)}</span>
+                            <span className="font-medium text-slate-900">{formatMoney(amount, group.currency)}</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between gap-3 border-t pt-2">
+                          <span className="text-slate-600">{t("benefits.savings.referral")}</span>
+                          <Badge variant="secondary">{t("benefits.savings.referralUnknown")}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {(savingsData.unrecordedBookingCount ?? 0) > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {t("benefits.savings.unknownCoverage", { count: savingsData.unrecordedBookingCount ?? 0 })}
+                    </p>
+                  )}
+                  {(savingsData.excludedUncertainCount ?? 0) > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {t("benefits.savings.excludedUncertain", { count: savingsData.excludedUncertainCount ?? 0 })}
+                    </p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-indigo-100 bg-white/90">
           <CardHeader>

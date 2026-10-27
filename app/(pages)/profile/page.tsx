@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, CalendarX, Pencil, MapPin, AlertTriangle, CreditCard, Camera, Trash2 } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Building, Check, X, AlertCircle, Loader2, Upload, FileText, CalendarX, Pencil, MapPin, AlertTriangle, CreditCard, Camera, Trash2, AtSign } from "lucide-react"
 import EmployeeManagement from "@/components/TeamManagement"
 import PasswordChange from "@/components/PasswordChange"
 import PrivacyAndData from "@/components/PrivacyAndData"
@@ -1801,16 +1801,16 @@ function ProfileContent() {
 
         {isProfessional ? (
           <Tabs value={profileTab} onValueChange={handleProfileTabChange} className="w-full">
-            <TabsList className="w-full justify-start overflow-x-auto scrollbar-thin sm:grid sm:grid-cols-9">
-              <TabsTrigger value="profile">{t('tabs.profile')}</TabsTrigger>
-              <TabsTrigger value="business">{t('tabs.business')}</TabsTrigger>
-              <TabsTrigger value="documents">{t('tabs.documents')}</TabsTrigger>
-              <TabsTrigger value="payments">{t('tabs.payments')}</TabsTrigger>
-              <TabsTrigger value="employees">{t('tabs.employees')}</TabsTrigger>
-              <TabsTrigger value="personal-availability">{t('tabs.personalAvailability')}</TabsTrigger>
-              <TabsTrigger value="company-availability">{t('tabs.companyAvailability')}</TabsTrigger>
-              <TabsTrigger value="security">{t('tabs.security')}</TabsTrigger>
-              <TabsTrigger value="notifications">{t('tabs.notifications')}</TabsTrigger>
+            <TabsList className="flex w-full justify-start gap-1 overflow-x-auto scrollbar-thin p-1">
+              <TabsTrigger value="profile" className="shrink-0 whitespace-nowrap">{t('tabs.profile')}</TabsTrigger>
+              <TabsTrigger value="business" className="shrink-0 whitespace-nowrap">{t('tabs.business')}</TabsTrigger>
+              <TabsTrigger value="documents" className="shrink-0 whitespace-nowrap">{t('tabs.documents')}</TabsTrigger>
+              <TabsTrigger value="payments" className="shrink-0 whitespace-nowrap">{t('tabs.payments')}</TabsTrigger>
+              <TabsTrigger value="employees" className="shrink-0 whitespace-nowrap">{t('tabs.employees')}</TabsTrigger>
+              <TabsTrigger value="personal-availability" className="shrink-0 whitespace-nowrap">{t('tabs.personalAvailability')}</TabsTrigger>
+              <TabsTrigger value="company-availability" className="shrink-0 whitespace-nowrap">{t('tabs.companyAvailability')}</TabsTrigger>
+              <TabsTrigger value="security" className="shrink-0 whitespace-nowrap">{t('tabs.security')}</TabsTrigger>
+              <TabsTrigger value="notifications" className="shrink-0 whitespace-nowrap">{t('tabs.notifications')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-6">
@@ -1862,6 +1862,124 @@ function ProfileContent() {
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-gray-500" />
                       <span className="text-sm">{roleLabel(user?.role)}</span>
+                    </div>
+                    {/* Display username is a profile parameter: edit it here, not under business info. */}
+                    <div className="space-y-2">
+                      <Label>{t('business.usernameLabel')}</Label>
+                      <p className="text-xs text-gray-500">{t('business.usernameHint')}</p>
+                      {!usernameEdit ? (
+                        <div className="flex items-center gap-2">
+                          <AtSign className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium flex-1">{username || t('business.usernameNotSet')}</span>
+                          <Button size="sm" variant="ghost" onClick={() => setUsernameEdit(true)} className="h-6 w-6 p-0" aria-label={t('business.editUsername')}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <Input
+                              value={username}
+                              onChange={(e) => {
+                                const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                                setUsername(val)
+                                if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
+                                if (usernameAbortRef.current) usernameAbortRef.current.abort()
+                                if (!val || val.length < 3) { setUsernameCheck({}); return }
+                                setUsernameCheck({ checking: true })
+                                usernameTimerRef.current = setTimeout(async () => {
+                                  const controller = new AbortController()
+                                  usernameAbortRef.current = controller
+                                  try {
+                                    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(val)}`, { credentials: 'include', signal: controller.signal })
+                                    const data = await res.json()
+                                    setUsernameCheck({ available: data.available, reason: data.reason })
+                                  } catch (err: unknown) {
+                                    if (err instanceof Error && err.name === 'AbortError') return
+                                    setUsernameCheck({ reason: t('toasts.usernameCheckFailed') })
+                                  }
+                                }, 500)
+                              }}
+                              placeholder={t('business.usernamePlaceholder')}
+                              maxLength={30}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  const qs = buildUsernameSuggestionParams(businessInfo)
+                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include' })
+                                  const data = await res.json()
+                                  if (data.suggestions?.length) {
+                                    setUsernameSuggestions(data.suggestions)
+                                    setUsername(data.suggestions[0])
+                                    setUsernameCheck({ available: true })
+                                  }
+                                } catch { toast.error(t('toasts.suggestionsFailed')) }
+                              }}
+                            >
+                              {t('business.suggest')}
+                            </Button>
+                          </div>
+                          {username && username.length >= 3 && (
+                            <div className={`flex items-center gap-2 text-xs p-2 rounded-lg ${
+                              usernameCheck.checking ? 'bg-gray-50 text-gray-600' :
+                              usernameCheck.available ? 'bg-green-50 text-green-700' :
+                              usernameCheck.available === false ? 'bg-red-50 text-red-700' : ''
+                            }`}>
+                              {usernameCheck.checking ? t('business.checking') :
+                               usernameCheck.available ? t('business.usernameAvailable') :
+                               usernameCheck.available === false ? usernameCheck.reason : null}
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-400">{t('business.usernameRules')}</p>
+                          {usernameSuggestions.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {usernameSuggestions.map((s) => (
+                                <button key={s} type="button" onClick={() => { setUsername(s); setUsernameCheck({ available: true }) }}
+                                  className={`text-xs px-3 py-1 rounded-full border ${username === s ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              disabled={usernameSaving || !username || username.length < 3 || usernameCheck.available !== true}
+                              onClick={async () => {
+                                setUsernameSaving(true)
+                                try {
+                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/username`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    credentials: 'include',
+                                    body: JSON.stringify({ username }),
+                                  })
+                                  const data = await res.json()
+                                  if (data.success) {
+                                    toast.success(t('toasts.usernameUpdated'))
+                                    setUsernameEdit(false)
+                                    await checkAuth()
+                                  } else {
+                                    toast.error(getErrorText(data, t('toasts.usernameUpdateFailed')))
+                                  }
+                                } catch { toast.error(t('toasts.usernameUpdateFailed')) }
+                                finally { setUsernameSaving(false) }
+                              }}
+                            >
+                              {usernameSaving ? t('common.saving') : t('business.saveUsername')}
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              setUsernameEdit(false)
+                              setUsername(user?.username || '')
+                              setUsernameCheck({})
+                              setUsernameSuggestions([])
+                            }}>{t('common.cancel')}</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -2118,120 +2236,6 @@ function ProfileContent() {
                         placeholder="https://yourwebsite.com"
                       />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>{t('business.usernameLabel')}</Label>
-                    <p className="text-xs text-gray-500">{t('business.usernameHint')}</p>
-                    {!usernameEdit ? (
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-900">{username || t('business.usernameNotSet')}</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <Input
-                            value={username}
-                            onChange={(e) => {
-                              const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
-                              setUsername(val)
-                              if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
-                              if (usernameAbortRef.current) usernameAbortRef.current.abort()
-                              if (!val || val.length < 3) { setUsernameCheck({}); return }
-                              setUsernameCheck({ checking: true })
-                              usernameTimerRef.current = setTimeout(async () => {
-                                const controller = new AbortController()
-                                usernameAbortRef.current = controller
-                                try {
-                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(val)}`, { credentials: 'include', signal: controller.signal })
-                                  const data = await res.json()
-                                  setUsernameCheck({ available: data.available, reason: data.reason })
-                                } catch (err: unknown) {
-                                  if (err instanceof Error && err.name === 'AbortError') return
-                                  setUsernameCheck({ reason: t('toasts.usernameCheckFailed') })
-                                }
-                              }, 500)
-                            }}
-                            placeholder={t('business.usernamePlaceholder')}
-                            maxLength={30}
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                const qs = buildUsernameSuggestionParams(businessInfo)
-                                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include' })
-                                const data = await res.json()
-                                if (data.suggestions?.length) {
-                                  setUsernameSuggestions(data.suggestions)
-                                  setUsername(data.suggestions[0])
-                                  setUsernameCheck({ available: true })
-                                }
-                              } catch { toast.error(t('toasts.suggestionsFailed')) }
-                            }}
-                          >
-                            {t('business.suggest')}
-                          </Button>
-                        </div>
-                        {username && username.length >= 3 && (
-                          <div className={`flex items-center gap-2 text-xs p-2 rounded-lg ${
-                            usernameCheck.checking ? 'bg-gray-50 text-gray-600' :
-                            usernameCheck.available ? 'bg-green-50 text-green-700' :
-                            usernameCheck.available === false ? 'bg-red-50 text-red-700' : ''
-                          }`}>
-                            {usernameCheck.checking ? t('business.checking') :
-                             usernameCheck.available ? t('business.usernameAvailable') :
-                             usernameCheck.available === false ? usernameCheck.reason : null}
-                          </div>
-                        )}
-                        <p className="text-xs text-gray-400">{t('business.usernameRules')}</p>
-                        {usernameSuggestions.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {usernameSuggestions.map((s) => (
-                              <button key={s} type="button" onClick={() => { setUsername(s); setUsernameCheck({ available: true }) }}
-                                className={`text-xs px-3 py-1 rounded-full border ${username === s ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
-                                {s}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            disabled={usernameSaving || !username || username.length < 3 || usernameCheck.available !== true}
-                            onClick={async () => {
-                              setUsernameSaving(true)
-                              try {
-                                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/username`, {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  credentials: 'include',
-                                  body: JSON.stringify({ username }),
-                                })
-                                const data = await res.json()
-                                if (data.success) {
-                                  toast.success(t('toasts.usernameUpdated'))
-                                  setUsernameEdit(false)
-                                  await checkAuth()
-                                } else {
-                                  toast.error(getErrorText(data, t('toasts.usernameUpdateFailed')))
-                                }
-                              } catch { toast.error(t('toasts.usernameUpdateFailed')) }
-                              finally { setUsernameSaving(false) }
-                            }}
-                          >
-                            {usernameSaving ? t('common.saving') : t('business.saveUsername')}
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => {
-                            setUsernameEdit(false)
-                            setUsername(user?.username || '')
-                            setUsernameCheck({})
-                            setUsernameSuggestions([])
-                          }}>{t('common.cancel')}</Button>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="space-y-2">

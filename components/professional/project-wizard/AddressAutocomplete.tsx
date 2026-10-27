@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { useGoogleMaps } from "@/hooks/useGoogleMaps";
+import { shouldSkipBlurCommit } from "@/lib/address/blurCommitGuard";
 
 export interface PlaceData {
   formatted_address: string;
@@ -42,10 +43,26 @@ export default function AddressAutocomplete({
   const validatedAddressRef = useRef<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  // Monotonic versions: a blur must never overwrite a newer dropdown selection.
+  const inputVersionRef = useRef(0);
+  const selectionVersionRef = useRef(0);
+  // True while a pointer is down inside the Google suggestion dropdown. The
+  // dropdown commits on mousedown (before input blur), so a blur observed in
+  // this window belongs to a selection in flight and must be skipped — the
+  // place_changed commit below is the single writer.
+  const dropdownPointerDownRef = useRef(false);
   const { isLoaded, loadGoogleMaps, validateAddress, geocodeAddress } = useGoogleMaps();
   const hasInitialized = useRef(false);
 
   const enableAutocomplete = useCallback(() => {
+    if (!useCompanyAddress) {
+      void loadGoogleMaps();
+    }
+  }, [loadGoogleMaps, useCompanyAddress]);
+
+  // Eager-load Maps as soon as the field mounts so the first click already
+  // has suggestions. Focus/pointer-down remain as a backup trigger.
+  useEffect(() => {
     if (!useCompanyAddress) {
       void loadGoogleMaps();
     }
@@ -107,6 +124,9 @@ export default function AddressAutocomplete({
         onChangeRef.current(place.formatted_address, placeData);
         selectedFromDropdownRef.current = true;
         validatedAddressRef.current = place.formatted_address;
+        selectionVersionRef.current = inputVersionRef.current + 1;
+        inputVersionRef.current = selectionVersionRef.current;
+        dropdownPointerDownRef.current = false;
         setIsValid(true);
         onValidationRef.current(true);
       }
@@ -121,9 +141,20 @@ export default function AddressAutocomplete({
 
   // Validate on blur - only for manually typed addresses
   const handleBlur = async () => {
-    // If selected from dropdown, it's already valid - don't do anything
-    if (selectedFromDropdownRef.current) {
-      console.log('✅ Address from dropdown - already valid, skipping blur validation');
+    // A pointer-down inside the Google suggestion dropdown precedes both the
+    // input blur and place_changed: the blur belongs to a selection in
+    // flight, so skip it — place_changed commits once with full placeData.
+    // A selection committed mid-validation (version drift) or already
+    // committed for this input wins the same way.
+    const inputVersionAtBlur = inputVersionRef.current;
+    const dropdownPointerArmed = dropdownPointerDownRef.current;
+    dropdownPointerDownRef.current = false;
+    if (shouldSkipBlurCommit({
+      dropdownPointerArmed,
+      inputVersionAtBlur,
+      currentInputVersion: inputVersionRef.current,
+      selectionCommitted: selectedFromDropdownRef.current,
+    })) {
       return;
     }
 
@@ -137,6 +168,17 @@ export default function AddressAutocomplete({
 
     setValidating(true);
     const valid = await validateAddress(addressToValidate);
+    // A dropdown selection committed while validation was in flight wins:
+    // never let this stale blur path overwrite its onChange(placeData).
+    if (shouldSkipBlurCommit({
+      dropdownPointerArmed: dropdownPointerDownRef.current,
+      inputVersionAtBlur,
+      currentInputVersion: inputVersionRef.current,
+      selectionCommitted: false,
+    })) {
+      setValidating(false);
+      return;
+    }
 
     if (valid) {
       validatedAddressRef.current = addressToValidate;
@@ -145,6 +187,10 @@ export default function AddressAutocomplete({
         const mapsReady = isLoaded || await loadGoogleMaps();
         const coordinates = mapsReady ? await geocodeAddress(addressToValidate) : null;
 
+        if (inputVersionAtBlur !== inputVersionRef.current) {
+          setValidating(false);
+          return;
+        }
         if (coordinates) {
           const placeData: PlaceData = {
             formatted_address: addressToValidate,
@@ -157,6 +203,7 @@ export default function AddressAutocomplete({
         }
       } catch (geocodeError) {
         console.error('Geocoding error:', geocodeError);
+        if (inputVersionAtBlur !== inputVersionRef.current) { setValidating(false); return; }
         onChange(addressToValidate);
       }
     }
@@ -204,6 +251,21 @@ export default function AddressAutocomplete({
       validateCompanyAddress();
     }
   }, [useCompanyAddress, companyAddress]);
+
+  // Track pointer-downs inside the Google suggestion dropdown so the
+  // subsequent blur is recognized as a selection in flight (the dropdown
+  // commits on mousedown, before blur/place_changed ordering is guaranteed).
+  useEffect(() => {
+    if (useCompanyAddress || typeof document === 'undefined') return;
+    const onPointerDown = (event: Event) => {
+      const target = event.target as Element | null;
+      if (document.activeElement === inputRef.current && target && typeof target.closest === 'function' && target.closest('.pac-container')) {
+        dropdownPointerDownRef.current = true;
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown, true);
+    return () => document.removeEventListener('mousedown', onPointerDown, true);
+  }, [useCompanyAddress]);
 
   // Initialize: If value already exists on mount and hasn't been validated yet, validate it
   useEffect(() => {
@@ -254,6 +316,8 @@ export default function AddressAutocomplete({
           onChange={(e) => {
             if (!useCompanyAddress) {
               const newValue = e.target.value;
+              dropdownPointerDownRef.current = false;
+              inputVersionRef.current += 1;
               onChange(newValue);
               if (newValue !== validatedAddressRef.current) {
                 selectedFromDropdownRef.current = false;
@@ -262,7 +326,7 @@ export default function AddressAutocomplete({
               }
             }
           }}
-          onFocus={enableAutocomplete}
+          onFocus={() => { dropdownPointerDownRef.current = false; enableAutocomplete(); }}
           onPointerDown={enableAutocomplete}
           onBlur={handleBlur}
           placeholder={useCompanyAddress ? t('address.useCompanyPlaceholder') : t('address.typePlaceholder')}

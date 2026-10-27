@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from "@/contexts/AuthContext"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
@@ -24,7 +24,6 @@ import {
   Send,
   Plus,
   Briefcase,
-  Calendar,
   AlertCircle,
   Copy,
   Trash2,
@@ -38,6 +37,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import ProjectCard from "@/components/dashboard/ProjectCard"
 
 interface Project {
   _id: string
@@ -46,15 +47,28 @@ interface Project {
   status: string
   category: string
   service: string
+  areaOfWork?: string | null
+  resources?: string[] | null
+  teamMembers?: Array<{ id: string; name: string | null }> | null
+  minResources?: number | null
+  minOverlapPercentage?: number | null
+  priceModel?: string | null
   subprojects: Array<{
     name: string
     description: string
     basePrice: number
     pricingModel: 'fixed' | 'hour' | 'm2' | 'meter'
+    pricing?: { type?: string; amount?: number | null; priceRange?: { min?: number } | null; unit?: string | null } | null
+    unit?: string | null
   }>
+  extraOptions?: Array<unknown> | null
+  termsConditions?: Array<unknown> | null
+  repeatBuyerDiscount?: { enabled?: boolean; percentage?: number | null } | null
   autoSaveTimestamp?: string
   submittedAt?: string
   approvedAt?: string
+  archivedAt?: string | null
+  statusBeforeArchive?: string | null
   adminFeedback?: string
   qualityChecks?: Array<{
     category: string
@@ -66,19 +80,24 @@ interface Project {
   updatedAt: string
 }
 
-type NormalizedProjectStatus = 'draft' | 'pending' | 'published' | 'on_hold' | 'rejected'
-type TabValue = 'all' | 'drafts' | 'pending' | 'published' | 'on_hold' | 'rejected'
+type NormalizedProjectStatus = 'draft' | 'pending' | 'published' | 'on_hold' | 'rejected' | 'archived'
+type TabValue = 'all' | 'drafts' | 'pending' | 'published' | 'on_hold' | 'rejected' | 'archived'
 
 const DEFAULT_PROJECT_COUNTS = {
   drafts: 0,
   pending: 0,
   published: 0,
   on_hold: 0,
-  rejected: 0
+  rejected: 0,
+  archived: 0
 }
 
 const normalizeProjectStatus = (status: Project['status']): NormalizedProjectStatus => {
   const value = (status || '').toString().trim().toLowerCase()
+
+  if (value === 'archived') {
+    return 'archived'
+  }
 
   if (value === 'pending' || value === 'pending_approval' || value === 'pending approval' || value === 'pendingapproval' || value === 'awaiting_approval' || value === 'awaiting approval' || value === 'awaitingapproval') {
     return 'pending'
@@ -110,6 +129,8 @@ const formatProjectStatusKey = (status: Project['status']) => {
       return 'onHold'
     case 'rejected':
       return 'rejected'
+    case 'archived':
+      return 'archived'
     default:
       return 'draft'
   }
@@ -136,6 +157,9 @@ const deriveCountsFromProjects = (projects: Project[]) => {
       case 'rejected':
         counts.rejected += 1
         break
+      case 'archived':
+        counts.archived += 1
+        break
       default:
         break
     }
@@ -154,7 +178,8 @@ const mapCountsFromApi = (counts: Record<string, number> | undefined | null) => 
     pending: counts.pending ?? counts.pending_approval ?? 0,
     published: counts.published ?? 0,
     on_hold: counts.on_hold ?? counts.onHold ?? 0,
-    rejected: counts.rejected ?? 0
+    rejected: counts.rejected ?? 0,
+    archived: counts.archived ?? 0
   }
 }
 
@@ -164,6 +189,7 @@ export default function ManageProjectsPage() {
   const t = useTranslations("proProjects")
   const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
+  const { formatMoney } = useCurrency()
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -172,6 +198,8 @@ export default function ManageProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [serviceFilter, setServiceFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [holdDialogOpen, setHoldDialogOpen] = useState(false)
   const [editWarningDialogOpen, setEditWarningDialogOpen] = useState(false)
@@ -187,6 +215,26 @@ export default function ManageProjectsPage() {
   const formatProjectStatusLabel = (status: Project['status']) =>
     t(`manage.statusLabels.${formatProjectStatusKey(status)}`)
 
+  const cardLabels = {
+    service: (value: string) => t('manage.card.service', { value }),
+    areaOfWork: (value: string) => t('manage.card.areaOfWork', { value }),
+    team: (value: string) => t('manage.card.team', { value }),
+    minMembers: (count: number, overlap: string) => t('manage.card.minMembers', { count, overlap }),
+    priceModel: (value: string) => t('manage.card.priceModel', { value }),
+    startingFrom: (model: string, unit: string | null, price: string) =>
+      t('manage.card.startingFrom', { model, unit: unit ? `/${unit}` : '', price }),
+    noRecordedPrice: t('manage.card.noRecordedPrice'),
+    repeatDiscount: (percent: number) => t('manage.card.repeatDiscount', { percent }),
+    counts: (subprojects: number, options: number, conditions: number) =>
+      t('manage.card.counts', { subprojects, options, conditions }),
+    publishDate: (date: string) => t('manage.card.publishDate', { date }),
+    onHoldDays: (days: number | string) => t('manage.card.onHoldDays', { days }),
+    submittedOn: (date: string) => t('manage.card.submittedOn', { date }),
+    archivedOn: (date: string) => t('manage.card.archivedOn', { date }),
+    updatedOn: (date: string) => t('manage.card.updatedOn', { date }),
+    adminFeedback: t('manage.card.adminFeedback'),
+  }
+
   const mapTabToStatus = (tab: TabValue): string => {
     switch (tab) {
       case 'drafts':
@@ -199,6 +247,8 @@ export default function ManageProjectsPage() {
         return 'on_hold'
       case 'rejected':
         return 'rejected'
+      case 'archived':
+        return 'archived'
       default:
         return 'all'
     }
@@ -216,6 +266,8 @@ export default function ManageProjectsPage() {
         return 'on_hold'
       case 'rejected':
         return 'rejected'
+      case 'archived':
+        return 'archived'
       default:
         return 'all'
     }
@@ -414,6 +466,8 @@ export default function ManageProjectsPage() {
         return 'bg-red-100 text-red-800 border-red-300'
       case 'on_hold':
         return 'bg-orange-100 text-orange-800 border-orange-300'
+      case 'archived':
+        return 'bg-slate-200 text-slate-700 border-slate-300'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300'
     }
@@ -432,6 +486,8 @@ export default function ManageProjectsPage() {
         return <XCircle className="h-4 w-4" />
       case 'on_hold':
         return <Pause className="h-4 w-4" />
+      case 'archived':
+        return <Eye className="h-4 w-4" />
       default:
         return <FileText className="h-4 w-4" />
     }
@@ -532,6 +588,48 @@ export default function ManageProjectsPage() {
     }
   }
 
+  const archiveProject = async (projectId: string) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}/archive`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        fetchProjects()
+        setArchiveDialogOpen(false)
+        setSelectedProject(null)
+      } else {
+        const errorData = await response.json()
+        toast.error(getErrorText(errorData, t('manage.errors.archiveFailed')))
+      }
+    } catch (error) {
+      console.error('Failed to archive project:', error)
+      toast.error(getErrorText(error, t('manage.errors.archiveFailed')))
+    }
+  }
+
+  const restoreProject = async (projectId: string) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}/restore`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        fetchProjects()
+        setRestoreDialogOpen(false)
+        setSelectedProject(null)
+      } else {
+        const errorData = await response.json()
+        toast.error(getErrorText(errorData, t('manage.errors.restoreFailed')))
+      }
+    } catch (error) {
+      console.error('Failed to restore project:', error)
+      toast.error(getErrorText(error, t('manage.errors.restoreFailed')))
+    }
+  }
+
   const editProjectWithWarning = (projectId: string) => {
     if (!canCreateProjects) {
       toast.error(t('manage.adminApprovalManaging'))
@@ -601,13 +699,15 @@ export default function ManageProjectsPage() {
   const publishedProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'published')
   const rejectedProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'rejected')
   const onHoldProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'on_hold')
+  const archivedProjects = filteredProjects.filter(p => normalizeProjectStatus(p.status) === 'archived')
 
   const tabCounts = {
     drafts: projectCounts.drafts,
     pending: projectCounts.pending,
     published: projectCounts.published,
     on_hold: projectCounts.on_hold,
-    rejected: projectCounts.rejected
+    rejected: projectCounts.rejected,
+    archived: projectCounts.archived
   }
 
   // Get unique services for filter dropdown (from API, falls back to current page)
@@ -618,11 +718,14 @@ export default function ManageProjectsPage() {
   // Project Action Menu Component
   const ProjectActionMenu = ({ project }: { project: Project }) => {
     const normalizedStatus = normalizeProjectStatus(project.status)
+    const isArchived = normalizedStatus === 'archived'
     const canEdit = canCreateProjects && (normalizedStatus === 'draft' || normalizedStatus === 'rejected')
     const canEditWithWarning = canCreateProjects && (normalizedStatus === 'published' || normalizedStatus === 'on_hold')
     const canSubmit = canCreateProjects && normalizedStatus === 'draft'
     const canHold = normalizedStatus === 'published' || normalizedStatus === 'on_hold'
     const canDelete = normalizedStatus === 'draft' || normalizedStatus === 'rejected'
+    const canArchive = canCreateProjects && !isArchived
+    const canRestore = canCreateProjects && isArchived
 
     return (
       <DropdownMenu>
@@ -723,6 +826,36 @@ export default function ManageProjectsPage() {
               </DropdownMenuItem>
             </>
           )}
+
+          {canArchive && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setSelectedProject(project)
+                  setArchiveDialogOpen(true)
+                }}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                {t('manage.actions.archiveProject')}
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {canRestore && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setSelectedProject(project)
+                  setRestoreDialogOpen(true)
+                }}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {t('manage.actions.restoreProject')}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     )
@@ -811,6 +944,7 @@ export default function ManageProjectsPage() {
                   <SelectItem value="published">{t('manage.statusOptions.published')}</SelectItem>
                   <SelectItem value="on_hold">{t('manage.statusOptions.onHold')}</SelectItem>
                   <SelectItem value="rejected">{t('manage.statusOptions.rejected')}</SelectItem>
+                  <SelectItem value="archived">{t('manage.statusOptions.archived')}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={serviceFilter} onValueChange={handleServiceFilterChange}>
@@ -889,6 +1023,18 @@ export default function ManageProjectsPage() {
               <div className="text-base sm:text-lg md:text-xl font-bold">{tabCounts.rejected}</div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
+              <CardTitle className="flex items-center gap-1 text-xs">
+                <Eye className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                <span className="truncate">{t('manage.stats.archived')}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
+              <div className="text-base sm:text-lg md:text-xl font-bold">{tabCounts.archived}</div>
+            </CardContent>
+          </Card>
         </div>
 
         <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as TabValue)} className="space-y-6">
@@ -911,6 +1057,9 @@ export default function ManageProjectsPage() {
               </TabsTrigger>
               <TabsTrigger value="rejected" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 {t('manage.tabs.rejected', { count: tabCounts.rejected })}
+              </TabsTrigger>
+              <TabsTrigger value="archived" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
+                {t('manage.tabs.archived', { count: tabCounts.archived })}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -947,44 +1096,21 @@ export default function ManageProjectsPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
                 {filteredProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            {normalizeProjectStatus(project.status) === 'pending' && project.submittedAt && t('manage.card.submitted', { date: new Date(project.submittedAt).toLocaleDateString(intl) })}
-                            {normalizeProjectStatus(project.status) === 'published' && project.approvedAt && t('manage.card.published', { date: new Date(project.approvedAt).toLocaleDateString(intl) })}
-                            {!project.submittedAt && !project.approvedAt && t('manage.card.updated', { date: new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString(intl) })}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
-                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
-                      </div>
-
-                      {project.adminFeedback && normalizeProjectStatus(project.status) === 'rejected' && (
-                        <div className="bg-red-50 border border-red-200 rounded-md p-2 md:p-3">
-                          <h4 className="font-medium text-red-800 mb-1 text-xs">{t('manage.card.adminFeedback')}</h4>
-                          <p className="text-xs text-red-700 line-clamp-3 break-words">{project.adminFeedback}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  <ProjectCard
+                    key={project._id}
+                    project={project}
+                    formatMoney={formatMoney}
+                    intl={intl}
+                    statusBadge={(
+                      <Badge className={`${getStatusColor(project.status)} border text-xs`}>
+                        {getStatusIcon(project.status)}
+                        <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
+                      </Badge>
+                    )}
+                    actionMenu={<ProjectActionMenu project={project} />}
+                    labels={cardLabels}
+                    adminFeedback={normalizeProjectStatus(project.status) === 'rejected' ? project.adminFeedback : undefined}
+                  />
                 ))}
               </div>
             )}
@@ -1015,35 +1141,20 @@ export default function ManageProjectsPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
                 {draftProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            {new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString(intl)}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
-                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ProjectCard
+                    key={project._id}
+                    project={project}
+                    formatMoney={formatMoney}
+                    intl={intl}
+                    statusBadge={(
+                      <Badge className={`${getStatusColor(project.status)} border text-xs`}>
+                        {getStatusIcon(project.status)}
+                        <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
+                      </Badge>
+                    )}
+                    actionMenu={<ProjectActionMenu project={project} />}
+                    labels={cardLabels}
+                  />
                 ))}
               </div>
             )}
@@ -1061,35 +1172,20 @@ export default function ManageProjectsPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
                 {pendingProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            {t('manage.card.submitted', { date: new Date(project.submittedAt!).toLocaleDateString(intl) })}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
-                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ProjectCard
+                    key={project._id}
+                    project={project}
+                    formatMoney={formatMoney}
+                    intl={intl}
+                    statusBadge={(
+                      <Badge className={`${getStatusColor(project.status)} border text-xs`}>
+                        {getStatusIcon(project.status)}
+                        <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
+                      </Badge>
+                    )}
+                    actionMenu={<ProjectActionMenu project={project} />}
+                    labels={cardLabels}
+                  />
                 ))}
               </div>
             )}
@@ -1107,35 +1203,20 @@ export default function ManageProjectsPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
                 {publishedProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            {t('manage.card.published', { date: new Date(project.approvedAt!).toLocaleDateString(intl) })}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
-                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ProjectCard
+                    key={project._id}
+                    project={project}
+                    formatMoney={formatMoney}
+                    intl={intl}
+                    statusBadge={(
+                      <Badge className={`${getStatusColor(project.status)} border text-xs`}>
+                        {getStatusIcon(project.status)}
+                        <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
+                      </Badge>
+                    )}
+                    actionMenu={<ProjectActionMenu project={project} />}
+                    labels={cardLabels}
+                  />
                 ))}
               </div>
             )}
@@ -1153,42 +1234,21 @@ export default function ManageProjectsPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
                 {rejectedProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow border-red-200 flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      {project.adminFeedback && (
-                        <div className="bg-red-50 border border-red-200 rounded-md p-2 md:p-3">
-                          <h4 className="font-medium text-red-800 mb-1 text-xs">{t('manage.card.adminFeedback')}</h4>
-                          <p className="text-xs text-red-700 line-clamp-3 break-words">{project.adminFeedback}</p>
-                        </div>
-                      )}
-
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            {t('manage.card.lastUpdated', { date: new Date(project.updatedAt).toLocaleDateString(intl) })}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
-                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ProjectCard
+                    key={project._id}
+                    project={project}
+                    formatMoney={formatMoney}
+                    intl={intl}
+                    statusBadge={(
+                      <Badge className={`${getStatusColor(project.status)} border text-xs`}>
+                        {getStatusIcon(project.status)}
+                        <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
+                      </Badge>
+                    )}
+                    actionMenu={<ProjectActionMenu project={project} />}
+                    labels={cardLabels}
+                    adminFeedback={project.adminFeedback}
+                  />
                 ))}
               </div>
             )}
@@ -1206,35 +1266,50 @@ export default function ManageProjectsPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
                 {onHoldProjects.map((project) => (
-                  <Card key={project._id} className="hover:shadow-md transition-shadow border-orange-200 flex flex-col h-full w-full overflow-hidden">
-                    <CardHeader className="pb-3 px-3 md:px-6">
-                      <div className="flex items-start justify-between gap-2 md:gap-3 mb-2">
-                        <CardTitle className="text-sm md:text-lg leading-tight line-clamp-2 min-w-0 flex-1 break-all">{project.title}</CardTitle>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                            {getStatusIcon(project.status)}
-                            <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
-                          </Badge>
-                          <ProjectActionMenu project={project} />
-                        </div>
-                      </div>
-                      <CardDescription className="line-clamp-3 text-xs md:text-sm break-all">
-                        {project.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
-                      <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                          <span className="truncate text-xs">
-                            {t('manage.card.putOnHold', { date: new Date(project.updatedAt).toLocaleDateString(intl) })}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
-                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ProjectCard
+                    key={project._id}
+                    project={project}
+                    formatMoney={formatMoney}
+                    intl={intl}
+                    statusBadge={(
+                      <Badge className={`${getStatusColor(project.status)} border text-xs`}>
+                        {getStatusIcon(project.status)}
+                        <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
+                      </Badge>
+                    )}
+                    actionMenu={<ProjectActionMenu project={project} />}
+                    labels={cardLabels}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          <TabsContent value="archived" className="space-y-6">
+            {archivedProjects.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('manage.empty.noArchived')}</h3>
+                  <p className="text-gray-600">{t('manage.empty.archivedHint')}</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
+                {archivedProjects.map((project) => (
+                  <ProjectCard
+                    key={project._id}
+                    project={project}
+                    formatMoney={formatMoney}
+                    intl={intl}
+                    statusBadge={(
+                      <Badge className={`${getStatusColor(project.status)} border text-xs`}>
+                        {getStatusIcon(project.status)}
+                        <span className="ml-1 hidden sm:inline">{formatProjectStatusLabel(project.status)}</span>
+                      </Badge>
+                    )}
+                    actionMenu={<ProjectActionMenu project={project} />}
+                    labels={cardLabels}
+                  />
                 ))}
               </div>
             )}
@@ -1341,6 +1416,51 @@ export default function ManageProjectsPage() {
                 onClick={() => selectedProject && deleteProject(selectedProject._id)}
               >
                 {t('manage.actions.deleteProject')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Archive Confirmation Dialog */}
+        <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('manage.dialogs.archiveTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('manage.dialogs.archiveDescription')}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setArchiveDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => selectedProject && archiveProject(selectedProject._id)}
+              >
+                {t('manage.dialogs.archiveConfirm')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Restore Confirmation Dialog */}
+        <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('manage.dialogs.restoreTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('manage.dialogs.restoreDescription')}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                onClick={() => selectedProject && restoreProject(selectedProject._id)}
+              >
+                {t('manage.dialogs.restoreConfirm')}
               </Button>
             </DialogFooter>
           </DialogContent>

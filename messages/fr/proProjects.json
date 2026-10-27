@@ -106,17 +106,20 @@
       "pending": "En attente",
       "published": "Publié",
       "onHold": "En pause",
-      "rejected": "Refusé"
+      "rejected": "Refusé",
+      "archived": "Archivé"
     },
     "statusLabels": {
       "draft": "Brouillon",
       "pending": "En attente d'approbation",
       "published": "Publié",
       "onHold": "En pause",
-      "rejected": "Refusé"
+      "rejected": "Refusé",
+      "archived": "Archivé"
     },
     "stats": {
-      "drafts": "Brouillons"
+      "drafts": "Brouillons",
+      "archived": "Archivés"
     },
     "tabs": {
       "all": "Tous ({count})",
@@ -124,7 +127,8 @@
       "pending": "En attente ({count})",
       "published": "Publiés ({count})",
       "onHold": "En pause ({count})",
-      "rejected": "Refusés ({count})"
+      "rejected": "Refusés ({count})",
+      "archived": "Archivés ({count})"
     },
     "empty": {
       "noProjects": "Aucun projet trouvé",
@@ -139,7 +143,9 @@
       "noRejected": "Aucun projet refusé",
       "rejectedHint": "Les projets à réviser apparaîtront ici",
       "noOnHold": "Aucun projet en pause",
-      "onHoldHint": "Les projets que vous avez mis en pause apparaîtront ici"
+      "onHoldHint": "Les projets que vous avez mis en pause apparaîtront ici",
+      "noArchived": "Aucun projet archivé",
+      "archivedHint": "Les projets archivés sont masqués de votre aperçu, de la recherche publique et des nouvelles réservations. Restaurez-en un pour le retravailler."
     },
     "card": {
       "submitted": "Soumis : {date}",
@@ -149,7 +155,21 @@
       "putOnHold": "Mis en pause : {date}",
       "pricingOptions": "{count, plural, one {# option de prix} other {# options de prix}}",
       "category": "Catégorie : {category}",
-      "adminFeedback": "Retour de l'administrateur :"
+      "adminFeedback": "Retour de l'administrateur :",
+      "service": "Service : {value}",
+      "areaOfWork": "Zone : {value}",
+      "team": "Équipe : {value}",
+      "minMembers": "Min {count} membres (chevauchement {overlap})",
+      "priceModel": "Modèle de prix : {value}",
+      "startingFrom": "À partir de {price} ({model}{unit})",
+      "noRecordedPrice": "Aucun prix enregistré",
+      "repeatDiscount": "Remise client fidèle : {percent} %",
+      "counts": "{subprojects} sous-projets · {options} options · {conditions} conditions",
+      "publishDate": "Publié : {date}",
+      "onHoldDays": "Jours en pause : {days}",
+      "submittedOn": "Soumis : {date}",
+      "archivedOn": "Archivé : {date}",
+      "updatedOn": "Mis à jour : {date}"
     },
     "actions": {
       "viewDetails": "Voir les détails",
@@ -157,14 +177,18 @@
       "submitForReview": "Soumettre pour examen",
       "putOnHold": "Mettre en pause",
       "resumePublishing": "Reprendre la publication",
-      "deleteProject": "Supprimer le projet"
+      "deleteProject": "Supprimer le projet",
+      "archiveProject": "Archiver",
+      "restoreProject": "Restaurer"
     },
     "errors": {
       "fetchFailed": "Impossible de charger les projets",
       "fetchFailedConnection": "Impossible de charger les projets. Vérifiez votre connexion.",
       "duplicateFailed": "Impossible de dupliquer le projet",
       "deleteFailed": "Impossible de supprimer le projet",
-      "statusUpdateFailed": "Impossible de mettre à jour le statut du projet"
+      "statusUpdateFailed": "Impossible de mettre à jour le statut du projet",
+      "archiveFailed": "Impossible d’archiver le projet.",
+      "restoreFailed": "Impossible de restaurer le projet."
     },
     "pagination": {
       "showing": "Affichage de {from} à {to} sur {total, plural, one {# projet} other {# projets}}"
@@ -187,7 +211,13 @@
       "hiddenUntilApproved": "Le projet reste masqué aux clients jusqu'à sa nouvelle approbation",
       "approvalDataCleared": "Les données d'approbation précédentes sont effacées et submittedAt est mis à jour",
       "proceed": "Voulez-vous continuer à modifier ce projet ?",
-      "yesEdit": "Oui, modifier le projet"
+      "yesEdit": "Oui, modifier le projet",
+      "archiveTitle": "Archiver le projet ?",
+      "archiveDescription": "Le projet sera dépublié et masqué de votre aperçu, de la recherche publique et des nouvelles réservations. Les réservations existantes restent accessibles. Vous pourrez le restaurer plus tard.",
+      "archiveConfirm": "Archiver",
+      "restoreTitle": "Restaurer le projet ?",
+      "restoreDescription": "Le projet revient à l’état de brouillon, ou à son statut précédent si autorisé. Un projet publié devra être réapprouvé avant d’être à nouveau visible.",
+      "restoreConfirm": "Restaurer"
     }
   },
   "detail": {

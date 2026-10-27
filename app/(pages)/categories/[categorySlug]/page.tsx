@@ -1,35 +1,21 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from '@/components/ui/separator';
-import { Star, Heart, Award, ChevronRight, Loader2, AlertCircle, MapPin } from 'lucide-react';
+import { ChevronRight, AlertCircle, ArrowRight } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button';
-import ProfessionalFilters from '@/components/ProfessionalFilters';
 import { toast } from 'sonner';
-import StartChatButton from '@/components/chat/StartChatButton';
-import { useCurrency } from '@/contexts/CurrencyContext';
-
-interface Professional {
-  _id: string;
-  name: string;
-  username?: string;
-  businessInfo?: {
-    description?: string;
-    city?: string;
-    country?: string;
-  };
-  hourlyRate?: number;
-  currency?: string;
-  serviceCategories?: string[];
-  profileImage?: string;
-}
+import {
+  matchCatalogCategory,
+  normalizeCategorySlug,
+  resolveCatalogCountry,
+  CATALOG_HOME_COUNTRY,
+  type CatalogCategoryItem,
+} from '@/lib/catalog/resolveCategory';
+import { GEO_COUNTRY_COOKIE } from '@/lib/marketing/siteAnnouncements/constants';
 
 /** Catalog categories with translated copy in the `catalog` namespace. */
 const TRANSLATED_CATEGORY_SLUGS = [
@@ -44,201 +30,80 @@ function isTranslatedCategorySlug(
   return (TRANSLATED_CATEGORY_SLUGS as readonly string[]).includes(slug);
 }
 
-const ProfessionalCard = ({ professional }: { professional: Professional }) => {
-  const t = useTranslations('catalog');
-  const { formatPrice } = useCurrency();
-  const displayName = professional.username || professional.name;
-  const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  const location = professional.businessInfo?.city
-    ? `${professional.businessInfo.city}, ${professional.businessInfo.country || ''}`
-    : professional.businessInfo?.country || t('categoryPage.locationNotSpecified');
-
-  return (
-    <Card className="group overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col w-full">
-      <div className="relative aspect-[4/3] w-full bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-        {professional.profileImage ? (
-          <Image
-            src={professional.profileImage}
-            alt={displayName}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
-        ) : (
-          <div className="w-24 h-24 rounded-full bg-blue-500 flex items-center justify-center text-white text-3xl font-bold">
-            {initials}
-          </div>
-        )}
-        <Button variant="ghost" size="icon" className="absolute top-2 right-2 bg-white/70 backdrop-blur-sm hover:bg-white rounded-full">
-          <Heart className="w-5 h-5 text-gray-700" />
-        </Button>
-      </div>
-      <CardContent className="p-4 flex flex-col flex-grow">
-        <div className="flex items-center space-x-3 mb-3">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={professional.profileImage} alt={displayName} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="font-semibold text-base leading-tight">{displayName}</p>
-            <p className="text-xs text-blue-600 font-medium flex items-center gap-1">
-              <Award className="w-3 h-3" />{t('categoryPage.verifiedProfessional')}
-            </p>
-          </div>
-        </div>
-
-        {professional.businessInfo?.description && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-            {professional.businessInfo.description}
-          </p>
-        )}
-
-        <div className="flex items-center gap-1 text-xs text-gray-500 mb-3">
-          <MapPin className="w-3 h-3" />
-          <span>{location}</span>
-        </div>
-
-        <div className="flex items-center gap-1 mt-auto">
-          <Star className="w-4 h-4 text-yellow-400 fill-current" />
-          <span className="font-bold text-gray-700">5.0</span>
-          <span className="text-sm text-gray-500">{t('categoryPage.newBadge')}</span>
-        </div>
-      </CardContent>
-      <div className="p-4 border-t flex items-center justify-between">
-        <div>
-          <span className="text-xs text-gray-500 font-semibold tracking-wider">{t('startingAt')}</span>
-          <p className="text-xl font-bold text-gray-900">
-            {t('categoryPage.perHour', { price: formatPrice(professional.hourlyRate || 0) })}
-          </p>
-        </div>
-        <StartChatButton professionalId={professional._id} label={t('categoryPage.startChat')} />
-      </div>
-    </Card>
+async function fetchCategories(country: string, signal: AbortSignal) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=${encodeURIComponent(country)}`,
+    { signal, credentials: 'include' }
   );
-};
+  if (!response.ok) throw new Error('Failed to fetch categories');
+  const data = await response.json();
+  return (Array.isArray(data) ? data : []) as CatalogCategoryItem[];
+}
 
 export default function CategoryPage() {
   const params = useParams();
-  const categorySlug = params?.categorySlug as string;
+  const router = useRouter();
+  const rawSlug = params?.categorySlug as string;
   const t = useTranslations('catalog');
 
-  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [category, setCategory] = useState<CatalogCategoryItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [categoryName, setCategoryName] = useState('');
-
-  const getFallbackName = (slug: string) =>
-    slug
-      .split('-')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
 
   useEffect(() => {
-    if (!categorySlug) return
-    const controller = new AbortController()
-    const loadCategoryName = async () => {
+    if (!rawSlug) return;
+    const controller = new AbortController();
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=BE`,
-          { signal: controller.signal, credentials: 'include' }
-        )
-        const data = await response.json()
-        if (response.ok && Array.isArray(data)) {
-          const match = data.find((entry: { slug?: string; name?: string }) => entry.slug === categorySlug)
-          setCategoryName(match?.name || getFallbackName(categorySlug))
-          return
+        const geoCountry =
+          typeof document !== 'undefined'
+            ? new RegExp(`(?:^|;\\s*)${GEO_COUNTRY_COOKIE}=([^;]*)`).exec(document.cookie)?.[1]
+            : null;
+        const resolvedCountry =
+          typeof navigator !== 'undefined'
+            ? resolveCatalogCountry(geoCountry, navigator.language, CATALOG_HOME_COUNTRY)
+            : CATALOG_HOME_COUNTRY;
+        const categories = await fetchCategories(resolvedCountry, controller.signal);
+        const match = matchCatalogCategory(categories, rawSlug);
+        if (!match) {
+          // Unknown slug: fall back to the existing services index, never a 404.
+          router.replace('/services');
+          return;
         }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') return
-      }
-      setCategoryName(getFallbackName(categorySlug))
-    }
-
-    void loadCategoryName()
-    return () => controller.abort()
-  }, [categorySlug])
-
-  const resolvedCategoryName = categoryName || getFallbackName(categorySlug);
-  const displayCategoryName = isTranslatedCategorySlug(categorySlug)
-    ? t(`names.categories.${categorySlug}.name`)
-    : resolvedCategoryName;
-  const categoryDescription = t('categoryPage.description', {
-    category: displayCategoryName.toLowerCase(),
-  });
-
-  const fetchProfessionals = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/professionals/by-category/${categorySlug}`,
-        {
-          credentials: 'include',
+        if (match.slug !== rawSlug && normalizeCategorySlug(rawSlug) === normalizeCategorySlug(match.slug)) {
+          // Canonical slug differs in casing/separators: normalize the URL once.
+          router.replace(`/categories/${match.slug}`);
+          return;
         }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch professionals');
+        setCategory(match);
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        console.error('Error fetching category services:', err);
+        setError(t('servicesPage.errorMessage'));
+        toast.error(t('servicesPage.toastError'));
+      } finally {
+        setIsLoading(false);
       }
+    };
+    void load();
+    return () => controller.abort();
+  }, [rawSlug, router, t]);
 
-      const data: Professional[] = await response.json();
-      setProfessionals(data);
-    } catch (error) {
-      console.error('Error fetching professionals:', error);
-      setError(t('categoryPage.errorMessage'));
-      toast.error(t('categoryPage.toastError'));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [categorySlug, t]);
-
-  useEffect(() => {
-    if (categorySlug) {
-      fetchProfessionals();
-    }
-  }, [categorySlug, fetchProfessionals]);
+  const displayCategoryName = category
+    ? isTranslatedCategorySlug(category.slug)
+      ? t(`names.categories.${category.slug}.name`)
+      : category.name
+    : '';
 
   if (isLoading) {
     return (
       <div className="bg-white min-h-screen">
-        {/* Banner Skeleton */}
-        <div className="relative h-72 md:h-96 w-full bg-gradient-to-br from-blue-50 to-purple-50">
-          <div className="absolute inset-0 flex items-end">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 w-full space-y-3">
-              <Skeleton className="h-10 w-72" />
-              <Skeleton className="h-5 w-96" />
-            </div>
-          </div>
-        </div>
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Filters Skeleton */}
-          <div className="flex gap-3 mb-8">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-28 rounded-lg" />)}
-          </div>
-          {/* Professional Cards Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="rounded-xl border border-gray-100 bg-white p-5 space-y-4">
-                <div className="flex items-center gap-3">
-                  <Skeleton className="h-14 w-14 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-5 w-36" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                  <Skeleton className="h-5 w-20 rounded-full" />
-                </div>
-                <div className="flex justify-between items-center pt-2">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-9 w-24 rounded-lg" />
-                </div>
-              </div>
-            ))}
-          </div>
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-3">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-5 w-96" />
+          {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
         </main>
       </div>
     );
@@ -247,13 +112,12 @@ export default function CategoryPage() {
   if (error) {
     return (
       <div className="bg-white min-h-screen">
-        <div className="relative h-72 md:h-96 w-full bg-gradient-to-br from-red-50 to-orange-50" />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="flex flex-col items-center justify-center py-20">
             <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('categoryPage.errorTitle')}</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('servicesPage.errorTitle')}</h2>
             <p role="alert" className="text-gray-600 mb-6">{error}</p>
-            <Button onClick={fetchProfessionals}>
+            <Button onClick={() => router.refresh()}>
               {t('tryAgain')}
             </Button>
           </div>
@@ -262,59 +126,50 @@ export default function CategoryPage() {
     );
   }
 
+  if (!category) return null;
+
   return (
-    <div className="bg-white">
-      <div className="relative h-72 md:h-96 w-full">
-        <Image
-          src="/images/banner.jpg"
-          alt={t('categoryPage.coverAlt', { category: displayCategoryName })}
-          fill
-          className="object-cover"
-          priority
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-black/20" />
-        <div className="absolute inset-0 flex flex-col justify-end">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-12">
-            <div className="flex items-center text-sm text-white mb-2">
-              <Link href="/" className="hover:underline">{t('breadcrumbs.home')}</Link>
-              <ChevronRight className="w-4 h-4 mx-1" />
-              <Link href="/services" className="hover:underline">{t('breadcrumbs.services')}</Link>
-              <ChevronRight className="w-4 h-4 mx-1" />
-              <span>{t('breadcrumbs.categories')}</span>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight mb-3">
-              {displayCategoryName}
-            </h1>
-            <p className="text-lg md:text-xl text-white/90 max-w-2xl">
-              {categoryDescription}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <ProfessionalFilters resultsCount={professionals.length} />
-        <Separator className="mb-8" />
-
-        {professionals.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="mb-4">
-              <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('categoryPage.emptyTitle')}</h3>
-              <p className="text-gray-600 max-w-md mx-auto">
-                {t('categoryPage.emptyDescription')}
-              </p>
-            </div>
+    <div className="bg-white min-h-screen">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <nav aria-label="breadcrumb" className="flex items-center text-sm text-gray-500 mb-4">
+          <Link href="/" className="hover:underline">{t('breadcrumbs.home')}</Link>
+          <ChevronRight className="w-4 h-4 mx-1" />
+          <Link href="/services" className="hover:underline">{t('breadcrumbs.services')}</Link>
+          <ChevronRight className="w-4 h-4 mx-1" />
+          <span aria-current="page" className="text-gray-900">{displayCategoryName}</span>
+        </nav>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {t('categoryPage.servicesTitle', { category: displayCategoryName })}
+        </h1>
+        <p className="text-gray-600 mb-8">
+          {t('categoryPage.servicesDescription', { category: displayCategoryName.toLowerCase() })}
+        </p>
+        {category.services.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-gray-600 max-w-md mx-auto">{t('servicesPage.empty')}</p>
             <Button asChild className="mt-6">
               <Link href="/services">{t('browseAllServices')}</Link>
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {professionals.map(professional => (
-              <ProfessionalCard key={professional._id} professional={professional} />
+          <ul className="divide-y divide-gray-200 border-y border-gray-200">
+            {category.services.map((service) => (
+              <li key={service.slug}>
+                <Link
+                  href={`/services/${service.slug}`}
+                  className="flex items-center justify-between gap-4 py-4 px-2 hover:bg-gray-50 rounded transition-colors group"
+                >
+                  <span className="text-lg font-medium text-gray-900 group-hover:text-blue-700">
+                    {service.name}
+                  </span>
+                  <span className="flex items-center gap-1 text-sm text-blue-600 shrink-0">
+                    {t('servicesPage.viewDetails')}
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </main>
     </div>

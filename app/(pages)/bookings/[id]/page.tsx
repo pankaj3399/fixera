@@ -41,7 +41,7 @@ import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
-import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, resolveQuotationVersionFromUrl, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
@@ -1568,7 +1568,7 @@ function BookingDetailContent() {
   }
 
   const handleRespondToQuotation = async (action: 'accepted' | 'rejected') => {
-    if (!bookingId) return
+    if (!bookingId || viewingPinnedVersion) return
     if (action === 'rejected' && !quoteRejectionReason.trim()) {
       toast.error(t("quote.toasts.rejectionReasonRequired"))
       return
@@ -1680,9 +1680,31 @@ function BookingDetailContent() {
 
   // Helper: check if this booking uses new quotation system
   const hasQuotationVersions = (booking?.quoteVersions?.length || 0) > 0
+  // Pinned quotation version from shared-table links (`#quotation-v{N}`).
+  // The pinned version is display-only; accept/pay authority stays on the
+  // current valid version below.
+  const [pinnedQuoteVersion, setPinnedQuoteVersion] = useState<number | null>(null)
+  useEffect(() => {
+    const readHash = () => {
+      if (typeof window === "undefined") return
+      setPinnedQuoteVersion(
+        resolveQuotationVersionFromUrl(window.location.hash, null, null),
+      )
+    }
+    readHash()
+    window.addEventListener("hashchange", readHash)
+    return () => window.removeEventListener("hashchange", readHash)
+  }, [bookingId])
+  const effectiveQuoteVersion = pinnedQuoteVersion ?? booking?.currentQuoteVersion
   const currentVersion = hasQuotationVersions
-    ? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
+    ? (booking?.quoteVersions?.find(v => v.version === effectiveQuoteVersion)
+      ?? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
+      ?? null)
     : null
+  const viewingPinnedVersion = hasQuotationVersions
+    && pinnedQuoteVersion != null
+    && pinnedQuoteVersion !== booking?.currentQuoteVersion
+    && currentVersion?.version === pinnedQuoteVersion
   const currentVersionQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(
       currentVersion,
@@ -3326,24 +3348,37 @@ function BookingDetailContent() {
                         {versionHistoryOpen && (
                           <div className="border-t p-3 space-y-2">
                             {booking.quoteVersions?.map((v, i) => (
-                              <div key={i} className={`p-2 rounded text-sm ${v.version === booking.currentQuoteVersion ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                              <a
+                                key={i}
+                                href={`#quotation-v${v.version}`}
+                                className={`block p-2 rounded text-sm hover:ring-1 hover:ring-indigo-300 ${v.version === booking.currentQuoteVersion ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}
+                              >
                                 <div className="flex justify-between items-center">
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{formatDate(v.createdAt)}</span>
                                 </div>
                                 <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, v.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
-                              </div>
+                              </a>
                             ))}
                           </div>
                         )}
                       </div>
                     )}
+                    {viewingPinnedVersion && (
+                      <p className="text-xs text-indigo-700">
+                        {t("quotation.viewingPinnedVersion", { version: pinnedQuoteVersion })}
+                        {" · "}
+                        <a href="#quotation" className="underline" onClick={() => setPinnedQuoteVersion(null)}>
+                          {t("quotation.backToCurrentVersion")}
+                        </a>
+                      </p>
+                    )}
 
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <Button
                         onClick={() => handleRespondToQuotation('accepted')}
-                        disabled={respondingToQuotation}
+                        disabled={respondingToQuotation || viewingPinnedVersion}
                         className="h-auto min-w-0 w-full whitespace-normal bg-green-600 py-2 text-center hover:bg-green-700 sm:flex-1 text-white"
                         size="sm"
                       >
@@ -3352,7 +3387,7 @@ function BookingDetailContent() {
                       </Button>
                       <Button
                         onClick={() => setShowQuoteRejectionModal(true)}
-                        disabled={respondingToQuotation}
+                        disabled={respondingToQuotation || viewingPinnedVersion}
                         variant="outline"
                         className="h-auto min-w-0 w-full whitespace-normal border-red-300 py-2 text-center text-red-600 hover:bg-red-50 sm:flex-1"
                         size="sm"

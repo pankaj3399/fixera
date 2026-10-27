@@ -358,6 +358,20 @@
       "customer": "Customer: {name}",
       "quote": "Quote",
       "warrantyAction": "Warranty action for booking {bookingId}"
+    },
+    "summary": {
+      "pendingBookings": "Pending bookings",
+      "pendingBookingsHint": "Awaiting completion or payout",
+      "finishedBookings": "Finished bookings",
+      "finishedBookingsHint": "Completed bookings",
+      "earnings": "Earnings",
+      "earningsHint": "Settled payouts from completed bookings",
+      "pendingEarnings": "Pending earnings",
+      "reviews": "Reviews",
+      "reviewsHint": "Average customer rating",
+      "reviewsCount": "{count} reviews",
+      "noReviews": "No reviews yet",
+      "loadFailed": "Could not load the summary."
     }
   },
   "actionNeeded": {
@@ -426,6 +440,21 @@
       "benefits": "Benefits",
       "noBenefits": "No extra benefits configured yet.",
       "referralPerformance": "Referral performance"
+    },
+    "savings": {
+      "title": "Your savings",
+      "subtitle": "Money saved through discounts on the platform.",
+      "recordedSavings": "Recorded savings",
+      "recurring": "Recurring customer discount",
+      "loyalty": "Loyalty discount",
+      "discountCode": "Discount codes",
+      "points": "Redeemed points",
+      "referral": "Referral discount",
+      "referralUnknown": "Not separately recorded",
+      "noSavingsYet": "No recorded savings yet — discounts you use will show up here.",
+      "unknownCoverage": "{count} settled bookings predate discount records, so the total is a lower bound.",
+      "excludedUncertain": "{count} bookings are excluded (partial refund or dispute: no exact discount allocation on record).",
+      "bookingsCount": "{count} settled bookings"
     }
   },
   "disputes": {
@@ -480,7 +509,11 @@
       "professional": "Professional",
       "amount": "Amount",
       "status": "Status",
-      "date": "Date"
+      "date": "Date",
+      "search": "Search booking #, professional…",
+      "filterService": "Filter by service",
+      "allServices": "All services",
+      "unknownDate": "—"
     },
     "status": {
       "all": "All statuses",
@@ -517,7 +550,10 @@
       "allTime": "All time",
       "recentTransactions": "Recent Transactions",
       "noTransactions": "No transactions yet",
-      "noTransactionsDescription": "Transactions will appear here once you complete bookings"
+      "noTransactionsDescription": "Transactions will appear here once you complete bookings",
+      "pendingBookingsCount": "{count} pending payouts",
+      "transferPending": "Transfer pending",
+      "transferFailed": "Transfer failed"
     }
   },
   "warranty": {
@@ -575,6 +611,9 @@
       "professional2": "Use the booking detail page to send proposals, mark repairs resolved, and track confirmations.",
       "customer1": "Open the related booking to review claim details, proposal updates, and repair progress.",
       "customer2": "Use the booking page to accept or decline proposals, confirm resolutions, or escalate if the issue remains unresolved."
-    }
+    },
+    "search": "Search claim # or booking #…",
+    "filterService": "Filter by service",
+    "allServices": "All services"
   }
 }

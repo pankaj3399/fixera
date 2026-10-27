@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useTranslations } from 'next-intl'
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
@@ -22,6 +22,7 @@ import { getAuthToken, buildUsernameSuggestionParams } from '@/lib/utils'
 import { formatVATNumber, getVATCountryName, isEUVatNumber, validateVATFormat, validateVATWithAPI, updateProfessionalBusinessProfile, submitForVerification, COUNTRY_NAMES } from '@/lib/vatValidation'
 import { CompanyAvailability, DayAvailability, DEFAULT_COMPANY_AVAILABILITY } from '@/lib/defaults/companyAvailability'
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
+import { normalizeOnboardingStep, deriveOnboardingResumeStep } from '@/lib/onboarding/resumeStep'
 import Link from 'next/link'
 import { publicListPolicyLinks, PolicyLink } from '@/lib/cms'
 
@@ -30,7 +31,6 @@ const STEPS = [
   { id: ONBOARDING_STEPS.BUSINESS_INFO, titleKey: 'onboarding.steps.businessInfo', icon: Building, required: false, gradient: 'from-blue-200 via-cyan-200 to-teal-200' },
   { id: ONBOARDING_STEPS.STRIPE, titleKey: 'onboarding.steps.stripe', icon: CreditCard, required: true, gradient: 'from-sky-200 via-cyan-200 to-blue-200' },
   { id: ONBOARDING_STEPS.COMPANY_HOURS, titleKey: 'onboarding.steps.companyHours', icon: CalendarIcon, required: true, gradient: 'from-emerald-200 via-green-200 to-lime-200' },
-  { id: ONBOARDING_STEPS.PERSONAL_HOURS, titleKey: 'onboarding.steps.personalHours', icon: CalendarIcon, required: false, gradient: 'from-amber-200 via-yellow-200 to-orange-200' },
   { id: ONBOARDING_STEPS.EMPLOYEES, titleKey: 'onboarding.steps.employees', icon: Users, required: false, gradient: 'from-rose-200 via-pink-200 to-fuchsia-200' },
   { id: ONBOARDING_STEPS.RULES, titleKey: 'onboarding.steps.rules', icon: CheckCircle2, required: true, gradient: 'from-indigo-200 via-blue-200 to-violet-200' },
 ] as const
@@ -564,6 +564,45 @@ function BusinessDetailsStep({
         </div>
 
         <div className="space-y-2">
+          <Label className="text-sm font-medium text-gray-700">
+            {t('onboarding.business.vatNumber')} *
+            {vatNumber && vatValidation.valid && (
+              <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber, intl)}</span>
+            )}
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              value={vatNumber}
+              onChange={(e) => {
+                setVatNumber(e.target.value.toUpperCase())
+              }}
+              onBlur={validateVatNumber}
+              placeholder={t('onboarding.business.vatPlaceholder')}
+              required
+              className="rounded-xl"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={validateVatNumber}
+              disabled={!vatNumber || vatValidating}
+              className="rounded-xl shrink-0"
+            >
+              {vatValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : t('onboarding.business.validate')}
+            </Button>
+          </div>
+          {vatValidation.valid !== undefined && (
+            <div className={`flex items-center gap-2 text-xs p-2.5 rounded-xl ${vatValidation.valid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {vatValidation.valid ? (
+                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> {t('onboarding.business.vatValidated')}</>
+              ) : (
+                <>{getErrorText(vatValidation, t('onboarding.toasts.invalidVat'))}</>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
           <Label className="text-sm font-medium text-gray-700">{t('onboarding.business.companyName')}</Label>
           <Input
             value={businessInfo.companyName}
@@ -650,45 +689,6 @@ function BusinessDetailsStep({
                   {s}
                 </button>
               ))}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700">
-            {t('onboarding.business.vatNumber')} *
-            {vatNumber && vatValidation.valid && (
-              <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber, intl)}</span>
-            )}
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              value={vatNumber}
-              onChange={(e) => {
-                setVatNumber(e.target.value.toUpperCase())
-              }}
-              onBlur={validateVatNumber}
-              placeholder={t('onboarding.business.vatPlaceholder')}
-              required
-              className="rounded-xl"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={validateVatNumber}
-              disabled={!vatNumber || vatValidating}
-              className="rounded-xl shrink-0"
-            >
-              {vatValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : t('onboarding.business.validate')}
-            </Button>
-          </div>
-          {vatValidation.valid !== undefined && (
-            <div className={`flex items-center gap-2 text-xs p-2.5 rounded-xl ${vatValidation.valid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-              {vatValidation.valid ? (
-                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> {t('onboarding.business.vatValidated')}</>
-              ) : (
-                <>{getErrorText(vatValidation, t('onboarding.toasts.invalidVat'))}</>
-              )}
             </div>
           )}
         </div>
@@ -929,139 +929,6 @@ function CompanyAvailabilityStep({
   )
 }
 
-function PersonalAvailabilityStep({
-  gradient,
-  personalAvailability,
-  setPersonalAvailability,
-  personalAvailabilityErrors,
-  setPersonalAvailabilityErrors,
-  setCurrentStep,
-  handlePersonalHoursContinue,
-  personalSaving,
-}: {
-  gradient: string
-  personalAvailability: CompanyAvailability
-  setPersonalAvailability: React.Dispatch<React.SetStateAction<CompanyAvailability>>
-  personalAvailabilityErrors: Partial<Record<keyof CompanyAvailability, string>>
-  setPersonalAvailabilityErrors: React.Dispatch<React.SetStateAction<Partial<Record<keyof CompanyAvailability, string>>>>
-  setCurrentStep: (step: number) => void
-  handlePersonalHoursContinue: () => void
-  personalSaving: boolean
-}) {
-  const t = useTranslations('proArea')
-  return (
-    <GradientCard gradient={gradient}>
-      <div className="p-6 sm:p-8 space-y-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
-              <CalendarIcon className="h-5 w-5 text-gray-700" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.availability.personalTitle')}</h2>
-              <p className="text-sm text-gray-500">{t('onboarding.availability.personalSubtitle')}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {Object.entries(personalAvailability).map(([day, schedule]) => (
-            <div
-              key={day}
-              className={`flex items-center gap-4 p-3.5 rounded-xl border transition-colors ${
-                schedule.available ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200 bg-gray-50/50'
-              }`}
-            >
-              <div className="w-24 text-sm font-semibold capitalize text-gray-700">{isDayKey(day) ? t(`days.${day}`) : day}</div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={schedule.available}
-                  onCheckedChange={(checked) => {
-                    setPersonalAvailability((prev) => ({
-                      ...prev,
-                      [day]: { ...prev[day as keyof typeof prev], available: Boolean(checked) }
-                    }))
-                    setPersonalAvailabilityErrors((prev) => {
-                      const next = { ...prev }
-                      delete next[day as keyof CompanyAvailability]
-                      return next
-                    })
-                  }}
-                />
-                <span className="text-sm text-gray-600">{t('common.available')}</span>
-              </div>
-              {schedule.available && (
-                <div className="flex items-center gap-2 ml-auto">
-                  <Input
-                    type="time"
-                    value={schedule.startTime}
-                    onChange={(e) => {
-                      setPersonalAvailability((prev) => ({
-                        ...prev,
-                        [day]: { ...prev[day as keyof typeof prev], startTime: e.target.value }
-                      }))
-                      setPersonalAvailabilityErrors((prev) => {
-                        const next = { ...prev }
-                        delete next[day as keyof CompanyAvailability]
-                        return next
-                      })
-                    }}
-                    className="w-28 rounded-xl"
-                  />
-                  <span className="text-sm text-gray-400">{t('onboarding.availability.to')}</span>
-                  <Input
-                    type="time"
-                    value={schedule.endTime}
-                    onChange={(e) => {
-                      setPersonalAvailability((prev) => ({
-                        ...prev,
-                        [day]: { ...prev[day as keyof typeof prev], endTime: e.target.value }
-                      }))
-                      setPersonalAvailabilityErrors((prev) => {
-                        const next = { ...prev }
-                        delete next[day as keyof CompanyAvailability]
-                        return next
-                      })
-                    }}
-                    className="w-28 rounded-xl"
-                  />
-                </div>
-              )}
-              {personalAvailabilityErrors[day as keyof CompanyAvailability] && (
-                <div className="w-full mt-2 text-xs text-red-600">
-                  {personalAvailabilityErrors[day as keyof CompanyAvailability]}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 pt-2">
-          <Button variant="outline" onClick={() => setCurrentStep(4)} className="rounded-xl gap-1">
-            <ChevronLeft className="h-4 w-4" /> {t('common.back')}
-          </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => setCurrentStep(6)} className="rounded-xl text-gray-500">
-              {t('common.skipForNow')}
-            </Button>
-            <Button
-              onClick={handlePersonalHoursContinue}
-              disabled={personalSaving}
-              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-6"
-            >
-              {personalSaving ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('common.saving')}</>
-              ) : (
-                <>{t('common.saveAndContinue')} <ArrowRight className="h-4 w-4 ml-2" /></>
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </GradientCard>
-  )
-}
-
 function EmployeesStep({ gradient, setCurrentStep }: { gradient: string; setCurrentStep: (step: number) => void }) {
   const t = useTranslations('proArea')
   return (
@@ -1082,11 +949,11 @@ function EmployeesStep({ gradient, setCurrentStep }: { gradient: string; setCurr
         <EmployeeManagement />
 
         <div className="flex items-center justify-between gap-3 pt-2">
-          <Button variant="outline" onClick={() => setCurrentStep(5)} className="rounded-xl gap-1">
+          <Button variant="outline" onClick={() => setCurrentStep(ONBOARDING_STEPS.COMPANY_HOURS)} className="rounded-xl gap-1">
             <ChevronLeft className="h-4 w-4" /> {t('common.back')}
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => setCurrentStep(7)} className="rounded-xl text-gray-500">
+            <Button variant="ghost" onClick={() => setCurrentStep(ONBOARDING_STEPS.RULES)} className="rounded-xl text-gray-500">
               {t('common.skipForNow')}
             </Button>
             <Button
@@ -1388,6 +1255,7 @@ function ProfessionalOnboardingContent() {
   const { user, loading, isAuthenticated, checkAuth } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const [currentStep, setCurrentStep] = useState(1)
   const [stripeStatus, setStripeStatus] = useState<StripeAccountStatus | null>(null)
   const [stripeLoading, setStripeLoading] = useState(false)
@@ -1395,9 +1263,6 @@ function ProfessionalOnboardingContent() {
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCategoryGroup[]>([])
   const [serviceCatalogLoading, setServiceCatalogLoading] = useState(false)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
-  const [personalAvailability, setPersonalAvailability] = useState<CompanyAvailability>(DEFAULT_COMPANY_AVAILABILITY)
-  const [personalAvailabilityErrors, setPersonalAvailabilityErrors] = useState<Partial<Record<keyof CompanyAvailability, string>>>({})
-  const [personalSaving, setPersonalSaving] = useState(false)
 
   const {
     idProofFile,
@@ -1456,10 +1321,27 @@ function ProfessionalOnboardingContent() {
     if (!stepParam) return
     const parsed = Number.parseInt(stepParam, 10)
     if (Number.isNaN(parsed)) return
-    if (parsed >= 1 && parsed <= STEPS.length) {
-      setCurrentStep(parsed)
-    }
+    setCurrentStep(normalizeOnboardingStep(parsed))
   }, [searchParams])
+
+  // Resume from saved profile data when no explicit ?step= is present, and
+  // keep the URL in sync so refresh/back restore the current step. The Stripe
+  // step itself still gates on server-side account status.
+  const resumeInitializedRef = useRef(false)
+  useEffect(() => {
+    if (loading || !user) return
+    if (searchParams.get('step')) return
+    if (resumeInitializedRef.current) return
+    resumeInitializedRef.current = true
+    setCurrentStep((prev) => (prev === 1 ? deriveOnboardingResumeStep(user) : prev))
+  }, [loading, user, searchParams])
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (params.get('step') === String(currentStep)) return
+    params.set('step', String(currentStep))
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }, [currentStep, router, pathname, searchParams])
 
   useEffect(() => {
     if (!loading && user?.role && user.role !== 'professional') {
@@ -1525,21 +1407,6 @@ function ProfessionalOnboardingContent() {
       })
     }
 
-    if (user.availability) {
-      setPersonalAvailability(prev => {
-        const next = { ...prev }
-        Object.entries(user.availability || {}).forEach(([day, schedule]) => {
-          if (!schedule) return
-          const key = day as keyof typeof next
-          next[key] = {
-            available: schedule.available,
-            startTime: schedule.startTime || prev[key].startTime,
-            endTime: schedule.endTime || prev[key].endTime
-          }
-        })
-        return next
-      })
-    }
   }, [
     user,
     setAgreements,
@@ -1895,62 +1762,11 @@ function ProfessionalOnboardingContent() {
       }
       toast.success(t('onboarding.toasts.companyHoursSaved'))
       await checkAuth()
-      setCurrentStep(5)
+      setCurrentStep(ONBOARDING_STEPS.EMPLOYEES)
     } catch {
       toast.error(t('onboarding.toasts.companyHoursSaveFailed'))
     } finally {
       setCompanySaving(false)
-    }
-  }
-
-  const handlePersonalHoursContinue = async () => {
-    const hasAvailableDay = Object.values(personalAvailability).some((day) => day.available)
-
-    if (!hasAvailableDay) {
-      setCurrentStep(6)
-      return
-    }
-
-    const availabilityErrors: Partial<Record<keyof CompanyAvailability, string>> = {}
-    for (const [day, schedule] of Object.entries(personalAvailability) as Array<[keyof CompanyAvailability, DayAvailability]>) {
-      if (!schedule.available) continue
-
-      const startMinutes = timeToMinutes(schedule.startTime)
-      const endMinutes = timeToMinutes(schedule.endTime)
-      if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
-        availabilityErrors[day] = t('onboarding.toasts.invalidTimeRange')
-      }
-    }
-
-    if (Object.keys(availabilityErrors).length > 0) {
-      setPersonalAvailabilityErrors(availabilityErrors)
-      toast.error(t('onboarding.toasts.personalHoursInvalid'))
-      return
-    }
-
-    setPersonalAvailabilityErrors({})
-    setPersonalSaving(true)
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/professional-profile`, {
-        method: 'PUT',
-        headers: headersWithAuth(),
-        credentials: 'include',
-        body: JSON.stringify({
-          availability: personalAvailability
-        })
-      })
-      const result = await response.json()
-      if (!response.ok || !result.success) {
-        toast.error(getErrorText(result, t('onboarding.toasts.personalHoursSaveFailed')))
-        return
-      }
-      toast.success(t('onboarding.toasts.personalHoursSaved'))
-      await checkAuth()
-      setCurrentStep(6)
-    } catch {
-      toast.error(t('onboarding.toasts.personalHoursSaveFailed'))
-    } finally {
-      setPersonalSaving(false)
     }
   }
 
@@ -1981,7 +1797,7 @@ function ProfessionalOnboardingContent() {
           const resolution = resolveMissingRequirements(combinedRequirements, t('onboarding.missingRequirement'))
           setSubmitErrors(resolution.messages)
           toast.error(t('onboarding.toasts.completeSteps'))
-          setCurrentStep(resolution.step)
+          setCurrentStep(normalizeOnboardingStep(resolution.step))
         } else {
           toast.error(requestErrorText(result, t('onboarding.toasts.submitFailed')))
         }
@@ -1991,8 +1807,13 @@ function ProfessionalOnboardingContent() {
     }
   }
 
-  const progress = useMemo(() => (currentStep / STEPS.length) * 100, [currentStep])
-  const activeStep = STEPS.find(s => s.id === currentStep)!
+  // Progress/denominator use the visible flow; ids stay stable (gap at 5).
+  const visibleStepIndex = Math.max(
+    0,
+    STEPS.findIndex((step) => step.id === currentStep),
+  )
+  const progress = useMemo(() => ((visibleStepIndex + 1) / STEPS.length) * 100, [visibleStepIndex])
+  const activeStep = STEPS[visibleStepIndex] ?? STEPS[0]
   const requiresVerification = Boolean(
     user?.role === 'professional' &&
     (!user.isEmailVerified || !user.isPhoneVerified)
@@ -2075,7 +1896,7 @@ function ProfessionalOnboardingContent() {
         {/* Progress bar */}
         <div className="px-2">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-600">{t('onboarding.header.stepOf', { current: currentStep, total: STEPS.length })}</span>
+            <span className="text-sm font-medium text-gray-600">{t('onboarding.header.stepOf', { current: visibleStepIndex + 1, total: STEPS.length })}</span>
             <span className="text-sm font-medium text-blue-600">{t('onboarding.header.percentComplete', { percent: Math.round(progress) })}</span>
           </div>
           <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
@@ -2087,7 +1908,7 @@ function ProfessionalOnboardingContent() {
         </div>
 
         {/* Step indicators */}
-        <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
           {STEPS.map((step) => {
             const isCompleted = step.id < currentStep
             const isCurrent = step.id === currentStep
@@ -2210,19 +2031,6 @@ function ProfessionalOnboardingContent() {
             setCurrentStep={setCurrentStep}
             handleCompanyHoursContinue={handleCompanyHoursContinue}
             companySaving={companySaving}
-          />
-        )}
-
-        {currentStep === 5 && (
-          <PersonalAvailabilityStep
-            gradient={activeStep.gradient}
-            personalAvailability={personalAvailability}
-            setPersonalAvailability={setPersonalAvailability}
-            personalAvailabilityErrors={personalAvailabilityErrors}
-            setPersonalAvailabilityErrors={setPersonalAvailabilityErrors}
-            setCurrentStep={setCurrentStep}
-            handlePersonalHoursContinue={handlePersonalHoursContinue}
-            personalSaving={personalSaving}
           />
         )}
 
