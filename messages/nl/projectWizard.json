@@ -32,7 +32,9 @@
     "next": "Volgende",
     "submitForApproval": "Ter goedkeuring indienen",
     "submitChanges": "Wijzigingen opnieuw ter goedkeuring indienen",
-    "alreadySubmitted": "Al ingediend - ga naar Projecten"
+    "alreadySubmitted": "Al ingediend - ga naar Projecten",
+    "inProgress": "Bezig",
+    "optional": "Optioneel"
   },
   "common": {
     "loading": "Laden...",
@@ -128,14 +130,18 @@
       "noPricingModels": "Voor deze dienst zijn geen prijsmodellen ingesteld"
     },
     "keywords": {
+      "remove": "Trefwoord {keyword} verwijderen",
       "title": "Trefwoorden/tags",
       "description": "Voeg trefwoorden toe zodat klanten je dienst makkelijker vinden",
       "placeholder": "Trefwoord toevoegen..."
     },
     "projectTitle": {
       "cardTitle": "Projecttitel",
-      "cardDescription": "Genereer of maak een pakkende titel voor je dienst (30-90 tekens)",
-      "generate": "AI-titel genereren",
+      "cardDescription": "Ontvang drie bewerkbare AI-titelideeën op basis van je dienst, regio, gekozen prijsoptie, trefwoorden en beschrijving. Controleer een suggestie voordat je die toepast (30–90 tekens).",
+      "generate": "Titel voorstellen",
+      "generating": "Genereren…",
+      "generateFailed": "Titelsuggesties konden niet worden gemaakt. Probeer het opnieuw.",
+      "localFallback": "OpenAI is niet geconfigureerd. Er wordt één lokaal titelidee op basis van je projectgegevens getoond.",
       "useGenerated": "Gegenereerde titel gebruiken",
       "suggested": "Voorgestelde titel:",
       "label": "Projecttitel *",
@@ -147,14 +153,20 @@
       "description": "Upload maximaal 4 afbeeldingen om je werk te tonen (optioneel)",
       "dropzone": "Klik om afbeeldingen te uploaden of sleep ze hierheen",
       "hint": "PNG, JPG, WebP tot 5 MB per bestand (max. 4 afbeeldingen)",
+      "guide": "Maximaal 4 afbeeldingen van 5 MiB per stuk. JPEG, PNG, WebP, GIF of SVG. Liggend 4:3 rond 1200 × 900 px wordt aanbevolen; miniaturen worden bijgesneden. Geen minimale afmetingen.",
       "choose": "Bestanden kiezen",
-      "alt": "Project {index}"
+      "alt": "Project {index}",
+      "mainImage": "Hoofdafbeelding",
+      "setMain": "Als hoofdafbeelding instellen",
+      "moveEarlier": "Afbeelding {index} naar voren verplaatsen",
+      "moveLater": "Afbeelding {index} naar achteren verplaatsen"
     },
     "video": {
       "title": "Projectvideo (optioneel)",
       "description": "Upload 1 video om je werk te tonen (optioneel)",
       "dropzone": "Klik om een video te uploaden of sleep hem hierheen",
       "hint": "MP4, MOV, AVI tot 50 MB (max. 1 video)",
+      "guide": "Eén MP4-, QuickTime- of AVI-video tot 50 MiB. 16:9 rond 1280 × 720 px wordt aanbevolen. Geen minimale afmetingen.",
       "choose": "Video kiezen",
       "remove": "Video verwijderen"
     },
@@ -167,7 +179,8 @@
       "notAnImage": "Bestand {file} is geen afbeelding",
       "oneVideoOnly": "Maximaal 1 video toegestaan",
       "videoFormat": "Alleen MP4-, MOV- en AVI-video's zijn toegestaan",
-      "videoTooLarge": "Het videobestand is te groot. De maximale grootte is 50 MB"
+      "videoTooLarge": "Het videobestand is te groot. De maximale grootte is 50 MB",
+      "mediaReadFailed": "Dit bestand kon niet worden gelezen. Selecteer het opnieuw."
     }
   },
   "step2": {
@@ -285,6 +298,8 @@
     "toast": {
       "maxSubprojects": "Maximaal 5 subprojecten toegestaan",
       "configFailed": "Dienstconfiguratie laden is mislukt",
+      "configLoading": "Dienstvelden laden…",
+      "configRetry": "Velden opnieuw laden",
       "materialNameRequired": "Naam van het materiaal is verplicht"
     },
     "predefinedItems": {

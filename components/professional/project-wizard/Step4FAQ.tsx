@@ -18,7 +18,9 @@ import {
   RefreshCw
 } from "lucide-react"
 import { toast } from 'sonner'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
+import { mergeFAQSuggestions } from '@/lib/projectWizardContent'
+import { generateProjectCopy, ProjectCopyApiError } from '@/lib/projectCopyApi'
 
 interface IFAQ {
   id: string
@@ -29,120 +31,33 @@ interface IFAQ {
 }
 
 interface ProjectData {
+  _id?: string
+  id?: string
   faq?: IFAQ[]
   category?: string
   service?: string
+  areaOfWork?: string
   description?: string
   title?: string
 }
 
-interface Step4Props {
-  data: ProjectData
-  onChange: (data: ProjectData) => void
+interface Step4Props<T extends ProjectData> {
+  data: T
+  onChange: (data: T) => void
   onValidate: (isValid: boolean) => void
 }
 
-// Common FAQ templates by service category
-const FAQ_TEMPLATES = {
-  'plumber': [
-    {
-      question: 'Do you provide emergency plumbing services?',
-      answer: 'Yes, we offer 24/7 emergency plumbing services for urgent issues like burst pipes, major leaks, or blocked drains.'
-    },
-    {
-      question: 'Are your plumbers licensed and insured?',
-      answer: 'All our plumbers are fully licensed, certified, and insured. We can provide proof of insurance upon request.'
-    },
-    {
-      question: 'What payment methods do you accept?',
-      answer: 'We accept cash, bank transfers, and major credit cards. Payment is typically due upon completion of work.'
-    },
-    {
-      question: 'Do you provide warranties on your work?',
-      answer: 'Yes, we provide warranties on all our work. The warranty period varies depending on the type of service provided.'
-    },
-    {
-      question: 'What should I do to prepare for your visit?',
-      answer: 'Please ensure clear access to the work area and shut off water supply if necessary. Remove any personal items from the immediate work area.'
-    }
-  ],
-  'electrician': [
-    {
-      question: 'Are you certified and licensed electricians?',
-      answer: 'Yes, all our electricians are fully certified, licensed, and regularly updated on current electrical codes and safety standards.'
-    },
-    {
-      question: 'Do you handle both residential and commercial projects?',
-      answer: 'We specialize in residential electrical work, including installations, repairs, and upgrades for homes and small businesses.'
-    },
-    {
-      question: 'Will you provide a certificate after electrical work?',
-      answer: 'Yes, we provide proper certification and documentation for all electrical work completed, ensuring compliance with local regulations.'
-    },
-    {
-      question: 'What happens if there\'s an issue after the work is completed?',
-      answer: 'We stand behind our work with a comprehensive warranty. If any issues arise, we will return to address them at no additional cost.'
-    },
-    {
-      question: 'Do I need to turn off power before you arrive?',
-      answer: 'For safety reasons, we will handle all power disconnections. Please do not attempt to turn off power yourself unless instructed.'
-    }
-  ],
-  'painter': [
-    {
-      question: 'Do you provide the paint and materials?',
-      answer: 'Yes, we can provide all paint and materials, or we can work with paint you\'ve already purchased. We\'ll discuss this during consultation.'
-    },
-    {
-      question: 'How long does the painting process typically take?',
-      answer: 'The duration depends on the size and complexity of the project. We\'ll provide a detailed timeline during our initial assessment.'
-    },
-    {
-      question: 'Do you move furniture and protect floors?',
-      answer: 'We provide basic furniture moving and floor protection. For valuable or heavy items, we recommend you arrange separate moving services.'
-    },
-    {
-      question: 'What preparation work is included?',
-      answer: 'Basic surface preparation is included, such as cleaning, light sanding, and minor repairs. Extensive prep work may be quoted separately.'
-    },
-    {
-      question: 'Do you clean up after the job?',
-      answer: 'Yes, we include complete cleanup in our service, including proper disposal of materials and returning the space to its original condition.'
-    }
-  ],
-  'default': [
-    {
-      question: 'What is included in your service?',
-      answer: 'Our service includes all the items listed in your selected package, plus professional execution and basic cleanup.'
-    },
-    {
-      question: 'How far in advance should I book?',
-      answer: 'We recommend booking at least 1-2 weeks in advance, though we may have earlier availability depending on the season and project complexity.'
-    },
-    {
-      question: 'What happens if there are delays due to weather or other factors?',
-      answer: 'We will communicate any delays immediately and work with you to reschedule at your convenience with no additional charges.'
-    },
-    {
-      question: 'Do you provide estimates before starting work?',
-      answer: 'Yes, we provide detailed estimates before any work begins. No work will start without your approval of the scope and pricing.'
-    },
-    {
-      question: 'What is your cancellation policy?',
-      answer: 'You can cancel or reschedule up to 24 hours before the scheduled service time without penalty. Same-day cancellations may incur a fee.'
-    }
-  ]
-}
-
-export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
+export default function Step4FAQ<T extends ProjectData>({ data, onChange, onValidate }: Step4Props<T>) {
   const t = useTranslations('projectWizardSteps')
+  const locale = useLocale()
   const [faqs, setFaqs] = useState<IFAQ[]>(data.faq || [])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [showLocalFallbackNotice, setShowLocalFallbackNotice] = useState(false)
   const [customQuestion, setCustomQuestion] = useState('')
   const [customAnswer, setCustomAnswer] = useState('')
 
   useEffect(() => {
-    onChange({ ...data, faq: faqs })
+    onChange({ ...data, faq: faqs } as T)
     validateForm()
   }, [faqs])
 
@@ -152,45 +67,75 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
     onValidate(isValid)
   }
 
-  const getFAQTemplates = () => {
-    const service = data.service || 'default'
-    return FAQ_TEMPLATES[service as keyof typeof FAQ_TEMPLATES] || FAQ_TEMPLATES.default
-  }
-
   const generateAIFAQs = async () => {
     setIsGenerating(true)
-    try {
-      // Simulate AI generation - in real app, call AI API
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      const templates = getFAQTemplates()
-      const serviceName = data.service || 'service'
-      const description = data.description || ''
-
-      // Create personalized FAQs based on project data
-      const generatedFAQs: IFAQ[] = templates.slice(0, 5).map((template, index) => ({
-        id: `generated-${Date.now()}-${index}`,
-        question: template.question,
-        answer: template.answer,
-        isGenerated: true
-      }))
-
-      // Add project-specific FAQ if description is available
-      if (description.length > 50) {
-        generatedFAQs.unshift({
-          id: `generated-specific-${Date.now()}`,
-          question: `What makes your ${serviceName} service unique?`,
-          answer: `Our ${serviceName} service is tailored to meet your specific needs. ${description.substring(0, 100)}... We ensure professional quality and customer satisfaction in every project.`,
-          isGenerated: true
-        })
-      }
-
-      setFaqs(generatedFAQs)
-      toast.success(t('step4.generatedSuccess'))
-    } catch {
-      toast.error(t('step4.generateFailed'))
+    setShowLocalFallbackNotice(false)
+    const context = data as ProjectData & {
+      keywords?: string[]
+      selectedPricingOption?: { name: string; pricingType: 'fixed_price' | 'price_per_unit'; unit?: string }
+      subprojects?: Array<{ name?: string; description?: string; pricing?: Record<string, unknown>; included?: Array<{ name: string; description?: string }>; materialsIncluded?: boolean; materials?: Array<{ name: string; quantity?: string; unit?: string; description?: string }>; preparationDuration?: Record<string, unknown>; executionDuration?: Record<string, unknown>; buffer?: Record<string, unknown>; warrantyPeriod?: { value?: number; unit?: string } }>
+      extraOptions?: Array<{ name: string; description?: string; price?: number }>
+      termsConditions?: Array<{ name: string; description?: string; type?: string; additionalCost?: number }>
     }
-    setIsGenerating(false)
+    try {
+      const result = await generateProjectCopy<{ faqs: Array<{ question: string; answer: string }> }>({
+        kind: 'faqs',
+        locale: locale as 'en' | 'nl' | 'fr',
+        projectId: data._id || data.id,
+        context: {
+          category: data.category,
+          service: data.service || '',
+          areaOfWork: data.areaOfWork,
+          description: data.description || '',
+          title: data.title,
+          keywords: context.keywords,
+          selectedPricingOption: context.selectedPricingOption,
+          subprojects: (context.subprojects || []).map(({ name, description, pricing, included, materialsIncluded, materials, preparationDuration, executionDuration, buffer, warrantyPeriod }) => ({ name, description, pricing, included, materialsIncluded, materials, preparationDuration, executionDuration, buffer, warrantyPeriod })),
+          extraOptions: (context.extraOptions || []).map(({ name, description, price }) => ({ name, description, price })),
+          termsConditions: (context.termsConditions || []).map(({ name, description, type, additionalCost }) => ({ name, description, type, additionalCost })),
+          faq: faqs.slice(0, 8).map(({ question, answer }) => ({ question, answer })),
+        },
+      })
+      const suggestions: IFAQ[] = result.faqs.map((faq, index) => ({
+        id: `generated-${Date.now()}-${index}`,
+        question: faq.question,
+        answer: faq.answer,
+        isGenerated: true,
+      }))
+      setFaqs(current => mergeFAQSuggestions(current, suggestions))
+      toast.success(t('step4.generatedSuccess'))
+    } catch (error) {
+      if (!(error instanceof ProjectCopyApiError && error.code === 'AI_NOT_CONFIGURED')) {
+        toast.error(t('step4.generateFailed'))
+        setIsGenerating(false)
+        return
+      }
+      setShowLocalFallbackNotice(true)
+      const facts = [
+        ...(context.subprojects || []).flatMap(packageItem => [packageItem.name, packageItem.description]),
+        ...(context.extraOptions || []).flatMap(option => [option.name, option.description]),
+        ...(context.termsConditions || []).flatMap(condition => [condition.name, condition.description]),
+        data.description,
+      ].map(value => value?.replace(/\s+/g, ' ').trim()).filter((value): value is string => Boolean(value))
+      const uniqueFacts = [...new Set(facts)].slice(0, 5)
+      const copy = locale === 'fr'
+        ? { included: (name: string) => `Que comprend le forfait ${name} ?`, about: (fact: string) => `Que faut-il savoir sur « ${fact.slice(0, 50)} » ?`, states: 'Les détails du projet indiquent :', confirm: ' Confirmez avec le professionnel les points qui ne sont pas précisés.' }
+        : locale === 'nl'
+          ? { included: (name: string) => `Wat is inbegrepen bij het pakket ${name}?`, about: (fact: string) => `Wat moeten klanten weten over “${fact.slice(0, 50)}”?`, states: 'De projectgegevens vermelden:', confirm: ' Bevestig ontbrekende details met de vakprofessional.' }
+          : { included: (name: string) => `What is included in the ${name} package?`, about: (fact: string) => `What should customers know about “${fact.slice(0, 50)}”?`, states: 'The project details state:', confirm: ' Confirm details not specified here with the professional.' }
+      const suggestions = uniqueFacts.map((fact, index) => ({
+        id: `grounded-${Date.now()}-${index}`,
+        question: index === 0 && context.subprojects?.[0]?.name
+          ? copy.included(context.subprojects[0].name)
+          : copy.about(fact),
+        answer: `${copy.states} “${fact}”.${copy.confirm}`,
+        isGenerated: false,
+      }))
+      setFaqs(current => mergeFAQSuggestions(current, suggestions))
+      toast.info(uniqueFacts.length ? t('step4.groundedGenerated') : t('step4.groundedEmpty'))
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const addCustomFAQ = () => {
@@ -210,22 +155,6 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
     setCustomQuestion('')
     setCustomAnswer('')
     toast.success(t('step4.addedSuccess'))
-  }
-
-  const addTemplateFAQ = (template: { question: string; answer: string }) => {
-    if (faqs.some(faq => faq.question === template.question)) {
-      toast.error(t('step4.alreadyAdded'))
-      return
-    }
-
-    const newFAQ: IFAQ = {
-      id: `template-${Date.now()}`,
-      question: template.question,
-      answer: template.answer,
-      isGenerated: false
-    }
-
-    setFaqs([...faqs, newFAQ])
   }
 
   const removeFAQ = (id: string) => {
@@ -275,6 +204,7 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
               {t('step4.currentCount', { count: faqs.length })}
+              {showLocalFallbackNotice && <p className="mt-1 text-xs">{t('step4.groundedSource')}</p>}
             </div>
             <div className="flex space-x-2">
               <Button
@@ -290,40 +220,6 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
                 <span>{isGenerating ? t('step4.generating') : t('step4.generate')}</span>
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* FAQ Templates */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{t('common.quickAddTemplates')}</CardTitle>
-          <CardDescription>
-            {data.service
-              ? t('step4.templatesDescription', { service: data.service })
-              : t('step4.templatesDescriptionFallback')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {getFAQTemplates().map((template, index) => (
-              <div key={index} className="border rounded-lg p-4 hover:bg-gray-50">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 pr-4">
-                    <h4 className="font-medium text-sm mb-2">{template.question}</h4>
-                    <p className="text-sm text-gray-600">{template.answer}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addTemplateFAQ(template)}
-                    disabled={faqs.some(faq => faq.question === template.question)}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
           </div>
         </CardContent>
       </Card>

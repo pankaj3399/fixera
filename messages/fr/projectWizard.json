@@ -32,7 +32,9 @@
     "next": "Suivant",
     "submitForApproval": "Envoyer pour approbation",
     "submitChanges": "Renvoyer les modifications pour approbation",
-    "alreadySubmitted": "Déjà envoyé - aller aux projets"
+    "alreadySubmitted": "Déjà envoyé - aller aux projets",
+    "inProgress": "En cours",
+    "optional": "Facultatif"
   },
   "common": {
     "loading": "Chargement...",
@@ -128,14 +130,18 @@
       "noPricingModels": "Aucun modèle de prix n'est configuré pour ce service"
     },
     "keywords": {
+      "remove": "Supprimer le mot-clé {keyword}",
       "title": "Mots-clés/tags",
       "description": "Ajoutez des mots-clés pour aider les clients à trouver votre service",
       "placeholder": "Ajouter un mot-clé..."
     },
     "projectTitle": {
       "cardTitle": "Titre du projet",
-      "cardDescription": "Générez ou rédigez un titre accrocheur pour votre service (30 à 90 caractères)",
-      "generate": "Générer un titre IA",
+      "cardDescription": "Obtenez trois idées de titre modifiables grâce à votre service, votre zone, l’option tarifaire sélectionnée, vos mots-clés et votre description. Relisez une suggestion avant de l’appliquer (30 à 90 caractères).",
+      "generate": "Suggérer un titre",
+      "generating": "Génération…",
+      "generateFailed": "Impossible de générer des titres. Veuillez réessayer.",
+      "localFallback": "OpenAI n’est pas configuré. Une idée locale basée sur les détails du projet est affichée.",
       "useGenerated": "Utiliser le titre généré",
       "suggested": "Titre suggéré :",
       "label": "Titre du projet *",
@@ -147,14 +153,20 @@
       "description": "Téléversez jusqu'à 4 images pour mettre votre travail en valeur (facultatif)",
       "dropzone": "Cliquez pour téléverser ou glissez vos images ici",
       "hint": "PNG, JPG, WebP jusqu'à 5 Mo chacune (max. 4 images)",
+      "guide": "Jusqu'à 4 images, 5 Mio chacune. JPEG, PNG, WebP, GIF ou SVG. Le format paysage 4:3 autour de 1 200 × 900 px est recommandé ; les vignettes sont recadrées. Aucune dimension minimale.",
       "choose": "Choisir des fichiers",
-      "alt": "Projet {index}"
+      "alt": "Projet {index}",
+      "mainImage": "Image principale",
+      "setMain": "Définir comme principale",
+      "moveEarlier": "Déplacer l'image {index} vers le début",
+      "moveLater": "Déplacer l'image {index} vers la fin"
     },
     "video": {
       "title": "Vidéo du projet (facultatif)",
       "description": "Téléversez 1 vidéo pour mettre votre travail en valeur (facultatif)",
       "dropzone": "Cliquez pour téléverser ou glissez votre vidéo ici",
       "hint": "MP4, MOV, AVI jusqu'à 50 Mo (max. 1 vidéo)",
+      "guide": "Une vidéo MP4, QuickTime ou AVI jusqu'à 50 Mio. Le format 16:9 autour de 1 280 × 720 px est recommandé. Aucune dimension minimale.",
       "choose": "Choisir une vidéo",
       "remove": "Supprimer la vidéo"
     },
@@ -167,7 +179,8 @@
       "notAnImage": "Le fichier {file} n'est pas une image",
       "oneVideoOnly": "Maximum 1 vidéo autorisée",
       "videoFormat": "Seuls les formats vidéo MP4, MOV et AVI sont autorisés",
-      "videoTooLarge": "La vidéo est trop volumineuse. La taille maximale est de 50 Mo"
+      "videoTooLarge": "La vidéo est trop volumineuse. La taille maximale est de 50 Mo",
+      "mediaReadFailed": "Ce fichier n’a pas pu être lu. Veuillez le sélectionner à nouveau."
     }
   },
   "step2": {
@@ -285,6 +298,8 @@
     "toast": {
       "maxSubprojects": "Maximum 5 sous-projets autorisés",
       "configFailed": "Échec du chargement de la configuration du service",
+      "configLoading": "Chargement des champs du service…",
+      "configRetry": "Réessayer de charger les champs",
       "materialNameRequired": "Le nom du matériau est requis"
     },
     "predefinedItems": {

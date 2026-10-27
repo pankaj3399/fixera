@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import Calendar from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Filter, X, ChevronDown, ChevronUp, CalendarIcon, Star } from 'lucide-react';
-import { format } from 'date-fns';
-import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+import { Filter, X, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { formatSearchDateDraft, isSearchDateRangeValid, parseSearchDateDraft } from '@/lib/search/dateDraft';
 import LocationAutocomplete, { type LocationData } from '@/components/search/LocationAutocomplete';
 import {
   PROFESSIONAL_LEVELS,
@@ -92,12 +90,16 @@ export interface ProjectFacetCounts {
   priceModels: Record<string, number>;
   projectTypes: Record<string, number>;
   includedItems: Record<string, number>;
+  professionalLevels: Record<string, number>;
+  adminTags: Record<string, number>;
+  minRating: Record<'any' | '1' | '2' | '3' | '4' | '5', number>;
 }
 
 interface SearchFiltersProps {
   filters: SearchFiltersState;
   onFilterChange: <K extends SearchFilterKey>(key: K, value: SearchFiltersState[K]) => void;
   onClearFilters: () => void;
+  resetVersion?: number;
   searchType: 'professionals' | 'projects';
   categories?: string[];
   filterOptions?: FilterOptions;
@@ -133,6 +135,7 @@ const SearchFilters = ({
   filters,
   onFilterChange,
   onClearFilters,
+  resetVersion = 0,
   searchType,
   categories = [],
   filterOptions,
@@ -140,7 +143,8 @@ const SearchFilters = ({
   onLocationCoordinatesChange,
 }: SearchFiltersProps) => {
   const t = useTranslations('search');
-  const { dateFns } = useFormatLocale();
+  const { currency, rates } = useCurrency();
+  const priceCurrency = currency === 'EUR' || rates?.[currency] ? currency : 'EUR';
   // Use dynamic filter options if provided, otherwise fall back to hardcoded values
   const servicesList = filterOptions?.services || COMMON_SERVICES;
   const projectTypesList = filterOptions?.projectTypes || PROJECT_TYPES;
@@ -162,6 +166,36 @@ const SearchFilters = ({
     adminTags: false,
     minRating: false,
   });
+  const [dateDraft, setDateDraft] = useState({ from: formatSearchDateDraft(filters.startDateFrom), to: formatSearchDateDraft(filters.startDateTo) });
+  const [dateError, setDateError] = useState('');
+  const minPriceValue = filters.priceMin === '' ? undefined : Number(filters.priceMin);
+  const maxPriceValue = filters.priceMax === '' ? undefined : Number(filters.priceMax);
+  const priceBoundsInvalid = [minPriceValue, maxPriceValue].some((value) => value !== undefined && (!Number.isFinite(value) || value < 0)) || (minPriceValue !== undefined && maxPriceValue !== undefined && minPriceValue > maxPriceValue);
+  useEffect(() => {
+    setDateDraft({ from: formatSearchDateDraft(filters.startDateFrom), to: formatSearchDateDraft(filters.startDateTo) });
+    if (!filters.startDateFrom && !filters.startDateTo) setDateError('');
+  }, [filters.startDateFrom, filters.startDateTo, resetVersion]);
+
+  const commitDate = (side: 'from' | 'to') => {
+    const parsed = parseSearchDateDraft(dateDraft[side]);
+    if (parsed.error) {
+      setDateError(t('filters.invalidDate'));
+      return;
+    }
+    if (!parsed.date) {
+      onFilterChange(side === 'from' ? 'startDateFrom' : 'startDateTo', undefined);
+      setDateError('');
+      return;
+    }
+    const nextFrom = side === 'from' ? parsed.date : filters.startDateFrom;
+    const nextTo = side === 'to' ? parsed.date : filters.startDateTo;
+    if (!isSearchDateRangeValid(nextFrom, nextTo)) {
+      setDateError(t('filters.invalidDateRange'));
+      return;
+    }
+    onFilterChange(side === 'from' ? 'startDateFrom' : 'startDateTo', parsed.date);
+    setDateError('');
+  };
 
   const priceRange = [
     parseInt(filters.priceMin || '0'),
@@ -184,12 +218,8 @@ const SearchFilters = ({
 
   // Helper to build dynamic option lists with counts
   const buildOptions = (counts?: Record<string, number>, fallback?: string[]): FacetOption[] => {
-    if (counts && Object.keys(counts).length > 0) {
-      return Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([value, count]) => ({ value, count }));
-    }
-    return (fallback || []).map(value => ({ value }));
+    const values = new Set([...(fallback || []), ...Object.keys(counts || {})]);
+    return [...values].sort((a, b) => (counts?.[b] || 0) - (counts?.[a] || 0)).map(value => ({ value, count: counts?.[value] || 0 }));
   };
 
   const dynamicServices = buildOptions(searchType === 'projects' ? facets?.services : undefined, servicesList);
@@ -227,7 +257,7 @@ const SearchFilters = ({
   const sectionLabel = (label: string, count: number) =>
     count > 0 ? t('filters.sectionCount', { label, count }) : label;
 
-  const renderOptionContent = (label: string, count?: number) => (
+  const renderOptionContent = (label: React.ReactNode, count?: number) => (
     <span className="flex w-full items-center justify-between">
       <span>{label}</span>
       {typeof count === 'number' && (
@@ -266,7 +296,7 @@ const SearchFilters = ({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b">
         <div className="flex items-center gap-2">
@@ -291,7 +321,7 @@ const SearchFilters = ({
       </div>
 
       {/* Sort By */}
-      <div className="space-y-2 border-b pb-4">
+      <div className="space-y-2 border-b pb-4 order-last">
         <Label htmlFor="sortBy" className="text-sm font-semibold text-gray-900">
           {t('filters.sortBy')}
         </Label>
@@ -313,7 +343,7 @@ const SearchFilters = ({
       </div>
 
       {/* Geographic Area Filter */}
-      <div className="space-y-2 border-b pb-4">
+      <div className="space-y-2 border-b pb-4 order-1">
         <button
           type="button"
           onClick={() => toggleSection('location')}
@@ -351,7 +381,7 @@ const SearchFilters = ({
 
       {/* Service Filter */}
       {dynamicServices.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
+        <div className={`space-y-2 border-b pb-4 ${searchType === 'projects' ? 'order-5' : 'order-2'}`}>
           <button
             type="button"
             onClick={() => toggleSection('service')}
@@ -390,7 +420,7 @@ const SearchFilters = ({
       )}
 
       {/* Professional Level Filter */}
-      <div className="space-y-2 border-b pb-4">
+      <div className={`space-y-2 border-b pb-4 ${searchType === 'projects' ? 'order-6' : 'order-3'}`}>
         <button
           type="button"
           onClick={() => toggleSection('professionalLevel')}
@@ -414,7 +444,7 @@ const SearchFilters = ({
                   htmlFor={`level-${level}`}
                   className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                 >
-                  <Badge variant="secondary" className={`font-medium ${getLevelColor(level)}`}>{professionalLevelLabel(level)}</Badge>
+                  {renderOptionContent(<Badge variant="secondary" className={`font-medium ${getLevelColor(level)}`}>{professionalLevelLabel(level)}</Badge>, facets?.professionalLevels?.[level] || 0)}
                 </Label>
               </div>
             ))}
@@ -423,7 +453,7 @@ const SearchFilters = ({
       </div>
 
       {/* Admin Tags Filter */}
-      <div className="space-y-2 border-b pb-4">
+      <div className={`space-y-2 border-b pb-4 ${searchType === 'projects' ? 'order-7' : 'order-4'}`}>
         <button
           type="button"
           onClick={() => toggleSection('adminTags')}
@@ -447,9 +477,7 @@ const SearchFilters = ({
                   htmlFor={`tag-${tag}`}
                   className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                 >
-                  <Badge variant="outline" className={`font-medium ${getAdminTagStyle(tag)}`}>
-                    {adminTagLabel(tag)}
-                  </Badge>
+                  {renderOptionContent(<Badge variant="outline" className={`font-medium ${getAdminTagStyle(tag)}`}>{adminTagLabel(tag)}</Badge>, facets?.adminTags?.[tag] || 0)}
                 </Label>
               </div>
             ))}
@@ -459,7 +487,7 @@ const SearchFilters = ({
 
       {/* Minimum Project Rating Filter - Only for projects */}
       {searchType === 'projects' && (
-        <div className="space-y-2 border-b pb-4">
+        <div className="space-y-2 border-b pb-4 order-8">
           <button
             type="button"
             onClick={() => toggleSection('minRating')}
@@ -494,6 +522,7 @@ const SearchFilters = ({
                       <Star className="w-3 h-3 fill-current" />
                     </>
                   )}
+                  <span className="text-xs text-gray-500">{facets?.minRating?.[n === 0 ? 'any' : String(n) as '1' | '2' | '3' | '4' | '5'] ?? 0}</span>
                 </Button>
               ))}
             </div>
@@ -503,7 +532,7 @@ const SearchFilters = ({
 
       {/* Area of Work Filter - Only for projects */}
       {searchType === 'projects' && dynamicAreasOfWork.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
+        <div className="space-y-2 border-b pb-4 order-9">
           <button
             type="button"
             onClick={() => toggleSection('areaOfWork')}
@@ -540,7 +569,7 @@ const SearchFilters = ({
 
       {/* Price Model Filter - Only for projects */}
       {searchType === 'projects' && dynamicPriceModels.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
+        <div className="space-y-2 border-b pb-4 order-10">
           <button
             type="button"
             onClick={() => toggleSection('priceModel')}
@@ -580,7 +609,7 @@ const SearchFilters = ({
 
       {/* Project Type Filter - Only for projects */}
       {searchType === 'projects' && dynamicProjectTypes.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
+        <div className="space-y-2 border-b pb-4 order-11">
           <button
             type="button"
             onClick={() => toggleSection('projectType')}
@@ -620,7 +649,7 @@ const SearchFilters = ({
 
       {/* Included Items Filter - Only for projects */}
       {searchType === 'projects' && dynamicIncludedItems.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
+        <div className="space-y-2 border-b pb-4 order-12">
           <button
             type="button"
             onClick={() => toggleSection('includedItems')}
@@ -655,7 +684,7 @@ const SearchFilters = ({
 
       {/* Desired Start Date Range - Only for projects */}
       {searchType === 'projects' && (
-        <div className="space-y-2 border-b pb-4">
+        <div className="space-y-2 border-b pb-4 order-2">
           <button
             type="button"
             onClick={() => toggleSection('startDate')}
@@ -669,67 +698,28 @@ const SearchFilters = ({
           {expandedSections.startDate && (
             <div className="space-y-3 mt-2">
               <div>
-                <Label className="text-xs text-gray-600 mb-1">{t('filters.fromDate')}</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filters.startDateFrom ? format(filters.startDateFrom, 'PPP', { locale: dateFns }) : <span>{t('filters.pickDate')}</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={filters.startDateFrom}
-                      onSelect={(date) => onFilterChange('startDateFrom', date)}
-                      disabled={filters.startDateTo ? (date: Date) => date > filters.startDateTo! : undefined}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Label htmlFor="startDateFrom" className="text-xs text-gray-600 mb-1">{t('filters.fromDate')}</Label>
+                <Input id="startDateFrom" type="text" inputMode="numeric" placeholder="YYYY-MM-DD" value={dateDraft.from} aria-invalid={Boolean(dateError)} onChange={(event) => setDateDraft((prev) => ({ ...prev, from: event.target.value }))} onBlur={() => commitDate('from')} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitDate('from'); } }} />
               </div>
               <div>
-                <Label className="text-xs text-gray-600 mb-1">{t('filters.toDate')}</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filters.startDateTo ? format(filters.startDateTo, 'PPP', { locale: dateFns }) : <span>{t('filters.pickDate')}</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={filters.startDateTo}
-                      onSelect={(date) => onFilterChange('startDateTo', date)}
-                      disabled={filters.startDateFrom ? (date: Date) => date < filters.startDateFrom! : undefined}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Label htmlFor="startDateTo" className="text-xs text-gray-600 mb-1">{t('filters.toDate')}</Label>
+                <Input id="startDateTo" type="text" inputMode="numeric" placeholder="YYYY-MM-DD" value={dateDraft.to} aria-invalid={Boolean(dateError)} onChange={(event) => setDateDraft((prev) => ({ ...prev, to: event.target.value }))} onBlur={() => commitDate('to')} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitDate('to'); } }} />
               </div>
+              {dateError && <p role="alert" className="text-xs text-red-600">{dateError}</p>}
             </div>
           )}
         </div>
       )}
 
       {/* Price Range Filter */}
-      <div className="space-y-2 border-b pb-4">
+        <div className={`space-y-2 border-b pb-4 ${searchType === 'projects' ? 'order-3' : 'order-5'}`}>
         <button
           type="button"
           onClick={() => toggleSection('price')}
           className="flex items-center justify-between w-full text-left"
         >
           <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-            {searchType === 'professionals' ? t('filters.hourlyRate') : t('filters.priceRange')} {(filters.priceMin || filters.priceMax) && '✓'}
+            {searchType === 'professionals' ? t('filters.hourlyRate') : t('filters.priceRange', { currency: priceCurrency })} {(filters.priceMin || filters.priceMax) && '✓'}
           </Label>
           {expandedSections.price ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -739,7 +729,7 @@ const SearchFilters = ({
               <Slider
                 min={0}
                 max={500}
-                step={10}
+                step={1}
                 value={priceRange}
                 onValueChange={handlePriceChange}
                 className="w-full"
@@ -748,7 +738,10 @@ const SearchFilters = ({
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <Input
                 type="number"
+                min="0"
+                step="any"
                 value={filters.priceMin}
+                aria-invalid={priceBoundsInvalid}
                 onChange={(e) => onFilterChange('priceMin', e.target.value)}
                 className="w-20 h-8 text-xs"
                 placeholder={t('filters.min')}
@@ -756,19 +749,24 @@ const SearchFilters = ({
               <span>-</span>
               <Input
                 type="number"
+                min="0"
+                step="any"
                 value={filters.priceMax}
+                aria-invalid={priceBoundsInvalid}
                 onChange={(e) => onFilterChange('priceMax', e.target.value)}
                 className="w-20 h-8 text-xs"
                 placeholder={t('filters.max')}
               />
             </div>
+            {priceBoundsInvalid && <p role="alert" className="text-xs text-red-600">{t('filters.invalidPriceRange')}</p>}
+            {searchType === 'projects' && <p className="text-xs text-gray-500">{t('filters.priceUnitHelp')}</p>}
           </div>
         )}
       </div>
 
       {/* Category Filter */}
       {dynamicCategories.length > 0 && (
-        <div className="space-y-2 border-b pb-4">
+        <div className={`space-y-2 border-b pb-4 ${searchType === 'projects' ? 'order-4' : 'order-6'}`}>
           <button
             type="button"
             onClick={() => toggleSection('category')}
@@ -802,7 +800,7 @@ const SearchFilters = ({
       )}
       {/* Availability Filter - Only for professionals */}
       {searchType === 'professionals' && (
-        <div className="space-y-2 border-b pb-4">
+        <div className="space-y-2 border-b pb-4 order-13">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="availability"

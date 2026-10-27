@@ -1,5 +1,6 @@
 'use client'
 
+import { createProjectMediaQueue } from '@/lib/projectMediaQueue'
 import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 import { Upload, X, MapPin, FileText, Star, Users } from "lucide-react"
 import { toast } from 'sonner'
+import { useLocale } from 'next-intl'
 import AddressAutocomplete, { type PlaceData } from "./AddressAutocomplete"
 import CertificationManager from "./CertificationManager"
 import { useAuth } from "@/contexts/AuthContext"
@@ -22,6 +24,8 @@ import {
   type Step1ServiceConfig,
   type Step1ValidationContext,
 } from "@/lib/projectWizardValidation"
+import { buildProjectTitleSuggestion, normalizeProjectKeywords } from '@/lib/projectWizardContent'
+import { generateProjectCopy, ProjectCopyApiError } from '@/lib/projectCopyApi'
 
 interface IServiceSelection {
   category: string
@@ -31,6 +35,7 @@ interface IServiceSelection {
 
 interface ProjectData {
   _id?: string
+  id?: string
   category?: string
   service?: string
   areaOfWork?: string
@@ -112,9 +117,30 @@ const DEFAULT_MIN_OVERLAP = 90
 
 const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onValidate }, ref) => {
   const t = useTranslations('projectWizard')
+  const locale = useLocale() as 'en' | 'nl' | 'fr'
   const [formData, setFormData] = useState<ProjectData>(data)
   const [keywordInput, setKeywordInput] = useState('')
-  const [suggestedTitle, setSuggestedTitle] = useState('')
+  const [suggestedTitles, setSuggestedTitles] = useState<string[]>([])
+  const [selectedTitleIndex, setSelectedTitleIndex] = useState(0)
+  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false)
+  const titleRequest = {
+    kind: 'title' as const,
+    locale,
+    projectId: formData._id || formData.id || data._id || data.id,
+    context: {
+      category: formData.category,
+      service: formData.service?.trim() || '',
+      areaOfWork: formData.areaOfWork,
+      description: formData.description || '',
+      keywords: formData.keywords,
+      selectedPricingOption: formData.selectedPricingOption,
+    },
+  }
+  const titleSignature = JSON.stringify(titleRequest)
+  const currentTitleSignatureRef = useRef(titleSignature)
+  currentTitleSignatureRef.current = titleSignature
+  const suggestedTitleSignatureRef = useRef<string | null>(null)
+  useEffect(() => { setSuggestedTitles([]); suggestedTitleSignatureRef.current = null }, [titleSignature])
   const [addressValid, setAddressValid] = useState(false)
   const { user } = useAuth()
   const [serviceConfig, setServiceConfig] = useState<Step1ServiceConfig | null>(null)
@@ -459,24 +485,30 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }))
   }
 
-  const updateMedia = (updates: Partial<{ images: string[]; videos: string[] }>) => {
-    setFormData(prev => ({
-      ...prev,
-      media: {
-        images: prev.media?.images || [],
-        videos: prev.media?.videos || [],
-        ...updates
-      }
-    }))
+  const mediaRef = useRef(formData.media || { images: [], videos: [] })
+  mediaRef.current = formData.media || { images: [], videos: [] }
+  const updateMedia = (updates: Partial<{ images: string[]; videos: string[] }> | ((media: { images: string[]; videos: string[] }) => Partial<{ images: string[]; videos: string[] }>)) => {
+    const media = { images: mediaRef.current.images || [], videos: mediaRef.current.videos || [] }
+    const next = { ...media, ...(typeof updates === 'function' ? updates(media) : updates) }
+    mediaRef.current = next
+    setFormData(prev => ({ ...prev, media: next }))
   }
+  const readMediaFile = (file: File) => new Promise<string | null>(resolve => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+    reader.onerror = reader.onabort = () => { toast.error(t('step1.toast.mediaReadFailed')); resolve(null) }
+    try { reader.readAsDataURL(file) } catch { toast.error(t('step1.toast.mediaReadFailed')); resolve(null) }
+  })
+  const imageQueueRef = useRef<ReturnType<typeof createProjectMediaQueue<File>> | null>(null)
+  if (!imageQueueRef.current) imageQueueRef.current = createProjectMediaQueue(4, () => mediaRef.current.images?.length || 0, readMediaFile, values => updateMedia(media => ({ images: [...media.images, ...values] })))
+  const videoQueueRef = useRef<ReturnType<typeof createProjectMediaQueue<File>> | null>(null)
+  if (!videoQueueRef.current) videoQueueRef.current = createProjectMediaQueue(1, () => mediaRef.current.videos?.length || 0, readMediaFile, values => updateMedia(media => ({ videos: [...media.videos, ...values] })))
 
   const addKeyword = () => {
-    if (keywordInput.trim() && !formData.keywords?.includes(keywordInput.trim())) {
-      updateFormData({
-        keywords: [...(formData.keywords || []), keywordInput.trim()]
-      })
-      setKeywordInput('')
-    }
+    const existing = formData.keywords || []
+    const keywords = normalizeProjectKeywords(existing, keywordInput)
+    if (keywords.length !== existing.length) updateFormData({ keywords })
+    setKeywordInput('')
   }
 
   const removeKeyword = (keyword: string) => {
@@ -487,46 +519,45 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
 
   const generateTitle = async () => {
-    if (!formData.service || !formData.description) return
-
+    const service = formData.service?.trim()
+    if (!service || !formData.description?.trim()) return
+    const requestSignature = titleSignature
+    setIsGeneratingTitle(true)
+    setSuggestedTitles([])
     try {
-      const serviceTitle = formData.service.charAt(0).toUpperCase() + formData.service.slice(1)
-      const keywords = formData.keywords?.join(', ') || ''
-
-      const titleVariations = [
-        `Expert ${serviceTitle} Services - ${formData.areaOfWork || 'Professional Solutions'}`,
-        `Quality ${serviceTitle} - ${keywords ? keywords.split(',')[0] : 'Reliable'} & Professional`,
-        `Professional ${serviceTitle} - Quality Work You Can Trust`,
-        formData.distance?.maxKmRange != null
-          ? `${serviceTitle} Expert - ${formData.distance.maxKmRange}km Range - Quality Guaranteed`
-          : `${serviceTitle} Expert - Quality Guaranteed`
-      ]
-
-      let bestTitle = titleVariations[0]
-
-      if (keywords) {
-        bestTitle = titleVariations[1]
-      }
-
-      if (bestTitle.length > 90) {
-        bestTitle = bestTitle.substring(0, 87) + '...'
-      }
-
-      if (bestTitle.length < 30) {
-        bestTitle = `Professional ${serviceTitle} Services - Quality Work in ${formData.distance?.address || 'Your Area'}`
-      }
-
-      setSuggestedTitle(bestTitle)
+      const result = await generateProjectCopy<{ titles: string[] }>(titleRequest)
+      if (currentTitleSignatureRef.current !== requestSignature) return
+      suggestedTitleSignatureRef.current = requestSignature
+      setSuggestedTitles(result.titles)
+      setSelectedTitleIndex(0)
     } catch (error) {
-      console.error('Title generation error:', error)
-      const serviceTitle = formData.service.charAt(0).toUpperCase() + formData.service.slice(1)
-      setSuggestedTitle(`Professional ${serviceTitle} Services - Quality Work You Can Trust`)
+      if (currentTitleSignatureRef.current !== requestSignature) return
+      if (error instanceof ProjectCopyApiError && error.code === 'AI_NOT_CONFIGURED') {
+        suggestedTitleSignatureRef.current = requestSignature
+        setSuggestedTitles([buildProjectTitleSuggestion({
+          service,
+          area: formData.areaOfWork,
+          packageName: formData.selectedPricingOption?.name,
+          keyword: formData.keywords?.[0],
+          description: formData.description,
+        })])
+        setSelectedTitleIndex(0)
+        toast.info(t('step1.projectTitle.localFallback'))
+      } else {
+        toast.error(t('step1.projectTitle.generateFailed'))
+      }
+    } finally {
+      setIsGeneratingTitle(false)
     }
   }
 
   const useGeneratedTitle = () => {
-    updateFormData({ title: suggestedTitle })
-    setSuggestedTitle('')
+    if (suggestedTitleSignatureRef.current !== currentTitleSignatureRef.current) {
+      setSuggestedTitles([])
+      return
+    }
+    updateFormData({ title: suggestedTitles[selectedTitleIndex] })
+    setSuggestedTitles([])
   }
 
   const toggleTeamMember = (memberId: string) => {
@@ -554,21 +585,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     updateFormData({ renovationPlanning: { fixeraManaged: formData.renovationPlanning?.fixeraManaged ?? false, resources: updatedResources } })
   }
 
-  const handleImageUpload = (files: FileList | null) => {
+  const handleImageUpload = (files: FileList | File[] | null) => {
     if (!files) return
 
     const maxFiles = 4
     const maxSize = 5 * 1024 * 1024 // 5MB
-    const currentImages = formData.media?.images || []
-
-    if (currentImages.length + files.length > maxFiles) {
-      toast.error(t('step1.toast.tooManyImages', {
-        max: maxFiles,
-        current: currentImages.length,
-        remaining: maxFiles - currentImages.length,
-      }))
-      return
-    }
 
     const validFiles = Array.from(files).filter(file => {
       if (file.size > maxSize) {
@@ -583,27 +604,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
       return true
     })
-
-    const newImages: string[] = []
-    let processedCount = 0
-
-    validFiles.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          newImages.push(e.target.result as string)
-          processedCount++
-
-          if (processedCount === validFiles.length) {
-            updateMedia({ images: [...currentImages, ...newImages] })
-          }
-        }
-      }
-      reader.readAsDataURL(file)
+    imageQueueRef.current!(validFiles).then(accepted => {
+      if (!accepted) toast.error(t('step1.toast.tooManyImages', { max: maxFiles, current: mediaRef.current.images?.length || 0, remaining: Math.max(0, maxFiles - (mediaRef.current.images?.length || 0)) }))
     })
   }
 
-  const handleVideoUpload = (files: FileList | null) => {
+  const handleVideoUpload = (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return
 
     const maxSize = 50 * 1024 * 1024 // 50MB
@@ -627,13 +633,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        updateMedia({ videos: [e.target.result as string] })
-      }
-    }
-    reader.readAsDataURL(file)
+    videoQueueRef.current!([file]).then(accepted => {
+      if (!accepted) toast.error(t('step1.toast.oneVideoOnly'))
+    })
   }
 
   return (
@@ -1288,9 +1290,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
               placeholder={t('step1.keywords.placeholder')}
-              onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
             />
-            <Button onClick={addKeyword} variant="outline">{t('common.add')}</Button>
+            <Button type="button" onClick={addKeyword} variant="outline">{t('common.add')}</Button>
           </div>
 
           {formData.keywords && formData.keywords.length > 0 && (
@@ -1298,10 +1300,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               {formData.keywords.map(keyword => (
                 <Badge key={keyword} variant="secondary" className="flex items-center space-x-1">
                   <span>{keyword}</span>
-                  <X
-                    className="w-3 h-3 cursor-pointer hover:text-red-500"
-                    onClick={() => removeKeyword(keyword)}
-                  />
+                  <button type="button" aria-label={t('step1.keywords.remove', { keyword })} onClick={() => removeKeyword(keyword)} className="rounded-full p-1 hover:text-red-500"><X className="w-3 h-3" /></button>
                 </Badge>
               ))}
             </div>
@@ -1319,20 +1318,24 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex space-x-2">
-            <Button onClick={generateTitle} variant="outline" disabled={!formData.service || !formData.description}>
-              {t('step1.projectTitle.generate')}
+            <Button onClick={generateTitle} variant="outline" disabled={!formData.service || !formData.description || isGeneratingTitle}>
+              {isGeneratingTitle ? t('step1.projectTitle.generating') : t('step1.projectTitle.generate')}
             </Button>
-            {suggestedTitle && (
+            {suggestedTitles.length > 0 && (
               <Button onClick={useGeneratedTitle} variant="outline">
                 {t('step1.projectTitle.useGenerated')}
               </Button>
             )}
           </div>
 
-          {suggestedTitle && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          {suggestedTitles.length > 0 && (
+            <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm font-medium text-blue-900">{t('step1.projectTitle.suggested')}</p>
-              <p className="text-blue-800">{suggestedTitle}</p>
+              {suggestedTitles.map((title, index) => (
+                <button key={`${title}-${index}`} type="button" aria-pressed={selectedTitleIndex === index} onClick={() => setSelectedTitleIndex(index)} className={`block w-full rounded border p-2 text-left text-blue-800 ${selectedTitleIndex === index ? 'border-blue-600 bg-white' : 'border-transparent'}`}>
+                  {title}
+                </button>
+              ))}
             </div>
           )}
 
@@ -1365,10 +1368,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleImageUpload(Array.from(e.dataTransfer.files)) }}>
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">{t('step1.images.dropzone')}</p>
             <p className="text-sm text-gray-500 mt-2">{t('step1.images.hint')}</p>
+            <p className="text-xs text-gray-500 mt-1">{t('step1.images.guide')}</p>
             <input
               type="file"
               multiple
@@ -1380,7 +1384,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <Button
               variant="outline"
               className="mt-4"
-              onClick={() => document.getElementById('image-upload')?.click()}
+              type="button" onClick={() => document.getElementById('image-upload')?.click()}
             >
               {t('step1.images.choose')}
             </Button>
@@ -1391,11 +1395,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               {formData.media.images.map((image, index) => (
                 <div key={index} className="relative">
                   <img src={image} alt={t('step1.images.alt', { index: index + 1 })} className="w-full h-24 object-cover rounded" />
+                  {index === 0 && <span className="absolute bottom-1 left-1 rounded bg-white px-2 py-1 text-xs">{t('step1.images.mainImage')}</span>}
+                  <div className="absolute top-1 left-1 flex gap-1">
+                    {index > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => { const images = [...(formData.media?.images || [])]; [images[index - 1], images[index]] = [images[index], images[index - 1]]; updateMedia({ images }) }} aria-label={t('step1.images.moveEarlier', { index: index + 1 })}>←</Button>}
+                    {index < (formData.media?.images.length || 0) - 1 && <Button type="button" size="sm" variant="secondary" onClick={() => { const images = [...(formData.media?.images || [])]; [images[index], images[index + 1]] = [images[index + 1], images[index]]; updateMedia({ images }) }} aria-label={t('step1.images.moveLater', { index: index + 1 })}>→</Button>}
+                    {index > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => { const images = [...(formData.media?.images || [])]; images.unshift(...images.splice(index, 1)); updateMedia({ images }) }}>{t('step1.images.setMain')}</Button>}
+                  </div>
                   <Button
                     variant="destructive"
                     size="sm"
                     className="absolute top-1 right-1 w-6 h-6 p-0"
-                    onClick={() => {
+                    type="button" onClick={() => {
                       const newImages = formData.media?.images?.filter((_, i) => i !== index) || []
                       updateMedia({ images: newImages })
                     }}
@@ -1421,10 +1431,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleVideoUpload(Array.from(e.dataTransfer.files)) }}>
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">{t('step1.video.dropzone')}</p>
             <p className="text-sm text-gray-500 mt-2">{t('step1.video.hint')}</p>
+            <p className="text-xs text-gray-500 mt-1">{t('step1.video.guide')}</p>
             <input
               type="file"
               accept="video/mp4,video/quicktime,video/x-msvideo"
@@ -1435,7 +1446,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <Button
               variant="outline"
               className="mt-4"
-              onClick={() => document.getElementById('video-upload')?.click()}
+              type="button" onClick={() => document.getElementById('video-upload')?.click()}
               disabled={formData.media?.videos && formData.media.videos.length >= 1}
             >
               {t('step1.video.choose')}
@@ -1451,7 +1462,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     variant="destructive"
                     size="sm"
                     className="absolute top-1 right-1"
-                    onClick={() => {
+                    type="button" onClick={() => {
                       updateMedia({ videos: [] })
                     }}
                   >

@@ -32,7 +32,9 @@
     "next": "Next",
     "submitForApproval": "Submit for Approval",
     "submitChanges": "Submit Changes for Re-approval",
-    "alreadySubmitted": "Already Submitted - Go to Projects"
+    "alreadySubmitted": "Already Submitted - Go to Projects",
+    "inProgress": "In progress",
+    "optional": "Optional"
   },
   "common": {
     "loading": "Loading...",
@@ -128,14 +130,18 @@
       "noPricingModels": "No pricing models configured for this service"
     },
     "keywords": {
+      "remove": "Remove keyword {keyword}",
       "title": "Keywords/Tags",
       "description": "Add keywords to help customers find your service",
       "placeholder": "Add keyword..."
     },
     "projectTitle": {
       "cardTitle": "Project Title",
-      "cardDescription": "Generate or create a compelling title for your service (30-90 characters)",
-      "generate": "Generate AI Title",
+      "cardDescription": "Get three editable AI title ideas based on your service, area, selected pricing option, keywords, and description. Review a suggestion before applying it (30–90 characters).",
+      "generate": "Suggest a title",
+      "generating": "Generating…",
+      "generateFailed": "Could not generate title suggestions. Please try again.",
+      "localFallback": "OpenAI is not configured. Showing one local title idea from your project details.",
       "useGenerated": "Use Generated Title",
       "suggested": "Suggested Title:",
       "label": "Project Title *",
@@ -147,14 +153,20 @@
       "description": "Upload up to 4 images to showcase your work (optional)",
       "dropzone": "Click to upload or drag and drop images here",
       "hint": "PNG, JPG, WebP up to 5MB each (max 4 images)",
+      "guide": "Up to 4 images, 5 MiB each. JPEG, PNG, WebP, GIF, or SVG. Landscape 4:3 around 1200 × 900 px is recommended; thumbnails crop to fill. No minimum dimensions.",
       "choose": "Choose Files",
-      "alt": "Project {index}"
+      "alt": "Project {index}",
+      "mainImage": "Main image",
+      "setMain": "Set main",
+      "moveEarlier": "Move image {index} earlier",
+      "moveLater": "Move image {index} later"
     },
     "video": {
       "title": "Project Video (Optional)",
       "description": "Upload 1 video to showcase your work (optional)",
       "dropzone": "Click to upload or drag and drop video here",
       "hint": "MP4, MOV, AVI up to 50MB (max 1 video)",
+      "guide": "One MP4, QuickTime, or AVI video up to 50 MiB. 16:9 around 1280 × 720 px is recommended. No minimum dimensions.",
       "choose": "Choose Video",
       "remove": "Remove Video"
     },
@@ -167,7 +179,8 @@
       "notAnImage": "File {file} is not an image",
       "oneVideoOnly": "Maximum 1 video allowed",
       "videoFormat": "Only MP4, MOV, and AVI video formats are allowed",
-      "videoTooLarge": "Video file is too large. Maximum size is 50MB"
+      "videoTooLarge": "Video file is too large. Maximum size is 50MB",
+      "mediaReadFailed": "This file could not be read. Please choose it again."
     }
   },
   "step2": {
@@ -285,6 +298,8 @@
     "toast": {
       "maxSubprojects": "Maximum 5 subprojects allowed",
       "configFailed": "Failed to load service configuration",
+      "configLoading": "Loading service fields…",
+      "configRetry": "Retry loading fields",
       "materialNameRequired": "Material name is required"
     },
     "predefinedItems": {

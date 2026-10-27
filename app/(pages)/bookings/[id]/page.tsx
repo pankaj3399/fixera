@@ -179,6 +179,7 @@ interface BookingDetail {
     estimatedUnits?: number
     actualUnits?: number
     unitPrice?: number
+    unit?: string
     referenceIndex?: number
   }>
   extraCostStatus?: 'pending' | 'confirmed' | 'disputed'
@@ -215,6 +216,7 @@ interface BookingDetail {
   customerRejectionReason?: string
   milestonePayments?: BookingMilestone[]
   selectedSubprojectIndex?: number
+  checkoutSnapshot?: { unit?: string }
   vatDecision?: {
     action?: 'standard_rate' | 'reduced_rate' | 'rfq'
     country?: string
@@ -392,6 +394,7 @@ type CompletionExtraCost = {
   estimatedUnits?: number
   actualUnits?: number
   unitPrice?: number
+  unit?: string
 }
 
 const UNSELECTED_REFERENCE_INDEX = -1
@@ -4675,9 +4678,10 @@ function BookingDetailContent() {
 
                     {cost.type === 'unit_adjustment' && (() => {
                       const projectPriceModel = (booking?.project as { priceModel?: string } | undefined)?.priceModel || ''
-                      const unitLabel = projectPriceModel && !/^(rfq|fixed|total|unit)/i.test(projectPriceModel.trim())
+                      const unitLabel = cost.unit || booking?.checkoutSnapshot?.unit || (projectPriceModel && !/^(rfq|fixed|total|unit)/i.test(projectPriceModel.trim())
                         ? projectPriceModel
                         : t("extraCosts.unitsFallback")
+                      )
                       return (
                       <div className="grid grid-cols-3 gap-2">
                         <div>

@@ -34,6 +34,8 @@ export interface CurrencyContextValue {
   rates: Record<string, number> | null;
   /** EUR amount in the active currency (returns the EUR amount when unknown). */
   convertFromEur: (amount: number) => number;
+  /** Converts an active-display amount back to EUR when a known rate exists. */
+  convertToEur: (amount: number) => number;
   /**
    * Formats a EUR amount in the active display currency using the active
    * next-intl locale. Falls back to the raw EUR amount when rates are missing;
@@ -145,10 +147,17 @@ export function CurrencyProvider({
     (amount: number) => convertFromEurWithRates(amount, currency, rates),
     [currency, rates]
   );
+  const convertToEur = useCallback(
+    (amount: number) => {
+      const rate = rates?.[currency];
+      return currency === BASE_CURRENCY || !rate || !Number.isFinite(rate) || rate <= 0 ? amount : amount / rate;
+    },
+    [currency, rates]
+  );
 
   const value = useMemo<CurrencyContextValue>(
-    () => ({ currency, setCurrency, rates, convertFromEur: convert, formatPrice, formatMoney }),
-    [currency, setCurrency, rates, convert, formatPrice, formatMoney]
+    () => ({ currency, setCurrency, rates, convertFromEur: convert, convertToEur, formatPrice, formatMoney }),
+    [currency, setCurrency, rates, convert, convertToEur, formatPrice, formatMoney]
   );
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;

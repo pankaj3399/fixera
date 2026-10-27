@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -36,9 +35,10 @@ interface WizardLayoutProps {
   validationMessages?: string[]
   children: React.ReactNode
   isLoading?: boolean
-  canProceed?: boolean
   isEditing?: boolean
   projectStatus?: 'draft' | 'pending_approval' | 'published' | 'rejected' | 'booked' | 'on_hold' | 'completed' | 'cancelled'
+  stepValidation?: boolean[]
+  visitedSteps?: boolean[]
 }
 
 const WIZARD_STEPS: WizardStep[] = [
@@ -95,12 +95,13 @@ export default function WizardLayout({
   validationMessages = [],
   children,
   isLoading = false,
-  canProceed = true,
   isEditing = false,
-  projectStatus
+  projectStatus,
+  stepValidation = [],
+  visitedSteps = []
 }: WizardLayoutProps) {
   const t = useTranslations('projectWizard')
-  const [steps] = useState(WIZARD_STEPS)
+  const steps = WIZARD_STEPS.map((step) => ({ ...step, isCompleted: step.id !== currentStep && Boolean(stepValidation[step.id - 1]) }))
   const progress = (currentStep / 8) * 100
 
   const handleStepClick = (stepId: number) => {
@@ -187,7 +188,7 @@ export default function WizardLayout({
                         {t(WIZARD_STEP_TITLES[step.id])}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {t(step.descriptionKey)}
+                        {step.id === currentStep ? `${t('layout.inProgress')} · ` : step.id >= 7 && !visitedSteps[step.id - 1] ? `${t('layout.optional')} · ` : ''}{t(step.descriptionKey)}
                       </div>
                     </div>
                   </button>
@@ -260,7 +261,7 @@ export default function WizardLayout({
                     {currentStep === 8 ? (
                       <Button
                         onClick={() => {
-                          if (!canProceed && onShowValidationErrors) {
+                          if (onShowValidationErrors) {
                             onShowValidationErrors()
                           } else {
                             onSubmit?.()
@@ -286,7 +287,7 @@ export default function WizardLayout({
                     ) : (
                       <Button
                         onClick={() => {
-                          if (!canProceed && onShowValidationErrors) {
+                          if (onShowValidationErrors) {
                             onShowValidationErrors()
                           } else {
                             onNext()

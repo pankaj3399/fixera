@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense, ComponentProps, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Loader2, AlertCircle, Search as SearchIcon } from 'lucide-react';
+import { AlertCircle, Search as SearchIcon } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,6 +16,8 @@ import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
 import { trackProjectSearch } from '@/lib/analytics';
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { getAuthToken } from '@/lib/utils';
 
 type ProfessionalResult = ComponentProps<typeof ProfessionalCard>['professional'];
 type ProjectResult = ComponentProps<typeof ProjectCard>['project'];
@@ -26,18 +28,6 @@ type PaginationState = {
   page: number;
   limit: number;
   totalPages: number;
-};
-
-const normalizeText = (value?: string | null) => {
-  if (!value) return '';
-  const trimmed = value.trim();
-  return trimmed;
-};
-
-const incrementFacetCount = (target: Record<string, number>, rawValue?: string | null) => {
-  const normalized = normalizeText(rawValue);
-  if (!normalized) return;
-  target[normalized] = (target[normalized] || 0) + 1;
 };
 
 const countActiveFilters = (filters: SearchFiltersState): number => {
@@ -58,99 +48,6 @@ const countActiveFilters = (filters: SearchFiltersState): number => {
     filters.professionalLevels.length > 0,
     filters.adminTags.length > 0,
   ].filter(Boolean).length;
-};
-
-const buildProjectFacets = (projects: ProjectResult[]): ProjectFacetCounts => {
-  const facets: ProjectFacetCounts = {
-    categories: {},
-    services: {},
-    areasOfWork: {},
-    priceModels: {},
-    projectTypes: {},
-    includedItems: {},
-  };
-
-  projects.forEach((project) => {
-    const subprojects = project.subprojects && project.subprojects.length > 0
-      ? project.subprojects
-      : [];
-
-    // For projects without subprojects
-    if (subprojects.length === 0) {
-      incrementFacetCount(facets.categories, project.category);
-      incrementFacetCount(facets.services, project.service);
-      incrementFacetCount(facets.areasOfWork, project.areaOfWork);
-      return;
-    }
-
-    // Use Sets to track unique values per project (so each project is only counted once)
-    const projectCategories = new Set<string>();
-    const projectServices = new Set<string>();
-    const projectAreasOfWork = new Set<string>();
-    const projectPriceModels = new Set<string>();
-    const projectProjectTypes = new Set<string>();
-    const projectIncludedItems = new Set<string>();
-
-    subprojects.forEach((subproject) => {
-      // Collect unique categories and services
-      const category = normalizeText(project.category);
-      if (category) projectCategories.add(category);
-
-      const service = normalizeText(project.service);
-      if (service) projectServices.add(service);
-
-      // Collect unique areas of work
-      const projectArea = normalizeText(project.areaOfWork);
-      if (projectArea) {
-        projectAreasOfWork.add(projectArea);
-      }
-
-      const serviceSelection = project.services;
-      if (Array.isArray(serviceSelection)) {
-        serviceSelection.forEach((serviceItem) => {
-          const areaName = normalizeText(serviceItem?.areaOfWork);
-          if (areaName) {
-            projectAreasOfWork.add(areaName);
-          }
-        });
-      }
-
-      // Collect unique price models
-      const priceType = subproject?.pricing?.type
-        ? subproject.pricing.type.toLowerCase()
-        : undefined;
-      const priceModel = normalizeText(priceType);
-      if (priceModel) projectPriceModels.add(priceModel);
-
-      // Collect unique project types
-      const projectTypes = subproject.projectType;
-      if (Array.isArray(projectTypes)) {
-        projectTypes.forEach((type) => {
-          const normalized = normalizeText(type);
-          if (normalized) projectProjectTypes.add(normalized);
-        });
-      }
-
-      // Collect unique included items
-      const includedItems = subproject.included;
-      if (Array.isArray(includedItems)) {
-        includedItems.forEach((item) => {
-          const itemName = normalizeText(item?.name);
-          if (itemName) projectIncludedItems.add(itemName);
-        });
-      }
-    });
-
-    // Now increment facet counts once per unique value per project
-    projectCategories.forEach((value) => incrementFacetCount(facets.categories, value));
-    projectServices.forEach((value) => incrementFacetCount(facets.services, value));
-    projectAreasOfWork.forEach((value) => incrementFacetCount(facets.areasOfWork, value));
-    projectPriceModels.forEach((value) => incrementFacetCount(facets.priceModels, value));
-    projectProjectTypes.forEach((value) => incrementFacetCount(facets.projectTypes, value));
-    projectIncludedItems.forEach((value) => incrementFacetCount(facets.includedItems, value));
-  });
-
-  return facets;
 };
 
 const extractLocationDetails = (raw?: string | null) => {
@@ -183,6 +80,7 @@ function SearchPageContent() {
   const t = useTranslations('search');
   const getErrorText = useErrorMessage();
   const { user, loading: authLoading } = useAuth();
+  const { convertToEur } = useCurrency();
   const initialQuery = searchParams.get('q') || '';
   const initialLocation = searchParams.get('loc') || '';
   const initialType = (searchParams.get('type') || 'professionals') as 'professionals' | 'projects';
@@ -207,7 +105,9 @@ function SearchPageContent() {
     limit: 20,
     totalPages: 0,
   });
+  const [projectFacets, setProjectFacets] = useState<ProjectFacetCounts | null>(null);
 
+  const [filterResetVersion, setFilterResetVersion] = useState(0);
   const [filters, setFilters] = useState<SearchFiltersState>({
     query: initialQuery,
     location: initialLocation,
@@ -237,6 +137,8 @@ function SearchPageContent() {
   } | null>(initialCoordinates);
 
   const searchAbortRef = useRef<AbortController | null>(null);
+  const resultsStartRef = useRef<HTMLDivElement | null>(null);
+  const shouldScrollAfterFilterRef = useRef(false);
   const profileLocationHydratedForUserRef = useRef<string | null>(
     initialLocation ? "__url_location__" : null,
   );
@@ -259,16 +161,6 @@ function SearchPageContent() {
   );
   const favoritedProfessionals = useFavoriteStatus('professional', professionalIds);
   const favoritedProjects = useFavoriteStatus('project', projectIds);
-  const projectFacets = useMemo(() => {
-    if (searchType !== 'projects') {
-      return null;
-    }
-    if (projectResults.length === 0) {
-      return null;
-    }
-    return buildProjectFacets(projectResults);
-  }, [projectResults, searchType]);
-
   // Reuse the globally loaded auth principal instead of issuing another /me request.
   useEffect(() => {
     if (authLoading) return;
@@ -319,6 +211,7 @@ function SearchPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     authLoading,
+    user?.role,
     searchType,
     filters.query,
     filters.location,
@@ -338,12 +231,23 @@ function SearchPageContent() {
     filters.professionalLevels,
     filters.adminTags,
     filters.minProjectRating,
+    user?._id,
     pagination.page,
-    locationCoordinates
+    locationCoordinates,
+    convertToEur
   ]);
 
   const performSearch = async () => {
     searchAbortRef.current?.abort();
+    const minPrice = filters.priceMin === '' ? undefined : Number(filters.priceMin);
+    const maxPrice = filters.priceMax === '' ? undefined : Number(filters.priceMax);
+    if (searchType === 'projects' && ([minPrice, maxPrice].some((value) => value !== undefined && (!Number.isFinite(value) || value < 0)) || (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice))) {
+      setIsLoading(false);
+      setError(null);
+      setResults([]);
+      setPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 1 }));
+      return;
+    }
     const controller = new AbortController();
     searchAbortRef.current = controller;
     setIsLoading(true);
@@ -358,8 +262,9 @@ function SearchPageContent() {
 
       if (filters.query) params.append('q', filters.query);
       if (filters.location) params.append('loc', filters.location);
-      if (filters.priceMin) params.append('priceMin', filters.priceMin);
-      if (filters.priceMax) params.append('priceMax', filters.priceMax);
+      const toBasePrice = (value: string) => searchType === 'projects' ? convertToEur(Number(value)) : value;
+      if (filters.priceMin !== '') params.append('priceMin', String(toBasePrice(filters.priceMin)));
+      if (filters.priceMax !== '') params.append('priceMax', String(toBasePrice(filters.priceMax)));
       if (filters.category) params.append('category', filters.category);
       if (filters.availability) params.append('availability', 'true');
       if (filters.sortBy) params.append('sortBy', filters.sortBy);
@@ -371,13 +276,15 @@ function SearchPageContent() {
       if (filters.projectTypes.length > 0) params.append('projectTypes', filters.projectTypes.join(','));
       if (filters.includedItems.length > 0) params.append('includedItems', filters.includedItems.join(','));
       if (filters.areasOfWork.length > 0) params.append('areaOfWork', filters.areasOfWork.join(','));
-      if (filters.startDateFrom) params.append('startDateFrom', filters.startDateFrom.toISOString());
-      if (filters.startDateTo) params.append('startDateTo', filters.startDateTo.toISOString());
+      const dateOnly = (date: Date) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+      if (filters.startDateFrom) params.append('startDateFrom', dateOnly(filters.startDateFrom));
+      if (filters.startDateTo) params.append('startDateTo', dateOnly(filters.startDateTo));
       if (filters.professionalLevels.length > 0) params.append('professionalLevels', filters.professionalLevels.join(','));
       if (filters.adminTags.length > 0) params.append('adminTags', filters.adminTags.join(','));
       if (searchType === 'projects' && filters.minProjectRating > 0) {
         params.append('minRating', filters.minProjectRating.toString());
       }
+
 
       if (searchType === 'projects' && (filters.location || filters.geographicArea)) {
         const locationDetails = extractLocationDetails(filters.location || filters.geographicArea);
@@ -396,7 +303,9 @@ function SearchPageContent() {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
       const searchUrl = `${backendUrl}/api/search?${params.toString()}`;
 
+      const token = getAuthToken();
       const response = await fetch(searchUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
         signal: controller.signal,
       });
@@ -410,6 +319,7 @@ function SearchPageContent() {
       const data = (await response.json()) as {
         results?: SearchResult[];
         pagination?: PaginationState;
+        facets?: ProjectFacetCounts;
       };
       if (controller.signal.aborted) return;
        if (searchType === 'projects' && Array.isArray(data.results)) {
@@ -447,6 +357,7 @@ function SearchPageContent() {
         }
       }
       setResults(data.results ?? []);
+      setProjectFacets(searchType === 'projects' ? data.facets ?? null : null);
       setPagination((prev) => data.pagination ?? prev);
       trackProjectSearch({
         searchType,
@@ -456,6 +367,10 @@ function SearchPageContent() {
         page: pagination.page,
         filtersCount: countActiveFilters(filters),
       });
+      if (shouldScrollAfterFilterRef.current) {
+        shouldScrollAfterFilterRef.current = false;
+        requestAnimationFrame(() => resultsStartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
     } catch (err) {
       if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return;
       console.error('Search error:', err);
@@ -469,11 +384,14 @@ function SearchPageContent() {
   };
 
   const handleFilterChange = <K extends keyof SearchFiltersState>(key: K, value: SearchFiltersState[K]) => {
+    shouldScrollAfterFilterRef.current = true;
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPagination((prev) => ({ ...prev, page: 1 })); // Reset to page 1 on filter change
   };
 
   const handleClearFilters = () => {
+    setFilterResetVersion(version => version + 1);
+    shouldScrollAfterFilterRef.current = true;
     setFilters({
       query: initialQuery,
       location: '',
@@ -505,6 +423,7 @@ function SearchPageContent() {
   };
 
   const handleSearchTypeChange = (newType: 'professionals' | 'projects') => {
+    setProjectFacets(null);
     setSearchType(newType);
     setPagination((prev) => ({ ...prev, page: 1 }));
     setResults([]);
@@ -548,6 +467,7 @@ function SearchPageContent() {
                 filters={filters}
                 onFilterChange={handleFilterChange}
                 onClearFilters={handleClearFilters}
+                resetVersion={filterResetVersion}
                 searchType={searchType}
                 categories={filterOptions.categories}
                 filterOptions={filterOptions}
@@ -558,7 +478,7 @@ function SearchPageContent() {
           </aside>
 
           {/* Results Grid */}
-          <div className="lg:col-span-3">
+          <div ref={resultsStartRef} className="lg:col-span-3 scroll-mt-24 min-h-[24rem]">
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {[1, 2, 3, 4, 5, 6].map(i => (
