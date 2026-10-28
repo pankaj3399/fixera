@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslations } from "next-intl"
 import { format, parseISO, isValid } from "date-fns"
+import type { Locale as DateFnsLocale } from "date-fns"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getAuthToken } from "@/lib/utils"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { ChevronLeft, ChevronRight, Loader2, Lock } from "lucide-react"
 
 type PlanningResource = {
@@ -47,10 +50,10 @@ const parseDayKey = (value?: string | null): Date | null => {
   return isValid(d) ? d : null
 }
 
-const formatDayKeyLabel = (dayKey: string, fmt: string): string => {
+const formatDayKeyLabel = (dayKey: string, fmt: string, locale: DateFnsLocale): string => {
   const m = DAY_KEY_RE.exec(dayKey)
   const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : parseISO(dayKey)
-  return isValid(d) ? format(d, fmt) : ""
+  return isValid(d) ? format(d, fmt, { locale }) : ""
 }
 
 const enumerateDays = (from?: string, to?: string): string[] => {
@@ -80,6 +83,8 @@ const isWeekend = (dayKey: string): boolean => {
 }
 
 export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: PlanningDialogProps) {
+  const t = useTranslations("dashboardWidgets")
+  const { dateFns } = useFormatLocale()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [payload, setPayload] = useState<PlanningPayload | null>(null)
@@ -116,13 +121,13 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
         })
         const body = await response.json().catch(() => null)
         if (!response.ok || !body?.success) {
-          toast.error(body?.error?.message || "Failed to load planning")
+          toast.error(body?.error?.message || t("planningDialog.loadFailed"))
           if (!cancelled) onClose()
           return
         }
         if (!cancelled) hydrate(body.data as PlanningPayload)
       } catch {
-        toast.error("Failed to load planning")
+        toast.error(t("planningDialog.loadFailed"))
         if (!cancelled) onClose()
       } finally {
         if (!cancelled) setLoading(false)
@@ -190,7 +195,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
           ([rid, set]) => rid !== resourceId && set.has(dayKey)
         )
         if (!othersOnStart) {
-          toast.error("At least one resource must stay planned on the start date.")
+          toast.error(t("planningDialog.keepStartResource"))
           return
         }
       }
@@ -203,7 +208,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
         return next
       })
     },
-    [isLocked, planned, payload?.startDate]
+    [isLocked, planned, payload?.startDate, t]
   )
 
   const submit = async () => {
@@ -222,33 +227,35 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
       })
       const body = await response.json().catch(() => null)
       if (!response.ok || !body?.success) {
-        toast.error(body?.error?.message || "Failed to save planning")
+        toast.error(body?.error?.message || t("planningDialog.saveFailed"))
         return
       }
-      toast.success("Planning updated.")
+      toast.success(t("planningDialog.updated"))
       if (body.data) hydrate(body.data as PlanningPayload)
       await onUpdated?.()
       onClose()
     } catch {
-      toast.error("Failed to save planning")
+      toast.error(t("planningDialog.saveFailed"))
     } finally {
       setSaving(false)
     }
   }
 
-  const startLabel = payload?.startDate ? formatDayKeyLabel(payload.startDate, "dd MMM yyyy") : "Unscheduled"
+  const startLabel = payload?.startDate
+    ? formatDayKeyLabel(payload.startDate, "dd MMM yyyy", dateFns)
+    : t("common.unscheduled")
 
   return (
     <Dialog open={open} onOpenChange={(value) => !value && !saving && onClose()}>
       <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>
-            Planning
+            {t("planningDialog.title")}
             {payload?.bookingNumber ? ` — ${payload.bookingNumber}` : ""}
           </DialogTitle>
           <DialogDescription>
-            {payload?.customerName ? `Customer: ${payload.customerName}. ` : ""}
-            Click a day to plan or unplan a resource. Each resource can have non-contiguous days.
+            {payload?.customerName ? `${t("planningDialog.customer", { name: payload.customerName })} ` : ""}
+            {t("planningDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -262,24 +269,27 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
               <div className="flex items-center gap-2">
                 <Lock className="h-3.5 w-3.5" />
                 <span>
-                  Booking start: <strong>{startLabel}</strong>
+                  {t.rich("planningDialog.bookingStart", {
+                    date: startLabel,
+                    strong: (chunks) => <strong>{chunks}</strong>,
+                  })}
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-slate-500">
-                The start date is read-only here. Change it via a reschedule request.
-                {isInProgress && " Work in progress: days before today are locked."}
+                {t("planningDialog.startDateHint")}
+                {isInProgress && ` ${t("planningDialog.inProgressHint")}`}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
               <span className="inline-flex items-center gap-1">
-                <span className="inline-block h-3 w-3 rounded border border-emerald-400 bg-emerald-300" /> Planned
+                <span className="inline-block h-3 w-3 rounded border border-emerald-400 bg-emerald-300" /> {t("planningDialog.planned")}
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="inline-block h-3 w-3 rounded border border-sky-400 bg-sky-300" /> Unavailable
+                <span className="inline-block h-3 w-3 rounded border border-sky-400 bg-sky-300" /> {t("planningDialog.unavailable")}
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="inline-block h-3 w-3 rounded border border-slate-300 bg-white" /> Available
+                <span className="inline-block h-3 w-3 rounded border border-slate-300 bg-white" /> {t("planningDialog.available")}
               </span>
             </div>
 
@@ -291,12 +301,12 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                   size="sm"
                   onClick={() => setWeekStart((prev) => Math.max(0, prev - PAGE_SIZE))}
                   disabled={!hasPrevWeek}
-                  aria-label="Previous days"
+                  aria-label={t("planningDialog.previousDays")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-xs font-medium text-slate-600">
-                  {formatDayKeyLabel(visibleDays[0], "dd MMM")} – {formatDayKeyLabel(visibleDays[visibleDays.length - 1], "dd MMM yyyy")}
+                  {formatDayKeyLabel(visibleDays[0], "dd MMM", dateFns)} – {formatDayKeyLabel(visibleDays[visibleDays.length - 1], "dd MMM yyyy", dateFns)}
                 </span>
                 <Button
                   type="button"
@@ -304,7 +314,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                   size="sm"
                   onClick={() => setWeekStart((prev) => prev + PAGE_SIZE)}
                   disabled={!hasNextWeek}
-                  aria-label="Next days"
+                  aria-label={t("planningDialog.nextDays")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -316,7 +326,7 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                 <thead>
                   <tr>
                     <th className="sticky left-0 z-10 min-w-[140px] border-b border-r border-slate-200 bg-slate-50 px-2 py-1 text-left font-medium text-slate-700">
-                      Resource
+                      {t("planningDialog.resource")}
                     </th>
                     {visibleDays.map((dayKey) => {
                       const weekend = isWeekend(dayKey)
@@ -325,9 +335,9 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                           key={dayKey}
                           className={`border-b border-r border-slate-200 px-1 py-1 text-center font-medium ${weekend ? "bg-slate-100 text-slate-400" : "bg-slate-50 text-slate-600"}`}
                         >
-                          <div>{formatDayKeyLabel(dayKey, "EEE")[0] || ""}</div>
-                          <div>{formatDayKeyLabel(dayKey, "dd")}</div>
-                          <div className="text-[9px] text-slate-400">{formatDayKeyLabel(dayKey, "MMM")}</div>
+                          <div>{formatDayKeyLabel(dayKey, "EE", dateFns)}</div>
+                          <div>{formatDayKeyLabel(dayKey, "dd", dateFns)}</div>
+                          <div className="text-[9px] text-slate-400">{formatDayKeyLabel(dayKey, "MMM", dateFns)}</div>
                         </th>
                       )
                     })}
@@ -360,8 +370,12 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
                             }}
                             role={locked ? undefined : "button"}
                             tabIndex={locked ? undefined : 0}
-                            aria-label={`${resource.name || resource._id} — ${dayKey}${locked ? " (unavailable)" : ""}`}
-                            title={`${resource.name || resource._id} — ${dayKey}${locked ? " (unavailable)" : ""}`}
+                            aria-label={locked
+                              ? t("planningDialog.cellLabelLocked", { resource: resource.name || resource._id, day: formatDayKeyLabel(dayKey, "dd MMM yyyy", dateFns) })
+                              : t("planningDialog.cellLabel", { resource: resource.name || resource._id, day: formatDayKeyLabel(dayKey, "dd MMM yyyy", dateFns) })}
+                            title={locked
+                              ? t("planningDialog.cellLabelLocked", { resource: resource.name || resource._id, day: formatDayKeyLabel(dayKey, "dd MMM yyyy", dateFns) })
+                              : t("planningDialog.cellLabel", { resource: resource.name || resource._id, day: formatDayKeyLabel(dayKey, "dd MMM yyyy", dateFns) })}
                           >
                             {state === "blocked" ? <Lock className="mx-auto h-3 w-3 text-sky-700" /> : null}
                           </td>
@@ -375,11 +389,11 @@ export default function PlanningDialog({ open, bookingId, onClose, onUpdated }: 
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onClose} disabled={saving}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button onClick={submit} disabled={saving}>
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save plan
+                {t("planningDialog.savePlan")}
               </Button>
             </div>
           </div>

@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, ArrowDown, ArrowUp, Minus, Clock, Shield, Package, CreditCard, Calendar } from 'lucide-react'
 import { getAuthToken } from '@/lib/utils'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 import type { QuoteVersion } from '@/types/quotation'
 
 interface QuoteBookingSummary {
@@ -25,26 +28,26 @@ interface FetchedQuote {
   booking: QuoteBookingSummary
   version: QuoteVersion | null
   loading: boolean
+  /** Translation key of the error to show (`noData` / `loadFailed`). */
   error: string | null
 }
 
-const formatDuration = (d?: { value: number; unit: string }) => {
-  if (!d || !d.value) return '-'
-  return `${d.value} ${d.unit}`
-}
-
-const formatCurrency = (amount: number, currency = 'EUR') => {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
-}
-
-const formatDate = (dateStr?: string) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString()
-}
-
 export default function QuoteComparisonModal({ open, onOpenChange, bookings }: QuoteComparisonModalProps) {
+  const t = useTranslations('dashboardWidgets')
+  const { formatMoney } = useCurrency()
+  const { intl } = useFormatLocale()
   const [quotes, setQuotes] = useState<FetchedQuote[]>([])
   const requestSeqRef = useRef(0)
+
+  const formatDuration = (d?: { value: number; unit: 'hours' | 'days' | 'months' | 'years' }) => {
+    if (!d || !d.value) return '-'
+    return t('quoteComparison.duration', { value: d.value, unit: t(d.value === 1 ? `unitOne.${d.unit}` : `unit.${d.unit}`) })
+  }
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleDateString(intl)
+  }
 
   useEffect(() => {
     if (!open || bookings.length === 0) {
@@ -84,11 +87,11 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
             const current = versions[versions.length - 1]
             setQuotes(prev => prev.map((q) => q.booking._id === booking._id ? { ...q, version: current, loading: false } : q))
           } else {
-            setQuotes(prev => prev.map((q) => q.booking._id === booking._id ? { ...q, loading: false, error: 'No quotation data' } : q))
+            setQuotes(prev => prev.map((q) => q.booking._id === booking._id ? { ...q, loading: false, error: 'noData' } : q))
           }
         } catch {
           if (controller.signal.aborted || requestSeqRef.current !== runSeq) return
-          setQuotes(prev => prev.map((q) => q.booking._id === booking._id ? { ...q, loading: false, error: 'Failed to load' } : q))
+          setQuotes(prev => prev.map((q) => q.booking._id === booking._id ? { ...q, loading: false, error: 'loadFailed' } : q))
         }
       }
       fetchVersion()
@@ -120,23 +123,23 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
     v.warrantyDuration.unit === 'years' ? v.warrantyDuration.value * 12 : v.warrantyDuration.value
 
   const getProfName = (b: QuoteBookingSummary) =>
-    b.professional?.username || b.professional?.name || 'Professional'
+    b.professional?.username || b.professional?.name || t('common.professional')
 
   const rows: { label: string; icon: React.ReactNode; render: (v: QuoteVersion, b: QuoteBookingSummary) => React.ReactNode }[] = [
     {
-      label: 'Scope',
+      label: t('quoteComparison.row.scope'),
       icon: <Package className="h-4 w-4" />,
       render: (v) => <span className="text-sm">{v.scope}</span>,
     },
     {
-      label: 'Total Price',
+      label: t('quoteComparison.row.totalPrice'),
       icon: <CreditCard className="h-4 w-4" />,
       render: (v) => {
         const isBest = lowestPrice !== null && v.totalAmount === lowestPrice
         return (
           <div className="flex items-center gap-1">
             <span className={`text-sm font-semibold ${isBest ? 'text-green-700' : ''}`}>
-              {formatCurrency(v.totalAmount, v.currency)}
+              {formatMoney(v.totalAmount, v.currency)}
             </span>
             {isBest && <ArrowDown className="h-3 w-3 text-green-600" />}
           </div>
@@ -144,18 +147,18 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
       },
     },
     {
-      label: 'Milestones',
+      label: t('quoteComparison.row.milestones'),
       icon: <Minus className="h-4 w-4" />,
       render: (v) => (
         <span className="text-sm">
           {v.milestones && v.milestones.length > 0
-            ? `${v.milestones.length} payment milestone${v.milestones.length > 1 ? 's' : ''}`
-            : 'Single payment'}
+            ? t('quoteComparison.milestoneCount', { count: v.milestones.length })
+            : t('quoteComparison.singlePayment')}
         </span>
       ),
     },
     {
-      label: 'Warranty',
+      label: t('quoteComparison.row.warranty'),
       icon: <Shield className="h-4 w-4" />,
       render: (v) => {
         const months = getWarrantyMonths(v)
@@ -163,7 +166,7 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
         return (
           <div className="flex items-center gap-1">
             <span className={`text-sm ${isBest ? 'text-green-700 font-semibold' : ''}`}>
-              {v.warrantyDuration.value} {v.warrantyDuration.unit}
+              {v.warrantyDuration.value} {t(v.warrantyDuration.value === 1 ? `unitOne.${v.warrantyDuration.unit}` : `unit.${v.warrantyDuration.unit}`)}
             </span>
             {isBest && <ArrowUp className="h-3 w-3 text-green-600" />}
           </div>
@@ -171,11 +174,11 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
       },
     },
     {
-      label: 'Materials Included',
+      label: t('quoteComparison.row.materialsIncluded'),
       icon: <Package className="h-4 w-4" />,
       render: (v) => (
         <span className="text-sm">
-          {v.materialsIncluded ? 'Yes' : 'No'}
+          {v.materialsIncluded ? t('common.yes') : t('common.no')}
           {v.materialsIncluded && v.materials && v.materials.length > 0 && (
             <span className="text-xs text-gray-500 block">
               {v.materials.map(m => m.name).join(', ')}
@@ -185,32 +188,32 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
       ),
     },
     {
-      label: 'Description',
+      label: t('quoteComparison.row.description'),
       icon: null,
       render: (v) => <p className="text-sm text-gray-700 line-clamp-3">{v.description}</p>,
     },
     {
-      label: 'Preparation Time',
+      label: t('quoteComparison.row.preparationTime'),
       icon: <Clock className="h-4 w-4" />,
       render: (v) => <span className="text-sm">{formatDuration(v.preparationDuration)}</span>,
     },
     {
-      label: 'Execution Time',
+      label: t('quoteComparison.row.executionTime'),
       icon: <Clock className="h-4 w-4" />,
       render: (v) => <span className="text-sm">{formatDuration(v.executionDuration)}</span>,
     },
     {
-      label: 'Buffer Time',
+      label: t('quoteComparison.row.bufferTime'),
       icon: <Clock className="h-4 w-4" />,
       render: (v) => <span className="text-sm">{formatDuration(v.bufferDuration)}</span>,
     },
     {
-      label: 'Valid Until',
+      label: t('quoteComparison.row.validUntil'),
       icon: <Calendar className="h-4 w-4" />,
       render: (v) => <span className="text-sm">{formatDate(v.validUntil)}</span>,
     },
     {
-      label: 'Version',
+      label: t('quoteComparison.row.version'),
       icon: null,
       render: (v) => <Badge variant="outline" className="text-xs">v{v.version}</Badge>,
     },
@@ -220,19 +223,19 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] lg:max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Compare Quotations ({bookings.length})</DialogTitle>
+          <DialogTitle>{t('quoteComparison.title', { count: bookings.length })}</DialogTitle>
         </DialogHeader>
 
         {quotes.some(q => q.loading) && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-            <span className="ml-2 text-sm text-gray-500">Loading quotation details...</span>
+            <span className="ml-2 text-sm text-gray-500">{t('quoteComparison.loading')}</span>
           </div>
         )}
 
         {allLoaded && loadedQuotes.length === 0 && (
           <p className="text-center text-sm text-gray-500 py-8">
-            No quotation data available for the selected items.
+            {t('quoteComparison.empty')}
           </p>
         )}
 
@@ -242,7 +245,7 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
               <thead>
                 <tr className="border-b">
                   <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-3 min-w-[140px]">
-                    Field
+                    {t('common.field')}
                   </th>
                   {loadedQuotes.map(q => (
                     <th key={q.booking._id} className="text-left text-xs font-medium text-gray-900 py-3 px-3 min-w-[180px]">
@@ -275,7 +278,7 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
 
             {loadedQuotes.some(q => q.version!.milestones && q.version!.milestones.length > 0) && (
               <div className="mt-6 border-t pt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Payment Milestones Breakdown</h4>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('quoteComparison.payments')}</h4>
                 <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${loadedQuotes.length}, 1fr)` }}>
                   {loadedQuotes.map(q => (
                     <div key={q.booking._id} className="space-y-2">
@@ -285,13 +288,13 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
                           <div key={mi} className="bg-gray-50 rounded p-2 text-xs">
                             <div className="flex justify-between">
                               <span className="font-medium">{m.title}</span>
-                              <span>{formatCurrency(m.amount, q.version!.currency)}</span>
+                              <span>{formatMoney(m.amount, q.version!.currency)}</span>
                             </div>
                             {m.description && <p className="text-gray-500 mt-0.5">{m.description}</p>}
                           </div>
                         ))
                       ) : (
-                        <p className="text-xs text-gray-400">No milestones</p>
+                        <p className="text-xs text-gray-400">{t('quoteComparison.noMilestones')}</p>
                       )}
                     </div>
                   ))}
@@ -305,7 +308,7 @@ export default function QuoteComparisonModal({ open, onOpenChange, bookings }: Q
           <div className="mt-2 space-y-1">
             {quotes.filter(q => q.error).map(q => (
               <p key={q.booking._id} className="text-xs text-amber-600">
-                {getProfName(q.booking)}: {q.error}
+                {getProfName(q.booking)}: {q.error === 'noData' ? t('quoteComparison.errors.noData') : t('quoteComparison.errors.loadFailed')}
               </p>
             ))}
           </div>

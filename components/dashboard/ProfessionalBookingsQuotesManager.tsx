@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -102,10 +104,38 @@ interface ProfessionalBookingsQuotesManagerProps {
   mode: ManagerMode
 }
 
+const STATUS_KEYS = {
+  rfq: "status.rfq",
+  rfq_accepted: "status.rfq_accepted",
+  draft_quote: "status.draft_quote",
+  quoted: "status.quoted",
+  quote_accepted: "status.quote_accepted",
+  quote_rejected: "status.quote_rejected",
+  payment_pending: "status.payment_pending",
+  booked: "status.booked",
+  rescheduling_requested: "status.rescheduling_requested",
+  in_progress: "status.in_progress",
+  professional_completed: "status.professional_completed",
+  completed: "status.completed",
+  cancelled: "status.cancelled",
+  refunded: "status.refunded",
+  dispute: "status.dispute",
+  unknown: "status.unknown",
+} as const
+
+type StatusKeyValue = keyof typeof STATUS_KEYS
+
 export default function ProfessionalBookingsQuotesManager({ mode }: ProfessionalBookingsQuotesManagerProps) {
   const PAGE_SIZE = 20
   const router = useRouter()
   const { user, isAuthenticated, loading: authLoading } = useAuth()
+  const t = useTranslations("dashboardWidgets")
+  const { intl } = useFormatLocale()
+
+  const statusLabel = (status: string) => {
+    const key = STATUS_KEYS[status as StatusKeyValue]
+    return key ? t(key) : status
+  }
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [timelineBookings, setTimelineBookings] = useState<Booking[]>([])
@@ -169,12 +199,12 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       if (response.ok && data?.success) {
         setActiveCustomers(data.data?.customers || [])
       } else {
-        setLoadingCustomersError("Failed to load customers")
+        setLoadingCustomersError(t("professionalManager.errors.loadCustomers"))
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       console.error("Error fetching active customers:", err)
-      setLoadingCustomersError("Failed to load customers")
+      setLoadingCustomersError(t("professionalManager.errors.loadCustomers"))
     } finally {
       if (!controller.signal.aborted) {
         setLoadingCustomers(false)
@@ -213,12 +243,12 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           setSelectedProjectId("none")
         }
       } else {
-        setLoadingProjectsError("Failed to load active projects")
+        setLoadingProjectsError(t("professionalManager.errors.loadProjects"))
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       console.error("Error fetching active projects:", err)
-      setLoadingProjectsError("Failed to load active projects")
+      setLoadingProjectsError(t("professionalManager.errors.loadProjects"))
     } finally {
       if (!controller.signal.aborted) {
         setLoadingProjects(false)
@@ -250,11 +280,11 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         setShowCreateQuoteModal(false)
         router.push(`/bookings/${data.data.bookingId}?action=quote`)
       } else {
-        alert(data?.error?.message || "Failed to create quotation")
+        alert(data?.error?.message || t("professionalManager.errors.createQuote"))
       }
     } catch (err) {
       console.error("Error creating direct quotation:", err)
-      alert("Failed to create quotation")
+      alert(t("professionalManager.errors.createQuote"))
     } finally {
       setCreatingQuote(false)
     }
@@ -290,40 +320,40 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
 
   const statusOptions = mode === "quotes"
     ? [
-        { id: "all", label: "All Statuses" },
-        { id: "rfq", label: "RFQ" },
-        { id: "rfq_accepted", label: "RFQ Accepted" },
-        { id: "draft_quote", label: "Draft Quote" },
-        { id: "quoted", label: "Quoted" },
-        { id: "quote_accepted", label: "Accepted" },
-        { id: "quote_rejected", label: "Rejected" },
+        { id: "all", label: t("common.allStatuses") },
+        { id: "rfq", label: t("status.rfq") },
+        { id: "rfq_accepted", label: t("status.rfq_accepted") },
+        { id: "draft_quote", label: t("status.draft_quote") },
+        { id: "quoted", label: t("status.quoted") },
+        { id: "quote_accepted", label: t("status.quote_accepted") },
+        { id: "quote_rejected", label: t("status.quote_rejected") },
       ]
     : [
-        { id: "all", label: "All Statuses" },
-        { id: "awaiting_payment", label: "Awaiting Payment" },
-        { id: "booked", label: "Booked" },
-        { id: "rescheduling_requested", label: "Rescheduling Request" },
-        { id: "in_progress", label: "In Progress" },
-        { id: "completed", label: "Completed" },
-        { id: "cancelled", label: "Cancelled" },
-        { id: "dispute", label: "Dispute" },
-        { id: "refunded", label: "Refunded" },
+        { id: "all", label: t("common.allStatuses") },
+        { id: "awaiting_payment", label: t("status.payment_pending") },
+        { id: "booked", label: t("status.booked") },
+        { id: "rescheduling_requested", label: t("status.rescheduling_requested") },
+        { id: "in_progress", label: t("status.in_progress") },
+        { id: "completed", label: t("status.completed") },
+        { id: "cancelled", label: t("status.cancelled") },
+        { id: "dispute", label: t("status.dispute") },
+        { id: "refunded", label: t("status.refunded") },
       ]
 
   const pageCopy = mode === "bookings"
     ? {
-      title: "Manage Bookings",
-      description: "View all pending and finished bookings.",
-      pendingTitle: "Pending Bookings",
-      finishedTitle: "Finished Bookings",
-      empty: "No bookings found.",
+      title: t("professionalManager.page.bookingsTitle"),
+      description: t("professionalManager.page.bookingsDescription"),
+      pendingTitle: t("professionalManager.page.pendingBookings"),
+      finishedTitle: t("professionalManager.page.finishedBookings"),
+      empty: t("professionalManager.page.emptyBookings"),
     }
     : {
-      title: "Manage Quotes",
-      description: "View all pending and finished quotes.",
-      pendingTitle: "Pending Quotes",
-      finishedTitle: "Finished Quotes",
-      empty: "No quotes found.",
+      title: t("professionalManager.page.quotesTitle"),
+      description: t("professionalManager.page.quotesDescription"),
+      pendingTitle: t("professionalManager.page.pendingQuotes"),
+      finishedTitle: t("professionalManager.page.finishedQuotes"),
+      empty: t("professionalManager.page.emptyQuotes"),
     }
 
   useEffect(() => {
@@ -424,7 +454,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           return merged
         })
       } else {
-        const msg = data.msg || "Failed to load bookings."
+        const msg = data.msg || t("professionalManager.errors.loadBookings")
         if (append) {
           setLoadMoreError(msg)
         } else {
@@ -434,9 +464,9 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     } catch (fetchError) {
       console.error("Failed to fetch bookings:", fetchError)
       if (append) {
-        setLoadMoreError("Failed to load bookings.")
+        setLoadMoreError(t("professionalManager.errors.loadBookings"))
       } else {
-        setError("Failed to load bookings.")
+        setError(t("professionalManager.errors.loadBookings"))
       }
     } finally {
       if (append) {
@@ -445,7 +475,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         setIsLoading(false)
       }
     }
-  }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim()])
+  }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim(), t])
 
   const refreshBookings = useCallback(async () => {
     await fetchBookings(1, false)
@@ -565,7 +595,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto" />
-          <p className="mt-3 text-sm text-gray-600">Loading...</p>
+          <p className="mt-3 text-sm text-gray-600">{t("common.loading")}</p>
         </div>
       </div>
     )
@@ -584,8 +614,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       <div className="space-y-3">
         {items.map((booking) => {
           const isProject = isProjectBooking(booking)
-          const { label, className } = getBookingStatusMeta(booking.status)
-          const createdAt = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : null
+          const { className } = getBookingStatusMeta(booking.status)
+          const createdAt = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString(intl) : null
 
           return (
             <div
@@ -598,7 +628,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                     checked={selectedQuoteIds.has(booking._id)}
                     onCheckedChange={() => toggleQuoteSelection(booking._id)}
                     className="mt-1 shrink-0"
-                    aria-label={`Select for comparison`}
+                    aria-label={t("professionalManager.selectForComparison")}
                   />
                 )}
                 <div className="min-w-0">
@@ -609,16 +639,16 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                       <Briefcase className="h-4 w-4 text-indigo-500 shrink-0" />
                     )}
                     <h3 className="font-semibold text-sm text-gray-900 truncate">
-                      {getBookingTitle(booking)}
+                      {getBookingTitle(booking, t("common.bookingFallback"))}
                     </h3>
                   </div>
                   <div className="text-xs text-gray-600 flex flex-wrap gap-3">
-                    <span>Customer: {booking.customer?.name || "Unknown"}</span>
-                    {createdAt && <span>Created: {createdAt}</span>}
+                    <span>{t("professionalManager.customerLabel", { name: booking.customer?.name || t("common.unknown") })}</span>
+                    {createdAt && <span>{t("professionalManager.created", { date: createdAt })}</span>}
                   </div>
                   <div className="mt-2">
                     <Badge variant="outline" className={`text-xs capitalize ${className}`}>
-                      {label}
+                      {statusLabel(booking.status)}
                     </Badge>
                   </div>
                 </div>
@@ -630,17 +660,17 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                     onClick={() => router.push(`/bookings/${booking._id}`)}
                     className="text-xs"
                   >
-                    View
+                    {t("common.view")}
                   </Button>
                   {mode === "quotes" && booking.status === "rfq" && (
                     <Button
                       size="sm"
                       onClick={() => router.push(`/bookings/${booking._id}?action=quote`)}
                       className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                      title="Sends a single-amount quotation. To split into milestones, open View → Accept RFQ → Build Quotation."
+                      title={t("professionalManager.quickQuoteTitle")}
                     >
                       <FileText className="h-3 w-3 mr-1" />
-                      Quick Quote
+                      {t("professionalManager.quickQuote")}
                     </Button>
                   )}
                 </div>
@@ -658,7 +688,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            {t("professionalManager.backToDashboard")}
           </Button>
           <div className="flex gap-2">
             {mode === "quotes" && comparisonBookings.length >= 2 && (
@@ -668,7 +698,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                 className="text-xs"
               >
                 <GitCompareArrows className="h-4 w-4 mr-2" />
-                Compare ({comparisonBookings.length})
+                {t("professionalManager.compare", { count: comparisonBookings.length })}
               </Button>
             )}
             {mode === "quotes" && (
@@ -677,12 +707,12 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                 className="bg-purple-600 hover:bg-purple-700 text-white"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Create Quote
+                {t("professionalManager.createQuote")}
               </Button>
             )}
             <Button variant="outline" onClick={() => void handleRefresh()} disabled={isLoading || isLoadingMore}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-              Refresh
+              {t("professionalManager.refresh")}
             </Button>
           </div>
         </div>
@@ -697,22 +727,22 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         <div className="grid md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Total</CardDescription>
+              <CardDescription>{t("professionalManager.stats.total")}</CardDescription>
               <CardTitle>{totalBookings}</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 text-xs text-gray-500">
-              {relevantBookings.length} currently loaded
+              {t("professionalManager.stats.currentlyLoaded", { count: relevantBookings.length })}
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Pending</CardDescription>
+              <CardDescription>{t("professionalManager.stats.pending")}</CardDescription>
               <CardTitle>{pendingBookings.length}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Finished</CardDescription>
+              <CardDescription>{t("professionalManager.stats.finished")}</CardDescription>
               <CardTitle>{finishedBookings.length}</CardTitle>
             </CardHeader>
           </Card>
@@ -726,8 +756,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
             )}
             <Input
-              aria-label={`Search ${mode} by title, number, or service`}
-              placeholder={`Search ${mode} by title, #, service…`}
+              aria-label={mode === "quotes" ? t("professionalManager.searchQuotesAria") : t("professionalManager.searchBookingsAria")}
+              placeholder={mode === "quotes" ? t("professionalManager.searchQuotesPlaceholder") : t("professionalManager.searchBookingsPlaceholder")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10"
@@ -736,7 +766,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by status" />
+                <SelectValue placeholder={t("professionalManager.filterByStatus")} />
               </SelectTrigger>
               <SelectContent>
                 {statusOptions.map(opt => (
@@ -746,10 +776,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
             </Select>
             <Select value={serviceFilter} onValueChange={setServiceFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by service" />
+                <SelectValue placeholder={t("professionalManager.filterByService")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Services</SelectItem>
+                <SelectItem value="all">{t("common.allServices")}</SelectItem>
                 {uniqueServices.map(svc => (
                   <SelectItem key={svc} value={svc}>{svc}</SelectItem>
                 ))}
@@ -765,8 +795,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
             )}
             <Input
-              aria-label="Filter by customer name"
-              placeholder="Filter by customer name"
+              aria-label={t("professionalManager.filterByCustomerName")}
+              placeholder={t("professionalManager.filterByCustomerName")}
               value={customerNameFilter}
               onChange={(e) => setCustomerNameFilter(e.target.value)}
               className="pl-10 pr-10"
@@ -777,7 +807,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         {isLoading && (
           <Card>
             <CardContent className="py-8 text-center text-gray-500">
-              Loading...
+              {t("common.loading")}
             </CardContent>
           </Card>
         )}
@@ -797,7 +827,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
             onBookingUpdated={async () => {
               await Promise.all([refreshBookings(), fetchTimelineBookings()])
             }}
-            emptyLabel="No active professional bookings in the selected timeline."
+            emptyLabel={t("professionalManager.timelineEmpty")}
           />
         )}
 
@@ -812,7 +842,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {renderBookingList(pendingBookings, `No pending ${mode}.`)}
+                  {renderBookingList(
+                    pendingBookings,
+                    mode === "quotes" ? t("professionalManager.noPendingQuotes") : t("professionalManager.noPendingBookings")
+                  )}
                 </CardContent>
               </Card>
 
@@ -824,7 +857,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {renderBookingList(finishedBookings, `No finished ${mode}.`)}
+                  {renderBookingList(
+                    finishedBookings,
+                    mode === "quotes" ? t("professionalManager.noFinishedQuotes") : t("professionalManager.noFinishedBookings")
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -849,7 +885,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               onClick={() => fetchBookings(currentPage + 1, true)}
               disabled={isLoadingMore}
             >
-              {isLoadingMore ? "Loading..." : "Load more"}
+              {isLoadingMore ? t("common.loading") : t("professionalManager.loadMore")}
             </Button>
           </div>
         )}
@@ -859,42 +895,42 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       <Dialog open={showCreateQuoteModal} onOpenChange={setShowCreateQuoteModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Direct Quotation</DialogTitle>
-            <DialogDescription>Select a customer from your active conversations and optionally link the quote to one of your published projects.</DialogDescription>
+            <DialogTitle>{t("professionalManager.dialog.title")}</DialogTitle>
+            <DialogDescription>{t("professionalManager.dialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-900">Linked project</p>
+              <p className="text-sm font-medium text-gray-900">{t("professionalManager.dialog.linkedProject")}</p>
               {loadingProjects ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading projects...
+                  {t("professionalManager.dialog.loadingProjects")}
                 </div>
               ) : loadingProjectsError ? (
                 <p className="text-sm text-red-500">{loadingProjectsError}</p>
               ) : (
                 <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose a project" />
+                    <SelectValue placeholder={t("professionalManager.dialog.chooseProject")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No linked project</SelectItem>
+                    <SelectItem value="none">{t("professionalManager.dialog.noLinkedProject")}</SelectItem>
                     {activeProjects.map(project => (
                       <SelectItem key={project._id} value={project._id}>
-                        {project.title || "Untitled project"}
+                        {project.title || t("professionalManager.dialog.untitledProject")}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
               <p className="text-xs text-gray-500">
-                Linking a project lets the quote reuse its title and booking configuration later in the flow.
+                {t("professionalManager.dialog.projectHint")}
               </p>
             </div>
             {loadingCustomers ? (
               <div className="flex items-center gap-2 text-sm text-gray-500 py-4 justify-center">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading customers...
+                {t("professionalManager.dialog.loadingCustomers")}
               </div>
             ) : loadingCustomersError ? (
               <p className="text-sm text-red-500 text-center py-4">
@@ -902,7 +938,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               </p>
             ) : activeCustomers.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">
-                No active conversations found. Start a conversation with a customer first.
+                {t("professionalManager.dialog.noConversations")}
               </p>
             ) : (
               activeCustomers.map(customer => (
@@ -913,7 +949,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
                   className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors flex items-center justify-between"
                 >
                   <div>
-                    <p className="font-medium text-sm">{customer.name || "Customer"}</p>
+                    <p className="font-medium text-sm">{customer.name || t("professionalManager.dialog.customerFallback")}</p>
                     {customer.email && <p className="text-xs text-gray-500">{customer.email}</p>}
                   </div>
                   <FileText className="h-4 w-4 text-gray-400" />

@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -22,22 +24,6 @@ export interface MultiSelectComboboxProps {
   searchPlaceholder?: string;
   ariaLabel?: string;
   className?: string;
-}
-
-function defaultSummary(
-  value: string[],
-  options: readonly MultiSelectOption[],
-  placeholder: string,
-  emptySelectionLabel?: string,
-): string {
-  if (value.length === 0) {
-    return emptySelectionLabel ?? placeholder;
-  }
-  const labelFor = (v: string) => options.find((o) => o.value === v)?.label ?? v;
-  if (value.length <= 2) {
-    return value.map(labelFor).join(", ");
-  }
-  return `${value.length} selected`;
 }
 
 function OptionRow({
@@ -78,12 +64,29 @@ export function MultiSelectCombobox({
   options,
   value,
   onChange,
-  placeholder = "Select…",
+  placeholder,
   emptySelectionLabel,
-  searchPlaceholder = "Search…",
-  ariaLabel = "Options",
+  searchPlaceholder,
+  ariaLabel,
   className,
 }: MultiSelectComboboxProps) {
+  const t = useTranslations("common");
+  const pathname = usePathname();
+  // Admin UI stays English; public pages use the common namespace. Explicit
+  // labels passed by a caller always win over these localized defaults.
+  const isAdmin = pathname?.startsWith("/admin") ?? false;
+  const resolvedPlaceholder = placeholder ?? (isAdmin ? "Select…" : t("multiSelect.placeholder"));
+  const resolvedSearchPlaceholder =
+    searchPlaceholder ?? (isAdmin ? "Search…" : t("multiSelect.searchPlaceholder"));
+  const resolvedAriaLabel = ariaLabel ?? (isAdmin ? "Options" : t("multiSelect.options"));
+  const resolvedSearchAriaLabel = isAdmin
+    ? `Search ${resolvedAriaLabel}`
+    : t("multiSelect.searchOptions", { label: resolvedAriaLabel });
+  const selectedCountLabel = isAdmin
+    ? `${value.length} selected`
+    : t("multiSelect.selectedCount", { count: value.length });
+  const noMatchesLabel = isAdmin ? "No matches" : t("multiSelect.noMatches");
+
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -108,7 +111,14 @@ export function MultiSelectCombobox({
     }
   };
 
-  const summary = defaultSummary(value, options, placeholder, emptySelectionLabel);
+  const labelFor = (optionValue: string) =>
+    options.find((o) => o.value === optionValue)?.label ?? optionValue;
+  const summary =
+    value.length === 0
+      ? emptySelectionLabel ?? resolvedPlaceholder
+      : value.length <= 2
+        ? value.map(labelFor).join(", ")
+        : selectedCountLabel;
 
   return (
     <Popover
@@ -129,7 +139,7 @@ export function MultiSelectCombobox({
           )}
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label={ariaLabel}
+          aria-label={resolvedAriaLabel}
         >
           <span
             className={cn(
@@ -157,15 +167,15 @@ export function MultiSelectCombobox({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={searchPlaceholder}
+              placeholder={resolvedSearchPlaceholder}
               className="h-8 border-0 bg-muted/50 text-sm shadow-none focus-visible:ring-0"
-              aria-label={`Search ${ariaLabel}`}
+              aria-label={resolvedSearchAriaLabel}
             />
           </div>
 
           <div
             role="listbox"
-            aria-label={ariaLabel}
+            aria-label={resolvedAriaLabel}
             aria-multiselectable
             className="max-h-52 overflow-y-auto p-1"
           >
@@ -189,7 +199,9 @@ export function MultiSelectCombobox({
           </div>
 
           {filtered.length === 0 ? (
-            <p className="px-2 py-3 text-center text-sm text-muted-foreground">No matches</p>
+            <p className="px-2 py-3 text-center text-sm text-muted-foreground">
+              {noMatchesLabel}
+            </p>
           ) : null}
         </div>
       </PopoverContent>

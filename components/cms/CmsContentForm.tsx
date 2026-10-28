@@ -1,9 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, FileText, Loader2, Save, Send, Tag, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  FileText,
+  Loader2,
+  Save,
+  Send,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   adminCreateCms,
   adminDeleteCms,
@@ -16,14 +26,18 @@ import {
   CmsContentType,
   CmsServiceOption,
   CmsUpsertPayload,
+  CMS_CONTENT_LOCALE_LABELS,
+  CMS_CONTENT_LOCALES,
   CMS_TYPE_LABELS,
   CMS_TYPE_ORDER,
   FaqCategory,
   getPublicPathForCms,
   getPublicSlugPrefixForCms,
+  normalizeCmsContentLocale,
   persistableCmsHtml,
   persistableCmsMediaUrl,
   slugify,
+  withCmsLangParam,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -108,6 +122,11 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  /** Monotonic form revision, so a retry/save finishing late can't claim fresh state. */
+  const formRevision = useRef(0);
+  const savedRevision = useRef(0);
+  const actionLock = useRef<"save" | "delete" | null>(null);
+  const busy = saving || deleting;
 
   useEffect(() => {
     const stubs = relatedItems.filter((item) => !item.slug);
@@ -173,9 +192,20 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const supportsCountryTargeting = hasTags || isFaq;
   const slugPrefix = getPublicSlugPrefixForCms(type);
   const publicPreviewPath = form.slug ? getPublicPathForCms(type, form.slug) : null;
+  const publicPreviewHref = publicPreviewPath
+    ? withCmsLangParam(publicPreviewPath, normalizeCmsContentLocale(form.locale))
+    : null;
+  const formLocale = normalizeCmsContentLocale(form.locale);
   const coverRecommendation = COVER_RECOMMENDATIONS[type] ?? DEFAULT_COVER_RECOMMENDATION;
 
-  const update = (patch: Partial<CmsContent>) => setForm((f) => ({ ...f, ...patch }));
+  const markFormChanged = () => {
+    formRevision.current += 1;
+  };
+
+  const update = (patch: Partial<CmsContent>) => {
+    setForm((f) => ({ ...f, ...patch }));
+    markFormChanged();
+  };
 
   const addTag = (raw: string) => {
     const t = raw.trim().toLowerCase();
@@ -197,17 +227,20 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   }, [form, requiresCover, isFaq, faqCategoriesError]);
 
   const save = async (status: CmsContentStatus) => {
+    if (actionLock.current) return;
     if (!canSubmit) {
       toast.error("Please fill the required fields");
       return;
     }
+    actionLock.current = "save";
     setSaving(true);
+    const revisionAtSaveStart = formRevision.current;
     try {
       const payload: CmsUpsertPayload = {
         type: form.type,
         title: form.title?.trim(),
         slug: slugify(form.slug || ""),
-        locale: form.locale || "en",
+        locale: formLocale,
         body: persistableCmsHtml(form.body || ""),
         excerpt: form.excerpt || "",
         coverImage: persistableCmsMediaUrl(form.coverImage) ?? (mode === "edit" ? "" : undefined),
@@ -235,31 +268,40 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         router.push(`/admin/cms/${created._id}/edit`);
       } else if (initial?._id) {
         const updated = await adminUpdateCms(initial._id, payload);
-        setForm({
-          ...updated,
-          tags: Array.isArray(updated.tags) ? updated.tags : [],
-          seo: updated.seo || {},
-          coverImageAlt: updated.coverImageAlt || "",
-          activeCountries: Array.isArray(updated.activeCountries) ? updated.activeCountries : [],
-        });
-        setRelatedItems(relatedItemsFromCms(updated.relatedContent));
+        savedRevision.current = revisionAtSaveStart;
+        // The saved status always applies (it drives publish state and the
+        // "View live" link); other fields keep the revision guard so typing
+        // during the request is never clobbered by the server echo.
+        setForm((prev) => ({ ...prev, status: updated.status }));
+        if (formRevision.current === revisionAtSaveStart) {
+          setForm({
+            ...updated,
+            tags: Array.isArray(updated.tags) ? updated.tags : [],
+            seo: updated.seo || {},
+            coverImageAlt: updated.coverImageAlt || "",
+            activeCountries: Array.isArray(updated.activeCountries) ? updated.activeCountries : [],
+          });
+          setRelatedItems(relatedItemsFromCms(updated.relatedContent));
+        }
         toast.success(status === "published" ? "Published!" : "Draft saved");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
+      actionLock.current = null;
       setSaving(false);
     }
   };
 
   const remove = () => {
-    if (!initial?._id) return;
+    if (!initial?._id || actionLock.current) return;
     setShowDeleteConfirm(true);
   };
 
   const confirmDelete = async () => {
-    if (!initial?._id) return;
+    if (!initial?._id || actionLock.current) return;
     setShowDeleteConfirm(false);
+    actionLock.current = "delete";
     setDeleting(true);
     try {
       await adminDeleteCms(initial._id);
@@ -268,6 +310,8 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
       setDeleting(false);
+    } finally {
+      actionLock.current = null;
     }
   };
 
@@ -282,10 +326,10 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             <ArrowLeft size={16} /> Back to content
           </button>
           <div className="flex items-center gap-2">
-            {mode === "edit" && publicPreviewPath && (
+            {mode === "edit" && publicPreviewHref && (
               form.status === "published" ? (
                 <a
-                  href={publicPreviewPath}
+                  href={publicPreviewHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-xl border border-pink-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
@@ -304,7 +348,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             {mode === "edit" && (
               <button
                 onClick={remove}
-                disabled={deleting || saving}
+                disabled={busy}
                 className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
               >
                 {deleting ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />} Delete
@@ -312,14 +356,14 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             )}
             <button
               onClick={() => save("draft")}
-              disabled={saving || !canSubmit}
+              disabled={busy || !canSubmit}
               className="inline-flex items-center gap-2 rounded-xl border border-pink-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
             >
               {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} Save draft
             </button>
             <button
               onClick={() => save("published")}
-              disabled={saving || !canSubmit}
+              disabled={busy || !canSubmit}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-500 via-pink-500 to-orange-400 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200 transition hover:shadow-lg hover:shadow-rose-300 hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
             >
               {saving ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
@@ -343,7 +387,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                     {mode === "create" ? "New content" : "Edit content"}
                   </h1>
                   <p className="text-xs text-rose-500">
-                    {CMS_TYPE_LABELS[type]} · {form.status}
+                    {CMS_TYPE_LABELS[type]} · {form.status} · {CMS_CONTENT_LOCALE_LABELS[formLocale]} ({formLocale})
                   </p>
                 </div>
               </div>
@@ -531,7 +575,10 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                 </p>
                 <RelatedContentPicker
                   value={relatedItems}
-                  onChange={setRelatedItems}
+                  onChange={(next) => {
+                    setRelatedItems(next);
+                    markFormChanged();
+                  }}
                   excludeId={initial?._id}
                 />
               </div>
@@ -611,6 +658,31 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
           )}
 
           <GradientCard>
+            <div className="p-6 space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-700">Language</h3>
+              <select
+                value={formLocale}
+                onChange={(e) =>
+                  update({ locale: normalizeCmsContentLocale(e.target.value) })
+                }
+                disabled={busy}
+                aria-label="Content language"
+                className="w-full rounded-xl border border-pink-200 bg-white/60 px-4 py-2 text-sm outline-none transition focus:border-rose-400 focus:bg-white focus:ring-2 focus:ring-rose-200 disabled:opacity-60"
+              >
+                {CMS_CONTENT_LOCALES.map((code) => (
+                  <option key={code} value={code}>
+                    {CMS_CONTENT_LOCALE_LABELS[code]} ({code})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-rose-400">
+                English is the source language. Saving an original syncs the other supported
+                languages automatically.
+              </p>
+            </div>
+          </GradientCard>
+
+          <GradientCard>
             <div className="p-6 space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-700">Status</h3>
               <div
@@ -634,6 +706,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
               </p>
             </div>
           </GradientCard>
+
         </div>
       </div>
 

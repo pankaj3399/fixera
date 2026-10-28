@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 interface AccountStatus {
   onboardingCompleted?: boolean;
@@ -22,6 +23,7 @@ export default function StripeCompletePage() {
 }
 
 function StripeCompleteContent() {
+  const t = useTranslations('proArea');
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');
@@ -76,7 +78,7 @@ function StripeCompleteContent() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Verifying your Stripe account...</p>
+          <p className="mt-4 text-gray-600">{t('stripePages.complete.verifying')}</p>
         </div>
       </div>
     );
@@ -93,24 +95,24 @@ function StripeCompleteContent() {
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Stripe Account Connected!
+            {t('stripePages.complete.successTitle')}
           </h1>
           <p className="text-gray-600 mb-6">
-            Your account is fully set up and ready to receive payments from customers
+            {t('stripePages.complete.successBody')}
           </p>
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
             <div className="space-y-2 text-left">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Charges Enabled:</span>
+                <span className="text-sm text-gray-600">{t('stripePages.complete.chargesEnabled')}</span>
                 <span className="text-sm font-medium text-green-700">
-                  {accountStatus?.chargesEnabled ? 'Yes' : 'No'}
+                  {accountStatus?.chargesEnabled ? t('common.yes') : t('common.no')}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Payouts Enabled:</span>
+                <span className="text-sm text-gray-600">{t('stripePages.complete.payoutsEnabled')}</span>
                 <span className="text-sm font-medium text-green-700">
-                  {(accountStatus?.payoutsEnabled ?? accountStatus?.payouts_enabled) ? 'Yes' : 'No'}
+                  {(accountStatus?.payoutsEnabled ?? accountStatus?.payouts_enabled) ? t('common.yes') : t('common.no')}
                 </span>
               </div>
             </div>
@@ -121,11 +123,11 @@ function StripeCompleteContent() {
             onClick={handleGoToDashboard}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3"
           >
-            {isFromOnboarding ? 'Continue Onboarding' : 'Go to Dashboard'}
+            {isFromOnboarding ? t('stripePages.complete.continueOnboarding') : t('stripePages.complete.goToDashboard')}
           </button>
 
           <p className="text-xs text-gray-500">
-            {isFromOnboarding ? 'You\'ll be taken back to complete the remaining onboarding steps' : 'You can now accept bookings and receive payments'}
+            {isFromOnboarding ? t('stripePages.complete.successOnboardingNote') : t('stripePages.complete.successDashboardNote')}
           </p>
         </div>
       </div>
@@ -143,23 +145,23 @@ function StripeCompleteContent() {
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Setup Incomplete
+            {t('stripePages.complete.incompleteTitle')}
           </h1>
           <p className="text-gray-600 mb-6">
-            Your Stripe account setup is not fully complete. You need to finish the onboarding process to receive payments.
+            {t('stripePages.complete.incompleteBody')}
           </p>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-left">
-            <p className="text-sm text-yellow-800 mb-2">Missing information:</p>
+            <p className="text-sm text-yellow-800 mb-2">{t('stripePages.complete.missingInfo')}</p>
             <ul className="text-sm text-yellow-700 space-y-1">
               {!accountStatus?.detailsSubmitted && (
-                <li>- Business details not submitted</li>
+                <li>- {t('stripePages.complete.missingDetails')}</li>
               )}
               {!accountStatus?.chargesEnabled && (
-                <li>- Charges not enabled</li>
+                <li>- {t('stripePages.complete.missingCharges')}</li>
               )}
               {!(accountStatus?.payoutsEnabled ?? accountStatus?.payouts_enabled) && (
-                <li>- Payouts not enabled</li>
+                <li>- {t('stripePages.complete.missingPayouts')}</li>
               )}
             </ul>
           </div>
@@ -169,7 +171,7 @@ function StripeCompleteContent() {
             onClick={handleContinueOnboarding}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3"
           >
-            Continue Setup
+            {t('stripePages.shared.continueSetup')}
           </button>
 
           <button
@@ -177,7 +179,7 @@ function StripeCompleteContent() {
             onClick={handleGoToDashboard}
             className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
           >
-            {isFromOnboarding ? 'Back to Onboarding' : 'Skip for Now'}
+            {isFromOnboarding ? t('stripePages.shared.backToOnboarding') : t('stripePages.complete.skipForNow')}
           </button>
         </div>
       </div>
@@ -195,10 +197,10 @@ function StripeCompleteContent() {
         </div>
 
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Something Went Wrong
+          {t('stripePages.complete.errorTitle')}
         </h1>
         <p className="text-gray-600 mb-6">
-          We couldn&apos;t verify your Stripe account status. Please try again.
+          {t('stripePages.complete.errorBody')}
         </p>
 
         <button
@@ -206,7 +208,7 @@ function StripeCompleteContent() {
           onClick={handleContinueOnboarding}
           className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3"
         >
-          Try Again
+          {t('stripePages.complete.tryAgain')}
         </button>
 
         <button
@@ -214,10 +216,9 @@ function StripeCompleteContent() {
           onClick={handleGoToDashboard}
           className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
         >
-          {isFromOnboarding ? 'Back to Onboarding' : 'Back to Dashboard'}
+          {isFromOnboarding ? t('stripePages.shared.backToOnboarding') : t('stripePages.shared.backToDashboard')}
         </button>
       </div>
     </div>
   );
 }
-

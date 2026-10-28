@@ -1,0 +1,580 @@
+{
+  "meta": {
+    "title": "Tableau de bord"
+  },
+  "common": {
+    "back": "Retour",
+    "view": "Voir",
+    "refresh": "Actualiser",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "pageOf": "Page {page} sur {total}",
+    "filterStatus": "Filtrer par statut",
+    "notAvailable": "N/D",
+    "unknown": "Inconnu",
+    "bookingFallback": "Réservation",
+    "percent": "{value} %",
+    "total": "Total",
+    "pending": "En attente",
+    "completed": "Terminé",
+    "enabled": "Activé",
+    "disabled": "Désactivé"
+  },
+  "status": {
+    "rfq": "RFQ",
+    "rfqAccepted": "RFQ acceptée",
+    "draftQuote": "Devis brouillon",
+    "quoted": "Devis envoyé",
+    "quoteAccepted": "En attente de paiement",
+    "quoteRejected": "Devis refusé",
+    "paymentPending": "En attente de paiement",
+    "booked": "Réservé",
+    "reschedulingRequested": "Demande de report",
+    "inProgress": "En cours",
+    "professionalCompleted": "En attente de votre confirmation",
+    "completed": "Terminé",
+    "cancelled": "Annulé",
+    "refunded": "Remboursé",
+    "dispute": "Litige",
+    "unknown": "Inconnu"
+  },
+  "errors": {
+    "adminAreaForbidden": "Votre rôle n'a pas accès à cette section d'administration",
+    "maintenanceForbidden": "Votre rôle ne peut pas lancer de tâches de maintenance",
+    "runChecksFailed": "Impossible d'exécuter les contrôles {job}",
+    "requestFailedStatus": "Échec de la requête avec le statut {status}",
+    "loadBookings": "Impossible de charger vos réservations.",
+    "loadWarrantyClaims": "Impossible de charger les réclamations de garantie."
+  },
+  "maintenance": {
+    "title": "Lancer les contrôles automatiques",
+    "description": "Lancez manuellement les contrôles en arrière-plan qui traitent les éléments en retard. Sans risque à tout moment — seuls les éléments réellement en retard sont traités.",
+    "whatDoesThisDo": "À quoi cela sert-il ?",
+    "safeOverdue": "Sans risque à tout moment — seuls les éléments en retard sont traités.",
+    "safeTracking": "Sans risque à tout moment — les champs de suivi évitent les doublons.",
+    "safeEligible": "Sans risque à tout moment — seules les réservations éligibles sont traitées.",
+    "warrantyButton": "Lancer les contrôles SLA garantie",
+    "warrantyItem1": "Escalade automatiquement les réclamations ouvertes lorsque le professionnel a dépassé le délai de réponse de 5 jours ouvrables",
+    "warrantyItem2": "Clôture automatiquement les réclamations résolues lorsque le client n'a pas confirmé sous 7 jours",
+    "rfqButton": "Lancer les contrôles de délai des RFQ",
+    "rfqItem1": "Annule automatiquement les RFQ acceptées dont le professionnel a manqué le délai de devis, et envoie un e-mail aux deux parties",
+    "rfqItem2": "Envoie des rappels aux professionnels qui n'ont pas soumis de devis depuis 2 jours ouvrables ou plus",
+    "rfqItem3": "Signale les devis dont la date de validité est dépassée",
+    "notificationsButton": "Lancer les rappels de notification",
+    "notificationsAria": "Que fait « Lancer les rappels de notification » ?",
+    "notificationsItem1": "Envoie un rappel après 3 jours pour les RFQ, les replanifications, les remboursements, les clôtures et les réservations non démarrées",
+    "notificationsItem2": "Rappels d'avis à 10 et 20 jours ; chat non lu après 24 h",
+    "notificationsItem3": "Alertes d'expiration de pièce d'identité à 30 jours, puis tous les 15 jours",
+    "autoAcceptButton": "Lancer l'acceptation automatique des travaux",
+    "autoAcceptAria": "Que fait « Lancer l'acceptation automatique des travaux » ?",
+    "autoAcceptItem1": "Accepte automatiquement les demandes de clôture des professionnels après 10 jours sans réponse du client",
+    "autoAcceptItem2": "Ignore les réservations avec des étapes ou des frais supplémentaires impayés",
+    "jobs": {
+      "warranty": "de garantie",
+      "rfq": "RFQ",
+      "notif": "de rappel",
+      "autoaccept": "d'acceptation automatique"
+    },
+    "toast": {
+      "escalated": "{count, plural, one {# réclamation escaladée} other {# réclamations escaladées}}",
+      "autoClosed": "{count, plural, one {# réclamation clôturée automatiquement} other {# réclamations clôturées automatiquement}}",
+      "errors": "{count, plural, one {# erreur} other {# erreurs}}",
+      "warrantySummary": "Garantie : {details}",
+      "warrantyNone": "Aucune réclamation de garantie en retard",
+      "cancelled": "{count, plural, one {# annulée} other {# annulées}}",
+      "remindersSent": "{count, plural, one {# rappel envoyé} other {# rappels envoyés}}",
+      "expiredQuotations": "{count, plural, one {# devis expiré} other {# devis expirés}}",
+      "rfqSummary": "RFQ : {details}",
+      "rfqNone": "Aucun délai de RFQ dépassé",
+      "remindersSummary": "Rappels — {details}",
+      "remindersNone": "Aucun rappel à envoyer",
+      "autoAccepted": "{count, plural, one {# acceptée automatiquement} other {# acceptées automatiquement}}",
+      "skipped": "{count, plural, one {# ignorée} other {# ignorées}}",
+      "autoAcceptSummary": "Acceptation automatique — {details}",
+      "autoAcceptNone": "Aucune clôture à accepter automatiquement"
+    }
+  },
+  "admin": {
+    "title": "Tableau de bord administrateur",
+    "welcome": "Bon retour, {name} ! Gérez votre plateforme ici.",
+    "role": "Rôle : {role}",
+    "staffRoles": "Équipe et rôles",
+    "viewKpi": "Voir le tableau de bord KPI",
+    "approveProjects": "Approuver des projets",
+    "tabs": {
+      "overview": {
+        "title": "Aperçu",
+        "description": "Ouvrir les contrôles de la plateforme"
+      },
+      "services": {
+        "title": "Services",
+        "description": "Ouvrir la configuration des services"
+      },
+      "loyalty": {
+        "title": "Programme de fidélité",
+        "description": "Ouvrir les contrôles de fidélité"
+      },
+      "approvals": {
+        "title": "Approbations des professionnels",
+        "description": "Ouvrir les files d'approbation"
+      },
+      "payments": {
+        "title": "Paiements",
+        "description": "Ouvrir le suivi des paiements"
+      },
+      "tools": {
+        "title": "Outils d'administration",
+        "description": "Ouvrir les sections autorisées"
+      }
+    },
+    "overview": {
+      "pendingProjects": "Projets en attente",
+      "clickToReview": "Cliquez pour examiner",
+      "totalCustomers": "Nombre total de clients",
+      "totalRevenue": "Chiffre d'affaires total",
+      "pendingProfessionals": "Professionnels en attente",
+      "warrantyClaims": "Réclamations de garantie",
+      "escalated": "Escaladées : {value}",
+      "referral": {
+        "title": "Programme de parrainage",
+        "description": "Configurez les récompenses, consultez les analyses et gérez les parrainages",
+        "rewards": "Récompenses",
+        "rewardsValue": "Avantages pour les clients et les professionnels",
+        "visibility": "Visibilité",
+        "visibilityValue": "Suivez l'utilisation et révoquez les abus",
+        "manage": "Gérer le programme de parrainage"
+      },
+      "backlinks": {
+        "title": "Récompenses pour backlinks",
+        "description": "Configurez les récompenses de backlinks, examinez les soumissions et gérez la vérification",
+        "rewards": "Récompenses",
+        "rewardsValue": "Points pour les liens Fixtract vérifiés",
+        "moderation": "Modération",
+        "moderationValue": "Approuvez, refusez ou révoquez les soumissions",
+        "manage": "Gérer le programme de backlinks"
+      },
+      "reviews": {
+        "title": "Modération des avis",
+        "description": "Masquez ou restaurez les avis clients trompeurs, abusifs ou incorrects",
+        "moderation": "Modération",
+        "moderationValue": "Examinez rapidement les signalements et les notes suspectes",
+        "impact": "Impact",
+        "impactValue": "Les notes publiques sont mises à jour immédiatement après le masquage",
+        "notice": "Les notes publiques sont mises à jour immédiatement lorsqu'un avis est masqué.",
+        "manage": "Modérer les avis"
+      },
+      "favorites": {
+        "title": "Favoris",
+        "description": "Examinez l'activité des favoris et les classements, et supprimez les entrées abusives",
+        "manage": "Gérer les favoris"
+      },
+      "settings": {
+        "title": "Paramètres de la plateforme",
+        "description": "Gérez la commission et la configuration de la plateforme",
+        "manage": "Gérer les paramètres de la plateforme"
+      },
+      "cms": {
+        "title": "Contenu (CMS)",
+        "description": "Gérez les articles de blog, actualités, FAQ, politiques et pages d'atterrissage",
+        "manage": "Gérer le contenu"
+      },
+      "supportTickets": {
+        "title": "Tickets de support pour les professionnels",
+        "description": "Examinez les tickets de support et demandes de réunion des professionnels (pas le chat en direct)",
+        "manage": "Ouvrir les tickets de support"
+      },
+      "supportChat": {
+        "title": "Chat de support",
+        "description": "Boîte de réception partagée pour les chats de support avec les clients et les professionnels",
+        "manage": "Ouvrir le chat de support"
+      },
+      "discountCodes": {
+        "title": "Codes de réduction",
+        "description": "Créez des codes promotionnels à utiliser par les clients lors du paiement",
+        "manage": "Gérer les codes de réduction"
+      },
+      "campaigns": {
+        "title": "Campagnes e-mail",
+        "description": "Newsletters Brevo, promotions et relances par région/service",
+        "manage": "Gérer les campagnes"
+      },
+      "announcements": {
+        "title": "Annonces du site",
+        "description": "Promotions dans la barre supérieure, les modales et à la sortie, par région",
+        "manage": "Gérer les annonces"
+      },
+      "professionals": {
+        "title": "Gestion des professionnels",
+        "description": "Gérez les niveaux, étiquettes, revenus et statut de compte des professionnels",
+        "manage": "Ouvrir la gestion des professionnels"
+      },
+      "customers": {
+        "title": "Gestion des clients",
+        "description": "Gérez les niveaux, points, dépenses et statut de compte des clients",
+        "manage": "Ouvrir la gestion des clients"
+      },
+      "warranty": {
+        "title": "Suivi des réclamations de garantie",
+        "description": "Suivez le volume de réclamations, les escalades et les professionnels signalés",
+        "claimsWindow": "Réclamations (période)",
+        "avgResolution": "Résolution moy.",
+        "avgResolutionValue": "{hours} h",
+        "flagged": "Professionnels signalés",
+        "manage": "Ouvrir le tableau de bord des réclamations de garantie"
+      },
+      "bookings": {
+        "title": "Gestion des réservations",
+        "description": "Parcourez et recherchez les réservations",
+        "descriptionWrite": "Parcourez et recherchez les réservations et mettez à jour leur statut",
+        "descriptionChat": "Parcourez et recherchez les réservations et ouvrez les chats de support client ou professionnel",
+        "descriptionBoth": "Parcourez et recherchez les réservations, mettez à jour leur statut et ouvrez les chats de support client ou professionnel",
+        "manage": "Ouvrir la gestion des réservations"
+      },
+      "disputes": {
+        "title": "Gestion des litiges",
+        "description": "Examinez et résolvez les litiges de réservation soulevés par les clients",
+        "manage": "Ouvrir le tableau de bord des litiges"
+      },
+      "cancellations": {
+        "title": "Demandes d'annulation",
+        "description": "Examinez et approuvez ou refusez les demandes d'annulation des clients et des professionnels",
+        "manage": "Ouvrir les demandes d'annulation"
+      },
+      "chatReports": {
+        "title": "Chats signalés",
+        "description": "Examinez les messages signalés, avertissez ou bannissez les utilisateurs et rejetez les faux signalements",
+        "manage": "Ouvrir les chats signalés"
+      },
+      "auditLogs": {
+        "title": "Journaux d'audit",
+        "description": "Inspectez chaque action d'administration et de compte qui modifie l'état, avec des filtres par acteur, cible et date",
+        "manage": "Ouvrir les journaux d'audit"
+      }
+    },
+    "services": {
+      "title": "Gestion de la configuration des services",
+      "description": "Gérez les offres de services, les modèles de prix et les exigences",
+      "intro": "Configurez et gérez tous les types de services, modèles de prix, types de projets, éléments inclus et exigences pour les professionnels de votre plateforme.",
+      "manage": "Gérer les configurations de services",
+      "add": "Ajouter un service",
+      "canManage": "Ce que vous pouvez gérer :",
+      "item1": "Catégories et types de services",
+      "item2": "Modèles de prix et exigences de certification",
+      "item3": "Types de projets (construction neuve, extension, rénovation, etc.)",
+      "item4": "Éléments inclus et champs de saisie pour les professionnels",
+      "item5": "Options supplémentaires et conditions/avertissements"
+    },
+    "loyalty": {
+      "tierDistribution": "Répartition par niveaux de fidélité",
+      "tierDistributionDescription": "Répartition des clients par niveau de fidélité",
+      "customers": "{count, plural, one {# client} other {# clients}}",
+      "points": "{count, plural, one {# point} other {# points}}",
+      "manageTitle": "Fidélité et points",
+      "manageDescription": "Gérez les niveaux de fidélité, les réductions et les récompenses en points",
+      "configure": "Configurer la fidélité et les points",
+      "recalculateTiers": "Recalculer tous les niveaux",
+      "professionalLevels": "Niveaux des professionnels",
+      "professionalLevelsDescription": "Configurez les seuils de niveau, les avantages et les règles de bonus de points",
+      "configureLevels": "Configurer les niveaux des professionnels",
+      "recalculated": "Niveaux des professionnels recalculés",
+      "recalculateFailed": "Impossible de recalculer les niveaux des professionnels",
+      "recalculateLevels": "Recalculer les niveaux des professionnels",
+      "recalculating": "Recalcul en cours…"
+    },
+    "approvals": {
+      "pending": "En attente",
+      "approved": "Approuvés",
+      "rejected": "Refusés",
+      "suspended": "Suspendus",
+      "description": "Examinez et approuvez les candidatures des professionnels",
+      "reviewPending": "Examiner les demandes en attente ({count})",
+      "viewApproved": "Voir les approuvés ({count})",
+      "viewRejected": "Voir les refusés ({count})",
+      "viewSuspended": "Voir les suspendus ({count})"
+    },
+    "payments": {
+      "title": "Suivi des paiements",
+      "description": "Surveillez et gérez tous les paiements de la plateforme",
+      "intro": "Consultez toutes les transactions, suivez l'état de l'entiercement, surveillez les virements aux professionnels et gérez les remboursements.",
+      "viewAll": "Voir tous les paiements",
+      "viewAuthorized": "Voir les autorisés (entiercement)",
+      "features": "Fonctionnalités de paiement :",
+      "feature1": "Consultez toutes les transactions et leurs statuts",
+      "feature2": "Surveillez les fonds retenus en entiercement (autorisés)",
+      "feature3": "Suivez les versements effectués aux professionnels",
+      "feature4": "Examinez les remboursements et remboursements partiels",
+      "feature5": "Recherchez par numéro de réservation ou ID Stripe",
+      "feature6": "Filtrez par statut de paiement"
+    },
+    "tools": {
+      "title": "Outils d'administration disponibles",
+      "description": "Choisissez une section que votre rôle peut gérer."
+    }
+  },
+  "adminTools": {
+    "emailCampaigns": "Campagnes e-mail",
+    "cmsContent": "Contenu CMS",
+    "siteAnnouncements": "Annonces du site",
+    "supportChat": "Chat de support",
+    "customers": "Clients",
+    "bookings": "Réservations",
+    "disputes": "Litiges",
+    "cancellationRequests": "Demandes d'annulation",
+    "warrantyClaims": "Réclamations de garantie",
+    "supportTickets": "Tickets de support",
+    "discountCodes": "Codes de réduction",
+    "referrals": "Parrainages",
+    "backlinks": "Backlinks",
+    "favorites": "Favoris",
+    "kpiReports": "Rapports KPI",
+    "auditLogs": "Journaux d'audit",
+    "emailLogs": "Journaux d'e-mails"
+  },
+  "professional": {
+    "title": "Tableau de bord professionnel",
+    "welcome": "Gérez votre profil, vos projets, vos réservations et vos devis, {name}.",
+    "tabs": {
+      "quickActions": "Actions rapides",
+      "actionNeeded": "Action requise",
+      "actionNeededWithCount": "Action requise ({count})"
+    },
+    "quickActions": {
+      "description": "Gardez le tableau de bord ciblé et accédez directement au bon espace de travail au besoin.",
+      "editProfile": "Modifier le profil",
+      "benefits": "Programme d'avantages",
+      "manageProjects": "Gérer les projets",
+      "manageBookings": "Gérer les réservations",
+      "manageQuotes": "Gérer les devis",
+      "paymentsStripe": "Paiements et Stripe",
+      "performance": "Tableau de bord des performances",
+      "myReviews": "Mes avis",
+      "warrantyClaims": "Réclamations de garantie",
+      "completeVerification": "Terminer la vérification"
+    },
+    "actionNeeded": {
+      "description": "Devis et réservations en retard ou qui nécessitent votre attention",
+      "empty": "Aucune action requise pour le moment. Vous êtes à jour !",
+      "loadingWarranty": "Chargement des actions de garantie…",
+      "customer": "Client : {name}",
+      "quote": "Devis",
+      "warrantyAction": "Action de garantie pour la réservation {bookingId}"
+    }
+  },
+  "actionNeeded": {
+    "acceptOrDeclineRfq": "Accepter ou refuser la RFQ",
+    "confirmStart": "Confirmer le début",
+    "rescheduleDecision": "En attente de la décision de replanification du client",
+    "confirmCompletion": "Confirmer la fin ou prolonger",
+    "disputeResponse": "Accepter, négocier ou refuser",
+    "acceptWarranty": "Accepter ou refuser la réclamation de garantie",
+    "confirmWarrantyResolve": "Confirmer la résolution de la garantie maintenant",
+    "trackWarrantyResolve": "Suivre la date de résolution de la garantie"
+  },
+  "fallback": {
+    "welcome": "Bon retour, {name} !",
+    "subtitle": "Voici l'aperçu de votre tableau de bord",
+    "profile": {
+      "title": "Informations du profil",
+      "description": "Les détails de votre compte"
+    },
+    "verification": {
+      "title": "Statut de vérification",
+      "description": "Progression de la vérification du compte",
+      "email": "Vérification de l'e-mail",
+      "phone": "Vérification du téléphone",
+      "verified": "Vérifié",
+      "notVerified": "Non vérifié"
+    },
+    "stats": {
+      "title": "Statistiques du compte",
+      "description": "L'activité de votre compte",
+      "memberSince": "Membre depuis",
+      "lastUpdated": "Dernière mise à jour"
+    }
+  },
+  "benefits": {
+    "loading": "Chargement du programme d'avantages…",
+    "title": "Programme d'avantages",
+    "subtitleCustomer": "Suivez votre niveau, vos points, vos récompenses, vos réductions et la valeur de vos parrainages au même endroit.",
+    "subtitleProfessional": "Suivez votre niveau de confiance, vos points, vos récompenses de parrainage et vos avantages de niveau au même endroit.",
+    "backToDashboard": "Retour au tableau de bord",
+    "currentLevel": "Niveau actuel",
+    "points": "Points",
+    "rewardValue": "Valeur de la récompense {amount}",
+    "referralReward": "Récompense de parrainage",
+    "referralRewardHintCustomer": "Utilisez la valeur sur vos prochaines réservations",
+    "referralRewardHintProfessional": "Renforcez votre confiance et progressez plus vite dans les niveaux",
+    "discounts": "Réductions",
+    "currentPerk": "Avantage actuel",
+    "cap": "Plafond {amount}",
+    "capNotSet": "Plafond non défini",
+    "searchBoost": "Boost de recherche x{value}",
+    "progressTitle": "Progression vers {level}",
+    "topLevel": "votre niveau le plus élevé",
+    "progressDescription": "Vous êtes à {progress} % du chemin vers {level}.",
+    "topLevelReached": "Vous êtes déjà au niveau configuré le plus élevé.",
+    "spendMore": "Dépensez encore {amount} pour débloquer {level}.",
+    "highlights": {
+      "badge": "Badge : {badge}",
+      "commissionReduction": "Réduction de commission : {value}",
+      "searchBoost": "Boost de classement dans la recherche : x{value}"
+    },
+    "snapshot": {
+      "title": "Aperçu des récompenses",
+      "descriptionCustomer": "Récompenses de dépenses actuelles et valeur des parrainages.",
+      "descriptionProfessional": "Avantages de confiance actuels et accélérateurs de niveau.",
+      "benefits": "Avantages",
+      "noBenefits": "Aucun avantage supplémentaire configuré pour l'instant.",
+      "referralPerformance": "Performance des parrainages"
+    }
+  },
+  "disputes": {
+    "title": "Mes litiges",
+    "subtitle": "Tous les litiges que vous avez ouverts ou qui vous concernent",
+    "empty": "Aucun litige enregistré",
+    "loadFailed": "Impossible de charger les litiges",
+    "loadFailedStatus": "Impossible de charger les litiges (statut {status})",
+    "statusResolved": "Résolu",
+    "statusOpen": "Ouvert",
+    "slaBreached": "En attente de l'administrateur (SLA dépassé)",
+    "resolution": "Résolution : {value}",
+    "raised": "Ouvert : {date}",
+    "resolvedOn": "Résolu : {date}",
+    "viewBooking": "Voir la réservation"
+  },
+  "favorites": {
+    "title": "Vos favoris",
+    "subtitle": "Les professionnels et projets que vous avez enregistrés.",
+    "tabs": {
+      "projects": "Projets",
+      "professionals": "Professionnels"
+    },
+    "emptyProfessionals": "Vous n'avez pas encore de professionnels en favoris.",
+    "emptyProjects": "Vous n'avez pas encore de projets en favoris.",
+    "browseProfessionals": "Parcourir les professionnels",
+    "browseProjects": "Parcourir les projets",
+    "missingProfessionals": "Aucun professionnel trouvé dans vos favoris — ils ont peut-être été supprimés.",
+    "missingProjects": "Aucun projet trouvé dans vos favoris — ils ont peut-être été supprimés.",
+    "customersOnly": "Seuls les clients ont une liste de favoris",
+    "loadFailed": "Impossible de charger les favoris"
+  },
+  "payments": {
+    "customer": {
+      "title": "Historique des paiements",
+      "subtitle": "Consultez tous vos paiements et leurs statuts."
+    },
+    "refreshing": "Actualisation…",
+    "loadFailed": "Impossible de charger les paiements",
+    "summary": {
+      "totalPaid": "Total payé",
+      "completedPayments": "Paiements terminés",
+      "inEscrow": "En entiercement",
+      "awaitingCompletion": "Autorisé, en attente de finalisation",
+      "refunded": "Remboursé",
+      "totalRefunded": "Montant total remboursé"
+    },
+    "table": {
+      "title": "Paiements",
+      "empty": "Aucun paiement trouvé.",
+      "booking": "Réservation",
+      "professional": "Professionnel",
+      "amount": "Montant",
+      "status": "Statut",
+      "date": "Date"
+    },
+    "status": {
+      "all": "Tous les statuts",
+      "pending": "En attente",
+      "authorized": "Autorisé",
+      "completed": "Terminé",
+      "refunded": "Remboursé",
+      "failed": "Échoué",
+      "partiallyRefunded": "Partiellement remboursé",
+      "expired": "Expiré"
+    },
+    "professional": {
+      "title": "Paiements",
+      "subtitle": "Gérez votre compte Stripe et consultez vos revenus",
+      "stripeAccount": "Compte Stripe",
+      "openDashboard": "Ouvrir le tableau de bord →",
+      "connectTitle": "Connectez votre compte Stripe",
+      "completeTitle": "Finalisez la configuration de Stripe",
+      "connectDescription": "Vous devez connecter votre compte Stripe pour recevoir les paiements des clients. Cela ne prend que quelques minutes.",
+      "completeDescription": "La configuration de votre compte Stripe est incomplète. Finalisez-la pour commencer à recevoir des paiements.",
+      "connectButton": "Connecter le compte Stripe",
+      "completeButton": "Finaliser la configuration",
+      "accountActive": "Compte actif",
+      "accountActiveDescription": "Votre compte est prêt à recevoir des paiements",
+      "status": "Statut",
+      "active": "Actif",
+      "charges": "Encaissements",
+      "payouts": "Versements",
+      "totalEarnings": "Revenus totaux",
+      "fromCompletedBookings": "Sur {count, plural, one {# réservation terminée} other {# réservations terminées}}",
+      "pendingEarnings": "Revenus en attente",
+      "fromActiveBookings": "Provenant de réservations actives",
+      "completedJobs": "Missions terminées",
+      "allTime": "Depuis le début",
+      "recentTransactions": "Transactions récentes",
+      "noTransactions": "Aucune transaction pour l'instant",
+      "noTransactionsDescription": "Les transactions apparaîtront ici dès que vous aurez terminé des réservations"
+    }
+  },
+  "warranty": {
+    "title": "Réclamations de garantie",
+    "subtitleProfessional": "Gérez les problèmes de garantie signalés par les clients après la fin des travaux.",
+    "subtitleCustomer": "Suivez vos réclamations de garantie, propositions, escalades et mises à jour de résolution.",
+    "queueTitle": "File des réclamations",
+    "totalClaims": "{count, plural, one {# réclamation} other {# réclamations}} au total",
+    "empty": "Aucune réclamation de garantie trouvée pour ce filtre.",
+    "booking": "Réservation",
+    "customer": "Client",
+    "professional": "Professionnel",
+    "responseSla": "SLA de réponse",
+    "confirmationSla": "SLA de confirmation",
+    "opened": "Ouverte le {date}",
+    "resolveProposal": "Proposition de résolution : {message}",
+    "resolveDate": "Date de résolution : {date}",
+    "attachments": "Pièces jointes",
+    "openAttachment": "Ouvrir la pièce jointe {index}",
+    "resolution": "Résolution : {summary}",
+    "escalated": "Escaladée : {reason}",
+    "escalatedWithNote": "Escaladée : {reason} ({note})",
+    "openBooking": "Ouvrir la réservation",
+    "loadClaimFailed": "Impossible de charger la réclamation de garantie",
+    "loadClaimsFailed": "Impossible de charger les réclamations de garantie",
+    "status": {
+      "all": "Tous les statuts",
+      "open": "Ouverte",
+      "proposalSent": "Proposition envoyée",
+      "proposalAccepted": "Proposition acceptée",
+      "resolved": "Résolue",
+      "escalated": "Escaladée",
+      "closed": "Clôturée"
+    },
+    "reason": {
+      "defect": "Défaut",
+      "incompleteWork": "Travaux incomplets",
+      "materialIssue": "Problème de matériau",
+      "functionalityIssue": "Problème de fonctionnement",
+      "safetyIssue": "Problème de sécurité",
+      "other": "Autre"
+    },
+    "hints": {
+      "openProfessional": "Action requise : envoyer une proposition",
+      "openCustomer": "Réclamation ouverte, en attente de la réponse du professionnel",
+      "acceptedProfessional": "Action requise : terminer la réparation et marquer comme résolue",
+      "acceptedCustomer": "Proposition acceptée. En attente de la fin de la réparation",
+      "resolvedProfessional": "En attente de la confirmation du client",
+      "resolvedCustomer": "Action requise : examinez la résolution et confirmez",
+      "escalated": "Escaladée à l'administrateur"
+    },
+    "guidance": {
+      "title": "Conseils de traitement",
+      "professional1": "Répondez aux nouvelles réclamations dans les 5 jours ouvrables pour éviter une escalade automatique.",
+      "professional2": "Utilisez la page de détail de la réservation pour envoyer des propositions, marquer les réparations comme résolues et suivre les confirmations.",
+      "customer1": "Ouvrez la réservation concernée pour consulter les détails de la réclamation, les mises à jour des propositions et l'avancement de la réparation.",
+      "customer2": "Utilisez la page de réservation pour accepter ou refuser les propositions, confirmer les résolutions ou escalader si le problème persiste."
+    }
+  }
+}

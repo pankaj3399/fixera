@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +16,8 @@ import {
   GitCompareArrows, Heart, Loader2, Package, Plus, Search, X,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getAuthToken } from "@/lib/utils"
 import StartChatButton from "@/components/chat/StartChatButton"
 import {
@@ -27,7 +30,7 @@ import {
   CUSTOMER_QUOTE_STATUS_FILTERS,
   CUSTOMER_BOOKING_STATUS_FILTERS,
 } from "@/lib/dashboardBookingHelpers"
-import { getCustomerActionItems, type ActionItem } from "@/lib/actionNeededHelpers"
+import { getCustomerActionItems, type ActionItem, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import BookingTimelineBoard from "@/components/dashboard/BookingTimelineBoard"
 
@@ -101,17 +104,49 @@ interface WarrantyDashboardAction {
   severity: "warning" | "urgent"
 }
 
-const formatBudget = (booking: Booking): string | null => {
+const formatBudget = (
+  booking: Booking,
+  formatAmount: (amount: number, currency?: string | null) => string,
+): string | null => {
   const budget = booking.rfqData?.budget
   if (!budget || (budget.min == null && budget.max == null)) return null
-  const currency = budget.currency || "€"
+  const currency = budget.currency || "EUR"
   if (budget.min != null && budget.max != null && budget.min !== budget.max) {
-    return `${currency}${budget.min.toLocaleString()} – ${currency}${budget.max.toLocaleString()}`
+    return `${formatAmount(budget.min, currency)} – ${formatAmount(budget.max, currency)}`
   }
   const value = budget.min ?? budget.max
   if (value == null) return null
-  return `${currency}${value.toLocaleString()}`
+  return formatAmount(value, currency)
 }
+
+const STATUS_KEYS = {
+  rfq: "status.rfq",
+  rfq_accepted: "status.rfq_accepted",
+  draft_quote: "status.draft_quote",
+  quoted: "status.quoted",
+  quote_accepted: "status.quote_accepted",
+  quote_rejected: "status.quote_rejected",
+  payment_pending: "status.payment_pending",
+  booked: "status.booked",
+  rescheduling_requested: "status.rescheduling_requested",
+  in_progress: "status.in_progress",
+  professional_completed: "status.professional_completed",
+  completed: "status.completed",
+  cancelled: "status.cancelled",
+  refunded: "status.refunded",
+  dispute: "status.dispute",
+  unknown: "status.unknown",
+} as const
+
+type StatusKeyValue = keyof typeof STATUS_KEYS
+
+const CUSTOMER_ACTION_ITEM_KEYS = {
+  acceptOrDeclineQuotation: "customerDashboard.actionNeeded.acceptOrDeclineQuotation",
+  paymentNeeded: "customerDashboard.actionNeeded.paymentNeeded",
+  acceptOrDeclineRescheduling: "customerDashboard.actionNeeded.acceptOrDeclineRescheduling",
+  reviewCompletion: "customerDashboard.actionNeeded.reviewCompletion",
+  reviewDispute: "customerDashboard.actionNeeded.reviewDispute",
+} as const satisfies Record<CustomerActionItemKey, string>
 
 const ACCENT_CLASSES = {
   indigo: {
@@ -141,6 +176,14 @@ type AccentKey = keyof typeof ACCENT_CLASSES
 export default function CustomerDashboard() {
   const { user } = useAuth()
   const router = useRouter()
+  const t = useTranslations("dashboardWidgets")
+  const { formatMoney } = useCurrency()
+  const { intl } = useFormatLocale()
+
+  const statusLabel = (status: string) => {
+    const key = STATUS_KEYS[status as StatusKeyValue]
+    return key ? t(key) : status
+  }
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
@@ -203,7 +246,7 @@ export default function CustomerDashboard() {
         )
         const data = await response.json()
         if (!response.ok || !data.success) {
-          setBookingsError(data.msg || "Failed to load your bookings.")
+          setBookingsError(data.msg || t("customerDashboard.loadFailed"))
           return
         }
         const incoming = data.bookings || []
@@ -215,11 +258,11 @@ export default function CustomerDashboard() {
 
       setBookings(allBookings)
     } catch {
-      setBookingsError("Failed to load your bookings.")
+      setBookingsError(t("customerDashboard.loadFailed"))
     } finally {
       setBookingsLoading(false)
     }
-  }, [])
+  }, [t])
 
   // Fetch all bookings via pagination
   useEffect(() => {
@@ -261,14 +304,14 @@ export default function CustomerDashboard() {
     return warrantyClaims.reduce<WarrantyDashboardAction[]>((acc, claim) => {
       if (!claim.booking?._id) return acc
       if (claim.status === "proposal_sent") {
-        acc.push({ id: claim._id, bookingId: claim.booking._id, label: "Accept or decline warranty proposal", severity: "warning" })
+        acc.push({ id: claim._id, bookingId: claim.booking._id, label: t("customerDashboard.warrantyAction.proposal"), severity: "warning" })
       }
       if (claim.status === "resolved") {
-        acc.push({ id: claim._id, bookingId: claim.booking._id, label: "Accept or decline warranty resolution", severity: "urgent" })
+        acc.push({ id: claim._id, bookingId: claim.booking._id, label: t("customerDashboard.warrantyAction.resolved"), severity: "urgent" })
       }
       return acc
     }, [])
-  }, [warrantyClaims])
+  }, [warrantyClaims, t])
 
   // Unique services across all bookings
   const allServices = useMemo(() => {
@@ -282,7 +325,7 @@ export default function CustomerDashboard() {
       if (quoteServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== quoteServiceFilter) return false
       if (debouncedQuoteSearch) {
         const term = debouncedQuoteSearch.toLowerCase()
-        const title = getBookingTitle(b).toLowerCase()
+        const title = getBookingTitle(b, t("common.bookingFallback")).toLowerCase()
         const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
         const addr = (b.location?.address || "").toLowerCase()
         const bNum = (b.bookingNumber || "").toLowerCase()
@@ -290,7 +333,7 @@ export default function CustomerDashboard() {
       }
       return true
     })
-  }, [quoteBookings, quoteStatusFilter, quoteServiceFilter, debouncedQuoteSearch])
+  }, [quoteBookings, quoteStatusFilter, quoteServiceFilter, debouncedQuoteSearch, t])
 
   // Filtered bookings
   const filteredActiveBookings = useMemo(() => {
@@ -305,7 +348,7 @@ export default function CustomerDashboard() {
       if (bookingServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== bookingServiceFilter) return false
       if (debouncedBookingSearch) {
         const term = debouncedBookingSearch.toLowerCase()
-        const title = getBookingTitle(b).toLowerCase()
+        const title = getBookingTitle(b, t("common.bookingFallback")).toLowerCase()
         const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
         const bNum = (b.bookingNumber || "").toLowerCase()
         if (!title.includes(term) && !svc.includes(term) && !bNum.includes(term)) return false
@@ -318,7 +361,7 @@ export default function CustomerDashboard() {
       }
       return true
     })
-  }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter])
+  }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter, t])
 
   const toggleQuoteSelection = useCallback((bookingId: string) => {
     setSelectedQuoteIds(prev => {
@@ -367,20 +410,20 @@ export default function CustomerDashboard() {
       <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue placeholder={t("customerDashboard.filters.filterByStatus")} />
           </SelectTrigger>
           <SelectContent>
             {statusOptions.map(opt => (
-              <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+              <SelectItem key={opt.id} value={opt.id}>{opt.id === "all" ? t("common.all") : statusLabel(opt.id)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={serviceFilter} onValueChange={setServiceFilter}>
           <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Filter by service" />
+            <SelectValue placeholder={t("customerDashboard.filters.filterByService")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Services</SelectItem>
+            <SelectItem value="all">{t("common.allServices")}</SelectItem>
             {allServices.map(svc => (
               <SelectItem key={svc} value={svc}>{svc}</SelectItem>
             ))}
@@ -393,15 +436,15 @@ export default function CustomerDashboard() {
   const renderBookingCard = (booking: Booking, colorAccent: string, opts?: { selectable?: boolean; selected?: boolean; onToggle?: () => void }) => {
     const accent = ACCENT_CLASSES[(colorAccent as AccentKey)] ?? ACCENT_CLASSES.indigo
     const isProject = isProjectBooking(booking)
-    const title = getBookingTitle(booking)
-    const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(booking.status)
+    const title = getBookingTitle(booking, t("common.bookingFallback"))
+    const { className: statusClasses } = getBookingStatusMeta(booking.status)
     const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
     const preferredStart = booking.rfqData?.preferredStartDate
       ? new Date(booking.rfqData.preferredStartDate)
       : booking.scheduledStartDate
       ? new Date(booking.scheduledStartDate)
       : null
-    const budgetLabel = formatBudget(booking)
+    const budgetLabel = formatBudget(booking, formatMoney)
     const warrantyDurationValue = Number(booking.warrantyCoverage?.duration?.value || 0)
     const warrantyEndsAtDate = booking.warrantyCoverage?.endsAt
       ? new Date(booking.warrantyCoverage.endsAt)
@@ -413,10 +456,10 @@ export default function CustomerDashboard() {
       !!warrantyEndsAtDate &&
       warrantyEndsAtDate.getTime() > Date.now()
     const warrantyButtonTitle = !hasWarrantyCoverage
-      ? "No warranty coverage for this booking"
+      ? t("customerDashboard.warrantyNoCoverage")
       : canOpenWarrantyClaim
-      ? "Open warranty claim"
-      : "Warranty period expired"
+      ? t("customerDashboard.warrantyOpen")
+      : t("customerDashboard.warrantyExpired")
 
     return (
       <Card key={booking._id} className="bg-white/90 backdrop-blur shadow-sm">
@@ -428,7 +471,7 @@ export default function CustomerDashboard() {
                   checked={opts.selected}
                   onCheckedChange={() => opts.onToggle?.()}
                   className="mt-1 shrink-0"
-                  aria-label={`Select ${title} for comparison`}
+                  aria-label={t("customerDashboard.selectForComparison", { title })}
                 />
               )}
               <div>
@@ -443,7 +486,7 @@ export default function CustomerDashboard() {
                   </CardTitle>
                 </div>
                 <CardDescription className="text-xs text-gray-500">
-                  {isProject ? "Project booking" : "Professional booking"}
+                  {isProject ? t("customerDashboard.projectBooking") : t("customerDashboard.professionalBooking")}
                   {booking.rfqData?.serviceType && ` • ${booking.rfqData.serviceType}`}
                 </CardDescription>
               </div>
@@ -452,7 +495,7 @@ export default function CustomerDashboard() {
               variant="outline"
               className={`text-xs font-medium capitalize rounded-full px-2.5 py-1 ${statusClasses}`}
             >
-              {statusLabel}
+              {statusLabel(booking.status)}
             </Badge>
           </div>
         </CardHeader>
@@ -461,7 +504,10 @@ export default function CustomerDashboard() {
             <div className="flex items-center gap-2">
               <Calendar className={`h-3 w-3 ${accent.icon}`} />
               <span>
-                Start: <span className="font-medium">{preferredStart.toLocaleDateString()}</span>
+                {t.rich("customerDashboard.start", {
+                  date: preferredStart.toLocaleDateString(intl),
+                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
               </span>
             </div>
           )}
@@ -469,7 +515,10 @@ export default function CustomerDashboard() {
             <div className="flex items-center gap-2">
               <Clock className="h-3 w-3 text-gray-400" />
               <span>
-                Requested on <span className="font-medium">{createdAt.toLocaleDateString()}</span>
+                {t.rich("customerDashboard.requestedOn", {
+                  date: createdAt.toLocaleDateString(intl),
+                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
               </span>
             </div>
           )}
@@ -479,13 +528,19 @@ export default function CustomerDashboard() {
                 €
               </span>
               <span>
-                Budget: <span className="font-medium">{budgetLabel}</span>
+                {t.rich("customerDashboard.budget", {
+                  amount: budgetLabel,
+                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
               </span>
             </div>
           )}
           {booking.status === "completed" && hasWarrantyCoverage && warrantyEndsAtDate && (
             <div className="text-[11px] text-slate-600">
-              Warranty active until <span className="font-medium">{warrantyEndsAtDate.toLocaleDateString()}</span>
+              {t.rich("customerDashboard.warrantyUntil", {
+                date: warrantyEndsAtDate.toLocaleDateString(intl),
+                strong: (chunks) => <span className="font-medium">{chunks}</span>,
+              })}
             </div>
           )}
           <div className="pt-2 flex gap-2">
@@ -495,12 +550,12 @@ export default function CustomerDashboard() {
               onClick={() => router.push(`/bookings/${booking._id}`)}
               className={`text-xs bg-white/80 ${accent.border} ${accent.hoverBorder}`}
             >
-              View details
+              {t("customerDashboard.viewDetails")}
             </Button>
             {booking.professional?._id && (
               <StartChatButton
                 professionalId={booking.professional._id}
-                label="Chat"
+                label={t("customerDashboard.chat")}
                 size="sm"
                 className={`text-xs bg-white/80 ${accent.border} ${accent.hoverBorder}`}
               />
@@ -512,7 +567,7 @@ export default function CustomerDashboard() {
                 className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <CreditCard className="h-3 w-3 mr-1" />
-                Pay Now
+                {t("customerDashboard.payNow")}
               </Button>
             )}
             {booking.status === "completed" && hasWarrantyCoverage && (
@@ -524,7 +579,7 @@ export default function CustomerDashboard() {
                 onClick={() => router.push(`/bookings/${booking._id}?openWarrantyClaim=true`)}
                 className="text-xs"
               >
-                Open Warranty Claim
+                {t("customerDashboard.openWarrantyClaim")}
               </Button>
             )}
           </div>
@@ -533,10 +588,11 @@ export default function CustomerDashboard() {
     )
   }
 
-  const renderActionItem = (item: ActionItem) => {
+  const renderActionItem = (item: ActionItem<CustomerActionItemKey>) => {
     const booking = item.booking
-    const title = getBookingTitle(booking)
-    const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(booking.status)
+    const title = getBookingTitle(booking, t("common.bookingFallback"))
+    const actionLabelKey = CUSTOMER_ACTION_ITEM_KEYS[item.labelKey]
+    const { className: statusClasses } = getBookingStatusMeta(booking.status)
     const severityClasses = item.severity === "urgent"
       ? "border-red-200 bg-red-50/50"
       : "border-amber-200 bg-amber-50/50"
@@ -558,17 +614,17 @@ export default function CustomerDashboard() {
             </div>
             <div className="text-xs text-gray-600 mb-2">
               {booking.rfqData?.serviceType && <span>{booking.rfqData.serviceType} • </span>}
-              {booking.createdAt && <span>{new Date(booking.createdAt).toLocaleDateString()}</span>}
+              {booking.createdAt && <span>{new Date(booking.createdAt).toLocaleDateString(intl)}</span>}
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={`text-xs capitalize ${statusClasses}`}>
-                {statusLabel}
+                {statusLabel(booking.status)}
               </Badge>
               <Badge
                 variant="outline"
                 className={`text-xs ${item.severity === "urgent" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}
               >
-                {item.label}
+                {t(actionLabelKey)}
               </Badge>
             </div>
           </div>
@@ -579,7 +635,7 @@ export default function CustomerDashboard() {
               onClick={() => router.push(`/bookings/${booking._id}`)}
               className="text-xs"
             >
-              View
+              {t("common.view")}
             </Button>
             {(booking.status === 'quote_accepted' || booking.status === 'payment_pending') && (
               <Button
@@ -588,7 +644,7 @@ export default function CustomerDashboard() {
                 className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <CreditCard className="h-3 w-3 mr-1" />
-                Pay Now
+                {t("customerDashboard.payNow")}
               </Button>
             )}
           </div>
@@ -626,10 +682,10 @@ export default function CustomerDashboard() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Welcome back, {user?.name}!
+              {t("customerDashboard.welcome", { name: user?.name ?? "" })}
             </h1>
             <p className="text-gray-600">
-              Track your quotes, bookings and project requests.
+              {t("customerDashboard.subtitle")}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -639,7 +695,7 @@ export default function CustomerDashboard() {
               className="bg-white/70 backdrop-blur border border-pink-100 hover:border-pink-300"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Book another project
+              {t("customerDashboard.bookAnother")}
             </Button>
           </div>
         </div>
@@ -648,16 +704,16 @@ export default function CustomerDashboard() {
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="my_bookings" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                My Bookings {activeBookings.length > 0 && `(${activeBookings.length})`}
+                {t("customerDashboard.tabs.myBookings")} {activeBookings.length > 0 && `(${activeBookings.length})`}
               </TabsTrigger>
               <TabsTrigger value="my_quotes" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                My Quotes {quoteBookings.length > 0 && `(${quoteBookings.length})`}
+                {t("customerDashboard.tabs.myQuotes")} {quoteBookings.length > 0 && `(${quoteBookings.length})`}
               </TabsTrigger>
               <TabsTrigger value="action_needed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Action Needed {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
+                {t("customerDashboard.tabs.actionNeeded")} {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
               </TabsTrigger>
               <TabsTrigger value="quick_actions" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Quick Actions
+                {t("customerDashboard.tabs.quickActions")}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -668,9 +724,9 @@ export default function CustomerDashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-indigo-900">
                     <Package className="h-5 w-5 text-indigo-500" />
-                    Total
+                    {t("customerDashboard.stats.total")}
                   </CardTitle>
-                  <CardDescription>All quotes & bookings</CardDescription>
+                  <CardDescription>{t("customerDashboard.stats.totalHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-semibold text-indigo-900">{totalBookings}</p>
@@ -681,9 +737,9 @@ export default function CustomerDashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-emerald-900">
                     <Clock className="h-5 w-5 text-emerald-500" />
-                    Active
+                    {t("customerDashboard.stats.active")}
                   </CardTitle>
-                  <CardDescription>In progress or awaiting action</CardDescription>
+                  <CardDescription>{t("customerDashboard.stats.activeHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-semibold text-emerald-900">{totalActive}</p>
@@ -694,9 +750,9 @@ export default function CustomerDashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-teal-900">
                     <CheckCircle className="h-5 w-5 text-teal-500" />
-                    Completed
+                    {t("customerDashboard.stats.completed")}
                   </CardTitle>
-                  <CardDescription>Finished bookings</CardDescription>
+                  <CardDescription>{t("customerDashboard.stats.completedHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-semibold text-teal-900">{totalCompleted}</p>
@@ -716,7 +772,7 @@ export default function CustomerDashboard() {
                   bookingSearch, setBookingSearch, debouncedBookingSearch,
                   bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
                   bookingServiceFilter, setBookingServiceFilter,
-                  "Search bookings..."
+                  t("customerDashboard.filters.searchBookings")
                 )}
                 <div className="flex flex-col sm:flex-row gap-2 mb-4">
                   <div className="relative flex-1">
@@ -726,7 +782,7 @@ export default function CustomerDashboard() {
                     ) : addressFilter ? (
                       <button
                         type="button"
-                        aria-label="Clear address filter"
+                        aria-label={t("customerDashboard.filters.clearAddressFilter")}
                         onClick={() => setAddressFilter("")}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-rose-400 rounded"
                       >
@@ -734,8 +790,8 @@ export default function CustomerDashboard() {
                       </button>
                     ) : null}
                     <Input
-                      aria-label="Filter by address"
-                      placeholder="Filter by address"
+                      aria-label={t("customerDashboard.filters.filterByAddress")}
+                      placeholder={t("customerDashboard.filters.filterByAddress")}
                       value={addressFilter}
                       onChange={(e) => setAddressFilter(e.target.value)}
                       className="pl-10 pr-10"
@@ -746,7 +802,7 @@ export default function CustomerDashboard() {
                   <BookingTimelineBoard bookings={filteredActiveBookings} viewerRole="customer" />
                 )}
                 {filteredActiveBookings.length === 0 && (
-                  renderEmptyState("No bookings match your filters.")
+                  renderEmptyState(t("customerDashboard.emptyBookings"))
                 )}
                 {filteredActiveBookings.length > 0 && (
                   <div className="grid md:grid-cols-2 gap-4">
@@ -770,7 +826,7 @@ export default function CustomerDashboard() {
                   quoteSearch, setQuoteSearch, debouncedQuoteSearch,
                   quoteStatusFilter, setQuoteStatusFilter, CUSTOMER_QUOTE_STATUS_FILTERS,
                   quoteServiceFilter, setQuoteServiceFilter,
-                  "Search quotes..."
+                  t("customerDashboard.filters.searchQuotes")
                 )}
                 {visibleSelectedCount >= 2 && (
                   <div className="flex items-center gap-3">
@@ -780,12 +836,12 @@ export default function CustomerDashboard() {
                       className="text-xs"
                     >
                       <GitCompareArrows className="h-3 w-3 mr-1" />
-                      Compare {visibleSelectedCount} quotes
+                      {t("customerDashboard.compareQuotes", { count: visibleSelectedCount })}
                     </Button>
                   </div>
                 )}
                 {filteredQuotes.length === 0 && (
-                  renderEmptyState("No quotes match your filters.")
+                  renderEmptyState(t("customerDashboard.emptyQuotes"))
                 )}
                 {filteredQuotes.length > 0 && (
                   <div className="grid md:grid-cols-2 gap-4">
@@ -803,26 +859,26 @@ export default function CustomerDashboard() {
           <TabsContent value="quick_actions" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Open the pages you use most without cluttering the main dashboard.</CardDescription>
+                <CardTitle>{t("customerDashboard.tabs.quickActions")}</CardTitle>
+                <CardDescription>{t("customerDashboard.quickActionsDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Button onClick={() => router.push("/")} className="flex w-full items-center justify-center gap-2">
                     <Plus className="h-4 w-4" />
-                    Book Another Project
+                    {t("customerDashboard.quickActionBook")}
                   </Button>
                   <Button variant="outline" onClick={() => router.push("/dashboard/benefits")} className="flex w-full items-center justify-center gap-2">
                     <CreditCard className="h-4 w-4" />
-                    Benefits Program
+                    {t("customerDashboard.quickActionBenefits")}
                   </Button>
                   <Button variant="outline" onClick={() => router.push("/dashboard/favorites")} className="flex w-full items-center justify-center gap-2">
                     <Heart className="h-4 w-4" />
-                    Favorites
+                    {t("customerDashboard.quickActionFavorites")}
                   </Button>
                   <Button variant="outline" onClick={() => router.push("/profile")} className="flex w-full items-center justify-center gap-2">
                     <Briefcase className="h-4 w-4" />
-                    Profile
+                    {t("customerDashboard.quickActionProfile")}
                   </Button>
                 </div>
               </CardContent>
@@ -838,7 +894,7 @@ export default function CustomerDashboard() {
               </Card>
             )}
             {!bookingsLoading && !bookingsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
-              renderEmptyState("No actions needed right now. You're all caught up!")
+              renderEmptyState(t("customerDashboard.emptyActions"))
             )}
             {!bookingsLoading && !bookingsError && (actionItems.length > 0 || warrantyActionItems.length > 0) && (
               <div className="space-y-3">
@@ -848,9 +904,9 @@ export default function CustomerDashboard() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold text-sm text-slate-900">{item.label}</p>
-                        <p className="text-xs text-slate-600">Warranty flow for booking {item.bookingId}</p>
+                        <p className="text-xs text-slate-600">{t("customerDashboard.warrantyFlow", { id: item.bookingId })}</p>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => router.push(`/bookings/${item.bookingId}`)}>View</Button>
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/bookings/${item.bookingId}`)}>{t("common.view")}</Button>
                     </div>
                   </div>
                 ))}

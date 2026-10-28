@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Card,
   CardContent,
@@ -10,6 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import {
   ChevronLeft,
   ChevronRight,
@@ -92,7 +94,7 @@ const toD = (d: string | Date) => {
 };
 
 export default function AvailabilityCalendar({
-  title = 'Availability Calendar',
+  title,
   description,
   weeklySchedule,
   personalBlockedDates = [],
@@ -106,6 +108,9 @@ export default function AvailabilityCalendar({
   disabledPast = true,
   readOnly = false,
 }: Props) {
+  const t = useTranslations('calendar');
+  const { dateFns } = useFormatLocale();
+  const resolvedTitle = title ?? t('availabilityCalendar.defaultTitle');
   const [cur, setCur] = useState<Date>(startOfMonth(new Date()));
   const [rs, setRs] = useState<Date | null>(null);
   const today = startOfDay(new Date());
@@ -201,15 +206,21 @@ export default function AvailabilityCalendar({
       ? 'from-emerald-200 to-teal-200'
       : 'from-slate-200 to-gray-200';
   const label = (d: Date) => {
-    if (isCompanyBlocked(d)) return 'Company Block';
-    if (isPB(d)) return 'Blocked';
-    if (isBookingBlocked(d)) return 'Booked';
+    if (isCompanyBlocked(d)) return t('availabilityCalendar.dayStatus.companyBlock');
+    if (isPB(d)) return t('availabilityCalendar.dayStatus.blocked');
+    if (isBookingBlocked(d)) return t('availabilityCalendar.dayStatus.booked');
     if (isPartial(d)) {
-      return `Partially booked`;
+      return t('availabilityCalendar.dayStatus.partiallyBooked');
     }
-    if (isWork(d)) return 'Available';
-    return 'Off';
+    if (isWork(d)) return t('availabilityCalendar.dayStatus.available');
+    return t('availabilityCalendar.dayStatus.off');
   };
+  const weekdayHeaders = useMemo(() => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    return Array.from({ length: 7 }, (_, index) =>
+      format(addDays(weekStart, index), 'EEE', { locale: dateFns })
+    );
+  }, [dateFns]);
   const cellHeight = 'h-20';
   const borderPad = 'p-0';
   const innerPad = 'p-2';
@@ -221,7 +232,7 @@ export default function AvailabilityCalendar({
           <div>
             <CardTitle className='flex items-center gap-2'>
               <CalendarIcon className='h-5 w-5' />
-              {title}
+              {resolvedTitle}
             </CardTitle>
             {description && <CardDescription>{description}</CardDescription>}
           </div>
@@ -234,7 +245,7 @@ export default function AvailabilityCalendar({
               <ChevronLeft className='h-4 w-4' />
             </Button>
             <div className='text-sm font-medium min-w-[140px] text-center'>
-              {format(cur, 'MMMM yyyy')}
+              {format(cur, 'MMMM yyyy', { locale: dateFns })}
             </div>
             <Button
               variant='outline'
@@ -248,9 +259,9 @@ export default function AvailabilityCalendar({
       </CardHeader>
       <CardContent>
         <div className='grid grid-cols-7 text-xs text-muted-foreground'>
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((h) => (
-            <div key={h} className='text-center font-medium'>
-              {h}
+          {weekdayHeaders.map((header, index) => (
+            <div key={index} className='text-center font-medium'>
+              {header}
             </div>
           ))}
         </div>
@@ -260,6 +271,10 @@ export default function AvailabilityCalendar({
             const out = !isSameMonth(d, cur);
             const past = disabledPast && isBefore(d, today);
             const lb = label(d);
+            const dayLabel = t('availabilityCalendar.dateStatus', {
+              date: format(d, 'PPP', { locale: dateFns }),
+              status: lb,
+            });
             let inTmp = false;
             if (rs) {
               const s = rs <= d ? rs : d;
@@ -281,8 +296,8 @@ export default function AvailabilityCalendar({
                   out && 'opacity-40',
                   (past || isCompanyBlocked(d)) && 'cursor-not-allowed'
                 )}
-                aria-label={`${format(d, 'PPP')} - ${lb}`}
-                title={`${format(d, 'PPP')} - ${lb}`}
+                aria-label={dayLabel}
+                title={dayLabel}
               >
                 <div
                   className={cn(
@@ -307,7 +322,7 @@ export default function AvailabilityCalendar({
                     )}
                   >
                     <div className='w-full flex items-center justify-between text-[10px] text-muted-foreground'>
-                      <span>{format(d, 'EEE')}</span>
+                      <span>{format(d, 'EEE', { locale: dateFns })}</span>
                       <span className='font-semibold text-gray-700 dark:text-gray-200'>
                         {format(d, 'd')}
                       </span>
@@ -337,34 +352,33 @@ export default function AvailabilityCalendar({
         <div className='mt-4 flex flex-wrap gap-3 text-xs'>
           <LegendDot
             className='from-amber-200 to-orange-200'
-            label='Company Block'
+            label={t('availabilityCalendar.dayStatus.companyBlock')}
             chipClass='bg-orange-100 text-orange-700'
           />
           <LegendDot
             className='from-rose-200 to-red-200'
-            label='Your Block'
+            label={t('availabilityCalendar.legend.yourBlock')}
             chipClass='bg-rose-100 text-rose-700'
           />
           <LegendDot
             className='from-yellow-200 to-amber-200'
-            label='Partial Booking'
+            label={t('availabilityCalendar.legend.partialBooking')}
             chipClass='bg-yellow-100 text-yellow-800'
           />
           <LegendDot
             className='from-emerald-200 to-teal-200'
-            label='Working Day'
+            label={t('availabilityCalendar.legend.workingDay')}
             chipClass='bg-emerald-100 text-emerald-700'
           />
           <LegendDot
             className='from-slate-200 to-gray-200'
-            label='Off'
+            label={t('availabilityCalendar.dayStatus.off')}
             chipClass='bg-slate-100 text-slate-700'
           />
         </div>
         {canSelect && (
           <div className='mt-2 text-[11px] text-muted-foreground'>
-            Tip: Click once to start a range, click another day to end it. Click
-            the same day twice to toggle a single-day block.
+            {t('availabilityCalendar.tip')}
           </div>
         )}
       </CardContent>

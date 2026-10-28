@@ -1,0 +1,374 @@
+{
+  "meta": {
+    "title": "Projecten van vakmensen"
+  },
+  "common": {
+    "cancel": "Annuleren",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "view": "Bekijken",
+    "yes": "Ja",
+    "no": "Nee",
+    "required": "Verplicht",
+    "notSet": "Niet ingesteld",
+    "editProject": "Project bewerken",
+    "scheduleMeeting": "Vergadering plannen"
+  },
+  "editRedirect": {
+    "redirecting": "Doorsturen naar de projecteditor..."
+  },
+  "errors": {
+    "submitProject": "Project indienen mislukt"
+  },
+  "status": {
+    "draft": "Concept",
+    "pendingApproval": "In afwachting van goedkeuring",
+    "published": "Gepubliceerd",
+    "rejected": "Afgewezen",
+    "quoted": "Geoffreerd",
+    "booked": "Geboekt",
+    "inProgress": "In uitvoering",
+    "completed": "Afgerond",
+    "awaitingConfirmation": "In afwachting van bevestiging",
+    "closed": "Gesloten",
+    "disputed": "Geschil"
+  },
+  "questionTypes": {
+    "text": "Tekst",
+    "multipleChoice": "Meerkeuze",
+    "attachment": "Bijlage"
+  },
+  "priceModels": {
+    "fixed": "Vast",
+    "meter": "Meter",
+    "m2": "m²",
+    "hour": "Uur",
+    "day": "Dag",
+    "room": "Kamer"
+  },
+  "units": {
+    "hours": "{count, plural, one {# uur} other {# uur}}",
+    "days": "{count, plural, one {# dag} other {# dagen}}",
+    "months": "{count, plural, one {# maand} other {# maanden}}",
+    "years": "{count, plural, one {# jaar} other {# jaar}}"
+  },
+  "duration": {
+    "range": {
+      "hours": "{min}–{max} uur",
+      "days": "{min}–{max} dagen",
+      "months": "{min}–{max} maanden",
+      "years": "{min}–{max} jaar"
+    },
+    "min": {
+      "hours": "≥{min} uur",
+      "days": "≥{min} dagen",
+      "months": "≥{min} maanden",
+      "years": "≥{min} jaar"
+    },
+    "max": {
+      "hours": "≤{max} uur",
+      "days": "≤{max} dagen",
+      "months": "≤{max} maanden",
+      "years": "≤{max} jaar"
+    }
+  },
+  "meetingType": {
+    "planning": "Planning",
+    "team": "Team"
+  },
+  "meetingStatus": {
+    "scheduled": "Gepland",
+    "completed": "Afgerond",
+    "cancelled": "Geannuleerd",
+    "rescheduled": "Verplaatst"
+  },
+  "attendeeStatus": {
+    "pending": "in afwachting",
+    "accepted": "geaccepteerd",
+    "declined": "geweigerd"
+  },
+  "manage": {
+    "title": "Projecten beheren",
+    "subtitle": "Beheer je diensten en de projecten die je indient",
+    "createNewProject": "Nieuw project maken",
+    "newProject": "Nieuw project",
+    "adminApprovalCreating": "Je hebt goedkeuring van de beheerder nodig om projecten te maken",
+    "adminApprovalManaging": "Je hebt goedkeuring van de beheerder nodig om projecten te beheren",
+    "lockedTitle": "Projecten maken is vergrendeld tot de beheerder je profiel goedkeurt.",
+    "lockedDescription": "Je kunt je projecten hier bekijken, maar projecten maken, bewerken, dupliceren en indienen is uitgeschakeld tot je professionele profiel is goedgekeurd.",
+    "searchPlaceholder": "Projecten zoeken...",
+    "filterByStatus": "Filteren op status",
+    "allStatuses": "Alle statussen",
+    "filterByService": "Filteren op dienst",
+    "allServices": "Alle diensten",
+    "statusOptions": {
+      "draft": "Concept",
+      "pending": "In afwachting",
+      "published": "Gepubliceerd",
+      "onHold": "Gepauzeerd",
+      "rejected": "Afgewezen"
+    },
+    "statusLabels": {
+      "draft": "Concept",
+      "pending": "In afwachting van goedkeuring",
+      "published": "Gepubliceerd",
+      "onHold": "Gepauzeerd",
+      "rejected": "Afgewezen"
+    },
+    "stats": {
+      "drafts": "Concepten"
+    },
+    "tabs": {
+      "all": "Alle ({count})",
+      "drafts": "Concepten ({count})",
+      "pending": "In afwachting ({count})",
+      "published": "Gepubliceerd ({count})",
+      "onHold": "Gepauzeerd ({count})",
+      "rejected": "Afgewezen ({count})"
+    },
+    "empty": {
+      "noProjects": "Geen projecten gevonden",
+      "adjustFilters": "Pas je zoekopdracht of filters aan",
+      "createFirst": "Maak je eerste project om te beginnen",
+      "createProject": "Project maken",
+      "noDrafts": "Geen conceptprojecten",
+      "noPending": "Geen projecten in afwachting",
+      "pendingHint": "Projecten die je indient, verschijnen hier voor controle door de beheerder",
+      "noPublished": "Geen gepubliceerde projecten",
+      "publishedHint": "Goedgekeurde projecten verschijnen hier en zijn zichtbaar voor klanten",
+      "noRejected": "Geen afgewezen projecten",
+      "rejectedHint": "Projecten die aangepast moeten worden, verschijnen hier",
+      "noOnHold": "Geen gepauzeerde projecten",
+      "onHoldHint": "Projecten die je hebt gepauzeerd, verschijnen hier"
+    },
+    "card": {
+      "submitted": "Ingediend: {date}",
+      "published": "Gepubliceerd: {date}",
+      "updated": "Bijgewerkt: {date}",
+      "lastUpdated": "Laatst bijgewerkt: {date}",
+      "putOnHold": "Gepauzeerd: {date}",
+      "pricingOptions": "{count, plural, one {# prijsoptie} other {# prijsopties}}",
+      "category": "Categorie: {category}",
+      "adminFeedback": "Feedback van de beheerder:"
+    },
+    "actions": {
+      "viewDetails": "Details bekijken",
+      "duplicateProject": "Project dupliceren",
+      "submitForReview": "Indienen ter controle",
+      "putOnHold": "Pauzeren",
+      "resumePublishing": "Publicatie hervatten",
+      "deleteProject": "Project verwijderen"
+    },
+    "errors": {
+      "fetchFailed": "Projecten laden mislukt",
+      "fetchFailedConnection": "Projecten laden mislukt. Controleer je verbinding.",
+      "duplicateFailed": "Project dupliceren mislukt",
+      "deleteFailed": "Project verwijderen mislukt",
+      "statusUpdateFailed": "Projectstatus bijwerken mislukt"
+    },
+    "pagination": {
+      "showing": "Weergave {from} tot {to} van {total, plural, one {# project} other {# projecten}}"
+    },
+    "dialogs": {
+      "duplicateTitle": "Project dupliceren",
+      "duplicateDescription": "Weet je zeker dat je “{title}” wilt dupliceren? Er wordt een nieuwe conceptversie van het project gemaakt die je kunt bewerken.",
+      "deleteTitle": "Project verwijderen",
+      "deleteDescription": "Weet je zeker dat je “{title}” wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt en alle projectgegevens worden definitief verwijderd.",
+      "holdTitle": "Project pauzeren",
+      "resumeTitle": "Publicatie van project hervatten",
+      "holdDescription": "Weet je zeker dat je “{title}” wilt pauzeren? Het project is dan niet meer zichtbaar voor klanten.",
+      "resumeDescription": "Weet je zeker dat je de publicatie van “{title}” wilt hervatten? Het project wordt weer zichtbaar voor klanten.",
+      "editWarningTitle": "Gepubliceerd project bewerken",
+      "editWarningPublished": "Je staat op het punt “{title}” te bewerken. Dit project is momenteel gepubliceerd en zichtbaar voor klanten.",
+      "editWarningOnHold": "Je staat op het punt “{title}” te bewerken. Dit project is momenteel gepauzeerd.",
+      "importantNotice": "Belangrijk:",
+      "reapproval": "Sommige wijzigingen moeten opnieuw worden goedgekeurd door ons beheerteam",
+      "approvalDelay": "Goedkeuring kan tot 48 uur duren",
+      "hiddenUntilApproved": "Het project blijft verborgen voor klanten tot het opnieuw is goedgekeurd",
+      "approvalDataCleared": "Eerdere goedkeuringsgegevens worden gewist en submittedAt wordt bijgewerkt",
+      "proceed": "Wil je doorgaan met het bewerken van dit project?",
+      "yesEdit": "Ja, project bewerken"
+    }
+  },
+  "detail": {
+    "title": "Projectdetails",
+    "subtitle": "Bekijk en beheer je project",
+    "errorTitle": "Fout bij het laden van het project",
+    "projectNotFound": "Project niet gevonden",
+    "loadFailed": "Projectdetails laden mislukt",
+    "backToProjects": "Terug naar projecten",
+    "back": "Terug",
+    "basicInfo": {
+      "category": "Categorie:",
+      "service": "Dienst:",
+      "areaOfWork": "Werkgebied:",
+      "priceModel": "Prijsmodel:",
+      "currentStep": "Huidige stap:",
+      "stepOfTotal": "{step} van 8",
+      "keywords": "Trefwoorden:",
+      "projectTypes": "Projecttypes:"
+    },
+    "serviceArea": {
+      "title": "Servicegebied",
+      "address": "Adres:",
+      "maxRange": "Max. bereik:",
+      "noBorders": "Geen grenzen",
+      "km": "{km} km",
+      "companyAddress": "Bedrijfsadres:"
+    },
+    "media": {
+      "title": "Media",
+      "images": "Afbeeldingen ({count})",
+      "more": "+{count} meer",
+      "video": "Video",
+      "imageAlt": "Projectafbeelding"
+    },
+    "pricing": {
+      "title": "Prijsopties ({count})",
+      "description": "De prijsvarianten van je project",
+      "label": "Prijs:",
+      "requestForQuote": "Offerte op aanvraag",
+      "notSet": "Prijs niet ingesteld",
+      "minOrder": "Min. bestelling: {price}",
+      "duration": "Duur:",
+      "preparation": "Voorbereiding:",
+      "buffer": "Buffer:",
+      "intake": "Intake:",
+      "warranty": "Garantie:",
+      "noWarranty": "Geen garantie",
+      "materials": "Materialen:",
+      "included": "Inbegrepen",
+      "notIncluded": "Niet inbegrepen",
+      "serviceParameters": "Dienstparameters:",
+      "includedItems": "Inbegrepen onderdelen:"
+    },
+    "extraOptions": {
+      "title": "Extra opties ({count})"
+    },
+    "terms": {
+      "title": "Algemene voorwaarden ({count})",
+      "warning": "(Waarschuwing)",
+      "additionalCost": "Meerkosten: {price}"
+    },
+    "faq": {
+      "title": "Veelgestelde vragen ({count})",
+      "aiGenerated": "AI-gegenereerd"
+    },
+    "rfq": {
+      "title": "Vragen voor offerteaanvraag ({count})",
+      "options": "Opties:"
+    },
+    "postBooking": {
+      "title": "Vragen na boeking ({count})"
+    },
+    "customMessage": "Aangepast bevestigingsbericht",
+    "certifications": {
+      "title": "Certificeringen ({count})",
+      "uploaded": "Geüpload: {date}"
+    },
+    "adminFeedback": "Feedback van de beheerder",
+    "qualityChecks": {
+      "title": "Kwaliteitscontroles ({count})"
+    },
+    "meetings": {
+      "title": "Teamvergaderingen",
+      "hideScheduler": "Planner verbergen",
+      "description": "Plan en beheer teamvergaderingen voor dit project",
+      "bookingCalendar": "Boekingskalender",
+      "bookingCalendarDescription": "Boekingen en blokkeringen voor dit project",
+      "bookingFallback": "Boeking",
+      "buffer": "Buffer"
+    },
+    "actions": {
+      "title": "Acties",
+      "submitForApproval": "Ter goedkeuring indienen",
+      "resubmitForApproval": "Opnieuw ter goedkeuring indienen"
+    },
+    "timeline": {
+      "title": "Tijdlijn",
+      "created": "Aangemaakt",
+      "lastUpdated": "Laatst bijgewerkt",
+      "autoSaved": "Automatisch opgeslagen",
+      "submitted": "Ingediend",
+      "approved": "Goedgekeurd"
+    },
+    "info": {
+      "title": "Projectinfo",
+      "category": "Categorie",
+      "service": "Dienst",
+      "subprojects": "Subprojecten",
+      "extraOptions": "Extra opties",
+      "faqItems": "FAQ-items",
+      "progress": "Voortgang",
+      "steps": "{step}/8 stappen",
+      "status": "Status"
+    },
+    "team": {
+      "title": "Team en vergaderingen",
+      "intakeMeeting": "Intakegesprek:",
+      "enabled": "Ingeschakeld",
+      "membersAssigned": "{count, plural, one {# teamlid toegewezen} other {# teamleden toegewezen}}",
+      "renovationPlanning": "Renovatieplanning:",
+      "fixtractManaged": "Beheerd door Fixtract",
+      "resources": "Medewerkers:",
+      "members": "{count, plural, one {# teamlid} other {# teamleden}}"
+    }
+  },
+  "meetingsList": {
+    "title": "Vergaderingen",
+    "description": "Bekijk en beheer je geplande vergaderingen",
+    "all": "Alle",
+    "noMeetings": "Geen vergaderingen gevonden",
+    "onlineMeeting": "Onlinevergadering",
+    "joinMeeting": "Deelnemen aan vergadering",
+    "attendees": "{count, plural, one {# deelnemer} other {# deelnemers}}",
+    "attendeesTitle": "Deelnemers",
+    "agenda": "Agenda",
+    "notes": "Notities",
+    "duration": "({count} min)",
+    "cancelConfirm": "Weet je zeker dat je deze vergadering wilt annuleren?",
+    "cancelled": "Vergadering geannuleerd",
+    "errors": {
+      "load": "Vergaderingen laden mislukt",
+      "cancel": "Vergadering annuleren mislukt"
+    }
+  },
+  "scheduler": {
+    "description": "Kies een datum en tijd die voor iedereen werkt",
+    "meetingType": "Type vergadering",
+    "selectType": "Selecteer een type",
+    "titleLabel": "Titel *",
+    "selectDate": "Datum selecteren *",
+    "startTime": "Starttijd *",
+    "endTime": "Eindtijd *",
+    "duration": "Duur: {count, plural, one {# minuut} other {# minuten}}",
+    "onlineMeeting": "Dit is een onlinevergadering",
+    "meetingLink": "Vergaderlink *",
+    "location": "Locatie *",
+    "locationPlaceholder": "Voer de locatie van de vergadering in",
+    "agenda": "Agenda",
+    "selectTeamMembers": "Teamleden selecteren *",
+    "noTeamMembers": "Geen teamleden beschikbaar",
+    "creating": "Aanmaken...",
+    "createMeeting": "Vergadering aanmaken",
+    "reset": "Resetten",
+    "defaultPlanningTitle": "Projectbespreking",
+    "defaultTeamTitle": "Teamvergadering",
+    "errors": {
+      "loadTeamMembers": "Teamleden laden mislukt",
+      "loadAvailability": "Beschikbaarheid laden mislukt",
+      "loadTeamAvailability": "Beschikbaarheid van het team laden mislukt"
+    },
+    "validation": {
+      "titleRequired": "Titel van de vergadering is verplicht",
+      "dateRequired": "Selecteer een datum voor de vergadering",
+      "timeRequired": "Selecteer een tijd voor de vergadering",
+      "membersRequired": "Selecteer minstens één teamlid",
+      "linkRequired": "Geef een vergaderlink op voor onlinevergaderingen",
+      "locationRequired": "Geef een locatie op voor vergaderingen ter plaatse",
+      "slotUnavailable": "De gekozen tijd is niet beschikbaar voor alle deelnemers"
+    },
+    "created": "Vergadering aangemaakt",
+    "createFailed": "Vergadering aanmaken mislukt"
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Star, Archive, Tag, MoreVertical, X } from "lucide-react";
@@ -22,20 +23,36 @@ interface ChatListProps {
   onRemoveLabel: (conversationId: string, label: string) => void;
 }
 
-const getParticipantDisplay = (conversation: ChatConversation, role: string | undefined) => {
+type ParticipantDisplay = {
+  name?: string;
+  nameFallback:
+    | "common.supportThread"
+    | "common.fixtractSupport"
+    | "common.customer"
+    | "common.professional";
+  subtitle?: string;
+  subtitleFallback?: "common.officialSupportTeam";
+  profileImage?: string;
+  isSupport: boolean;
+};
+
+const getParticipantDisplay = (conversation: ChatConversation, role: string | undefined): ParticipantDisplay => {
   if (conversation.type === "support") {
     if (role === "admin") {
       const target = conversation.supportTargetUserId;
       return {
-        name: target?.name || target?.username || "Support thread",
+        name: target?.name || target?.username,
+        nameFallback: "common.supportThread" as const,
         subtitle: target?.email || target?.role || "",
         profileImage: target?.profileImage,
         isSupport: false as const,
       };
     }
     return {
-      name: "Fixtract Support",
-      subtitle: "Official support team",
+      name: undefined,
+      nameFallback: "common.fixtractSupport" as const,
+      subtitle: "",
+      subtitleFallback: "common.officialSupportTeam" as const,
       profileImage: undefined,
       isSupport: true as const,
     };
@@ -44,7 +61,8 @@ const getParticipantDisplay = (conversation: ChatConversation, role: string | un
   if (role === "professional") {
     const customer = conversation.customerId;
     return {
-      name: customer?.name || "Customer",
+      name: customer?.name,
+      nameFallback: "common.customer" as const,
       subtitle: customer?.email || "",
       profileImage: customer?.profileImage,
       isSupport: false as const,
@@ -52,9 +70,9 @@ const getParticipantDisplay = (conversation: ChatConversation, role: string | un
   }
 
   const professional = conversation.professionalId;
-  const professionalName = professional?.username || professional?.name;
   return {
-    name: professionalName || "Professional",
+    name: professional?.username || professional?.name,
+    nameFallback: "common.professional" as const,
     subtitle: professional?.businessInfo?.city || professional?.email || "",
     profileImage: professional?.profileImage,
     isSupport: false as const,
@@ -74,28 +92,14 @@ const getUnreadCount = (conversation: ChatConversation, role: string | undefined
   return conversation.customerUnreadCount || 0;
 };
 
-const formatRelativeTime = (dateString: string): string => {
-  const now = Date.now();
-  const date = new Date(dateString).getTime();
-  const diffMs = now - date;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-  const diffMonth = Math.floor(diffDay / 30);
-
-  if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour < 24) return `${diffHour}h ago`;
-  if (diffDay < 30) return `${diffDay}d ago`;
-  return `${diffMonth}mo ago`;
-};
-
-const FILTER_OPTIONS: { value: ChatFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "unread", label: "Unread" },
-  { value: "starred", label: "Starred" },
-  { value: "archived", label: "Archived" },
+const FILTER_OPTIONS: {
+  value: ChatFilter;
+  labelKey: "list.filters.all" | "list.filters.unread" | "list.filters.starred" | "list.filters.archived";
+}[] = [
+  { value: "all", labelKey: "list.filters.all" },
+  { value: "unread", labelKey: "list.filters.unread" },
+  { value: "starred", labelKey: "list.filters.starred" },
+  { value: "archived", labelKey: "list.filters.archived" },
 ];
 
 export default function ChatList({
@@ -113,10 +117,28 @@ export default function ChatList({
   onAddLabel,
   onRemoveLabel,
 }: ChatListProps) {
+  const t = useTranslations("chat");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [labelInputId, setLabelInputId] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const formatRelativeTime = (dateString: string): string => {
+    const now = Date.now();
+    const date = new Date(dateString).getTime();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+    const diffMonth = Math.floor(diffDay / 30);
+
+    if (diffSec < 60) return t("list.justNow");
+    if (diffMin < 60) return t("list.minutesAgo", { count: diffMin });
+    if (diffHour < 24) return t("list.hoursAgo", { count: diffHour });
+    if (diffDay < 30) return t("list.daysAgo", { count: diffDay });
+    return t("list.monthsAgo", { count: diffMonth });
+  };
 
   const handleAddLabel = (conversationId: string) => {
     const trimmed = newLabel.trim();
@@ -144,7 +166,7 @@ export default function ChatList({
                   : "text-gray-500 hover:bg-gray-100"
               )}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </button>
           ))}
           {userLabels.map((label) => (
@@ -169,12 +191,16 @@ export default function ChatList({
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 && (
-          <div className="p-4 text-sm text-gray-500">No conversations found.</div>
+          <div className="p-4 text-sm text-gray-500">{t("list.empty")}</div>
         )}
 
         <div className="divide-y divide-slate-100">
           {conversations.map((conversation) => {
             const participant = getParticipantDisplay(conversation, currentUserRole);
+            const participantName = participant.name || t(participant.nameFallback);
+            const participantSubtitle =
+              participant.subtitle ||
+              (participant.subtitleFallback ? t(participant.subtitleFallback) : "");
             const unread = getUnreadCount(conversation, currentUserRole);
             const isSelected = selectedConversationId === conversation._id;
             const isStarred = currentUserId ? conversation.starredBy?.includes(currentUserId) : false;
@@ -213,24 +239,24 @@ export default function ChatList({
                             "text-xs font-semibold",
                             participant.isSupport ? "text-white" : "text-indigo-600"
                           )}>
-                            {participant.isSupport ? "F" : participant.name.charAt(0).toUpperCase()}
+                            {participant.isSupport ? "F" : participantName.charAt(0).toUpperCase()}
                           </span>
                         )}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1">
-                          <p className="truncate text-sm font-medium text-gray-900">{participant.name}</p>
+                          <p className="truncate text-sm font-medium text-gray-900">{participantName}</p>
                           {participant.isSupport && (
                             <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-indigo-100 text-indigo-700">
-                              Official
+                              {t("common.official")}
                             </Badge>
                           )}
                           {isStarred && (
                             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />
                           )}
                         </div>
-                        {participant.subtitle && (
-                          <p className="truncate text-xs text-gray-500">{participant.subtitle}</p>
+                        {participantSubtitle && (
+                          <p className="truncate text-xs text-gray-500">{participantSubtitle}</p>
                         )}
                         {conversation.lastMessagePreview && (
                           <p className="mt-0.5 truncate text-xs text-gray-600">{conversation.lastMessagePreview}</p>
@@ -279,7 +305,7 @@ export default function ChatList({
                       setMenuOpenId(isMenuOpen ? null : conversation._id);
                       setLabelInputId(null);
                     }}
-                    aria-label="Conversation options"
+                    aria-label={t("list.options")}
                   >
                     <MoreVertical className="h-4 w-4 text-gray-600" />
                   </button>
@@ -301,7 +327,7 @@ export default function ChatList({
                       }}
                     >
                       <Star className={cn("h-3.5 w-3.5", isStarred ? "fill-yellow-400 text-yellow-400" : "text-gray-400")} />
-                      {isStarred ? "Unstar" : "Star"}
+                      {isStarred ? t("list.unstar") : t("list.star")}
                     </button>
                     <button
                       type="button"
@@ -312,11 +338,11 @@ export default function ChatList({
                       }}
                     >
                       <Archive className="h-3.5 w-3.5 text-gray-400" />
-                      {conversation.archivedBy?.includes(currentUserId || "") ? "Unarchive" : "Archive"}
+                      {conversation.archivedBy?.includes(currentUserId || "") ? t("list.unarchive") : t("list.archive")}
                     </button>
                     <div className="border-t border-slate-100 my-1" />
                     <div className="px-3 py-1">
-                      <p className="text-[10px] text-gray-400 mb-1">Labels</p>
+                      <p className="text-[10px] text-gray-400 mb-1">{t("list.labels")}</p>
                       {myLabels.map((l) => (
                         <div key={l.label} className="flex items-center justify-between py-0.5">
                           <span className="text-xs text-gray-600">{l.label}</span>
@@ -338,7 +364,7 @@ export default function ChatList({
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleAddLabel(conversation._id);
                             }}
-                            placeholder="Label name"
+                            placeholder={t("list.labelName")}
                             className="flex-1 text-xs border border-slate-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             maxLength={30}
                             autoFocus
@@ -348,7 +374,7 @@ export default function ChatList({
                             onClick={() => handleAddLabel(conversation._id)}
                             className="text-[10px] text-indigo-600 font-medium hover:text-indigo-700"
                           >
-                            Add
+                            {t("list.add")}
                           </button>
                         </div>
                       ) : (
@@ -360,7 +386,7 @@ export default function ChatList({
                             setNewLabel("");
                           }}
                         >
-                          + Add label
+                          {t("list.addLabel")}
                         </button>
                       )}
                     </div>

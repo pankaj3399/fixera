@@ -1,0 +1,580 @@
+{
+  "meta": {
+    "title": "Dashboard"
+  },
+  "common": {
+    "back": "Terug",
+    "view": "Bekijken",
+    "refresh": "Vernieuwen",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "pageOf": "Pagina {page} van {total}",
+    "filterStatus": "Status filteren",
+    "notAvailable": "N.v.t.",
+    "unknown": "Onbekend",
+    "bookingFallback": "Boeking",
+    "percent": "{value}%",
+    "total": "Totaal",
+    "pending": "In afwachting",
+    "completed": "Voltooid",
+    "enabled": "Ingeschakeld",
+    "disabled": "Uitgeschakeld"
+  },
+  "status": {
+    "rfq": "RFQ",
+    "rfqAccepted": "RFQ geaccepteerd",
+    "draftQuote": "Conceptofferte",
+    "quoted": "Offerte uitgebracht",
+    "quoteAccepted": "Wacht op betaling",
+    "quoteRejected": "Offerte afgewezen",
+    "paymentPending": "Wacht op betaling",
+    "booked": "Geboekt",
+    "reschedulingRequested": "Verzoek tot verplaatsing",
+    "inProgress": "In uitvoering",
+    "professionalCompleted": "Wacht op jouw bevestiging",
+    "completed": "Afgerond",
+    "cancelled": "Geannuleerd",
+    "refunded": "Terugbetaald",
+    "dispute": "Geschil",
+    "unknown": "Onbekend"
+  },
+  "errors": {
+    "adminAreaForbidden": "Je rol heeft geen toegang tot dat beheergedeelte",
+    "maintenanceForbidden": "Je rol mag geen onderhoudstaken uitvoeren",
+    "runChecksFailed": "Kan de {job} niet uitvoeren",
+    "requestFailedStatus": "Aanvraag mislukt met status {status}",
+    "loadBookings": "Je boekingen laden is mislukt.",
+    "loadWarrantyClaims": "Garantieclaims laden is mislukt."
+  },
+  "maintenance": {
+    "title": "Automatische controles uitvoeren",
+    "description": "Start handmatig de achtergrondcontroles die achterstallige items verwerken. Altijd veilig om te draaien — er wordt alleen iets gedaan met items die echt achterstallig zijn.",
+    "whatDoesThisDo": "Wat doet dit?",
+    "safeOverdue": "Altijd veilig om te draaien — er wordt alleen iets gedaan met achterstallige items.",
+    "safeTracking": "Altijd veilig om te draaien — opvolgvelden voorkomen dubbele meldingen.",
+    "safeEligible": "Altijd veilig om te draaien — er wordt alleen iets gedaan met boekingen die in aanmerking komen.",
+    "warrantyButton": "SLA-controles voor garantie uitvoeren",
+    "warrantyItem1": "Escaleert automatisch open claims waarbij de vakman de reactietermijn van 5 werkdagen heeft overschreden",
+    "warrantyItem2": "Sluit automatisch opgeloste claims waarbij de klant niet binnen 7 dagen heeft bevestigd",
+    "rfqButton": "Deadlinecontroles voor RFQ's uitvoeren",
+    "rfqItem1": "Annuleert automatisch geaccepteerde RFQ's waarbij de vakman de offertedeadline heeft gemist, en mailt beide partijen",
+    "rfqItem2": "Stuurt herinneringen naar vakmensen die al 2+ werkdagen geen offerte hebben ingediend",
+    "rfqItem3": "Markeert offertes die hun geldigheidsdatum hebben overschreden",
+    "notificationsButton": "Herinneringsmeldingen uitvoeren",
+    "notificationsAria": "Wat doet Herinneringsmeldingen uitvoeren?",
+    "notificationsItem1": "Stuurt na 3 dagen een duwtje voor RFQ's, herplanningen, terugbetalingen, afrondingen en boekingen die nog niet zijn gestart",
+    "notificationsItem2": "Herinneringen voor beoordelingen na 10 en 20 dagen; ongelezen chat na 24 uur",
+    "notificationsItem3": "Waarschuwingen voor verlopende identiteitsbewijzen binnen 30 dagen, daarna elke 15 dagen",
+    "autoAcceptButton": "Automatische oplevering uitvoeren",
+    "autoAcceptAria": "Wat doet Automatische oplevering uitvoeren?",
+    "autoAcceptItem1": "Accepteert automatisch opleveringsaanvragen van vakmensen na 10 dagen zonder reactie van de klant",
+    "autoAcceptItem2": "Slaat boekingen over met onbetaalde mijlpalen of onbetaalde meerkosten",
+    "jobs": {
+      "warranty": "garantiecontrole",
+      "rfq": "RFQ",
+      "notif": "herinneringscontrole",
+      "autoaccept": "opleveringscontrole"
+    },
+    "toast": {
+      "escalated": "{count, plural, one {# claim geëscaleerd} other {# claims geëscaleerd}}",
+      "autoClosed": "{count, plural, one {# claim automatisch gesloten} other {# claims automatisch gesloten}}",
+      "errors": "{count, plural, one {# fout} other {# fouten}}",
+      "warrantySummary": "Garantie: {details}",
+      "warrantyNone": "Geen achterstallige garantieclaims gevonden",
+      "cancelled": "{count, plural, one {# geannuleerd} other {# geannuleerd}}",
+      "remindersSent": "{count, plural, one {# herinnering verzonden} other {# herinneringen verzonden}}",
+      "expiredQuotations": "{count, plural, one {# verlopen offerte} other {# verlopen offertes}}",
+      "rfqSummary": "RFQ: {details}",
+      "rfqNone": "Geen overschreden RFQ-deadlines gevonden",
+      "remindersSummary": "Herinneringen — {details}",
+      "remindersNone": "Geen herinneringen die nu verstuurd moeten worden",
+      "autoAccepted": "{count, plural, one {# automatisch geaccepteerd} other {# automatisch geaccepteerd}}",
+      "skipped": "{count, plural, one {# overgeslagen} other {# overgeslagen}}",
+      "autoAcceptSummary": "Automatische acceptatie — {details}",
+      "autoAcceptNone": "Geen opleveringen om automatisch te accepteren"
+    }
+  },
+  "admin": {
+    "title": "Beheerdersdashboard",
+    "welcome": "Welkom terug, {name}! Beheer hier je platform.",
+    "role": "Rol: {role}",
+    "staffRoles": "Personeel en rollen",
+    "viewKpi": "KPI-dashboard bekijken",
+    "approveProjects": "Projecten goedkeuren",
+    "tabs": {
+      "overview": {
+        "title": "Overzicht",
+        "description": "Platformbeheer openen"
+      },
+      "services": {
+        "title": "Diensten",
+        "description": "Dienstenconfiguratie openen"
+      },
+      "loyalty": {
+        "title": "Loyaliteitsprogramma",
+        "description": "Loyaliteitsbeheer openen"
+      },
+      "approvals": {
+        "title": "Goedkeuringen van vakmensen",
+        "description": "Goedkeuringslijsten openen"
+      },
+      "payments": {
+        "title": "Betalingen",
+        "description": "Betalingsoverzicht openen"
+      },
+      "tools": {
+        "title": "Beheerhulpmiddelen",
+        "description": "Toegestane onderdelen openen"
+      }
+    },
+    "overview": {
+      "pendingProjects": "Projecten in afwachting",
+      "clickToReview": "Klik om te beoordelen",
+      "totalCustomers": "Totaal aantal klanten",
+      "totalRevenue": "Totale omzet",
+      "pendingProfessionals": "Vakmensen in afwachting",
+      "warrantyClaims": "Garantieclaims",
+      "escalated": "Geëscaleerd: {value}",
+      "referral": {
+        "title": "Doorverwijsprogramma",
+        "description": "Stel beloningen in, bekijk analyses en beheer doorverwijzingen",
+        "rewards": "Beloningen",
+        "rewardsValue": "Voordelen voor klanten en vakmensen",
+        "visibility": "Zichtbaarheid",
+        "visibilityValue": "Volg gebruik en trek misbruik in",
+        "manage": "Doorverwijsprogramma beheren"
+      },
+      "backlinks": {
+        "title": "Backlinkbeloningen",
+        "description": "Stel backlinkbeloningen in, beoordeel inzendingen en beheer verificatie",
+        "rewards": "Beloningen",
+        "rewardsValue": "Punten voor geverifieerde Fixtract-links",
+        "moderation": "Moderatie",
+        "moderationValue": "Keur inzendingen goed, wijs ze af of trek ze in",
+        "manage": "Backlinkprogramma beheren"
+      },
+      "reviews": {
+        "title": "Beoordelingen modereren",
+        "description": "Verberg of herstel klantbeoordelingen die misleidend, beledigend of onjuist zijn",
+        "moderation": "Moderatie",
+        "moderationValue": "Beoordeel meldingen en verdachte scores snel",
+        "impact": "Impact",
+        "impactValue": "Publieke scores worden meteen bijgewerkt na verbergen",
+        "notice": "Publieke beoordelingen worden meteen bijgewerkt wanneer een beoordeling wordt verborgen.",
+        "manage": "Beoordelingen modereren"
+      },
+      "favorites": {
+        "title": "Favorieten",
+        "description": "Bekijk favorietenactiviteit en ranglijsten, en verwijder misbruikelijke items",
+        "manage": "Favorieten beheren"
+      },
+      "settings": {
+        "title": "Platforminstellingen",
+        "description": "Beheer commissie en platformbrede configuratie",
+        "manage": "Platforminstellingen beheren"
+      },
+      "cms": {
+        "title": "Content (CMS)",
+        "description": "Beheer blogposts, nieuws, veelgestelde vragen, beleid en landingspagina's",
+        "manage": "Content beheren"
+      },
+      "supportTickets": {
+        "title": "Supporttickets voor vakmensen",
+        "description": "Bekijk supporttickets en vergaderverzoeken van vakmensen (geen livechat)",
+        "manage": "Supporttickets openen"
+      },
+      "supportChat": {
+        "title": "Supportchat",
+        "description": "Gedeelde inbox voor supportchats met klanten en vakmensen",
+        "manage": "Supportchat openen"
+      },
+      "discountCodes": {
+        "title": "Kortingscodes",
+        "description": "Maak promotiecodes die klanten bij het afrekenen kunnen gebruiken",
+        "manage": "Kortingscodes beheren"
+      },
+      "campaigns": {
+        "title": "E-mailcampagnes",
+        "description": "Brevo-nieuwsbrieven, promoties en reactivatie per regio/dienst",
+        "manage": "Campagnes beheren"
+      },
+      "announcements": {
+        "title": "Siteaankondigingen",
+        "description": "Promoties in de topbalk, modals en exit-intent per regio",
+        "manage": "Aankondigingen beheren"
+      },
+      "professionals": {
+        "title": "Vakmensen beheren",
+        "description": "Beheer niveaus, tags, inkomsten en accountstatus van vakmensen",
+        "manage": "Vakmensenbeheer openen"
+      },
+      "customers": {
+        "title": "Klanten beheren",
+        "description": "Beheer niveaus, punten, bestedingen en accountstatus van klanten",
+        "manage": "Klantenbeheer openen"
+      },
+      "warranty": {
+        "title": "Overzicht garantieclaims",
+        "description": "Volg aantallen claims, escalaties en gemarkeerde vakmensen",
+        "claimsWindow": "Claims (periode)",
+        "avgResolution": "Gem. oplostijd",
+        "avgResolutionValue": "{hours} u",
+        "flagged": "Gemarkeerde vakmensen",
+        "manage": "Garantieclaims-dashboard openen"
+      },
+      "bookings": {
+        "title": "Boekingen beheren",
+        "description": "Blader door boekingen en zoek ze",
+        "descriptionWrite": "Blader door boekingen, zoek ze en werk hun status bij",
+        "descriptionChat": "Blader door boekingen, zoek ze en open supportchats met klanten of vakmensen",
+        "descriptionBoth": "Blader door boekingen, zoek ze, werk hun status bij en open supportchats met klanten of vakmensen",
+        "manage": "Boekingenbeheer openen"
+      },
+      "disputes": {
+        "title": "Geschillen beheren",
+        "description": "Beoordeel en los boekingsgeschillen op die door klanten zijn ingediend",
+        "manage": "Geschillendashboard openen"
+      },
+      "cancellations": {
+        "title": "Annuleringsverzoeken",
+        "description": "Beoordeel annuleringsverzoeken van klanten en vakmensen en keur ze goed of af",
+        "manage": "Annuleringsverzoeken openen"
+      },
+      "chatReports": {
+        "title": "Gemelde chats",
+        "description": "Bekijk gemelde chatberichten, waarschuw of blokkeer gebruikers en sluit onterechte meldingen",
+        "manage": "Gemelde chats openen"
+      },
+      "auditLogs": {
+        "title": "Auditlogboeken",
+        "description": "Inspecteer elke statuswijzigende beheer- en accountactie met filters op actor, doel en datum",
+        "manage": "Auditlogboeken openen"
+      }
+    },
+    "services": {
+      "title": "Dienstenconfiguratie beheren",
+      "description": "Beheer diensten, prijsmodellen en vereisten",
+      "intro": "Configureer en beheer alle diensttypes, prijsmodellen, projecttypes, inbegrepen items en vakmensenvereisten voor je platform.",
+      "manage": "Dienstenconfiguraties beheren",
+      "add": "Nieuwe dienst toevoegen",
+      "canManage": "Wat je kunt beheren:",
+      "item1": "Dienstcategorieën en -types",
+      "item2": "Prijsmodellen en certificeringsvereisten",
+      "item3": "Projecttypes (nieuwbouw, uitbreiding, renovatie, enz.)",
+      "item4": "Inbegrepen items en invoervelden voor vakmensen",
+      "item5": "Extra opties en voorwaarden/waarschuwingen"
+    },
+    "loyalty": {
+      "tierDistribution": "Verdeling over loyaliteitsniveaus",
+      "tierDistributionDescription": "Verdeling van klanten over de loyaliteitsniveaus",
+      "customers": "{count, plural, one {# klant} other {# klanten}}",
+      "points": "{count, plural, one {# punt} other {# punten}}",
+      "manageTitle": "Loyaliteit en punten",
+      "manageDescription": "Beheer loyaliteitsniveaus, kortingen en puntenbeloningen",
+      "configure": "Loyaliteit en punten configureren",
+      "recalculateTiers": "Alle niveaus herberekenen",
+      "professionalLevels": "Niveaus voor vakmensen",
+      "professionalLevelsDescription": "Configureer niveaudrempels, voordelen en puntenbonusregels",
+      "configureLevels": "Niveaus voor vakmensen configureren",
+      "recalculated": "Niveaus voor vakmensen herberekend",
+      "recalculateFailed": "Herberekenen van niveaus voor vakmensen is mislukt",
+      "recalculateLevels": "Niveaus voor vakmensen herberekenen",
+      "recalculating": "Herberekenen..."
+    },
+    "approvals": {
+      "pending": "In afwachting",
+      "approved": "Goedgekeurd",
+      "rejected": "Afgewezen",
+      "suspended": "Opgeschort",
+      "description": "Beoordeel en keur aanmeldingen van vakmensen goed",
+      "reviewPending": "In afwachting beoordelen ({count})",
+      "viewApproved": "Goedgekeurde bekijken ({count})",
+      "viewRejected": "Afgewezen bekijken ({count})",
+      "viewSuspended": "Opgeschorte bekijken ({count})"
+    },
+    "payments": {
+      "title": "Betalingsoverzicht",
+      "description": "Monitor en beheer alle betalingen op het platform",
+      "intro": "Bekijk alle betalingstransacties, volg de escrowstatus, monitor overdrachten naar vakmensen en verwerk terugbetalingen.",
+      "viewAll": "Alle betalingen bekijken",
+      "viewAuthorized": "Geautoriseerde bekijken (escrow)",
+      "features": "Betalfuncties:",
+      "feature1": "Bekijk alle betalingstransacties en statussen",
+      "feature2": "Houd geld in escrow in het oog (geautoriseerd)",
+      "feature3": "Volg voltooide uitbetalingen aan vakmensen",
+      "feature4": "Bekijk terugbetalingen en gedeeltelijke terugbetalingen",
+      "feature5": "Zoek op boekingsnummer of Stripe-ID",
+      "feature6": "Filter op betalingsstatus"
+    },
+    "tools": {
+      "title": "Beschikbare beheerhulpmiddelen",
+      "description": "Kies een onderdeel dat je rol mag beheren."
+    }
+  },
+  "adminTools": {
+    "emailCampaigns": "E-mailcampagnes",
+    "cmsContent": "CMS-content",
+    "siteAnnouncements": "Siteaankondigingen",
+    "supportChat": "Supportchat",
+    "customers": "Klanten",
+    "bookings": "Boekingen",
+    "disputes": "Geschillen",
+    "cancellationRequests": "Annuleringsverzoeken",
+    "warrantyClaims": "Garantieclaims",
+    "supportTickets": "Supporttickets",
+    "discountCodes": "Kortingscodes",
+    "referrals": "Doorverwijzingen",
+    "backlinks": "Backlinks",
+    "favorites": "Favorieten",
+    "kpiReports": "KPI-rapporten",
+    "auditLogs": "Auditlogboeken",
+    "emailLogs": "E-maillogboeken"
+  },
+  "professional": {
+    "title": "Dashboard voor vakmensen",
+    "welcome": "Beheer je profiel, projecten, boekingen en offertes, {name}.",
+    "tabs": {
+      "quickActions": "Snelle acties",
+      "actionNeeded": "Actie nodig",
+      "actionNeededWithCount": "Actie nodig ({count})"
+    },
+    "quickActions": {
+      "description": "Houd het dashboard overzichtelijk en spring meteen naar de juiste werkplek wanneer nodig.",
+      "editProfile": "Profiel bewerken",
+      "benefits": "Voordelenprogramma",
+      "manageProjects": "Projecten beheren",
+      "manageBookings": "Boekingen beheren",
+      "manageQuotes": "Offertes beheren",
+      "paymentsStripe": "Betalingen en Stripe",
+      "performance": "Prestatiedashboard",
+      "myReviews": "Mijn beoordelingen",
+      "warrantyClaims": "Garantieclaims",
+      "completeVerification": "Verificatie voltooien"
+    },
+    "actionNeeded": {
+      "description": "Offertes en boekingen die achterstallig zijn of je aandacht nodig hebben",
+      "empty": "Geen acties nodig op dit moment. Je bent helemaal bij!",
+      "loadingWarranty": "Garantieacties laden...",
+      "customer": "Klant: {name}",
+      "quote": "Offerte",
+      "warrantyAction": "Garantieactie voor boeking {bookingId}"
+    }
+  },
+  "actionNeeded": {
+    "acceptOrDeclineRfq": "RFQ accepteren of weigeren",
+    "confirmStart": "Start bevestigen",
+    "rescheduleDecision": "Wacht op herplanningsbeslissing van de klant",
+    "confirmCompletion": "Afronding bevestigen of verlengen",
+    "disputeResponse": "Accepteren, onderhandelen of afwijzen",
+    "acceptWarranty": "Garantieclaim accepteren of afwijzen",
+    "confirmWarrantyResolve": "Garantieoplossing nu bevestigen",
+    "trackWarrantyResolve": "Oplosdatum van de garantie opvolgen"
+  },
+  "fallback": {
+    "welcome": "Welkom terug, {name}!",
+    "subtitle": "Dit is je dashboardoverzicht",
+    "profile": {
+      "title": "Profielgegevens",
+      "description": "Je accountgegevens"
+    },
+    "verification": {
+      "title": "Verificatiestatus",
+      "description": "Voortgang van je accountverificatie",
+      "email": "E-mailverificatie",
+      "phone": "Telefoonverificatie",
+      "verified": "Geverifieerd",
+      "notVerified": "Niet geverifieerd"
+    },
+    "stats": {
+      "title": "Accountstatistieken",
+      "description": "Je accountactiviteit",
+      "memberSince": "Lid sinds",
+      "lastUpdated": "Laatst bijgewerkt"
+    }
+  },
+  "benefits": {
+    "loading": "Voordelenprogramma laden...",
+    "title": "Voordelenprogramma",
+    "subtitleCustomer": "Volg je niveau, punten, beloningen, kortingen en doorverwijsvoordeel op één plek.",
+    "subtitleProfessional": "Volg je betrouwbaarheidsniveau, punten, doorverwijsbeloningen en niveauvoordelen op één plek.",
+    "backToDashboard": "Terug naar dashboard",
+    "currentLevel": "Huidig niveau",
+    "points": "Punten",
+    "rewardValue": "Beloningswaarde {amount}",
+    "referralReward": "Doorverwijsbeloning",
+    "referralRewardHintCustomer": "Gebruik de waarde bij toekomstige boekingen",
+    "referralRewardHintProfessional": "Vergroot je vertrouwen en ga sneller door de niveaus",
+    "discounts": "Kortingen",
+    "currentPerk": "Huidig voordeel",
+    "cap": "Maximum {amount}",
+    "capNotSet": "Geen maximum ingesteld",
+    "searchBoost": "Zoekboost x{value}",
+    "progressTitle": "Voortgang naar {level}",
+    "topLevel": "je hoogste niveau",
+    "progressDescription": "Je bent {progress}% op weg naar {level}.",
+    "topLevelReached": "Je zit al op het hoogste ingestelde niveau.",
+    "spendMore": "Besteed nog {amount} om {level} te ontgrendelen.",
+    "highlights": {
+      "badge": "Badge: {badge}",
+      "commissionReduction": "Commissiekorting: {value}",
+      "searchBoost": "Zoekrangboost: x{value}"
+    },
+    "snapshot": {
+      "title": "Overzicht beloningen",
+      "descriptionCustomer": "Huidige bestedingsbeloningen en doorverrijfwaarde.",
+      "descriptionProfessional": "Huidige vertrouwensvoordelen en versnellers voor niveauverhoging.",
+      "benefits": "Voordelen",
+      "noBenefits": "Er zijn nog geen extra voordelen ingesteld.",
+      "referralPerformance": "Prestaties van doorverwijzingen"
+    }
+  },
+  "disputes": {
+    "title": "Mijn geschillen",
+    "subtitle": "Alle geschillen die je hebt ingediend of waarbij je betrokken bent",
+    "empty": "Geen geschillen geregistreerd",
+    "loadFailed": "Geschillen laden is mislukt",
+    "loadFailedStatus": "Geschillen laden is mislukt (status {status})",
+    "statusResolved": "Opgelost",
+    "statusOpen": "Open",
+    "slaBreached": "Wacht op beheerder (SLA overschreden)",
+    "resolution": "Oplossing: {value}",
+    "raised": "Geopend: {date}",
+    "resolvedOn": "Opgelost: {date}",
+    "viewBooking": "Boeking bekijken"
+  },
+  "favorites": {
+    "title": "Je favorieten",
+    "subtitle": "Vakmensen en projecten die je hebt opgeslagen.",
+    "tabs": {
+      "projects": "Projecten",
+      "professionals": "Vakmensen"
+    },
+    "emptyProfessionals": "Je hebt nog geen vakmensen als favoriet opgeslagen.",
+    "emptyProjects": "Je hebt nog geen projecten als favoriet opgeslagen.",
+    "browseProfessionals": "Vakmensen verkennen",
+    "browseProjects": "Projecten verkennen",
+    "missingProfessionals": "Geen vakmensen gevonden in je favorieten — ze zijn mogelijk verwijderd.",
+    "missingProjects": "Geen projecten gevonden in je favorieten — ze zijn mogelijk verwijderd.",
+    "customersOnly": "Alleen klanten hebben een favorietenlijst",
+    "loadFailed": "Favorieten laden is mislukt"
+  },
+  "payments": {
+    "customer": {
+      "title": "Betalingsgeschiedenis",
+      "subtitle": "Bekijk al je betalingen en hun status."
+    },
+    "refreshing": "Vernieuwen...",
+    "loadFailed": "Betalingen laden is mislukt",
+    "summary": {
+      "totalPaid": "Totaal betaald",
+      "completedPayments": "Voltooide betalingen",
+      "inEscrow": "In escrow",
+      "awaitingCompletion": "Geautoriseerd, wacht op afronding",
+      "refunded": "Terugbetaald",
+      "totalRefunded": "Totaal terugbetaald bedrag"
+    },
+    "table": {
+      "title": "Betalingen",
+      "empty": "Geen betalingen gevonden.",
+      "booking": "Boeking",
+      "professional": "Vakman",
+      "amount": "Bedrag",
+      "status": "Status",
+      "date": "Datum"
+    },
+    "status": {
+      "all": "Alle statussen",
+      "pending": "In afwachting",
+      "authorized": "Geautoriseerd",
+      "completed": "Voltooid",
+      "refunded": "Terugbetaald",
+      "failed": "Mislukt",
+      "partiallyRefunded": "Gedeeltelijk terugbetaald",
+      "expired": "Verlopen"
+    },
+    "professional": {
+      "title": "Betalingen",
+      "subtitle": "Beheer je Stripe-account en bekijk je inkomsten",
+      "stripeAccount": "Stripe-account",
+      "openDashboard": "Dashboard openen →",
+      "connectTitle": "Koppel je Stripe-account",
+      "completeTitle": "Voltooi je Stripe-configuratie",
+      "connectDescription": "Je moet je Stripe-account koppelen om betalingen van klanten te ontvangen. Dat duurt maar een paar minuten.",
+      "completeDescription": "Je Stripe-configuratie is nog niet voltooid. Rond ze af om betalingen te ontvangen.",
+      "connectButton": "Stripe-account koppelen",
+      "completeButton": "Configuratie voltooien",
+      "accountActive": "Account actief",
+      "accountActiveDescription": "Je account is klaar om betalingen te ontvangen",
+      "status": "Status",
+      "active": "Actief",
+      "charges": "Kaartbetalingen",
+      "payouts": "Uitbetalingen",
+      "totalEarnings": "Totale inkomsten",
+      "fromCompletedBookings": "Uit {count, plural, one {# afgeronde boeking} other {# afgeronde boekingen}}",
+      "pendingEarnings": "Inkomsten in afwachting",
+      "fromActiveBookings": "Uit actieve boekingen",
+      "completedJobs": "Afgeronde opdrachten",
+      "allTime": "Sinds het begin",
+      "recentTransactions": "Recente transacties",
+      "noTransactions": "Nog geen transacties",
+      "noTransactionsDescription": "Transacties verschijnen hier zodra je boekingen afrondt"
+    }
+  },
+  "warranty": {
+    "title": "Garantieclaims",
+    "subtitleProfessional": "Beheer garantieproblemen die klanten na afronding melden.",
+    "subtitleCustomer": "Volg je garantieclaims, voorstellen, escalaties en updates over de oplossing.",
+    "queueTitle": "Wachtrij garantieclaims",
+    "totalClaims": "{count, plural, one {# claim} other {# claims}} totaal",
+    "empty": "Geen garantieclaims gevonden voor dit filter.",
+    "booking": "Boeking",
+    "customer": "Klant",
+    "professional": "Vakman",
+    "responseSla": "Reactietermijn (SLA)",
+    "confirmationSla": "Bevestigingstermijn (SLA)",
+    "opened": "Geopend op {date}",
+    "resolveProposal": "Oplossingsvoorstel: {message}",
+    "resolveDate": "Oplosdatum: {date}",
+    "attachments": "Bijlagen",
+    "openAttachment": "Bijlage {index} openen",
+    "resolution": "Oplossing: {summary}",
+    "escalated": "Geëscaleerd: {reason}",
+    "escalatedWithNote": "Geëscaleerd: {reason} ({note})",
+    "openBooking": "Boeking openen",
+    "loadClaimFailed": "Garantieclaim laden is mislukt",
+    "loadClaimsFailed": "Garantieclaims laden is mislukt",
+    "status": {
+      "all": "Alle statussen",
+      "open": "Open",
+      "proposalSent": "Voorstel verzonden",
+      "proposalAccepted": "Voorstel geaccepteerd",
+      "resolved": "Opgelost",
+      "escalated": "Geëscaleerd",
+      "closed": "Gesloten"
+    },
+    "reason": {
+      "defect": "Defect",
+      "incompleteWork": "Onvolledig werk",
+      "materialIssue": "Probleem met materiaal",
+      "functionalityIssue": "Functioneel probleem",
+      "safetyIssue": "Veiligheidsprobleem",
+      "other": "Overige"
+    },
+    "hints": {
+      "openProfessional": "Actie nodig: voorstel versturen",
+      "openCustomer": "Claim geopend, wacht op reactie van de vakman",
+      "acceptedProfessional": "Actie nodig: herstelling afronden en als opgelost markeren",
+      "acceptedCustomer": "Voorstel geaccepteerd. Wacht op afronding van de herstelling",
+      "resolvedProfessional": "Wacht op bevestiging van de klant",
+      "resolvedCustomer": "Actie nodig: bekijk de oplossing en bevestig",
+      "escalated": "Geëscaleerd naar beheerder"
+    },
+    "guidance": {
+      "title": "Richtlijnen voor afhandeling",
+      "professional1": "Reageer binnen 5 werkdagen op nieuwe claims om automatische escalatie te voorkomen.",
+      "professional2": "Gebruik de boekingsdetailpagina om voorstellen te versturen, herstellingen als opgelost te markeren en bevestigingen op te volgen.",
+      "customer1": "Open de bijbehorende boeking om claimdetails, voorstellen en de voortgang van de herstelling te bekijken.",
+      "customer2": "Gebruik de boekingspagina om voorstellen te accepteren of af te wijzen, oplossingen te bevestigen of te escaleren als het probleem blijft bestaan."
+    }
+  }
+}

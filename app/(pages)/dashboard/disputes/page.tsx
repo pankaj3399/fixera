@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import { authFetch } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, RefreshCw, Scale, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 interface DisputeRecord {
   _id: string
@@ -32,17 +34,19 @@ interface DisputeRecord {
   }
 }
 
-const formatDate = (value?: string) => {
+const formatDate = (value: string | undefined, intl: string) => {
   if (!value) return "-"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "-"
-  return date.toLocaleString()
+  return date.toLocaleString(intl)
 }
 
 export default function DashboardDisputesPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const t = useTranslations("dashboard")
+  const { intl } = useFormatLocale()
 
   const [items, setItems] = useState<DisputeRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -59,21 +63,21 @@ export default function DashboardDisputesPage() {
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine`)
       if (!res.ok) {
-        toast.error(`Failed to load disputes (status ${res.status})`)
+        toast.error(t("disputes.loadFailedStatus", { status: res.status }))
         return
       }
       const json = await res.json()
       if (json.success) {
         setItems(json.data?.items || [])
       } else {
-        toast.error('Failed to load disputes')
+        toast.error(t("disputes.loadFailed"))
       }
     } catch {
-      toast.error('Failed to load disputes')
+      toast.error(t("disputes.loadFailed"))
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (user) fetchDisputes()
@@ -88,13 +92,13 @@ export default function DashboardDisputesPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Scale className="h-6 w-6" />
-              My Disputes
+              {t("disputes.title")}
             </h1>
-            <p className="text-sm text-gray-500 mt-1">All disputes you&apos;ve raised or that involve you</p>
+            <p className="text-sm text-gray-500 mt-1">{t("disputes.subtitle")}</p>
           </div>
           <Button variant="outline" size="sm" onClick={fetchDisputes}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            {t("common.refresh")}
           </Button>
         </div>
 
@@ -112,7 +116,7 @@ export default function DashboardDisputesPage() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <ShieldCheck className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-500">No disputes recorded</p>
+                  <p className="text-gray-500">{t("disputes.empty")}</p>
                 </CardContent>
               </Card>
             )
@@ -132,11 +136,11 @@ export default function DashboardDisputesPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-sm">{item.bookingNumber || item._id}</span>
                           <Badge variant={isResolved ? 'default' : 'destructive'} className="text-xs">
-                            {isResolved ? 'Resolved' : 'Open'}
+                            {isResolved ? t("disputes.statusResolved") : t("disputes.statusOpen")}
                           </Badge>
                           {slaBreached && (
                             <Badge variant="destructive" className="text-xs bg-red-700">
-                              Awaiting admin (SLA breached)
+                              {t("disputes.slaBreached")}
                             </Badge>
                           )}
                         </div>
@@ -152,12 +156,12 @@ export default function DashboardDisputesPage() {
                         )}
                         {isResolved && dispute.resolution && (
                           <p className="text-xs text-green-700 font-medium">
-                            Resolution: {dispute.resolution}
+                            {t("disputes.resolution", { value: dispute.resolution })}
                           </p>
                         )}
                         <p className="text-xs text-gray-400">
-                          Raised: {formatDate(dispute.raisedAt)}
-                          {dispute.resolvedAt ? ` · Resolved: ${formatDate(dispute.resolvedAt)}` : ''}
+                          {t("disputes.raised", { date: formatDate(dispute.raisedAt, intl) })}
+                          {dispute.resolvedAt ? ` · ${t("disputes.resolvedOn", { date: formatDate(dispute.resolvedAt, intl) })}` : ''}
                         </p>
                       </div>
                       <div className="flex flex-col gap-1 items-end shrink-0">
@@ -167,7 +171,7 @@ export default function DashboardDisputesPage() {
                           className="h-7 text-xs"
                           onClick={() => router.push(`/bookings/${item._id}`)}
                         >
-                          View Booking
+                          {t("disputes.viewBooking")}
                         </Button>
                       </div>
                     </div>

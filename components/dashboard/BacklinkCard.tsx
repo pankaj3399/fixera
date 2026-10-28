@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, getAuthToken } from '@/lib/utils';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import {
   formatIsoDatesInMessage,
   RejectionTooltipBody,
@@ -86,22 +88,25 @@ const POLL_INTERVAL_MS = 8_000;
 const MAX_POLL_BACKOFF_MS = 60_000;
 
 function BacklinkVerificationTooltip() {
+  const t = useTranslations('dashboardWidgets');
   return (
     <div className="space-y-2.5">
-      <p className="text-xs font-semibold text-slate-900">How verification works</p>
+      <p className="text-xs font-semibold text-slate-900">{t('backlink.howVerificationWorks')}</p>
       <ul className="space-y-2">
         <li className="flex gap-2">
           <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden />
           <span className="text-[11px] leading-snug text-muted-foreground">
-            Your page must include a{' '}
-            <span className="font-medium text-foreground">visible link to fixtract.com</span>
+            {t.rich('backlink.tooltipLink', {
+              strong: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+            })}
           </span>
         </li>
         <li className="flex gap-2">
           <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden />
           <span className="text-[11px] leading-snug text-muted-foreground">
-            Verification runs automatically — usually done in{' '}
-            <span className="font-medium text-foreground">under a minute</span>
+            {t.rich('backlink.tooltipTiming', {
+              strong: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+            })}
           </span>
         </li>
       </ul>
@@ -121,7 +126,7 @@ function isSafeHttpUrl(url: string): boolean {
 const STATUS_CONFIG: Record<
   BacklinkStatus,
   {
-    label: string;
+    labelKey: `backlink.status.${BacklinkStatus}`;
     icon: React.ElementType;
     badgeClassName: string;
     rowClassName: string;
@@ -129,35 +134,35 @@ const STATUS_CONFIG: Record<
   }
 > = {
   pending_verification: {
-    label: 'Verifying',
+    labelKey: 'backlink.status.pending_verification',
     icon: Loader2,
     badgeClassName: 'bg-amber-100 text-amber-800 ring-amber-200/60',
     rowClassName: 'border-amber-200/80 bg-gradient-to-r from-amber-50/80 to-white',
     iconClassName: 'bg-amber-100 text-amber-600',
   },
   verifying: {
-    label: 'Verifying',
+    labelKey: 'backlink.status.verifying',
     icon: Loader2,
     badgeClassName: 'bg-amber-100 text-amber-800 ring-amber-200/60',
     rowClassName: 'border-amber-200/80 bg-gradient-to-r from-amber-50/80 to-white',
     iconClassName: 'bg-amber-100 text-amber-600',
   },
   verified: {
-    label: 'Verified',
+    labelKey: 'backlink.status.verified',
     icon: CheckCircle2,
     badgeClassName: 'bg-emerald-100 text-emerald-800 ring-emerald-200/60',
     rowClassName: 'border-emerald-200/80 bg-gradient-to-r from-emerald-50/60 to-white',
     iconClassName: 'bg-emerald-100 text-emerald-600',
   },
   rejected: {
-    label: 'Rejected',
+    labelKey: 'backlink.status.rejected',
     icon: XCircle,
     badgeClassName: 'bg-red-100 text-red-800 ring-red-200/60',
     rowClassName: 'border-red-200/80 bg-gradient-to-r from-red-50/50 to-white',
     iconClassName: 'bg-red-100 text-red-600',
   },
   revoked: {
-    label: 'Revoked',
+    labelKey: 'backlink.status.revoked',
     icon: AlertCircle,
     badgeClassName: 'bg-slate-100 text-slate-700 ring-slate-200/60',
     rowClassName: 'border-slate-200 bg-gradient-to-r from-slate-50/80 to-white',
@@ -168,6 +173,8 @@ const STATUS_CONFIG: Record<
 function notifyNewRejections(
   previous: BacklinkStats | null,
   next: BacklinkStats,
+  fallbackReason: string,
+  noLinkSummary: string,
 ): void {
   if (!previous) return;
 
@@ -182,8 +189,8 @@ function notifyNewRejections(
     const rawRejection =
       submission.rejectionReason ??
       submission.adminReviewReason ??
-      'Link not found on page';
-    const rejection = summarizeRejectionReason(rawRejection);
+      fallbackReason;
+    const rejection = summarizeRejectionReason(rawRejection, noLinkSummary);
 
     toast.error(rejection.summary, {
       description: rejection.expandable ? rejection.full : undefined,
@@ -191,23 +198,18 @@ function notifyNewRejections(
   }
 }
 
-function cooldownRemaining(lastRejectedAt: string, cooldownHours: number): string | null {
+function remainingParts(ms: number) {
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+  return { hours, minutes, seconds };
+}
+
+function cooldownParts(lastRejectedAt: string, cooldownHours: number) {
   const expiresAt = new Date(lastRejectedAt).getTime() + cooldownHours * 60 * 60 * 1000;
   const remaining = expiresAt - Date.now();
   if (remaining <= 0) return null;
-  const h = Math.floor(remaining / (1000 * 60 * 60));
-  const m = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-function formatRemainingMs(ms: number): string {
-  if (ms <= 0) return '';
-  const h = Math.floor(ms / (1000 * 60 * 60));
-  const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-  const s = Math.floor((ms % (1000 * 60)) / 1000);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+  return remainingParts(remaining);
 }
 
 // ------------------------------------------------------------------
@@ -221,19 +223,21 @@ function ResubmitCooldownHint({
   expiresAt: Date;
   onExpired: () => void;
 }) {
-  const [remaining, setRemaining] = useState(() =>
-    formatRemainingMs(expiresAt.getTime() - Date.now()),
-  );
+  const t = useTranslations('dashboardWidgets');
+  const [remaining, setRemaining] = useState(() => {
+    const ms = expiresAt.getTime() - Date.now();
+    return ms > 0 ? remainingParts(ms) : null;
+  });
 
   useEffect(() => {
     const tick = () => {
       const ms = expiresAt.getTime() - Date.now();
       if (ms <= 0) {
-        setRemaining('');
+        setRemaining(null);
         onExpired();
         return;
       }
-      setRemaining(formatRemainingMs(ms));
+      setRemaining(remainingParts(ms));
     };
 
     tick();
@@ -243,18 +247,29 @@ function ResubmitCooldownHint({
 
   if (!remaining) return null;
 
+  const timeLeft =
+    remaining.hours > 0
+      ? t('backlink.duration.hoursMinutes', remaining)
+      : remaining.minutes > 0
+        ? t('backlink.duration.minutesSeconds', remaining)
+        : t('backlink.duration.seconds', remaining);
+
   return (
     <p className="flex items-center gap-1.5 text-xs text-slate-500">
       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-800">
         <Clock className="h-3 w-3 shrink-0" />
-        Resubmit available in{' '}
-        <span className="font-medium tabular-nums">{remaining}</span>
+        {t.rich('backlink.resubmitAvailable', {
+          time: timeLeft,
+          strong: (chunks) => <span className="font-medium tabular-nums">{chunks}</span>,
+        })}
       </span>
     </p>
   );
 }
 
 function StatusBadge({ status, tooltip }: { status: BacklinkStatus; tooltip?: string }) {
+  const t = useTranslations('dashboardWidgets');
+  const { intl } = useFormatLocale();
   const cfg = STATUS_CONFIG[status];
   const Icon = cfg.icon;
   const inFlight = isInFlight(status);
@@ -267,7 +282,7 @@ function StatusBadge({ status, tooltip }: { status: BacklinkStatus; tooltip?: st
       )}
     >
       <Icon className={cn('h-3 w-3', inFlight && 'animate-spin')} />
-      {cfg.label}
+      {t(cfg.labelKey)}
     </span>
   );
 
@@ -282,7 +297,14 @@ function StatusBadge({ status, tooltip }: { status: BacklinkStatus; tooltip?: st
           sideOffset={6}
           className="max-w-xs border border-red-100 bg-white px-3 py-2.5 text-foreground shadow-lg [&>svg:last-child]:hidden"
         >
-          <RejectionTooltipBody reason={tooltip.trim()} />
+          <RejectionTooltipBody
+            reason={tooltip.trim()}
+            locale={intl}
+            labels={{
+              title: t('backlink.noLinkTitle'),
+              hint: t('backlink.noLinkHint'),
+            }}
+          />
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -327,13 +349,23 @@ function SubmissionRow({
   submitting: boolean;
   onResubmit: (url: string) => void;
 }) {
+  const t = useTranslations('dashboardWidgets');
+  const { intl } = useFormatLocale();
   const theme = STATUS_CONFIG[submission.status];
   const inFlight = isInFlight(submission.status);
 
   const cooldown =
     submission.status === 'rejected' && submission.lastRejectedAt
-      ? cooldownRemaining(submission.lastRejectedAt, cooldownHours)
+      ? cooldownParts(submission.lastRejectedAt, cooldownHours)
       : null;
+
+  const cooldownLabel = cooldown
+    ? cooldown.hours > 0
+      ? t('backlink.duration.hoursMinutes', cooldown)
+      : cooldown.minutes > 0
+        ? t('backlink.duration.minutesSeconds', cooldown)
+        : t('backlink.duration.seconds', cooldown)
+    : null;
 
   const canResubmit = submission.status === 'rejected' && cooldown === null && !submitting;
 
@@ -379,7 +411,7 @@ function SubmissionRow({
               {submission.status === 'rejected' && cooldown && (
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                   <Timer className="h-3 w-3" />
-                  Resubmit in {cooldown}
+                  {t('backlink.resubmitIn', { time: cooldownLabel ?? '' })}
                 </div>
               )}
             </div>
@@ -387,21 +419,21 @@ function SubmissionRow({
 
           {inFlight && (
             <p className="text-xs leading-relaxed text-amber-800">
-              Crawling your page — usually completes in under a minute
+              {t('backlink.crawling')}
             </p>
           )}
 
           {submission.status === 'revoked' && (
             <p className="text-xs text-slate-600">
-              This link was revoked
               {submission.revokedAt
-                ? ` on ${new Date(submission.revokedAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}`
-                : ''}
-              .
+                ? t('backlink.revokedOn', {
+                    date: new Date(submission.revokedAt).toLocaleDateString(intl, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    }),
+                  })
+                : t('backlink.revoked')}
             </p>
           )}
 
@@ -416,7 +448,7 @@ function SubmissionRow({
             onClick={() => onResubmit(submission.submittedUrl)}
           >
             <RefreshCw className="mr-1.5 h-3 w-3" />
-            Resubmit
+            {t('backlink.resubmit')}
           </Button>
         )}
       </div>
@@ -451,6 +483,8 @@ interface BacklinkCardProps {
 }
 
 export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProps) {
+  const t = useTranslations('dashboardWidgets');
+  const { intl } = useFormatLocale();
   const [stats, setStats] = useState<BacklinkStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -493,7 +527,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         if (shouldRefreshPointsBalance(previous, data)) {
           onPointsBalanceChange?.();
         }
-        notifyNewRejections(previous, data);
+        notifyNewRejections(previous, data, t('backlink.errors.linkNotFound'), t('backlink.noLinkSummary'));
         statsRef.current = data;
         setStats(data);
         return data;
@@ -512,7 +546,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [onPointsBalanceChange]);
+  }, [onPointsBalanceChange, t]);
 
   // ------------------------------------------------------------------
   // Polling: keep going while any submission is pending
@@ -567,11 +601,11 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
   const handleSubmit = async (url?: string) => {
     const targetUrl = (url ?? urlInput).trim();
     if (!targetUrl) {
-      toast.error('Please enter a URL');
+      toast.error(t('backlink.errors.urlRequired'));
       return;
     }
     if (!isSafeHttpUrl(targetUrl)) {
-      toast.error('Please enter a valid http(s) URL');
+      toast.error(t('backlink.errors.urlInvalid'));
       return;
     }
 
@@ -592,15 +626,15 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         if (res.status === 429 && json.cooldownExpiresAt) {
           setCooldownExpiresAt(new Date(json.cooldownExpiresAt));
         }
-        toast.error(formatIsoDatesInMessage(json.msg ?? 'Submission failed'));
+        toast.error(formatIsoDatesInMessage(json.msg ?? t('backlink.errors.submissionFailed'), intl));
         return;
       }
 
       setUrlInput('');
-      toast.success('Submission received! We\'ll verify your link shortly.');
+      toast.success(t('backlink.errors.submissionReceived'));
       await fetchStats();
     } catch {
-      toast.error('Network error — please try again');
+      toast.error(t('backlink.errors.network'));
     } finally {
       setSubmitting(false);
     }
@@ -616,12 +650,12 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5 text-indigo-600" />
-            Backlink Rewards
+            {t('backlink.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-slate-500">
-            The backlink rewards program is currently paused.
+            {t('backlink.paused')}
           </p>
         </CardContent>
       </Card>
@@ -638,12 +672,12 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5 text-indigo-600" />
-            Backlink Rewards
+            {t('backlink.title')}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center gap-2 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading...
+          {t('common.loading')}
         </CardContent>
       </Card>
     );
@@ -655,12 +689,12 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5 text-indigo-600" />
-            Backlink Rewards
+            {t('backlink.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm text-amber-800">Couldn&apos;t load your backlink stats.</p>
+            <p className="text-sm text-amber-800">{t('backlink.loadFailed')}</p>
             <Button
               variant="outline"
               size="sm"
@@ -670,7 +704,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
                 void fetchStats();
               }}
             >
-              Retry
+              {t('common.retry')}
             </Button>
           </div>
         </CardContent>
@@ -693,14 +727,14 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5 text-indigo-600" />
-            Backlink Rewards
+            {t('backlink.title')}
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1"
-                    aria-label="Backlink verification info"
+                    aria-label={t('backlink.verificationInfo')}
                   >
                     <Info className="h-3.5 w-3.5" />
                   </button>
@@ -717,13 +751,13 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
             {hasPending && (
               <Badge variant="secondary" className="ml-1 gap-1 text-xs">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Verifying
+                {t('backlink.verifying')}
               </Badge>
             )}
           </CardTitle>
           {stats && (
             <div className="text-right">
-              <p className="text-xs text-slate-500">Points earned</p>
+              <p className="text-xs text-slate-500">{t('backlink.pointsEarned')}</p>
               <p className="text-lg font-semibold text-emerald-600">
                 {stats.totalPointsEarned}
               </p>
@@ -731,8 +765,10 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
           )}
         </div>
         <p className="text-sm text-slate-500">
-          Link to Fixtract from your website or blog and earn{' '}
-          <span className="font-medium text-slate-700">{rewardPoints} points</span> per verified link.
+          {t.rich('backlink.earnPerLink', {
+            points: rewardPoints,
+            strong: (chunks) => <span className="font-medium text-slate-700">{chunks}</span>,
+          })}
         </p>
       </CardHeader>
 
@@ -740,17 +776,17 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         {refreshError && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
             <p className="text-sm text-amber-800">
-              Couldn&apos;t refresh your latest backlink stats.
+              {t('backlink.refreshFailed')}
             </p>
             <Button variant="outline" size="sm" className="mt-2" onClick={() => void fetchStats()}>
-              Retry
+              {t('common.retry')}
             </Button>
           </div>
         )}
         {/* Submit form */}
         <div className="space-y-3">
           <label htmlFor="backlink-url-input" className="text-xs font-medium text-slate-700">
-            Submit a page URL where you&apos;ve linked to Fixtract
+            {t('backlink.submitLabel')}
           </label>
           <div className="flex items-center gap-2">
             <Input
@@ -773,10 +809,10 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="sr-only">Submitting</span>
+                  <span className="sr-only">{t('backlink.submitting')}</span>
                 </>
               ) : (
-                'Submit'
+                t('backlink.submit')
               )}
             </Button>
           </div>
@@ -793,7 +829,7 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         {submissions.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Your submissions
+              {t('backlink.yourSubmissions')}
             </p>
             <div className="max-h-72 space-y-2.5 overflow-y-auto pr-0.5">
               {submissions.map((s) => (
@@ -812,9 +848,9 @@ export default function BacklinkCard({ onPointsBalanceChange }: BacklinkCardProp
         {submissions.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-200 py-6 text-center">
             <Link2 className="mx-auto h-6 w-6 text-slate-300" />
-            <p className="mt-2 text-sm text-slate-500">No submissions yet</p>
+            <p className="mt-2 text-sm text-slate-500">{t('backlink.noSubmissions')}</p>
             <p className="text-xs text-slate-400">
-              Submit a URL above to start earning points
+              {t('backlink.noSubmissionsHint')}
             </p>
           </div>
         )}

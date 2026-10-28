@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Star, MapPin, Calendar, User, Clock, Award, Briefcase, Tag, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Star, MapPin, Calendar, User, Clock, Award, Briefcase, Tag, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { fetchConversationInfo } from "@/lib/chatApi";
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 import type { ChatConversation, ConversationInfoStats } from "@/types/chat";
 import {
   getLevelColor,
@@ -29,6 +31,19 @@ const getOtherParticipant = (conversation: ChatConversation, role?: string) => {
   if (role === "professional") return conversation.customerId;
   return conversation.professionalId;
 };
+
+const PROFESSIONAL_LEVEL_KEYS = {
+  new: "info.professionalLevels.new",
+  "level 1": "info.professionalLevels.level1",
+  "level 2": "info.professionalLevels.level2",
+  "level 3": "info.professionalLevels.level3",
+  expert: "info.professionalLevels.expert",
+} as const;
+
+const ADMIN_TAG_KEYS = {
+  verified: "info.adminTags.verified",
+  "our choice": "info.adminTags.ourChoice",
+} as const;
 
 const StarRating = ({ rating, label }: { rating: number; label?: string }) => {
   if (!rating || rating === 0) return null;
@@ -54,6 +69,8 @@ const StarRating = ({ rating, label }: { rating: number; label?: string }) => {
 };
 
 export default function ChatInfoPanel({ conversationId, conversation, currentUserRole }: ChatInfoPanelProps) {
+  const t = useTranslations("chat");
+  const { intl } = useFormatLocale();
   const [stats, setStats] = useState<ConversationInfoStats | null>(null);
   const [infoConversation, setInfoConversation] = useState<ChatConversation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,18 +119,18 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
     return (
       <div className="h-full overflow-y-auto">
         <div className="p-4 border-b border-slate-200">
-          <h3 className="text-sm font-semibold text-gray-700">Info</h3>
+          <h3 className="text-sm font-semibold text-gray-700">{t("info.title")}</h3>
         </div>
         <div className="p-4 flex flex-col items-center text-center">
           <div className="h-16 w-16 mb-3 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
             <ShieldCheck className="h-8 w-8 text-white" />
           </div>
-          <p className="text-sm font-semibold text-gray-900">Fixtract Support</p>
+          <p className="text-sm font-semibold text-gray-900">{t("common.fixtractSupport")}</p>
           <Badge variant="secondary" className="mt-1 text-[10px] bg-indigo-100 text-indigo-700">
-            Official
+            {t("common.official")}
           </Badge>
           <p className="mt-3 text-xs text-gray-500 leading-relaxed">
-            This is an official conversation with the Fixtract team. We&apos;ll help you with anything platform-related.
+            {t("info.supportDescription")}
           </p>
         </div>
       </div>
@@ -121,19 +138,22 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
   }
 
   const other = getOtherParticipant(displayConversation, currentUserRole);
-  const name = other?.username || other?.name || "User";
+  const name = other?.username || other?.name || t("common.user");
   const location = [other?.businessInfo?.city, other?.businessInfo?.country].filter(Boolean).join(", ");
   const memberSince = other?.createdAt
-    ? new Date(other.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    ? new Date(other.createdAt).toLocaleDateString(intl, { month: "long", year: "numeric" })
     : null;
 
   const isProfessionalViewing = currentUserRole === "professional";
   const isCustomerViewing = currentUserRole === "customer";
+  const levelKey = stats?.professionalLevel
+    ? PROFESSIONAL_LEVEL_KEYS[stats.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
+    : undefined;
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-4 border-b border-slate-200">
-        <h3 className="text-sm font-semibold text-gray-700">Info</h3>
+        <h3 className="text-sm font-semibold text-gray-700">{t("info.title")}</h3>
       </div>
 
       {/* Profile Section */}
@@ -159,7 +179,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
         {memberSince && (
           <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
             <Calendar className="h-3 w-3" />
-            <span>Member since {memberSince}</span>
+            <span>{t("info.memberSince", { date: memberSince })}</span>
           </div>
         )}
 
@@ -168,14 +188,14 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             <Button asChild variant="outline" size="sm" className="w-full text-xs">
               <Link href={`/professional/${other._id}`}>
                 <User className="h-3 w-3 mr-1.5" />
-                View Full Profile
+                {t("info.viewProfile")}
               </Link>
             </Button>
             {stats?.pendingBookings?.[0]?.bookingId && (
               <Button asChild size="sm" className="w-full text-xs bg-indigo-600 hover:bg-indigo-700">
                 <Link href={`/bookings/${stats.pendingBookings[0].bookingId}`}>
                   <Briefcase className="h-3 w-3 mr-1.5" />
-                  Open Booking
+                  {t("info.openBooking")}
                 </Link>
               </Button>
             )}
@@ -188,16 +208,16 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
         <>
           <div className="border-t border-slate-200 mx-4" />
           <div className="p-4 space-y-3">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Professional Info</h4>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("info.professionalInfo")}</h4>
 
             {stats.professionalLevel && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-gray-600">
                   <Award className="h-3.5 w-3.5 text-indigo-500" />
-                  <span>Level</span>
+                  <span>{t("info.level")}</span>
                 </div>
                 <Badge className={`text-[10px] ${getLevelColor(stats.professionalLevel)}`}>
-                  {stats.professionalLevel}
+                  {levelKey ? t(levelKey) : stats.professionalLevel}
                 </Badge>
               </div>
             )}
@@ -206,18 +226,21 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
                   <Tag className="h-3.5 w-3.5 text-indigo-500" />
-                  <span>Tags</span>
+                  <span>{t("info.tags")}</span>
                 </div>
                 <div className="flex flex-wrap gap-1 justify-end">
-                  {stats.adminTags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="outline"
-                      className={`text-[10px] ${getAdminTagStyle(tag)}`}
-                    >
-                      {formatAdminTagLabel(tag)}
-                    </Badge>
-                  ))}
+                  {stats.adminTags.map((tag) => {
+                    const tagKey = ADMIN_TAG_KEYS[tag.toLowerCase() as keyof typeof ADMIN_TAG_KEYS];
+                    return (
+                      <Badge
+                        key={tag}
+                        variant="outline"
+                        className={`text-[10px] ${getAdminTagStyle(tag)}`}
+                      >
+                        {tagKey ? t(tagKey) : formatAdminTagLabel(tag)}
+                      </Badge>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -226,10 +249,10 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-gray-600">
                   <Clock className="h-3.5 w-3.5 text-indigo-500" />
-                  <span>Avg. Response</span>
+                  <span>{t("info.avgResponse")}</span>
                 </div>
                 <span className="text-xs font-medium text-gray-700">
-                  {formatResponseTime(stats.avgResponseTimeMs)}
+                  {formatResponseTime(stats.avgResponseTimeMs, intl)}
                 </span>
               </div>
             )}
@@ -245,7 +268,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             <>
               <div className="border-t border-slate-200 mx-4" />
               <div className="p-4 space-y-2">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Professional Ratings</h4>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("info.professionalRatings")}</h4>
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex items-center gap-0.5">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -262,9 +285,9 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
                   <span className="text-sm font-semibold text-gray-700">{stats.avgCustomerRating.toFixed(1)}</span>
                   <span className="text-xs text-gray-400">({stats.totalCustomerReviews})</span>
                 </div>
-                <StarRating rating={stats.avgCommunication} label="Communication" />
-                <StarRating rating={stats.avgValueOfDelivery} label="Value of Delivery" />
-                <StarRating rating={stats.avgQualityOfService} label="Quality of Service" />
+                <StarRating rating={stats.avgCommunication} label={t("ratings.communication")} />
+                <StarRating rating={stats.avgValueOfDelivery} label={t("ratings.valueOfDelivery")} />
+                <StarRating rating={stats.avgQualityOfService} label={t("ratings.qualityOfService")} />
               </div>
             </>
           )}
@@ -274,8 +297,8 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
             <>
               <div className="border-t border-slate-200 mx-4" />
               <div className="p-4 space-y-2">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Rating</h4>
-                <p className="text-[11px] text-gray-400">Average from professionals</p>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("info.customerRating")}</h4>
+                <p className="text-[11px] text-gray-400">{t("info.averageFromProfessionals")}</p>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-0.5">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -303,21 +326,21 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
         <>
           <div className="border-t border-slate-200 mx-4" />
           <div className="p-4 space-y-3">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Booking History</h4>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("info.bookingHistory")}</h4>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-slate-50 p-3 text-center">
                 <p className="text-lg font-bold text-indigo-600">{stats.totalBookings}</p>
-                <p className="text-[11px] text-gray-500">Total Bookings</p>
+                <p className="text-[11px] text-gray-500">{t("info.totalBookings")}</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 text-center">
                 <p className="text-lg font-bold text-green-600">{stats.completedBookings}</p>
-                <p className="text-[11px] text-gray-500">Completed</p>
+                <p className="text-[11px] text-gray-500">{t("info.completed")}</p>
               </div>
             </div>
 
             {stats.totalBookings === 0 && (
-              <p className="text-xs text-gray-400 text-center py-2">No bookings between you yet</p>
+              <p className="text-xs text-gray-400 text-center py-2">{t("info.noBookings")}</p>
             )}
           </div>
         </>
@@ -330,7 +353,7 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
           <div className="p-4 space-y-3">
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
               <Briefcase className="h-3.5 w-3.5" />
-              Pending Orders
+              {t("info.pendingOrders")}
             </h4>
 
             <div className="space-y-2">
@@ -358,17 +381,17 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
                           : "bg-amber-100 text-amber-700"
                       )}
                     >
-                      {booking.status === "in_progress" ? "In Progress" : "Booked"}
+                      {booking.status === "in_progress" ? t("info.inProgress") : t("info.booked")}
                     </Badge>
                   </div>
                   {booking.preferredStartDate && (
                     <p className="text-[10px] text-gray-500">
-                      Start: {new Date(booking.preferredStartDate).toLocaleDateString()}
+                      {t("info.start", { date: new Date(booking.preferredStartDate).toLocaleDateString(intl) })}
                     </p>
                   )}
                   {booking.estimatedDuration && (
                     <p className="text-[10px] text-gray-500">
-                      Duration: {booking.estimatedDuration}
+                      {t("info.duration", { duration: booking.estimatedDuration })}
                     </p>
                   )}
                 </div>

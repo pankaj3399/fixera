@@ -2,10 +2,12 @@
 
 import { useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 export default function EditProjectRedirect() {
   const router = useRouter();
   const params = useParams();
+  const t = useTranslations('proProjects');
 
   useEffect(() => {
     const id = params?.id;
@@ -23,7 +25,7 @@ export default function EditProjectRedirect() {
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Redirecting to project editor...</p>
+      <p className="text-gray-500">{t('editRedirect.redirecting')}</p>
     </div>
   );
 }

@@ -2,8 +2,10 @@
 
 import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 function StripeRefreshContent() {
+  const t = useTranslations('proArea');
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');
@@ -32,7 +34,7 @@ function StripeRefreshContent() {
       const data = await response.json();
 
       if (!data.success) {
-        setError(data.error?.message || 'Failed to create new onboarding link');
+        setError(data.error?.message || t('stripePages.refresh.createFailed'));
         setLoading(false);
         return;
       }
@@ -40,7 +42,7 @@ function StripeRefreshContent() {
       window.location.href = data.data.url;
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : t('stripePages.shared.anErrorOccurred'));
       setLoading(false);
     }
   };
@@ -55,10 +57,10 @@ function StripeRefreshContent() {
         </div>
 
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Onboarding Link Expired
+          {t('stripePages.refresh.title')}
         </h1>
         <p className="text-gray-600 mb-6">
-          Your Stripe onboarding link has expired. Don&apos;t worry - we can generate a new one for you to continue where you left off.
+          {t('stripePages.refresh.body')}
         </p>
 
         {error && (
@@ -76,10 +78,10 @@ function StripeRefreshContent() {
           {loading ? (
             <>
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Creating new link...
+              {t('stripePages.refresh.creating')}
             </>
           ) : (
-            'Continue Setup'
+            t('stripePages.shared.continueSetup')
           )}
         </button>
 
@@ -88,11 +90,11 @@ function StripeRefreshContent() {
           onClick={() => router.push(isFromOnboarding ? '/professional/onboarding' : '/dashboard')}
           className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
         >
-          {isFromOnboarding ? 'Back to Onboarding' : 'Back to Dashboard'}
+          {isFromOnboarding ? t('stripePages.shared.backToOnboarding') : t('stripePages.shared.backToDashboard')}
         </button>
 
         <p className="text-xs text-gray-500 mt-4">
-          Your progress is saved. The new link will take you back to where you left off.
+          {t('stripePages.refresh.footnote')}
         </p>
       </div>
     </div>

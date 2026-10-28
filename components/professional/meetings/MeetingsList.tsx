@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, Users, MapPin, Link, Video, FileText, X } from "lucide-react"
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 
 interface Meeting {
   _id: string
@@ -40,6 +42,8 @@ interface MeetingsListProps {
 }
 
 export default function MeetingsList({ projectId, refreshTrigger }: MeetingsListProps) {
+  const t = useTranslations('proProjects')
+  const { dateFns } = useFormatLocale()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'completed' | 'cancelled'>('all')
@@ -68,18 +72,18 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
         const result = await response.json()
         setMeetings(result.data || [])
       } else {
-        toast.error('Failed to load meetings')
+        toast.error(t('meetingsList.errors.load'))
       }
     } catch (error) {
       console.error('Failed to fetch meetings:', error)
-      toast.error('Failed to load meetings')
+      toast.error(t('meetingsList.errors.load'))
     } finally {
       setLoading(false)
     }
   }
 
   const handleCancelMeeting = async (meetingId: string) => {
-    if (!confirm('Are you sure you want to cancel this meeting?')) return
+    if (!confirm(t('meetingsList.cancelConfirm'))) return
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/meetings/${meetingId}/cancel`, {
@@ -92,34 +96,61 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
       })
 
       if (response.ok) {
-        toast.success('Meeting cancelled successfully')
+        toast.success(t('meetingsList.cancelled'))
         fetchMeetings()
       } else {
-        toast.error('Failed to cancel meeting')
+        toast.error(t('meetingsList.errors.cancel'))
       }
     } catch (error) {
       console.error('Failed to cancel meeting:', error)
-      toast.error('Failed to cancel meeting')
+      toast.error(t('meetingsList.errors.cancel'))
     }
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
-      scheduled: { variant: 'default', label: 'Scheduled' },
-      completed: { variant: 'secondary', label: 'Completed' },
-      cancelled: { variant: 'destructive', label: 'Cancelled' },
-      rescheduled: { variant: 'outline', label: 'Rescheduled' }
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+      scheduled: { variant: 'default' },
+      completed: { variant: 'secondary' },
+      cancelled: { variant: 'destructive' },
+      rescheduled: { variant: 'outline' }
+    }
+    const getStatusLabel = (value: string) => {
+      switch (value) {
+        case 'scheduled':
+          return t('meetingStatus.scheduled')
+        case 'completed':
+          return t('meetingStatus.completed')
+        case 'cancelled':
+          return t('meetingStatus.cancelled')
+        case 'rescheduled':
+          return t('meetingStatus.rescheduled')
+        default:
+          return value
+      }
     }
     const config = variants[status] || variants.scheduled
-    return <Badge variant={config.variant}>{config.label}</Badge>
+    return <Badge variant={config.variant}>{getStatusLabel(status)}</Badge>
   }
 
   const getMeetingTypeBadge = (type: string) => {
     return type === 'planning' ? (
-      <Badge variant="outline" className="bg-blue-50">Planning</Badge>
+      <Badge variant="outline" className="bg-blue-50">{t('meetingType.planning')}</Badge>
     ) : (
-      <Badge variant="outline" className="bg-purple-50">Team</Badge>
+      <Badge variant="outline" className="bg-purple-50">{t('meetingType.team')}</Badge>
     )
+  }
+
+  const getAttendeeStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return t('attendeeStatus.pending')
+      case 'accepted':
+        return t('attendeeStatus.accepted')
+      case 'declined':
+        return t('attendeeStatus.declined')
+      default:
+        return status
+    }
   }
 
   const filteredMeetings = filter === 'all'
@@ -131,8 +162,8 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Meetings</CardTitle>
-            <CardDescription>View and manage your scheduled meetings</CardDescription>
+            <CardTitle>{t('meetingsList.title')}</CardTitle>
+            <CardDescription>{t('meetingsList.description')}</CardDescription>
           </div>
           {!projectId && (
             <div className="flex gap-2">
@@ -141,28 +172,28 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                 size="sm"
                 onClick={() => setFilter('all')}
               >
-                All
+                {t('meetingsList.all')}
               </Button>
               <Button
                 variant={filter === 'scheduled' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFilter('scheduled')}
               >
-                Scheduled
+                {t('meetingStatus.scheduled')}
               </Button>
               <Button
                 variant={filter === 'completed' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFilter('completed')}
               >
-                Completed
+                {t('meetingStatus.completed')}
               </Button>
               <Button
                 variant={filter === 'cancelled' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFilter('cancelled')}
               >
-                Cancelled
+                {t('meetingStatus.cancelled')}
               </Button>
             </div>
           )}
@@ -183,7 +214,7 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
           </div>
         ) : filteredMeetings.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No meetings found
+            {t('meetingsList.noMeetings')}
           </div>
         ) : (
           <div className="space-y-4">
@@ -218,19 +249,19 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Calendar className="h-4 w-4" />
-                        <span>{format(parseISO(meeting.scheduledDate), 'PPP')}</span>
+                        <span>{format(parseISO(meeting.scheduledDate), 'PPP', { locale: dateFns })}</span>
                       </div>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Clock className="h-4 w-4" />
                         <span>
-                          {meeting.startTime} - {meeting.endTime} ({meeting.duration} min)
+                          {meeting.startTime} - {meeting.endTime} {t('meetingsList.duration', { count: meeting.duration })}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         {meeting.isOnline ? (
                           <>
                             <Video className="h-4 w-4" />
-                            <span>Online Meeting</span>
+                            <span>{t('meetingsList.onlineMeeting')}</span>
                           </>
                         ) : (
                           <>
@@ -241,7 +272,7 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                       </div>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Users className="h-4 w-4" />
-                        <span>{meeting.attendees.length} attendees</span>
+                        <span>{t('meetingsList.attendees', { count: meeting.attendees.length })}</span>
                       </div>
                     </div>
 
@@ -255,7 +286,7 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                           rel="noopener noreferrer"
                           className="text-primary hover:underline"
                         >
-                          Join Meeting
+                          {t('meetingsList.joinMeeting')}
                         </a>
                       </div>
                     )}
@@ -264,7 +295,7 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Users className="h-4 w-4" />
-                        Attendees
+                        {t('meetingsList.attendeesTitle')}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {meeting.attendees.map((attendee) => (
@@ -279,7 +310,7 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                             }
                             className="text-xs"
                           >
-                            {attendee.name} ({attendee.status})
+                            {attendee.name} ({getAttendeeStatusLabel(attendee.status)})
                           </Badge>
                         ))}
                       </div>
@@ -290,7 +321,7 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <FileText className="h-4 w-4" />
-                          Agenda
+                          {t('meetingsList.agenda')}
                         </div>
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {meeting.agenda}
@@ -301,7 +332,7 @@ export default function MeetingsList({ projectId, refreshTrigger }: MeetingsList
                     {/* Notes */}
                     {meeting.notes && (
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">Notes</div>
+                        <div className="text-sm font-medium">{t('meetingsList.notes')}</div>
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {meeting.notes}
                         </p>

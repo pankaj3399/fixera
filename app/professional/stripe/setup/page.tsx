@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface AccountStatus {
@@ -25,6 +26,7 @@ export default function StripeSetupPage() {
 }
 
 function StripeSetupContent() {
+  const t = useTranslations('proArea');
   const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source');
@@ -95,7 +97,7 @@ function StripeSetupContent() {
         const createData = await createResponse.json();
 
         if (!createData.success) {
-          setError(createData.error?.message || 'Failed to create Stripe account');
+          setError(createData.error?.message || t('stripePages.setup.createAccountFailed'));
           setLoading(false);
           return;
         }
@@ -121,7 +123,7 @@ function StripeSetupContent() {
       const onboardingData = await onboardingResponse.json();
 
       if (!onboardingData.success) {
-        setError(onboardingData.error?.message || 'Failed to create onboarding link');
+        setError(onboardingData.error?.message || t('stripePages.setup.createLinkFailed'));
         setLoading(false);
         return;
       }
@@ -130,7 +132,7 @@ function StripeSetupContent() {
       window.location.href = onboardingData.data.url;
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : t('stripePages.shared.anErrorOccurred'));
       setLoading(false);
     }
   };
@@ -156,7 +158,7 @@ function StripeSetupContent() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Checking account status...</p>
+          <p className="mt-4 text-gray-600">{t('stripePages.setup.checking')}</p>
         </div>
       </div>
     );
@@ -171,10 +173,10 @@ function StripeSetupContent() {
       <div className="max-w-3xl mx-auto">
         <div className="bg-white shadow-lg rounded-lg p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Connect Your Stripe Account
+            {t('stripePages.setup.title')}
           </h1>
           <p className="text-gray-600 mb-8">
-            Start receiving payments from customers by connecting your Stripe account
+            {t('stripePages.setup.subtitle')}
           </p>
 
           {error && (
@@ -193,9 +195,9 @@ function StripeSetupContent() {
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-green-800 font-medium">Account Connected</h3>
+                    <h3 className="text-green-800 font-medium">{t('stripePages.setup.connectedTitle')}</h3>
                     <p className="text-green-700 text-sm mt-1">
-                      Your Stripe account is fully set up and ready to receive payments
+                      {t('stripePages.setup.connectedBody')}
                     </p>
                   </div>
                 </div>
@@ -203,15 +205,15 @@ function StripeSetupContent() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="border rounded-lg p-4">
-                  <p className="text-sm text-gray-500">Charges Enabled</p>
+                  <p className="text-sm text-gray-500">{t('stripePages.setup.chargesEnabled')}</p>
                   <p className="text-lg font-semibold text-gray-900 mt-1">
-                    {accountStatus.chargesEnabled ? 'Yes' : 'No'}
+                    {accountStatus.chargesEnabled ? t('common.yes') : t('common.no')}
                   </p>
                 </div>
                 <div className="border rounded-lg p-4">
-                  <p className="text-sm text-gray-500">Payouts Enabled</p>
+                  <p className="text-sm text-gray-500">{t('stripePages.setup.payoutsEnabled')}</p>
                   <p className="text-lg font-semibold text-gray-900 mt-1">
-                    {accountStatus.payoutsEnabled ? 'Yes' : 'No'}
+                    {accountStatus.payoutsEnabled ? t('common.yes') : t('common.no')}
                   </p>
                 </div>
               </div>
@@ -221,7 +223,7 @@ function StripeSetupContent() {
                 onClick={handleGoToDashboard}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700"
               >
-                Open Stripe Dashboard
+                {t('stripePages.setup.openDashboard')}
               </button>
 
               <button
@@ -229,38 +231,38 @@ function StripeSetupContent() {
                 onClick={() => router.push('/dashboard')}
                 className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50"
               >
-                Back to Dashboard
+                {t('stripePages.shared.backToDashboard')}
               </button>
             </div>
           ) : (
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                <h3 className="text-blue-900 font-semibold mb-3">What you&apos;ll need:</h3>
+                <h3 className="text-blue-900 font-semibold mb-3">{t('stripePages.setup.whatYouNeed')}</h3>
                 <ul className="space-y-2 text-blue-800">
                   <li className="flex items-start">
                     <svg className="h-5 w-5 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    Business information (name, address, tax ID)
+                    {t('stripePages.setup.needBusiness')}
                   </li>
                   <li className="flex items-start">
                     <svg className="h-5 w-5 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    Bank account details for payouts
+                    {t('stripePages.setup.needBank')}
                   </li>
                   <li className="flex items-start">
                     <svg className="h-5 w-5 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    Personal identification (passport or ID card)
+                    {t('stripePages.setup.needId')}
                   </li>
                 </ul>
               </div>
 
               <div className="border-l-4 border-yellow-400 bg-yellow-50 p-4">
                 <p className="text-sm text-yellow-800">
-                  You&apos;ll be redirected to Stripe&apos;s secure platform to complete the setup process. This typically takes 5-10 minutes.
+                  {t('stripePages.setup.redirectNotice')}
                 </p>
               </div>
 
@@ -273,15 +275,15 @@ function StripeSetupContent() {
                 {loading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    Connecting...
+                    {t('stripePages.setup.connecting')}
                   </>
                 ) : (
-                  'Connect with Stripe'
+                  t('stripePages.setup.connect')
                 )}
               </button>
 
               <p className="text-xs text-gray-500 text-center">
-                By connecting, you agree to Stripe&apos;s Terms of Service and Privacy Policy
+                {t('stripePages.setup.terms')}
               </p>
             </div>
           )}

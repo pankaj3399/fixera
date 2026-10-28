@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar as CalendarIcon, Clock, Users, MapPin, Link, ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from 'sonner'
 import { format, addDays, isBefore, startOfDay, isWithinInterval, parseISO } from 'date-fns'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 
 interface TeamMember {
   _id: string
@@ -55,6 +57,8 @@ interface MeetingSchedulerProps {
 }
 
 export default function MeetingScheduler({ projectId, onMeetingCreated }: MeetingSchedulerProps) {
+  const t = useTranslations('proProjects')
+  const { dateFns, intl } = useFormatLocale()
   const [meetingType, setMeetingType] = useState<'planning' | 'team'>('planning')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -121,10 +125,10 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
 
         setTeamMembers(members)
       } catch {
-        toast.error('Failed to load team members')
+        toast.error(t('scheduler.errors.loadTeamMembers'))
       }
     })()
-  }, [])
+  }, [t])
 
   // Generate calendar dates
   useEffect(() => {
@@ -134,10 +138,18 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
     setCalendarDates(dates)
   }, [currentMonth])
 
-  // Meeting type title
+  // Meeting type title (preserves a user-typed title across locale changes:
+  // only empty or still-default titles are replaced by the new default).
+  const defaultTitleRef = useRef('')
   useEffect(() => {
-    setTitle(meetingType === 'planning' ? 'Project Planning Meeting' : 'Team Meeting')
-  }, [meetingType])
+    const defaultTitle =
+      meetingType === 'planning' ? t('scheduler.defaultPlanningTitle') : t('scheduler.defaultTeamTitle')
+    const previousDefaultTitle = defaultTitleRef.current
+    defaultTitleRef.current = defaultTitle
+    setTitle((currentTitle) =>
+      currentTitle === '' || currentTitle === previousDefaultTitle ? defaultTitle : currentTitle
+    )
+  }, [meetingType, t])
 
   // Duration auto-calc
   useEffect(() => {
@@ -167,15 +179,15 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
           const result = await response.json()
           setAvailability(result?.data?.employees || [])
         } else {
-          toast.error('Failed to load availability')
+          toast.error(t('scheduler.errors.loadAvailability'))
         }
       } catch {
-        toast.error('Failed to load team availability')
+        toast.error(t('scheduler.errors.loadTeamAvailability'))
       } finally {
         setLoadingAvailability(false)
       }
     })()
-  }, [selectedMembers, currentMonth])
+  }, [selectedMembers, currentMonth, t])
 
   // Compute available start slots (intersection of all members' free time)
   type Interval = { start:number; end:number }
@@ -242,14 +254,20 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
     setSelectedMembers(prev => prev.includes(memberId) ? prev.filter(id => id !== memberId) : [...prev, memberId])
   }
 
+  // Slot values stay "HH:MM" (sent to the API); only the visible label is localized.
+  const formatTimeLabel = (hhmm: string) => {
+    const [hours, minutes] = hhmm.split(':').map(Number)
+    return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString(intl, { hour: '2-digit', minute: '2-digit' })
+  }
+
   const handleCreateMeeting = async () => {
-    if (!title.trim()) { toast.error('Meeting title is required'); return }
-    if (!selectedDate) { toast.error('Please select a meeting date'); return }
-    if (!startTime || !endTime) { toast.error('Please select meeting time'); return }
-    if (selectedMembers.length === 0) { toast.error('Please select at least one team member'); return }
-    if (isOnline && !meetingLink.trim()) { toast.error('Please provide a meeting link for online meetings'); return }
-    if (!isOnline && !location.trim()) { toast.error('Please provide a location for in-person meetings'); return }
-    if (availableSlots.length > 0 && !availableSlots.includes(startTime)) { toast.error('Selected time is not available for all participants'); return }
+    if (!title.trim()) { toast.error(t('scheduler.validation.titleRequired')); return }
+    if (!selectedDate) { toast.error(t('scheduler.validation.dateRequired')); return }
+    if (!startTime || !endTime) { toast.error(t('scheduler.validation.timeRequired')); return }
+    if (selectedMembers.length === 0) { toast.error(t('scheduler.validation.membersRequired')); return }
+    if (isOnline && !meetingLink.trim()) { toast.error(t('scheduler.validation.linkRequired')); return }
+    if (!isOnline && !location.trim()) { toast.error(t('scheduler.validation.locationRequired')); return }
+    if (availableSlots.length > 0 && !availableSlots.includes(startTime)) { toast.error(t('scheduler.validation.slotUnavailable')); return }
 
     setCreating(true)
     try {
@@ -258,13 +276,13 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
         body: JSON.stringify({ projectId, meetingType, title, description, scheduledDate: selectedDate.toISOString(), startTime, endTime, duration, isOnline, location, meetingLink, attendeeIds: selectedMembers })
       })
       if (response.ok) {
-        toast.success('Meeting created')
+        toast.success(t('scheduler.created'))
         onMeetingCreated?.()
       } else {
-        toast.error('Failed to create meeting')
+        toast.error(t('scheduler.createFailed'))
       }
     } catch {
-      toast.error('Failed to create meeting')
+      toast.error(t('scheduler.createFailed'))
     } finally { setCreating(false) }
   }
 
@@ -273,36 +291,36 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
       <CardHeader className="px-4 md:px-6">
         <CardTitle className="flex items-center gap-2 text-lg">
           <CalendarIcon className="h-5 w-5" />
-          Schedule Meeting
+          {t('common.scheduleMeeting')}
         </CardTitle>
-        <CardDescription>Pick a date and time that works for everyone</CardDescription>
+        <CardDescription>{t('scheduler.description')}</CardDescription>
       </CardHeader>
       <CardContent className="px-4 md:px-6 space-y-4">
         {/* Type */}
         <div className="space-y-2">
-          <Label>Meeting Type</Label>
+          <Label>{t('scheduler.meetingType')}</Label>
           <Select value={meetingType} onValueChange={(v: 'planning' | 'team') => setMeetingType(v)}>
-            <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('scheduler.selectType')} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="planning">Planning</SelectItem>
-              <SelectItem value="team">Team</SelectItem>
+              <SelectItem value="planning">{t('meetingType.planning')}</SelectItem>
+              <SelectItem value="team">{t('meetingType.team')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* Title */}
         <div className="space-y-2">
-          <Label htmlFor="title">Title *</Label>
+          <Label htmlFor="title">{t('scheduler.titleLabel')}</Label>
           <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
 
         {/* Date picker */}
         <div className="space-y-2">
-          <Label>Select Date *</Label>
+          <Label>{t('scheduler.selectDate')}</Label>
           <div className="border rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
               <Button variant="outline" size="sm" onClick={() => setCurrentMonth(addDays(currentMonth, -31))}><ChevronLeft className="h-4 w-4" /></Button>
-              <span className="font-medium">{format(currentMonth, 'MMMM yyyy')}</span>
+              <span className="font-medium">{format(currentMonth, 'MMMM yyyy', { locale: dateFns })}</span>
               <Button variant="outline" size="sm" onClick={() => setCurrentMonth(addDays(currentMonth, 31))}><ChevronRight className="h-4 w-4" /></Button>
             </div>
             <div className="grid grid-cols-7 gap-2">
@@ -313,7 +331,7 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
                 if (isBlocked) return null
                 return (
                   <Button key={date.toISOString()} variant={isSelected ? "default" : "outline"} size="sm" disabled={isPast} onClick={() => setSelectedDate(date)} className={`h-12 ${isPast ? 'opacity-50' : ''}`}>
-                    <div className="text-center"><div className="text-xs">{format(date, 'EEE')}</div><div>{format(date, 'd')}</div></div>
+                    <div className="text-center"><div className="text-xs">{format(date, 'EEE', { locale: dateFns })}</div><div>{format(date, 'd', { locale: dateFns })}</div></div>
                   </Button>
                 )
               })}
@@ -329,53 +347,53 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
         {/* Time Selection */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="startTime" className="flex items-center gap-2"><Clock className="h-4 w-4" />Start Time *</Label>
+            <Label htmlFor="startTime" className="flex items-center gap-2"><Clock className="h-4 w-4" />{t('scheduler.startTime')}</Label>
             {availableSlots.length > 0 ? (
               <select id="startTime" className="h-9 w-full border rounded px-2" value={startTime} onChange={(e) => setStartTime(e.target.value)}>
-                {availableSlots.map((s) => (<option key={s} value={s}>{s}</option>))}
+                {availableSlots.map((s) => (<option key={s} value={s}>{formatTimeLabel(s)}</option>))}
               </select>
             ) : (
               <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="endTime">End Time *</Label>
+            <Label htmlFor="endTime">{t('scheduler.endTime')}</Label>
             <Input id="endTime" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </div>
         </div>
-        <div className="text-sm text-muted-foreground">Duration: {duration} minutes</div>
+        <div className="text-sm text-muted-foreground">{t('scheduler.duration', { count: duration })}</div>
 
         {/* Online / Location */}
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
             <Checkbox id="isOnline" checked={isOnline} onCheckedChange={(c) => setIsOnline(!!c)} />
-            <label htmlFor="isOnline" className="text-sm font-medium cursor-pointer">This is an online meeting</label>
+            <label htmlFor="isOnline" className="text-sm font-medium cursor-pointer">{t('scheduler.onlineMeeting')}</label>
           </div>
           {isOnline ? (
             <div className="space-y-2">
-              <Label htmlFor="meetingLink" className="flex items-center gap-2"><Link className="h-4 w-4" />Meeting Link *</Label>
+              <Label htmlFor="meetingLink" className="flex items-center gap-2"><Link className="h-4 w-4" />{t('scheduler.meetingLink')}</Label>
               <Input id="meetingLink" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="https://zoom.us/j/..." />
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="location" className="flex items-center gap-2"><MapPin className="h-4 w-4" />Location *</Label>
-              <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Enter meeting location" />
+              <Label htmlFor="location" className="flex items-center gap-2"><MapPin className="h-4 w-4" />{t('scheduler.location')}</Label>
+              <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t('scheduler.locationPlaceholder')} />
             </div>
           )}
         </div>
 
         {/* Agenda */}
         <div className="space-y-2">
-          <Label htmlFor="agenda">Agenda</Label>
+          <Label htmlFor="agenda">{t('scheduler.agenda')}</Label>
           <Textarea id="agenda" value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={4} maxLength={2000} />
         </div>
 
         {/* Team members */}
         <div className="space-y-2">
-          <Label className="flex items-center gap-2"><Users className="h-4 w-4" />Select Team Members *</Label>
+          <Label className="flex items-center gap-2"><Users className="h-4 w-4" />{t('scheduler.selectTeamMembers')}</Label>
           <div className="border rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
             {teamMembers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No team members available</p>
+              <p className="text-sm text-muted-foreground">{t('scheduler.noTeamMembers')}</p>
             ) : (
               teamMembers.map((member) => (
                 <div key={member._id} className="flex items-center space-x-2">
@@ -389,12 +407,10 @@ export default function MeetingScheduler({ projectId, onMeetingCreated }: Meetin
 
         {/* Actions */}
         <div className="flex gap-3 pt-2">
-          <Button onClick={handleCreateMeeting} disabled={creating || selectedMembers.length === 0} className="flex-1">{creating ? 'Creating...' : 'Create Meeting'}</Button>
-          <Button variant="outline" onClick={() => { setTitle(''); setDescription(''); setAgenda(''); setMeetingLink(''); setLocation(''); }} disabled={creating}>Reset</Button>
+          <Button onClick={handleCreateMeeting} disabled={creating || selectedMembers.length === 0} className="flex-1">{creating ? t('scheduler.creating') : t('scheduler.createMeeting')}</Button>
+          <Button variant="outline" onClick={() => { setTitle(''); setDescription(''); setAgenda(''); setMeetingLink(''); setLocation(''); }} disabled={creating}>{t('scheduler.reset')}</Button>
         </div>
       </CardContent>
     </Card>
   )
 }
-
-

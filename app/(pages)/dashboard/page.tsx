@@ -13,11 +13,14 @@ import { getAuthToken } from "@/lib/utils"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import FavoritesWidget from "@/components/dashboard/FavoritesWidget"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
-import { getProfessionalActionItems } from "@/lib/actionNeededHelpers"
+import { getProfessionalActionItems, type ProfessionalActionItemKey } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { useAdminAccess } from "@/hooks/useAdminAccess"
 import { ADMIN_ROLE_LABELS, type AdminRole } from "@/lib/adminRbac"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { useTranslations } from "next-intl"
 
 interface LoyaltyStats {
   tierDistribution: Array<{
@@ -117,22 +120,82 @@ interface WarrantyClaimAction {
   }
 }
 
+type WarrantyActionLabelKey =
+  | "actionNeeded.acceptWarranty"
+  | "actionNeeded.confirmWarrantyResolve"
+  | "actionNeeded.trackWarrantyResolve"
+
 interface WarrantyDashboardAction {
   id: string
   bookingId: string
-  label: string
+  labelKey: WarrantyActionLabelKey
   severity: "warning" | "urgent"
 }
+
+const ADMIN_TOOL_LABELS = {
+  emailCampaigns: "adminTools.emailCampaigns",
+  cms: "adminTools.cmsContent",
+  announcements: "adminTools.siteAnnouncements",
+  supportChat: "adminTools.supportChat",
+  customers: "adminTools.customers",
+  bookings: "adminTools.bookings",
+  disputes: "adminTools.disputes",
+  cancellationRequests: "adminTools.cancellationRequests",
+  warrantyClaims: "adminTools.warrantyClaims",
+  supportTickets: "adminTools.supportTickets",
+  discountCodes: "adminTools.discountCodes",
+  referrals: "adminTools.referrals",
+  backlinks: "adminTools.backlinks",
+  favorites: "adminTools.favorites",
+  kpi: "adminTools.kpiReports",
+  auditLogs: "adminTools.auditLogs",
+  emailLogs: "adminTools.emailLogs",
+} as const
 
 
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const { can, canAccessPath, adminRole } = useAdminAccess()
+  const t = useTranslations("dashboard")
+  const { intl } = useFormatLocale()
+  const { formatMoney } = useCurrency()
+
+  const bookingStatusLabel = (status?: string) => {
+    switch (status) {
+      case "rfq": return t("status.rfq")
+      case "rfq_accepted": return t("status.rfqAccepted")
+      case "draft_quote": return t("status.draftQuote")
+      case "quoted": return t("status.quoted")
+      case "quote_accepted": return t("status.quoteAccepted")
+      case "quote_rejected": return t("status.quoteRejected")
+      case "payment_pending": return t("status.paymentPending")
+      case "booked": return t("status.booked")
+      case "rescheduling_requested": return t("status.reschedulingRequested")
+      case "in_progress": return t("status.inProgress")
+      case "professional_completed": return t("status.professionalCompleted")
+      case "completed": return t("status.completed")
+      case "cancelled": return t("status.cancelled")
+      case "refunded": return t("status.refunded")
+      case "dispute": return t("status.dispute")
+      default: return status ? status.replace(/_/g, " ") : t("status.unknown")
+    }
+  }
+
+  const actionItemLabel = (key: ProfessionalActionItemKey) => {
+    switch (key) {
+      case "acceptOrDeclineRfq": return t("actionNeeded.acceptOrDeclineRfq")
+      case "confirmStart": return t("actionNeeded.confirmStart")
+      case "rescheduleDecision": return t("actionNeeded.rescheduleDecision")
+      case "confirmCompletion": return t("actionNeeded.confirmCompletion")
+      case "disputeResponse": return t("actionNeeded.disputeResponse")
+    }
+  }
+
   const openAdmin = (path: string) => {
     const pathOnly = path.split('?')[0]
     if (!canAccessPath(pathOnly)) {
-      toast.error('Your role cannot access that admin area')
+      toast.error(t('errors.adminAreaForbidden'))
       return
     }
     window.open(path, '_blank', 'noopener,noreferrer')
@@ -161,25 +224,25 @@ export default function DashboardPage() {
   const canManageServices = can('services.manage')
   const canManagePayments = can('payments.manage')
   const canRunMaintenance = can('maintenance.run')
-  const adminToolLinks = [
-    { path: '/admin/campaigns', label: 'Email Campaigns' },
-    { path: '/admin/cms', label: 'CMS Content' },
-    { path: '/admin/site-announcements', label: 'Site Announcements' },
-    { path: '/admin/chat', label: 'Support Chat' },
-    { path: '/admin/customers', label: 'Customers' },
-    { path: '/admin/bookings', label: 'Bookings' },
-    { path: '/admin/disputes', label: 'Disputes' },
-    { path: '/admin/cancellation-requests', label: 'Cancellation Requests' },
-    { path: '/admin/warranty-claims', label: 'Warranty Claims' },
-    { path: '/admin/support', label: 'Support Tickets' },
-    { path: '/admin/discount-codes', label: 'Discount Codes' },
-    { path: '/admin/referral', label: 'Referrals' },
-    { path: '/admin/backlinks', label: 'Backlinks' },
-    { path: '/admin/favorites', label: 'Favorites' },
-    { path: '/admin/kpi', label: 'KPI Reports' },
-    { path: '/admin/audit-logs', label: 'Audit Logs' },
-    { path: '/admin/email-logs', label: 'Email Logs' },
-  ].filter(({ path }) => canAccessPath(path))
+  const adminToolLinks = ([
+    { path: '/admin/campaigns', key: 'emailCampaigns' },
+    { path: '/admin/cms', key: 'cms' },
+    { path: '/admin/site-announcements', key: 'announcements' },
+    { path: '/admin/chat', key: 'supportChat' },
+    { path: '/admin/customers', key: 'customers' },
+    { path: '/admin/bookings', key: 'bookings' },
+    { path: '/admin/disputes', key: 'disputes' },
+    { path: '/admin/cancellation-requests', key: 'cancellationRequests' },
+    { path: '/admin/warranty-claims', key: 'warrantyClaims' },
+    { path: '/admin/support', key: 'supportTickets' },
+    { path: '/admin/discount-codes', key: 'discountCodes' },
+    { path: '/admin/referral', key: 'referrals' },
+    { path: '/admin/backlinks', key: 'backlinks' },
+    { path: '/admin/favorites', key: 'favorites' },
+    { path: '/admin/kpi', key: 'kpi' },
+    { path: '/admin/audit-logs', key: 'auditLogs' },
+    { path: '/admin/email-logs', key: 'emailLogs' },
+  ] as const).filter(({ path }) => canAccessPath(path))
   const defaultAdminTab = canViewAdminOverview
     ? 'overview'
     : canManageServices
@@ -197,15 +260,15 @@ export default function DashboardPage() {
   const actionItems = useMemo(() => getProfessionalActionItems(bookings), [bookings])
   const warrantyActionItems = useMemo<WarrantyDashboardAction[]>(() => {
     if (warrantyClaimsLoading || warrantyClaimsError) return []
-    return warrantyClaims.flatMap((claim) => {
+    return warrantyClaims.flatMap<WarrantyDashboardAction>((claim) => {
       if (!claim.booking?._id) return []
       if (claim.status === "open") {
-        return [{ id: claim._id, bookingId: claim.booking._id, label: "Accept or decline warranty claim", severity: "urgent" as const }]
+        return [{ id: claim._id, bookingId: claim.booking._id, labelKey: "actionNeeded.acceptWarranty" as const, severity: "urgent" as const }]
       }
       if (claim.status === "proposal_accepted") {
         const resolveAt = claim.proposal?.resolveByDate || claim.proposal?.proposedScheduleAt
         const overdue = resolveAt ? new Date(resolveAt).getTime() <= Date.now() : false
-        return [{ id: claim._id, bookingId: claim.booking._id, label: overdue ? "Confirm warranty resolve now" : "Track warranty resolve date", severity: overdue ? "urgent" as const : "warning" as const }]
+        return [{ id: claim._id, bookingId: claim.booking._id, labelKey: overdue ? "actionNeeded.confirmWarrantyResolve" as const : "actionNeeded.trackWarrantyResolve" as const, severity: overdue ? "urgent" as const : "warning" as const }]
       }
       return []
     })
@@ -249,7 +312,7 @@ export default function DashboardPage() {
 
           if (!response.ok || !data.success) {
             if (allBookings.length === 0) {
-              setBookingsError(data.msg || "Failed to load your bookings.")
+              setBookingsError(data.msg || t("errors.loadBookings"))
             }
             break
           }
@@ -265,14 +328,14 @@ export default function DashboardPage() {
         setBookings(allBookings)
       } catch (error) {
         console.error("Failed to fetch bookings:", error)
-        setBookingsError("Failed to load your bookings.")
+        setBookingsError(t("errors.loadBookings"))
       } finally {
         setBookingsLoading(false)
       }
     }
 
     fetchBookings()
-  }, [user, isAuthenticated])
+  }, [user, isAuthenticated, t])
 
   useEffect(() => {
     if (!user || !isAuthenticated || user.role !== "professional") return
@@ -292,16 +355,16 @@ export default function DashboardPage() {
           setWarrantyClaims(payload.data?.claims || [])
           return
         }
-        setWarrantyClaimsError(payload?.msg || "Failed to load warranty claims.")
+        setWarrantyClaimsError(payload?.msg || t("errors.loadWarrantyClaims"))
       } catch (error) {
         console.error("Failed to load warranty claims:", error)
-        setWarrantyClaimsError("Failed to load warranty claims.")
+        setWarrantyClaimsError(t("errors.loadWarrantyClaims"))
       } finally {
         setWarrantyClaimsLoading(false)
       }
     }
     void loadClaims()
-  }, [user, isAuthenticated])
+  }, [user, isAuthenticated, t])
 
   const fetchAdminData = useCallback(async () => {
     setIsLoadingStats(true)
@@ -381,7 +444,7 @@ export default function DashboardPage() {
 
   const runSchedulerCheck = async (type: 'warranty' | 'rfq' | 'notif' | 'autoaccept') => {
     if (!canRunMaintenance) {
-      toast.error('Your role cannot run maintenance jobs')
+      toast.error(t('errors.maintenanceForbidden'))
       return
     }
     const loadingMap = {
@@ -396,6 +459,7 @@ export default function DashboardPage() {
       notif: 'run-notification-reminders',
       autoaccept: 'run-completion-auto-accept',
     } as const
+    const jobLabel = t(`maintenance.jobs.${type}`)
     const setLoading = loadingMap[type]
     const endpoint = endpointMap[type]
     setLoading(true)
@@ -409,40 +473,40 @@ export default function DashboardPage() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || `Failed to run ${type} checks`)
+        throw new Error(payload.msg || t('errors.runChecksFailed', { job: jobLabel }))
       }
       const d = payload.data || {}
       if (type === 'warranty') {
         const parts: string[] = []
-        if (d.escalated) parts.push(`${d.escalated} escalated`)
-        if (d.closed) parts.push(`${d.closed} auto-closed`)
-        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
-        toast.success(parts.length ? `Warranty: ${parts.join(', ')}` : 'No overdue warranty claims found')
+        if (d.escalated) parts.push(t('maintenance.toast.escalated', { count: d.escalated }))
+        if (d.closed) parts.push(t('maintenance.toast.autoClosed', { count: d.closed }))
+        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
+        toast.success(parts.length ? t('maintenance.toast.warrantySummary', { details: parts.join(', ') }) : t('maintenance.toast.warrantyNone'))
       } else if (type === 'rfq') {
         const parts: string[] = []
-        if (d.cancelled) parts.push(`${d.cancelled} cancelled`)
-        if (d.remindersSent) parts.push(`${d.remindersSent} reminder(s) sent`)
-        if (d.expiredQuotationsFound) parts.push(`${d.expiredQuotationsFound} expired quotation(s)`)
-        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
-        toast.success(parts.length ? `RFQ: ${parts.join(', ')}` : 'No overdue RFQ deadlines found')
+        if (d.cancelled) parts.push(t('maintenance.toast.cancelled', { count: d.cancelled }))
+        if (d.remindersSent) parts.push(t('maintenance.toast.remindersSent', { count: d.remindersSent }))
+        if (d.expiredQuotationsFound) parts.push(t('maintenance.toast.expiredQuotations', { count: d.expiredQuotationsFound }))
+        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
+        toast.success(parts.length ? t('maintenance.toast.rfqSummary', { details: parts.join(', ') }) : t('maintenance.toast.rfqNone'))
       } else if (type === 'notif') {
         const parts: string[] = []
         for (const [key, val] of Object.entries(d)) {
           if (key === 'errors') continue
           if (typeof val === 'number' && val > 0) parts.push(`${key}: ${val}`)
         }
-        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
-        toast.success(parts.length ? `Reminders — ${parts.join(', ')}` : 'No notification reminders due')
+        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
+        toast.success(parts.length ? t('maintenance.toast.remindersSummary', { details: parts.join(', ') }) : t('maintenance.toast.remindersNone'))
       } else {
         const parts: string[] = []
-        if (d.autoAccepted) parts.push(`${d.autoAccepted} auto-accepted`)
-        if (d.skipped) parts.push(`${d.skipped} skipped`)
-        if (d.errors?.length) parts.push(`${d.errors.length} error(s)`)
-        toast.success(parts.length ? `Auto-accept — ${parts.join(', ')}` : 'No completions to auto-accept')
+        if (d.autoAccepted) parts.push(t('maintenance.toast.autoAccepted', { count: d.autoAccepted }))
+        if (d.skipped) parts.push(t('maintenance.toast.skipped', { count: d.skipped }))
+        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
+        toast.success(parts.length ? t('maintenance.toast.autoAcceptSummary', { details: parts.join(', ') }) : t('maintenance.toast.autoAcceptNone'))
       }
       await fetchAdminData()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Failed to run ${type} checks`)
+      toast.error(err instanceof Error ? err.message : t('errors.runChecksFailed', { job: jobLabel }))
     } finally {
       setLoading(false)
     }
@@ -513,12 +577,12 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
                 <Crown className="h-8 w-8 text-yellow-500" />
-                Admin Dashboard
+                {t("admin.title")}
               </h1>
-              <p className="text-gray-600">Welcome back, {user?.name}! Manage your platform here.</p>
+              <p className="text-gray-600">{t("admin.welcome", { name: user?.name ?? "" })}</p>
               {adminRole && (
                 <p className="mt-1 text-sm text-indigo-700">
-                  Role: {ADMIN_ROLE_LABELS[adminRole as AdminRole] || adminRole}
+                  {t("admin.role", { role: ADMIN_ROLE_LABELS[adminRole as AdminRole] || adminRole })}
                 </p>
               )}
             </div>
@@ -529,7 +593,7 @@ export default function DashboardPage() {
                   href="/admin/staff"
                 >
                   <Users className="h-4 w-4" />
-                  Staff & roles
+                  {t("admin.staffRoles")}
                 </Link>
               )}
               {can('kpi.read') && (
@@ -538,7 +602,7 @@ export default function DashboardPage() {
                   href='/admin/kpi'
                 >
                   <BarChart3 className="h-4 w-4" />
-                  View KPI Dashboard
+                  {t("admin.viewKpi")}
                 </Link>
               )}
               {canApproveProjects && (
@@ -546,7 +610,7 @@ export default function DashboardPage() {
                   className="text-pink-800 underline flex items-center gap-2"
                   href='/admin/projects/approval'
                 >
-                  Approve Projects
+                  {t("admin.approveProjects")}
                   {projectStats && projectStats.pendingProjects > 0 && (
                     <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
                       {projectStats.pendingProjects}
@@ -569,8 +633,8 @@ export default function DashboardPage() {
                     <Crown className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <div className="font-semibold text-white">Overview</div>
-                    <div className="mt-0.5 text-xs leading-5 text-white/85">Open platform controls</div>
+                    <div className="font-semibold text-white">{t("admin.tabs.overview.title")}</div>
+                    <div className="mt-0.5 text-xs leading-5 text-white/85">{t("admin.tabs.overview.description")}</div>
                   </div>
                 </div>
               </TabsTrigger>
@@ -585,8 +649,8 @@ export default function DashboardPage() {
                       <Package className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-semibold text-white">Services</div>
-                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open service setup</div>
+                      <div className="font-semibold text-white">{t("admin.tabs.services.title")}</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">{t("admin.tabs.services.description")}</div>
                     </div>
                   </div>
                 </TabsTrigger>
@@ -601,8 +665,8 @@ export default function DashboardPage() {
                       <Award className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-semibold text-white">Loyalty System</div>
-                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open loyalty controls</div>
+                      <div className="font-semibold text-white">{t("admin.tabs.loyalty.title")}</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">{t("admin.tabs.loyalty.description")}</div>
                     </div>
                   </div>
                 </TabsTrigger>
@@ -617,8 +681,8 @@ export default function DashboardPage() {
                       <Users className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-semibold text-white">Professional Approvals</div>
-                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open approval queues</div>
+                      <div className="font-semibold text-white">{t("admin.tabs.approvals.title")}</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">{t("admin.tabs.approvals.description")}</div>
                     </div>
                   </div>
                 </TabsTrigger>
@@ -633,8 +697,8 @@ export default function DashboardPage() {
                       <CreditCard className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-semibold text-white">Payments</div>
-                      <div className="mt-0.5 text-xs leading-5 text-white/85">Open payment oversight</div>
+                      <div className="font-semibold text-white">{t("admin.tabs.payments.title")}</div>
+                      <div className="mt-0.5 text-xs leading-5 text-white/85">{t("admin.tabs.payments.description")}</div>
                     </div>
                   </div>
                 </TabsTrigger>
@@ -645,8 +709,8 @@ export default function DashboardPage() {
                   className="group min-h-[88px] justify-start rounded-2xl border-0 bg-gradient-to-r from-slate-600 to-slate-800 px-5 py-4 text-left text-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
                 >
                   <div>
-                    <div className="font-semibold">Admin tools</div>
-                    <div className="mt-0.5 text-xs leading-5 text-white/85">Open permitted areas</div>
+                    <div className="font-semibold">{t("admin.tabs.tools.title")}</div>
+                    <div className="mt-0.5 text-xs leading-5 text-white/85">{t("admin.tabs.tools.description")}</div>
                   </div>
                 </TabsTrigger>
               )}
@@ -664,14 +728,14 @@ export default function DashboardPage() {
                     <CardHeader className="pb-2">
                       <CardTitle className="flex items-center gap-2 text-sm">
                         <Briefcase className="h-4 w-4 text-blue-500" />
-                        Pending Projects
+                        {t("admin.overview.pendingProjects")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold text-blue-600">
                         {isLoadingStats ? '...' : projectStats?.pendingProjects || 0}
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">Click to review</p>
+                      <p className="text-xs text-gray-500 mt-1">{t("admin.overview.clickToReview")}</p>
                     </CardContent>
                   </Card>
                 )}
@@ -682,7 +746,7 @@ export default function DashboardPage() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-sm">
                           <Users className="h-4 w-4 text-green-500" />
-                          Total Customers
+                          {t("admin.overview.totalCustomers")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -696,12 +760,12 @@ export default function DashboardPage() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-sm">
                           <TrendingUp className="h-4 w-4 text-emerald-500" />
-                          Total Revenue
+                          {t("admin.overview.totalRevenue")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">
-                          ${isLoadingStats ? '...' : (loyaltyStats?.overallStats.totalRevenue || 0).toLocaleString()}
+                          {isLoadingStats ? '...' : formatMoney(loyaltyStats?.overallStats.totalRevenue || 0)}
                         </div>
                       </CardContent>
                     </Card>
@@ -713,7 +777,7 @@ export default function DashboardPage() {
                     <CardHeader className="pb-2">
                       <CardTitle className="flex items-center gap-2 text-sm">
                         <Clock className="h-4 w-4 text-orange-500" />
-                        Pending Professionals
+                        {t("admin.overview.pendingProfessionals")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -732,7 +796,7 @@ export default function DashboardPage() {
                     <CardHeader className="pb-2">
                       <CardTitle className="flex items-center gap-2 text-sm">
                         <AlertTriangle className="h-4 w-4 text-rose-500" />
-                        Warranty Claims
+                        {t("admin.overview.warrantyClaims")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -740,7 +804,7 @@ export default function DashboardPage() {
                         {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalClaims ?? '\u2014'}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        Escalated: {isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalEscalated ?? '\u2014'}
+                        {t("admin.overview.escalated", { value: String(isLoadingStats ? '...' : warrantyAnalytics?.summary?.totalEscalated ?? '\u2014') })}
                       </p>
                     </CardContent>
                   </Card>
@@ -753,19 +817,19 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Gift className="h-5 w-5 text-purple-500" />
-                    Referral Program
+                    {t("admin.overview.referral.title")}
                   </CardTitle>
-                  <CardDescription>Configure rewards, view analytics, and manage referrals</CardDescription>
+                  <CardDescription>{t("admin.overview.referral.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-3">
                     <div className="rounded-xl border border-purple-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-purple-700">Rewards</p>
-                      <p className="text-sm font-semibold text-slate-900">Customer + professional incentives</p>
+                      <p className="text-xs text-purple-700">{t("admin.overview.referral.rewards")}</p>
+                      <p className="text-sm font-semibold text-slate-900">{t("admin.overview.referral.rewardsValue")}</p>
                     </div>
                     <div className="rounded-xl border border-fuchsia-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-fuchsia-700">Visibility</p>
-                      <p className="text-sm font-semibold text-slate-900">Track usage and revoke abuse</p>
+                      <p className="text-xs text-fuchsia-700">{t("admin.overview.referral.visibility")}</p>
+                      <p className="text-sm font-semibold text-slate-900">{t("admin.overview.referral.visibilityValue")}</p>
                     </div>
                   </div>
                   <Button
@@ -773,7 +837,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900"
                   >
                     <Gift className="h-4 w-4 mr-2" />
-                    Manage Referral Program
+                    {t("admin.overview.referral.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -784,19 +848,19 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Link2 className="h-5 w-5 text-indigo-600" />
-                    Backlink Rewards
+                    {t("admin.overview.backlinks.title")}
                   </CardTitle>
-                  <CardDescription>Configure backlink rewards, review submissions, and manage verification</CardDescription>
+                  <CardDescription>{t("admin.overview.backlinks.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-3">
                     <div className="rounded-xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-indigo-700">Rewards</p>
-                      <p className="text-sm font-semibold text-slate-900">Points for verified Fixtract links</p>
+                      <p className="text-xs text-indigo-700">{t("admin.overview.backlinks.rewards")}</p>
+                      <p className="text-sm font-semibold text-slate-900">{t("admin.overview.backlinks.rewardsValue")}</p>
                     </div>
                     <div className="rounded-xl border border-blue-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-blue-700">Moderation</p>
-                      <p className="text-sm font-semibold text-slate-900">Approve, reject, or revoke submissions</p>
+                      <p className="text-xs text-blue-700">{t("admin.overview.backlinks.moderation")}</p>
+                      <p className="text-sm font-semibold text-slate-900">{t("admin.overview.backlinks.moderationValue")}</p>
                     </div>
                   </div>
                   <Button
@@ -804,7 +868,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800"
                   >
                     <Link2 className="h-4 w-4 mr-2" />
-                    Manage Backlink Program
+                    {t("admin.overview.backlinks.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -815,30 +879,30 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquareWarning className="h-5 w-5 text-amber-600" />
-                    Review Moderation
+                    {t("admin.overview.reviews.title")}
                   </CardTitle>
-                  <CardDescription>Hide or restore customer reviews that are misleading, abusive, or incorrect</CardDescription>
+                  <CardDescription>{t("admin.overview.reviews.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-3">
                     <div className="rounded-xl border border-amber-200 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-amber-700">Moderation</p>
-                      <p className="text-sm font-semibold text-slate-900">Review reports and suspicious ratings fast</p>
+                      <p className="text-xs text-amber-700">{t("admin.overview.reviews.moderation")}</p>
+                      <p className="text-sm font-semibold text-slate-900">{t("admin.overview.reviews.moderationValue")}</p>
                     </div>
                     <div className="rounded-xl border border-rose-200 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-rose-700">Impact</p>
-                      <p className="text-sm font-semibold text-slate-900">Public scores update immediately after hiding</p>
+                      <p className="text-xs text-rose-700">{t("admin.overview.reviews.impact")}</p>
+                      <p className="text-sm font-semibold text-slate-900">{t("admin.overview.reviews.impactValue")}</p>
                     </div>
                   </div>
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    Public ratings update immediately when a review is hidden.
+                    {t("admin.overview.reviews.notice")}
                   </div>
                   <Button
                     onClick={() => openAdmin('/admin/reviews')}
                     className="w-full bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600"
                   >
                     <EyeOff className="h-4 w-4 mr-2" />
-                    Moderate Reviews
+                    {t("admin.overview.reviews.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -849,9 +913,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Heart className="h-5 w-5 text-pink-500" />
-                    Favorites
+                    {t("admin.overview.favorites.title")}
                   </CardTitle>
-                  <CardDescription>Review favorites activity, leaderboards, and remove abusive entries</CardDescription>
+                  <CardDescription>{t("admin.overview.favorites.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -859,7 +923,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-pink-400 to-purple-500 hover:from-pink-500 hover:to-purple-600"
                   >
                     <Heart className="h-4 w-4 mr-2" />
-                    Manage Favorites
+                    {t("admin.overview.favorites.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -870,9 +934,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Settings className="h-5 w-5 text-gray-500" />
-                    Platform Settings
+                    {t("admin.overview.settings.title")}
                   </CardTitle>
-                  <CardDescription>Manage commission and platform-wide configuration</CardDescription>
+                  <CardDescription>{t("admin.overview.settings.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -880,7 +944,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900"
                   >
                     <Settings className="h-4 w-4 mr-2" />
-                    Manage Platform Settings
+                    {t("admin.overview.settings.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -891,9 +955,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-rose-500" />
-                    Content (CMS)
+                    {t("admin.overview.cms.title")}
                   </CardTitle>
-                  <CardDescription>Manage blog posts, news, FAQs, policies, and landing pages</CardDescription>
+                  <CardDescription>{t("admin.overview.cms.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -901,7 +965,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-rose-500 via-pink-500 to-orange-400 hover:from-rose-600 hover:via-pink-600 hover:to-orange-500"
                   >
                     <FileText className="h-4 w-4 mr-2" />
-                    Manage Content
+                    {t("admin.overview.cms.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -912,9 +976,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <LifeBuoy className="h-5 w-5 text-indigo-500" />
-                    Professional Support Tickets
+                    {t("admin.overview.supportTickets.title")}
                   </CardTitle>
-                  <CardDescription>Review support tickets and meeting requests from professionals (not live chat)</CardDescription>
+                  <CardDescription>{t("admin.overview.supportTickets.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -922,7 +986,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600"
                   >
                     <LifeBuoy className="h-4 w-4 mr-2" />
-                    Open Support Tickets
+                    {t("admin.overview.supportTickets.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -933,9 +997,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5 text-sky-600" />
-                    Support Chat
+                    {t("admin.overview.supportChat.title")}
                   </CardTitle>
-                  <CardDescription>Shared inbox for platform support chats with customers and professionals</CardDescription>
+                  <CardDescription>{t("admin.overview.supportChat.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -943,7 +1007,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700"
                   >
                     <MessageSquare className="h-4 w-4 mr-2" />
-                    Open Support Chat
+                    {t("admin.overview.supportChat.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -954,9 +1018,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Ticket className="h-5 w-5 text-rose-500" />
-                    Discount Codes
+                    {t("admin.overview.discountCodes.title")}
                   </CardTitle>
-                  <CardDescription>Create promotional codes for customers to use at checkout</CardDescription>
+                  <CardDescription>{t("admin.overview.discountCodes.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -964,7 +1028,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600"
                   >
                     <Ticket className="h-4 w-4 mr-2" />
-                    Manage Discount Codes
+                    {t("admin.overview.discountCodes.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -975,9 +1039,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Mail className="h-5 w-5 text-violet-500" />
-                    Email Campaigns
+                    {t("admin.overview.campaigns.title")}
                   </CardTitle>
-                  <CardDescription>Brevo newsletters, promos, and re-engagement by region/service</CardDescription>
+                  <CardDescription>{t("admin.overview.campaigns.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -985,7 +1049,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
                   >
                     <Mail className="h-4 w-4 mr-2" />
-                    Manage Campaigns
+                    {t("admin.overview.campaigns.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -996,9 +1060,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Megaphone className="h-5 w-5 text-orange-500" />
-                    Site Announcements
+                    {t("admin.overview.announcements.title")}
                   </CardTitle>
-                  <CardDescription>Top bar, modal, and exit-intent promos by region</CardDescription>
+                  <CardDescription>{t("admin.overview.announcements.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -1006,7 +1070,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
                   >
                     <Megaphone className="h-4 w-4 mr-2" />
-                    Manage Announcements
+                    {t("admin.overview.announcements.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1017,9 +1081,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Briefcase className="h-5 w-5 text-blue-500" />
-                    Professional Management
+                    {t("admin.overview.professionals.title")}
                   </CardTitle>
-                  <CardDescription>Manage professional levels, tags, earnings, and account status</CardDescription>
+                  <CardDescription>{t("admin.overview.professionals.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -1027,7 +1091,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-blue-600 to-cyan-700 hover:from-blue-700 hover:to-cyan-800"
                   >
                     <Briefcase className="h-4 w-4 mr-2" />
-                    Open Professional Management
+                    {t("admin.overview.professionals.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1038,9 +1102,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-emerald-500" />
-                    Customer Management
+                    {t("admin.overview.customers.title")}
                   </CardTitle>
-                  <CardDescription>Manage customer levels, points, spending, and account status</CardDescription>
+                  <CardDescription>{t("admin.overview.customers.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -1048,7 +1112,7 @@ export default function DashboardPage() {
                     className="w-full bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800"
                   >
                     <Users className="h-4 w-4 mr-2" />
-                    Open Customer Management
+                    {t("admin.overview.customers.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1059,24 +1123,26 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-rose-500" />
-                    Warranty Claims Oversight
+                    {t("admin.overview.warranty.title")}
                   </CardTitle>
-                  <CardDescription>Track claim volume, escalations, and flagged professionals</CardDescription>
+                  <CardDescription>{t("admin.overview.warranty.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-3 gap-3">
                     <div className="rounded-xl border border-rose-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-slate-500">Claims (window)</p>
+                      <p className="text-xs text-slate-500">{t("admin.overview.warranty.claimsWindow")}</p>
                       <p className="text-lg font-semibold">{warrantyAnalytics?.summary?.totalClaims ?? '\u2014'}</p>
                     </div>
                     <div className="rounded-xl border border-orange-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-slate-500">Avg resolution</p>
+                      <p className="text-xs text-slate-500">{t("admin.overview.warranty.avgResolution")}</p>
                       <p className="text-lg font-semibold">
-                        {warrantyAnalytics?.summary?.avgResolutionHours != null ? `${Number(warrantyAnalytics.summary.avgResolutionHours).toFixed(1)}h` : '\u2014'}
+                        {warrantyAnalytics?.summary?.avgResolutionHours != null
+                          ? t("admin.overview.warranty.avgResolutionValue", { hours: Number(warrantyAnalytics.summary.avgResolutionHours).toFixed(1) })
+                          : '\u2014'}
                       </p>
                     </div>
                     <div className="rounded-xl border border-amber-100 bg-white/80 p-3 shadow-sm">
-                      <p className="text-xs text-slate-500">Flagged professionals</p>
+                      <p className="text-xs text-slate-500">{t("admin.overview.warranty.flagged")}</p>
                       <p className="text-lg font-semibold">{warrantyAnalytics?.flaggedProfessionals?.length ?? '\u2014'}</p>
                     </div>
                   </div>
@@ -1084,7 +1150,7 @@ export default function DashboardPage() {
                     onClick={() => openAdmin('/admin/warranty-claims')}
                     className="w-full bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700"
                   >
-                    Open Warranty Claims Dashboard
+                    {t("admin.overview.warranty.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1095,12 +1161,12 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-blue-600" />
-                    Booking Management
+                    {t("admin.overview.bookings.title")}
                   </CardTitle>
                   <CardDescription>
-                    Browse and search bookings
-                    {can('bookings.write') ? ', update their status' : ''}
-                    {can('chat.support') ? ', and open customer or professional support chats' : ''}
+                    {can('chat.support')
+                      ? t(can('bookings.write') ? "admin.overview.bookings.descriptionBoth" : "admin.overview.bookings.descriptionChat")
+                      : t(can('bookings.write') ? "admin.overview.bookings.descriptionWrite" : "admin.overview.bookings.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1108,7 +1174,7 @@ export default function DashboardPage() {
                     onClick={() => openAdmin('/admin/bookings')}
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800"
                   >
-                    Open Booking Management
+                    {t("admin.overview.bookings.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1119,16 +1185,16 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-red-500" />
-                    Dispute Management
+                    {t("admin.overview.disputes.title")}
                   </CardTitle>
-                  <CardDescription>Review and resolve booking disputes raised by customers</CardDescription>
+                  <CardDescription>{t("admin.overview.disputes.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
                     onClick={() => openAdmin('/admin/disputes')}
                     className="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700"
                   >
-                    Open Dispute Dashboard
+                    {t("admin.overview.disputes.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1139,16 +1205,16 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Ban className="h-5 w-5 text-amber-600" />
-                    Cancellation Requests
+                    {t("admin.overview.cancellations.title")}
                   </CardTitle>
-                  <CardDescription>Review and approve or deny cancellation requests from customers and professionals</CardDescription>
+                  <CardDescription>{t("admin.overview.cancellations.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
                     onClick={() => openAdmin('/admin/cancellation-requests')}
                     className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
                   >
-                    Open Cancellation Requests
+                    {t("admin.overview.cancellations.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1159,16 +1225,16 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertOctagon className="h-5 w-5 text-purple-600" />
-                    Reported Chats
+                    {t("admin.overview.chatReports.title")}
                   </CardTitle>
-                  <CardDescription>Review reported chat messages, warn or ban users, and dismiss false reports</CardDescription>
+                  <CardDescription>{t("admin.overview.chatReports.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
                     onClick={() => openAdmin('/admin/chat-reports')}
                     className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                   >
-                    Open Reported Chats
+                    {t("admin.overview.chatReports.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1179,16 +1245,16 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-slate-600" />
-                    Audit Logs
+                    {t("admin.overview.auditLogs.title")}
                   </CardTitle>
-                  <CardDescription>Inspect every state-changing admin and account action with filters by actor, target, and date</CardDescription>
+                  <CardDescription>{t("admin.overview.auditLogs.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
                     onClick={() => openAdmin('/admin/audit-logs')}
                     className="w-full bg-gradient-to-r from-slate-600 to-zinc-700 hover:from-slate-700 hover:to-zinc-800"
                   >
-                    Open Audit Logs
+                    {t("admin.overview.auditLogs.manage")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1199,9 +1265,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Play className="h-5 w-5 text-indigo-500" />
-                    Run Automated Checks
+                    {t("maintenance.title")}
                   </CardTitle>
-                  <CardDescription>Manually trigger background checks that process overdue items. Safe to run anytime — only acts on items that are actually overdue.</CardDescription>
+                  <CardDescription>{t("maintenance.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row gap-4">
@@ -1213,17 +1279,17 @@ export default function DashboardPage() {
                       className="flex-1 border-rose-300 text-rose-700 hover:bg-rose-50"
                     >
                       {isRunningWarrantyCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      Run Warranty SLA Checks
+                      {t("maintenance.warrantyButton")}
                     </Button>
                     <div className="relative group">
                       <Info className="h-4 w-4 text-slate-400 cursor-help" />
                       <div className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
-                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
                         <ul className="space-y-1 list-disc pl-3">
-                          <li>Auto-escalates open claims where the professional missed the 5 business day response window</li>
-                          <li>Auto-closes resolved claims where the customer didn&apos;t confirm within 7 days</li>
+                          <li>{t("maintenance.warrantyItem1")}</li>
+                          <li>{t("maintenance.warrantyItem2")}</li>
                         </ul>
-                        <p className="mt-2 text-slate-400">Safe to run anytime — only acts on overdue items.</p>
+                        <p className="mt-2 text-slate-400">{t("maintenance.safeOverdue")}</p>
                       </div>
                     </div>
                   </div>
@@ -1235,18 +1301,18 @@ export default function DashboardPage() {
                       className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50"
                     >
                       {isRunningRfqCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      Run RFQ Deadline Checks
+                      {t("maintenance.rfqButton")}
                     </Button>
                     <div className="relative group">
                       <Info className="h-4 w-4 text-slate-400 cursor-help" />
                       <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
-                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
                         <ul className="space-y-1 list-disc pl-3">
-                          <li>Auto-cancels accepted RFQs where the professional missed the quotation deadline, and emails both parties</li>
-                          <li>Sends reminders to professionals who haven&apos;t submitted a quotation for 2+ working days</li>
-                          <li>Flags quotations that have passed their validity date</li>
+                          <li>{t("maintenance.rfqItem1")}</li>
+                          <li>{t("maintenance.rfqItem2")}</li>
+                          <li>{t("maintenance.rfqItem3")}</li>
                         </ul>
-                        <p className="mt-2 text-slate-400">Safe to run anytime — only acts on overdue items.</p>
+                        <p className="mt-2 text-slate-400">{t("maintenance.safeOverdue")}</p>
                       </div>
                     </div>
                   </div>
@@ -1260,12 +1326,12 @@ export default function DashboardPage() {
                       className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
                     >
                       {isRunningNotifReminders ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      Run Notification Reminders
+                      {t("maintenance.notificationsButton")}
                     </Button>
                     <div className="relative group">
                       <button
                         type="button"
-                        aria-label="What does Run Notification Reminders do?"
+                        aria-label={t("maintenance.notificationsAria")}
                         aria-describedby="notif-reminders-help"
                         className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
@@ -1276,13 +1342,13 @@ export default function DashboardPage() {
                         role="tooltip"
                         className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
                       >
-                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
                         <ul className="space-y-1 list-disc pl-3">
-                          <li>Sends 3-day nudges for RFQ, reschedule, refund, completion, and not-started bookings</li>
-                          <li>Review reminders at 10 and 20 days; unread chat after 24h</li>
-                          <li>ID expiry warnings within 30 days, then every 15 days</li>
+                          <li>{t("maintenance.notificationsItem1")}</li>
+                          <li>{t("maintenance.notificationsItem2")}</li>
+                          <li>{t("maintenance.notificationsItem3")}</li>
                         </ul>
-                        <p className="mt-2 text-slate-400">Safe to run anytime — tracking fields prevent duplicates.</p>
+                        <p className="mt-2 text-slate-400">{t("maintenance.safeTracking")}</p>
                       </div>
                     </div>
                   </div>
@@ -1294,12 +1360,12 @@ export default function DashboardPage() {
                       className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                     >
                       {isRunningAutoAccept ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      Run Completion Auto-Accept
+                      {t("maintenance.autoAcceptButton")}
                     </Button>
                     <div className="relative group">
                       <button
                         type="button"
-                        aria-label="What does Run Completion Auto-Accept do?"
+                        aria-label={t("maintenance.autoAcceptAria")}
                         aria-describedby="completion-autoaccept-help"
                         className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
@@ -1310,12 +1376,12 @@ export default function DashboardPage() {
                         role="tooltip"
                         className="absolute right-0 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
                       >
-                        <p className="font-semibold text-slate-800 mb-1">What does this do?</p>
+                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
                         <ul className="space-y-1 list-disc pl-3">
-                          <li>Auto-accepts professional completion requests after 10 days with no customer response</li>
-                          <li>Skips bookings with unpaid milestones or unpaid extra costs</li>
+                          <li>{t("maintenance.autoAcceptItem1")}</li>
+                          <li>{t("maintenance.autoAcceptItem2")}</li>
                         </ul>
-                        <p className="mt-2 text-slate-400">Safe to run anytime — only acts on eligible bookings.</p>
+                        <p className="mt-2 text-slate-400">{t("maintenance.safeEligible")}</p>
                       </div>
                     </div>
                   </div>
@@ -1334,13 +1400,13 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Package className="h-5 w-5 text-purple-500" />
-                    Service Configuration Management
+                    {t("admin.services.title")}
                   </CardTitle>
-                  <CardDescription>Manage service offerings, pricing models, and requirements</CardDescription>
+                  <CardDescription>{t("admin.services.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Configure and manage all service types, pricing models, project types, included items, and professional requirements for your platform.
+                    {t("admin.services.intro")}
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
                     <Button
@@ -1348,7 +1414,7 @@ export default function DashboardPage() {
                       className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                     >
                       <Package className="h-4 w-4 mr-2" />
-                      Manage Service Configurations
+                      {t("admin.services.manage")}
                     </Button>
                     <Button
                       onClick={() => openAdmin('/admin/services')}
@@ -1356,18 +1422,18 @@ export default function DashboardPage() {
                       className="w-full border-purple-200 hover:bg-purple-50"
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Add New Service
+                      {t("admin.services.add")}
                     </Button>
                   </div>
 
                   <div className="mt-6 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border-2 border-purple-100">
-                    <h4 className="font-semibold mb-2 text-purple-900">What you can manage:</h4>
+                    <h4 className="font-semibold mb-2 text-purple-900">{t("admin.services.canManage")}</h4>
                     <ul className="text-sm space-y-1 text-purple-800">
-                      <li>• Service categories and types</li>
-                      <li>• Pricing models and certification requirements</li>
-                      <li>• Project types (New Built, Extension, Refurbishment, etc.)</li>
-                      <li>• Included items and professional input fields</li>
-                      <li>• Extra options and conditions/warnings</li>
+                      <li>• {t("admin.services.item1")}</li>
+                      <li>• {t("admin.services.item2")}</li>
+                      <li>• {t("admin.services.item3")}</li>
+                      <li>• {t("admin.services.item4")}</li>
+                      <li>• {t("admin.services.item5")}</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -1383,9 +1449,9 @@ export default function DashboardPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Award className="h-5 w-5 text-purple-500" />
-                      Loyalty Tier Distribution
+                      {t("admin.loyalty.tierDistribution")}
                     </CardTitle>
-                    <CardDescription>Customer distribution across loyalty tiers</CardDescription>
+                    <CardDescription>{t("admin.loyalty.tierDistributionDescription")}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {isLoadingStats ? (
@@ -1404,11 +1470,11 @@ export default function DashboardPage() {
                           <div key={tier._id} className="flex items-center justify-between rounded-xl border border-purple-100 bg-white/80 p-3 shadow-sm">
                             <div>
                               <span className="font-medium">{tier._id || 'Bronze'}</span>
-                              <p className="text-sm text-gray-600">{tier.count} customers</p>
+                              <p className="text-sm text-gray-600">{t("admin.loyalty.customers", { count: tier.count })}</p>
                             </div>
                             <div className="text-right">
-                              <div className="font-medium">${tier.totalSpent.toLocaleString()}</div>
-                              <div className="text-sm text-gray-600">{tier.totalPoints} points</div>
+                              <div className="font-medium">{formatMoney(tier.totalSpent)}</div>
+                              <div className="text-sm text-gray-600">{t("admin.loyalty.points", { count: tier.totalPoints })}</div>
                             </div>
                           </div>
                         ))}
@@ -1421,13 +1487,13 @@ export default function DashboardPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Settings className="h-5 w-5 text-gray-500" />
-                      Loyalty And Points
+                      {t("admin.loyalty.manageTitle")}
                     </CardTitle>
-                    <CardDescription>Manage loyalty tiers, discounts, and points rewards</CardDescription>
+                    <CardDescription>{t("admin.loyalty.manageDescription")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <Button onClick={() => openAdmin('/admin/loyalty/config')} className="w-full">
-                      Configure Loyalty And Points
+                      {t("admin.loyalty.configure")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1441,7 +1507,7 @@ export default function DashboardPage() {
                       }}
                       className="w-full"
                     >
-                      Recalculate All Tiers
+                      {t("admin.loyalty.recalculateTiers")}
                     </Button>
                   </CardContent>
                 </Card>
@@ -1450,13 +1516,13 @@ export default function DashboardPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Award className="h-5 w-5 text-blue-600" />
-                      Professional Levels
+                      {t("admin.loyalty.professionalLevels")}
                     </CardTitle>
-                    <CardDescription>Configure level thresholds, perks, and points boost rules</CardDescription>
+                    <CardDescription>{t("admin.loyalty.professionalLevelsDescription")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <Button onClick={() => openAdmin('/admin/professional-levels/config')} className="w-full">
-                      Configure Professional Levels
+                      {t("admin.loyalty.configureLevels")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1471,13 +1537,13 @@ export default function DashboardPage() {
                             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                           })
                           if (!response.ok) {
-                            throw new Error(`Request failed with status ${response.status}`)
+                            throw new Error(t("errors.requestFailedStatus", { status: response.status }))
                           }
                           await fetchAdminData()
-                          toast.success('Professional levels recalculated')
+                          toast.success(t("admin.loyalty.recalculated"))
                         } catch (error) {
                           console.error('Failed to recalculate professional levels:', error)
-                          toast.error('Failed to recalculate professional levels')
+                          toast.error(t("admin.loyalty.recalculateFailed"))
                         } finally {
                           setIsRecalculatingProfessionalLevels(false)
                         }
@@ -1485,7 +1551,7 @@ export default function DashboardPage() {
                       disabled={isRecalculatingProfessionalLevels}
                       className="w-full"
                     >
-                      {isRecalculatingProfessionalLevels ? 'Recalculating...' : 'Recalculate Professional Levels'}
+                      {isRecalculatingProfessionalLevels ? t("admin.loyalty.recalculating") : t("admin.loyalty.recalculateLevels")}
                     </Button>
                   </CardContent>
                 </Card>
@@ -1501,7 +1567,7 @@ export default function DashboardPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <Clock className="h-4 w-4 text-orange-500" />
-                      Pending
+                      {t("admin.approvals.pending")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1513,7 +1579,7 @@ export default function DashboardPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <CheckCircle className="h-4 w-4 text-green-500" />
-                      Approved
+                      {t("admin.approvals.approved")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1525,7 +1591,7 @@ export default function DashboardPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <XCircle className="h-4 w-4 text-red-500" />
-                      Rejected
+                      {t("admin.approvals.rejected")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1537,7 +1603,7 @@ export default function DashboardPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                      Suspended
+                      {t("admin.approvals.suspended")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1550,9 +1616,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-blue-500" />
-                    Professional Management
+                    {t("admin.overview.professionals.title")}
                   </CardTitle>
-                  <CardDescription>Review and approve professional applications</CardDescription>
+                  <CardDescription>{t("admin.approvals.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-4">
@@ -1561,14 +1627,14 @@ export default function DashboardPage() {
                       className="w-full"
                       variant={approvalStats?.pending ? 'default' : 'outline'}
                     >
-                      Review Pending ({approvalStats?.pending || 0})
+                      {t("admin.approvals.reviewPending", { count: approvalStats?.pending || 0 })}
                     </Button>
                     <Button 
                       onClick={() => openAdmin('/admin/professionals?status=approved')}
                       variant="outline"
                       className="w-full"
                     >
-                      View Approved ({approvalStats?.approved || 0})
+                      {t("admin.approvals.viewApproved", { count: approvalStats?.approved || 0 })}
                     </Button>
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
@@ -1577,14 +1643,14 @@ export default function DashboardPage() {
                       variant="outline"
                       className="w-full"
                     >
-                      View Rejected ({approvalStats?.rejected || 0})
+                      {t("admin.approvals.viewRejected", { count: approvalStats?.rejected || 0 })}
                     </Button>
                     <Button 
                       onClick={() => openAdmin('/admin/professionals?status=suspended')}
                       variant="outline"
                       className="w-full"
                     >
-                      View Suspended ({approvalStats?.suspended || 0})
+                      {t("admin.approvals.viewSuspended", { count: approvalStats?.suspended || 0 })}
                     </Button>
                   </div>
                 </CardContent>
@@ -1599,13 +1665,13 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CreditCard className="h-5 w-5 text-blue-500" />
-                    Payment Oversight
+                    {t("admin.payments.title")}
                   </CardTitle>
-                  <CardDescription>Monitor and manage all platform payments</CardDescription>
+                  <CardDescription>{t("admin.payments.description")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    View all payment transactions, track escrow status, monitor transfers to professionals, and handle refunds.
+                    {t("admin.payments.intro")}
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
                     <Button
@@ -1613,7 +1679,7 @@ export default function DashboardPage() {
                       className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
-                      View All Payments
+                      {t("admin.payments.viewAll")}
                     </Button>
                     <Button
                       onClick={() => openAdmin('/admin/payments?status=authorized')}
@@ -1621,19 +1687,19 @@ export default function DashboardPage() {
                       className="w-full border-amber-200 hover:bg-amber-50"
                     >
                       <Shield className="h-4 w-4 mr-2" />
-                      View Authorized (Escrow)
+                      {t("admin.payments.viewAuthorized")}
                     </Button>
                   </div>
 
                   <div className="mt-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-100">
-                    <h4 className="font-semibold mb-2 text-blue-900">Payment Features:</h4>
+                    <h4 className="font-semibold mb-2 text-blue-900">{t("admin.payments.features")}</h4>
                     <ul className="text-sm space-y-1 text-blue-800">
-                      <li>• View all payment transactions and statuses</li>
-                      <li>• Monitor funds held in escrow (authorized)</li>
-                      <li>• Track completed payouts to professionals</li>
-                      <li>• Review refunds and partial refunds</li>
-                      <li>• Search by booking number or Stripe ID</li>
-                      <li>• Filter by payment status</li>
+                      <li>• {t("admin.payments.feature1")}</li>
+                      <li>• {t("admin.payments.feature2")}</li>
+                      <li>• {t("admin.payments.feature3")}</li>
+                      <li>• {t("admin.payments.feature4")}</li>
+                      <li>• {t("admin.payments.feature5")}</li>
+                      <li>• {t("admin.payments.feature6")}</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -1645,13 +1711,13 @@ export default function DashboardPage() {
               <TabsContent value="tools" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Available admin tools</CardTitle>
-                    <CardDescription>Choose an area your role is allowed to manage.</CardDescription>
+                    <CardTitle>{t("admin.tools.title")}</CardTitle>
+                    <CardDescription>{t("admin.tools.description")}</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {adminToolLinks.map((tool) => (
                       <Button key={tool.path} variant="outline" onClick={() => openAdmin(tool.path)}>
-                        {tool.label}
+                        {t(ADMIN_TOOL_LABELS[tool.key])}
                       </Button>
                     ))}
                   </CardContent>
@@ -1674,9 +1740,9 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
                 <Briefcase className="h-8 w-8 text-blue-600" />
-                Professional Dashboard
+                {t("professional.title")}
               </h1>
-              <p className="text-gray-600">Manage your profile, projects, bookings, and quotes, {user?.name}.</p>
+              <p className="text-gray-600">{t("professional.welcome", { name: user?.name ?? "" })}</p>
             </div>
           </div>
 
@@ -1686,17 +1752,19 @@ export default function DashboardPage() {
 
           <Tabs defaultValue="quick_actions" className="space-y-6">
             <TabsList className="inline-flex h-auto min-w-full w-max rounded-md bg-muted p-1">
-              <TabsTrigger value="quick_actions">Quick Actions</TabsTrigger>
+              <TabsTrigger value="quick_actions">{t("professional.tabs.quickActions")}</TabsTrigger>
               <TabsTrigger value="action_needed">
-                Action Needed {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
+                {(actionItems.length + warrantyActionItems.length) > 0
+                  ? t("professional.tabs.actionNeededWithCount", { count: actionItems.length + warrantyActionItems.length })
+                  : t("professional.tabs.actionNeeded")}
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="quick_actions">
               <Card>
                 <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>Keep the main dashboard focused and jump into the right workspace when needed.</CardDescription>
+                  <CardTitle>{t("professional.tabs.quickActions")}</CardTitle>
+                  <CardDescription>{t("professional.quickActions.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1706,7 +1774,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <User className="h-4 w-4" />
-                      Edit Profile
+                      {t("professional.quickActions.editProfile")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1714,7 +1782,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <Gift className="h-4 w-4" />
-                      Benefits Program
+                      {t("professional.quickActions.benefits")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1722,7 +1790,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <Briefcase className="h-4 w-4" />
-                      Manage Projects
+                      {t("professional.quickActions.manageProjects")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1730,7 +1798,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <Package className="h-4 w-4" />
-                      Manage Bookings
+                      {t("professional.quickActions.manageBookings")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1738,7 +1806,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <FileText className="h-4 w-4" />
-                      Manage Quotes
+                      {t("professional.quickActions.manageQuotes")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1746,7 +1814,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <TrendingUp className="h-4 w-4" />
-                      Payments & Stripe
+                      {t("professional.quickActions.paymentsStripe")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1754,7 +1822,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <BarChart3 className="h-4 w-4" />
-                      Performance Dashboard
+                      {t("professional.quickActions.performance")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1762,7 +1830,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <Star className="h-4 w-4" />
-                      My Reviews
+                      {t("professional.quickActions.myReviews")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1770,12 +1838,12 @@ export default function DashboardPage() {
                       className="flex items-center gap-2"
                     >
                       <Shield className="h-4 w-4" />
-                      Warranty Claims
+                      {t("professional.quickActions.warrantyClaims")}
                     </Button>
                     {(!user?.isEmailVerified || !user?.isPhoneVerified) && (
                       <Button onClick={() => router.push('/verify-phone')} className="flex items-center gap-2">
                         <Shield className="h-4 w-4" />
-                        Complete Verification
+                        {t("professional.quickActions.completeVerification")}
                       </Button>
                     )}
                   </div>
@@ -1788,9 +1856,9 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-amber-500" />
-                    Action Needed
+                    {t("professional.tabs.actionNeeded")}
                   </CardTitle>
-                  <CardDescription>Quotations and bookings that are overdue or need your attention</CardDescription>
+                  <CardDescription>{t("professional.actionNeeded.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
               {bookingsLoading && (
@@ -1816,13 +1884,13 @@ export default function DashboardPage() {
 
               {!bookingsLoading && !bookingsError && !warrantyClaimsLoading && !warrantyClaimsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  No actions needed right now. You&apos;re all caught up!
+                  {t("professional.actionNeeded.empty")}
                 </div>
               )}
 
               {!bookingsLoading && !bookingsError && warrantyClaimsLoading && (
                 <div className="text-center py-4 text-gray-500">
-                  Loading warranty actions...
+                  {t("professional.actionNeeded.loadingWarranty")}
                 </div>
               )}
 
@@ -1836,8 +1904,9 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {actionItems.map((item) => {
                     const isProject = isProjectBooking(item.booking)
-                    const title = getBookingTitle(item.booking)
-                    const { label: statusLabel, className: statusClasses } = getBookingStatusMeta(item.booking.status)
+                    const title = getBookingTitle(item.booking, t("common.bookingFallback"))
+                    const { className: statusClasses } = getBookingStatusMeta(item.booking.status)
+                    const statusLabel = bookingStatusLabel(item.booking.status)
                     const severityClasses = item.severity === "urgent"
                       ? "border-red-200 bg-red-50/50"
                       : "border-amber-200 bg-amber-50/50"
@@ -1858,9 +1927,9 @@ export default function DashboardPage() {
                               <h3 className="font-semibold text-sm">{title}</h3>
                             </div>
                             <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
-                              <span>Customer: {item.booking.customer?.name || "Unknown"}</span>
+                              <span>{t("professional.actionNeeded.customer", { name: item.booking.customer?.name || t("common.unknown") })}</span>
                               {item.booking.createdAt && (
-                                <span>• {new Date(item.booking.createdAt).toLocaleDateString()}</span>
+                                <span>• {new Date(item.booking.createdAt).toLocaleDateString(intl)}</span>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
@@ -1874,7 +1943,7 @@ export default function DashboardPage() {
                                 variant="outline"
                                 className={`text-xs ${item.severity === "urgent" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}
                               >
-                                {item.label}
+                                {actionItemLabel(item.labelKey)}
                               </Badge>
                             </div>
                           </div>
@@ -1885,7 +1954,7 @@ export default function DashboardPage() {
                               onClick={() => router.push(`/bookings/${item.booking._id}`)}
                               className="text-xs"
                             >
-                              View
+                              {t("common.view")}
                             </Button>
                             {item.booking.status === 'rfq' && (
                               <Button
@@ -1894,7 +1963,7 @@ export default function DashboardPage() {
                                 className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
                               >
                                 <FileText className="h-3 w-3 mr-1" />
-                                Quote
+                                {t("professional.actionNeeded.quote")}
                               </Button>
                             )}
                           </div>
@@ -1906,8 +1975,8 @@ export default function DashboardPage() {
                     <div key={item.id} className={`border rounded-lg p-4 ${item.severity === "urgent" ? "border-red-200 bg-red-50/50" : "border-amber-200 bg-amber-50/50"}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h3 className="font-semibold text-sm">{item.label}</h3>
-                          <p className="text-xs text-gray-600">Warranty action for booking {item.bookingId}</p>
+                          <h3 className="font-semibold text-sm">{t(item.labelKey)}</h3>
+                          <p className="text-xs text-gray-600">{t("professional.actionNeeded.warrantyAction", { bookingId: item.bookingId })}</p>
                         </div>
                         <Button
                           variant="outline"
@@ -1915,7 +1984,7 @@ export default function DashboardPage() {
                           onClick={() => router.push(`/bookings/${item.bookingId}`)}
                           className="text-xs"
                         >
-                          View
+                          {t("common.view")}
                         </Button>
                       </div>
                     </div>
@@ -1936,8 +2005,8 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-4xl mx-auto pt-20">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user?.name}!</h1>
-          <p className="text-gray-600">Here&apos;s your dashboard overview</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t("fallback.welcome", { name: user?.name ?? "" })}</h1>
+          <p className="text-gray-600">{t("fallback.subtitle")}</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1946,9 +2015,9 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                Profile Information
+                {t("fallback.profile.title")}
               </CardTitle>
-              <CardDescription>Your account details</CardDescription>
+              <CardDescription>{t("fallback.profile.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
@@ -1971,21 +2040,21 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Verification Status
+                {t("fallback.verification.title")}
               </CardTitle>
-              <CardDescription>Account verification progress</CardDescription>
+              <CardDescription>{t("fallback.verification.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm">Email Verification</span>
+                <span className="text-sm">{t("fallback.verification.email")}</span>
                 <span className={`text-sm font-medium ${user?.isEmailVerified ? "text-green-600" : "text-red-600"}`}>
-                  {user?.isEmailVerified ? "Verified" : "Not Verified"}
+                  {user?.isEmailVerified ? t("fallback.verification.verified") : t("fallback.verification.notVerified")}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm">Phone Verification</span>
+                <span className="text-sm">{t("fallback.verification.phone")}</span>
                 <span className={`text-sm font-medium ${user?.isPhoneVerified ? "text-green-600" : "text-red-600"}`}>
-                  {user?.isPhoneVerified ? "Verified" : "Not Verified"}
+                  {user?.isPhoneVerified ? t("fallback.verification.verified") : t("fallback.verification.notVerified")}
                 </span>
               </div>
             </CardContent>
@@ -1996,21 +2065,21 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Account Stats
+                {t("fallback.stats.title")}
               </CardTitle>
-              <CardDescription>Your account activity</CardDescription>
+              <CardDescription>{t("fallback.stats.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm">Member Since</span>
+                <span className="text-sm">{t("fallback.stats.memberSince")}</span>
                 <span className="text-sm font-medium">
-                  {new Date(user?.createdAt || "").toLocaleDateString()}
+                  {new Date(user?.createdAt || "").toLocaleDateString(intl)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm">Last Updated</span>
+                <span className="text-sm">{t("fallback.stats.lastUpdated")}</span>
                 <span className="text-sm font-medium">
-                  {new Date(user?.updatedAt || "").toLocaleDateString()}
+                  {new Date(user?.updatedAt || "").toLocaleDateString(intl)}
                 </span>
               </div>
             </CardContent>
@@ -2021,7 +2090,7 @@ export default function DashboardPage() {
         <div className="mt-8 flex gap-4">
           {(!user?.isEmailVerified || !user?.isPhoneVerified) && (
             <Button onClick={() => router.push("/verify-phone")}>
-              Complete Verification
+              {t("professional.quickActions.completeVerification")}
             </Button>
           )}
         </div>

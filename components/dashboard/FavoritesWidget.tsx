@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { authFetch } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +21,7 @@ interface FavoritesStats {
 }
 
 export default function FavoritesWidget() {
+  const t = useTranslations("dashboardWidgets");
   const [stats, setStats] = useState<FavoritesStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [dismissing, setDismissing] = useState(false);
@@ -103,17 +105,17 @@ export default function FavoritesWidget() {
                 strokeLinejoin="round"
               />
             </svg>
-            Favorites
+            {t("favoritesWidget.title")}
           </span>
           {stats.newSinceLastSeen > 0 && (
             <button
               type="button"
               onClick={dismissNew}
               className="text-xs bg-gradient-to-r from-pink-300 to-purple-300 text-white font-semibold px-2 py-0.5 rounded-full hover:opacity-90"
-              title="Mark as seen"
+              title={t("favoritesWidget.markAsSeen")}
               disabled={dismissing}
             >
-              +{stats.newSinceLastSeen} new
+              {t("favoritesWidget.newBadge", { count: stats.newSinceLastSeen })}
             </button>
           )}
         </CardTitle>
@@ -121,19 +123,19 @@ export default function FavoritesWidget() {
       <CardContent>
         <div className="flex items-baseline gap-2 mb-4">
           <span className="text-4xl font-bold text-gray-900">{stats.total}</span>
-          <span className="text-sm text-gray-500">total favorites</span>
+          <span className="text-sm text-gray-500">{t("favoritesWidget.total")}</span>
         </div>
         <div className="text-xs text-gray-500 mb-3">
-          Profile: <span className="font-semibold text-gray-700">{stats.profileCount}</span>
+          {t("favoritesWidget.profileLabel")} <span className="font-semibold text-gray-700">{stats.profileCount}</span>
           {" · "}
-          Projects:{" "}
+          {t("favoritesWidget.projectsLabel")}{" "}
           <span className="font-semibold text-gray-700">
             {stats.total - stats.profileCount}
           </span>
         </div>
         {topProjects.length > 0 ? (
           <div className="space-y-2">
-            <p className="text-xs text-gray-600 font-medium">Top projects by favorites</p>
+            <p className="text-xs text-gray-600 font-medium">{t("favoritesWidget.topProjects")}</p>
             <ul className="space-y-1">
               {topProjects.map((p) => (
                 <li key={p.projectId} className="flex justify-between text-sm">
@@ -148,7 +150,7 @@ export default function FavoritesWidget() {
           </div>
         ) : (
           <p className="text-sm text-gray-500">
-            No project favorites yet. Keep publishing great work!
+            {t("favoritesWidget.empty")}
           </p>
         )}
       </CardContent>

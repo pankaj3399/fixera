@@ -1,0 +1,580 @@
+{
+  "meta": {
+    "title": "Dashboard"
+  },
+  "common": {
+    "back": "Back",
+    "view": "View",
+    "refresh": "Refresh",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {total}",
+    "filterStatus": "Filter status",
+    "notAvailable": "N/A",
+    "unknown": "Unknown",
+    "bookingFallback": "Booking",
+    "percent": "{value}%",
+    "total": "Total",
+    "pending": "Pending",
+    "completed": "Completed",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "status": {
+    "rfq": "RFQ",
+    "rfqAccepted": "RFQ accepted",
+    "draftQuote": "Draft quote",
+    "quoted": "Quoted",
+    "quoteAccepted": "Awaiting payment",
+    "quoteRejected": "Quote rejected",
+    "paymentPending": "Awaiting payment",
+    "booked": "Booked",
+    "reschedulingRequested": "Rescheduling request",
+    "inProgress": "In progress",
+    "professionalCompleted": "Awaiting your confirmation",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "refunded": "Refunded",
+    "dispute": "Dispute",
+    "unknown": "Unknown"
+  },
+  "errors": {
+    "adminAreaForbidden": "Your role cannot access that admin area",
+    "maintenanceForbidden": "Your role cannot run maintenance jobs",
+    "runChecksFailed": "Failed to run {job} checks",
+    "requestFailedStatus": "Request failed with status {status}",
+    "loadBookings": "Failed to load your bookings.",
+    "loadWarrantyClaims": "Failed to load warranty claims."
+  },
+  "maintenance": {
+    "title": "Run Automated Checks",
+    "description": "Manually trigger background checks that process overdue items. Safe to run anytime — only acts on items that are actually overdue.",
+    "whatDoesThisDo": "What does this do?",
+    "safeOverdue": "Safe to run anytime — only acts on overdue items.",
+    "safeTracking": "Safe to run anytime — tracking fields prevent duplicates.",
+    "safeEligible": "Safe to run anytime — only acts on eligible bookings.",
+    "warrantyButton": "Run Warranty SLA Checks",
+    "warrantyItem1": "Auto-escalates open claims where the professional missed the 5 business day response window",
+    "warrantyItem2": "Auto-closes resolved claims where the customer didn't confirm within 7 days",
+    "rfqButton": "Run RFQ Deadline Checks",
+    "rfqItem1": "Auto-cancels accepted RFQs where the professional missed the quotation deadline, and emails both parties",
+    "rfqItem2": "Sends reminders to professionals who haven't submitted a quotation for 2+ working days",
+    "rfqItem3": "Flags quotations that have passed their validity date",
+    "notificationsButton": "Run Notification Reminders",
+    "notificationsAria": "What does Run Notification Reminders do?",
+    "notificationsItem1": "Sends 3-day nudges for RFQ, reschedule, refund, completion, and not-started bookings",
+    "notificationsItem2": "Review reminders at 10 and 20 days; unread chat after 24h",
+    "notificationsItem3": "ID expiry warnings within 30 days, then every 15 days",
+    "autoAcceptButton": "Run Completion Auto-Accept",
+    "autoAcceptAria": "What does Run Completion Auto-Accept do?",
+    "autoAcceptItem1": "Auto-accepts professional completion requests after 10 days with no customer response",
+    "autoAcceptItem2": "Skips bookings with unpaid milestones or unpaid extra costs",
+    "jobs": {
+      "warranty": "warranty",
+      "rfq": "RFQ",
+      "notif": "notification reminder",
+      "autoaccept": "completion"
+    },
+    "toast": {
+      "escalated": "{count, plural, one {# claim escalated} other {# claims escalated}}",
+      "autoClosed": "{count, plural, one {# claim auto-closed} other {# claims auto-closed}}",
+      "errors": "{count, plural, one {# error} other {# errors}}",
+      "warrantySummary": "Warranty: {details}",
+      "warrantyNone": "No overdue warranty claims found",
+      "cancelled": "{count, plural, one {# cancelled} other {# cancelled}}",
+      "remindersSent": "{count, plural, one {# reminder sent} other {# reminders sent}}",
+      "expiredQuotations": "{count, plural, one {# expired quotation} other {# expired quotations}}",
+      "rfqSummary": "RFQ: {details}",
+      "rfqNone": "No overdue RFQ deadlines found",
+      "remindersSummary": "Reminders — {details}",
+      "remindersNone": "No notification reminders due",
+      "autoAccepted": "{count, plural, one {# auto-accepted} other {# auto-accepted}}",
+      "skipped": "{count, plural, one {# skipped} other {# skipped}}",
+      "autoAcceptSummary": "Auto-accept — {details}",
+      "autoAcceptNone": "No completions to auto-accept"
+    }
+  },
+  "admin": {
+    "title": "Admin Dashboard",
+    "welcome": "Welcome back, {name}! Manage your platform here.",
+    "role": "Role: {role}",
+    "staffRoles": "Staff & roles",
+    "viewKpi": "View KPI Dashboard",
+    "approveProjects": "Approve Projects",
+    "tabs": {
+      "overview": {
+        "title": "Overview",
+        "description": "Open platform controls"
+      },
+      "services": {
+        "title": "Services",
+        "description": "Open service setup"
+      },
+      "loyalty": {
+        "title": "Loyalty System",
+        "description": "Open loyalty controls"
+      },
+      "approvals": {
+        "title": "Professional Approvals",
+        "description": "Open approval queues"
+      },
+      "payments": {
+        "title": "Payments",
+        "description": "Open payment oversight"
+      },
+      "tools": {
+        "title": "Admin tools",
+        "description": "Open permitted areas"
+      }
+    },
+    "overview": {
+      "pendingProjects": "Pending Projects",
+      "clickToReview": "Click to review",
+      "totalCustomers": "Total Customers",
+      "totalRevenue": "Total Revenue",
+      "pendingProfessionals": "Pending Professionals",
+      "warrantyClaims": "Warranty Claims",
+      "escalated": "Escalated: {value}",
+      "referral": {
+        "title": "Referral Program",
+        "description": "Configure rewards, view analytics, and manage referrals",
+        "rewards": "Rewards",
+        "rewardsValue": "Customer + professional incentives",
+        "visibility": "Visibility",
+        "visibilityValue": "Track usage and revoke abuse",
+        "manage": "Manage Referral Program"
+      },
+      "backlinks": {
+        "title": "Backlink Rewards",
+        "description": "Configure backlink rewards, review submissions, and manage verification",
+        "rewards": "Rewards",
+        "rewardsValue": "Points for verified Fixtract links",
+        "moderation": "Moderation",
+        "moderationValue": "Approve, reject, or revoke submissions",
+        "manage": "Manage Backlink Program"
+      },
+      "reviews": {
+        "title": "Review Moderation",
+        "description": "Hide or restore customer reviews that are misleading, abusive, or incorrect",
+        "moderation": "Moderation",
+        "moderationValue": "Review reports and suspicious ratings fast",
+        "impact": "Impact",
+        "impactValue": "Public scores update immediately after hiding",
+        "notice": "Public ratings update immediately when a review is hidden.",
+        "manage": "Moderate Reviews"
+      },
+      "favorites": {
+        "title": "Favorites",
+        "description": "Review favorites activity, leaderboards, and remove abusive entries",
+        "manage": "Manage Favorites"
+      },
+      "settings": {
+        "title": "Platform Settings",
+        "description": "Manage commission and platform-wide configuration",
+        "manage": "Manage Platform Settings"
+      },
+      "cms": {
+        "title": "Content (CMS)",
+        "description": "Manage blog posts, news, FAQs, policies, and landing pages",
+        "manage": "Manage Content"
+      },
+      "supportTickets": {
+        "title": "Professional Support Tickets",
+        "description": "Review support tickets and meeting requests from professionals (not live chat)",
+        "manage": "Open Support Tickets"
+      },
+      "supportChat": {
+        "title": "Support Chat",
+        "description": "Shared inbox for platform support chats with customers and professionals",
+        "manage": "Open Support Chat"
+      },
+      "discountCodes": {
+        "title": "Discount Codes",
+        "description": "Create promotional codes for customers to use at checkout",
+        "manage": "Manage Discount Codes"
+      },
+      "campaigns": {
+        "title": "Email Campaigns",
+        "description": "Brevo newsletters, promos, and re-engagement by region/service",
+        "manage": "Manage Campaigns"
+      },
+      "announcements": {
+        "title": "Site Announcements",
+        "description": "Top bar, modal, and exit-intent promos by region",
+        "manage": "Manage Announcements"
+      },
+      "professionals": {
+        "title": "Professional Management",
+        "description": "Manage professional levels, tags, earnings, and account status",
+        "manage": "Open Professional Management"
+      },
+      "customers": {
+        "title": "Customer Management",
+        "description": "Manage customer levels, points, spending, and account status",
+        "manage": "Open Customer Management"
+      },
+      "warranty": {
+        "title": "Warranty Claims Oversight",
+        "description": "Track claim volume, escalations, and flagged professionals",
+        "claimsWindow": "Claims (window)",
+        "avgResolution": "Avg resolution",
+        "avgResolutionValue": "{hours}h",
+        "flagged": "Flagged professionals",
+        "manage": "Open Warranty Claims Dashboard"
+      },
+      "bookings": {
+        "title": "Booking Management",
+        "description": "Browse and search bookings",
+        "descriptionWrite": "Browse and search bookings and update their status",
+        "descriptionChat": "Browse and search bookings and open customer or professional support chats",
+        "descriptionBoth": "Browse and search bookings, update their status, and open customer or professional support chats",
+        "manage": "Open Booking Management"
+      },
+      "disputes": {
+        "title": "Dispute Management",
+        "description": "Review and resolve booking disputes raised by customers",
+        "manage": "Open Dispute Dashboard"
+      },
+      "cancellations": {
+        "title": "Cancellation Requests",
+        "description": "Review and approve or deny cancellation requests from customers and professionals",
+        "manage": "Open Cancellation Requests"
+      },
+      "chatReports": {
+        "title": "Reported Chats",
+        "description": "Review reported chat messages, warn or ban users, and dismiss false reports",
+        "manage": "Open Reported Chats"
+      },
+      "auditLogs": {
+        "title": "Audit Logs",
+        "description": "Inspect every state-changing admin and account action with filters by actor, target, and date",
+        "manage": "Open Audit Logs"
+      }
+    },
+    "services": {
+      "title": "Service Configuration Management",
+      "description": "Manage service offerings, pricing models, and requirements",
+      "intro": "Configure and manage all service types, pricing models, project types, included items, and professional requirements for your platform.",
+      "manage": "Manage Service Configurations",
+      "add": "Add New Service",
+      "canManage": "What you can manage:",
+      "item1": "Service categories and types",
+      "item2": "Pricing models and certification requirements",
+      "item3": "Project types (New Built, Extension, Refurbishment, etc.)",
+      "item4": "Included items and professional input fields",
+      "item5": "Extra options and conditions/warnings"
+    },
+    "loyalty": {
+      "tierDistribution": "Loyalty Tier Distribution",
+      "tierDistributionDescription": "Customer distribution across loyalty tiers",
+      "customers": "{count, plural, one {# customer} other {# customers}}",
+      "points": "{count, plural, one {# point} other {# points}}",
+      "manageTitle": "Loyalty And Points",
+      "manageDescription": "Manage loyalty tiers, discounts, and points rewards",
+      "configure": "Configure Loyalty And Points",
+      "recalculateTiers": "Recalculate All Tiers",
+      "professionalLevels": "Professional Levels",
+      "professionalLevelsDescription": "Configure level thresholds, perks, and points boost rules",
+      "configureLevels": "Configure Professional Levels",
+      "recalculated": "Professional levels recalculated",
+      "recalculateFailed": "Failed to recalculate professional levels",
+      "recalculateLevels": "Recalculate Professional Levels",
+      "recalculating": "Recalculating..."
+    },
+    "approvals": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "suspended": "Suspended",
+      "description": "Review and approve professional applications",
+      "reviewPending": "Review Pending ({count})",
+      "viewApproved": "View Approved ({count})",
+      "viewRejected": "View Rejected ({count})",
+      "viewSuspended": "View Suspended ({count})"
+    },
+    "payments": {
+      "title": "Payment Oversight",
+      "description": "Monitor and manage all platform payments",
+      "intro": "View all payment transactions, track escrow status, monitor transfers to professionals, and handle refunds.",
+      "viewAll": "View All Payments",
+      "viewAuthorized": "View Authorized (Escrow)",
+      "features": "Payment Features:",
+      "feature1": "View all payment transactions and statuses",
+      "feature2": "Monitor funds held in escrow (authorized)",
+      "feature3": "Track completed payouts to professionals",
+      "feature4": "Review refunds and partial refunds",
+      "feature5": "Search by booking number or Stripe ID",
+      "feature6": "Filter by payment status"
+    },
+    "tools": {
+      "title": "Available admin tools",
+      "description": "Choose an area your role is allowed to manage."
+    }
+  },
+  "adminTools": {
+    "emailCampaigns": "Email Campaigns",
+    "cmsContent": "CMS Content",
+    "siteAnnouncements": "Site Announcements",
+    "supportChat": "Support Chat",
+    "customers": "Customers",
+    "bookings": "Bookings",
+    "disputes": "Disputes",
+    "cancellationRequests": "Cancellation Requests",
+    "warrantyClaims": "Warranty Claims",
+    "supportTickets": "Support Tickets",
+    "discountCodes": "Discount Codes",
+    "referrals": "Referrals",
+    "backlinks": "Backlinks",
+    "favorites": "Favorites",
+    "kpiReports": "KPI Reports",
+    "auditLogs": "Audit Logs",
+    "emailLogs": "Email Logs"
+  },
+  "professional": {
+    "title": "Professional Dashboard",
+    "welcome": "Manage your profile, projects, bookings, and quotes, {name}.",
+    "tabs": {
+      "quickActions": "Quick Actions",
+      "actionNeeded": "Action Needed",
+      "actionNeededWithCount": "Action Needed ({count})"
+    },
+    "quickActions": {
+      "description": "Keep the main dashboard focused and jump into the right workspace when needed.",
+      "editProfile": "Edit Profile",
+      "benefits": "Benefits Program",
+      "manageProjects": "Manage Projects",
+      "manageBookings": "Manage Bookings",
+      "manageQuotes": "Manage Quotes",
+      "paymentsStripe": "Payments & Stripe",
+      "performance": "Performance Dashboard",
+      "myReviews": "My Reviews",
+      "warrantyClaims": "Warranty Claims",
+      "completeVerification": "Complete Verification"
+    },
+    "actionNeeded": {
+      "description": "Quotations and bookings that are overdue or need your attention",
+      "empty": "No actions needed right now. You're all caught up!",
+      "loadingWarranty": "Loading warranty actions...",
+      "customer": "Customer: {name}",
+      "quote": "Quote",
+      "warrantyAction": "Warranty action for booking {bookingId}"
+    }
+  },
+  "actionNeeded": {
+    "acceptOrDeclineRfq": "Accept or decline RFQ",
+    "confirmStart": "Confirm start",
+    "rescheduleDecision": "Awaiting customer reschedule decision",
+    "confirmCompletion": "Confirm completion or extend",
+    "disputeResponse": "Accept, negotiate or reject",
+    "acceptWarranty": "Accept or decline warranty claim",
+    "confirmWarrantyResolve": "Confirm warranty resolve now",
+    "trackWarrantyResolve": "Track warranty resolve date"
+  },
+  "fallback": {
+    "welcome": "Welcome back, {name}!",
+    "subtitle": "Here's your dashboard overview",
+    "profile": {
+      "title": "Profile Information",
+      "description": "Your account details"
+    },
+    "verification": {
+      "title": "Verification Status",
+      "description": "Account verification progress",
+      "email": "Email Verification",
+      "phone": "Phone Verification",
+      "verified": "Verified",
+      "notVerified": "Not Verified"
+    },
+    "stats": {
+      "title": "Account Stats",
+      "description": "Your account activity",
+      "memberSince": "Member Since",
+      "lastUpdated": "Last Updated"
+    }
+  },
+  "benefits": {
+    "loading": "Loading benefits program...",
+    "title": "Benefits Program",
+    "subtitleCustomer": "Track your level, points, rewards, discounts, and referral value in one place.",
+    "subtitleProfessional": "Track your trust level, points, referral rewards, and level-up benefits in one place.",
+    "backToDashboard": "Back to Dashboard",
+    "currentLevel": "Current level",
+    "points": "Points",
+    "rewardValue": "Reward value {amount}",
+    "referralReward": "Referral reward",
+    "referralRewardHintCustomer": "Use value on future bookings",
+    "referralRewardHintProfessional": "Boost trust and level progress faster",
+    "discounts": "Discounts",
+    "currentPerk": "Current perk",
+    "cap": "Cap {amount}",
+    "capNotSet": "Cap not set",
+    "searchBoost": "Search boost x{value}",
+    "progressTitle": "Progress to {level}",
+    "topLevel": "your top level",
+    "progressDescription": "You're {progress}% of the way to {level}.",
+    "topLevelReached": "You're already at the top configured level.",
+    "spendMore": "Spend {amount} more to unlock {level}.",
+    "highlights": {
+      "badge": "Badge: {badge}",
+      "commissionReduction": "Commission reduction: {value}",
+      "searchBoost": "Search ranking boost: x{value}"
+    },
+    "snapshot": {
+      "title": "Rewards Snapshot",
+      "descriptionCustomer": "Current spending rewards and referral value.",
+      "descriptionProfessional": "Current trust perks and level-up accelerators.",
+      "benefits": "Benefits",
+      "noBenefits": "No extra benefits configured yet.",
+      "referralPerformance": "Referral performance"
+    }
+  },
+  "disputes": {
+    "title": "My Disputes",
+    "subtitle": "All disputes you've raised or that involve you",
+    "empty": "No disputes recorded",
+    "loadFailed": "Failed to load disputes",
+    "loadFailedStatus": "Failed to load disputes (status {status})",
+    "statusResolved": "Resolved",
+    "statusOpen": "Open",
+    "slaBreached": "Awaiting admin (SLA breached)",
+    "resolution": "Resolution: {value}",
+    "raised": "Raised: {date}",
+    "resolvedOn": "Resolved: {date}",
+    "viewBooking": "View Booking"
+  },
+  "favorites": {
+    "title": "Your Favorites",
+    "subtitle": "Professionals and projects you've saved.",
+    "tabs": {
+      "projects": "Projects",
+      "professionals": "Professionals"
+    },
+    "emptyProfessionals": "You haven't favorited any professionals yet.",
+    "emptyProjects": "You haven't favorited any projects yet.",
+    "browseProfessionals": "Browse Professionals",
+    "browseProjects": "Browse Projects",
+    "missingProfessionals": "No professionals found for your favorites — they may have been removed.",
+    "missingProjects": "No projects found for your favorites — they may have been removed.",
+    "customersOnly": "Only customers have a favorites list",
+    "loadFailed": "Failed to load favorites"
+  },
+  "payments": {
+    "customer": {
+      "title": "Payment History",
+      "subtitle": "View all your payments and their statuses."
+    },
+    "refreshing": "Refreshing",
+    "loadFailed": "Failed to load payments",
+    "summary": {
+      "totalPaid": "Total Paid",
+      "completedPayments": "Completed payments",
+      "inEscrow": "In Escrow",
+      "awaitingCompletion": "Authorized, awaiting completion",
+      "refunded": "Refunded",
+      "totalRefunded": "Total refunded amount"
+    },
+    "table": {
+      "title": "Payments",
+      "empty": "No payments found.",
+      "booking": "Booking",
+      "professional": "Professional",
+      "amount": "Amount",
+      "status": "Status",
+      "date": "Date"
+    },
+    "status": {
+      "all": "All statuses",
+      "pending": "Pending",
+      "authorized": "Authorized",
+      "completed": "Completed",
+      "refunded": "Refunded",
+      "failed": "Failed",
+      "partiallyRefunded": "Partially refunded",
+      "expired": "Expired"
+    },
+    "professional": {
+      "title": "Payments",
+      "subtitle": "Manage your Stripe account and view earnings",
+      "stripeAccount": "Stripe Account",
+      "openDashboard": "Open Dashboard →",
+      "connectTitle": "Connect Your Stripe Account",
+      "completeTitle": "Complete Your Stripe Setup",
+      "connectDescription": "You need to connect your Stripe account to receive payments from customers. This only takes a few minutes.",
+      "completeDescription": "Your Stripe account setup is incomplete. Complete it to start receiving payments.",
+      "connectButton": "Connect Stripe Account",
+      "completeButton": "Complete Setup",
+      "accountActive": "Account Active",
+      "accountActiveDescription": "Your account is ready to receive payments",
+      "status": "Status",
+      "active": "Active",
+      "charges": "Charges",
+      "payouts": "Payouts",
+      "totalEarnings": "Total Earnings",
+      "fromCompletedBookings": "From {count, plural, one {# completed booking} other {# completed bookings}}",
+      "pendingEarnings": "Pending Earnings",
+      "fromActiveBookings": "From active bookings",
+      "completedJobs": "Completed Jobs",
+      "allTime": "All time",
+      "recentTransactions": "Recent Transactions",
+      "noTransactions": "No transactions yet",
+      "noTransactionsDescription": "Transactions will appear here once you complete bookings"
+    }
+  },
+  "warranty": {
+    "title": "Warranty Claims",
+    "subtitleProfessional": "Manage post-completion warranty issues raised by customers.",
+    "subtitleCustomer": "Track your warranty claims, proposals, escalations, and resolution updates.",
+    "queueTitle": "Claims Queue",
+    "totalClaims": "{count, plural, one {# claim} other {# claims}} total",
+    "empty": "No warranty claims found for this filter.",
+    "booking": "Booking",
+    "customer": "Customer",
+    "professional": "Professional",
+    "responseSla": "Response SLA",
+    "confirmationSla": "Confirmation SLA",
+    "opened": "Opened {date}",
+    "resolveProposal": "Resolve proposal: {message}",
+    "resolveDate": "Resolve date: {date}",
+    "attachments": "Attachments",
+    "openAttachment": "Open attachment {index}",
+    "resolution": "Resolution: {summary}",
+    "escalated": "Escalated: {reason}",
+    "escalatedWithNote": "Escalated: {reason} ({note})",
+    "openBooking": "Open Booking",
+    "loadClaimFailed": "Failed to load warranty claim",
+    "loadClaimsFailed": "Failed to load warranty claims",
+    "status": {
+      "all": "All statuses",
+      "open": "Open",
+      "proposalSent": "Proposal sent",
+      "proposalAccepted": "Proposal accepted",
+      "resolved": "Resolved",
+      "escalated": "Escalated",
+      "closed": "Closed"
+    },
+    "reason": {
+      "defect": "Defect",
+      "incompleteWork": "Incomplete work",
+      "materialIssue": "Material issue",
+      "functionalityIssue": "Functionality issue",
+      "safetyIssue": "Safety issue",
+      "other": "Other"
+    },
+    "hints": {
+      "openProfessional": "Action needed: send a proposal",
+      "openCustomer": "Claim opened and awaiting professional response",
+      "acceptedProfessional": "Action needed: complete repair and mark resolved",
+      "acceptedCustomer": "Proposal accepted. Waiting for repair completion",
+      "resolvedProfessional": "Waiting for customer confirmation",
+      "resolvedCustomer": "Action needed: review the resolution and confirm",
+      "escalated": "Escalated to admin"
+    },
+    "guidance": {
+      "title": "Handling guidance",
+      "professional1": "Respond to new claims within 5 business days to avoid automatic escalation.",
+      "professional2": "Use the booking detail page to send proposals, mark repairs resolved, and track confirmations.",
+      "customer1": "Open the related booking to review claim details, proposal updates, and repair progress.",
+      "customer2": "Use the booking page to accept or decline proposals, confirm resolutions, or escalate if the issue remains unresolved."
+    }
+  }
+}

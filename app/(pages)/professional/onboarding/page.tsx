@@ -3,6 +3,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { useTranslations } from 'next-intl'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,36 +25,42 @@ import Link from 'next/link'
 import { publicListPolicyLinks, PolicyLink } from '@/lib/cms'
 
 const STEPS = [
-  { id: ONBOARDING_STEPS.ID_UPLOAD, title: 'ID Upload', icon: Shield, required: true, gradient: 'from-violet-200 via-purple-200 to-fuchsia-200' },
-  { id: ONBOARDING_STEPS.BUSINESS_INFO, title: 'Business Info', icon: Building, required: false, gradient: 'from-blue-200 via-cyan-200 to-teal-200' },
-  { id: ONBOARDING_STEPS.STRIPE, title: 'Stripe', icon: CreditCard, required: true, gradient: 'from-sky-200 via-cyan-200 to-blue-200' },
-  { id: ONBOARDING_STEPS.COMPANY_HOURS, title: 'Company Hours', icon: CalendarIcon, required: true, gradient: 'from-emerald-200 via-green-200 to-lime-200' },
-  { id: ONBOARDING_STEPS.PERSONAL_HOURS, title: 'Personal Hours', icon: CalendarIcon, required: false, gradient: 'from-amber-200 via-yellow-200 to-orange-200' },
-  { id: ONBOARDING_STEPS.EMPLOYEES, title: 'Employees', icon: Users, required: false, gradient: 'from-rose-200 via-pink-200 to-fuchsia-200' },
-  { id: ONBOARDING_STEPS.RULES, title: 'Rules', icon: CheckCircle2, required: true, gradient: 'from-indigo-200 via-blue-200 to-violet-200' },
-]
+  { id: ONBOARDING_STEPS.ID_UPLOAD, titleKey: 'onboarding.steps.idUpload', icon: Shield, required: true, gradient: 'from-violet-200 via-purple-200 to-fuchsia-200' },
+  { id: ONBOARDING_STEPS.BUSINESS_INFO, titleKey: 'onboarding.steps.businessInfo', icon: Building, required: false, gradient: 'from-blue-200 via-cyan-200 to-teal-200' },
+  { id: ONBOARDING_STEPS.STRIPE, titleKey: 'onboarding.steps.stripe', icon: CreditCard, required: true, gradient: 'from-sky-200 via-cyan-200 to-blue-200' },
+  { id: ONBOARDING_STEPS.COMPANY_HOURS, titleKey: 'onboarding.steps.companyHours', icon: CalendarIcon, required: true, gradient: 'from-emerald-200 via-green-200 to-lime-200' },
+  { id: ONBOARDING_STEPS.PERSONAL_HOURS, titleKey: 'onboarding.steps.personalHours', icon: CalendarIcon, required: false, gradient: 'from-amber-200 via-yellow-200 to-orange-200' },
+  { id: ONBOARDING_STEPS.EMPLOYEES, titleKey: 'onboarding.steps.employees', icon: Users, required: false, gradient: 'from-rose-200 via-pink-200 to-fuchsia-200' },
+  { id: ONBOARDING_STEPS.RULES, titleKey: 'onboarding.steps.rules', icon: CheckCircle2, required: true, gradient: 'from-indigo-200 via-blue-200 to-violet-200' },
+] as const
 
 const PLATFORM_RULES = [
-  'Provide accurate up-to-date information',
-  'Must comply with GDPR and data protection regulations',
-  'Deliver services professionally, safely, on time, and in accordance with applicable laws and regulations',
-  'Use the platform for all communication, agreements, and payments (no off-platform transactions)',
-  'Always inform the customer in advance before triggering platform actions to ensure transparency and smoother approval.',
-]
+  'onboarding.rules.items.accurate',
+  'onboarding.rules.items.gdpr',
+  'onboarding.rules.items.professional',
+  'onboarding.rules.items.communication',
+  'onboarding.rules.items.inform',
+] as const
 
 const MISBEHAVIOR_ITEMS = [
-  'Providing misleading, incomplete, or false information (including fraudulent documents or invalid certifications)',
-  'Off-platform deals or payments',
-  'No-shows, poor execution, or abuse',
-  'Misuse of customer data or violation of privacy rules',
-]
+  'onboarding.rules.misbehavior.misleading',
+  'onboarding.rules.misbehavior.offPlatform',
+  'onboarding.rules.misbehavior.noShow',
+  'onboarding.rules.misbehavior.dataMisuse',
+] as const
 
 const CONSEQUENCES = [
-  'Project suspension or removal',
-  'Account suspension or permanent ban',
-  'Payment withholding/refunds',
-  'Decreasing ranking & visibility on the platform',
-]
+  'onboarding.rules.consequences.suspension',
+  'onboarding.rules.consequences.ban',
+  'onboarding.rules.consequences.payment',
+  'onboarding.rules.consequences.ranking',
+] as const
+
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+
+type DayKey = (typeof DAYS)[number]
+
+const isDayKey = (value: string): value is DayKey => (DAYS as readonly string[]).includes(value)
 
 type MissingRequirementDetail = {
   code?: string
@@ -130,7 +138,8 @@ const mapRequirementToStepByKeywords = (normalizedText: string): number | null =
 }
 
 const resolveMissingRequirements = (
-  requirements: MissingRequirementInput[]
+  requirements: MissingRequirementInput[],
+  fallbackMessage: string
 ): MissingRequirementResolution => {
   if (!requirements || requirements.length === 0) {
     return { step: 1, messages: [], originalRequirements: [] }
@@ -154,7 +163,7 @@ const resolveMissingRequirements = (
       mappedStep = mapRequirementToStepByKeywords(normalizeRequirementText(requirement.message))
     }
 
-    return requirement.message || requirement.code || requirement.type || 'Missing requirement'
+    return requirement.message || requirement.code || requirement.type || fallbackMessage
   })
 
   if (!mappedStep) {
@@ -173,6 +182,17 @@ const resolveMissingRequirements = (
     originalRequirements: requirements
   }
 }
+
+const VAT_ERROR_KEYS = {
+  required: 'onboarding.vatFormat.required',
+  tooShort: 'onboarding.vatFormat.tooShort',
+  tooLong: 'onboarding.vatFormat.tooLong',
+  countryPrefix: 'onboarding.vatFormat.countryPrefix',
+  invalidCharacters: 'onboarding.vatFormat.invalidCharacters',
+  invalidCountry: 'onboarding.vatFormat.invalidCountry',
+  validationFailed: 'onboarding.vatFormat.validationFailed',
+  network: 'onboarding.vatFormat.network',
+} as const
 
 const toCountryCode = (value?: string) => {
   if (!value) return 'BE'
@@ -222,6 +242,7 @@ function StripeIntegrationStep({
   setCurrentStep: (step: number) => void
   openStripeSetup: () => void
 }) {
+  const t = useTranslations('proArea')
   const stripeReady = Boolean(stripeStatus?.hasAccount && stripeStatus?.onboardingCompleted)
 
   return (
@@ -233,15 +254,15 @@ function StripeIntegrationStep({
               <CreditCard className="h-5 w-5 text-gray-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Stripe Integration</h2>
-              <p className="text-sm text-gray-500">This step cannot be skipped. Stripe must be connected before onboarding can continue.</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.stripe.title')}</h2>
+              <p className="text-sm text-gray-500">{t('onboarding.stripe.subtitle')}</p>
             </div>
           </div>
         </div>
         {stripeLoading ? (
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Checking Stripe status...
+            {t('onboarding.stripe.checking')}
           </div>
         ) : (
           <>
@@ -249,24 +270,24 @@ function StripeIntegrationStep({
               stripeReady ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-800'
             }`}>
               {stripeReady
-                ? 'Stripe onboarding completed.'
+                ? t('onboarding.stripe.completed')
                 : stripeStatus?.hasAccount
-                  ? 'Stripe account exists, but onboarding is not complete yet.'
-                  : 'No Stripe account connected yet.'}
+                  ? t('onboarding.stripe.incomplete')
+                  : t('onboarding.stripe.none')}
             </div>
 
             <div className="grid sm:grid-cols-3 gap-3 text-sm">
               <div className="rounded-md border p-3">
-                <p className="text-muted-foreground mb-1">Account</p>
-                <p className="font-medium">{stripeStatus?.hasAccount ? 'Created' : 'Missing'}</p>
+                <p className="text-muted-foreground mb-1">{t('onboarding.stripe.account')}</p>
+                <p className="font-medium">{stripeStatus?.hasAccount ? t('onboarding.stripe.created') : t('onboarding.stripe.missing')}</p>
               </div>
               <div className="rounded-md border p-3">
-                <p className="text-muted-foreground mb-1">Onboarding</p>
-                <p className="font-medium">{stripeStatus?.onboardingCompleted ? 'Complete' : 'Incomplete'}</p>
+                <p className="text-muted-foreground mb-1">{t('onboarding.stripe.onboarding')}</p>
+                <p className="font-medium">{stripeStatus?.onboardingCompleted ? t('onboarding.stripe.complete') : t('onboarding.stripe.incompleteState')}</p>
               </div>
               <div className="rounded-md border p-3">
-                <p className="text-muted-foreground mb-1">Charges</p>
-                <p className="font-medium">{stripeStatus?.chargesEnabled ? 'Enabled' : 'Pending'}</p>
+                <p className="text-muted-foreground mb-1">{t('onboarding.stripe.charges')}</p>
+                <p className="font-medium">{stripeStatus?.chargesEnabled ? t('onboarding.stripe.enabled') : t('onboarding.stripe.pending')}</p>
               </div>
             </div>
 
@@ -278,14 +299,14 @@ function StripeIntegrationStep({
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           <Button variant="outline" onClick={() => setCurrentStep(2)} className="rounded-xl gap-1">
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" /> {t('common.back')}
           </Button>
           <div className="flex items-center gap-2">
           <Button variant="outline" onClick={refreshStripeStatus} disabled={stripeLoading} className="rounded-xl">
-            Refresh Status
+            {t('onboarding.stripe.refresh')}
           </Button>
           <Button variant="outline" onClick={openStripeSetup} className="rounded-xl">
-            Open Stripe Setup
+            {t('onboarding.stripe.openSetup')}
           </Button>
           <Button
             onClick={() => {
@@ -298,9 +319,9 @@ function StripeIntegrationStep({
             className="rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 px-6"
           >
             {stripeReady ? (
-              <>Continue <ArrowRight className="h-4 w-4 ml-2" /></>
+              <>{t('common.continue')} <ArrowRight className="h-4 w-4 ml-2" /></>
             ) : (
-              <>Go to Stripe <ArrowRight className="h-4 w-4 ml-2" /></>
+              <>{t('onboarding.stripe.goToStripe')} <ArrowRight className="h-4 w-4 ml-2" /></>
             )}
           </Button>
           </div>
@@ -333,6 +354,15 @@ function IdVerificationStep({
   uploading: boolean
   idInfoSaving: boolean
 }) {
+  const t = useTranslations('proArea')
+  const { intl } = useFormatLocale()
+  const regionNames = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([intl], { type: 'region' })
+    } catch {
+      return null
+    }
+  }, [intl])
   return (
     <GradientCard gradient={gradient}>
       <div className="p-6 sm:p-8 space-y-6">
@@ -342,8 +372,8 @@ function IdVerificationStep({
               <Shield className="h-5 w-5 text-gray-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">ID Upload</h2>
-              <p className="text-sm text-gray-500">Upload your ID proof and provide document details.</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.steps.idUpload')}</h2>
+              <p className="text-sm text-gray-500">{t('onboarding.idUpload.subtitle')}</p>
             </div>
           </div>
         </div>
@@ -351,12 +381,12 @@ function IdVerificationStep({
         {userHasIdProof && (
           <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 text-sm text-green-800">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
-            ID proof already uploaded.
+            {t('onboarding.idUpload.alreadyUploaded')}
           </div>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="idProof" className="text-sm font-medium text-gray-700">Upload ID Proof</Label>
+          <Label htmlFor="idProof" className="text-sm font-medium text-gray-700">{t('onboarding.idUpload.uploadLabel')}</Label>
           <div className="rounded-xl border-2 border-dashed border-gray-200 hover:border-purple-300 transition-colors p-4">
             <Input
               id="idProof"
@@ -370,22 +400,22 @@ function IdVerificationStep({
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700">Country of Issue</Label>
+            <Label className="text-sm font-medium text-gray-700">{t('onboarding.idUpload.countryOfIssue')}</Label>
             <Select value={idCountryOfIssue} onValueChange={setIdCountryOfIssue}>
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select country" />
+                <SelectValue placeholder={t('onboarding.idUpload.selectCountry')} />
               </SelectTrigger>
               <SelectContent>
                 {EU_COUNTRIES.map((country) => (
                   <SelectItem key={country.code} value={country.code}>
-                    {country.flag} {country.name}
+                    {country.flag} {regionNames?.of(country.code) ?? country.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700">Expiration Date</Label>
+            <Label className="text-sm font-medium text-gray-700">{t('onboarding.idUpload.expirationDate')}</Label>
             <Input
               type="date"
               value={idExpirationDate}
@@ -404,11 +434,11 @@ function IdVerificationStep({
           >
             {(uploading || idInfoSaving) ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('common.saving')}
               </>
             ) : (
               <>
-                Save & Continue <ArrowRight className="h-4 w-4 ml-2" />
+                {t('common.saveAndContinue')} <ArrowRight className="h-4 w-4 ml-2" />
               </>
             )}
           </Button>
@@ -455,6 +485,9 @@ function BusinessDetailsStep({
   handleBusinessStepContinue: () => void
   businessSaving: boolean
 }) {
+  const t = useTranslations('proArea')
+  const { intl } = useFormatLocale()
+  const companyNameConflict = t('onboarding.business.usernameCompanyConflict')
   const [usernameCheck, setUsernameCheck] = useState<{ available?: boolean; reason?: string; checking?: boolean }>({})
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
@@ -473,7 +506,7 @@ function BusinessDetailsStep({
     }
     const normalizedCompany = businessInfo.companyName?.toLowerCase().replace(/[^a-z0-9-]/g, '')
     if (normalizedCompany && normalized === normalizedCompany) {
-      setUsernameCheck({ available: false, reason: 'Username cannot be the same as your company name' })
+      setUsernameCheck({ available: false, reason: companyNameConflict })
       return
     }
     setUsernameCheck({ checking: true })
@@ -489,7 +522,7 @@ function BusinessDetailsStep({
         setUsernameCheck({ available: data.available, reason: data.reason })
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return
-        setUsernameCheck({ reason: 'Failed to check availability' })
+        setUsernameCheck({ reason: t('onboarding.business.checkFailed') })
       }
     }, 500)
   }
@@ -508,7 +541,7 @@ function BusinessDetailsStep({
         setUsernameCheck({ available: true })
       }
     } catch {
-      toast.error('Failed to generate suggestions')
+      toast.error(t('onboarding.business.suggestionsFailed'))
     } finally {
       setSuggestionsLoading(false)
     }
@@ -522,14 +555,14 @@ function BusinessDetailsStep({
               <Building className="h-5 w-5 text-gray-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Business Info</h2>
-              <p className="text-sm text-gray-500">Provide company details and VAT information.</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.business.title')}</h2>
+              <p className="text-sm text-gray-500">{t('onboarding.business.subtitle')}</p>
             </div>
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700">Company Name</Label>
+          <Label className="text-sm font-medium text-gray-700">{t('onboarding.business.companyName')}</Label>
           <Input
             value={businessInfo.companyName}
             onChange={(e) => {
@@ -538,8 +571,8 @@ function BusinessDetailsStep({
               const normalizedCompany = newCompany.toLowerCase().replace(/[^a-z0-9-]/g, '')
               const normalizedUsername = businessInfo.username?.toLowerCase().replace(/[^a-z0-9-]/g, '')
               if (normalizedCompany && normalizedUsername && normalizedCompany === normalizedUsername) {
-                setUsernameCheck({ available: false, reason: 'Username cannot be the same as your company name' })
-              } else if (usernameCheck.reason === 'Username cannot be the same as your company name') {
+                setUsernameCheck({ available: false, reason: companyNameConflict })
+              } else if (usernameCheck.reason === companyNameConflict) {
                 if (normalizedUsername && normalizedUsername.length >= 3) {
                   checkUsername(businessInfo.username)
                 } else {
@@ -548,21 +581,21 @@ function BusinessDetailsStep({
               }
             }}
             className="rounded-xl"
-            placeholder="Your company name"
+            placeholder={t('onboarding.business.companyNamePlaceholder')}
           />
         </div>
 
         <div className="space-y-2">
           <Label className="text-sm font-medium text-gray-700">
-            Display Username *
+            {t('onboarding.business.displayUsername')} *
           </Label>
-          <p className="text-xs text-gray-500">This is how customers will see you. Your company name will be hidden from customers.</p>
+          <p className="text-xs text-gray-500">{t('onboarding.business.usernameHint')}</p>
           <div className="flex gap-2">
             <Input
               value={businessInfo.username}
               onChange={(e) => checkUsername(e.target.value)}
               className="rounded-xl"
-              placeholder="e.g., silva-lisboa"
+              placeholder={t('onboarding.business.usernamePlaceholder')}
               maxLength={30}
             />
             <Button
@@ -572,7 +605,7 @@ function BusinessDetailsStep({
               disabled={suggestionsLoading || !businessInfo.companyName}
               className="rounded-xl shrink-0 text-xs"
             >
-              {suggestionsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Suggest'}
+              {suggestionsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t('onboarding.business.suggest')}
             </Button>
           </div>
           {businessInfo.username && businessInfo.username.length >= 3 && (
@@ -582,15 +615,15 @@ function BusinessDetailsStep({
               usernameCheck.available === false ? 'bg-red-50 text-red-700 border border-red-200' : ''
             }`}>
               {usernameCheck.checking ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> Checking...</>
+                <><Loader2 className="h-3 w-3 animate-spin" /> {t('onboarding.business.checking')}</>
               ) : usernameCheck.available ? (
-                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Username available</>
+                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> {t('onboarding.business.usernameAvailable')}</>
               ) : usernameCheck.available === false ? (
                 <>{usernameCheck.reason}</>
               ) : null}
             </div>
           )}
-          <p className="text-xs text-gray-400">3-30 characters, lowercase letters, numbers, and hyphens only</p>
+          <p className="text-xs text-gray-400">{t('onboarding.business.usernameRules')}</p>
           {usernameSuggestions.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-1">
               {usernameSuggestions.map((s) => (
@@ -601,7 +634,7 @@ function BusinessDetailsStep({
                     setBusinessInfo(prev => ({ ...prev, username: s }))
                     const normalizedCompany = businessInfo.companyName?.toLowerCase().replace(/[^a-z0-9-]/g, '')
                     if (normalizedCompany && s === normalizedCompany) {
-                      setUsernameCheck({ available: false, reason: 'Username cannot be the same as your company name' })
+                      setUsernameCheck({ available: false, reason: companyNameConflict })
                     } else {
                       setUsernameCheck({ available: true })
                     }
@@ -621,9 +654,9 @@ function BusinessDetailsStep({
 
         <div className="space-y-2">
           <Label className="text-sm font-medium text-gray-700">
-            VAT Number *
+            {t('onboarding.business.vatNumber')} *
             {vatNumber && vatValidation.valid && (
-              <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber)}</span>
+              <span className="ml-2 text-xs text-green-600 font-normal">{getVATCountryName(vatNumber, intl)}</span>
             )}
           </Label>
           <div className="flex gap-2">
@@ -633,7 +666,7 @@ function BusinessDetailsStep({
                 setVatNumber(e.target.value.toUpperCase())
               }}
               onBlur={validateVatNumber}
-              placeholder="e.g., BE0123456789"
+              placeholder={t('onboarding.business.vatPlaceholder')}
               required
               className="rounded-xl"
             />
@@ -644,13 +677,13 @@ function BusinessDetailsStep({
               disabled={!vatNumber || vatValidating}
               className="rounded-xl shrink-0"
             >
-              {vatValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Validate'}
+              {vatValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : t('onboarding.business.validate')}
             </Button>
           </div>
           {vatValidation.valid !== undefined && (
             <div className={`flex items-center gap-2 text-xs p-2.5 rounded-xl ${vatValidation.valid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
               {vatValidation.valid ? (
-                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> VAT number validated</>
+                <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> {t('onboarding.business.vatValidated')}</>
               ) : (
                 <>{vatValidation.error}</>
               )}
@@ -663,13 +696,13 @@ function BusinessDetailsStep({
           onChange={handleAddressChange}
           onValidation={setIsAddressValid}
           useCompanyAddress={false}
-          label="Street Address"
+          label={t('onboarding.business.streetAddress')}
           required
         />
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700">City</Label>
+            <Label className="text-sm font-medium text-gray-700">{t('onboarding.business.city')}</Label>
             <Input
               value={businessInfo.city}
               onChange={(e) => setBusinessInfo(prev => ({ ...prev, city: e.target.value }))}
@@ -677,7 +710,7 @@ function BusinessDetailsStep({
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700">Postal Code</Label>
+            <Label className="text-sm font-medium text-gray-700">{t('onboarding.business.postalCode')}</Label>
             <Input
               value={businessInfo.postalCode}
               onChange={(e) => setBusinessInfo(prev => ({ ...prev, postalCode: e.target.value }))}
@@ -687,7 +720,7 @@ function BusinessDetailsStep({
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700">Country</Label>
+          <Label className="text-sm font-medium text-gray-700">{t('onboarding.business.country')}</Label>
           <Input
             value={businessInfo.country}
             onChange={(e) => setBusinessInfo(prev => ({ ...prev, country: e.target.value }))}
@@ -697,14 +730,14 @@ function BusinessDetailsStep({
 
         <div className="space-y-3">
           <div>
-            <Label className="text-sm font-medium text-gray-700">Services</Label>
-            <p className="text-xs text-gray-500">Loaded from the admin-managed service configuration.</p>
+            <Label className="text-sm font-medium text-gray-700">{t('onboarding.business.services')}</Label>
+            <p className="text-xs text-gray-500">{t('onboarding.business.servicesHint')}</p>
           </div>
 
           {serviceCatalogLoading ? (
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading services...
+              {t('onboarding.business.loadingServices')}
             </div>
           ) : (
             <div className="space-y-4">
@@ -742,11 +775,11 @@ function BusinessDetailsStep({
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           <Button variant="outline" onClick={() => setCurrentStep(1)} className="rounded-xl gap-1">
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" /> {t('common.back')}
           </Button>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => setCurrentStep(3)} className="rounded-xl text-gray-500">
-              Skip for now
+              {t('common.skipForNow')}
             </Button>
             <Button
               onClick={handleBusinessStepContinue}
@@ -754,9 +787,9 @@ function BusinessDetailsStep({
               className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 px-6"
             >
               {businessSaving ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('common.saving')}</>
               ) : (
-                <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
+                <>{t('common.saveAndContinue')} <ArrowRight className="h-4 w-4 ml-2" /></>
               )}
             </Button>
           </div>
@@ -785,6 +818,7 @@ function CompanyAvailabilityStep({
   handleCompanyHoursContinue: () => void
   companySaving: boolean
 }) {
+  const t = useTranslations('proArea')
   return (
     <GradientCard gradient={gradient}>
       <div className="p-6 sm:p-8 space-y-6">
@@ -794,8 +828,8 @@ function CompanyAvailabilityStep({
               <CalendarIcon className="h-5 w-5 text-gray-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Company Availability</h2>
-              <p className="text-sm text-gray-500">Set your company working hours. At least one day is required.</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.availability.companyTitle')}</h2>
+              <p className="text-sm text-gray-500">{t('onboarding.availability.companySubtitle')}</p>
             </div>
           </div>
         </div>
@@ -808,7 +842,7 @@ function CompanyAvailabilityStep({
                 schedule.available ? 'border-green-200 bg-green-50/50' : 'border-gray-200 bg-gray-50/50'
               }`}
             >
-              <div className="w-24 text-sm font-semibold capitalize text-gray-700">{day}</div>
+              <div className="w-24 text-sm font-semibold capitalize text-gray-700">{isDayKey(day) ? t(`days.${day}`) : day}</div>
               <div className="flex items-center gap-2">
                 <Checkbox
                   checked={schedule.available}
@@ -824,7 +858,7 @@ function CompanyAvailabilityStep({
                     })
                   }}
                 />
-                <span className="text-sm text-gray-600">Available</span>
+                <span className="text-sm text-gray-600">{t('common.available')}</span>
               </div>
               {schedule.available && (
                 <div className="flex items-center gap-2 ml-auto">
@@ -844,7 +878,7 @@ function CompanyAvailabilityStep({
                     }}
                     className="w-28 rounded-xl"
                   />
-                  <span className="text-sm text-gray-400">to</span>
+                  <span className="text-sm text-gray-400">{t('onboarding.availability.to')}</span>
                   <Input
                     type="time"
                     value={schedule.endTime}
@@ -874,7 +908,7 @@ function CompanyAvailabilityStep({
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <Button variant="outline" onClick={() => setCurrentStep(3)} className="rounded-xl gap-1">
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" /> {t('common.back')}
           </Button>
           <Button
             onClick={handleCompanyHoursContinue}
@@ -882,9 +916,9 @@ function CompanyAvailabilityStep({
             className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-6"
           >
             {companySaving ? (
-              <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('common.saving')}</>
             ) : (
-              <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
+              <>{t('common.saveAndContinue')} <ArrowRight className="h-4 w-4 ml-2" /></>
             )}
           </Button>
         </div>
@@ -912,6 +946,7 @@ function PersonalAvailabilityStep({
   handlePersonalHoursContinue: () => void
   personalSaving: boolean
 }) {
+  const t = useTranslations('proArea')
   return (
     <GradientCard gradient={gradient}>
       <div className="p-6 sm:p-8 space-y-6">
@@ -921,8 +956,8 @@ function PersonalAvailabilityStep({
               <CalendarIcon className="h-5 w-5 text-gray-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Personal Availability</h2>
-              <p className="text-sm text-gray-500">Optional. Set your own weekly schedule now or skip it for later.</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.availability.personalTitle')}</h2>
+              <p className="text-sm text-gray-500">{t('onboarding.availability.personalSubtitle')}</p>
             </div>
           </div>
         </div>
@@ -935,7 +970,7 @@ function PersonalAvailabilityStep({
                 schedule.available ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200 bg-gray-50/50'
               }`}
             >
-              <div className="w-24 text-sm font-semibold capitalize text-gray-700">{day}</div>
+              <div className="w-24 text-sm font-semibold capitalize text-gray-700">{isDayKey(day) ? t(`days.${day}`) : day}</div>
               <div className="flex items-center gap-2">
                 <Checkbox
                   checked={schedule.available}
@@ -951,7 +986,7 @@ function PersonalAvailabilityStep({
                     })
                   }}
                 />
-                <span className="text-sm text-gray-600">Available</span>
+                <span className="text-sm text-gray-600">{t('common.available')}</span>
               </div>
               {schedule.available && (
                 <div className="flex items-center gap-2 ml-auto">
@@ -971,7 +1006,7 @@ function PersonalAvailabilityStep({
                     }}
                     className="w-28 rounded-xl"
                   />
-                  <span className="text-sm text-gray-400">to</span>
+                  <span className="text-sm text-gray-400">{t('onboarding.availability.to')}</span>
                   <Input
                     type="time"
                     value={schedule.endTime}
@@ -1001,11 +1036,11 @@ function PersonalAvailabilityStep({
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <Button variant="outline" onClick={() => setCurrentStep(4)} className="rounded-xl gap-1">
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" /> {t('common.back')}
           </Button>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => setCurrentStep(6)} className="rounded-xl text-gray-500">
-              Skip for now
+              {t('common.skipForNow')}
             </Button>
             <Button
               onClick={handlePersonalHoursContinue}
@@ -1013,9 +1048,9 @@ function PersonalAvailabilityStep({
               className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-6"
             >
               {personalSaving ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('common.saving')}</>
               ) : (
-                <>Save & Continue <ArrowRight className="h-4 w-4 ml-2" /></>
+                <>{t('common.saveAndContinue')} <ArrowRight className="h-4 w-4 ml-2" /></>
               )}
             </Button>
           </div>
@@ -1026,6 +1061,7 @@ function PersonalAvailabilityStep({
 }
 
 function EmployeesStep({ gradient, setCurrentStep }: { gradient: string; setCurrentStep: (step: number) => void }) {
+  const t = useTranslations('proArea')
   return (
     <GradientCard gradient={gradient}>
       <div className="p-6 sm:p-8 space-y-6">
@@ -1035,8 +1071,8 @@ function EmployeesStep({ gradient, setCurrentStep }: { gradient: string; setCurr
               <Users className="h-5 w-5 text-gray-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Employees</h2>
-              <p className="text-sm text-gray-500">Optional. Invite employees now or skip.</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.employees.title')}</h2>
+              <p className="text-sm text-gray-500">{t('onboarding.employees.subtitle')}</p>
             </div>
           </div>
         </div>
@@ -1045,17 +1081,17 @@ function EmployeesStep({ gradient, setCurrentStep }: { gradient: string; setCurr
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <Button variant="outline" onClick={() => setCurrentStep(5)} className="rounded-xl gap-1">
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" /> {t('common.back')}
           </Button>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => setCurrentStep(7)} className="rounded-xl text-gray-500">
-              Skip for now
+              {t('common.skipForNow')}
             </Button>
             <Button
               onClick={() => setCurrentStep(7)}
               className="rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 px-6"
             >
-              Continue <ArrowRight className="h-4 w-4 ml-2" />
+              {t('common.continue')} <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </div>
         </div>
@@ -1065,6 +1101,7 @@ function EmployeesStep({ gradient, setCurrentStep }: { gradient: string; setCurr
 }
 
 function AgreementLabel({ policySlug, policies, children }: { policySlug: string; policies: PolicyLink[]; children: React.ReactNode }) {
+  const t = useTranslations('proArea')
   const match = policies.find((p) => p.slug === policySlug)
   if (!match) return <>{children}</>
   return (
@@ -1077,7 +1114,7 @@ function AgreementLabel({ policySlug, policies, children }: { policySlug: string
         onClick={(e) => e.stopPropagation()}
         className="text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
       >
-        (read)
+        {t('onboarding.rules.read')}
       </Link>
     </>
   )
@@ -1100,6 +1137,7 @@ function AgreementsStep({
   handleSubmit: () => void
   submitting: boolean
 }) {
+  const t = useTranslations('proArea')
   const [policies, setPolicies] = useState<PolicyLink[]>([])
   useEffect(() => {
     publicListPolicyLinks().then(setPolicies).catch(() => setPolicies([]))
@@ -1114,36 +1152,36 @@ function AgreementsStep({
               <CheckCircle2 className="h-5 w-5 text-gray-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Platform Rules</h2>
-              <p className="text-sm text-gray-500">Review the rules and accept the required checkboxes before submitting.</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('onboarding.rules.title')}</h2>
+              <p className="text-sm text-gray-500">{t('onboarding.rules.subtitle')}</p>
             </div>
           </div>
         </div>
 
         <div className="space-y-5">
           <section className="rounded-xl border border-gray-200 p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">Platform Rules</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">{t('onboarding.rules.platformRulesTitle')}</h3>
             <div className="space-y-2 text-sm text-gray-700">
               {PLATFORM_RULES.map((item) => (
-                <p key={item}>• {item}</p>
+                <p key={item}>• {t(item)}</p>
               ))}
             </div>
           </section>
 
           <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <h3 className="mb-3 text-sm font-semibold text-amber-900">Misbehavior (Not Allowed)</h3>
+            <h3 className="mb-3 text-sm font-semibold text-amber-900">{t('onboarding.rules.misbehaviorTitle')}</h3>
             <div className="space-y-2 text-sm text-amber-900">
               {MISBEHAVIOR_ITEMS.map((item) => (
-                <p key={item}>• {item}</p>
+                <p key={item}>• {t(item)}</p>
               ))}
             </div>
           </section>
 
           <section className="rounded-xl border border-gray-200 p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">Consequences</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">{t('onboarding.rules.consequencesTitle')}</h3>
             <div className="space-y-2 text-sm text-gray-700">
               {CONSEQUENCES.map((item) => (
-                <p key={item}>• {item}</p>
+                <p key={item}>• {t(item)}</p>
               ))}
             </div>
           </section>
@@ -1160,7 +1198,7 @@ function AgreementsStep({
             />
             <span className="text-sm text-gray-700 leading-relaxed">
               <AgreementLabel policySlug="platform-rules" policies={policies}>
-                I agree to the platform rules and consequences
+                {t('onboarding.rules.agreeRules')}
               </AgreementLabel>
             </span>
           </label>
@@ -1175,7 +1213,7 @@ function AgreementsStep({
             />
             <span className="text-sm text-gray-700 leading-relaxed">
               <AgreementLabel policySlug="terms-of-service" policies={policies}>
-                I accept the General Terms &amp; Conditions
+                {t('onboarding.rules.agreeTerms')}
               </AgreementLabel>
             </span>
           </label>
@@ -1190,7 +1228,7 @@ function AgreementsStep({
             />
             <span className="text-sm text-gray-700 leading-relaxed">
               <AgreementLabel policySlug="self-billing-agreement" policies={policies}>
-                I agree that Fixtract prepares and issues invoices on my behalf (self-billing agreement)
+                {t('onboarding.rules.agreeSelfBilling')}
               </AgreementLabel>
             </span>
           </label>
@@ -1198,7 +1236,7 @@ function AgreementsStep({
 
         {submitErrors.length > 0 && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <p className="font-semibold mb-2">Missing requirements:</p>
+            <p className="font-semibold mb-2">{t('onboarding.rules.missingRequirements')}</p>
             <ul className="list-disc pl-5 space-y-1">
               {submitErrors.map((err) => (
                 <li key={err}>{err}</li>
@@ -1209,7 +1247,7 @@ function AgreementsStep({
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <Button variant="outline" onClick={() => setCurrentStep(6)} className="rounded-xl gap-1">
-            <ChevronLeft className="h-4 w-4" /> Back
+            <ChevronLeft className="h-4 w-4" /> {t('common.back')}
           </Button>
           <div className="flex items-center gap-2">
             <Button
@@ -1218,9 +1256,9 @@ function AgreementsStep({
               className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 px-8"
             >
               {submitting ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Submitting...</>
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t('onboarding.rules.submitting')}</>
               ) : (
-                <>Submit for Verification <ChevronRight className="h-4 w-4 ml-2" /></>
+                <>{t('onboarding.rules.submit')} <ChevronRight className="h-4 w-4 ml-2" /></>
               )}
             </Button>
           </div>
@@ -1335,6 +1373,13 @@ export default function ProfessionalOnboardingPage() {
 }
 
 function ProfessionalOnboardingContent() {
+  const t = useTranslations('proArea')
+  const vatErrorMessage = (result: { errorCode?: string; error?: string; countryCode?: string }) => {
+    const key = result.errorCode
+      ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
+      : undefined
+    return key ? t(key, { country: result.countryCode ?? '' }) : result.error
+  }
   const { user, loading, isAuthenticated, checkAuth } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1523,7 +1568,7 @@ function ProfessionalOnboardingContent() {
 
       const data = await response.json()
       if (!response.ok || !data.success) {
-        setStripeError(data.error?.message || 'Failed to load Stripe status')
+        setStripeError(data.error?.message || t('onboarding.stripe.loadFailed'))
         return
       }
 
@@ -1532,11 +1577,11 @@ function ProfessionalOnboardingContent() {
         hasAccount: true,
       })
     } catch {
-      setStripeError('Failed to load Stripe status')
+      setStripeError(t('onboarding.stripe.loadFailed'))
     } finally {
       setStripeLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (user?.role === 'professional') {
@@ -1607,12 +1652,12 @@ function ProfessionalOnboardingContent() {
     const formatted = formatVATNumber(vatNumber)
     const formatValidation = validateVATFormat(formatted)
     if (!formatValidation.valid) {
-      setVatValidation({ valid: false, error: formatValidation.error })
+      setVatValidation({ valid: false, error: vatErrorMessage(formatValidation) })
       return
     }
 
     if (!isEUVatNumber(formatted)) {
-      setVatValidation({ valid: false, error: 'Only EU VAT numbers can be validated with VIES' })
+      setVatValidation({ valid: false, error: t('onboarding.vat.onlyEu') })
       return
     }
 
@@ -1621,7 +1666,7 @@ function ProfessionalOnboardingContent() {
       const result = await validateVATWithAPI(formatted)
       setVatValidation({
         valid: result.valid,
-        error: result.error,
+        error: vatErrorMessage(result),
         companyName: result.companyName,
         parsedAddress: result.parsedAddress,
       })
@@ -1637,7 +1682,7 @@ function ProfessionalOnboardingContent() {
         }))
       }
     } catch {
-      setVatValidation({ valid: false, error: 'Failed to validate VAT number' })
+      setVatValidation({ valid: false, error: t('onboarding.vat.failed') })
     } finally {
       setVatValidating(false)
     }
@@ -1661,15 +1706,15 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || 'Failed to upload ID proof')
+        toast.error(result.msg || t('onboarding.toasts.idProofUploadFailed'))
         return false
       }
-      toast.success('ID proof uploaded')
+      toast.success(t('onboarding.toasts.idProofUploaded'))
       setIdProofFile(null)
       await checkAuth()
       return true
     } catch {
-      toast.error('Failed to upload ID proof')
+      toast.error(t('onboarding.toasts.idProofUploadFailed'))
       return false
     } finally {
       setUploading(false)
@@ -1687,11 +1732,11 @@ function ProfessionalOnboardingContent() {
 
   const saveIdInfo = async () => {
     if (!idCountryOfIssue.trim()) {
-      toast.error('Country of issue is required')
+      toast.error(t('onboarding.toasts.countryRequired'))
       return false
     }
     if (!idExpirationDate) {
-      toast.error('Expiration date is required')
+      toast.error(t('onboarding.toasts.expirationRequired'))
       return false
     }
 
@@ -1708,14 +1753,14 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || 'Failed to save ID info')
+        toast.error(result.msg || t('onboarding.toasts.idSaveFailed'))
         return false
       }
-      toast.success('ID details saved')
+      toast.success(t('onboarding.toasts.idSaved'))
       await checkAuth()
       return true
     } catch {
-      toast.error('Failed to save ID info')
+      toast.error(t('onboarding.toasts.idSaveFailed'))
       return false
     } finally {
       setIdInfoSaving(false)
@@ -1724,11 +1769,11 @@ function ProfessionalOnboardingContent() {
 
   const handleIdStepContinue = async () => {
     if (!user?.idProofUrl && !idProofFile) {
-      toast.error('Please upload your ID proof')
+      toast.error(t('onboarding.toasts.idProofRequired'))
       return
     }
     if (!idCountryOfIssue.trim() || !idExpirationDate) {
-      toast.error('Please provide ID country of issue and expiration date')
+      toast.error(t('onboarding.toasts.idDetailsRequired'))
       return
     }
 
@@ -1749,32 +1794,32 @@ function ProfessionalOnboardingContent() {
 
   const handleBusinessStepContinue = async () => {
     if (!businessInfo.companyName.trim()) {
-      toast.error('Company name is required')
+      toast.error(t('onboarding.toasts.companyNameRequired'))
       return
     }
     if (!businessInfo.username.trim()) {
-      toast.error('Display username is required')
+      toast.error(t('onboarding.toasts.usernameRequired'))
       return
     }
     if (businessInfo.username.length < 3 || businessInfo.username.length > 30) {
-      toast.error('Username must be between 3 and 30 characters')
+      toast.error(t('onboarding.toasts.usernameLength'))
       return
     }
     if (!vatNumber.trim()) {
-      toast.error('VAT number is required')
+      toast.error(t('onboarding.toasts.vatRequired'))
       return
     }
     const vatFormat = validateVATFormat(formatVATNumber(vatNumber))
     if (!vatFormat.valid) {
-      toast.error(vatFormat.error || 'Invalid VAT number')
+      toast.error(vatErrorMessage(vatFormat) || t('onboarding.toasts.invalidVat'))
       return
     }
     if (!businessInfo.address.trim() || !businessInfo.city.trim() || !businessInfo.country.trim() || !businessInfo.postalCode.trim()) {
-      toast.error('Company address is required')
+      toast.error(t('onboarding.toasts.addressRequired'))
       return
     }
     if (!isAddressValid) {
-      toast.error('Please select a valid address from the suggestions')
+      toast.error(t('onboarding.toasts.selectValidAddress'))
       return
     }
 
@@ -1790,14 +1835,14 @@ function ProfessionalOnboardingContent() {
         serviceCategories: selectedServices,
       })
       if (!result.success) {
-        toast.error(result.error || 'Failed to save business info')
+        toast.error(result.errorCode ? t('onboarding.toasts.businessSaveFailed') : result.error)
         return
       }
-      toast.success('Business info saved')
+      toast.success(t('onboarding.toasts.businessSaved'))
       await checkAuth()
       setCurrentStep(3)
     } catch {
-      toast.error('Failed to save business info')
+      toast.error(t('onboarding.toasts.businessSaveFailed'))
     } finally {
       setBusinessSaving(false)
     }
@@ -1806,7 +1851,7 @@ function ProfessionalOnboardingContent() {
   const handleCompanyHoursContinue = async () => {
     const hasAvailableDay = Object.values(companyAvailability).some((day) => day.available)
     if (!hasAvailableDay) {
-      toast.error('Select at least one available day')
+      toast.error(t('onboarding.toasts.availableDayRequired'))
       return
     }
 
@@ -1817,13 +1862,13 @@ function ProfessionalOnboardingContent() {
       const startMinutes = timeToMinutes(schedule.startTime)
       const endMinutes = timeToMinutes(schedule.endTime)
       if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
-        availabilityErrors[day] = 'Start time must be earlier than end time'
+        availabilityErrors[day] = t('onboarding.toasts.invalidTimeRange')
       }
     }
 
     if (Object.keys(availabilityErrors).length > 0) {
       setCompanyAvailabilityErrors(availabilityErrors)
-      toast.error('Please fix invalid company availability time ranges')
+      toast.error(t('onboarding.toasts.companyHoursInvalid'))
       return
     }
 
@@ -1840,14 +1885,14 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || 'Failed to save company availability')
+        toast.error(result.msg || t('onboarding.toasts.companyHoursSaveFailed'))
         return
       }
-      toast.success('Company availability saved')
+      toast.success(t('onboarding.toasts.companyHoursSaved'))
       await checkAuth()
       setCurrentStep(5)
     } catch {
-      toast.error('Failed to save company availability')
+      toast.error(t('onboarding.toasts.companyHoursSaveFailed'))
     } finally {
       setCompanySaving(false)
     }
@@ -1868,13 +1913,13 @@ function ProfessionalOnboardingContent() {
       const startMinutes = timeToMinutes(schedule.startTime)
       const endMinutes = timeToMinutes(schedule.endTime)
       if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
-        availabilityErrors[day] = 'Start time must be earlier than end time'
+        availabilityErrors[day] = t('onboarding.toasts.invalidTimeRange')
       }
     }
 
     if (Object.keys(availabilityErrors).length > 0) {
       setPersonalAvailabilityErrors(availabilityErrors)
-      toast.error('Please fix invalid personal availability time ranges')
+      toast.error(t('onboarding.toasts.personalHoursInvalid'))
       return
     }
 
@@ -1891,14 +1936,14 @@ function ProfessionalOnboardingContent() {
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
-        toast.error(result.msg || 'Failed to save personal availability')
+        toast.error(result.msg || t('onboarding.toasts.personalHoursSaveFailed'))
         return
       }
-      toast.success('Personal availability saved')
+      toast.success(t('onboarding.toasts.personalHoursSaved'))
       await checkAuth()
       setCurrentStep(6)
     } catch {
-      toast.error('Failed to save personal availability')
+      toast.error(t('onboarding.toasts.personalHoursSaveFailed'))
     } finally {
       setPersonalSaving(false)
     }
@@ -1906,7 +1951,7 @@ function ProfessionalOnboardingContent() {
 
   const handleSubmit = async () => {
     if (!agreements.rulesAccepted || !agreements.termsAccepted || !agreements.selfBillingAccepted) {
-      toast.error('Please accept all agreements to continue')
+      toast.error(t('onboarding.toasts.acceptAgreements'))
       return
     }
     setSubmitting(true)
@@ -1918,7 +1963,7 @@ function ProfessionalOnboardingContent() {
         selfBillingAccepted: agreements.selfBillingAccepted,
       })
       if (result.success) {
-        toast.success('Profile submitted for verification')
+        toast.success(t('onboarding.toasts.submitted'))
         await checkAuth()
         router.push('/dashboard?verification=pending')
       } else {
@@ -1928,12 +1973,12 @@ function ProfessionalOnboardingContent() {
         ]
 
         if (combinedRequirements.length > 0) {
-          const resolution = resolveMissingRequirements(combinedRequirements)
+          const resolution = resolveMissingRequirements(combinedRequirements, t('onboarding.missingRequirement'))
           setSubmitErrors(resolution.messages)
-          toast.error('Please complete required steps before submitting')
+          toast.error(t('onboarding.toasts.completeSteps'))
           setCurrentStep(resolution.step)
         } else {
-          toast.error(result.error || 'Failed to submit for verification')
+          toast.error(result.errorCode ? t('onboarding.toasts.submitFailed') : result.error)
         }
       }
     } finally {
@@ -2012,21 +2057,21 @@ function ProfessionalOnboardingContent() {
         {/* Header */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 text-sm font-medium text-blue-700">
-            Welcome, {user.name?.split(' ')[0]}
+            {t('onboarding.header.welcome', { name: user.name?.split(' ')[0] || '' })}
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent">
-            Professional Onboarding
+            {t('onboarding.header.title')}
           </h1>
           <p className="text-gray-500 max-w-lg mx-auto">
-            Complete these steps to submit your profile for approval.
+            {t('onboarding.header.subtitle')}
           </p>
         </div>
 
         {/* Progress bar */}
         <div className="px-2">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-600">Step {currentStep} of {STEPS.length}</span>
-            <span className="text-sm font-medium text-blue-600">{Math.round(progress)}% complete</span>
+            <span className="text-sm font-medium text-gray-600">{t('onboarding.header.stepOf', { current: currentStep, total: STEPS.length })}</span>
+            <span className="text-sm font-medium text-blue-600">{t('onboarding.header.percentComplete', { percent: Math.round(progress) })}</span>
           </div>
           <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -2080,16 +2125,16 @@ function ProfessionalOnboardingContent() {
                     )}
                   </div>
                   <span className={`text-[11px] font-medium leading-tight ${isCurrent ? 'text-gray-900' : isCompleted ? 'text-green-700' : 'text-gray-400'}`}>
-                    {step.title}
+                    {t(step.titleKey)}
                   </span>
                   {step.required && (
                     <span className={`text-[9px] font-medium ${isCurrent ? 'text-red-500' : isCompleted ? 'text-green-500' : 'text-gray-300'}`}>
-                      {isCompleted ? 'Done' : 'Required'}
+                      {isCompleted ? t('common.done') : t('common.required')}
                     </span>
                   )}
                   {!step.required && (
                     <span className={`text-[9px] ${isCompleted ? 'text-green-500 font-medium' : 'text-gray-300'}`}>
-                      {isCompleted ? 'Done' : 'Optional'}
+                      {isCompleted ? t('common.done') : t('common.optional')}
                     </span>
                   )}
                 </div>

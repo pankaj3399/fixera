@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { MessageSquare, X, Minus, ArrowLeft, Loader2, Plus, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   sendConversationMessage,
   uploadChatImage,
   uploadChatFile,
+  isLocalFallbackError,
 } from "@/lib/chatApi";
 import type { ProfessionalOption } from "@/lib/chatApi";
 import {
@@ -64,20 +66,24 @@ const clearPendingChatRequestIfCurrent = (expected: string) => {
 
 const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: string) => {
   if (userRole === "professional") {
-    return conversation.customerId?.name || "Customer";
+    return conversation.customerId?.name || null;
   }
 
   return (
     conversation.professionalId?.username ||
     conversation.professionalId?.name ||
-    "Professional"
+    null
   );
 };
 
 export default function ChatWidget() {
+  const t = useTranslations("chat");
   const pathname = usePathname();
   const chatRouter = useRouter();
   const { user, isAuthenticated, loading } = useAuth();
+
+  const chatErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error && !isLocalFallbackError(error) ? error.message : fallback;
 
   const [open, setOpen] = useState(false);
   const [creatingConversation, setCreatingConversation] = useState(false);
@@ -142,7 +148,7 @@ export default function ChatWidget() {
   const handleSendQuotation = async () => {
     if (!selectedConversation || userRole !== "professional") return;
     const customerId = selectedConversation.customerId?._id;
-    if (!customerId) { toast.error("Customer not found"); return; }
+    if (!customerId) { toast.error(t("toasts.customerNotFound")); return; }
 
     setCreatingSendQuotation(true);
     try {
@@ -168,11 +174,11 @@ export default function ChatWidget() {
         setOpen(false);
         chatRouter.push(`/bookings/${data.data.bookingId}?action=quote`);
       } else {
-        toast.error(data?.error?.message || "Failed to create quotation");
+        toast.error(data?.error?.message || t("toasts.createQuotationFailed"));
       }
     } catch (err) {
       console.error("Error creating direct quotation:", err);
-      toast.error("Failed to create quotation");
+      toast.error(t("toasts.createQuotationFailed"));
     } finally {
       setCreatingSendQuotation(false);
     }
@@ -250,7 +256,7 @@ export default function ChatWidget() {
           });
         } catch {
           if (open) {
-            toast.error("Failed to load conversations");
+            toast.error(t("toasts.loadConversationsFailed"));
           }
         } finally {
           if (busy && session === chatSessionRef.current) {
@@ -268,7 +274,7 @@ export default function ChatWidget() {
       conversationListRequestRef.current = request;
       return request;
     },
-    [isAuthenticated, open, userRole]
+    [isAuthenticated, open, userRole, t]
   );
 
   const loadMessages = useCallback(
@@ -294,7 +300,7 @@ export default function ChatWidget() {
           generation === messageRequestGenerationRef.current &&
           open
         ) {
-          toast.error("Failed to load messages");
+          toast.error(t("toasts.loadMessagesFailed"));
         }
       } finally {
         if (
@@ -306,7 +312,7 @@ export default function ChatWidget() {
         }
       }
     },
-    [open]
+    [open, t]
   );
 
   const loadProfessionalOptions = useCallback(async () => {
@@ -319,11 +325,11 @@ export default function ChatWidget() {
       const data = await fetchProfessionals();
       setProfessionalOptions(data);
     } catch (error) {
-      setProfessionalsError(error instanceof Error ? error.message : "Failed to load professionals");
+      setProfessionalsError(chatErrorMessage(error, t("toasts.loadProfessionalsFailed")));
     } finally {
       setLoadingProfessionals(false);
     }
-  }, [open, userRole]);
+  }, [open, userRole, t]);
 
   const ensureConversation = useCallback(
     async (detail: ChatWidgetOpenDetail) => {
@@ -352,7 +358,7 @@ export default function ChatWidget() {
             setManualNewChatPanel(false);
             setSelectedConversationId(conversation._id);
           } catch {
-            toast.error("Failed to start conversation with this customer.");
+            toast.error(t("toasts.startConversationWithCustomerFailed"));
           }
         }
         return;
@@ -384,7 +390,7 @@ export default function ChatWidget() {
                 // Prefill still sent; storage is only a duplicate guard.
               }
             } catch {
-              toast.error("Chat opened, but the quotation answers could not be sent automatically.");
+              toast.error(t("toasts.prefillSendFailed"));
             }
           }
         }
@@ -393,12 +399,12 @@ export default function ChatWidget() {
         setManualNewChatPanel(false);
         setSelectedConversationId(conversation._id);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to start chat");
+        toast.error(chatErrorMessage(error, t("toasts.startChatFailed")));
       } finally {
         setCreatingConversation(false);
       }
     },
-    [isAuthenticated, loadConversationList, userRole]
+    [isAuthenticated, loadConversationList, userRole, t]
   );
 
   useEffect(() => {
@@ -577,9 +583,9 @@ export default function ChatWidget() {
       await loadMessages(selectedConversationId, false);
       await loadConversationList(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to send message";
+      const message = chatErrorMessage(error, t("toasts.sendMessageFailed"));
       toast.error(message);
-      throw error instanceof Error ? error : new Error(message);
+      throw error instanceof Error && !isLocalFallbackError(error) ? error : new Error(message);
     } finally {
       setSending(false);
     }
@@ -598,7 +604,7 @@ export default function ChatWidget() {
           className="h-14 rounded-full bg-indigo-600 px-5 text-white shadow-xl hover:bg-indigo-700"
         >
           <MessageSquare className="mr-2 h-5 w-5" />
-          Chat
+          {t("widget.button")}
           {totalUnread > 0 && (
             <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-xs font-semibold text-indigo-700">
               {totalUnread > 99 ? "99+" : totalUnread}
@@ -614,10 +620,11 @@ export default function ChatWidget() {
               <div className="min-w-0">
                 <CardTitle className="text-sm font-semibold truncate">
                   {selectedConversation
-                    ? getOtherParticipantLabel(selectedConversation, userRole)
+                    ? getOtherParticipantLabel(selectedConversation, userRole) ||
+                      (userRole === "professional" ? t("common.customer") : t("common.professional"))
                     : shouldShowNewChatPanel
-                    ? "New chat"
-                    : "Messages"}
+                    ? t("widget.newChat")
+                    : t("page.title")}
                 </CardTitle>
               </div>
 
@@ -632,7 +639,7 @@ export default function ChatWidget() {
                         setSelectedConversationId(null);
                         setManualNewChatPanel(false);
                       }}
-                      aria-label="Back to conversations"
+                      aria-label={t("widget.backToConversations")}
                     >
                       <ArrowLeft className="h-4 w-4" />
                     </Button>
@@ -643,8 +650,8 @@ export default function ChatWidget() {
                         className="h-8 w-8 text-white hover:bg-white/20"
                         onClick={openQuotationDialog}
                         disabled={creatingSendQuotation}
-                        aria-label="Send quotation"
-                        title="Send Quotation"
+                        aria-label={t("page.sendQuotation")}
+                        title={t("page.sendQuotationTitle")}
                       >
                         {creatingSendQuotation ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                       </Button>
@@ -661,7 +668,7 @@ export default function ChatWidget() {
                       setSelectedConversationId(null);
                       setManualNewChatPanel((current) => !current);
                     }}
-                    aria-label="Start new chat"
+                    aria-label={t("widget.startNewChat")}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -672,7 +679,7 @@ export default function ChatWidget() {
                   size="icon"
                   className="h-8 w-8 text-white hover:bg-white/20"
                   onClick={() => setOpen(false)}
-                  aria-label="Minimize chat"
+                  aria-label={t("widget.minimize")}
                 >
                   <Minus className="h-4 w-4" />
                 </Button>
@@ -685,7 +692,7 @@ export default function ChatWidget() {
                     setSelectedConversationId(null);
                     setManualNewChatPanel(false);
                   }}
-                  aria-label="Close chat"
+                  aria-label={t("widget.close")}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -697,7 +704,7 @@ export default function ChatWidget() {
             {creatingConversation && (
               <div className="flex items-center justify-center py-3 text-xs text-gray-500 border-b">
                 <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                Starting conversation...
+                {t("widget.startingConversation")}
               </div>
             )}
 
@@ -719,7 +726,7 @@ export default function ChatWidget() {
                   <div className="h-full overflow-y-auto p-3 space-y-2">
                     <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
                       <p className="text-xs text-indigo-700">
-                        Pick a professional below and we will open the chat instantly.
+                        {t("widget.pickProfessional")}
                       </p>
                     </div>
 
@@ -744,14 +751,14 @@ export default function ChatWidget() {
                           className="mt-2"
                           onClick={() => void loadProfessionalOptions()}
                         >
-                          Retry
+                          {t("common.retry")}
                         </Button>
                       </div>
                     )}
 
                     {!loadingProfessionals && !professionalsError && professionalOptions.length === 0 && (
                       <div className="py-6 text-sm text-gray-500 text-center">
-                        No professionals available right now.
+                        {t("page.noProfessionals")}
                       </div>
                     )}
 
@@ -759,7 +766,7 @@ export default function ChatWidget() {
                       <div className="space-y-2">
                         {professionalOptions.map((professional) => {
                           const displayName =
-                            professional.username || professional.name || "Professional";
+                            professional.username || professional.name || t("common.professional");
                           const location = [professional.businessInfo?.city, professional.businessInfo?.country]
                             .filter(Boolean)
                             .join(", ");
@@ -783,7 +790,7 @@ export default function ChatWidget() {
                                   });
                                 }}
                               >
-                                Chat
+                                {t("common.chat")}
                               </Button>
                             </div>
                           );
@@ -837,29 +844,29 @@ export default function ChatWidget() {
       <Dialog open={showQuotationDialog} onOpenChange={(open) => { setShowQuotationDialog(open); if (!open) setSelectedProjectId("none"); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Direct Quotation</DialogTitle>
+            <DialogTitle>{t("quotationDialog.title")}</DialogTitle>
             <DialogDescription>
-              Choose whether this quotation should be linked to one of your published projects.
+              {t("quotationDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-900">Linked project</p>
+              <p className="text-sm font-medium text-gray-900">{t("quotationDialog.linkedProject")}</p>
               {loadingProjects ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading projects...
+                  {t("quotationDialog.loadingProjects")}
                 </div>
               ) : (
                 <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose a project" />
+                    <SelectValue placeholder={t("quotationDialog.chooseProject")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No linked project</SelectItem>
+                    <SelectItem value="none">{t("quotationDialog.noLinkedProject")}</SelectItem>
                     {activeProjects.map(project => (
                       <SelectItem key={project._id} value={project._id}>
-                        {project.title || "Untitled project"}
+                        {project.title || t("common.untitledProject")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -868,7 +875,7 @@ export default function ChatWidget() {
             </div>
             <Button onClick={handleSendQuotation} disabled={creatingSendQuotation} className="w-full">
               {creatingSendQuotation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-              Create quotation draft
+              {t("quotationDialog.createDraft")}
             </Button>
           </div>
         </DialogContent>

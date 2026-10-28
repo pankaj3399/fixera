@@ -7,9 +7,12 @@ import { Badge } from "@/components/ui/badge"
 import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import Image from "next/image"
+import { useTranslations } from "next-intl"
 import MeetingScheduler from "@/components/professional/meetings/MeetingScheduler"
 import WeeklyAvailabilityCalendar, { type CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import { getAuthToken } from "@/lib/utils"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import {
   ArrowLeft,
   Calendar,
@@ -221,6 +224,9 @@ export default function ProjectDetailPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const params = useParams()
+  const t = useTranslations("proProjects")
+  const { formatMoney } = useCurrency()
+  const { intl } = useFormatLocale()
   const [project, setProject] = useState<Project | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -304,7 +310,7 @@ export default function ProjectDetailPage() {
             events.push({
               id: booking._id,
               type: 'booking',
-              title: booking.project?.title || project.title || 'Booking',
+              title: booking.project?.title || project.title || t('detail.meetings.bookingFallback'),
               start,
               end,
               meta: {
@@ -329,7 +335,7 @@ export default function ProjectDetailPage() {
                 events.push({
                   id: `${booking._id}-buffer`,
                   type: 'booking-buffer',
-                  title: 'Buffer',
+                  title: t('detail.meetings.buffer'),
                   start: bufferStart,
                   end: bufferEnd,
                   meta: {
@@ -402,7 +408,7 @@ export default function ProjectDetailPage() {
       mounted = false
       controller.abort()
     }
-  }, [project, user, refreshMeetings])
+  }, [project, user, refreshMeetings, t])
 
   const fetchProject = useCallback(async () => {
     setIsLoading(true)
@@ -415,15 +421,15 @@ export default function ProjectDetailPage() {
         const projectData = await response.json()
         setProject(projectData)
       } else {
-        setError('Failed to fetch project details')
+        setError(t('detail.loadFailed'))
       }
     } catch (error) {
       console.error('Failed to fetch project:', error)
-      setError('Failed to fetch project details')
+      setError(t('detail.loadFailed'))
     } finally {
       setIsLoading(false)
     }
-  }, [params.id])
+  }, [params.id, t])
 
   useEffect(() => {
     if (user?.role === 'professional' && params.id) {
@@ -477,11 +483,11 @@ export default function ProjectDetailPage() {
         router.refresh(); // Optional: refresh the manage page data
       } else {
         const errorData = await response.json();
-        toast.error(errorData.error || 'Failed to submit project');
+        toast.error(errorData.error || t('errors.submitProject'));
       }
     } catch (error) {
       console.error('Failed to submit project', error);
-      toast.error('Failed to submit project');
+      toast.error(t('errors.submitProject'));
     } finally {
       setIsSubmitting(false);
     }
@@ -490,28 +496,93 @@ export default function ProjectDetailPage() {
 
   const formatPricing = (pricing: IPricing) => {
     if (pricing.type === 'fixed' && pricing.amount != null) {
-      return `€${pricing.amount.toLocaleString()}`
+      return formatMoney(pricing.amount)
     } else if (pricing.type === 'unit' && pricing.priceRange) {
-      return `€${pricing.priceRange.min.toLocaleString()} - €${pricing.priceRange.max.toLocaleString()}`
+      return `${formatMoney(pricing.priceRange.min)} - ${formatMoney(pricing.priceRange.max)}`
     } else if (pricing.type === 'rfq') {
-      return 'Request for Quote'
+      return t('detail.pricing.requestForQuote')
     }
-    return 'Price not set'
+    return t('detail.pricing.notSet')
   }
+
+  type DurationUnit = 'hours' | 'days' | 'months' | 'years'
+
+  const formatUnit = (value: number, unit: DurationUnit) => t(`units.${unit}`, { count: value })
 
   const formatDuration = (duration: IExecutionDuration) => {
     if (duration.value != null) {
-      return `${duration.value} ${duration.unit}`
+      return formatUnit(duration.value, duration.unit)
     } else if (duration.range) {
       if (duration.range.min != null && duration.range.max != null) {
-        return `${duration.range.min}–${duration.range.max} ${duration.unit}`
+        return t(`duration.range.${duration.unit}`, { min: duration.range.min, max: duration.range.max })
       } else if (duration.range.min != null) {
-        return `≥${duration.range.min} ${duration.unit}`
+        return t(`duration.min.${duration.unit}`, { min: duration.range.min })
       } else if (duration.range.max != null) {
-        return `≤${duration.range.max} ${duration.unit}`
+        return t(`duration.max.${duration.unit}`, { max: duration.range.max })
       }
     }
-    return 'Not set'
+    return t('common.notSet')
+  }
+
+  const formatStatusLabel = (status: string) => {
+    switch (status) {
+      case 'draft':
+        return t('status.draft')
+      case 'pending_approval':
+        return t('status.pendingApproval')
+      case 'published':
+        return t('status.published')
+      case 'rejected':
+        return t('status.rejected')
+      case 'quoted':
+        return t('status.quoted')
+      case 'booked':
+        return t('status.booked')
+      case 'in_progress':
+        return t('status.inProgress')
+      case 'completed':
+        return t('status.completed')
+      case 'awaiting_confirmation':
+        return t('status.awaitingConfirmation')
+      case 'closed':
+        return t('status.closed')
+      case 'disputed':
+        return t('status.disputed')
+      default:
+        return status
+    }
+  }
+
+  const formatPriceModelLabel = (value: string) => {
+    switch (value) {
+      case 'fixed':
+        return t('priceModels.fixed')
+      case 'meter':
+        return t('priceModels.meter')
+      case 'm2':
+        return t('priceModels.m2')
+      case 'hour':
+        return t('priceModels.hour')
+      case 'day':
+        return t('priceModels.day')
+      case 'room':
+        return t('priceModels.room')
+      default:
+        return value
+    }
+  }
+
+  const formatQuestionTypeLabel = (value: string) => {
+    switch (value) {
+      case 'text':
+        return t('questionTypes.text')
+      case 'multiple_choice':
+        return t('questionTypes.multipleChoice')
+      case 'attachment':
+        return t('questionTypes.attachment')
+      default:
+        return value
+    }
   }
 
   if (loading || isLoading) {
@@ -570,14 +641,14 @@ export default function ProjectDetailPage() {
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6 text-center">
               <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-red-900 mb-2">Error Loading Project</h3>
-              <p className="text-red-700 mb-4">{error || 'Project not found'}</p>
+              <h3 className="text-lg font-medium text-red-900 mb-2">{t('detail.errorTitle')}</h3>
+              <p className="text-red-700 mb-4">{error || t('detail.projectNotFound')}</p>
               <Button
                 onClick={() => router.push('/professional/projects/manage')}
                 variant="outline"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Projects
+                {t('detail.backToProjects')}
               </Button>
             </CardContent>
           </Card>
@@ -599,20 +670,20 @@ export default function ProjectDetailPage() {
               className="flex-shrink-0"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Back to Projects</span>
-              <span className="sm:hidden">Back</span>
+              <span className="hidden sm:inline">{t('detail.backToProjects')}</span>
+              <span className="sm:hidden">{t('detail.back')}</span>
             </Button>
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2 md:gap-3">
                 <Briefcase className="h-6 w-6 md:h-8 md:w-8 text-blue-600 flex-shrink-0" />
-                <span className="truncate">Project Details</span>
+                <span className="truncate">{t('detail.title')}</span>
               </h1>
-              <p className="text-sm md:text-base text-gray-600">View and manage your project</p>
+              <p className="text-sm md:text-base text-gray-600">{t('detail.subtitle')}</p>
             </div>
           </div>
           <Badge className={`${getStatusColor(project.status)} border text-sm flex-shrink-0`}>
             {getStatusIcon(project.status)}
-            <span className="ml-2 capitalize">{project.status.replace('_', ' ')}</span>
+            <span className="ml-2 capitalize">{formatStatusLabel(project.status)}</span>
           </Badge>
         </div>
 
@@ -628,32 +699,32 @@ export default function ProjectDetailPage() {
               <CardContent className="px-4 md:px-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-600">Category:</span>
+                    <span className="font-medium text-gray-600">{t('detail.basicInfo.category')}</span>
                     <p className="capitalize">{project.category}</p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-600">Service:</span>
+                    <span className="font-medium text-gray-600">{t('detail.basicInfo.service')}</span>
                     <p className="capitalize">{project.service}</p>
                   </div>
                   {project.areaOfWork && (
                     <div>
-                      <span className="font-medium text-gray-600">Area of Work:</span>
+                      <span className="font-medium text-gray-600">{t('detail.basicInfo.areaOfWork')}</span>
                       <p className="capitalize">{project.areaOfWork}</p>
                     </div>
                   )}
                   <div>
-                    <span className="font-medium text-gray-600">Price Model:</span>
-                    <p className="capitalize">{project.priceModel}</p>
+                    <span className="font-medium text-gray-600">{t('detail.basicInfo.priceModel')}</span>
+                    <p className="capitalize">{formatPriceModelLabel(project.priceModel)}</p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-600">Current Step:</span>
-                    <p>{project.currentStep} of 8</p>
+                    <span className="font-medium text-gray-600">{t('detail.basicInfo.currentStep')}</span>
+                    <p>{t('detail.basicInfo.stepOfTotal', { step: project.currentStep })}</p>
                   </div>
                 </div>
 
                 {project.keywords && project.keywords.length > 0 && (
                   <div>
-                    <span className="font-medium text-gray-600 text-sm">Keywords:</span>
+                    <span className="font-medium text-gray-600 text-sm">{t('detail.basicInfo.keywords')}</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {project.keywords.map((keyword, index) => (
                         <Badge key={index} variant="outline" className="text-xs">
@@ -666,7 +737,7 @@ export default function ProjectDetailPage() {
 
                 {project.projectType && project.projectType.length > 0 && (
                   <div>
-                    <span className="font-medium text-gray-600 text-sm">Project Types:</span>
+                    <span className="font-medium text-gray-600 text-sm">{t('detail.basicInfo.projectTypes')}</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {project.projectType.map((type, index) => (
                         <Badge key={index} variant="outline" className="text-xs">
@@ -684,22 +755,22 @@ export default function ProjectDetailPage() {
               <CardHeader className="px-4 md:px-6">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <MapPin className="h-5 w-5" />
-                  Service Area
+                  {t('detail.serviceArea.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-600">Address:</span>
+                    <span className="font-medium text-gray-600">{t('detail.serviceArea.address')}</span>
                     <p className="break-words">{project.distance.address}</p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-600">Max Range:</span>
-                    <p>{project.distance.noBorders ? 'No borders' : (project.distance.maxKmRange != null ? `${project.distance.maxKmRange} km` : '—')}</p>
+                    <span className="font-medium text-gray-600">{t('detail.serviceArea.maxRange')}</span>
+                    <p>{project.distance.noBorders ? t('detail.serviceArea.noBorders') : (project.distance.maxKmRange != null ? t('detail.serviceArea.km', { km: project.distance.maxKmRange }) : '—')}</p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-600">Company Address:</span>
-                    <p>{project.distance.useCompanyAddress ? 'Yes' : 'No'}</p>
+                    <span className="font-medium text-gray-600">{t('detail.serviceArea.companyAddress')}</span>
+                    <p>{project.distance.useCompanyAddress ? t('common.yes') : t('common.no')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -711,13 +782,13 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <ImageIcon className="h-5 w-5" />
-                    Media
+                    {t('detail.media.title')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-4">
                   {project.media.images.length > 0 && (
                     <div>
-                      <h4 className="font-medium text-gray-600 mb-2">Images ({project.media.images.length})</h4>
+                      <h4 className="font-medium text-gray-600 mb-2">{t('detail.media.images', { count: project.media.images.length })}</h4>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                         {project.media.images.slice(0, 8).map((imageUrl, index) => (
                           <div
@@ -740,7 +811,7 @@ export default function ProjectDetailPage() {
                           <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
                             <div className="text-center">
                               <ImageIcon className="h-6 w-6 text-gray-400 mx-auto mb-1" />
-                              <span className="text-gray-600 text-sm">+{project.media.images.length - 8} more</span>
+                              <span className="text-gray-600 text-sm">{t('detail.media.more', { count: project.media.images.length - 8 })}</span>
                             </div>
                           </div>
                         )}
@@ -749,7 +820,7 @@ export default function ProjectDetailPage() {
                   )}
                   {project.media.video && (
                     <div>
-                      <h4 className="font-medium text-gray-600 mb-2">Video</h4>
+                      <h4 className="font-medium text-gray-600 mb-2">{t('detail.media.video')}</h4>
                       <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden group cursor-pointer hover:shadow-md transition-shadow">
                         <video
                           src={project.media.video}
@@ -784,9 +855,9 @@ export default function ProjectDetailPage() {
               <CardHeader className="px-4 md:px-6">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <DollarSign className="h-5 w-5" />
-                  Pricing Options ({project.subprojects.length})
+                  {t('detail.pricing.title', { count: project.subprojects.length })}
                 </CardTitle>
-                <CardDescription>Your project pricing variations</CardDescription>
+                <CardDescription>{t('detail.pricing.description')}</CardDescription>
               </CardHeader>
               <CardContent className="px-4 md:px-6">
                 <div className={`grid gap-4 ${project.subprojects.length === 1 ? 'grid-cols-1' : project.subprojects.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
@@ -799,31 +870,31 @@ export default function ProjectDetailPage() {
                       <CardContent className="px-4 py-3 space-y-3 flex-1">
                         {/* Pricing */}
                         <div>
-                          <span className="font-medium text-gray-600 text-sm">Pricing:</span>
+                          <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.label')}</span>
                           <p className="font-semibold text-green-600">{formatPricing(subproject.pricing)}</p>
                           {subproject.pricing.type === 'unit' && subproject.pricing.minProjectValue != null && (
-                            <p className="text-xs text-gray-500 mt-0.5">Min. order: €{subproject.pricing.minProjectValue.toLocaleString()}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{t('detail.pricing.minOrder', { price: formatMoney(subproject.pricing.minProjectValue) })}</p>
                           )}
                         </div>
 
                         {/* Duration */}
                         <div>
-                          <span className="font-medium text-gray-600 text-sm">Duration:</span>
+                          <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.duration')}</span>
                           <p className="text-sm">{formatDuration(subproject.executionDuration)}</p>
                         </div>
 
                         {/* Preparation */}
                         <div>
-                          <span className="font-medium text-gray-600 text-sm">Preparation:</span>
+                          <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.preparation')}</span>
                           <p className="text-sm">
                             {(() => {
                               const preparationValue = subproject.preparationDuration?.value;
-                              if (preparationValue == null) return 'Not set';
+                              if (preparationValue == null) return t('common.notSet');
                               const preparationUnit =
                                 subproject.preparationDuration?.unit ??
                                 subproject.executionDuration?.unit ??
                                 'days';
-                              return `${preparationValue} ${preparationUnit}`;
+                              return formatUnit(preparationValue, preparationUnit);
                             })()}
                           </p>
                         </div>
@@ -831,35 +902,35 @@ export default function ProjectDetailPage() {
                         {/* Buffer */}
                         {subproject.buffer && subproject.buffer.value > 0 && (
                           <div>
-                            <span className="font-medium text-gray-600 text-sm">Buffer:</span>
-                            <p className="text-sm">{subproject.buffer.value} {subproject.buffer.unit}</p>
+                            <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.buffer')}</span>
+                            <p className="text-sm">{formatUnit(subproject.buffer.value, subproject.buffer.unit)}</p>
                           </div>
                         )}
 
                         {/* Intake */}
                         {subproject.intakeDuration && (
                           <div>
-                            <span className="font-medium text-gray-600 text-sm">Intake:</span>
-                            <p className="text-sm">{subproject.intakeDuration.value} {subproject.intakeDuration.unit}</p>
+                            <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.intake')}</span>
+                            <p className="text-sm">{formatUnit(subproject.intakeDuration.value, subproject.intakeDuration.unit)}</p>
                           </div>
                         )}
 
                         {/* Warranty */}
                         <div>
-                          <span className="font-medium text-gray-600 text-sm">Warranty:</span>
-                          <p className="text-sm">{subproject.warrantyPeriod.value === 0 ? 'No warranty' : `${subproject.warrantyPeriod.value} ${subproject.warrantyPeriod.unit}`}</p>
+                          <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.warranty')}</span>
+                          <p className="text-sm">{subproject.warrantyPeriod.value === 0 ? t('detail.pricing.noWarranty') : formatUnit(subproject.warrantyPeriod.value, subproject.warrantyPeriod.unit)}</p>
                         </div>
 
                         {/* Materials */}
                         <div>
-                          <span className="font-medium text-gray-600 text-sm">Materials:</span>
-                          <p className="text-sm">{subproject.materialsIncluded ? 'Included' : 'Not included'}</p>
+                          <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.materials')}</span>
+                          <p className="text-sm">{subproject.materialsIncluded ? t('detail.pricing.included') : t('detail.pricing.notIncluded')}</p>
                         </div>
 
                         {/* Service Parameters */}
                         {subproject.professionalInputs && subproject.professionalInputs.length > 0 && (
                           <div>
-                            <span className="font-medium text-gray-600 text-sm">Service Parameters:</span>
+                            <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.serviceParameters')}</span>
                             <div className="mt-1 space-y-1">
                               {subproject.professionalInputs.map((input, i) => (
                                 <div key={i} className="flex justify-between text-xs bg-gray-50 px-2 py-1 rounded">
@@ -878,7 +949,7 @@ export default function ProjectDetailPage() {
                         {/* Included Items */}
                         {subproject.included.length > 0 && (
                           <div>
-                            <span className="font-medium text-gray-600 text-sm">Included Items:</span>
+                            <span className="font-medium text-gray-600 text-sm">{t('detail.pricing.includedItems')}</span>
                             <div className="mt-1 space-y-1">
                               {subproject.included.map((item, itemIndex) => (
                                 <div key={itemIndex} className="bg-gray-50 rounded-md px-2 py-1">
@@ -904,7 +975,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Settings className="h-5 w-5" />
-                    Extra Options ({project.extraOptions.length})
+                    {t('detail.extraOptions.title', { count: project.extraOptions.length })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6">
@@ -915,7 +986,7 @@ export default function ProjectDetailPage() {
                         {option.description && (
                           <p className="text-xs text-gray-600 mt-1">{option.description}</p>
                         )}
-                        <p className="font-semibold text-green-600 mt-2 text-sm">€{option.price.toLocaleString()}</p>
+                        <p className="font-semibold text-green-600 mt-2 text-sm">{formatMoney(option.price)}</p>
                       </div>
                     ))}
                   </div>
@@ -929,7 +1000,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Shield className="h-5 w-5" />
-                    Terms & Conditions ({project.termsConditions.length})
+                    {t('detail.terms.title', { count: project.termsConditions.length })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
@@ -937,12 +1008,12 @@ export default function ProjectDetailPage() {
                     <div key={index} className={`border-l-4 ${term.type === 'warning' ? 'border-yellow-300' : 'border-blue-200'} pl-4`}>
                       <h4 className="font-medium text-sm">
                         {term.name}
-                        {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                        {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">{t('detail.terms.warning')}</span>}
                       </h4>
                       <p className="text-sm text-gray-600 mt-1 break-words">{term.description}</p>
                       {term.type !== 'warning' && term.additionalCost != null && Number.isFinite(term.additionalCost) && term.additionalCost >= 0 && (
                         <p className="text-sm font-medium text-orange-600 mt-1">
-                          Additional cost: €{term.additionalCost.toLocaleString()}
+                          {t('detail.terms.additionalCost', { price: formatMoney(term.additionalCost) })}
                         </p>
                       )}
                     </div>
@@ -957,7 +1028,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <HelpCircle className="h-5 w-5" />
-                    FAQ ({project.faq.length})
+                    {t('detail.faq.title', { count: project.faq.length })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-4">
@@ -967,7 +1038,7 @@ export default function ProjectDetailPage() {
                       <p className="text-sm text-gray-600 break-words">{faq.answer}</p>
                       {faq.isGenerated && (
                         <Badge variant="outline" className="text-xs mt-2">
-                          AI Generated
+                          {t('detail.faq.aiGenerated')}
                         </Badge>
                       )}
                     </div>
@@ -982,7 +1053,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <MessageSquare className="h-5 w-5" />
-                    RFQ Questions ({project.rfqQuestions.length})
+                    {t('detail.rfq.title', { count: project.rfqQuestions.length })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
@@ -991,17 +1062,17 @@ export default function ProjectDetailPage() {
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="font-medium text-sm flex-1">{question.question}</h4>
                         <Badge variant="outline" className="text-xs flex-shrink-0">
-                          {question.type}
+                          {formatQuestionTypeLabel(question.type)}
                         </Badge>
                       </div>
                       {question.isRequired && (
                         <Badge variant="destructive" className="text-xs mt-2">
-                          Required
+                          {t('common.required')}
                         </Badge>
                       )}
                       {question.options && question.options.length > 0 && (
                         <div className="mt-2">
-                          <p className="text-xs text-gray-600 mb-1">Options:</p>
+                          <p className="text-xs text-gray-600 mb-1">{t('detail.rfq.options')}</p>
                           <div className="flex flex-wrap gap-1">
                             {question.options.map((option, optionIndex) => (
                               <Badge key={optionIndex} variant="outline" className="text-xs">
@@ -1023,7 +1094,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Calendar className="h-5 w-5" />
-                    Post-Booking Questions ({project.postBookingQuestions.length})
+                    {t('detail.postBooking.title', { count: project.postBookingQuestions.length })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
@@ -1032,17 +1103,17 @@ export default function ProjectDetailPage() {
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="font-medium text-sm flex-1">{question.question}</h4>
                         <Badge variant="outline" className="text-xs flex-shrink-0">
-                          {question.type}
+                          {formatQuestionTypeLabel(question.type)}
                         </Badge>
                       </div>
                       {question.isRequired && (
                         <Badge variant="destructive" className="text-xs mt-2">
-                          Required
+                          {t('common.required')}
                         </Badge>
                       )}
                       {question.options && question.options.length > 0 && (
                         <div className="mt-2">
-                          <p className="text-xs text-gray-600 mb-1">Options:</p>
+                          <p className="text-xs text-gray-600 mb-1">{t('detail.rfq.options')}</p>
                           <div className="flex flex-wrap gap-1">
                             {question.options.map((option, optionIndex) => (
                               <Badge key={optionIndex} variant="outline" className="text-xs">
@@ -1064,7 +1135,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <MessageSquare className="h-5 w-5" />
-                    Custom Confirmation Message
+                    {t('detail.customMessage')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6">
@@ -1079,7 +1150,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Award className="h-5 w-5" />
-                    Certifications ({project.certifications.length})
+                    {t('detail.certifications.title', { count: project.certifications.length })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
@@ -1088,18 +1159,18 @@ export default function ProjectDetailPage() {
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm truncate">{cert.name}</h4>
                         <p className="text-xs text-gray-600">
-                          Uploaded: {new Date(cert.uploadedAt).toLocaleDateString()}
+                          {t('detail.certifications.uploaded', { date: new Date(cert.uploadedAt).toLocaleDateString(intl) })}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {cert.isRequired && (
                           <Badge variant="destructive" className="text-xs">
-                            Required
+                            {t('common.required')}
                           </Badge>
                         )}
                         <Button size="sm" variant="outline" className="text-xs">
                           <ExternalLink className="h-3 w-3 mr-1" />
-                          View
+                          {t('common.view')}
                         </Button>
                       </div>
                     </div>
@@ -1114,7 +1185,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="text-red-800 flex items-center gap-2 text-lg">
                     <XCircle className="h-5 w-5" />
-                    Admin Feedback
+                    {t('detail.adminFeedback')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6">
@@ -1129,7 +1200,7 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <CheckCircle className="h-5 w-5" />
-                    Quality Checks ({project.qualityChecks.length})
+                    {t('detail.qualityChecks.title', { count: project.qualityChecks.length })}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
@@ -1156,7 +1227,7 @@ export default function ProjectDetailPage() {
                           {check.message}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {new Date(check.checkedAt).toLocaleString()}
+                          {new Date(check.checkedAt).toLocaleString(intl)}
                         </p>
                       </div>
                     </div>
@@ -1171,17 +1242,17 @@ export default function ProjectDetailPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Calendar className="h-5 w-5" />
-                    Team Meetings
+                    {t('detail.meetings.title')}
                   </CardTitle>
                   <Button
                     onClick={() => setShowMeetingScheduler(!showMeetingScheduler)}
                     size="sm"
                   >
-                    {showMeetingScheduler ? 'Hide Scheduler' : 'Schedule Meeting'}
+                    {showMeetingScheduler ? t('detail.meetings.hideScheduler') : t('common.scheduleMeeting')}
                   </Button>
                 </div>
                 <CardDescription>
-                  Schedule and manage team meetings for this project
+                  {t('detail.meetings.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-4 md:px-6 space-y-4">
@@ -1195,8 +1266,8 @@ export default function ProjectDetailPage() {
                   />
                 )}
                 <WeeklyAvailabilityCalendar
-                  title="Booking Calendar"
-                  description="Bookings and blocks for this project"
+                  title={t('detail.meetings.bookingCalendar')}
+                  description={t('detail.meetings.bookingCalendarDescription')}
                   events={bookingEvents}
                   dayStart={calendarDayStart}
                   dayEnd={calendarDayEnd}
@@ -1211,7 +1282,7 @@ export default function ProjectDetailPage() {
             {/* Actions */}
             <Card>
               <CardHeader className="px-4 md:px-6">
-                <CardTitle className="text-lg">Actions</CardTitle>
+                <CardTitle className="text-lg">{t('detail.actions.title')}</CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6 space-y-3">
                 {/* Always show edit button */}
@@ -1221,7 +1292,7 @@ export default function ProjectDetailPage() {
                   variant="outline"
                 >
                   <Edit className="h-4 w-4 mr-2" />
-                  Edit Project
+                  {t('common.editProject')}
                 </Button>
 
                 {/* Show status-specific actions */}
@@ -1232,7 +1303,7 @@ export default function ProjectDetailPage() {
                     disabled={isSubmitting}
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    Submit for Approval
+                    {t('detail.actions.submitForApproval')}
                   </Button>
                 )}
 
@@ -1243,7 +1314,7 @@ export default function ProjectDetailPage() {
                     disabled={isSubmitting}
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    Resubmit for Approval
+                    {t('detail.actions.resubmitForApproval')}
                   </Button>
                 )}
               </CardContent>
@@ -1254,45 +1325,45 @@ export default function ProjectDetailPage() {
               <CardHeader className="px-4 md:px-6">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Calendar className="h-5 w-5" />
-                  Timeline
+                  {t('detail.timeline.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6 space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Created</span>
+                  <span className="text-gray-600">{t('detail.timeline.created')}</span>
                   <span className="font-medium">
-                    {new Date(project.createdAt).toLocaleDateString()}
+                    {new Date(project.createdAt).toLocaleDateString(intl)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Last Updated</span>
+                  <span className="text-gray-600">{t('detail.timeline.lastUpdated')}</span>
                   <span className="font-medium">
-                    {new Date(project.updatedAt).toLocaleDateString()}
+                    {new Date(project.updatedAt).toLocaleDateString(intl)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Auto-saved</span>
+                  <span className="text-gray-600">{t('detail.timeline.autoSaved')}</span>
                   <span className="font-medium">
-                    {new Date(project.autoSaveTimestamp).toLocaleDateString()}
+                    {new Date(project.autoSaveTimestamp).toLocaleDateString(intl)}
                   </span>
                 </div>
 
                 {project.submittedAt && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Submitted</span>
+                    <span className="text-gray-600">{t('detail.timeline.submitted')}</span>
                     <span className="font-medium">
-                      {new Date(project.submittedAt).toLocaleDateString()}
+                      {new Date(project.submittedAt).toLocaleDateString(intl)}
                     </span>
                   </div>
                 )}
 
                 {project.approvedAt && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Approved</span>
+                    <span className="text-gray-600">{t('detail.timeline.approved')}</span>
                     <span className="font-medium">
-                      {new Date(project.approvedAt).toLocaleDateString()}
+                      {new Date(project.approvedAt).toLocaleDateString(intl)}
                     </span>
                   </div>
                 )}
@@ -1302,43 +1373,43 @@ export default function ProjectDetailPage() {
             {/* Project Stats */}
             <Card>
               <CardHeader className="px-4 md:px-6">
-                <CardTitle className="text-lg">Project Info</CardTitle>
+                <CardTitle className="text-lg">{t('detail.info.title')}</CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6 space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Category</span>
+                  <span className="text-gray-600">{t('detail.info.category')}</span>
                   <span className="font-medium capitalize">{project.category}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Service</span>
+                  <span className="text-gray-600">{t('detail.info.service')}</span>
                   <span className="font-medium capitalize">{project.service}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Subprojects</span>
+                  <span className="text-gray-600">{t('detail.info.subprojects')}</span>
                   <span className="font-medium">{project.subprojects.length}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Extra Options</span>
+                  <span className="text-gray-600">{t('detail.info.extraOptions')}</span>
                   <span className="font-medium">{project.extraOptions.length}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">FAQ Items</span>
+                  <span className="text-gray-600">{t('detail.info.faqItems')}</span>
                   <span className="font-medium">{project.faq.length}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Progress</span>
-                  <span className="font-medium">{project.currentStep}/8 steps</span>
+                  <span className="text-gray-600">{t('detail.info.progress')}</span>
+                  <span className="font-medium">{t('detail.info.steps', { step: project.currentStep })}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Status</span>
+                  <span className="text-gray-600">{t('detail.info.status')}</span>
                   <Badge className={`${getStatusColor(project.status)} border text-xs`}>
-                    {project.status.replace('_', ' ')}
+                    {formatStatusLabel(project.status)}
                   </Badge>
                 </div>
               </CardContent>
@@ -1350,34 +1421,34 @@ export default function ProjectDetailPage() {
                 <CardHeader className="px-4 md:px-6">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Users className="h-5 w-5" />
-                    Team & Meetings
+                    {t('detail.team.title')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 md:px-6 space-y-3">
                   {project.intakeMeeting?.enabled && (
                     <div>
-                      <span className="font-medium text-gray-600 text-sm">Intake Meeting:</span>
-                      <p className="text-sm">Enabled</p>
+                      <span className="font-medium text-gray-600 text-sm">{t('detail.team.intakeMeeting')}</span>
+                      <p className="text-sm">{t('detail.team.enabled')}</p>
                       {project.intakeMeeting.resources.length > 0 && (
-                        <p className="text-xs text-gray-600">{project.intakeMeeting.resources.length} team members assigned</p>
+                        <p className="text-xs text-gray-600">{t('detail.team.membersAssigned', { count: project.intakeMeeting.resources.length })}</p>
                       )}
                     </div>
                   )}
 
                   {(project.renovationPlanning?.fixeraManaged) && (
                     <div>
-                      <span className="font-medium text-gray-600 text-sm">Renovation Planning:</span>
-                      <p className="text-sm">Fixtract Managed</p>
+                      <span className="font-medium text-gray-600 text-sm">{t('detail.team.renovationPlanning')}</span>
+                      <p className="text-sm">{t('detail.team.fixtractManaged')}</p>
                       {project.renovationPlanning.resources.length > 0 && (
-                        <p className="text-xs text-gray-600">{project.renovationPlanning.resources.length} team members assigned</p>
+                        <p className="text-xs text-gray-600">{t('detail.team.membersAssigned', { count: project.renovationPlanning.resources.length })}</p>
                       )}
                     </div>
                   )}
 
                   {project.resources.length > 0 && (
                     <div>
-                      <span className="font-medium text-gray-600 text-sm">Resources:</span>
-                      <p className="text-sm">{project.resources.length} team members</p>
+                      <span className="font-medium text-gray-600 text-sm">{t('detail.team.resources')}</span>
+                      <p className="text-sm">{t('detail.team.members', { count: project.resources.length })}</p>
                     </div>
                   )}
                 </CardContent>
@@ -1395,7 +1466,7 @@ export default function ProjectDetailPage() {
             <div className="relative max-w-4xl max-h-full w-full h-full flex items-center justify-center">
               <Image
                 src={selectedImage}
-                alt="Project image"
+                alt={t('detail.media.imageAlt')}
                 fill
                 className="object-contain"
                 sizes="100vw"

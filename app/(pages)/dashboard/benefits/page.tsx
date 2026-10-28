@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Gift, Loader2, Sparkles, TrendingUp } from "lucide-react"
 import { getAuthToken } from "@/lib/utils"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import ReferralCard from "@/components/dashboard/ReferralCard"
 import BacklinkCard from "@/components/dashboard/BacklinkCard"
@@ -95,6 +98,9 @@ function benefitsEndpointForRole(role: "customer" | "professional"): string {
 export default function BenefitsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const t = useTranslations("dashboard")
+  const { intl } = useFormatLocale()
+  const { formatMoney } = useCurrency()
   const [pageLoading, setPageLoading] = useState(true)
   const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(null)
   const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(null)
@@ -227,11 +233,11 @@ export default function BenefitsPage() {
     if (!perks) return []
 
     const items: string[] = []
-    if (perks.badge) items.push(`Badge: ${perks.badge}`)
-    items.push(`Commission reduction: ${perks.commissionReduction ?? 0}%`)
-    items.push(`Search ranking boost: x${perks.searchRankingBoost ?? 1}`)
+    if (perks.badge) items.push(t("benefits.highlights.badge", { badge: perks.badge }))
+    items.push(t("benefits.highlights.commissionReduction", { value: t("common.percent", { value: perks.commissionReduction ?? 0 }) }))
+    items.push(t("benefits.highlights.searchBoost", { value: perks.searchRankingBoost ?? 1 }))
     return items
-  }, [customerData?.benefits, isCustomer, professionalData?.level?.perks])
+  }, [customerData?.benefits, isCustomer, professionalData?.level?.perks, t])
 
   if (loading || pageLoading) {
     return (
@@ -254,7 +260,7 @@ export default function BenefitsPage() {
           <Card>
             <CardContent className="flex items-center gap-2 p-6 text-sm text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading benefits program...
+              {t("benefits.loading")}
             </CardContent>
           </Card>
         </div>
@@ -278,55 +284,55 @@ export default function BenefitsPage() {
           <div>
             <h1 className="flex items-center gap-3 text-3xl font-bold text-slate-900">
               <Gift className="h-8 w-8 text-indigo-600" />
-              Benefits Program
+              {t("benefits.title")}
               <Badge variant="outline">{currentLevel}</Badge>
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              {isCustomer
-                ? "Track your level, points, rewards, discounts, and referral value in one place."
-                : "Track your trust level, points, referral rewards, and level-up benefits in one place."}
+              {isCustomer ? t("benefits.subtitleCustomer") : t("benefits.subtitleProfessional")}
             </p>
           </div>
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
-            Back to Dashboard
+            {t("benefits.backToDashboard")}
           </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card>
             <CardContent className="p-6">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Current level</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("benefits.currentLevel")}</p>
               <p className="mt-2 text-2xl font-semibold text-slate-900">{currentLevel}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Points</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{points}</p>
-              <p className="mt-1 text-xs text-slate-500">Reward value EUR {rewardValue.toLocaleString()}</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("benefits.points")}</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{new Intl.NumberFormat(intl).format(points)}</p>
+              <p className="mt-1 text-xs text-slate-500">{t("benefits.rewardValue", { amount: formatMoney(rewardValue) })}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Referral reward</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{referralData?.referrerRewardAmount ?? 0}</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("benefits.referralReward")}</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{formatMoney(referralData?.referrerRewardAmount ?? 0)}</p>
               <p className="mt-1 text-xs text-slate-500">
-                {isCustomer ? "Use value on future bookings" : "Boost trust and level progress faster"}
+                {isCustomer ? t("benefits.referralRewardHintCustomer") : t("benefits.referralRewardHintProfessional")}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
               <p className="text-xs uppercase tracking-wide text-slate-500">
-                {isCustomer ? "Discounts" : "Current perk"}
+                {isCustomer ? t("benefits.discounts") : t("benefits.currentPerk")}
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-900">
-                {isCustomer ? `${customerDiscount}%` : `${professionalCommissionReduction}%`}
+                {t("common.percent", { value: isCustomer ? customerDiscount : professionalCommissionReduction })}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 {isCustomer
-                  ? `Cap ${customerDiscountCap != null ? `EUR ${customerDiscountCap}` : "not set"}`
-                  : `Search boost x${professionalSearchBoost}`}
+                  ? (customerDiscountCap != null
+                      ? t("benefits.cap", { amount: formatMoney(customerDiscountCap) })
+                      : t("benefits.capNotSet"))
+                  : t("benefits.searchBoost", { value: professionalSearchBoost })}
               </p>
             </CardContent>
           </Card>
@@ -336,19 +342,19 @@ export default function BenefitsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-indigo-600" />
-              Progress to {nextLevel || "your top level"}
+              {t("benefits.progressTitle", { level: nextLevel || t("benefits.topLevel") })}
             </CardTitle>
             <CardDescription>
               {nextLevel
-                ? `You're ${progress}% of the way to ${nextLevel}.`
-                : "You're already at the top configured level."}
+                ? t("benefits.progressDescription", { progress, level: nextLevel })
+                : t("benefits.topLevelReached")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Progress value={progress} />
             {isCustomer && customerData?.loyaltyStatus?.amountToNextTier != null && nextLevel && (
               <p className="text-sm text-slate-600">
-                Spend EUR {customerData.loyaltyStatus.amountToNextTier.toLocaleString()} more to unlock {nextLevel}.
+                {t("benefits.spendMore", { amount: formatMoney(customerData.loyaltyStatus.amountToNextTier), level: nextLevel })}
               </p>
             )}
             {!isCustomer && professionalData?.level?.nextLevel?.missingCriteria?.length ? (
@@ -372,41 +378,39 @@ export default function BenefitsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-indigo-600" />
-                Rewards Snapshot
+                {t("benefits.snapshot.title")}
               </CardTitle>
               <CardDescription>
-                {isCustomer
-                  ? "Current spending rewards and referral value."
-                  : "Current trust perks and level-up accelerators."}
+                {isCustomer ? t("benefits.snapshot.descriptionCustomer") : t("benefits.snapshot.descriptionProfessional")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-lg border bg-slate-50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Benefits</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("benefits.snapshot.benefits")}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {benefitHighlights.length > 0 ? benefitHighlights.map((item) => (
                     <Badge key={item} variant="outline" className="whitespace-normal text-left">
                       {item}
                     </Badge>
                   )) : (
-                    <p className="text-sm text-slate-500">No extra benefits configured yet.</p>
+                    <p className="text-sm text-slate-500">{t("benefits.snapshot.noBenefits")}</p>
                   )}
                 </div>
               </div>
               <div className="rounded-lg border bg-slate-50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Referral performance</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("benefits.snapshot.referralPerformance")}</p>
                 <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
                   <div>
-                    <p className="text-slate-500">Total</p>
-                    <p className="font-semibold text-slate-900">{referralData?.totalReferrals ?? 0}</p>
+                    <p className="text-slate-500">{t("common.total")}</p>
+                    <p className="font-semibold text-slate-900">{new Intl.NumberFormat(intl).format(referralData?.totalReferrals ?? 0)}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Pending</p>
-                    <p className="font-semibold text-slate-900">{referralData?.pendingReferrals ?? 0}</p>
+                    <p className="text-slate-500">{t("common.pending")}</p>
+                    <p className="font-semibold text-slate-900">{new Intl.NumberFormat(intl).format(referralData?.pendingReferrals ?? 0)}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Completed</p>
-                    <p className="font-semibold text-slate-900">{referralData?.completedReferrals ?? 0}</p>
+                    <p className="text-slate-500">{t("common.completed")}</p>
+                    <p className="font-semibold text-slate-900">{new Intl.NumberFormat(intl).format(referralData?.completedReferrals ?? 0)}</p>
                   </div>
                 </div>
               </div>

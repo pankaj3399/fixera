@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
+import { useTranslations } from "next-intl"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -96,19 +98,19 @@ const normalizeProjectStatus = (status: Project['status']): NormalizedProjectSta
   return 'draft'
 }
 
-const formatProjectStatusLabel = (status: Project['status']) => {
+const formatProjectStatusKey = (status: Project['status']) => {
   const normalized = normalizeProjectStatus(status)
   switch (normalized) {
     case 'pending':
-      return 'Pending Approval'
+      return 'pending'
     case 'published':
-      return 'Published'
+      return 'published'
     case 'on_hold':
-      return 'On Hold'
+      return 'onHold'
     case 'rejected':
-      return 'Rejected'
+      return 'rejected'
     default:
-      return 'Draft'
+      return 'draft'
   }
 }
 
@@ -158,6 +160,8 @@ const mapCountsFromApi = (counts: Record<string, number> | undefined | null) => 
 export default function ManageProjectsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const t = useTranslations("proProjects")
+  const { intl } = useFormatLocale()
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -177,6 +181,9 @@ export default function ManageProjectsPage() {
   const [activeTab, setActiveTab] = useState<TabValue>('all')
   const [allServices, setAllServices] = useState<string[]>([])
   const canCreateProjects = user?.professionalStatus === 'approved'
+
+  const formatProjectStatusLabel = (status: Project['status']) =>
+    t(`manage.statusLabels.${formatProjectStatusKey(status)}`)
 
   const mapTabToStatus = (tab: TabValue): string => {
     switch (tab) {
@@ -367,7 +374,7 @@ export default function ManageProjectsPage() {
           status: projectsResponse.status,
           errorData
         })
-        setError(errorData.message || 'Failed to fetch projects')
+        setError(errorData.message || t('manage.errors.fetchFailed'))
         setProjects([])
         setTotalPages(1)
         setTotalProjects(0)
@@ -375,7 +382,7 @@ export default function ManageProjectsPage() {
       }
     } catch (error) {
       console.error('[ManageProjects] Exception while fetching projects', error)
-      setError('Failed to fetch projects. Please check your connection.')
+      setError(t('manage.errors.fetchFailedConnection'))
       setProjects([])
       setTotalPages(1)
       setTotalProjects(0)
@@ -383,7 +390,7 @@ export default function ManageProjectsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage])
+  }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage, t])
 
   // Single effect to fetch projects — fetchProjects changes when filters/page change
   useEffect(() => {
@@ -440,11 +447,11 @@ export default function ManageProjectsPage() {
         fetchProjects()
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to submit project')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('errors.submitProject'))
       }
     } catch (error) {
       console.error('Failed to submit project:', error)
-      toast.error('Failed to submit project')
+      toast.error(t('errors.submitProject'))
     }
   }
 
@@ -465,11 +472,11 @@ export default function ManageProjectsPage() {
         router.push(`/projects/create?id=${duplicatedProject._id}`)
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to duplicate project')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('manage.errors.duplicateFailed'))
       }
     } catch (error) {
       console.error('Failed to duplicate project:', error)
-      toast.error('Failed to duplicate project')
+      toast.error(t('manage.errors.duplicateFailed'))
     }
   }
 
@@ -487,11 +494,11 @@ export default function ManageProjectsPage() {
         setSelectedProject(null)
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to delete project')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('manage.errors.deleteFailed'))
       }
     } catch (error) {
       console.error('Failed to delete project:', error)
-      toast.error('Failed to delete project')
+      toast.error(t('manage.errors.deleteFailed'))
     }
   }
 
@@ -515,17 +522,17 @@ export default function ManageProjectsPage() {
         setSelectedProject(null)
       } else {
         const errorData = await response.json()
-        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || 'Failed to update project status')
+        toast.error(errorData?.error || errorData?.message || errorData?.msg || (typeof errorData === 'string' ? errorData : null) || t('manage.errors.statusUpdateFailed'))
       }
     } catch (error) {
       console.error('Failed to update project status:', error)
-      toast.error('Failed to update project status')
+      toast.error(t('manage.errors.statusUpdateFailed'))
     }
   }
 
   const editProjectWithWarning = (projectId: string) => {
     if (!canCreateProjects) {
-      toast.error('Admin approval is required before managing projects')
+      toast.error(t('manage.adminApprovalManaging'))
       return
     }
     // Close dialog and redirect to edit page
@@ -625,7 +632,7 @@ export default function ManageProjectsPage() {
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onClick={() => router.push(`/professional/projects/${project._id}`)}>
             <Eye className="h-4 w-4 mr-2" />
-            View Details
+            {t('manage.actions.viewDetails')}
           </DropdownMenuItem>
 
           {canEdit && (
@@ -634,7 +641,7 @@ export default function ManageProjectsPage() {
               router.push(`/projects/create?id=${project._id}`);
             }}>
               <Edit className="h-4 w-4 mr-2" />
-              Edit Project
+              {t('common.editProject')}
             </DropdownMenuItem>
           )}
 
@@ -646,7 +653,7 @@ export default function ManageProjectsPage() {
               }}
             >
               <Edit className="h-4 w-4 mr-2" />
-              Edit Project
+              {t('common.editProject')}
             </DropdownMenuItem>
           )}
 
@@ -654,7 +661,7 @@ export default function ManageProjectsPage() {
             disabled={!canCreateProjects}
             onClick={() => {
               if (!canCreateProjects) {
-                toast.error('Admin approval is required before managing projects')
+                toast.error(t('manage.adminApprovalManaging'))
                 return
               }
               setSelectedProject(project)
@@ -662,7 +669,7 @@ export default function ManageProjectsPage() {
             }}
           >
             <Copy className="h-4 w-4 mr-2" />
-            Duplicate Project
+            {t('manage.actions.duplicateProject')}
           </DropdownMenuItem>
 
           {canSubmit && (
@@ -670,7 +677,7 @@ export default function ManageProjectsPage() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => submitProject(project._id)}>
                 <Send className="h-4 w-4 mr-2" />
-                Submit for Review
+                {t('manage.actions.submitForReview')}
               </DropdownMenuItem>
             </>
           )}
@@ -687,12 +694,12 @@ export default function ManageProjectsPage() {
                 {normalizeProjectStatus(project.status) === 'published' ? (
                   <>
                     <Pause className="h-4 w-4 mr-2" />
-                    Put On Hold
+                    {t('manage.actions.putOnHold')}
                   </>
                 ) : (
                   <>
                     <Play className="h-4 w-4 mr-2" />
-                    Resume Publishing
+                    {t('manage.actions.resumePublishing')}
                   </>
                 )}
               </DropdownMenuItem>
@@ -710,7 +717,7 @@ export default function ManageProjectsPage() {
                 className="text-red-600 focus:text-red-600"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete Project
+                {t('manage.actions.deleteProject')}
               </DropdownMenuItem>
             </>
           )}
@@ -726,14 +733,14 @@ export default function ManageProjectsPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2 md:gap-3">
               <Briefcase className="h-6 w-6 md:h-8 md:w-8 text-blue-600 flex-shrink-0" />
-              <span className="truncate">Manage Projects</span>
+              <span className="truncate">{t('manage.title')}</span>
             </h1>
-            <p className="text-sm md:text-base text-gray-600">Manage your service offerings and project submissions</p>
+            <p className="text-sm md:text-base text-gray-600">{t('manage.subtitle')}</p>
           </div>
           <Button
             onClick={() => {
               if (!canCreateProjects) {
-                toast.error('Admin approval is required before creating projects')
+                toast.error(t('manage.adminApprovalCreating'))
                 return
               }
               router.push('/projects/create')
@@ -743,8 +750,8 @@ export default function ManageProjectsPage() {
             disabled={!canCreateProjects}
           >
             <Plus className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Create New Project</span>
-            <span className="sm:hidden">New Project</span>
+            <span className="hidden sm:inline">{t('manage.createNewProject')}</span>
+            <span className="sm:hidden">{t('manage.newProject')}</span>
           </Button>
         </div>
 
@@ -754,9 +761,9 @@ export default function ManageProjectsPage() {
               <div className="flex items-start gap-3 text-amber-800">
                 <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium">Project creation is locked until admin approval.</p>
+                  <p className="font-medium">{t('manage.lockedTitle')}</p>
                   <p className="text-sm text-amber-700">
-                    You can review your project list here, but creating, editing, duplicating, and submitting projects is disabled until your professional profile is approved.
+                    {t('manage.lockedDescription')}
                   </p>
                 </div>
               </div>
@@ -784,7 +791,7 @@ export default function ManageProjectsPage() {
                 <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 animate-spin" />
               )}
               <Input
-                placeholder="Search projects..."
+                placeholder={t('manage.searchPlaceholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-10"
@@ -793,23 +800,23 @@ export default function ManageProjectsPage() {
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue placeholder={t('manage.filterByStatus')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
-                  <SelectItem value="on_hold">On Hold</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="all">{t('manage.allStatuses')}</SelectItem>
+                  <SelectItem value="draft">{t('manage.statusOptions.draft')}</SelectItem>
+                  <SelectItem value="pending">{t('manage.statusOptions.pending')}</SelectItem>
+                  <SelectItem value="published">{t('manage.statusOptions.published')}</SelectItem>
+                  <SelectItem value="on_hold">{t('manage.statusOptions.onHold')}</SelectItem>
+                  <SelectItem value="rejected">{t('manage.statusOptions.rejected')}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={serviceFilter} onValueChange={handleServiceFilterChange}>
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by service" />
+                  <SelectValue placeholder={t('manage.filterByService')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Services</SelectItem>
+                  <SelectItem value="all">{t('manage.allServices')}</SelectItem>
                   {uniqueServices.map(svc => (
                     <SelectItem key={svc} value={svc}>{svc}</SelectItem>
                   ))}
@@ -825,7 +832,7 @@ export default function ManageProjectsPage() {
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
                 <FileText className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                <span className="truncate">Drafts</span>
+                <span className="truncate">{t('manage.stats.drafts')}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
@@ -837,7 +844,7 @@ export default function ManageProjectsPage() {
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
                 <Clock className="h-3 w-3 text-yellow-500 flex-shrink-0" />
-                <span className="truncate">Pending</span>
+                <span className="truncate">{t('manage.statusOptions.pending')}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
@@ -849,7 +856,7 @@ export default function ManageProjectsPage() {
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
                 <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
-                <span className="truncate">Published</span>
+                <span className="truncate">{t('manage.statusOptions.published')}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
@@ -861,7 +868,7 @@ export default function ManageProjectsPage() {
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
                 <Pause className="h-3 w-3 text-orange-500 flex-shrink-0" />
-                <span className="truncate">On Hold</span>
+                <span className="truncate">{t('manage.statusOptions.onHold')}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
@@ -873,7 +880,7 @@ export default function ManageProjectsPage() {
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">
                 <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />
-                <span className="truncate">Rejected</span>
+                <span className="truncate">{t('manage.statusOptions.rejected')}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 sm:px-3 md:px-4 pb-2 sm:pb-3">
@@ -886,22 +893,22 @@ export default function ManageProjectsPage() {
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="all" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                All ({tabCounts.drafts + tabCounts.pending + tabCounts.published + tabCounts.on_hold + tabCounts.rejected})
+                {t('manage.tabs.all', { count: tabCounts.drafts + tabCounts.pending + tabCounts.published + tabCounts.on_hold + tabCounts.rejected })}
               </TabsTrigger>
               <TabsTrigger value="drafts" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Drafts ({tabCounts.drafts})
+                {t('manage.tabs.drafts', { count: tabCounts.drafts })}
               </TabsTrigger>
               <TabsTrigger value="pending" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Pending ({tabCounts.pending})
+                {t('manage.tabs.pending', { count: tabCounts.pending })}
               </TabsTrigger>
               <TabsTrigger value="published" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Published ({tabCounts.published})
+                {t('manage.tabs.published', { count: tabCounts.published })}
               </TabsTrigger>
               <TabsTrigger value="on_hold" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                On Hold ({tabCounts.on_hold})
+                {t('manage.tabs.onHold', { count: tabCounts.on_hold })}
               </TabsTrigger>
               <TabsTrigger value="rejected" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                Rejected ({tabCounts.rejected})
+                {t('manage.tabs.rejected', { count: tabCounts.rejected })}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -911,18 +918,18 @@ export default function ManageProjectsPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No projects found</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('manage.empty.noProjects')}</h3>
                   <p className="text-gray-600 mb-4">
                     {searchTerm || statusFilter !== 'all' || serviceFilter !== 'all'
-                      ? 'Try adjusting your search or filters'
-                      : 'Create your first project to get started'
+                      ? t('manage.empty.adjustFilters')
+                      : t('manage.empty.createFirst')
                     }
                   </p>
                   {!searchTerm && statusFilter === 'all' && serviceFilter === 'all' && (
                     <Button
                       onClick={() => {
                         if (!canCreateProjects) {
-                          toast.error('Admin approval is required before creating projects')
+                          toast.error(t('manage.adminApprovalCreating'))
                           return
                         }
                         router.push('/projects/create')
@@ -930,7 +937,7 @@ export default function ManageProjectsPage() {
                       disabled={!canCreateProjects}
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Create Project
+                      {t('manage.empty.createProject')}
                     </Button>
                   )}
                 </CardContent>
@@ -959,18 +966,18 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            {normalizeProjectStatus(project.status) === 'pending' && project.submittedAt && `Submitted: ${new Date(project.submittedAt).toLocaleDateString()}`}
-                            {normalizeProjectStatus(project.status) === 'published' && project.approvedAt && `Published: ${new Date(project.approvedAt).toLocaleDateString()}`}
-                            {!project.submittedAt && !project.approvedAt && `Updated: ${new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString()}`}
+                            {normalizeProjectStatus(project.status) === 'pending' && project.submittedAt && t('manage.card.submitted', { date: new Date(project.submittedAt).toLocaleDateString(intl) })}
+                            {normalizeProjectStatus(project.status) === 'published' && project.approvedAt && t('manage.card.published', { date: new Date(project.approvedAt).toLocaleDateString(intl) })}
+                            {!project.submittedAt && !project.approvedAt && t('manage.card.updated', { date: new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString(intl) })}
                           </span>
                         </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
+                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
+                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
                       </div>
 
                       {project.adminFeedback && normalizeProjectStatus(project.status) === 'rejected' && (
                         <div className="bg-red-50 border border-red-200 rounded-md p-2 md:p-3">
-                          <h4 className="font-medium text-red-800 mb-1 text-xs">Admin Feedback:</h4>
+                          <h4 className="font-medium text-red-800 mb-1 text-xs">{t('manage.card.adminFeedback')}</h4>
                           <p className="text-xs text-red-700 line-clamp-3 break-words">{project.adminFeedback}</p>
                         </div>
                       )}
@@ -986,12 +993,12 @@ export default function ManageProjectsPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No draft projects</h3>
-                  <p className="text-gray-600 mb-4">Create your first project to get started</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('manage.empty.noDrafts')}</h3>
+                  <p className="text-gray-600 mb-4">{t('manage.empty.createFirst')}</p>
                   <Button
                     onClick={() => {
                       if (!canCreateProjects) {
-                        toast.error('Admin approval is required before creating projects')
+                        toast.error(t('manage.adminApprovalCreating'))
                         return
                       }
                       router.push('/projects/create')
@@ -999,7 +1006,7 @@ export default function ManageProjectsPage() {
                     disabled={!canCreateProjects}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Create Project
+                    {t('manage.empty.createProject')}
                   </Button>
                 </CardContent>
               </Card>
@@ -1027,11 +1034,11 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            {new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString()}
+                            {new Date(project.autoSaveTimestamp || project.updatedAt).toLocaleDateString(intl)}
                           </span>
                         </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
+                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
+                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
                       </div>
                     </CardContent>
                   </Card>
@@ -1045,8 +1052,8 @@ export default function ManageProjectsPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No pending projects</h3>
-                  <p className="text-gray-600">Projects you submit will appear here for admin review</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('manage.empty.noPending')}</h3>
+                  <p className="text-gray-600">{t('manage.empty.pendingHint')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -1073,11 +1080,11 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            Submitted: {new Date(project.submittedAt!).toLocaleDateString()}
+                            {t('manage.card.submitted', { date: new Date(project.submittedAt!).toLocaleDateString(intl) })}
                           </span>
                         </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
+                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
+                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
                       </div>
                     </CardContent>
                   </Card>
@@ -1091,8 +1098,8 @@ export default function ManageProjectsPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No published projects</h3>
-                  <p className="text-gray-600">Approved projects will appear here and be visible to customers</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('manage.empty.noPublished')}</h3>
+                  <p className="text-gray-600">{t('manage.empty.publishedHint')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -1119,11 +1126,11 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            Published: {new Date(project.approvedAt!).toLocaleDateString()}
+                            {t('manage.card.published', { date: new Date(project.approvedAt!).toLocaleDateString(intl) })}
                           </span>
                         </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
+                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
+                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
                       </div>
                     </CardContent>
                   </Card>
@@ -1137,8 +1144,8 @@ export default function ManageProjectsPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <XCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No rejected projects</h3>
-                  <p className="text-gray-600">Projects that need revisions will appear here</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('manage.empty.noRejected')}</h3>
+                  <p className="text-gray-600">{t('manage.empty.rejectedHint')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -1163,7 +1170,7 @@ export default function ManageProjectsPage() {
                     <CardContent className="space-y-3 md:space-y-4 pt-0 px-3 md:px-6 flex-1 flex flex-col">
                       {project.adminFeedback && (
                         <div className="bg-red-50 border border-red-200 rounded-md p-2 md:p-3">
-                          <h4 className="font-medium text-red-800 mb-1 text-xs">Admin Feedback:</h4>
+                          <h4 className="font-medium text-red-800 mb-1 text-xs">{t('manage.card.adminFeedback')}</h4>
                           <p className="text-xs text-red-700 line-clamp-3 break-words">{project.adminFeedback}</p>
                         </div>
                       )}
@@ -1172,11 +1179,11 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            Last updated: {new Date(project.updatedAt).toLocaleDateString()}
+                            {t('manage.card.lastUpdated', { date: new Date(project.updatedAt).toLocaleDateString(intl) })}
                           </span>
                         </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
+                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
+                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
                       </div>
                     </CardContent>
                   </Card>
@@ -1190,8 +1197,8 @@ export default function ManageProjectsPage() {
               <Card>
                 <CardContent className="pt-6 text-center">
                   <Pause className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No projects on hold</h3>
-                  <p className="text-gray-600">Projects you&apos;ve put on hold will appear here</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('manage.empty.noOnHold')}</h3>
+                  <p className="text-gray-600">{t('manage.empty.onHoldHint')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -1218,11 +1225,11 @@ export default function ManageProjectsPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           <span className="truncate text-xs">
-                            Put on hold: {new Date(project.updatedAt).toLocaleDateString()}
+                            {t('manage.card.putOnHold', { date: new Date(project.updatedAt).toLocaleDateString(intl) })}
                           </span>
                         </div>
-                        <div className="truncate text-xs">{project.subprojects.length} pricing option{project.subprojects.length !== 1 ? 's' : ''}</div>
-                        {project.category && <div className="truncate text-xs">Category: {project.category}</div>}
+                        <div className="truncate text-xs">{t('manage.card.pricingOptions', { count: project.subprojects.length })}</div>
+                        {project.category && <div className="truncate text-xs">{t('manage.card.category', { category: project.category })}</div>}
                       </div>
                     </CardContent>
                   </Card>
@@ -1236,7 +1243,7 @@ export default function ManageProjectsPage() {
         {totalPages > 1 && (
           <div className="flex flex-col sm:flex-row items-center justify-between mt-6 px-4 gap-3">
             <div className="text-sm text-gray-600">
-              Showing {((currentPage - 1) * 20) + 1} to {Math.min(currentPage * 20, totalProjects)} of {totalProjects} projects
+              {t('manage.pagination.showing', { from: ((currentPage - 1) * 20) + 1, to: Math.min(currentPage * 20, totalProjects), total: totalProjects })}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Button
@@ -1247,7 +1254,7 @@ export default function ManageProjectsPage() {
                 className="w-full sm:w-auto"
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
+                {t('common.previous')}
               </Button>
 
               <div className="flex items-center gap-1 overflow-x-auto max-w-full">
@@ -1285,7 +1292,7 @@ export default function ManageProjectsPage() {
                 disabled={currentPage === totalPages || isLoading}
                 className="w-full sm:w-auto"
               >
-                Next
+                {t('common.next')}
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
@@ -1296,19 +1303,19 @@ export default function ManageProjectsPage() {
         <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Duplicate Project</DialogTitle>
+              <DialogTitle>{t('manage.dialogs.duplicateTitle')}</DialogTitle>
               <DialogDescription>
-                Are you sure you want to duplicate &quot;{selectedProject?.title}&quot;? This will create a new draft copy of the project that you can edit.
+                {t('manage.dialogs.duplicateDescription', { title: selectedProject?.title ?? '' })}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={() => selectedProject && duplicateProject(selectedProject._id)}
               >
-                Duplicate Project
+                {t('manage.actions.duplicateProject')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1318,20 +1325,20 @@ export default function ManageProjectsPage() {
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Delete Project</DialogTitle>
+              <DialogTitle>{t('manage.dialogs.deleteTitle')}</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete &quot;{selectedProject?.title}&quot;? This action cannot be undone and all project data will be permanently removed.
+                {t('manage.dialogs.deleteDescription', { title: selectedProject?.title ?? '' })}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
                 onClick={() => selectedProject && deleteProject(selectedProject._id)}
               >
-                Delete Project
+                {t('manage.actions.deleteProject')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1342,23 +1349,23 @@ export default function ManageProjectsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {selectedProjectStatus === 'published' ? 'Put Project On Hold' : 'Resume Project Publishing'}
+                {selectedProjectStatus === 'published' ? t('manage.dialogs.holdTitle') : t('manage.dialogs.resumeTitle')}
               </DialogTitle>
               <DialogDescription>
                 {selectedProjectStatus === 'published'
-                  ? `Are you sure you want to put &quot;${selectedProject?.title}&quot; on hold? It will no longer be visible to customers.`
-                  : `Are you sure you want to resume publishing &quot;${selectedProject?.title}&quot;? It will become visible to customers again.`
+                  ? t('manage.dialogs.holdDescription', { title: selectedProject?.title ?? '' })
+                  : t('manage.dialogs.resumeDescription', { title: selectedProject?.title ?? '' })
                 }
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setHoldDialogOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={() => selectedProject && toggleProjectHold(selectedProject._id, selectedProject.status)}
               >
-                {selectedProjectStatus === 'published' ? 'Put On Hold' : 'Resume Publishing'}
+                {selectedProjectStatus === 'published' ? t('manage.actions.putOnHold') : t('manage.actions.resumePublishing')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1370,24 +1377,26 @@ export default function ManageProjectsPage() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-orange-500" />
-                Edit Published Project
+                {t('manage.dialogs.editWarningTitle')}
               </DialogTitle>
               <DialogDescription>
-                You are about to edit &quot;{selectedProject?.title}&quot; which is currently {selectedProjectStatus === 'published' ? 'published and visible to customers' : 'on hold'}.
+                {selectedProjectStatus === 'published'
+                  ? t('manage.dialogs.editWarningPublished', { title: selectedProject?.title ?? '' })
+                  : t('manage.dialogs.editWarningOnHold', { title: selectedProject?.title ?? '' })}
               </DialogDescription>
               <div className="space-y-3 mt-3">
                 <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-orange-800">
-                      <p className="font-medium mb-1">Important Notice:</p>
+                      <p className="font-medium mb-1">{t('manage.dialogs.importantNotice')}</p>
                       <ul className="space-y-1 text-xs list-disc pl-4">
                         {selectedProjectStatus === 'published' && (
                           <>
-                            <li>Certain changes require re-approval by our admin team</li>
-                            <li>Approvals may take up to 48 hours</li>
-                            <li>The project stays hidden from customers until re-approved</li>
-                            <li>Previous approval data is cleared and submittedAt is updated</li>
+                            <li>{t('manage.dialogs.reapproval')}</li>
+                            <li>{t('manage.dialogs.approvalDelay')}</li>
+                            <li>{t('manage.dialogs.hiddenUntilApproved')}</li>
+                            <li>{t('manage.dialogs.approvalDataCleared')}</li>
                           </>
                         )}
                       </ul>
@@ -1395,19 +1404,19 @@ export default function ManageProjectsPage() {
                   </div>
                 </div>
                 <p className="text-sm">
-                  Do you want to proceed with editing this project?
+                  {t('manage.dialogs.proceed')}
                 </p>
               </div>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditWarningDialogOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={() => selectedProject && editProjectWithWarning(selectedProject._id)}
                 className="bg-orange-600 hover:bg-orange-700"
               >
-                Yes, Edit Project
+                {t('manage.dialogs.yesEdit')}
               </Button>
             </DialogFooter>
           </DialogContent>

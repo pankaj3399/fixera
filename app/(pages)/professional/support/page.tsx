@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Loader2, LifeBuoy, CalendarClock, MessageCircle, Send, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 import { cn } from "@/lib/utils";
 import {
   proCreateMeetingRequest,
@@ -14,18 +16,37 @@ import {
   proReplyTicket,
   SupportTicket,
   MeetingRequest,
+  isLocalFallbackError as isSupportLocalFallbackError,
 } from "@/lib/support";
 import {
   fetchConversations,
   fetchConversationMessages,
   sendConversationMessage,
   markConversationAsRead,
+  isLocalFallbackError as isChatLocalFallbackError,
 } from "@/lib/chatApi";
 import type { ChatConversation, ChatMessage } from "@/types/chat";
 
 type Tab = "ticket" | "meeting" | "chat";
 
+const SUPPORT_STATUS_KEYS = [
+  "open",
+  "in_progress",
+  "resolved",
+  "closed",
+  "pending",
+  "scheduled",
+  "declined",
+  "cancelled",
+] as const;
+
+type SupportStatusKey = (typeof SUPPORT_STATUS_KEYS)[number];
+
+const isSupportStatusKey = (value: string): value is SupportStatusKey =>
+  (SUPPORT_STATUS_KEYS as readonly string[]).includes(value);
+
 export default function ProfessionalSupportPage() {
+  const t = useTranslations("proArea");
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("ticket");
@@ -52,12 +73,12 @@ export default function ProfessionalSupportPage() {
       <div className="mx-auto max-w-4xl px-6 pt-24">
         <div className="rounded-3xl bg-gradient-to-br from-indigo-200 via-blue-200 to-cyan-200 p-[1.5px] shadow-md">
           <div className="rounded-[calc(1.5rem-1.5px)] bg-white px-8 py-8">
-            <h1 className="text-3xl font-bold text-indigo-900">Professional Support</h1>
-            <p className="mt-1 text-sm text-indigo-600/80">Open a ticket, request a meeting, or chat with us.</p>
+            <h1 className="text-3xl font-bold text-indigo-900">{t("support.title")}</h1>
+            <p className="mt-1 text-sm text-indigo-600/80">{t("support.subtitle")}</p>
           </div>
         </div>
 
-        <div role="tablist" aria-label="Support sections" className="mt-6 flex flex-wrap gap-2">
+        <div role="tablist" aria-label={t("support.sectionsAria")} className="mt-6 flex flex-wrap gap-2">
           <TabButton
             id="ticket-tab"
             controls="ticket-panel"
@@ -65,7 +86,7 @@ export default function ProfessionalSupportPage() {
             onClick={() => setTab("ticket")}
             icon={<LifeBuoy size={14} />}
           >
-            Create ticket
+            {t("support.tabs.ticket")}
           </TabButton>
           <TabButton
             id="meeting-tab"
@@ -74,7 +95,7 @@ export default function ProfessionalSupportPage() {
             onClick={() => setTab("meeting")}
             icon={<CalendarClock size={14} />}
           >
-            Plan a meeting
+            {t("support.tabs.meeting")}
           </TabButton>
           <TabButton
             id="chat-tab"
@@ -83,7 +104,7 @@ export default function ProfessionalSupportPage() {
             onClick={() => setTab("chat")}
             icon={<MessageCircle size={14} />}
           >
-            Chat
+            {t("support.tabs.chat")}
           </TabButton>
         </div>
 
@@ -137,6 +158,8 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 function TicketsTab() {
+  const t = useTranslations("proArea");
+  const { intl } = useFormatLocale();
   const [items, setItems] = useState<SupportTicket[] | null>(null);
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
@@ -150,9 +173,9 @@ function TicketsTab() {
         .then((next) => setItems(next))
         .catch((e) => {
           setItems((prev) => (prev === null ? [] : prev));
-          toast.error(e instanceof Error ? e.message : "Failed to load tickets");
+          toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.loadFailed"));
         }),
-    []
+    [t]
   );
 
   useEffect(() => {
@@ -161,7 +184,7 @@ function TicketsTab() {
 
   const submit = async () => {
     if (!subject.trim() || !description.trim()) {
-      toast.error("Subject and description are required");
+      toast.error(t("support.tickets.required"));
       return;
     }
     setSaving(true);
@@ -169,10 +192,10 @@ function TicketsTab() {
       await proCreateTicket({ subject: subject.trim(), description: description.trim() });
       setSubject("");
       setDescription("");
-      toast.success("Ticket created");
+      toast.success(t("support.tickets.created"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create ticket");
+      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -186,10 +209,10 @@ function TicketsTab() {
     try {
       await proReplyTicket(id, body);
       setReplyDraft((d) => ({ ...d, [id]: "" }));
-      toast.success("Reply sent");
+      toast.success(t("support.tickets.replySent"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to reply");
+      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.tickets.replyFailed"));
     } finally {
       setReplySending((s) => ({ ...s, [id]: false }));
     }
@@ -199,12 +222,12 @@ function TicketsTab() {
     <div className="space-y-4">
       <Card>
         <div className="space-y-3 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-indigo-700">New ticket</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-indigo-700">{t("support.tickets.new")}</h2>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject"
-            aria-label="Ticket subject"
+            placeholder={t("support.tickets.subjectPlaceholder")}
+            aria-label={t("support.tickets.subjectAria")}
             maxLength={200}
             className="w-full rounded-xl border border-indigo-200 bg-white/60 px-4 py-2 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-200"
           />
@@ -212,8 +235,8 @@ function TicketsTab() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            placeholder="Describe the issue in detail"
-            aria-label="Ticket description"
+            placeholder={t("support.tickets.descriptionPlaceholder")}
+            aria-label={t("support.tickets.descriptionAria")}
             maxLength={5000}
             className="w-full resize-none rounded-xl border border-indigo-200 bg-white/60 px-4 py-2 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-200"
           />
@@ -223,61 +246,61 @@ function TicketsTab() {
               disabled={saving}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition hover:shadow-lg hover:shadow-indigo-300 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />} Create ticket
+              {saving ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />} {t("support.tickets.create")}
             </button>
           </div>
         </div>
       </Card>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-indigo-700">Your tickets</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-indigo-700">{t("support.tickets.listTitle")}</h2>
         {items === null ? (
           <div className="flex justify-center py-10">
             <Loader2 className="animate-spin text-indigo-500" />
           </div>
         ) : items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50 via-blue-50 to-white py-10 text-center text-sm text-indigo-500">
-            No tickets yet.
+            {t("support.tickets.empty")}
           </div>
         ) : (
           <div className="space-y-3">
-            {items.map((t) => (
-              <Card key={t._id}>
+            {items.map((ticket) => (
+              <Card key={ticket._id}>
                 <div className="space-y-2 p-5">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="font-semibold text-indigo-900">{t.subject}</h3>
-                    <StatusPill label={t.status} />
+                    <h3 className="font-semibold text-indigo-900">{ticket.subject}</h3>
+                    <StatusPill label={ticket.status} />
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-indigo-800/80">{t.description}</p>
-                  {t.replies.length > 0 && (
+                  <p className="whitespace-pre-wrap text-sm text-indigo-800/80">{ticket.description}</p>
+                  {ticket.replies.length > 0 && (
                     <div className="mt-2 space-y-1.5 border-l-2 border-indigo-200 pl-3">
-                      {t.replies.map((r, idx) => (
+                      {ticket.replies.map((r, idx) => (
                         <div key={idx} className="text-xs">
                           <span className={cn("font-semibold", r.authorRole === "admin" ? "text-blue-700" : "text-indigo-700")}>
-                            {r.authorRole === "admin" ? "Admin" : "You"}
+                            {r.authorRole === "admin" ? t("support.tickets.admin") : t("support.tickets.you")}
                           </span>
-                          <span className="text-indigo-400"> · {new Date(r.createdAt).toLocaleString()}</span>
+                          <span className="text-indigo-400"> · {new Date(r.createdAt).toLocaleString(intl)}</span>
                           <div className="whitespace-pre-wrap text-indigo-800/90">{r.body}</div>
                         </div>
                       ))}
                     </div>
                   )}
-                  {t.status !== "closed" && (
+                  {ticket.status !== "closed" && (
                     <div className="flex items-center gap-2">
                       <input
-                        value={replyDraft[t._id] || ""}
-                        onChange={(e) => setReplyDraft((d) => ({ ...d, [t._id]: e.target.value }))}
-                        disabled={Boolean(replySending[t._id])}
-                        placeholder="Reply…"
-                        aria-label={`Reply to ticket ${t.subject}`}
+                        value={replyDraft[ticket._id] || ""}
+                        onChange={(e) => setReplyDraft((d) => ({ ...d, [ticket._id]: e.target.value }))}
+                        disabled={Boolean(replySending[ticket._id])}
+                        placeholder={t("support.tickets.replyPlaceholder")}
+                        aria-label={t("support.tickets.replyAria", { subject: ticket.subject })}
                         className="flex-1 rounded-xl border border-indigo-200 bg-white/60 px-3 py-1.5 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
                       />
                       <button
-                        onClick={() => sendReply(t._id)}
-                        disabled={Boolean(replySending[t._id]) || !replyDraft[t._id]?.trim()}
+                        onClick={() => sendReply(ticket._id)}
+                        disabled={Boolean(replySending[ticket._id]) || !replyDraft[ticket._id]?.trim()}
                         className="inline-flex items-center gap-1 rounded-xl bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {replySending[t._id] ? <Loader2 className="animate-spin" size={12} /> : <Send size={12} />} Send
+                        {replySending[ticket._id] ? <Loader2 className="animate-spin" size={12} /> : <Send size={12} />} {t("support.tickets.send")}
                       </button>
                     </div>
                   )}
@@ -292,6 +315,8 @@ function TicketsTab() {
 }
 
 function MeetingsTab() {
+  const t = useTranslations("proArea");
+  const { intl } = useFormatLocale();
   const [items, setItems] = useState<MeetingRequest[] | null>(null);
   const [topic, setTopic] = useState("");
   const [preferredTimes, setPreferredTimes] = useState("");
@@ -304,9 +329,9 @@ function MeetingsTab() {
         .then((next) => setItems(next))
         .catch((e) => {
           setItems((prev) => (prev === null ? [] : prev));
-          toast.error(e instanceof Error ? e.message : "Failed to load requests");
+          toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.meeting.loadFailed"));
         }),
-    []
+    [t]
   );
 
   useEffect(() => {
@@ -315,7 +340,7 @@ function MeetingsTab() {
 
   const submit = async () => {
     if (!topic.trim() || !preferredTimes.trim()) {
-      toast.error("Topic and preferred times are required");
+      toast.error(t("support.meeting.required"));
       return;
     }
     setSaving(true);
@@ -324,10 +349,10 @@ function MeetingsTab() {
       setTopic("");
       setPreferredTimes("");
       setDurationMinutes(30);
-      toast.success("Meeting request sent");
+      toast.success(t("support.meeting.sent"));
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to submit");
+      toast.error(e instanceof Error && !isSupportLocalFallbackError(e) ? e.message : t("support.meeting.submitFailed"));
     } finally {
       setSaving(false);
     }
@@ -337,12 +362,12 @@ function MeetingsTab() {
     <div className="space-y-4">
       <Card>
         <div className="space-y-3 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Request a meeting</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-indigo-700">{t("support.meeting.new")}</h2>
           <input
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="Topic"
-            aria-label="Meeting topic"
+            placeholder={t("support.meeting.topicPlaceholder")}
+            aria-label={t("support.meeting.topicAria")}
             maxLength={200}
             className="w-full rounded-xl border border-indigo-200 bg-white/60 px-4 py-2 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-200"
           />
@@ -350,25 +375,23 @@ function MeetingsTab() {
             value={preferredTimes}
             onChange={(e) => setPreferredTimes(e.target.value)}
             rows={3}
-            placeholder="Preferred dates/times (e.g. 'Mon–Wed morning, any time after 10:00')"
-            aria-label="Preferred dates and times"
+            placeholder={t("support.meeting.timesPlaceholder")}
+            aria-label={t("support.meeting.timesAria")}
             maxLength={1000}
             className="w-full resize-none rounded-xl border border-indigo-200 bg-white/60 px-4 py-2 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-200"
           />
           <div className="flex items-center gap-3">
-            <label htmlFor="meeting-duration" className="text-sm text-indigo-700">Duration</label>
+            <label htmlFor="meeting-duration" className="text-sm text-indigo-700">{t("support.meeting.duration")}</label>
             <select
               id="meeting-duration"
               value={durationMinutes}
               onChange={(e) => setDurationMinutes(Number(e.target.value))}
               className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
             >
-              <option value={15}>15 minutes</option>
-              <option value={30}>30 minutes</option>
-              <option value={45}>45 minutes</option>
-              <option value={60}>60 minutes</option>
-              <option value={90}>90 minutes</option>
-              <option value={120}>2 hours</option>
+              {[15, 30, 45, 60, 90].map((minutes) => (
+                <option key={minutes} value={minutes}>{t("support.meeting.minutes", { minutes })}</option>
+              ))}
+              <option value={120}>{t("support.meeting.twoHours")}</option>
             </select>
           </div>
           <div className="flex justify-end">
@@ -377,22 +400,22 @@ function MeetingsTab() {
               disabled={saving}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition hover:shadow-lg hover:shadow-indigo-300 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="animate-spin" size={14} /> : <CalendarClock size={14} />} Submit request
+              {saving ? <Loader2 className="animate-spin" size={14} /> : <CalendarClock size={14} />} {t("support.meeting.submit")}
             </button>
           </div>
-          <p className="text-[11px] text-indigo-400">Admin will confirm with a scheduled time. Availability-based booking is coming soon.</p>
+          <p className="text-[11px] text-indigo-400">{t("support.meeting.helper")}</p>
         </div>
       </Card>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-indigo-700">Your requests</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-indigo-700">{t("support.meeting.listTitle")}</h2>
         {items === null ? (
           <div className="flex justify-center py-10">
             <Loader2 className="animate-spin text-indigo-500" />
           </div>
         ) : items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50 via-blue-50 to-white py-10 text-center text-sm text-indigo-500">
-            No meeting requests yet.
+            {t("support.meeting.empty")}
           </div>
         ) : (
           <div className="space-y-3">
@@ -403,14 +426,14 @@ function MeetingsTab() {
                     <h3 className="font-semibold text-indigo-900">{m.topic}</h3>
                     <StatusPill label={m.status} />
                   </div>
-                  <p className="text-sm text-indigo-700/80">Preferred: {m.preferredTimes}</p>
-                  <p className="text-xs text-indigo-500">Duration: {m.durationMinutes} min</p>
+                  <p className="text-sm text-indigo-700/80">{t("support.meeting.preferred", { times: m.preferredTimes })}</p>
+                  <p className="text-xs text-indigo-500">{t("support.meeting.durationValue", { minutes: m.durationMinutes })}</p>
                   {m.scheduledAt && (
-                    <p className="text-sm font-medium text-emerald-700">Scheduled for: {new Date(m.scheduledAt).toLocaleString()}</p>
+                    <p className="text-sm font-medium text-emerald-700">{t("support.meeting.scheduledFor", { date: new Date(m.scheduledAt).toLocaleString(intl) })}</p>
                   )}
                   {m.adminResponse && (
                     <div className="rounded-xl bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
-                      <span className="font-semibold">Admin: </span>
+                      <span className="font-semibold">{t("support.meeting.admin")} </span>
                       {m.adminResponse}
                     </div>
                   )}
@@ -427,6 +450,8 @@ function MeetingsTab() {
 const SUPPORT_POLL_MS = 6000;
 
 function SupportChatTab() {
+  const t = useTranslations("proArea");
+  const { intl } = useFormatLocale();
   const [conversation, setConversation] = useState<ChatConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -489,7 +514,7 @@ function SupportChatTab() {
         markConversationAsRead(conv._id).catch(() => {});
       } catch (e) {
         if (!cancelled) {
-          toast.error(e instanceof Error ? e.message : "Failed to load support chat");
+          toast.error(e instanceof Error && !isChatLocalFallbackError(e) ? e.message : t("support.chat.loadFailed"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -520,7 +545,7 @@ function SupportChatTab() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [findSupportConversation, loadMessages]);
+  }, [findSupportConversation, loadMessages, t]);
 
   useEffect(() => {
     if (shouldStickToBottom.current) {
@@ -546,7 +571,7 @@ function SupportChatTab() {
       setDraft("");
       await loadMessages(id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to send message");
+      toast.error(e instanceof Error && !isChatLocalFallbackError(e) ? e.message : t("support.chat.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -569,9 +594,9 @@ function SupportChatTab() {
           <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-indigo-400 to-blue-500 text-white shadow-md shadow-indigo-200">
             <MessageCircle size={24} />
           </div>
-          <h2 className="text-lg font-semibold text-indigo-900">No support conversation yet</h2>
+          <h2 className="text-lg font-semibold text-indigo-900">{t("support.chat.emptyTitle")}</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-indigo-600/80">
-            Our team will reach out here, or raise a support ticket above and we&apos;ll follow up.
+            {t("support.chat.emptyBody")}
           </p>
         </div>
       </Card>
@@ -586,8 +611,8 @@ function SupportChatTab() {
             <LifeBuoy size={16} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-indigo-900">Fixtract Support</p>
-            <p className="text-[11px] text-indigo-500">You&apos;re chatting with our support team</p>
+            <p className="text-sm font-semibold text-indigo-900">{t("support.chat.teamName")}</p>
+            <p className="text-[11px] text-indigo-500">{t("support.chat.teamSubtitle")}</p>
           </div>
         </div>
 
@@ -598,7 +623,7 @@ function SupportChatTab() {
         >
           {messages.length === 0 ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-indigo-400">
-              No messages yet. Say hello to start the conversation.
+              {t("support.chat.noMessages")}
             </div>
           ) : (
             messages.map((m) => {
@@ -614,19 +639,19 @@ function SupportChatTab() {
                     )}
                   >
                     <div className={cn("mb-0.5 text-[10px] font-semibold uppercase tracking-wide", fromAdmin ? "text-indigo-500" : "text-indigo-100")}>
-                      {fromAdmin ? "Support" : "You"}
+                      {fromAdmin ? t("support.chat.support") : t("support.chat.you")}
                     </div>
                     {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
                     {Array.isArray(m.images) && m.images.length > 0 && (
                       <div className="mt-1 space-y-1">
                         {m.images.map((src, idx) => (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img key={idx} src={src} alt="attachment" className="max-h-48 rounded-lg" />
+                          <img key={idx} src={src} alt={t("support.chat.attachmentAlt")} className="max-h-48 rounded-lg" />
                         ))}
                       </div>
                     )}
                     <div className={cn("mt-1 text-[10px]", fromAdmin ? "text-indigo-400" : "text-indigo-100/80")}>
-                      {new Date(m.createdAt).toLocaleString()}
+                      {new Date(m.createdAt).toLocaleString(intl)}
                     </div>
                   </div>
                 </div>
@@ -646,8 +671,8 @@ function SupportChatTab() {
               }
             }}
             disabled={sending}
-            placeholder="Type a message…"
-            aria-label="Message to support"
+            placeholder={t("support.chat.placeholder")}
+            aria-label={t("support.chat.inputAria")}
             maxLength={2000}
             className="flex-1 rounded-xl border border-indigo-200 bg-white/60 px-4 py-2 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
           />
@@ -656,7 +681,7 @@ function SupportChatTab() {
             disabled={sending || !draft.trim()}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition hover:shadow-lg hover:shadow-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {sending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />} Send
+            {sending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />} {t("support.chat.send")}
           </button>
         </div>
       </div>
@@ -665,6 +690,7 @@ function SupportChatTab() {
 }
 
 function StatusPill({ label }: { label: string }) {
+  const t = useTranslations("proArea");
   const cls: Record<string, string> = {
     open: "bg-amber-100 text-amber-700",
     in_progress: "bg-blue-100 text-blue-700",
@@ -677,7 +703,7 @@ function StatusPill({ label }: { label: string }) {
   };
   return (
     <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", cls[label] || "bg-gray-100 text-gray-600")}>
-      {label.replace("_", " ")}
+      {isSupportStatusKey(label) ? t(`status.${label}`) : label.replace("_", " ")}
     </span>
   );
 }

@@ -1,0 +1,374 @@
+{
+  "meta": {
+    "title": "Projets des professionnels"
+  },
+  "common": {
+    "cancel": "Annuler",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "view": "Voir",
+    "yes": "Oui",
+    "no": "Non",
+    "required": "Obligatoire",
+    "notSet": "Non défini",
+    "editProject": "Modifier le projet",
+    "scheduleMeeting": "Planifier une réunion"
+  },
+  "editRedirect": {
+    "redirecting": "Redirection vers l'éditeur de projet..."
+  },
+  "errors": {
+    "submitProject": "Impossible de soumettre le projet"
+  },
+  "status": {
+    "draft": "Brouillon",
+    "pendingApproval": "En attente d'approbation",
+    "published": "Publié",
+    "rejected": "Refusé",
+    "quoted": "Devis envoyé",
+    "booked": "Réservé",
+    "inProgress": "En cours",
+    "completed": "Terminé",
+    "awaitingConfirmation": "En attente de confirmation",
+    "closed": "Clôturé",
+    "disputed": "Litige"
+  },
+  "questionTypes": {
+    "text": "Texte",
+    "multipleChoice": "Choix multiple",
+    "attachment": "Pièce jointe"
+  },
+  "priceModels": {
+    "fixed": "Fixe",
+    "meter": "Mètre",
+    "m2": "m²",
+    "hour": "Heure",
+    "day": "Jour",
+    "room": "Pièce"
+  },
+  "units": {
+    "hours": "{count, plural, one {# heure} other {# heures}}",
+    "days": "{count, plural, one {# jour} other {# jours}}",
+    "months": "{count, plural, one {# mois} other {# mois}}",
+    "years": "{count, plural, one {# an} other {# ans}}"
+  },
+  "duration": {
+    "range": {
+      "hours": "{min}–{max} heures",
+      "days": "{min}–{max} jours",
+      "months": "{min}–{max} mois",
+      "years": "{min}–{max} ans"
+    },
+    "min": {
+      "hours": "≥{min} heures",
+      "days": "≥{min} jours",
+      "months": "≥{min} mois",
+      "years": "≥{min} ans"
+    },
+    "max": {
+      "hours": "≤{max} heures",
+      "days": "≤{max} jours",
+      "months": "≤{max} mois",
+      "years": "≤{max} ans"
+    }
+  },
+  "meetingType": {
+    "planning": "Planification",
+    "team": "Équipe"
+  },
+  "meetingStatus": {
+    "scheduled": "Planifiée",
+    "completed": "Terminée",
+    "cancelled": "Annulée",
+    "rescheduled": "Reportée"
+  },
+  "attendeeStatus": {
+    "pending": "en attente",
+    "accepted": "accepté",
+    "declined": "refusé"
+  },
+  "manage": {
+    "title": "Gérer les projets",
+    "subtitle": "Gérez vos prestations et les projets que vous soumettez",
+    "createNewProject": "Créer un projet",
+    "newProject": "Nouveau projet",
+    "adminApprovalCreating": "Vous devez être approuvé par l'administrateur pour créer des projets",
+    "adminApprovalManaging": "Vous devez être approuvé par l'administrateur pour gérer des projets",
+    "lockedTitle": "La création de projets est bloquée jusqu'à l'approbation de l'administrateur.",
+    "lockedDescription": "Vous pouvez consulter votre liste de projets ici, mais la création, la modification, la duplication et la soumission de projets sont désactivées jusqu'à ce que votre profil professionnel soit approuvé.",
+    "searchPlaceholder": "Rechercher des projets...",
+    "filterByStatus": "Filtrer par statut",
+    "allStatuses": "Tous les statuts",
+    "filterByService": "Filtrer par service",
+    "allServices": "Tous les services",
+    "statusOptions": {
+      "draft": "Brouillon",
+      "pending": "En attente",
+      "published": "Publié",
+      "onHold": "En pause",
+      "rejected": "Refusé"
+    },
+    "statusLabels": {
+      "draft": "Brouillon",
+      "pending": "En attente d'approbation",
+      "published": "Publié",
+      "onHold": "En pause",
+      "rejected": "Refusé"
+    },
+    "stats": {
+      "drafts": "Brouillons"
+    },
+    "tabs": {
+      "all": "Tous ({count})",
+      "drafts": "Brouillons ({count})",
+      "pending": "En attente ({count})",
+      "published": "Publiés ({count})",
+      "onHold": "En pause ({count})",
+      "rejected": "Refusés ({count})"
+    },
+    "empty": {
+      "noProjects": "Aucun projet trouvé",
+      "adjustFilters": "Essayez de modifier votre recherche ou vos filtres",
+      "createFirst": "Créez votre premier projet pour commencer",
+      "createProject": "Créer un projet",
+      "noDrafts": "Aucun projet en brouillon",
+      "noPending": "Aucun projet en attente",
+      "pendingHint": "Les projets que vous soumettez apparaîtront ici pour examen par l'administrateur",
+      "noPublished": "Aucun projet publié",
+      "publishedHint": "Les projets approuvés apparaîtront ici et seront visibles par les clients",
+      "noRejected": "Aucun projet refusé",
+      "rejectedHint": "Les projets à réviser apparaîtront ici",
+      "noOnHold": "Aucun projet en pause",
+      "onHoldHint": "Les projets que vous avez mis en pause apparaîtront ici"
+    },
+    "card": {
+      "submitted": "Soumis : {date}",
+      "published": "Publié : {date}",
+      "updated": "Mis à jour : {date}",
+      "lastUpdated": "Dernière mise à jour : {date}",
+      "putOnHold": "Mis en pause : {date}",
+      "pricingOptions": "{count, plural, one {# option de prix} other {# options de prix}}",
+      "category": "Catégorie : {category}",
+      "adminFeedback": "Retour de l'administrateur :"
+    },
+    "actions": {
+      "viewDetails": "Voir les détails",
+      "duplicateProject": "Dupliquer le projet",
+      "submitForReview": "Soumettre pour examen",
+      "putOnHold": "Mettre en pause",
+      "resumePublishing": "Reprendre la publication",
+      "deleteProject": "Supprimer le projet"
+    },
+    "errors": {
+      "fetchFailed": "Impossible de charger les projets",
+      "fetchFailedConnection": "Impossible de charger les projets. Vérifiez votre connexion.",
+      "duplicateFailed": "Impossible de dupliquer le projet",
+      "deleteFailed": "Impossible de supprimer le projet",
+      "statusUpdateFailed": "Impossible de mettre à jour le statut du projet"
+    },
+    "pagination": {
+      "showing": "Affichage de {from} à {to} sur {total, plural, one {# projet} other {# projets}}"
+    },
+    "dialogs": {
+      "duplicateTitle": "Dupliquer le projet",
+      "duplicateDescription": "Voulez-vous vraiment dupliquer « {title} » ? Une nouvelle copie brouillon du projet sera créée, que vous pourrez modifier.",
+      "deleteTitle": "Supprimer le projet",
+      "deleteDescription": "Voulez-vous vraiment supprimer « {title} » ? Cette action est irréversible et toutes les données du projet seront définitivement supprimées.",
+      "holdTitle": "Mettre le projet en pause",
+      "resumeTitle": "Reprendre la publication du projet",
+      "holdDescription": "Voulez-vous vraiment mettre « {title} » en pause ? Le projet ne sera plus visible par les clients.",
+      "resumeDescription": "Voulez-vous vraiment reprendre la publication de « {title} » ? Le projet redeviendra visible par les clients.",
+      "editWarningTitle": "Modifier un projet publié",
+      "editWarningPublished": "Vous êtes sur le point de modifier « {title} », actuellement publié et visible par les clients.",
+      "editWarningOnHold": "Vous êtes sur le point de modifier « {title} », actuellement en pause.",
+      "importantNotice": "Remarque importante :",
+      "reapproval": "Certaines modifications nécessitent une nouvelle approbation de notre équipe d'administrateurs",
+      "approvalDelay": "L'approbation peut prendre jusqu'à 48 heures",
+      "hiddenUntilApproved": "Le projet reste masqué aux clients jusqu'à sa nouvelle approbation",
+      "approvalDataCleared": "Les données d'approbation précédentes sont effacées et submittedAt est mis à jour",
+      "proceed": "Voulez-vous continuer à modifier ce projet ?",
+      "yesEdit": "Oui, modifier le projet"
+    }
+  },
+  "detail": {
+    "title": "Détails du projet",
+    "subtitle": "Consultez et gérez votre projet",
+    "errorTitle": "Erreur lors du chargement du projet",
+    "projectNotFound": "Projet introuvable",
+    "loadFailed": "Impossible de charger les détails du projet",
+    "backToProjects": "Retour aux projets",
+    "back": "Retour",
+    "basicInfo": {
+      "category": "Catégorie :",
+      "service": "Service :",
+      "areaOfWork": "Zone d'intervention :",
+      "priceModel": "Modèle de prix :",
+      "currentStep": "Étape actuelle :",
+      "stepOfTotal": "{step} sur 8",
+      "keywords": "Mots-clés :",
+      "projectTypes": "Types de projet :"
+    },
+    "serviceArea": {
+      "title": "Zone d'intervention",
+      "address": "Adresse :",
+      "maxRange": "Rayon maximal :",
+      "noBorders": "Sans limite",
+      "km": "{km} km",
+      "companyAddress": "Adresse de l'entreprise :"
+    },
+    "media": {
+      "title": "Média",
+      "images": "Images ({count})",
+      "more": "+{count} de plus",
+      "video": "Vidéo",
+      "imageAlt": "Image du projet"
+    },
+    "pricing": {
+      "title": "Options de prix ({count})",
+      "description": "Les variantes de prix de votre projet",
+      "label": "Prix :",
+      "requestForQuote": "Sur devis",
+      "notSet": "Prix non défini",
+      "minOrder": "Commande min. : {price}",
+      "duration": "Durée :",
+      "preparation": "Préparation :",
+      "buffer": "Tampon :",
+      "intake": "Intake :",
+      "warranty": "Garantie :",
+      "noWarranty": "Aucune garantie",
+      "materials": "Matériaux :",
+      "included": "Inclus",
+      "notIncluded": "Non inclus",
+      "serviceParameters": "Paramètres du service :",
+      "includedItems": "Éléments inclus :"
+    },
+    "extraOptions": {
+      "title": "Options supplémentaires ({count})"
+    },
+    "terms": {
+      "title": "Conditions générales ({count})",
+      "warning": "(Avertissement)",
+      "additionalCost": "Frais supplémentaires : {price}"
+    },
+    "faq": {
+      "title": "FAQ ({count})",
+      "aiGenerated": "Généré par IA"
+    },
+    "rfq": {
+      "title": "Questions de demande de devis ({count})",
+      "options": "Options :"
+    },
+    "postBooking": {
+      "title": "Questions après réservation ({count})"
+    },
+    "customMessage": "Message de confirmation personnalisé",
+    "certifications": {
+      "title": "Certifications ({count})",
+      "uploaded": "Téléversé : {date}"
+    },
+    "adminFeedback": "Retour de l'administrateur",
+    "qualityChecks": {
+      "title": "Contrôles qualité ({count})"
+    },
+    "meetings": {
+      "title": "Réunions d'équipe",
+      "hideScheduler": "Masquer le planificateur",
+      "description": "Planifiez et gérez les réunions d'équipe pour ce projet",
+      "bookingCalendar": "Calendrier des réservations",
+      "bookingCalendarDescription": "Réservations et blocages pour ce projet",
+      "bookingFallback": "Réservation",
+      "buffer": "Tampon"
+    },
+    "actions": {
+      "title": "Actions",
+      "submitForApproval": "Soumettre pour approbation",
+      "resubmitForApproval": "Soumettre à nouveau pour approbation"
+    },
+    "timeline": {
+      "title": "Chronologie",
+      "created": "Créé",
+      "lastUpdated": "Dernière mise à jour",
+      "autoSaved": "Enregistré automatiquement",
+      "submitted": "Soumis",
+      "approved": "Approuvé"
+    },
+    "info": {
+      "title": "Infos du projet",
+      "category": "Catégorie",
+      "service": "Service",
+      "subprojects": "Sous-projets",
+      "extraOptions": "Options supplémentaires",
+      "faqItems": "Éléments FAQ",
+      "progress": "Progression",
+      "steps": "{step}/8 étapes",
+      "status": "Statut"
+    },
+    "team": {
+      "title": "Équipe et réunions",
+      "intakeMeeting": "Réunion d'intake :",
+      "enabled": "Activé",
+      "membersAssigned": "{count, plural, one {# membre d'équipe affecté} other {# membres d'équipe affectés}}",
+      "renovationPlanning": "Planification de la rénovation :",
+      "fixtractManaged": "Géré par Fixtract",
+      "resources": "Ressources :",
+      "members": "{count, plural, one {# membre d'équipe} other {# membres d'équipe}}"
+    }
+  },
+  "meetingsList": {
+    "title": "Réunions",
+    "description": "Consultez et gérez vos réunions planifiées",
+    "all": "Toutes",
+    "noMeetings": "Aucune réunion trouvée",
+    "onlineMeeting": "Réunion en ligne",
+    "joinMeeting": "Rejoindre la réunion",
+    "attendees": "{count, plural, one {# participant} other {# participants}}",
+    "attendeesTitle": "Participants",
+    "agenda": "Ordre du jour",
+    "notes": "Notes",
+    "duration": "({count} min)",
+    "cancelConfirm": "Voulez-vous vraiment annuler cette réunion ?",
+    "cancelled": "Réunion annulée",
+    "errors": {
+      "load": "Impossible de charger les réunions",
+      "cancel": "Impossible d'annuler la réunion"
+    }
+  },
+  "scheduler": {
+    "description": "Choisissez une date et une heure qui conviennent à tout le monde",
+    "meetingType": "Type de réunion",
+    "selectType": "Sélectionner un type",
+    "titleLabel": "Titre *",
+    "selectDate": "Sélectionner une date *",
+    "startTime": "Heure de début *",
+    "endTime": "Heure de fin *",
+    "duration": "Durée : {count, plural, one {# minute} other {# minutes}}",
+    "onlineMeeting": "Il s'agit d'une réunion en ligne",
+    "meetingLink": "Lien de la réunion *",
+    "location": "Lieu *",
+    "locationPlaceholder": "Saisissez le lieu de la réunion",
+    "agenda": "Ordre du jour",
+    "selectTeamMembers": "Sélectionner les membres de l'équipe *",
+    "noTeamMembers": "Aucun membre d'équipe disponible",
+    "creating": "Création...",
+    "createMeeting": "Créer la réunion",
+    "reset": "Réinitialiser",
+    "defaultPlanningTitle": "Réunion de planification du projet",
+    "defaultTeamTitle": "Réunion d'équipe",
+    "errors": {
+      "loadTeamMembers": "Impossible de charger les membres de l'équipe",
+      "loadAvailability": "Impossible de charger les disponibilités",
+      "loadTeamAvailability": "Impossible de charger les disponibilités de l'équipe"
+    },
+    "validation": {
+      "titleRequired": "Le titre de la réunion est obligatoire",
+      "dateRequired": "Veuillez sélectionner une date de réunion",
+      "timeRequired": "Veuillez sélectionner une heure de réunion",
+      "membersRequired": "Veuillez sélectionner au moins un membre de l'équipe",
+      "linkRequired": "Veuillez indiquer un lien pour les réunions en ligne",
+      "locationRequired": "Veuillez indiquer un lieu pour les réunions en présentiel",
+      "slotUnavailable": "L'heure sélectionnée n'est pas disponible pour tous les participants"
+    },
+    "created": "Réunion créée",
+    "createFailed": "Impossible de créer la réunion"
+  }
+}

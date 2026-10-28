@@ -1,0 +1,374 @@
+{
+  "meta": {
+    "title": "Professional projects"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "previous": "Previous",
+    "next": "Next",
+    "view": "View",
+    "yes": "Yes",
+    "no": "No",
+    "required": "Required",
+    "notSet": "Not set",
+    "editProject": "Edit Project",
+    "scheduleMeeting": "Schedule Meeting"
+  },
+  "editRedirect": {
+    "redirecting": "Redirecting to project editor..."
+  },
+  "errors": {
+    "submitProject": "Failed to submit project"
+  },
+  "status": {
+    "draft": "Draft",
+    "pendingApproval": "Pending approval",
+    "published": "Published",
+    "rejected": "Rejected",
+    "quoted": "Quoted",
+    "booked": "Booked",
+    "inProgress": "In progress",
+    "completed": "Completed",
+    "awaitingConfirmation": "Awaiting confirmation",
+    "closed": "Closed",
+    "disputed": "Disputed"
+  },
+  "questionTypes": {
+    "text": "Text",
+    "multipleChoice": "Multiple choice",
+    "attachment": "Attachment"
+  },
+  "priceModels": {
+    "fixed": "Fixed",
+    "meter": "Meter",
+    "m2": "m2",
+    "hour": "Hour",
+    "day": "Day",
+    "room": "Room"
+  },
+  "units": {
+    "hours": "{count, plural, one {# hour} other {# hours}}",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "years": "{count, plural, one {# year} other {# years}}"
+  },
+  "duration": {
+    "range": {
+      "hours": "{min}–{max} hours",
+      "days": "{min}–{max} days",
+      "months": "{min}–{max} months",
+      "years": "{min}–{max} years"
+    },
+    "min": {
+      "hours": "≥{min} hours",
+      "days": "≥{min} days",
+      "months": "≥{min} months",
+      "years": "≥{min} years"
+    },
+    "max": {
+      "hours": "≤{max} hours",
+      "days": "≤{max} days",
+      "months": "≤{max} months",
+      "years": "≤{max} years"
+    }
+  },
+  "meetingType": {
+    "planning": "Planning",
+    "team": "Team"
+  },
+  "meetingStatus": {
+    "scheduled": "Scheduled",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "rescheduled": "Rescheduled"
+  },
+  "attendeeStatus": {
+    "pending": "pending",
+    "accepted": "accepted",
+    "declined": "declined"
+  },
+  "manage": {
+    "title": "Manage Projects",
+    "subtitle": "Manage your service offerings and project submissions",
+    "createNewProject": "Create New Project",
+    "newProject": "New Project",
+    "adminApprovalCreating": "Admin approval is required before creating projects",
+    "adminApprovalManaging": "Admin approval is required before managing projects",
+    "lockedTitle": "Project creation is locked until admin approval.",
+    "lockedDescription": "You can review your project list here, but creating, editing, duplicating, and submitting projects is disabled until your professional profile is approved.",
+    "searchPlaceholder": "Search projects...",
+    "filterByStatus": "Filter by status",
+    "allStatuses": "All Statuses",
+    "filterByService": "Filter by service",
+    "allServices": "All Services",
+    "statusOptions": {
+      "draft": "Draft",
+      "pending": "Pending",
+      "published": "Published",
+      "onHold": "On Hold",
+      "rejected": "Rejected"
+    },
+    "statusLabels": {
+      "draft": "Draft",
+      "pending": "Pending Approval",
+      "published": "Published",
+      "onHold": "On Hold",
+      "rejected": "Rejected"
+    },
+    "stats": {
+      "drafts": "Drafts"
+    },
+    "tabs": {
+      "all": "All ({count})",
+      "drafts": "Drafts ({count})",
+      "pending": "Pending ({count})",
+      "published": "Published ({count})",
+      "onHold": "On Hold ({count})",
+      "rejected": "Rejected ({count})"
+    },
+    "empty": {
+      "noProjects": "No projects found",
+      "adjustFilters": "Try adjusting your search or filters",
+      "createFirst": "Create your first project to get started",
+      "createProject": "Create Project",
+      "noDrafts": "No draft projects",
+      "noPending": "No pending projects",
+      "pendingHint": "Projects you submit will appear here for admin review",
+      "noPublished": "No published projects",
+      "publishedHint": "Approved projects will appear here and be visible to customers",
+      "noRejected": "No rejected projects",
+      "rejectedHint": "Projects that need revisions will appear here",
+      "noOnHold": "No projects on hold",
+      "onHoldHint": "Projects you've put on hold will appear here"
+    },
+    "card": {
+      "submitted": "Submitted: {date}",
+      "published": "Published: {date}",
+      "updated": "Updated: {date}",
+      "lastUpdated": "Last updated: {date}",
+      "putOnHold": "Put on hold: {date}",
+      "pricingOptions": "{count, plural, one {# pricing option} other {# pricing options}}",
+      "category": "Category: {category}",
+      "adminFeedback": "Admin Feedback:"
+    },
+    "actions": {
+      "viewDetails": "View Details",
+      "duplicateProject": "Duplicate Project",
+      "submitForReview": "Submit for Review",
+      "putOnHold": "Put On Hold",
+      "resumePublishing": "Resume Publishing",
+      "deleteProject": "Delete Project"
+    },
+    "errors": {
+      "fetchFailed": "Failed to fetch projects",
+      "fetchFailedConnection": "Failed to fetch projects. Please check your connection.",
+      "duplicateFailed": "Failed to duplicate project",
+      "deleteFailed": "Failed to delete project",
+      "statusUpdateFailed": "Failed to update project status"
+    },
+    "pagination": {
+      "showing": "Showing {from} to {to} of {total, plural, one {# project} other {# projects}}"
+    },
+    "dialogs": {
+      "duplicateTitle": "Duplicate Project",
+      "duplicateDescription": "Are you sure you want to duplicate \"{title}\"? This will create a new draft copy of the project that you can edit.",
+      "deleteTitle": "Delete Project",
+      "deleteDescription": "Are you sure you want to delete \"{title}\"? This action cannot be undone and all project data will be permanently removed.",
+      "holdTitle": "Put Project On Hold",
+      "resumeTitle": "Resume Project Publishing",
+      "holdDescription": "Are you sure you want to put \"{title}\" on hold? It will no longer be visible to customers.",
+      "resumeDescription": "Are you sure you want to resume publishing \"{title}\"? It will become visible to customers again.",
+      "editWarningTitle": "Edit Published Project",
+      "editWarningPublished": "You are about to edit \"{title}\" which is currently published and visible to customers.",
+      "editWarningOnHold": "You are about to edit \"{title}\" which is currently on hold.",
+      "importantNotice": "Important Notice:",
+      "reapproval": "Certain changes require re-approval by our admin team",
+      "approvalDelay": "Approvals may take up to 48 hours",
+      "hiddenUntilApproved": "The project stays hidden from customers until re-approved",
+      "approvalDataCleared": "Previous approval data is cleared and submittedAt is updated",
+      "proceed": "Do you want to proceed with editing this project?",
+      "yesEdit": "Yes, Edit Project"
+    }
+  },
+  "detail": {
+    "title": "Project Details",
+    "subtitle": "View and manage your project",
+    "errorTitle": "Error Loading Project",
+    "projectNotFound": "Project not found",
+    "loadFailed": "Failed to fetch project details",
+    "backToProjects": "Back to Projects",
+    "back": "Back",
+    "basicInfo": {
+      "category": "Category:",
+      "service": "Service:",
+      "areaOfWork": "Area of Work:",
+      "priceModel": "Price Model:",
+      "currentStep": "Current Step:",
+      "stepOfTotal": "{step} of 8",
+      "keywords": "Keywords:",
+      "projectTypes": "Project Types:"
+    },
+    "serviceArea": {
+      "title": "Service Area",
+      "address": "Address:",
+      "maxRange": "Max Range:",
+      "noBorders": "No borders",
+      "km": "{km} km",
+      "companyAddress": "Company Address:"
+    },
+    "media": {
+      "title": "Media",
+      "images": "Images ({count})",
+      "more": "+{count} more",
+      "video": "Video",
+      "imageAlt": "Project image"
+    },
+    "pricing": {
+      "title": "Pricing Options ({count})",
+      "description": "Your project pricing variations",
+      "label": "Pricing:",
+      "requestForQuote": "Request for Quote",
+      "notSet": "Price not set",
+      "minOrder": "Min. order: {price}",
+      "duration": "Duration:",
+      "preparation": "Preparation:",
+      "buffer": "Buffer:",
+      "intake": "Intake:",
+      "warranty": "Warranty:",
+      "noWarranty": "No warranty",
+      "materials": "Materials:",
+      "included": "Included",
+      "notIncluded": "Not included",
+      "serviceParameters": "Service Parameters:",
+      "includedItems": "Included Items:"
+    },
+    "extraOptions": {
+      "title": "Extra Options ({count})"
+    },
+    "terms": {
+      "title": "Terms & Conditions ({count})",
+      "warning": "(Warning)",
+      "additionalCost": "Additional cost: {price}"
+    },
+    "faq": {
+      "title": "FAQ ({count})",
+      "aiGenerated": "AI Generated"
+    },
+    "rfq": {
+      "title": "RFQ Questions ({count})",
+      "options": "Options:"
+    },
+    "postBooking": {
+      "title": "Post-Booking Questions ({count})"
+    },
+    "customMessage": "Custom Confirmation Message",
+    "certifications": {
+      "title": "Certifications ({count})",
+      "uploaded": "Uploaded: {date}"
+    },
+    "adminFeedback": "Admin Feedback",
+    "qualityChecks": {
+      "title": "Quality Checks ({count})"
+    },
+    "meetings": {
+      "title": "Team Meetings",
+      "hideScheduler": "Hide Scheduler",
+      "description": "Schedule and manage team meetings for this project",
+      "bookingCalendar": "Booking Calendar",
+      "bookingCalendarDescription": "Bookings and blocks for this project",
+      "bookingFallback": "Booking",
+      "buffer": "Buffer"
+    },
+    "actions": {
+      "title": "Actions",
+      "submitForApproval": "Submit for Approval",
+      "resubmitForApproval": "Resubmit for Approval"
+    },
+    "timeline": {
+      "title": "Timeline",
+      "created": "Created",
+      "lastUpdated": "Last Updated",
+      "autoSaved": "Auto-saved",
+      "submitted": "Submitted",
+      "approved": "Approved"
+    },
+    "info": {
+      "title": "Project Info",
+      "category": "Category",
+      "service": "Service",
+      "subprojects": "Subprojects",
+      "extraOptions": "Extra Options",
+      "faqItems": "FAQ Items",
+      "progress": "Progress",
+      "steps": "{step}/8 steps",
+      "status": "Status"
+    },
+    "team": {
+      "title": "Team & Meetings",
+      "intakeMeeting": "Intake Meeting:",
+      "enabled": "Enabled",
+      "membersAssigned": "{count, plural, one {# team member assigned} other {# team members assigned}}",
+      "renovationPlanning": "Renovation Planning:",
+      "fixtractManaged": "Fixtract Managed",
+      "resources": "Resources:",
+      "members": "{count, plural, one {# team member} other {# team members}}"
+    }
+  },
+  "meetingsList": {
+    "title": "Meetings",
+    "description": "View and manage your scheduled meetings",
+    "all": "All",
+    "noMeetings": "No meetings found",
+    "onlineMeeting": "Online Meeting",
+    "joinMeeting": "Join Meeting",
+    "attendees": "{count, plural, one {# attendee} other {# attendees}}",
+    "attendeesTitle": "Attendees",
+    "agenda": "Agenda",
+    "notes": "Notes",
+    "duration": "({count} min)",
+    "cancelConfirm": "Are you sure you want to cancel this meeting?",
+    "cancelled": "Meeting cancelled successfully",
+    "errors": {
+      "load": "Failed to load meetings",
+      "cancel": "Failed to cancel meeting"
+    }
+  },
+  "scheduler": {
+    "description": "Pick a date and time that works for everyone",
+    "meetingType": "Meeting Type",
+    "selectType": "Select type",
+    "titleLabel": "Title *",
+    "selectDate": "Select Date *",
+    "startTime": "Start Time *",
+    "endTime": "End Time *",
+    "duration": "Duration: {count, plural, one {# minute} other {# minutes}}",
+    "onlineMeeting": "This is an online meeting",
+    "meetingLink": "Meeting Link *",
+    "location": "Location *",
+    "locationPlaceholder": "Enter meeting location",
+    "agenda": "Agenda",
+    "selectTeamMembers": "Select Team Members *",
+    "noTeamMembers": "No team members available",
+    "creating": "Creating...",
+    "createMeeting": "Create Meeting",
+    "reset": "Reset",
+    "defaultPlanningTitle": "Project Planning Meeting",
+    "defaultTeamTitle": "Team Meeting",
+    "errors": {
+      "loadTeamMembers": "Failed to load team members",
+      "loadAvailability": "Failed to load availability",
+      "loadTeamAvailability": "Failed to load team availability"
+    },
+    "validation": {
+      "titleRequired": "Meeting title is required",
+      "dateRequired": "Please select a meeting date",
+      "timeRequired": "Please select meeting time",
+      "membersRequired": "Please select at least one team member",
+      "linkRequired": "Please provide a meeting link for online meetings",
+      "locationRequired": "Please provide a location for in-person meetings",
+      "slotUnavailable": "Selected time is not available for all participants"
+    },
+    "created": "Meeting created",
+    "createFailed": "Failed to create meeting"
+  }
+}

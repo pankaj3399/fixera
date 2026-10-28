@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type ComponentProps } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { authFetch } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,6 +33,7 @@ interface FavoriteItem {
 export default function FavoritesPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading } = useAuth();
+  const t = useTranslations("dashboard");
   const [tab, setTab] = useState<"professional" | "project">("project");
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -45,10 +47,10 @@ export default function FavoritesPage() {
       return;
     }
     if (user?.role !== "customer") {
-      toast.error("Only customers have a favorites list");
+      toast.error(t("favorites.customersOnly"));
       router.push("/dashboard");
     }
-  }, [loading, isAuthenticated, user?.role, router]);
+  }, [loading, isAuthenticated, user?.role, router, t]);
 
   const loadFavorites = useCallback(async (targetType: "professional" | "project") => {
     const reqId = ++requestIdRef.current;
@@ -63,15 +65,15 @@ export default function FavoritesPage() {
       if (res.ok && json?.success) {
         setItems(json.data.items || []);
       } else {
-        toast.error(json?.msg || "Failed to load favorites");
+        toast.error(json?.msg || t("favorites.loadFailed"));
       }
     } catch {
       if (reqId !== requestIdRef.current) return;
-      toast.error("Failed to load favorites");
+      toast.error(t("favorites.loadFailed"));
     } finally {
       if (reqId === requestIdRef.current) setListLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isAuthenticated && user?.role === "customer") {
@@ -90,14 +92,14 @@ export default function FavoritesPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Your Favorites</h1>
-        <p className="text-gray-500 mt-1">Professionals and projects you&apos;ve saved.</p>
+        <h1 className="text-3xl font-bold text-gray-900">{t("favorites.title")}</h1>
+        <p className="text-gray-500 mt-1">{t("favorites.subtitle")}</p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as "professional" | "project")}>
         <TabsList>
-          <TabsTrigger value="project">Projects</TabsTrigger>
-          <TabsTrigger value="professional">Professionals</TabsTrigger>
+          <TabsTrigger value="project">{t("favorites.tabs.projects")}</TabsTrigger>
+          <TabsTrigger value="professional">{t("favorites.tabs.professionals")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="professional" className="mt-6">
@@ -111,10 +113,10 @@ export default function FavoritesPage() {
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-gray-600 mb-4">
-                  You haven&apos;t favorited any professionals yet.
+                  {t("favorites.emptyProfessionals")}
                 </p>
                 <Button asChild>
-                  <Link href="/professionals">Browse Professionals</Link>
+                  <Link href="/professionals">{t("favorites.browseProfessionals")}</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -135,7 +137,7 @@ export default function FavoritesPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500 text-center py-8">
-                No professionals found for your favorites — they may have been removed.
+                {t("favorites.missingProfessionals")}
               </p>
             );
           })()}
@@ -152,10 +154,10 @@ export default function FavoritesPage() {
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-gray-600 mb-4">
-                  You haven&apos;t favorited any projects yet.
+                  {t("favorites.emptyProjects")}
                 </p>
                 <Button asChild>
-                  <Link href="/search?type=projects">Browse Projects</Link>
+                  <Link href="/search?type=projects">{t("favorites.browseProjects")}</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -181,7 +183,7 @@ export default function FavoritesPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500 text-center py-8">
-                No projects found for your favorites — they may have been removed.
+                {t("favorites.missingProjects")}
               </p>
             );
           })()}

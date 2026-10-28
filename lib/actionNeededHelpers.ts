@@ -14,9 +14,29 @@ export interface ActionNeededBooking {
   createdAt?: string
 }
 
-export interface ActionItem {
+export const PROFESSIONAL_ACTION_ITEM_KEYS = [
+  "acceptOrDeclineRfq",
+  "confirmStart",
+  "rescheduleDecision",
+  "confirmCompletion",
+  "disputeResponse",
+] as const
+
+export const CUSTOMER_ACTION_ITEM_KEYS = [
+  "acceptOrDeclineQuotation",
+  "paymentNeeded",
+  "acceptOrDeclineRescheduling",
+  "reviewCompletion",
+  "reviewDispute",
+] as const
+
+export type ProfessionalActionItemKey = (typeof PROFESSIONAL_ACTION_ITEM_KEYS)[number]
+export type CustomerActionItemKey = (typeof CUSTOMER_ACTION_ITEM_KEYS)[number]
+
+export interface ActionItem<Key extends string = ProfessionalActionItemKey | CustomerActionItemKey> {
   booking: ActionNeededBooking
-  label: string
+  /** Translation key suffix; consumers map it to their namespace at render time. */
+  labelKey: Key
   severity: "warning" | "urgent"
 }
 
@@ -45,8 +65,8 @@ function isPastDate(dateStr: string | undefined): boolean {
   return new Date(dateStr) < new Date()
 }
 
-export function getProfessionalActionItems(bookings: ActionNeededBooking[]): ActionItem[] {
-  const items: ActionItem[] = []
+export function getProfessionalActionItems(bookings: ActionNeededBooking[]): ActionItem<ProfessionalActionItemKey>[] {
+  const items: ActionItem<ProfessionalActionItemKey>[] = []
 
   for (const booking of bookings) {
     // RFQ awaiting professional decision
@@ -54,60 +74,60 @@ export function getProfessionalActionItems(bookings: ActionNeededBooking[]): Act
       const isOverdue = booking.createdAt && workingDaysSince(booking.createdAt) >= 4
       items.push({
         booking,
-        label: "Accept or decline RFQ",
+        labelKey: "acceptOrDeclineRfq",
         severity: isOverdue ? "urgent" : "warning",
       })
     }
 
     // Start date passed, still in booked status
     if (booking.status === "booked" && isPastDate(booking.scheduledStartDate)) {
-      items.push({ booking, label: "Confirm start", severity: "warning" })
+      items.push({ booking, labelKey: "confirmStart", severity: "warning" })
     }
 
     if (booking.status === "rescheduling_requested") {
-      items.push({ booking, label: "Awaiting customer reschedule decision", severity: "warning" })
+      items.push({ booking, labelKey: "rescheduleDecision", severity: "warning" })
     }
 
     // Completion date passed, still in progress
     const endDate = booking.scheduledExecutionEndDate ?? booking.scheduledEndDate
     if (booking.status === "in_progress" && isPastDate(endDate)) {
-      items.push({ booking, label: "Confirm completion or extend", severity: "warning" })
+      items.push({ booking, labelKey: "confirmCompletion", severity: "warning" })
     }
 
     // Dispute needs response
     if (booking.status === "dispute") {
-      items.push({ booking, label: "Accept, negotiate or reject", severity: "urgent" })
+      items.push({ booking, labelKey: "disputeResponse", severity: "urgent" })
     }
   }
 
   return items
 }
 
-export function getCustomerActionItems(bookings: ActionNeededBooking[]): ActionItem[] {
-  const items: ActionItem[] = []
+export function getCustomerActionItems(bookings: ActionNeededBooking[]): ActionItem<CustomerActionItemKey>[] {
+  const items: ActionItem<CustomerActionItemKey>[] = []
 
   for (const booking of bookings) {
     // Quote awaiting decision
     if (booking.status === "quoted") {
-      items.push({ booking, label: "Accept or decline quotation", severity: "warning" })
+      items.push({ booking, labelKey: "acceptOrDeclineQuotation", severity: "warning" })
     }
 
     // Payment needed
     if (booking.status === "payment_pending" || booking.status === "quote_accepted") {
-      items.push({ booking, label: "Payment needed", severity: "urgent" })
+      items.push({ booking, labelKey: "paymentNeeded", severity: "urgent" })
     }
 
     if (booking.status === "rescheduling_requested") {
-      items.push({ booking, label: "Accept or decline rescheduling", severity: "urgent" })
+      items.push({ booking, labelKey: "acceptOrDeclineRescheduling", severity: "urgent" })
     }
 
     if (booking.status === "professional_completed") {
-      items.push({ booking, label: "Review completion and confirm", severity: "urgent" })
+      items.push({ booking, labelKey: "reviewCompletion", severity: "urgent" })
     }
 
     // Dispute needs customer response
     if (booking.status === "dispute") {
-      items.push({ booking, label: "Review dispute", severity: "urgent" })
+      items.push({ booking, labelKey: "reviewDispute", severity: "urgent" })
     }
   }
 

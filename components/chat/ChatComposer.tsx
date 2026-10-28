@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Paperclip, FileText, Video, ImageIcon, CornerUpRight, Loader2 } from "lucide-react";
@@ -18,12 +19,13 @@ const getReplyName = (message: ChatMessage) => {
   const sender = message.senderId as unknown;
   if (sender && typeof sender === "object") {
     const s = sender as { name?: string; username?: string };
-    return s.username || s.name || "User";
+    return s.username || s.name || null;
   }
-  return "User";
+  return null;
 };
 
 export default function ChatComposer({ disabled, sending, replyTo, onCancelReply, onSend }: ChatComposerProps) {
+  const t = useTranslations("chat");
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -68,16 +70,16 @@ export default function ChatComposer({ disabled, sending, replyTo, onCancelReply
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
           <CornerUpRight className="h-4 w-4 text-indigo-500 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold text-indigo-600">{getReplyName(replyTo)}</p>
+            <p className="text-[11px] font-semibold text-indigo-600">{getReplyName(replyTo) || t("common.user")}</p>
             <p className="text-xs text-gray-500 truncate">
-              {replyTo.text?.slice(0, 100) || (replyTo.images?.length ? "[Image]" : "[Attachment]")}
+              {replyTo.text?.slice(0, 100) || (replyTo.images?.length ? t("common.image") : t("common.attachment"))}
             </p>
           </div>
           <button
             type="button"
             onClick={onCancelReply}
             className="p-0.5 rounded hover:bg-gray-200"
-            aria-label="Cancel reply"
+            aria-label={t("composer.cancelReply")}
           >
             <X className="h-3.5 w-3.5 text-gray-400" />
           </button>
@@ -98,7 +100,7 @@ export default function ChatComposer({ disabled, sending, replyTo, onCancelReply
               >
                 <FileIcon className="h-3 w-3 shrink-0 text-gray-500" />
                 <span className="max-w-40 truncate">{file.name}</span>
-                <button type="button" onClick={() => removeFile(index)} aria-label="Remove file">
+                <button type="button" onClick={() => removeFile(index)} aria-label={t("composer.removeFile")}>
                   <X className="h-3 w-3" />
                 </button>
               </div>
@@ -124,12 +126,12 @@ export default function ChatComposer({ disabled, sending, replyTo, onCancelReply
           className="h-9 w-9 shrink-0 text-gray-500 hover:text-indigo-600"
           onClick={() => inputRef.current?.click()}
           disabled={disabled || sending || files.length >= 5}
-          aria-label="Attach file"
+          aria-label={t("composer.attachFile")}
         >
           <Paperclip className="h-5 w-5" />
         </Button>
         <Textarea
-          placeholder="Type a message..."
+          placeholder={t("composer.placeholder")}
           rows={1}
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -142,7 +144,7 @@ export default function ChatComposer({ disabled, sending, replyTo, onCancelReply
           disabled={disabled || sending}
           className="resize-none flex-1 min-h-[36px] max-h-[80px]"
         />
-        <Button type="button" size="icon" className="h-9 w-9 shrink-0" onClick={handleSubmit} disabled={!canSend} aria-label="Send message">
+        <Button type="button" size="icon" className="h-9 w-9 shrink-0" onClick={handleSubmit} disabled={!canSend} aria-label={t("composer.send")}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CornerUpRight className="h-4 w-4" />}
         </Button>
       </div>

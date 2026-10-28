@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { Award, Gift, Loader2, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/contexts/AuthContext"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getAuthToken } from "@/lib/utils"
 
 type CustomerBenefitsResponse = {
@@ -52,6 +55,9 @@ export default function BenefitsProgramCard({
   professionalData: professionalDataProp,
 }: BenefitsProgramCardProps) {
   const { user } = useAuth()
+  const t = useTranslations("dashboardWidgets")
+  const { formatMoney } = useCurrency()
+  const { intl } = useFormatLocale()
   const hasExternalData = customerDataProp !== undefined || professionalDataProp !== undefined
   const [loading, setLoading] = useState(!hasExternalData)
   const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(customerDataProp ?? null)
@@ -136,33 +142,33 @@ export default function BenefitsProgramCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Gift className="h-5 w-5 text-indigo-600" />
-          Benefits Program <Badge variant="outline">{currentLevel}</Badge>
+          {t("benefitsProgram.title")} <Badge variant="outline">{currentLevel}</Badge>
         </CardTitle>
         <CardDescription>
-          {isCustomer ? "Discounts, points, referrals, and next-tier progress." : "Points, referrals, trust level, and next-level progress."}
+          {isCustomer ? t("benefitsProgram.descriptionCustomer") : t("benefitsProgram.descriptionProfessional")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading benefits...
+            {t("benefitsProgram.loading")}
           </div>
         ) : (
           <>
             <div className="grid md:grid-cols-3 gap-3">
               <div className="rounded-lg border bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Current level</p>
+                <p className="text-xs text-slate-500">{t("benefitsProgram.currentLevel")}</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">{currentLevel}</p>
               </div>
               <div className="rounded-lg border bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Points</p>
+                <p className="text-xs text-slate-500">{t("benefitsProgram.points")}</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">{pointsBalance}</p>
               </div>
               <div className="rounded-lg border bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">{isCustomer ? "Total spent" : "Next level"}</p>
+                <p className="text-xs text-slate-500">{isCustomer ? t("benefitsProgram.totalSpent") : t("benefitsProgram.nextLevel")}</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">
-                  {isCustomer ? `EUR ${(customerData?.userStats?.totalSpent ?? user.totalSpent ?? 0).toLocaleString()}` : nextLevel || "Top level"}
+                  {isCustomer ? formatMoney(customerData?.userStats?.totalSpent ?? user.totalSpent ?? 0) : nextLevel || t("benefitsProgram.topLevel")}
                 </p>
               </div>
             </div>
@@ -172,14 +178,17 @@ export default function BenefitsProgramCard({
                 <div className="flex items-center justify-between text-sm text-indigo-900">
                   <span className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4" />
-                    Next: {nextLevel}
+                    {t("benefitsProgram.nextLevelValue", { level: nextLevel })}
                   </span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} className="mt-3" />
                 {isCustomer && customerData?.loyaltyStatus?.amountToNextTier != null && (
                   <p className="mt-2 text-xs text-indigo-800">
-                    Spend EUR {customerData.loyaltyStatus.amountToNextTier.toLocaleString()} more to unlock {nextLevel}.
+                    {t("benefitsProgram.spendMore", {
+                      amount: formatMoney(customerData.loyaltyStatus.amountToNextTier),
+                      level: nextLevel,
+                    })}
                   </p>
                 )}
               </div>
@@ -187,15 +196,15 @@ export default function BenefitsProgramCard({
 
             <div className="grid md:grid-cols-2 gap-3">
               <div className="rounded-lg border bg-white p-3">
-                <p className="text-xs font-medium text-slate-700">Referral</p>
+                <p className="text-xs font-medium text-slate-700">{t("benefitsProgram.referral")}</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  {isCustomer ? "Share your code to earn points and help friends unlock their first-booking benefit." : "Share your code to earn points and grow trust faster."}
+                  {isCustomer ? t("benefitsProgram.referralCustomer") : t("benefitsProgram.referralProfessional")}
                 </p>
               </div>
               <div className="rounded-lg border bg-white p-3">
-                <p className="text-xs font-medium text-slate-700">Points expiry</p>
+                <p className="text-xs font-medium text-slate-700">{t("benefitsProgram.pointsExpiry")}</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  {pointsExpiry ? new Date(pointsExpiry).toLocaleDateString() : "No expiry set"}
+                  {pointsExpiry ? new Date(pointsExpiry).toLocaleDateString(intl) : t("benefitsProgram.noExpiry")}
                 </p>
               </div>
             </div>
@@ -204,7 +213,7 @@ export default function BenefitsProgramCard({
               <div className="rounded-lg border bg-white p-3">
                 <p className="mb-2 text-xs font-medium text-slate-700 flex items-center gap-2">
                   <Award className="h-4 w-4 text-indigo-600" />
-                  {isCustomer ? "Benefits" : "Next level requirements"}
+                  {isCustomer ? t("benefitsProgram.benefits") : t("benefitsProgram.nextLevelRequirements")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {perks.slice(0, 6).map((item) => (

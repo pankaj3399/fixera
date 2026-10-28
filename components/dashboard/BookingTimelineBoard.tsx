@@ -2,7 +2,9 @@
 
 import { useMemo, useState, useRef, useCallback, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, parseISO, startOfDay, isSameDay } from "date-fns"
+import type { Locale as DateFnsLocale } from "date-fns"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,6 +17,8 @@ import AvailabilityDatePicker from "@/components/booking/AvailabilityDatePicker"
 import PlanningDialog from "@/components/dashboard/PlanningDialog"
 import { RESCHEDULE_REASONS } from "@/lib/constants/rescheduleReasons"
 import { getAuthToken } from "@/lib/utils"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getBookingStatusMeta, getBookingTitle, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { Calendar, CalendarRange, CheckCheck, CreditCard, Loader2, Play, RefreshCw, XCircle } from "lucide-react"
 
@@ -121,6 +125,17 @@ const ACTIVE_TIMELINE_STATUSES = new Set<BookingStatus>([
   "dispute",
 ])
 
+const RESCHEDULE_REASON_KEYS = {
+  "Weather delay": "timeline.rescheduleReasons.weatherDelay",
+  "Resource availability": "timeline.rescheduleReasons.resourceAvailability",
+  "Material delivery issues": "timeline.rescheduleReasons.materialDeliveryIssues",
+  "Crew unavailable": "timeline.rescheduleReasons.crewUnavailable",
+  "Customer request": "timeline.rescheduleReasons.customerRequest",
+  "Other": "timeline.rescheduleReasons.other",
+} as const
+
+type RescheduleReasonValue = keyof typeof RESCHEDULE_REASON_KEYS
+
 const VISIBLE_DAYS = 60
 const MAX_SPAN_DAYS = 365
 const DAY_WIDTH = 40
@@ -145,21 +160,28 @@ const resolveIsDaysMode = (booking?: TimelineBooking | null): boolean => {
   return project?.timeMode === 'days'
 }
 
-const BAR_META: Record<string, { label: string; className: string }> = {
+const BAR_META: Record<string, {
+  labelKey:
+    | "timeline.bar.booked"
+    | "timeline.bar.rescheduling_requested"
+    | "timeline.bar.in_progress"
+    | "timeline.bar.dispute"
+  className: string
+}> = {
   booked: {
-    label: "Booked",
+    labelKey: "timeline.bar.booked",
     className: "bg-red-500/90 border border-red-600/80 text-white",
   },
   rescheduling_requested: {
-    label: "Rescheduling Request",
+    labelKey: "timeline.bar.rescheduling_requested",
     className: "bg-sky-500/90 border border-sky-600/80 text-white",
   },
   in_progress: {
-    label: "In Progress",
+    labelKey: "timeline.bar.in_progress",
     className: "bg-emerald-500/90 border border-emerald-600/80 text-white",
   },
   dispute: {
-    label: "Dispute",
+    labelKey: "timeline.bar.dispute",
     className: "bg-rose-600/90 border border-rose-700/80 text-white",
   },
 }
@@ -180,11 +202,11 @@ const toDate = (value?: string) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-const formatDateLabel = (value?: string | Date | null) => {
-  if (!value) return "Unscheduled"
+const formatDateLabel = (value: string | Date | null | undefined, fallback: string, locale: DateFnsLocale) => {
+  if (!value) return fallback
   const parsed = value instanceof Date ? value : toDate(value)
-  if (!parsed) return "Unscheduled"
-  return format(parsed, "dd MMM yyyy")
+  if (!parsed) return fallback
+  return format(parsed, "dd MMM yyyy", { locale })
 }
 
 const hasPayableMilestone = (milestones: TimelineBooking["milestonePayments"]): boolean => {
@@ -259,15 +281,17 @@ const getTimelineBounds = (booking: TimelineBooking) => {
   }
 }
 
-const getBookingPrice = (booking: TimelineBooking): string | null => {
+const getBookingPrice = (
+  booking: TimelineBooking,
+  formatAmount: (amount: number, currency?: string | null) => string,
+): string | null => {
   const amount =
     booking.pricingSnapshot?.totalAmount
     ?? booking.rfqData?.totalAmount
     ?? booking.payment?.amount
   if (amount == null) return null
   const currency = booking.rfqData?.budget?.currency || booking.payment?.currency || "EUR"
-  const symbol = currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency === "USD" ? "$" : currency
-  return `${symbol}${amount.toFixed(2)}`
+  return formatAmount(amount, currency)
 }
 
 async function parseResponse(response: Response) {
@@ -285,11 +309,17 @@ async function parseResponse(response: Response) {
 export default function BookingTimelineBoard({
   bookings,
   viewerRole,
-  title = "Project Timeline",
-  description = "Active bookings timeline.",
-  emptyLabel = "No active bookings to display.",
+  title,
+  description,
+  emptyLabel,
   onBookingUpdated,
 }: BookingTimelineBoardProps) {
+  const t = useTranslations("dashboardWidgets")
+  const { dateFns } = useFormatLocale()
+  const { formatMoney } = useCurrency()
+  const resolvedTitle = title ?? t("timeline.title")
+  const resolvedDescription = description ?? t("timeline.description")
+  const resolvedEmptyLabel = emptyLabel ?? t("timeline.empty")
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [activeBooking, setActiveBooking] = useState<TimelineBooking | null>(null)
@@ -305,6 +335,11 @@ export default function BookingTimelineBoard({
   const [rescheduleDescription, setRescheduleDescription] = useState("")
 
   const today = startOfDay(new Date())
+
+  const rescheduleReasonLabel = (value: string) => {
+    const key = RESCHEDULE_REASON_KEYS[value as RescheduleReasonValue]
+    return key ? t(key) : value
+  }
 
   const timelineBookings = useMemo(() => {
     return bookings
@@ -377,7 +412,7 @@ export default function BookingTimelineBoard({
       const response = await action()
       const payload = await parseResponse(response)
       if (!response.ok || !payload?.success) {
-        toast.error(payload?.error?.message || payload?.msg || "Request failed")
+        toast.error(payload?.error?.message || payload?.msg || t("timeline.toasts.requestFailed"))
         return
       }
 
@@ -386,7 +421,7 @@ export default function BookingTimelineBoard({
       closeDialog()
     } catch (error) {
       console.error("Booking timeline action failed:", error)
-      toast.error("Request failed. Please try again.")
+      toast.error(t("timeline.toasts.requestFailedRetry"))
     } finally {
       setSubmittingBookingId((current) => (current === bookingId ? null : current))
     }
@@ -394,7 +429,7 @@ export default function BookingTimelineBoard({
 
   const submitCancel = async () => {
     if (!activeBooking || !cancelReason.trim()) {
-      toast.error("Cancellation reason is required")
+      toast.error(t("timeline.toasts.cancelReasonRequired"))
       return
     }
     setIsSubmitting(true)
@@ -407,20 +442,20 @@ export default function BookingTimelineBoard({
           headers: withAuthHeaders(),
           body: JSON.stringify({ reason: cancelReason.trim() }),
         }),
-      "Booking cancelled."
+      t("timeline.toasts.cancelled")
     )
     setIsSubmitting(false)
   }
 
   const submitReschedule = async () => {
     if (!activeBooking || !rescheduleDate || !rescheduleReason) {
-      toast.error("New date and rescheduling reason are required")
+      toast.error(t("timeline.toasts.rescheduleFieldsRequired"))
       return
     }
 
     const isDaysMode = resolveIsDaysMode(activeBooking)
     if (!isDaysMode && !rescheduleTime) {
-      toast.error("Start time is required")
+      toast.error(t("timeline.toasts.startTimeRequired"))
       return
     }
 
@@ -439,7 +474,7 @@ export default function BookingTimelineBoard({
             description: rescheduleDescription.trim() || undefined,
           }),
         }),
-      "Rescheduling request sent."
+      t("timeline.toasts.rescheduled")
     )
     setIsSubmitting(false)
   }
@@ -454,7 +489,7 @@ export default function BookingTimelineBoard({
           headers: withAuthHeaders(),
           body: JSON.stringify({ status: "in_progress" }),
         }),
-      "Execution started."
+      t("timeline.toasts.executionStarted")
     )
   }
 
@@ -475,7 +510,7 @@ export default function BookingTimelineBoard({
             body: JSON.stringify({ action }),
           }
         ),
-      action === "start" ? "Milestone started." : "Milestone completed."
+      action === "start" ? t("timeline.toasts.milestoneStarted") : t("timeline.toasts.milestoneCompleted")
     )
   }
 
@@ -491,7 +526,7 @@ export default function BookingTimelineBoard({
   }
 
   const handleCustomerConfirmCompletion = async (bookingId: string) => {
-    const confirmed = window.confirm("Confirm that the work is complete? Funds will be released to the professional.")
+    const confirmed = window.confirm(t("timeline.toasts.confirmCompletion"))
     if (!confirmed) return
     await runMutation(
       bookingId,
@@ -501,15 +536,15 @@ export default function BookingTimelineBoard({
           credentials: "include",
           headers: withAuthHeaders(),
         }),
-      "Completion confirmed. Funds released."
+      t("timeline.toasts.completionConfirmed")
     )
   }
 
   const handleRespondReschedule = async (bookingId: string, action: "accept" | "decline") => {
     const confirmed = window.confirm(
       action === "accept"
-        ? "Accept the proposed reschedule?"
-        : "Declining will refund you and cancel this booking. Continue?"
+        ? t("timeline.toasts.acceptReschedule")
+        : t("timeline.toasts.declineReschedule")
     )
     if (!confirmed) return
 
@@ -522,7 +557,7 @@ export default function BookingTimelineBoard({
           headers: withAuthHeaders(),
           body: JSON.stringify({ action }),
         }),
-      action === "accept" ? "Reschedule accepted." : "Reschedule declined and refund issued."
+      action === "accept" ? t("timeline.toasts.rescheduleAccepted") : t("timeline.toasts.rescheduleDeclined")
     )
   }
 
@@ -532,13 +567,13 @@ export default function BookingTimelineBoard({
 
   const buildTooltip = (booking: TimelineBooking, bounds: { start: Date; end: Date }) => {
     const parts: string[] = []
-    if (booking.bookingNumber) parts.push(`Booking: ${booking.bookingNumber}`)
+    if (booking.bookingNumber) parts.push(t("timeline.tooltip.booking", { value: booking.bookingNumber }))
     const addr = booking.location?.address
-    if (addr) parts.push(`Address: ${addr}`)
-    const price = getBookingPrice(booking)
-    if (price) parts.push(`Price: ${price}`)
-    parts.push(`Start: ${formatDateLabel(bounds.start)}`)
-    parts.push(`End: ${formatDateLabel(bounds.end)}`)
+    if (addr) parts.push(t("timeline.tooltip.address", { value: addr }))
+    const price = getBookingPrice(booking, formatMoney)
+    if (price) parts.push(t("timeline.tooltip.price", { value: price }))
+    parts.push(t("timeline.tooltip.start", { value: formatDateLabel(bounds.start, t("common.unscheduled"), dateFns) }))
+    parts.push(t("timeline.tooltip.end", { value: formatDateLabel(bounds.end, t("common.unscheduled"), dateFns) }))
     return parts.join("\n")
   }
 
@@ -553,16 +588,16 @@ export default function BookingTimelineBoard({
     if (viewerRole === "professional" && booking.status === "booked") {
       btns.push(
         <Button key="cancel" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => openDialog("cancel", booking)}>
-          <XCircle className="mr-1 h-3 w-3" />Cancel
+          <XCircle className="mr-1 h-3 w-3" />{t("timeline.actions.cancel")}
         </Button>,
         <Button key="reschedule" variant="outline" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => openDialog("reschedule", booking)}>
-          <RefreshCw className="mr-1 h-3 w-3" />Reschedule
+          <RefreshCw className="mr-1 h-3 w-3" />{t("timeline.actions.reschedule")}
         </Button>
       )
       if (canShowPlanning) {
         btns.push(
           <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
-            <CalendarRange className="mr-1 h-3 w-3" />Planning
+            <CalendarRange className="mr-1 h-3 w-3" />{t("timeline.actions.planning")}
           </Button>
         )
       }
@@ -572,14 +607,14 @@ export default function BookingTimelineBoard({
         btns.push(
           <Button key="milestone" size="sm" className="h-6 text-[10px] px-1.5 bg-blue-600 text-white hover:bg-blue-700" onClick={() => handleMilestoneAction(booking._id, next.index, next.action)} disabled={busy}>
             {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
-            {next.action === "start" ? "Start milestone" : "Complete milestone"}
+            {next.action === "start" ? t("timeline.actions.startMilestone") : t("timeline.actions.completeMilestone")}
           </Button>
         )
       } else if (!hasMilestones) {
         btns.push(
           <Button key="start" size="sm" className="h-6 text-[10px] px-1.5 bg-blue-600 text-white hover:bg-blue-700" onClick={() => handleStartExecution(booking._id)} disabled={busy}>
             {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
-            Start Execution
+            {t("timeline.actions.startExecution")}
           </Button>
         )
       }
@@ -592,14 +627,14 @@ export default function BookingTimelineBoard({
         btns.push(
           <Button key="milestone-ip" size="sm" className="h-6 text-[10px] px-1.5 bg-blue-600 text-white hover:bg-blue-700" onClick={() => handleMilestoneAction(booking._id, next.index, next.action)} disabled={busy}>
             {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
-            {next.action === "start" ? "Start milestone" : "Complete milestone"}
+            {next.action === "start" ? t("timeline.actions.startMilestone") : t("timeline.actions.completeMilestone")}
           </Button>
         )
       }
       if (canShowPlanning) {
         btns.push(
           <Button key="planning" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50" onClick={() => setPlanningBookingId(booking._id)}>
-            <CalendarRange className="mr-1 h-3 w-3" />Planning
+            <CalendarRange className="mr-1 h-3 w-3" />{t("timeline.actions.planning")}
           </Button>
         )
       }
@@ -613,7 +648,7 @@ export default function BookingTimelineBoard({
             disabled={isNavigating}
           >
             {isNavigating ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
-            Complete
+            {t("timeline.actions.complete")}
           </Button>
         )
       }
@@ -623,13 +658,13 @@ export default function BookingTimelineBoard({
     if (viewerRole === "customer" && booking.status === "rescheduling_requested") {
       btns.push(
         <Button key="accept" size="sm" className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleRespondReschedule(booking._id, "accept")} disabled={busy}>
-          Accept
+          {t("timeline.actions.accept")}
         </Button>,
         <Button key="refund" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => handleRespondReschedule(booking._id, "decline")} disabled={busy}>
-          Refund
+          {t("timeline.actions.refund")}
         </Button>,
         <Button key="dispute" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => router.push(`/bookings/${booking._id}?dispute=1`)} disabled={busy}>
-          <XCircle className="mr-1 h-3 w-3" />Dispute
+          <XCircle className="mr-1 h-3 w-3" />{t("timeline.actions.dispute")}
         </Button>
       )
     }
@@ -645,14 +680,14 @@ export default function BookingTimelineBoard({
       if (hasPayableMilestoneNow) {
         btns.push(
           <Button key="pay-milestone" size="sm" className="h-6 text-[10px] px-1.5 bg-sky-600 text-white hover:bg-sky-700" onClick={() => router.push(`/bookings/${booking._id}`)}>
-            <CreditCard className="mr-1 h-3 w-3" />Pay milestone
+            <CreditCard className="mr-1 h-3 w-3" />{t("timeline.actions.payMilestone")}
           </Button>
         )
       }
       if (hasUnpaidExtras) {
         btns.push(
           <Button key="pay-extras" size="sm" className="h-6 text-[10px] px-1.5 bg-amber-600 text-white hover:bg-amber-700" onClick={() => router.push(`/bookings/${booking._id}?payExtras=1`)}>
-            <CreditCard className="mr-1 h-3 w-3" />Pay extras
+            <CreditCard className="mr-1 h-3 w-3" />{t("timeline.actions.payExtras")}
           </Button>
         )
       }
@@ -660,13 +695,13 @@ export default function BookingTimelineBoard({
         btns.push(
           <Button key="confirm-complete" size="sm" className="h-6 text-[10px] px-1.5 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleCustomerConfirmCompletion(booking._id)} disabled={busy}>
             {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCheck className="mr-1 h-3 w-3" />}
-            Confirm
+            {t("timeline.actions.confirm")}
           </Button>
         )
       }
       btns.push(
         <Button key="dispute" variant="outline" size="sm" className="h-6 text-[10px] px-1.5 border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => router.push(`/bookings/${booking._id}?dispute=1`)}>
-          <XCircle className="mr-1 h-3 w-3" />Dispute
+          <XCircle className="mr-1 h-3 w-3" />{t("timeline.actions.dispute")}
         </Button>
       )
     }
@@ -674,7 +709,7 @@ export default function BookingTimelineBoard({
     if (viewerRole === "customer" && (booking.status === "payment_pending" || booking.status === "quote_accepted")) {
       btns.push(
         <Button key="pay" size="sm" className="h-6 text-[10px] px-1.5 bg-amber-600 text-white hover:bg-amber-700" onClick={() => router.push(`/bookings/${booking._id}/payment`)}>
-          <CreditCard className="mr-1 h-3 w-3" />Pay
+          <CreditCard className="mr-1 h-3 w-3" />{t("timeline.actions.pay")}
         </Button>
       )
     }
@@ -686,14 +721,14 @@ export default function BookingTimelineBoard({
     <div className="rounded-2xl border border-slate-200 bg-white/85 p-5 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-          <p className="text-sm text-slate-600">{description}</p>
+          <h2 className="text-lg font-semibold text-slate-900">{resolvedTitle}</h2>
+          <p className="text-sm text-slate-600">{resolvedDescription}</p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-slate-500">
           {Object.entries(BAR_META).map(([key, meta]) => (
             <span key={key} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-2.5 py-1">
               <span className={`h-2.5 w-2.5 rounded-full ${meta.className.split(" ")[0]}`} />
-              {meta.label}
+              {t(meta.labelKey)}
             </span>
           ))}
         </div>
@@ -702,12 +737,15 @@ export default function BookingTimelineBoard({
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
         <div className="mb-3 flex items-center gap-2 text-xs text-slate-600">
           <Calendar className="h-3.5 w-3.5" />
-          Window: {format(rangeStart, "MMM d, yyyy")} &ndash; {format(rangeEnd, "MMM d, yyyy")}
+          {t("timeline.window", {
+            start: format(rangeStart, "MMM d, yyyy", { locale: dateFns }),
+            end: format(rangeEnd, "MMM d, yyyy", { locale: dateFns }),
+          })}
         </div>
 
         {timelineBookings.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
-            {emptyLabel}
+            {resolvedEmptyLabel}
           </div>
         ) : (
           <div className="flex">
@@ -717,7 +755,7 @@ export default function BookingTimelineBoard({
               <div className="h-[42px] border-b border-slate-200" />
               {/* Rows */}
               {timelineBookings.map(({ booking }) => {
-                const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
+                const projectName = booking.project?.title || booking.rfqData?.serviceType || t("timeline.bookingFallback")
                 const counterpartyName = viewerRole === "professional"
                   ? booking.customer?.name
                   : booking.professional?.username || booking.professional?.name || booking.professional?.businessInfo?.companyName
@@ -754,8 +792,8 @@ export default function BookingTimelineBoard({
                       className={`flex-shrink-0 border-r border-slate-200 text-center text-[10px] flex flex-col justify-center ${isSameDay(day, today) ? "bg-blue-50 font-bold" : ""}`}
                       style={{ width: `${DAY_WIDTH}px` }}
                     >
-                      <div className="font-medium text-slate-700 leading-tight">{format(day, "d")}</div>
-                      <div className="text-slate-500 leading-tight">{format(day, "MMM")}</div>
+                      <div className="font-medium text-slate-700 leading-tight">{format(day, "d", { locale: dateFns })}</div>
+                      <div className="text-slate-500 leading-tight">{format(day, "MMM", { locale: dateFns })}</div>
                     </div>
                   ))}
                 </div>
@@ -768,7 +806,7 @@ export default function BookingTimelineBoard({
                   const left = differenceInCalendarDays(clippedStart, rangeStart) * DAY_WIDTH
                   const width = Math.max((differenceInCalendarDays(clippedEnd, clippedStart) + 1) * DAY_WIDTH, DAY_WIDTH)
 
-                  const projectName = booking.project?.title || booking.rfqData?.serviceType || "Booking"
+                  const projectName = booking.project?.title || booking.rfqData?.serviceType || t("timeline.bookingFallback")
                   const counterpartyName = viewerRole === "professional"
                     ? booking.customer?.name
                     : booking.professional?.username || booking.professional?.name || booking.professional?.businessInfo?.companyName
@@ -818,12 +856,12 @@ export default function BookingTimelineBoard({
       <Dialog open={dialogMode === "cancel"} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancel Booking</DialogTitle>
-            <DialogDescription>Add a short reason for the cancellation.</DialogDescription>
+            <DialogTitle>{t("timeline.cancelDialog.title")}</DialogTitle>
+            <DialogDescription>{t("timeline.cancelDialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="timeline-cancel-reason">Reason</Label>
+              <Label htmlFor="timeline-cancel-reason">{t("timeline.cancelDialog.reason")}</Label>
               <Textarea
                 id="timeline-cancel-reason"
                 value={cancelReason}
@@ -832,10 +870,10 @@ export default function BookingTimelineBoard({
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>Back</Button>
+              <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>{t("common.back")}</Button>
               <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={submitCancel} disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Cancel Booking
+                {t("timeline.cancelDialog.submit")}
               </Button>
             </div>
           </div>
@@ -845,13 +883,13 @@ export default function BookingTimelineBoard({
       <Dialog open={dialogMode === "reschedule"} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request Rescheduling</DialogTitle>
-            <DialogDescription>Propose a new start date for the customer to approve.</DialogDescription>
+            <DialogTitle>{t("timeline.rescheduleDialog.title")}</DialogTitle>
+            <DialogDescription>{t("timeline.rescheduleDialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className={`grid gap-3 ${resolveIsDaysMode(activeBooking) ? '' : 'sm:grid-cols-2'}`}>
               <div className="space-y-2">
-                <Label htmlFor="timeline-reschedule-date">New start date</Label>
+                <Label htmlFor="timeline-reschedule-date">{t("timeline.rescheduleDialog.newStartDate")}</Label>
                 <AvailabilityDatePicker
                   id="timeline-reschedule-date"
                   projectId={activeBooking?.project?._id}
@@ -863,36 +901,36 @@ export default function BookingTimelineBoard({
               </div>
               {!resolveIsDaysMode(activeBooking) && (
                 <div className="space-y-2">
-                  <Label htmlFor="timeline-reschedule-time">Start time</Label>
+                  <Label htmlFor="timeline-reschedule-time">{t("timeline.rescheduleDialog.startTime")}</Label>
                   <Input id="timeline-reschedule-time" type="time" value={rescheduleTime} onChange={(event) => setRescheduleTime(event.target.value)} />
                 </div>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="timeline-reschedule-reason">Reason</Label>
+              <Label htmlFor="timeline-reschedule-reason">{t("timeline.rescheduleDialog.reason")}</Label>
               <Select value={rescheduleReason} onValueChange={setRescheduleReason}>
                 <SelectTrigger id="timeline-reschedule-reason">
-                  <SelectValue placeholder="Select a reason" />
+                  <SelectValue placeholder={t("timeline.rescheduleDialog.selectReason")} />
                 </SelectTrigger>
                 <SelectContent>
                   {RESCHEDULE_REASONS.map((option) => (
-                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                    <SelectItem key={option} value={option}>{rescheduleReasonLabel(option)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="timeline-reschedule-description">Description (optional)</Label>
+              <Label htmlFor="timeline-reschedule-description">{t("timeline.rescheduleDialog.descriptionLabel")}</Label>
               <Textarea
                 id="timeline-reschedule-description"
                 value={rescheduleDescription}
                 onChange={(event) => setRescheduleDescription(event.target.value)}
                 className="min-h-[80px]"
-                placeholder="Add any additional details..."
+                placeholder={t("timeline.rescheduleDialog.descriptionPlaceholder")}
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>Back</Button>
+              <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>{t("common.back")}</Button>
               <Button
                 onClick={submitReschedule}
                 disabled={
@@ -903,7 +941,7 @@ export default function BookingTimelineBoard({
                 }
               >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Send Request
+                {t("timeline.rescheduleDialog.submit")}
               </Button>
             </div>
           </div>

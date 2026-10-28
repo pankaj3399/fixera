@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { noindexMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = noindexMetadata("/professional/onboarding", "Professional onboarding");
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("proArea");
+  return noindexMetadata("/professional/onboarding", t("meta.onboarding"));
+}
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return children;

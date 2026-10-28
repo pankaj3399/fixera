@@ -3,6 +3,7 @@
 import { Suspense } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, ArrowLeft, CalendarClock, Loader2, RefreshCw, ShieldCheck } from "lucide-react"
-import { type WarrantyClaimStatus, STATUS_OPTIONS, STATUS_STYLES, REASON_LABELS } from "@/lib/warrantyClaim"
+import { type WarrantyClaimStatus, STATUS_OPTIONS, STATUS_STYLES } from "@/lib/warrantyClaim"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 interface ClaimRecord {
   _id: string
@@ -62,11 +64,47 @@ interface ClaimRecord {
 }
 
 
-const formatDate = (value?: string) => {
+type WarrantyStatusLabelKey =
+  | "warranty.status.all"
+  | "warranty.status.open"
+  | "warranty.status.proposalSent"
+  | "warranty.status.proposalAccepted"
+  | "warranty.status.resolved"
+  | "warranty.status.escalated"
+  | "warranty.status.closed"
+
+const WARRANTY_STATUS_KEYS: Record<string, WarrantyStatusLabelKey> = {
+  all: "warranty.status.all",
+  open: "warranty.status.open",
+  proposal_sent: "warranty.status.proposalSent",
+  proposal_accepted: "warranty.status.proposalAccepted",
+  resolved: "warranty.status.resolved",
+  escalated: "warranty.status.escalated",
+  closed: "warranty.status.closed",
+}
+
+type WarrantyReasonKey =
+  | "warranty.reason.defect"
+  | "warranty.reason.incompleteWork"
+  | "warranty.reason.materialIssue"
+  | "warranty.reason.functionalityIssue"
+  | "warranty.reason.safetyIssue"
+  | "warranty.reason.other"
+
+const WARRANTY_REASON_KEYS: Record<string, WarrantyReasonKey> = {
+  defect: "warranty.reason.defect",
+  incomplete_work: "warranty.reason.incompleteWork",
+  material_issue: "warranty.reason.materialIssue",
+  functionality_issue: "warranty.reason.functionalityIssue",
+  safety_issue: "warranty.reason.safetyIssue",
+  other: "warranty.reason.other",
+}
+
+const formatDate = (value: string | undefined, intl: string) => {
   if (!value) return "-"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "-"
-  return date.toLocaleDateString()
+  return date.toLocaleDateString(intl)
 }
 
 const getClaimAttachments = (claim: ClaimRecord) => [
@@ -86,6 +124,8 @@ function WarrantyClaimsContent() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const t = useTranslations("dashboard")
+  const { intl } = useFormatLocale()
   const searchSuffix = searchParams.toString() ? `?${searchParams.toString()}` : ""
   const claimIdFromQuery = searchParams.get("claimId") || null
   const statusFromQuery = searchParams.get("status")
@@ -139,11 +179,11 @@ function WarrantyClaimsContent() {
     const payload = await response.json()
     const claim = payload.claim || payload.data?.claim
     if (!response.ok || !payload.success || !claim) {
-      throw new Error(payload.msg || "Failed to load warranty claim")
+      throw new Error(payload.msg || t("warranty.loadClaimFailed"))
     }
 
     return claim as ClaimRecord
-  }, [isAuthenticated, user?.role])
+  }, [isAuthenticated, user?.role, t])
 
   useEffect(() => {
     if (!claimIdFromQuery) {
@@ -167,12 +207,12 @@ function WarrantyClaimsContent() {
         if (err instanceof DOMException && err.name === "AbortError") return
         setStatusFilter(normalizedStatusFromQuery ?? "all")
         setHighlightedClaim(null)
-        setError(err instanceof Error ? err.message : "Failed to load warranty claim")
+        setError(err instanceof Error ? err.message : t("warranty.loadClaimFailed"))
       }
     })()
 
     return () => controller.abort()
-  }, [claimIdFromQuery, fetchClaimById, normalizedStatusFromQuery])
+  }, [claimIdFromQuery, fetchClaimById, normalizedStatusFromQuery, t])
 
   const fetchClaims = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || (user?.role !== "professional" && user?.role !== "customer")) return
@@ -194,7 +234,7 @@ function WarrantyClaimsContent() {
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || "Failed to load warranty claims")
+        throw new Error(payload.msg || t("warranty.loadClaimsFailed"))
       }
 
       const data = payload.data || {}
@@ -217,11 +257,11 @@ function WarrantyClaimsContent() {
       setClaims([])
       setTotalPages(1)
       setTotalClaims(0)
-      setError(err instanceof Error ? err.message : "Failed to load warranty claims")
+      setError(err instanceof Error ? err.message : t("warranty.loadClaimsFailed"))
     } finally {
       setIsLoadingClaims(false)
     }
-  }, [highlightedClaim, isAuthenticated, page, statusFilter, user?.role])
+  }, [highlightedClaim, isAuthenticated, page, statusFilter, user?.role, t])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -268,18 +308,16 @@ function WarrantyClaimsContent() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
               <ShieldCheck className="h-8 w-8 text-sky-600" />
-              Warranty Claims
+              {t("warranty.title")}
             </h1>
             <p className="text-slate-600">
-              {isProfessional
-                ? "Manage post-completion warranty issues raised by customers."
-                : "Track your warranty claims, proposals, escalations, and resolution updates."}
+              {isProfessional ? t("warranty.subtitleProfessional") : t("warranty.subtitleCustomer")}
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              {t("common.back")}
             </Button>
             <Button onClick={() => fetchClaims()} disabled={isLoadingClaims}>
               {isLoadingClaims ? (
@@ -287,7 +325,7 @@ function WarrantyClaimsContent() {
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              Refresh
+              {t("common.refresh")}
             </Button>
           </div>
         </div>
@@ -296,8 +334,8 @@ function WarrantyClaimsContent() {
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
-                <CardTitle>Claims Queue</CardTitle>
-                <CardDescription>{totalClaims} claim(s) total</CardDescription>
+                <CardTitle>{t("warranty.queueTitle")}</CardTitle>
+                <CardDescription>{t("warranty.totalClaims", { count: totalClaims })}</CardDescription>
               </div>
               <Select
                 value={statusFilter}
@@ -307,12 +345,12 @@ function WarrantyClaimsContent() {
                 }}
               >
                 <SelectTrigger className="w-full md:w-[220px]">
-                  <SelectValue placeholder="Filter status" />
+                  <SelectValue placeholder={t("common.filterStatus")} />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(WARRANTY_STATUS_KEYS[option.value] ?? "warranty.status.all")}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -329,12 +367,14 @@ function WarrantyClaimsContent() {
               </div>
             ) : claims.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">
-                No warranty claims found for this filter.
+                {t("warranty.empty")}
               </div>
             ) : (
               <div className="space-y-3">
                 {claims.map((claim) => {
                   const attachments = getClaimAttachments(claim)
+                  const statusKey = WARRANTY_STATUS_KEYS[claim.status]
+                  const reasonKey = WARRANTY_REASON_KEYS[claim.reason]
 
                   return (
                   <div id={`claim-${claim._id}`} key={claim._id} className="rounded-lg border bg-white p-4 space-y-3 transition-shadow">
@@ -342,11 +382,11 @@ function WarrantyClaimsContent() {
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{claim.claimNumber}</p>
                         <p className="text-xs text-slate-600">
-                          {REASON_LABELS[claim.reason] || claim.reason} · Opened {formatDate(claim.createdAt)}
+                          {reasonKey ? t(reasonKey) : claim.reason} · {t("warranty.opened", { date: formatDate(claim.createdAt, intl) })}
                         </p>
                       </div>
                       <Badge variant="outline" className={STATUS_STYLES[claim.status]}>
-                        {claim.status.replace(/_/g, " ")}
+                        {statusKey ? t(statusKey) : claim.status.replace(/_/g, " ")}
                       </Badge>
                     </div>
 
@@ -354,11 +394,11 @@ function WarrantyClaimsContent() {
 
                     <div className="grid md:grid-cols-3 gap-3 text-xs text-slate-600">
                       <div>
-                        <p className="font-medium text-slate-800">Booking</p>
+                        <p className="font-medium text-slate-800">{t("warranty.booking")}</p>
                         <p>{claim.booking?.bookingNumber || claim.booking?._id || "-"}</p>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-800">{isProfessional ? "Customer" : "Professional"}</p>
+                        <p className="font-medium text-slate-800">{isProfessional ? t("warranty.customer") : t("warranty.professional")}</p>
                         <p>
                           {isProfessional
                             ? (claim.customer?.name || claim.customer?.email || "-")
@@ -369,24 +409,24 @@ function WarrantyClaimsContent() {
                         </p>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-800">{isProfessional ? "Response SLA" : "Confirmation SLA"}</p>
-                        <p>{formatDate(isProfessional ? claim.sla?.professionalResponseDueAt : claim.sla?.customerConfirmationDueAt)}</p>
+                        <p className="font-medium text-slate-800">{isProfessional ? t("warranty.responseSla") : t("warranty.confirmationSla")}</p>
+                        <p>{formatDate(isProfessional ? claim.sla?.professionalResponseDueAt : claim.sla?.customerConfirmationDueAt, intl)}</p>
                       </div>
                     </div>
 
                     {claim.proposal?.message && (
                       <div className="rounded-md border bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                        Resolve proposal: {claim.proposal.message}
+                        {t("warranty.resolveProposal", { message: claim.proposal.message })}
                         {(claim.proposal.resolveByDate || claim.proposal.proposedScheduleAt) && (
                           <div className="mt-1 text-sky-700">
-                            Resolve date: {formatDate(claim.proposal.resolveByDate || claim.proposal.proposedScheduleAt)}
+                            {t("warranty.resolveDate", { date: formatDate(claim.proposal.resolveByDate || claim.proposal.proposedScheduleAt, intl) })}
                           </div>
                         )}
                       </div>
                     )}
                     {attachments.length > 0 && (
                       <div className="rounded-md border bg-white px-3 py-2 text-xs text-slate-700">
-                        <p className="mb-2 font-medium text-slate-800">Attachments</p>
+                        <p className="mb-2 font-medium text-slate-800">{t("warranty.attachments")}</p>
                         <div className="space-y-1">
                           {attachments.map((attachment, index) => (
                             <a
@@ -396,7 +436,7 @@ function WarrantyClaimsContent() {
                               rel="noreferrer noopener"
                               className="block text-indigo-700 hover:underline"
                             >
-                              Open attachment {index + 1}
+                              {t("warranty.openAttachment", { index: index + 1 })}
                             </a>
                           ))}
                         </div>
@@ -404,13 +444,14 @@ function WarrantyClaimsContent() {
                     )}
                     {claim.resolution?.summary && (
                       <div className="rounded-md border bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                        Resolution: {claim.resolution.summary}
+                        {t("warranty.resolution", { summary: claim.resolution.summary })}
                       </div>
                     )}
                     {claim.escalation?.reason && (
                       <div className="rounded-md border bg-rose-50 px-3 py-2 text-xs text-rose-800">
-                        Escalated: {claim.escalation.reason}
-                        {claim.escalation.note ? ` (${claim.escalation.note})` : ""}
+                        {claim.escalation.note
+                          ? t("warranty.escalatedWithNote", { reason: claim.escalation.reason, note: claim.escalation.note })
+                          : t("warranty.escalated", { reason: claim.escalation.reason })}
                       </div>
                     )}
 
@@ -422,27 +463,27 @@ function WarrantyClaimsContent() {
                           onClick={() => router.push(`/bookings/${claim.booking?._id}`)}
                         >
                           <CalendarClock className="h-3.5 w-3.5 mr-1" />
-                          Open Booking
+                          {t("warranty.openBooking")}
                         </Button>
                       )}
                       {claim.status === "open" && (
                         <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-700">
-                          {isProfessional ? "Action needed: send a proposal" : "Claim opened and awaiting professional response"}
+                          {isProfessional ? t("warranty.hints.openProfessional") : t("warranty.hints.openCustomer")}
                         </span>
                       )}
                       {claim.status === "proposal_accepted" && (
                         <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] text-violet-700">
-                          {isProfessional ? "Action needed: complete repair and mark resolved" : "Proposal accepted. Waiting for repair completion"}
+                          {isProfessional ? t("warranty.hints.acceptedProfessional") : t("warranty.hints.acceptedCustomer")}
                         </span>
                       )}
                       {claim.status === "resolved" && (
                         <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-700">
-                          {isProfessional ? "Waiting for customer confirmation" : "Action needed: review the resolution and confirm"}
+                          {isProfessional ? t("warranty.hints.resolvedProfessional") : t("warranty.hints.resolvedCustomer")}
                         </span>
                       )}
                       {claim.status === "escalated" && (
                         <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
-                          Escalated to admin
+                          {t("warranty.hints.escalated")}
                         </span>
                       )}
                     </div>
@@ -459,17 +500,17 @@ function WarrantyClaimsContent() {
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                   disabled={page <= 1}
                 >
-                  Previous
+                  {t("common.previous")}
                 </Button>
                 <p className="text-sm text-slate-600">
-                  Page {page} of {totalPages}
+                  {t("common.pageOf", { page, total: totalPages })}
                 </p>
                 <Button
                   variant="outline"
                   onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                   disabled={page >= totalPages}
                 >
-                  Next
+                  {t("common.next")}
                 </Button>
               </div>
             )}
@@ -480,19 +521,19 @@ function WarrantyClaimsContent() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-sky-600" />
-              Handling guidance
+              {t("warranty.guidance.title")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-slate-700 space-y-1">
             {isProfessional ? (
               <>
-                <p>Respond to new claims within 5 business days to avoid automatic escalation.</p>
-                <p>Use the booking detail page to send proposals, mark repairs resolved, and track confirmations.</p>
+                <p>{t("warranty.guidance.professional1")}</p>
+                <p>{t("warranty.guidance.professional2")}</p>
               </>
             ) : (
               <>
-                <p>Open the related booking to review claim details, proposal updates, and repair progress.</p>
-                <p>Use the booking page to accept or decline proposals, confirm resolutions, or escalate if the issue remains unresolved.</p>
+                <p>{t("warranty.guidance.customer1")}</p>
+                <p>{t("warranty.guidance.customer2")}</p>
               </>
             )}
           </CardContent>

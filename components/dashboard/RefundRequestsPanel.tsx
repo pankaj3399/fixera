@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { authFetch } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, RotateCcw, CheckCircle, XCircle, Scale } from "lucide-react"
 import { toast } from "sonner"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 interface RefundRequest {
   _id: string
@@ -26,9 +29,10 @@ interface RefundRequest {
   requestedBy?: { name?: string; email?: string }
 }
 
-const fmtDate = (v?: string) => (v ? new Date(v).toLocaleDateString() : '—')
-
 export default function RefundRequestsPanel() {
+  const t = useTranslations("dashboardWidgets")
+  const { formatMoney } = useCurrency()
+  const { intl } = useFormatLocale()
   const [requests, setRequests] = useState<RefundRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -36,6 +40,11 @@ export default function RefundRequestsPanel() {
   const [counterAmount, setCounterAmount] = useState("")
   const [note, setNote] = useState("")
   const [loadError, setLoadError] = useState<string | null>(null)
+
+  const fmtDate = useCallback(
+    (v?: string) => (v ? new Date(v).toLocaleDateString(intl) : '—'),
+    [intl]
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -46,29 +55,31 @@ export default function RefundRequestsPanel() {
       if (res.ok && json?.success) {
         setRequests(Array.isArray(json.data?.requests) ? json.data.requests : [])
       } else {
-        setLoadError(json?.msg || 'Failed to load refund requests')
+        setLoadError(json?.msg || t('refundRequests.loadFailed'))
       }
     } catch {
-      setLoadError('Failed to load refund requests')
+      setLoadError(t('refundRequests.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
   const respond = async (req: RefundRequest, decision: 'approve' | 'counter' | 'reject') => {
     const bookingId = req.booking?._id
     if (!bookingId) return
-    if (decision === 'approve' && !window.confirm('Approve a full refund (including the Fixtract fee) for this booking?')) return
-    if (decision === 'reject' && !window.confirm('Reject this refund request? It will be escalated to Fixtract.')) return
+    if (decision === 'approve' && !window.confirm(t('refundRequests.confirmApprove'))) return
+    if (decision === 'reject' && !window.confirm(t('refundRequests.confirmReject'))) return
 
     let amount: number | undefined
     if (decision === 'counter') {
       amount = Number(counterAmount)
       const max = req.booking?.payment?.amount ?? 0
       if (!Number.isFinite(amount) || amount < 1 || amount > max) {
-        toast.error(`Counter-offer must be between 1 and the booking price (${max.toFixed(2)})`)
+        toast.error(t('refundRequests.counterRange', {
+          max: formatMoney(max, req.booking?.payment?.currency),
+        }))
         return
       }
     }
@@ -82,20 +93,20 @@ export default function RefundRequestsPanel() {
       })
       const json = await res.json()
       if (!res.ok || !json?.success) {
-        toast.error(json?.msg || 'Failed to respond')
+        toast.error(json?.msg || t('refundRequests.respondFailed'))
         return
       }
       toast.success(
-        decision === 'approve' ? 'Refund approved and issued.'
-        : decision === 'counter' ? 'Counter-offer sent to the customer.'
-        : 'Refund request rejected and escalated to Fixtract.'
+        decision === 'approve' ? t('refundRequests.approved')
+        : decision === 'counter' ? t('refundRequests.counterSent')
+        : t('refundRequests.rejected')
       )
       setCounterFor(null)
       setCounterAmount("")
       setNote("")
       await load()
     } catch {
-      toast.error('Failed to respond')
+      toast.error(t('refundRequests.respondFailed'))
     } finally {
       setBusyId(null)
     }
@@ -114,7 +125,7 @@ export default function RefundRequestsPanel() {
       <Card className="border-rose-200">
         <CardContent className="py-4 flex items-center justify-between gap-3">
           <p className="text-sm text-rose-700">{loadError}</p>
-          <Button size="sm" variant="outline" onClick={load}>Retry</Button>
+          <Button size="sm" variant="outline" onClick={load}>{t('common.retry')}</Button>
         </CardContent>
       </Card>
     )
@@ -127,7 +138,7 @@ export default function RefundRequestsPanel() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <RotateCcw className="h-4 w-4 text-amber-600" />
-          Refund requests ({requests.length})
+          {t('refundRequests.title', { count: requests.length })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -143,42 +154,42 @@ export default function RefundRequestsPanel() {
                   {req.booking?.project?.title ? <span className="text-gray-500 font-normal"> · {req.booking.project.title}</span> : null}
                 </div>
                 <Badge variant={req.status === 'negotiating' ? 'secondary' : 'destructive'} className="text-xs">
-                  {req.status === 'negotiating' ? 'Awaiting customer' : 'New request'}
+                  {req.status === 'negotiating' ? t('refundRequests.statusAwaitingCustomer') : t('refundRequests.statusNew')}
                 </Badge>
               </div>
-              <p className="text-xs text-gray-600"><span className="text-gray-400">Customer:</span> {req.requestedBy?.name || req.requestedBy?.email || 'Customer'}</p>
-              <p className="text-xs text-gray-600"><span className="text-gray-400">Reason:</span> {req.reason}</p>
-              <p className="text-xs text-gray-600"><span className="text-gray-400">Booking price:</span> {currency} {price.toFixed(2)}{req.responseDeadline ? ` · respond by ${fmtDate(req.responseDeadline)}` : ''}</p>
+              <p className="text-xs text-gray-600"><span className="text-gray-400">{t('refundRequests.customerLabel')}</span> {req.requestedBy?.name || req.requestedBy?.email || t('common.customer')}</p>
+              <p className="text-xs text-gray-600"><span className="text-gray-400">{t('refundRequests.reasonLabel')}</span> {req.reason}</p>
+              <p className="text-xs text-gray-600"><span className="text-gray-400">{t('refundRequests.bookingPriceLabel')}</span> {formatMoney(price, currency)}{req.responseDeadline ? ` · ${t('refundRequests.respondBy', { date: fmtDate(req.responseDeadline) })}` : ''}</p>
               {req.evidence && req.evidence.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {req.evidence.map((url) => (
-                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline text-blue-700 break-all">evidence</a>
+                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline text-blue-700 break-all">{t('refundRequests.evidence')}</a>
                   ))}
                 </div>
               )}
               {req.status === 'negotiating' ? (
-                <p className="text-xs text-amber-700">Counter-offer of {currency} {(req.counterOfferAmount ?? 0).toFixed(2)} sent — waiting for the customer to accept or refuse.</p>
+                <p className="text-xs text-amber-700">{t('refundRequests.counterOfferSent', { amount: formatMoney(req.counterOfferAmount ?? 0, currency) })}</p>
               ) : counterFor === req._id ? (
                 <div className="space-y-2">
-                  <Input type="number" placeholder={`Counter-offer (max ${price.toFixed(2)})`} value={counterAmount} onChange={(e) => setCounterAmount(e.target.value)} />
-                  <Textarea placeholder="Optional message to the customer" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[60px]" />
+                  <Input type="number" placeholder={t('refundRequests.counterPlaceholder', { amount: formatMoney(price, currency) })} value={counterAmount} onChange={(e) => setCounterAmount(e.target.value)} />
+                  <Textarea placeholder={t('refundRequests.notePlaceholder')} value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[60px]" />
                   <div className="flex gap-2">
                     <Button size="sm" disabled={busy} onClick={() => respond(req, 'counter')}>
-                      {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Scale className="h-3 w-3 mr-1" />}Send offer
+                      {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Scale className="h-3 w-3 mr-1" />}{t('refundRequests.sendOffer')}
                     </Button>
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => { setCounterFor(null); setCounterAmount(""); setNote("") }}>Cancel</Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => { setCounterFor(null); setCounterAmount(""); setNote("") }}>{t('common.cancel')}</Button>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 pt-1">
                   <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={busy} onClick={() => respond(req, 'approve')}>
-                    <CheckCircle className="h-3 w-3 mr-1" />Approve full refund
+                    <CheckCircle className="h-3 w-3 mr-1" />{t('refundRequests.approveFull')}
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => { setCounterFor(req._id); setCounterAmount(""); setNote("") }}>
-                    <Scale className="h-3 w-3 mr-1" />Negotiate
+                    <Scale className="h-3 w-3 mr-1" />{t('refundRequests.negotiate')}
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs border-rose-200 text-rose-700 hover:bg-rose-50" disabled={busy} onClick={() => respond(req, 'reject')}>
-                    <XCircle className="h-3 w-3 mr-1" />Reject
+                    <XCircle className="h-3 w-3 mr-1" />{t('refundRequests.reject')}
                   </Button>
                 </div>
               )}

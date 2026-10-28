@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 import { cn, getAuthToken } from "@/lib/utils";
 import { FileText, Download, Star, MessageSquare, Loader2, Reply, Flag, ShieldCheck, ArrowRight } from "lucide-react";
@@ -9,8 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { reportChatMessage } from "@/lib/chatApi";
+import { reportChatMessage, isLocalFallbackError } from "@/lib/chatApi";
 import { useCommissionRate } from "@/hooks/useCommissionRate";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 
 interface ChatThreadProps {
   messages: ChatMessage[];
@@ -37,9 +40,9 @@ const getSenderId = (message: ChatMessage) => {
 const resolveSenderName = (sender: unknown): string => {
   if (sender && typeof sender === "object") {
     const s = sender as { username?: string; name?: string };
-    return s.username || s.name || "User";
+    return s.username || s.name || "";
   }
-  return "User";
+  return "";
 };
 
 const getSenderName = (message: ChatMessage) =>
@@ -53,13 +56,34 @@ const getSenderImage = (message: ChatMessage) => {
   return null;
 };
 
-const REPORT_REASONS = [
-  { value: "spam", label: "Spam" },
-  { value: "harassment", label: "Harassment" },
-  { value: "inappropriate", label: "Inappropriate content" },
-  { value: "scam", label: "Scam" },
-  { value: "other", label: "Other" },
+const REPORT_REASON_KEYS = {
+  spam: "report.reasons.spam",
+  harassment: "report.reasons.harassment",
+  inappropriate: "report.reasons.inappropriate",
+  scam: "report.reasons.scam",
+  other: "report.reasons.other",
+} as const;
+
+const REPORT_REASONS: { value: keyof typeof REPORT_REASON_KEYS }[] = [
+  { value: "spam" },
+  { value: "harassment" },
+  { value: "inappropriate" },
+  { value: "scam" },
+  { value: "other" },
 ];
+
+const WARRANTY_STATUS_KEYS = {
+  open: "thread.warrantyStatuses.open",
+  proposal_sent: "thread.warrantyStatuses.proposalSent",
+  proposal_accepted: "thread.warrantyStatuses.proposalAccepted",
+  resolved: "thread.warrantyStatuses.resolved",
+  escalated: "thread.warrantyStatuses.escalated",
+  closed: "thread.warrantyStatuses.closed",
+} as const;
+
+const QUOTATION_STATUS_KEYS = {
+  quoted: "thread.quotationStatuses.quoted",
+} as const;
 
 function ReportDialog({
   messageId,
@@ -70,22 +94,25 @@ function ReportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useTranslations("chat");
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     if (!reason) {
-      toast.error("Please select a reason");
+      toast.error(t("report.selectReason"));
       return;
     }
     setSubmitting(true);
     try {
       await reportChatMessage(messageId, reason, description.trim() || undefined);
-      toast.success("Report submitted");
+      toast.success(t("report.submitted"));
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to submit report");
+      toast.error(
+        err instanceof Error && !isLocalFallbackError(err) ? err.message : t("report.failed")
+      );
     } finally {
       setSubmitting(false);
     }
@@ -95,7 +122,7 @@ function ReportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
-          <DialogTitle className="text-sm">Report Message</DialogTitle>
+          <DialogTitle className="text-sm">{t("report.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-1.5">
           {REPORT_REASONS.map((r) => (
@@ -114,12 +141,12 @@ function ReportDialog({
                 onChange={() => setReason(r.value)}
                 className="sr-only"
               />
-              {r.label}
+              {t(REPORT_REASON_KEYS[r.value])}
             </label>
           ))}
         </div>
         <Textarea
-          placeholder="Additional details (optional)"
+          placeholder={t("report.detailsPlaceholder")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="text-xs min-h-[50px]"
@@ -128,10 +155,10 @@ function ReportDialog({
         <div className="flex gap-2">
           <Button size="sm" className="flex-1 text-xs" onClick={handleSubmit} disabled={submitting}>
             {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-            Submit Report
+            {t("report.submit")}
           </Button>
           <Button size="sm" variant="ghost" className="text-xs" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         </div>
       </DialogContent>
@@ -148,6 +175,8 @@ function ReviewNotificationCard({
   isProfessional: boolean;
   onReplySubmitted?: () => void;
 }) {
+  const t = useTranslations("chat");
+  const { intl } = useFormatLocale();
   const meta = message.reviewMeta;
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -157,7 +186,7 @@ function ReviewNotificationCard({
 
   const handleReply = async () => {
     if (!replyText.trim()) {
-      toast.error("Please enter a reply");
+      toast.error(t("reviewCard.enterReply"));
       return;
     }
     setSubmitting(true);
@@ -177,15 +206,15 @@ function ReviewNotificationCard({
       );
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success("Reply posted successfully");
+        toast.success(t("reviewCard.replyPosted"));
         setShowReply(false);
         setReplyText("");
         onReplySubmitted?.();
       } else {
-        toast.error(data.msg || "Failed to post reply");
+        toast.error(data.msg || t("reviewCard.replyFailed"));
       }
     } catch {
-      toast.error("Failed to post reply");
+      toast.error(t("reviewCard.replyFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -196,7 +225,7 @@ function ReviewNotificationCard({
       <div className="w-[90%] max-w-md rounded-xl border border-yellow-200 bg-yellow-50 p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-          <span className="text-sm font-semibold text-gray-800">New Review from {meta.customerName}</span>
+          <span className="text-sm font-semibold text-gray-800">{t("reviewCard.title", { name: meta.customerName })}</span>
         </div>
 
         <div className="flex items-center gap-3 mb-2">
@@ -214,9 +243,9 @@ function ReviewNotificationCard({
         </div>
 
         <div className="space-y-1 text-xs text-gray-600 mb-3">
-          <div className="flex justify-between"><span>Communication</span><span className="font-medium">{meta.communicationLevel}/5</span></div>
-          <div className="flex justify-between"><span>Value of Delivery</span><span className="font-medium">{meta.valueOfDelivery}/5</span></div>
-          <div className="flex justify-between"><span>Quality of Service</span><span className="font-medium">{meta.qualityOfService}/5</span></div>
+          <div className="flex justify-between"><span>{t("ratings.communication")}</span><span className="font-medium">{meta.communicationLevel}/5</span></div>
+          <div className="flex justify-between"><span>{t("ratings.valueOfDelivery")}</span><span className="font-medium">{meta.valueOfDelivery}/5</span></div>
+          <div className="flex justify-between"><span>{t("ratings.qualityOfService")}</span><span className="font-medium">{meta.qualityOfService}/5</span></div>
         </div>
 
         {meta.comment && (
@@ -233,14 +262,14 @@ function ReviewNotificationCard({
             onClick={() => setShowReply(true)}
           >
             <MessageSquare className="h-3 w-3 mr-1" />
-            Reply Publicly
+            {t("reviewCard.replyPublicly")}
           </Button>
         )}
 
         {showReply && (
           <div className="space-y-2 mt-2">
             <Textarea
-              placeholder="Write your public reply..."
+              placeholder={t("reviewCard.replyPlaceholder")}
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               className="text-sm min-h-[60px]"
@@ -249,17 +278,17 @@ function ReviewNotificationCard({
             <div className="flex gap-2">
               <Button size="sm" className="text-xs flex-1" onClick={handleReply} disabled={submitting}>
                 {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                Post Reply
+                {t("reviewCard.postReply")}
               </Button>
               <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowReply(false)} disabled={submitting}>
-                Cancel
+                {t("common.cancel")}
               </Button>
             </div>
           </div>
         )}
 
         <p className="text-[10px] text-gray-400 mt-2">
-          {new Date(message.createdAt).toLocaleString()}
+          {new Date(message.createdAt).toLocaleString(intl)}
         </p>
       </div>
     </div>
@@ -267,10 +296,15 @@ function ReviewNotificationCard({
 }
 
 function WarrantyNotificationCard({ message }: { message: ChatMessage }) {
+  const t = useTranslations("chat");
   const router = useRouter();
   const meta = message.warrantyMeta;
 
   if (!meta) return null;
+
+  const statusKey = meta.status
+    ? WARRANTY_STATUS_KEYS[meta.status.toLowerCase() as keyof typeof WARRANTY_STATUS_KEYS]
+    : undefined;
 
   const handleOpenClaim = () => {
     const params = new URLSearchParams();
@@ -289,7 +323,7 @@ function WarrantyNotificationCard({ message }: { message: ChatMessage }) {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="h-5 w-5 text-sky-600" />
-              <span className="text-sm font-semibold text-slate-900">Warranty Claim Update</span>
+              <span className="text-sm font-semibold text-slate-900">{t("thread.warrantyClaimUpdate")}</span>
             </div>
             <p className="text-sm font-medium text-slate-800">{meta.claimNumber}</p>
             {message.text && <p className="mt-1 text-sm text-slate-600">{message.text}</p>}
@@ -298,9 +332,11 @@ function WarrantyNotificationCard({ message }: { message: ChatMessage }) {
         </div>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xs text-slate-500">
-            {meta.status ? `Status: ${meta.status.replace(/_/g, " ")}` : "Open claim details"}
+            {meta.status
+              ? t("thread.status", { status: statusKey ? t(statusKey) : meta.status.replace(/_/g, " ") })
+              : t("thread.openClaimDetails")}
           </span>
-          <span className="text-xs font-medium text-sky-700">Open warranty page</span>
+          <span className="text-xs font-medium text-sky-700">{t("thread.openWarrantyPage")}</span>
         </div>
       </button>
     </div>
@@ -308,9 +344,10 @@ function WarrantyNotificationCard({ message }: { message: ChatMessage }) {
 }
 
 function ReplyToPreview({ replyTo, isMine }: { replyTo: ChatMessage["replyTo"]; isMine: boolean }) {
+  const t = useTranslations("chat");
   if (!replyTo) return null;
-  const name = resolveSenderName(replyTo.senderId);
-  const previewText = replyTo.text?.slice(0, 100) || (replyTo.images?.length ? "[Image]" : "");
+  const name = resolveSenderName(replyTo.senderId) || t("common.user");
+  const previewText = replyTo.text?.slice(0, 100) || (replyTo.images?.length ? t("common.image") : "");
 
   const scrollToOriginal = () => {
     const el = document.getElementById(`msg-${replyTo._id}`);
@@ -347,6 +384,9 @@ function ReplyToPreview({ replyTo, isMine }: { replyTo: ChatMessage["replyTo"]; 
 }
 
 export default function ChatThread({ messages, currentUserId, currentUserRole, currentUserImage, currentUserName, loading, conversationId, onReviewReplySubmitted, onReplyTo }: ChatThreadProps) {
+  const t = useTranslations("chat");
+  const { intl } = useFormatLocale();
+  const { formatMoney } = useCurrency();
   const [reportingId, setReportingId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -379,7 +419,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
   }
 
   if (messages.length === 0) {
-    return <div className="p-4 text-sm text-gray-500">No messages yet. Say hello.</div>;
+    return <div className="p-4 text-sm text-gray-500">{t("thread.empty")}</div>;
   }
 
   return (
@@ -406,12 +446,15 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
 
         if (message.messageType === "quotation_notification" && message.quotationMeta) {
           const meta = message.quotationMeta;
+          const quotationStatusKey = meta.status
+            ? QUOTATION_STATUS_KEYS[String(meta.status).toLowerCase() as keyof typeof QUOTATION_STATUS_KEYS]
+            : undefined;
           return (
             <div key={message._id} id={`msg-${message._id}`} className="flex justify-center my-2">
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 max-w-sm w-full">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-purple-700 font-semibold text-sm">
-                    {meta.version > 1 ? 'Updated Quotation' : 'New Quotation'}
+                    {meta.version > 1 ? t("thread.updatedQuotation") : t("thread.newQuotation")}
                   </span>
                   <span className="text-xs text-purple-500">{meta.quotationNumber}</span>
                   <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-purple-700">
@@ -419,12 +462,12 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                   </span>
                   {meta.status && (
                     <span className="rounded-full border border-purple-200 bg-white px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-purple-600">
-                      {String(meta.status).replace(/_/g, ' ')}
+                      {quotationStatusKey ? t(quotationStatusKey) : String(meta.status).replace(/_/g, ' ')}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-700 mb-1"><strong>Scope:</strong> {meta.scope}</p>
-                <p className="text-xs text-gray-700 mb-1"><strong>Amount:</strong> {meta.currency} {(currentUserRole === 'customer' ? customerPrice(Number(meta.totalAmount)) : Number(meta.totalAmount)).toFixed(2)}</p>
+                <p className="text-xs text-gray-700 mb-1"><strong>{t("thread.scope")}</strong> {meta.scope}</p>
+                <p className="text-xs text-gray-700 mb-1"><strong>{t("thread.amount")}</strong> {formatMoney(currentUserRole === 'customer' ? customerPrice(Number(meta.totalAmount)) : Number(meta.totalAmount), meta.currency)}</p>
                 {meta.validUntil && (() => {
                   const raw = String(meta.validUntil).trim();
                   if (!raw) return null;
@@ -443,13 +486,13 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                     if (!isNaN(fallback.getTime())) parsed = fallback;
                   }
                   if (!parsed || isNaN(parsed.getTime())) return null;
-                  return <p className="text-xs text-gray-500 mb-3">Valid until {parsed.toLocaleDateString()}</p>;
+                  return <p className="text-xs text-gray-500 mb-3">{t("thread.validUntil", { date: parsed.toLocaleDateString(intl) })}</p>;
                 })()}
                 <a
                   href={`/bookings/${meta.bookingId}`}
                   className="inline-block text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded transition-colors"
                 >
-                  View & Respond
+                  {t("thread.viewAndRespond")}
                 </a>
               </div>
             </div>
@@ -458,7 +501,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
 
         const isMine = getSenderId(message) === currentUserId;
         const isAdminSender = message.senderRole === "admin";
-        const senderName = isAdminSender ? "Fixtract Support" : getSenderName(message);
+        const senderName = isAdminSender ? t("common.fixtractSupport") : getSenderName(message) || t("common.user");
         const senderImage = isAdminSender ? null : getSenderImage(message);
         const prevMessage = index > 0 ? messages[index - 1] : null;
         const showAvatar = !prevMessage || getSenderId(prevMessage) !== getSenderId(message) || prevMessage.messageType === "review_notification" || prevMessage.messageType === "quotation_notification" || prevMessage.messageType === "warranty_notification";
@@ -529,7 +572,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                       >
                         <img
                           src={imageUrl}
-                          alt="Chat attachment"
+                          alt={t("thread.chatAttachment")}
                           className="max-h-56 w-full rounded-md object-cover"
                         />
                       </a>
@@ -566,8 +609,8 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                             controls
                             className="max-h-56 w-full rounded-md"
                           >
-                            <track kind="captions" src="" srcLang="en" label="Captions (not available)" />
-                            Your browser does not support video playback.
+                            <track kind="captions" src="" srcLang="en" label={t("thread.captionsUnavailable")} />
+                            {t("thread.videoUnsupported")}
                           </video>
                         );
                       }
@@ -595,7 +638,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                 )}
 
                 <p className={cn("mt-2 text-[10px]", isMine ? "text-indigo-100" : "text-gray-400")}>
-                  {new Date(message.createdAt).toLocaleString()}
+                  {new Date(message.createdAt).toLocaleString(intl)}
                 </p>
               </div>
 
@@ -613,7 +656,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                     type="button"
                     className="p-1 rounded hover:bg-slate-100"
                     onClick={() => onReplyTo(message)}
-                    title="Reply"
+                    title={t("thread.reply")}
                   >
                     <Reply className="h-3.5 w-3.5 text-gray-500" />
                   </button>
@@ -623,7 +666,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                     type="button"
                     className="p-1 rounded hover:bg-slate-100"
                     onClick={() => setReportingId(message._id)}
-                    title="Report"
+                    title={t("thread.report")}
                   >
                     <Flag className="h-3.5 w-3.5 text-gray-500" />
                   </button>

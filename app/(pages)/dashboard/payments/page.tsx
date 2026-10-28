@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslations } from 'next-intl';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 
 // ─── Shared types ───────────────────────────────────────────────────────────
 
@@ -24,20 +27,49 @@ const STATUS_STYLES: Record<PaymentStatus, string> = {
   expired: 'bg-gray-100 text-gray-700 border border-gray-200',
 };
 
-const STATUS_OPTIONS: { label: string; value: 'all' | PaymentStatus }[] = [
-  { label: 'All statuses', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Authorized', value: 'authorized' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'Refunded', value: 'refunded' },
-  { label: 'Failed', value: 'failed' },
+type PaymentStatusLabelKey =
+  | 'payments.status.all'
+  | 'payments.status.pending'
+  | 'payments.status.authorized'
+  | 'payments.status.completed'
+  | 'payments.status.refunded'
+  | 'payments.status.failed'
+  | 'payments.status.partiallyRefunded'
+  | 'payments.status.expired';
+
+const STATUS_OPTIONS: { key: PaymentStatusLabelKey; value: 'all' | PaymentStatus }[] = [
+  { key: 'payments.status.all', value: 'all' },
+  { key: 'payments.status.pending', value: 'pending' },
+  { key: 'payments.status.authorized', value: 'authorized' },
+  { key: 'payments.status.completed', value: 'completed' },
+  { key: 'payments.status.refunded', value: 'refunded' },
+  { key: 'payments.status.failed', value: 'failed' },
 ];
 
-const PaymentStatusBadge = ({ status }: { status: PaymentStatus }) => (
-  <Badge variant="outline" className={`text-xs capitalize ${STATUS_STYLES[status] || 'bg-slate-100'}`}>
-    {status.replace(/_/g, ' ')}
-  </Badge>
-);
+function usePaymentStatusLabel() {
+  const t = useTranslations('dashboard');
+  return (status: string) => {
+    switch (status) {
+      case 'pending': return t('payments.status.pending');
+      case 'authorized': return t('payments.status.authorized');
+      case 'completed': return t('payments.status.completed');
+      case 'refunded': return t('payments.status.refunded');
+      case 'partially_refunded': return t('payments.status.partiallyRefunded');
+      case 'failed': return t('payments.status.failed');
+      case 'expired': return t('payments.status.expired');
+      default: return status.replace(/_/g, ' ');
+    }
+  };
+}
+
+const PaymentStatusBadge = ({ status }: { status: PaymentStatus }) => {
+  const statusLabel = usePaymentStatusLabel();
+  return (
+    <Badge variant="outline" className={`text-xs capitalize ${STATUS_STYLES[status] || 'bg-slate-100'}`}>
+      {statusLabel(status)}
+    </Badge>
+  );
+};
 
 // ─── Customer payment types ─────────────────────────────────────────────────
 
@@ -133,6 +165,9 @@ export default function PaymentsDashboard() {
 
 function CustomerPaymentsView() {
   const router = useRouter();
+  const t = useTranslations('dashboard');
+  const { intl } = useFormatLocale();
+  const { formatMoney } = useCurrency();
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
@@ -158,18 +193,18 @@ function CustomerPaymentsView() {
 
       const payload = await response.json();
       if (!response.ok || !payload.success) {
-        throw new Error(payload.msg || 'Failed to load payments');
+        throw new Error(payload.msg || t('payments.loadFailed'));
       }
 
       setPayments(payload.data.payments);
       setSummary(payload.data.summary);
       setTotalPages(payload.data.pagination.totalPages || 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load payments');
+      setError(err instanceof Error ? err.message : t('payments.loadFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, [API_URL, page, statusFilter]);
+  }, [API_URL, page, statusFilter, t]);
 
   useEffect(() => {
     fetchPayments();
@@ -180,14 +215,14 @@ function CustomerPaymentsView() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Payment History</h1>
-            <p className="text-sm text-gray-600">View all your payments and their statuses.</p>
+            <h1 className="text-2xl font-semibold text-gray-900">{t('payments.customer.title')}</h1>
+            <p className="text-sm text-gray-600">{t('payments.customer.subtitle')}</p>
           </div>
           <Button variant="outline" onClick={fetchPayments} disabled={isLoading}>
             {isLoading ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Refreshing</>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t('payments.refreshing')}</>
             ) : (
-              <><RefreshCw className="h-4 w-4 mr-2" /> Refresh</>
+              <><RefreshCw className="h-4 w-4 mr-2" /> {t('common.refresh')}</>
             )}
           </Button>
         </div>
@@ -196,30 +231,30 @@ function CustomerPaymentsView() {
         <div className="grid md:grid-cols-3 gap-3">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Total Paid</CardDescription>
+              <CardDescription>{t('payments.summary.totalPaid')}</CardDescription>
               <CardTitle className="text-2xl">
-                EUR {summary.totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatMoney(summary.totalPaid)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-gray-500">Completed payments</CardContent>
+            <CardContent className="text-sm text-gray-500">{t('payments.summary.completedPayments')}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>In Escrow</CardDescription>
+              <CardDescription>{t('payments.summary.inEscrow')}</CardDescription>
               <CardTitle className="text-2xl">
-                EUR {summary.inEscrow.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatMoney(summary.inEscrow)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-gray-500">Authorized, awaiting completion</CardContent>
+            <CardContent className="text-sm text-gray-500">{t('payments.summary.awaitingCompletion')}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Refunded</CardDescription>
+              <CardDescription>{t('payments.summary.refunded')}</CardDescription>
               <CardTitle className="text-2xl">
-                EUR {summary.refunded.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatMoney(summary.refunded)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-gray-500">Total refunded amount</CardContent>
+            <CardContent className="text-sm text-gray-500">{t('payments.summary.totalRefunded')}</CardContent>
           </Card>
         </div>
 
@@ -227,15 +262,15 @@ function CustomerPaymentsView() {
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <CardTitle>Payments</CardTitle>
+              <CardTitle>{t('payments.table.title')}</CardTitle>
               <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val as 'all' | PaymentStatus); setPage(1); }}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter status" />
+                  <SelectValue placeholder={t('common.filterStatus')} />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map(option => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.key)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -258,18 +293,18 @@ function CustomerPaymentsView() {
               </div>
             ) : payments.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-500">
-                No payments found.
+                {t('payments.table.empty')}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-slate-50 text-gray-600 text-xs uppercase tracking-wide">
                     <tr>
-                      <th className="px-4 py-3 text-left">Booking</th>
-                      <th className="px-4 py-3 text-left">Professional</th>
-                      <th className="px-4 py-3 text-left">Amount</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-left">{t('payments.table.booking')}</th>
+                      <th className="px-4 py-3 text-left">{t('payments.table.professional')}</th>
+                      <th className="px-4 py-3 text-left">{t('payments.table.amount')}</th>
+                      <th className="px-4 py-3 text-left">{t('payments.table.status')}</th>
+                      <th className="px-4 py-3 text-left">{t('payments.table.date')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -288,7 +323,7 @@ function CustomerPaymentsView() {
                             {payment.bookingNumber || payment.booking?.bookingNumber || '---'}
                           </div>
                           <div className="text-xs text-gray-500 capitalize">
-                            {payment.booking?.bookingType || 'n/a'}
+                            {payment.booking?.bookingType || t('common.notAvailable')}
                           </div>
                         </td>
                         <td className="px-4 py-4">
@@ -298,14 +333,14 @@ function CustomerPaymentsView() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="font-semibold text-gray-900">
-                            {payment.currency} {(payment.totalWithVat ?? payment.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            {formatMoney(payment.totalWithVat ?? payment.amount, payment.currency)}
                           </div>
                         </td>
                         <td className="px-4 py-4">
                           <PaymentStatusBadge status={payment.status} />
                         </td>
                         <td className="px-4 py-4 text-gray-600">
-                          {payment.createdAt ? new Date(payment.createdAt).toLocaleDateString() : '---'}
+                          {payment.createdAt ? new Date(payment.createdAt).toLocaleDateString(intl) : '---'}
                         </td>
                       </tr>
                     ))}
@@ -315,13 +350,13 @@ function CustomerPaymentsView() {
             )}
             {totalPages > 1 && (
               <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-gray-600">
-                <span>Page {page} of {totalPages}</span>
+                <span>{t('common.pageOf', { page, total: totalPages })}</span>
                 <div className="space-x-2">
                   <Button variant="outline" size="sm" disabled={page === 1 || isLoading} onClick={() => setPage(p => Math.max(p - 1, 1))}>
-                    Previous
+                    {t('common.previous')}
                   </Button>
                   <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading} onClick={() => setPage(p => p + 1)}>
-                    Next
+                    {t('common.next')}
                   </Button>
                 </div>
               </div>
@@ -339,6 +374,10 @@ function CustomerPaymentsView() {
 
 function ProfessionalPaymentsView() {
   const router = useRouter();
+  const t = useTranslations('dashboard');
+  const { intl } = useFormatLocale();
+  const { formatMoney } = useCurrency();
+  const statusLabel = usePaymentStatusLabel();
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
   const [checkingAccount, setCheckingAccount] = useState(true);
   const [stats, setStats] = useState<PaymentStats>({
@@ -449,20 +488,20 @@ function ProfessionalPaymentsView() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Payments</h1>
-        <p className="text-gray-600 mt-1">Manage your Stripe account and view earnings</p>
+        <h1 className="text-3xl font-bold text-gray-900">{t('payments.professional.title')}</h1>
+        <p className="text-gray-600 mt-1">{t('payments.professional.subtitle')}</p>
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Stripe Account</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t('payments.professional.stripeAccount')}</h2>
           {isFullyOnboarded && (
             <button
               type="button"
               onClick={handleOpenDashboard}
               className="text-blue-600 hover:text-blue-700 font-medium text-sm"
             >
-              Open Dashboard &rarr;
+              {t('payments.professional.openDashboard')}
             </button>
           )}
         </div>
@@ -475,12 +514,12 @@ function ProfessionalPaymentsView() {
               </svg>
               <div className="flex-1">
                 <h3 className="text-blue-900 font-semibold mb-1">
-                  {!hasAccount ? 'Connect Your Stripe Account' : 'Complete Your Stripe Setup'}
+                  {!hasAccount ? t('payments.professional.connectTitle') : t('payments.professional.completeTitle')}
                 </h3>
                 <p className="text-blue-800 text-sm mb-4">
                   {!hasAccount
-                    ? 'You need to connect your Stripe account to receive payments from customers. This only takes a few minutes.'
-                    : 'Your Stripe account setup is incomplete. Complete it to start receiving payments.'
+                    ? t('payments.professional.connectDescription')
+                    : t('payments.professional.completeDescription')
                   }
                 </p>
                 <button
@@ -488,7 +527,7 @@ function ProfessionalPaymentsView() {
                   onClick={handleSetupStripe}
                   className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  {!hasAccount ? 'Connect Stripe Account' : 'Complete Setup'}
+                  {!hasAccount ? t('payments.professional.connectButton') : t('payments.professional.completeButton')}
                 </button>
               </div>
             </div>
@@ -504,28 +543,28 @@ function ProfessionalPaymentsView() {
                 </div>
               </div>
               <div className="ml-4">
-                <h3 className="text-lg font-semibold text-gray-900">Account Active</h3>
-                <p className="text-gray-600 text-sm">Your account is ready to receive payments</p>
+                <h3 className="text-lg font-semibold text-gray-900">{t('payments.professional.accountActive')}</h3>
+                <p className="text-gray-600 text-sm">{t('payments.professional.accountActiveDescription')}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="border rounded-lg p-4">
-                <p className="text-sm text-gray-500">Status</p>
+                <p className="text-sm text-gray-500">{t('payments.professional.status')}</p>
                 <p className="text-lg font-semibold text-gray-900 mt-1 capitalize">
-                  {accountStatus?.accountStatus || 'Active'}
+                  {accountStatus?.accountStatus || t('payments.professional.active')}
                 </p>
               </div>
               <div className="border rounded-lg p-4">
-                <p className="text-sm text-gray-500">Charges</p>
+                <p className="text-sm text-gray-500">{t('payments.professional.charges')}</p>
                 <p className="text-lg font-semibold text-gray-900 mt-1">
-                  {accountStatus?.chargesEnabled ? 'Enabled' : 'Disabled'}
+                  {accountStatus?.chargesEnabled ? t('common.enabled') : t('common.disabled')}
                 </p>
               </div>
               <div className="border rounded-lg p-4">
-                <p className="text-sm text-gray-500">Payouts</p>
+                <p className="text-sm text-gray-500">{t('payments.professional.payouts')}</p>
                 <p className="text-lg font-semibold text-gray-900 mt-1">
-                  {accountStatus?.payoutsEnabled ? 'Enabled' : 'Disabled'}
+                  {accountStatus?.payoutsEnabled ? t('common.enabled') : t('common.disabled')}
                 </p>
               </div>
             </div>
@@ -538,37 +577,37 @@ function ProfessionalPaymentsView() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-gray-600 text-sm">Total Earnings</p>
+                <p className="text-gray-600 text-sm">{t('payments.professional.totalEarnings')}</p>
                 <svg className="h-5 w-5 text-green-500" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <p className="text-3xl font-bold text-gray-900">
-                {stats.currency} {stats.totalEarnings.toFixed(2)}
+                {formatMoney(stats.totalEarnings, stats.currency)}
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                From {stats.completedBookings} completed bookings
+                {t('payments.professional.fromCompletedBookings', { count: stats.completedBookings })}
               </p>
             </div>
 
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-gray-600 text-sm">Pending Earnings</p>
+                <p className="text-gray-600 text-sm">{t('payments.professional.pendingEarnings')}</p>
                 <svg className="h-5 w-5 text-yellow-500" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <p className="text-3xl font-bold text-gray-900">
-                {stats.currency} {stats.pendingEarnings.toFixed(2)}
+                {formatMoney(stats.pendingEarnings, stats.currency)}
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                From active bookings
+                {t('payments.professional.fromActiveBookings')}
               </p>
             </div>
 
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-gray-600 text-sm">Completed Jobs</p>
+                <p className="text-gray-600 text-sm">{t('payments.professional.completedJobs')}</p>
                 <svg className="h-5 w-5 text-blue-500" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -577,21 +616,21 @@ function ProfessionalPaymentsView() {
                 {stats.completedBookings}
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                All time
+                {t('payments.professional.allTime')}
               </p>
             </div>
           </div>
 
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('payments.professional.recentTransactions')}</h2>
 
             {recentTransactions.length === 0 ? (
               <div className="text-center py-8">
                 <svg className="mx-auto h-12 w-12 text-gray-400" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                <p className="mt-2 text-gray-600">No transactions yet</p>
-                <p className="text-sm text-gray-500">Transactions will appear here once you complete bookings</p>
+                <p className="mt-2 text-gray-600">{t('payments.professional.noTransactions')}</p>
+                <p className="text-sm text-gray-500">{t('payments.professional.noTransactionsDescription')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -599,16 +638,16 @@ function ProfessionalPaymentsView() {
                   <thead>
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
+                        {t('payments.table.date')}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Booking
+                        {t('payments.table.booking')}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                        {t('payments.table.status')}
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
+                        {t('payments.table.amount')}
                       </th>
                     </tr>
                   </thead>
@@ -616,7 +655,7 @@ function ProfessionalPaymentsView() {
                     {recentTransactions.map((transaction) => (
                       <tr key={transaction._id} className="hover:bg-gray-50">
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(transaction.date).toLocaleDateString()}
+                          {new Date(transaction.date).toLocaleDateString(intl)}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                           #{transaction.bookingNumber}
@@ -627,11 +666,11 @@ function ProfessionalPaymentsView() {
                             transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {transaction.status}
+                            {statusLabel(transaction.status)}
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                          {transaction.currency} {transaction.amount.toFixed(2)}
+                          {formatMoney(transaction.amount, transaction.currency)}
                         </td>
                       </tr>
                     ))}

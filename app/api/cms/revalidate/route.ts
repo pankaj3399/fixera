@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
 
   const flushCms = tags.length === 0 || Boolean(type) || slugs.length > 0;
   if (flushCms) {
+    // Tags are deliberately locale-agnostic: `lib/cms/public.ts` puts the locale
+    // in the fetch URL (cache key) and reuses these tags, so one admin save
+    // flushes the en/nl/fr variants together.
     revalidateTag("cms");
     if (type && CMS_TYPES.has(type)) {
       revalidateTag(`cms:${type}`);

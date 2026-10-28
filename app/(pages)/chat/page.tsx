@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Loader2, MessageSquare, Search, PanelRightOpen, PanelRightClose, ArrowLeft, Plus, X, AlertTriangle, FileText, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,10 +31,12 @@ import {
   addConversationLabel,
   removeConversationLabel,
   searchChatMessages,
+  isLocalFallbackError,
 } from "@/lib/chatApi";
 import type { ProfessionalOption } from "@/lib/chatApi";
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatFilter } from "@/types/chat";
 import { cn, getAuthToken } from "@/lib/utils";
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 
 const isAllowedRole = (role?: string) => role === "customer" || role === "professional";
 
@@ -54,9 +57,14 @@ export default function ChatPage() {
 }
 
 function ChatContent() {
+  const t = useTranslations("chat");
+  const { intl } = useFormatLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthenticated, loading } = useAuth();
+
+  const chatErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error && !isLocalFallbackError(error) ? error.message : fallback;
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -121,7 +129,7 @@ function ChatContent() {
     if (!selectedConversation || userRole !== "professional") return;
     if (loadingProjects) return;
     const customerId = selectedConversation.customerId?._id;
-    if (!customerId) { toast.error("Customer not found"); return; }
+    if (!customerId) { toast.error(t("toasts.customerNotFound")); return; }
 
     setCreatingSendQuotation(true);
     try {
@@ -146,11 +154,11 @@ function ChatContent() {
         setShowQuotationDialog(false);
         router.push(`/bookings/${data.data.bookingId}?action=quote`);
       } else {
-        toast.error(data?.error?.message || "Failed to create quotation");
+        toast.error(data?.error?.message || t("toasts.createQuotationFailed"));
       }
     } catch (err) {
       console.error("Error creating direct quotation:", err);
-      toast.error("Failed to create quotation");
+      toast.error(t("toasts.createQuotationFailed"));
     } finally {
       setCreatingSendQuotation(false);
     }
@@ -217,8 +225,8 @@ function ChatContent() {
   const isSupportConversation = selectedConversation?.type === "support";
   const isSupportClosed = isSupportConversation && selectedConversation?.status === "archived";
   const otherName = isSupportConversation
-    ? "Fixtract Support"
-    : otherParticipant?.username || otherParticipant?.name || "Conversation";
+    ? t("common.fixtractSupport")
+    : otherParticipant?.username || otherParticipant?.name || t("common.conversation");
 
   const loadConversationList = useCallback(
     async (showBusy: boolean) => {
@@ -241,12 +249,12 @@ function ChatContent() {
 
         setError(null);
       } catch (listError) {
-        setError(listError instanceof Error ? listError.message : "Failed to load conversations");
+        setError(chatErrorMessage(listError, t("toasts.loadConversationsFailed")));
       } finally {
         if (showBusy) setLoadingConversations(false);
       }
     },
-    [conversationIdFromQuery, isAuthenticated, userRole, chatFilter]
+    [conversationIdFromQuery, isAuthenticated, userRole, chatFilter, t]
   );
 
   const loadMessages = useCallback(async (conversationId: string, showBusy: boolean) => {
@@ -257,11 +265,11 @@ function ChatContent() {
       const data = await fetchConversationMessages(conversationId, { limit: 100 });
       setMessages(data.messages || []);
     } catch (messageError) {
-      toast.error(messageError instanceof Error ? messageError.message : "Failed to load messages");
+      toast.error(chatErrorMessage(messageError, t("toasts.loadMessagesFailed")));
     } finally {
       if (showBusy) setLoadingMessages(false);
     }
-  }, []);
+  }, [t]);
 
   const loadProfessionalOptions = useCallback(async () => {
     if (userRole !== "customer") return;
@@ -270,11 +278,11 @@ function ChatContent() {
       const data = await fetchProfessionals();
       setProfessionalOptions(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load professionals");
+      toast.error(chatErrorMessage(err, t("toasts.loadProfessionalsFailed")));
     } finally {
       setLoadingProfessionals(false);
     }
-  }, [userRole]);
+  }, [userRole, t]);
 
   const startNewChat = useCallback(
     async (professionalId: string) => {
@@ -285,12 +293,12 @@ function ChatContent() {
         setSelectedConversationId(conversation._id);
         setShowNewChat(false);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to start chat");
+        toast.error(chatErrorMessage(err, t("toasts.startChatFailed")));
       } finally {
         setCreatingConversation(false);
       }
     },
-    [loadConversationList]
+    [loadConversationList, t]
   );
 
   // Load absence info when conversation changes (with stale guard)
@@ -347,11 +355,11 @@ function ChatContent() {
         router.replace(`/chat?conversationId=${conversation._id}`);
         await loadConversationList(false);
       } catch (queryError) {
-        toast.error(queryError instanceof Error ? queryError.message : "Failed to start chat");
+        toast.error(chatErrorMessage(queryError, t("toasts.startChatFailed")));
       }
     };
     void createFromQuery();
-  }, [isAuthenticated, loadConversationList, professionalIdFromQuery, router, userRole]);
+  }, [isAuthenticated, loadConversationList, professionalIdFromQuery, router, userRole, t]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -392,7 +400,7 @@ function ChatContent() {
 
   const handleSend = async ({ text, files, replyTo }: { text: string; files: File[]; replyTo?: string }) => {
     if (!selectedConversationId) {
-      toast.error("Select a conversation first");
+      toast.error(t("toasts.selectConversationFirst"));
       return;
     }
 
@@ -431,9 +439,9 @@ function ChatContent() {
       await loadMessages(selectedConversationId, false);
       await loadConversationList(false);
     } catch (sendError) {
-      const message = sendError instanceof Error ? sendError.message : "Failed to send message";
+      const message = chatErrorMessage(sendError, t("toasts.sendMessageFailed"));
       toast.error(message);
-      throw sendError instanceof Error ? sendError : new Error(message);
+      throw sendError instanceof Error && !isLocalFallbackError(sendError) ? sendError : new Error(message);
     } finally {
       setSending(false);
     }
@@ -452,7 +460,7 @@ function ChatContent() {
       await toggleConversationStar(conversationId);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to toggle star");
+      toast.error(chatErrorMessage(err, t("toasts.toggleStarFailed")));
     }
   };
 
@@ -461,7 +469,7 @@ function ChatContent() {
       await toggleConversationArchive(conversationId);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to toggle archive");
+      toast.error(chatErrorMessage(err, t("toasts.toggleArchiveFailed")));
     }
   };
 
@@ -470,7 +478,7 @@ function ChatContent() {
       await addConversationLabel(conversationId, label);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add label");
+      toast.error(chatErrorMessage(err, t("toasts.addLabelFailed")));
     }
   };
 
@@ -479,7 +487,7 @@ function ChatContent() {
       await removeConversationLabel(conversationId, label);
       await loadConversationList(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove label");
+      toast.error(chatErrorMessage(err, t("toasts.removeLabelFailed")));
     }
   };
 
@@ -495,7 +503,7 @@ function ChatContent() {
       setChatSearchResults(data.results);
       setChatSearchIndex(0);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Search failed");
+      toast.error(chatErrorMessage(err, t("toasts.searchFailed")));
     } finally {
       setSearchingChat(false);
     }
@@ -546,8 +554,8 @@ function ChatContent() {
       <div className="h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <MessageSquare className="h-12 w-12 text-gray-300 mx-auto" />
-          <h2 className="mt-4 text-lg font-semibold text-gray-700">Chat Unavailable</h2>
-          <p className="mt-1 text-sm text-gray-500">Chat is available for customers and professionals only.</p>
+          <h2 className="mt-4 text-lg font-semibold text-gray-700">{t("page.unavailableTitle")}</h2>
+          <p className="mt-1 text-sm text-gray-500">{t("page.unavailableBody")}</p>
         </div>
       </div>
     );
@@ -566,7 +574,7 @@ function ChatContent() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-indigo-600" />
-              <h1 className="text-lg font-semibold text-gray-900">Messages</h1>
+              <h1 className="text-lg font-semibold text-gray-900">{t("page.title")}</h1>
             </div>
             {userRole === "customer" && (
               <Button
@@ -574,7 +582,7 @@ function ChatContent() {
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setShowNewChat((prev) => !prev)}
-                aria-label="New chat"
+                aria-label={t("page.newChat")}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -585,7 +593,7 @@ function ChatContent() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search conversations..."
+                placeholder={t("page.searchConversations")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -602,7 +610,7 @@ function ChatContent() {
           <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
             <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
               <p className="text-xs text-indigo-700">
-                Pick a professional below to start a conversation.
+                {t("page.pickProfessional")}
               </p>
             </div>
 
@@ -619,7 +627,7 @@ function ChatContent() {
 
             {!loadingProfessionals && professionalOptions.length === 0 && (
               <div className="py-6 text-sm text-gray-500 text-center">
-                No professionals available right now.
+                {t("page.noProfessionals")}
               </div>
             )}
 
@@ -627,7 +635,7 @@ function ChatContent() {
               <div className="space-y-2">
                 {professionalOptions.map((professional) => {
                   const displayName =
-                    professional.username || professional.name || "Professional";
+                    professional.username || professional.name || t("common.professional");
                   const location = [professional.businessInfo?.city, professional.businessInfo?.country]
                     .filter(Boolean)
                     .join(", ");
@@ -647,7 +655,7 @@ function ChatContent() {
                         disabled={creatingConversation}
                         onClick={() => void startNewChat(professional._id)}
                       >
-                        Chat
+                        {t("common.chat")}
                       </Button>
                     </div>
                   );
@@ -689,14 +697,11 @@ function ChatContent() {
               <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                 <p className="text-xs text-amber-700">
-                  Professional is absent from{" "}
-                  <span className="font-medium">
-                    {new Date(absence.from).toLocaleDateString()}
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-medium">
-                    {new Date(absence.to).toLocaleDateString()}
-                  </span>
+                  {t.rich("page.absence", {
+                    from: new Date(absence.from).toLocaleDateString(intl),
+                    to: new Date(absence.to).toLocaleDateString(intl),
+                    date: (chunks) => <span className="font-medium">{chunks}</span>,
+                  })}
                 </p>
               </div>
             )}
@@ -708,7 +713,7 @@ function ChatContent() {
                   type="button"
                   className="md:hidden p-1 rounded hover:bg-gray-100"
                   onClick={handleBackToList}
-                  aria-label="Back to conversations"
+                  aria-label={t("page.backToConversations")}
                 >
                   <ArrowLeft className="h-5 w-5 text-gray-600" />
                 </button>
@@ -732,7 +737,7 @@ function ChatContent() {
                     {otherName}
                     {isSupportConversation && (
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
-                        Official
+                        {t("common.official")}
                       </span>
                     )}
                   </p>
@@ -747,8 +752,8 @@ function ChatContent() {
                     className="h-8 w-8 text-gray-500 hover:text-indigo-600"
                     onClick={openQuotationDialog}
                     disabled={creatingSendQuotation}
-                    aria-label="Send quotation"
-                    title="Send Quotation"
+                    aria-label={t("page.sendQuotation")}
+                    title={t("page.sendQuotationTitle")}
                   >
                     {creatingSendQuotation ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                   </Button>
@@ -765,7 +770,7 @@ function ChatContent() {
                       setChatSearchResults([]);
                     }
                   }}
-                  aria-label="Search in chat"
+                  aria-label={t("page.searchInChat")}
                 >
                   <Search className="h-4 w-4" />
                 </Button>
@@ -774,7 +779,7 @@ function ChatContent() {
                   size="icon"
                   className="h-8 w-8 text-gray-500 hover:text-indigo-600"
                   onClick={() => setShowInfoPanel((prev) => !prev)}
-                  aria-label={showInfoPanel ? "Hide info panel" : "Show info panel"}
+                  aria-label={showInfoPanel ? t("page.hideInfoPanel") : t("page.showInfoPanel")}
                 >
                   {showInfoPanel ? <PanelRightClose className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
                 </Button>
@@ -787,7 +792,7 @@ function ChatContent() {
                 <Search className="h-4 w-4 text-gray-400 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Search messages..."
+                  placeholder={t("page.searchMessages")}
                   value={chatSearchQuery}
                   onChange={(e) => setChatSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -799,7 +804,7 @@ function ChatContent() {
                 {chatSearchResults.length > 0 && (
                   <div className="flex items-center gap-1.5 text-xs text-gray-500">
                     <span>
-                      {chatSearchIndex + 1}/{chatSearchResults.length}
+                      {t("page.searchPosition", { current: chatSearchIndex + 1, total: chatSearchResults.length })}
                     </span>
                     <button
                       type="button"
@@ -859,7 +864,7 @@ function ChatContent() {
                     }}
                   >
                     <span className="text-gray-400 mr-1">
-                      {new Date(result.createdAt).toLocaleDateString()}
+                      {new Date(result.createdAt).toLocaleDateString(intl)}
                     </span>
                     {result.text?.slice(0, 80)}
                   </button>
@@ -884,7 +889,7 @@ function ChatContent() {
             {/* Composer */}
             {isSupportClosed ? (
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
-                🔒 This support chat has been closed by Fixtract. You can no longer reply.
+                {t("page.supportClosed")}
               </div>
             ) : (
               <ChatComposer
@@ -899,7 +904,7 @@ function ChatContent() {
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-400">
             <MessageSquare className="h-16 w-16 mb-4" />
-            <p className="text-sm">Select a conversation to view messages</p>
+            <p className="text-sm">{t("page.selectConversation")}</p>
           </div>
         )}
       </div>
@@ -918,29 +923,29 @@ function ChatContent() {
       <Dialog open={showQuotationDialog} onOpenChange={setShowQuotationDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Direct Quotation</DialogTitle>
+            <DialogTitle>{t("quotationDialog.title")}</DialogTitle>
             <DialogDescription>
-              Choose whether this quotation should be linked to one of your published projects.
+              {t("quotationDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-900">Linked project</p>
+              <p className="text-sm font-medium text-gray-900">{t("quotationDialog.linkedProject")}</p>
               {loadingProjects ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading projects...
+                  {t("quotationDialog.loadingProjects")}
                 </div>
               ) : (
                 <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose a project" />
+                    <SelectValue placeholder={t("quotationDialog.chooseProject")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No linked project</SelectItem>
+                    <SelectItem value="none">{t("quotationDialog.noLinkedProject")}</SelectItem>
                     {activeProjects.map(project => (
                       <SelectItem key={project._id} value={project._id}>
-                        {project.title || "Untitled project"}
+                        {project.title || t("common.untitledProject")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -949,7 +954,7 @@ function ChatContent() {
             </div>
             <Button onClick={handleSendQuotation} disabled={creatingSendQuotation || loadingProjects} className="w-full">
               {creatingSendQuotation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-              Create quotation draft
+              {t("quotationDialog.createDraft")}
             </Button>
           </div>
         </DialogContent>

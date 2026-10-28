@@ -9,17 +9,33 @@ import {
   adminListLandingSlots,
   adminSyncLandingSlots,
   CmsContent,
+  CmsContentLocale,
   CmsContentStatus,
   CmsContentType,
   CmsLandingSlot,
+  CMS_CONTENT_LOCALE_LABELS,
+  CMS_CONTENT_LOCALES,
   CMS_TYPE_LABELS,
   CMS_TYPE_ORDER,
   CMS_RESERVED_POLICIES,
   getPublicPathForCms,
   getLandingServicePath,
+  normalizeCmsContentLocale,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, Plus, Search, Share2, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Globe2,
+  Loader2,
+  Plus,
+  Search,
+  Share2,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_FILTERS: Array<{ value: CmsContentStatus | "all"; label: string }> = [
@@ -28,19 +44,28 @@ const STATUS_FILTERS: Array<{ value: CmsContentStatus | "all"; label: string }> 
   { value: "draft", label: "Draft" },
 ];
 
+const LOCALE_FILTERS: Array<{ value: CmsContentLocale | "all"; label: string }> = [
+  { value: "all", label: "All languages" },
+  ...CMS_CONTENT_LOCALES.map((code) => ({
+    value: code,
+    label: `${CMS_CONTENT_LOCALE_LABELS[code]} (${code})`,
+  })),
+];
+
 export default function CmsAdminListPage() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   const [activeType, setActiveType] = useState<CmsContentType>("blog");
   const [status, setStatus] = useState<CmsContentStatus | "all">("all");
+  const [localeFilter, setLocaleFilter] = useState<CmsContentLocale | "all">("all");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [items, setItems] = useState<CmsContent[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [counts, setCounts] = useState<Record<CmsContentType, number>>({
+  const [counts, setCounts] = useState<Record<CmsContentType, number | null>>({
     blog: 0,
     news: 0,
     faq: 0,
@@ -77,6 +102,7 @@ export default function CmsAdminListPage() {
       type: activeType,
       status: status === "all" ? undefined : status,
       search: debounced || undefined,
+      locale: localeFilter === "all" ? undefined : localeFilter,
       limit: 100,
     })
       .then((res) => {
@@ -96,39 +122,53 @@ export default function CmsAdminListPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeType, status, debounced, isAuthenticated, user, refreshKey]);
+  }, [activeType, status, localeFilter, debounced, isAuthenticated, user, refreshKey]);
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
+    let cancelled = false;
     Promise.all(
       CMS_TYPE_ORDER.map((t) =>
-        adminListCms({ type: t, limit: 1 })
+        adminListCms({
+          type: t,
+          locale: localeFilter === "all" ? undefined : localeFilter,
+          limit: 1,
+        })
           .then((r) => [t, r.pagination.total, null] as const)
           .catch((err: unknown) => [t, null, err instanceof Error ? err.message : "Failed"] as const)
       )
     ).then((entries) => {
+      if (cancelled) return;
       setCounts((prev) => {
         const next = { ...prev };
         for (const [t, c] of entries) {
-          if (c !== null) next[t] = c;
+          // A failed request clears that type's count instead of keeping a
+          // stale count from the previously selected language.
+          next[t] = c;
         }
         return next;
       });
       const firstErr = entries.find(([, c]) => c === null);
       if (firstErr) toast.error(`Failed to refresh counts: ${firstErr[2] ?? "unknown error"}`);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user, localeFilter]);
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
     let cancelled = false;
     setReservedSlotsLoading(true);
     setReservedSlotsError(null);
-    adminListCms({ type: "policy", limit: 100 })
+    adminListCms({ type: "policy", locale: "en", limit: 100 })
       .then((res) => {
         if (cancelled) return;
-        const bySlug = new Map(res.items.map((i) => [i.slug, i]));
+        // Slots are defined on the English source docs only; never match an
+        // arbitrary translation that happens to share the slug.
+        const bySlug = new Map(
+          res.items.filter((item) => item.locale === "en").map((i) => [i.slug, i])
+        );
         setReservedSlots(
           CMS_RESERVED_POLICIES.map((r) => ({
             slug: r.slug,
@@ -362,7 +402,7 @@ export default function CmsAdminListPage() {
                   activeType === t ? "bg-white/30" : "bg-rose-100 text-rose-600"
                 )}
               >
-                {counts[t] ?? 0}
+                {counts[t] ?? "—"}
               </span>
             </button>
           ))}
@@ -400,6 +440,27 @@ export default function CmsAdminListPage() {
                 {s.label}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border border-pink-200 bg-white/70 px-3 py-2">
+            <Globe2 size={14} className="text-rose-400" />
+            <select
+              value={localeFilter}
+              onChange={(e) =>
+                setLocaleFilter(
+                  e.target.value === "all"
+                    ? "all"
+                    : normalizeCmsContentLocale(e.target.value)
+                )
+              }
+              aria-label="Filter by language"
+              className="bg-transparent text-xs font-medium text-rose-700 outline-none focus-visible:ring-2 focus-visible:ring-rose-400 rounded"
+            >
+              {LOCALE_FILTERS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -459,6 +520,7 @@ function ContentRow({ item }: { item: CmsContent }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-sm font-semibold text-rose-900 group-hover:text-rose-700">{item.title}</h3>
+            <LocalePill locale={item.locale} />
             <StatusPill status={item.status} />
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-rose-500">
@@ -502,6 +564,18 @@ function StatusPill({ status }: { status: CmsContentStatus }) {
       )}
     >
       {status}
+    </span>
+  );
+}
+
+function LocalePill({ locale }: { locale: string }) {
+  const normalized = normalizeCmsContentLocale(locale);
+  return (
+    <span
+      title={CMS_CONTENT_LOCALE_LABELS[normalized]}
+      className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-500"
+    >
+      {normalized}
     </span>
   );
 }

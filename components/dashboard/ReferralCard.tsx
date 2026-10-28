@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,8 @@ import {
 import { toast } from 'sonner';
 import { getAuthToken } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 
 interface ReferralData {
   referralCode?: string;
@@ -48,8 +51,20 @@ interface ReferralCardProps {
   referralData?: ReferralData | null
 }
 
+const REFERRAL_STATUS_KEYS = {
+  pending: 'referralCard.status.pending',
+  completed: 'referralCard.status.completed',
+  expired: 'referralCard.status.expired',
+  cancelled: 'referralCard.status.cancelled',
+} as const
+
+type ReferralStatusValue = keyof typeof REFERRAL_STATUS_KEYS
+
 export default function ReferralCard({ referralData: referralDataProp }: ReferralCardProps) {
   const { user } = useAuth();
+  const t = useTranslations('dashboardWidgets');
+  const { formatMoney } = useCurrency();
+  const { intl } = useFormatLocale();
   const hasExternalData = referralDataProp !== undefined
   const [data, setData] = useState<ReferralData | null>(referralDataProp ?? null);
   const [loading, setLoading] = useState(!hasExternalData);
@@ -57,6 +72,11 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
   const isProfessional = user?.role === 'professional';
+
+  const referralStatusLabel = (status: string) => {
+    const key = REFERRAL_STATUS_KEYS[status as ReferralStatusValue];
+    return key ? t(key) : status;
+  };
 
   useEffect(() => {
     if (!hasExternalData) return
@@ -103,13 +123,13 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
       );
       const json = await res.json();
       if (json.success) {
-        toast.success('Referral code generated!');
+        toast.success(t('referralCard.codeGenerated'));
         fetchReferralStats();
       } else {
-        toast.error(json.msg || 'Failed to generate code');
+        toast.error(json.msg || t('referralCard.generateFailed'));
       }
     } catch {
-      toast.error('Failed to generate referral code');
+      toast.error(t('referralCard.generateFailedRetry'));
     } finally {
       setGenerating(false);
     }
@@ -125,7 +145,7 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
     const link = `${window.location.origin}/join?ref=${encodeURIComponent(data.referralCode)}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
-    toast.success('Referral link copied!');
+    toast.success(t('referralCard.linkCopied'));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -133,7 +153,7 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
     if (!data?.referralCode) return;
     navigator.clipboard.writeText(data.referralCode);
     setCopied(true);
-    toast.success('Referral code copied!');
+    toast.success(t('referralCard.codeCopied'));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -141,12 +161,12 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
     if (!data?.referralCode) return;
     const link = `${window.location.origin}/join?ref=${encodeURIComponent(data.referralCode)}`;
     const text = isProfessional
-      ? 'Join Fixtract as a professional and start earning points while building trust faster. Use my referral link:'
-      : 'Join Fixtract and get a discount on your first booking! Use my referral link:';
+      ? t('referralCard.shareProfessional')
+      : t('referralCard.shareCustomer');
 
     const urls: Record<string, string> = {
       whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${link}`)}`,
-      email: `mailto:?subject=${encodeURIComponent('Join Fixtract!')}&body=${encodeURIComponent(`${text}\n\n${link}`)}`,
+      email: `mailto:?subject=${encodeURIComponent(t('referralCard.emailSubject'))}&body=${encodeURIComponent(`${text}\n\n${link}`)}`,
     };
 
     if (urls[platform]) {
@@ -174,33 +194,33 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Gift className="h-5 w-5 text-purple-600" />
-            Referral Program
+            {t('referralCard.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {fetchError && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-              <p className="text-sm text-amber-800">Couldn&apos;t load your referral stats.</p>
+              <p className="text-sm text-amber-800">{t('referralCard.loadFailed')}</p>
               <Button variant="outline" size="sm" className="mt-2" onClick={fetchReferralStats}>
-                Retry
+                {t('common.retry')}
               </Button>
             </div>
           )}
           <p className="text-sm text-gray-600 mb-4">
             {isProfessional
-              ? 'Refer professionals to Fixtract and earn points that help you level up faster.'
-              : 'Refer customers to Fixtract and earn reward value in points for future bookings when they complete their first booking.'}
+              ? t('referralCard.introProfessional')
+              : t('referralCard.introCustomer')}
           </p>
           <Button onClick={generateCode} disabled={generating} className="bg-purple-600 hover:bg-purple-700">
             {generating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
+                {t('referralCard.generating')}
               </>
             ) : (
               <>
                 <Gift className="mr-2 h-4 w-4" />
-                Get My Referral Code
+                {t('referralCard.getCode')}
               </>
             )}
           </Button>
@@ -214,48 +234,48 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Gift className="h-5 w-5 text-purple-600" />
-          Referral Program
+          {t('referralCard.title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {fetchError && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm text-amber-800">Couldn&apos;t refresh your latest referral stats.</p>
+            <p className="text-sm text-amber-800">{t('referralCard.refreshFailed')}</p>
             <Button variant="outline" size="sm" className="mt-2" onClick={fetchReferralStats}>
-              Retry
+              {t('common.retry')}
             </Button>
           </div>
         )}
         <p className="text-sm text-gray-600">
           {isProfessional
-            ? 'Share your code and earn level boost points when your referrals complete their first booking. Points help you reach the next professional level faster.'
-            : 'Share your code and earn booking credit when your referrals complete their first booking. Use your credit as a discount on future bookings.'}
+            ? t('referralCard.descriptionProfessional')
+            : t('referralCard.descriptionCustomer')}
         </p>
         {/* Referral Code Display */}
         <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
-          <p className="text-xs text-gray-500 mb-1">Your Referral Code</p>
+          <p className="text-xs text-gray-500 mb-1">{t('referralCard.yourCode')}</p>
           <div className="flex items-center gap-2">
             <Input
               readOnly
               value={data.referralCode}
               className="font-mono font-bold text-lg bg-white"
             />
-            <Button variant="outline" size="icon" onClick={copyCode} title="Copy code">
+            <Button variant="outline" size="icon" onClick={copyCode} title={t('referralCard.copyCode')}>
               {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
           <div className="flex gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={copyLink} className="flex-1">
               <ExternalLink className="mr-1 h-3 w-3" />
-              Copy Link
+              {t('referralCard.copyLink')}
             </Button>
             <Button variant="outline" size="sm" onClick={() => shareVia('whatsapp')} className="flex-1">
               <Share2 className="mr-1 h-3 w-3" />
-              WhatsApp
+              {t('referralCard.whatsapp')}
             </Button>
             <Button variant="outline" size="sm" onClick={() => shareVia('email')} className="flex-1">
               <Share2 className="mr-1 h-3 w-3" />
-              Email
+              {t('referralCard.email')}
             </Button>
           </div>
         </div>
@@ -265,17 +285,17 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <Users className="h-4 w-4 mx-auto text-blue-600 mb-1" />
             <p className="text-xl font-bold">{data.totalReferrals}</p>
-            <p className="text-xs text-gray-500">Total Referrals</p>
+            <p className="text-xs text-gray-500">{t('referralCard.totalReferrals')}</p>
           </div>
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <Clock className="h-4 w-4 mx-auto text-amber-600 mb-1" />
             <p className="text-xl font-bold">{data.pendingReferrals}</p>
-            <p className="text-xs text-gray-500">Pending</p>
+            <p className="text-xs text-gray-500">{t('referralCard.pending')}</p>
           </div>
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <CheckCircle2 className="h-4 w-4 mx-auto text-green-600 mb-1" />
             <p className="text-xl font-bold">{data.completedReferrals}</p>
-            <p className="text-xs text-gray-500">Completed</p>
+            <p className="text-xs text-gray-500">{t('referralCard.completed')}</p>
           </div>
         </div>
 
@@ -284,13 +304,20 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm font-medium text-green-800">
               {isProfessional
-                ? <>Level Boost Points: <span className="text-lg font-bold">{data.points ?? 0} pts</span></>
-                : <>Available Credit: <span className="text-lg font-bold">{data.points ?? 0} pts (&euro;{data.points ?? 0})</span></>
+                ? t.rich('referralCard.levelBoostPoints', {
+                    points: data.points ?? 0,
+                    strong: (chunks) => <span className="text-lg font-bold">{chunks}</span>,
+                  })
+                : t.rich('referralCard.availableCredit', {
+                    points: data.points ?? 0,
+                    amount: formatMoney(data.points ?? 0),
+                    strong: (chunks) => <span className="text-lg font-bold">{chunks}</span>,
+                  })
               }
             </p>
             {data.pointsExpiry && (
               <p className="text-xs text-green-600 mt-1">
-                Expires: {new Date(data.pointsExpiry).toLocaleDateString()}
+                {t('referralCard.expires', { date: new Date(data.pointsExpiry).toLocaleDateString(intl) })}
               </p>
             )}
           </div>
@@ -298,13 +325,16 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
 
         {/* Reward info */}
         <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
-          <p className="font-medium text-gray-700 mb-1">How it works:</p>
+          <p className="font-medium text-gray-700 mb-1">{t('referralCard.howItWorks')}</p>
           <ul className="space-y-1">
-            <li>1. Share your referral code or link</li>
-            <li>2. Someone signs up using your code and completes their first booking</li>
-            <li>3. {isProfessional
-              ? `You earn ${data.referrerRewardAmount ?? 0} level boost points toward your next professional level!`
-              : `You earn ${data.referrerRewardAmount ?? 0} points (\u20AC${data.referrerRewardAmount ?? 0} booking credit)!`
+            <li>{t('referralCard.step1')}</li>
+            <li>{t('referralCard.step2')}</li>
+            <li>{isProfessional
+              ? t('referralCard.step3Professional', { points: data.referrerRewardAmount ?? 0 })
+              : t('referralCard.step3Customer', {
+                  points: data.referrerRewardAmount ?? 0,
+                  amount: formatMoney(data.referrerRewardAmount ?? 0),
+                })
             }</li>
           </ul>
         </div>
@@ -312,20 +342,20 @@ export default function ReferralCard({ referralData: referralDataProp }: Referra
         {/* Recent Referrals */}
         {(data.referrals?.length ?? 0) > 0 && (
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Recent Referrals</p>
+            <p className="text-sm font-medium text-gray-700 mb-2">{t('referralCard.recentReferrals')}</p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {data.referrals?.slice(0, 5).map((ref) => (
                 <div key={ref._id} className="flex items-center justify-between text-sm p-2 bg-gray-50 rounded">
                   <div>
-                    <p className="font-medium">{(ref.referredUser as { name?: string } | null)?.name || 'User'}</p>
-                    <p className="text-xs text-gray-500">{new Date(ref.createdAt).toLocaleDateString()}</p>
+                    <p className="font-medium">{(ref.referredUser as { name?: string } | null)?.name || t('referralCard.userFallback')}</p>
+                    <p className="text-xs text-gray-500">{new Date(ref.createdAt).toLocaleDateString(intl)}</p>
                   </div>
                   <Badge variant={
                     ref.status === 'completed' ? 'default' :
                     ref.status === 'pending' ? 'secondary' :
                     'destructive'
                   }>
-                    {ref.status}
+                    {referralStatusLabel(ref.status)}
                   </Badge>
                 </div>
               ))}
