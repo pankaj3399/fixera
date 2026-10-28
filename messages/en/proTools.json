@@ -1,0 +1,173 @@
+{
+  "teamManagement": {
+    "title": "Employee Management",
+    "description": "Invite and manage your employees",
+    "inviteEmployee": "Invite Employee",
+    "cancel": "Cancel",
+    "invalidDate": "Invalid Date",
+    "inviteDialog": {
+      "description": "Add a new employee to your company",
+      "nameLabel": "Name *",
+      "namePlaceholder": "Enter team member's name",
+      "hasEmail": "Employee has email address",
+      "emailLabel": "Email Address *",
+      "emailPlaceholder": "Enter team member's email",
+      "credentialsNote": "Credentials will be sent to this email",
+      "companyManaged": "Company-managed employee",
+      "companyManagedNote": "You will manage this employee's availability directly",
+      "sendInvitation": "Send Invitation",
+      "addEmployee": "Add Employee"
+    },
+    "empty": {
+      "title": "No Employees Yet",
+      "description": "Start by inviting your first employee"
+    },
+    "employeeCount": "{count, plural, one {# employee} other {# employees}}",
+    "table": {
+      "name": "Name",
+      "contact": "Contact",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "managedByCompany": "Company managed",
+    "selfManaged": "Self-managed",
+    "noEmail": "No Email",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "actions": {
+      "manageAvailability": "Manage Availability",
+      "changeEmail": "Change Email",
+      "linkEmail": "Link Email",
+      "deactivate": "Deactivate",
+      "reactivate": "Reactivate",
+      "resetPassword": "Reset Password",
+      "remove": "Remove"
+    },
+    "pagination": {
+      "showing": "Showing {from} to {to} of {total}",
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {page} of {totalPages}"
+    },
+    "passwordDialog": {
+      "title": "Reset Employee Password",
+      "description": "Set a new password for this employee",
+      "newPassword": "New Password",
+      "placeholder": "Enter new password (min 6 characters)",
+      "hint": "Password must be at least 6 characters long",
+      "submit": "Reset Password"
+    },
+    "emailDialog": {
+      "changeTitle": "Change Employee Email",
+      "linkTitle": "Link Employee Email",
+      "updateDescription": "Update the email for {name}.",
+      "linkDescription": "Link an email address for {name}.",
+      "label": "Email Address",
+      "placeholder": "name@company.com",
+      "note": "After linking an email, you can reset the employee's password from the actions menu.",
+      "submit": "Save Email"
+    },
+    "deactivateDialog": {
+      "title": "Deactivate Employee",
+      "confirm": "Are you sure you want to deactivate <strong>{name}</strong>?",
+      "warningTitle": "This will deactivate the employee",
+      "warningBody": "The employee will no longer be able to access the system or be scheduled for appointments. You can reactivate them at any time.",
+      "submit": "Deactivate Employee"
+    },
+    "removeDialog": {
+      "title": "Remove Employee",
+      "confirm": "Are you sure you want to remove <strong>{name}</strong>?",
+      "warningTitle": "This will permanently remove the employee",
+      "warningBody": "The employee will be deleted from your company and cannot be restored.",
+      "submit": "Remove Employee"
+    },
+    "availabilityDialog": {
+      "title": "Manage Availability - {name}",
+      "description": "Set blocked periods for this employee. Working hours follow the company schedule and are read-only.",
+      "addBlockedPeriod": "Add Blocked Period",
+      "start": "Start",
+      "end": "End",
+      "reasonOptional": "Reason (optional)",
+      "reasonPlaceholder": "Vacation, appointment, etc.",
+      "addBlock": "Add Block",
+      "workingHoursNote": "Working hours follow the company schedule and are read-only.",
+      "saveAvailability": "Save Availability"
+    },
+    "editBlockDialog": {
+      "title": "Edit Blocked Period",
+      "description": "Adjust the time range or remove the block.",
+      "start": "Start",
+      "end": "End",
+      "reasonOptional": "Reason (optional)",
+      "reasonPlaceholder": "Vacation, appointment, etc.",
+      "removeBlock": "Remove Block",
+      "saveChanges": "Save Changes"
+    },
+    "toast": {
+      "loadFailed": "Failed to load employees",
+      "invitationSent": "Employee invitation sent successfully!",
+      "employeeAdded": "Employee added successfully!",
+      "inviteFailed": "Failed to invite employee",
+      "activated": "Employee activated successfully",
+      "deactivated": "Employee deactivated successfully",
+      "statusFailed": "Failed to update employee status",
+      "passwordReset": "Password reset successfully",
+      "passwordResetFailed": "Failed to reset password",
+      "emailRequired": "Email is required",
+      "emailUpdated": "Employee email updated successfully",
+      "emailUpdateFailed": "Failed to update employee email",
+      "employeeRemoved": "Employee removed successfully",
+      "removeFailed": "Failed to remove employee",
+      "availabilityUpdated": "Employee availability updated successfully",
+      "availabilityUpdateFailed": "Failed to update availability"
+    },
+    "validation": {
+      "selectStartEnd": "Please select both start and end times",
+      "startBeforeEnd": "Start time must be before end time",
+      "selectStartEndValues": "Select start and end values",
+      "validStartEnd": "Please provide valid start and end times"
+    }
+  },
+  "employeeAvailability": {
+    "title": "Availability Management",
+    "employeesOnly": "This feature is only available for employees",
+    "yourAvailability": "Your Availability",
+    "description": "You follow the company schedule. Use blocked periods for time you are unavailable.",
+    "addBlockedPeriod": "Add Blocked Period",
+    "addBlockedPeriodHint": "Choose the exact start and end time for the blocked period.",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "reasonOptionalTitleCase": "Reason (Optional)",
+    "reasonPlaceholder": "Vacation, appointment, etc.",
+    "blockPeriod": "Block Period",
+    "companyWorkingHours": "Company Working Hours",
+    "companyWorkingHoursDescription": "Read-only. Working hours follow the company schedule.",
+    "notAvailable": "Not available",
+    "noCompanySchedule": "No company schedule set.",
+    "cancel": "Cancel",
+    "editBlockDialog": {
+      "title": "Edit Blocked Period",
+      "description": "Adjust the time range or remove the block.",
+      "start": "Start",
+      "end": "End",
+      "reasonOptional": "Reason (optional)",
+      "reasonPlaceholder": "Vacation, appointment, etc.",
+      "removeBlock": "Remove Block",
+      "saveChanges": "Save Changes"
+    },
+    "toast": {
+      "loadFailed": "Failed to load availability",
+      "updateFailed": "Failed to update blocked periods",
+      "invalidStartEnd": "Please provide valid start and end times",
+      "noPastBlock": "Cannot block time in the past",
+      "startBeforeEnd": "Start must be before end time",
+      "selectStartEndValues": "Select start and end values",
+      "blockedPeriodSaved": "Blocked period saved",
+      "blockedPeriodRemoved": "Blocked period removed",
+      "blockedPeriodUpdated": "Blocked period updated",
+      "endInPast": "End time cannot be in the past"
+    }
+  }
+}

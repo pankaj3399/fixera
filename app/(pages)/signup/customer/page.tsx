@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,7 +39,6 @@ import {
   validateVATWithAPI,
   formatVATNumber,
   isEUVatNumber,
-  getVATCountryName,
 } from '@/lib/vatValidation';
 import AddressAutocomplete, {
   PlaceData,
@@ -94,7 +95,38 @@ export default function CustomerSignupPage() {
   );
 }
 
+const VAT_ERROR_KEYS = {
+  required: 'vatFormat.required',
+  tooShort: 'vatFormat.tooShort',
+  tooLong: 'vatFormat.tooLong',
+  countryPrefix: 'vatFormat.countryPrefix',
+  invalidCharacters: 'vatFormat.invalidCharacters',
+  invalidCountry: 'vatFormat.invalidCountry',
+  validationFailed: 'vatFormat.validationFailed',
+  network: 'vatFormat.network',
+} as const;
+
 function CustomerSignupForm() {
+  const t = useTranslations('auth');
+  const { intl } = useFormatLocale();
+  const regionNames = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([intl], { type: 'region' });
+    } catch {
+      return null;
+    }
+  }, [intl]);
+  const vatCountryName = (vatNumber: string) => {
+    const code = vatNumber.slice(0, 2).toUpperCase();
+    if (code.length !== 2) return '';
+    return regionNames?.of(code) ?? code;
+  };
+  const vatErrorMessage = (result: { errorCode?: string; error?: string; countryCode?: string }) => {
+    const key = result.errorCode
+      ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
+      : undefined;
+    return key ? t(key, { country: result.countryCode ?? '' }) : result.error;
+  };
   const [currentStep, setCurrentStep] = useState<'form' | 'verification'>(
     'form'
   );
@@ -347,7 +379,7 @@ function CustomerSignupForm() {
     if (!formatValidation.valid) {
       setVatValidation({
         valid: false,
-        error: formatValidation.error,
+        error: vatErrorMessage(formatValidation),
       });
       return;
     }
@@ -356,7 +388,7 @@ function CustomerSignupForm() {
     if (!isEUVatNumber(formatted)) {
       setVatValidation({
         valid: false,
-        error: 'Only EU VAT numbers can be validated with VIES',
+        error: t('customerSignup.vatOnlyEu'),
       });
       return;
     }
@@ -367,14 +399,18 @@ function CustomerSignupForm() {
       setVatValidation({
         valid: result.valid,
         transient: result.transient === true,
-        error: result.error,
+        error: vatErrorMessage(result),
         companyName: result.companyName,
         companyAddress: result.companyAddress,
         parsedAddress: result.parsedAddress,
       });
 
       if (result.valid) {
-        toast.success(`VAT validated: ${result.companyName || 'Valid'}`);
+        toast.success(
+          t('customerSignup.vatValidatedToast', {
+            company: result.companyName || t('customerSignup.vatValidFallback'),
+          })
+        );
       } else {
         // Don't show error toast - just update the state
         // VAT validation is optional, so errors shouldn't block the user
@@ -383,8 +419,7 @@ function CustomerSignupForm() {
       logError(error, 'VAT validation error', { component: 'CustomerSignup', action: 'validateVat' });
       setVatValidation({
         valid: false,
-        error:
-          'Failed to validate VAT number. You can still continue without validation.',
+        error: t('customerSignup.vatFailedOptional'),
       });
       // Don't show error toast - VAT is optional
     } finally {
@@ -436,12 +471,12 @@ function CustomerSignupForm() {
   > => {
     // Basic validations
     if (!formData.name.trim()) {
-      toast.error('Please enter your full name');
+      toast.error(t('validation.fullNameRequired'));
       return false;
     }
 
     if (!formData.email.trim() || !/\S+@\S+\.\S+/.test(formData.email)) {
-      toast.error('Please enter a valid email address');
+      toast.error(t('validation.emailInvalid'));
       return false;
     }
 
@@ -449,61 +484,59 @@ function CustomerSignupForm() {
       !formData.phone.trim() ||
       !isValidPhoneNumber(formData.countryCode + formData.phone)
     ) {
-      toast.error('Please enter a valid phone number');
+      toast.error(t('validation.phoneInvalid'));
       return false;
     }
 
     if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
+      toast.error(t('validation.passwordTooShort'));
       return false;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error(t('validation.passwordsDoNotMatch'));
       return false;
     }
 
     // Location validations
     if (!formData.address.trim()) {
-      toast.error('Please enter your address');
+      toast.error(t('validation.addressRequired'));
       return false;
     }
 
     if (!isAddressValid) {
-      toast.error(
-        'Please select a valid address from the suggestions or wait for validation'
-      );
+      toast.error(t('validation.addressNotValidated'));
       return false;
     }
 
     if (!formData.city.trim()) {
-      toast.error('Please enter your city');
+      toast.error(t('validation.cityRequired'));
       return false;
     }
 
     if (!formData.country.trim()) {
-      toast.error('Please enter your country');
+      toast.error(t('validation.countryRequired'));
       return false;
     }
 
     if (!formData.postalCode.trim()) {
-      toast.error('Please enter your postal code');
+      toast.error(t('validation.postalCodeRequired'));
       return false;
     }
 
     // Business-specific validations
     if (formData.customerType === 'business') {
       if (!formData.companyName.trim()) {
-        toast.error('Please enter your company name');
+        toast.error(t('validation.companyNameRequired'));
         return false;
       }
       if (!formData.vatNumber.trim()) {
-        toast.error('Please enter your VAT number');
+        toast.error(t('validation.vatNumberRequired'));
         return false;
       }
       const vatFormatValidation = validateVATFormat(formatVATNumber(formData.vatNumber));
       if (!vatFormatValidation.valid) {
-        toast.error(vatFormatValidation.error || 'Invalid VAT number');
+        toast.error(vatErrorMessage(vatFormatValidation) || t('validation.vatInvalid'));
         return false;
       }
     }
@@ -535,9 +568,7 @@ function CustomerSignupForm() {
     setAddressValidating(false);
 
     if (!coordinates) {
-      toast.error(
-        'Unable to validate your address. Please check and try again.'
-      );
+      toast.error(t('customerSignup.addressValidationFailed'));
       return false;
     }
 
@@ -595,19 +626,19 @@ function CustomerSignupForm() {
       const success = await signup(submitData);
 
       if (success) {
-        toast.success('Account created successfully!');
+        toast.success(t('customerSignup.accountCreated'));
         setCurrentStep('verification');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error('Failed to create account. Please try again.');
+      toast.error(t('customerSignup.createFailed'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleVerificationSuccess = () => {
-    toast.success('Account verified successfully! Welcome to Fixtract!');
+    toast.success(t('customerSignup.verifiedToast'));
     router.push('/dashboard?welcome=true');
   };
 
@@ -632,7 +663,7 @@ function CustomerSignupForm() {
             className='absolute top-6 left-6 flex items-center gap-2 text-gray-600 hover:text-gray-900'
           >
             <ArrowLeft className='h-4 w-4' />
-            Back to Home
+            {t('shared.backToHome')}
           </Button>
         </Link>
 
@@ -644,10 +675,10 @@ function CustomerSignupForm() {
               </div>
             </div>
             <CardTitle className='text-2xl font-bold text-gray-900'>
-              Create Customer Account
+              {t('customerSignup.title')}
             </CardTitle>
             <CardDescription className='text-gray-600'>
-              Join Fixtract to find trusted property professionals
+              {t('customerSignup.description')}
             </CardDescription>
           </CardHeader>
 
@@ -655,7 +686,7 @@ function CustomerSignupForm() {
             <form onSubmit={handleSubmit} className='space-y-5'>
               {/* Customer Type Selection */}
               <div className='space-y-3'>
-                <Label className='text-base font-semibold'>Account Type</Label>
+                <Label className='text-base font-semibold'>{t('customerSignup.accountType')}</Label>
                 <RadioGroup
                   value={formData.customerType}
                   onValueChange={(value: 'individual' | 'business') => {
@@ -683,9 +714,9 @@ function CustomerSignupForm() {
                       className='flex flex-col items-center justify-between rounded-lg border-2 border-gray-200 bg-white p-4 hover:bg-gray-50 peer-data-[state=checked]:border-blue-600 peer-data-[state=checked]:bg-blue-50 cursor-pointer transition-all'
                     >
                       <User className='mb-2 h-6 w-6 text-gray-600' />
-                      <span className='font-semibold'>Individual</span>
+                      <span className='font-semibold'>{t('customerSignup.individual')}</span>
                       <span className='text-xs text-gray-500 text-center mt-1'>
-                        Personal account
+                        {t('customerSignup.individualDescription')}
                       </span>
                     </Label>
                   </div>
@@ -700,9 +731,9 @@ function CustomerSignupForm() {
                       className='flex flex-col items-center justify-between rounded-lg border-2 border-gray-200 bg-white p-4 hover:bg-gray-50 peer-data-[state=checked]:border-blue-600 peer-data-[state=checked]:bg-blue-50 cursor-pointer transition-all'
                     >
                       <Building2 className='mb-2 h-6 w-6 text-gray-600' />
-                      <span className='font-semibold'>Business</span>
+                      <span className='font-semibold'>{t('customerSignup.business')}</span>
                       <span className='text-xs text-gray-500 text-center mt-1'>
-                        Company account
+                        {t('customerSignup.businessDescription')}
                       </span>
                     </Label>
                   </div>
@@ -712,18 +743,18 @@ function CustomerSignupForm() {
               {/* Basic Information */}
               <div className='space-y-4 pt-2'>
                 <h3 className='text-sm font-semibold text-gray-700 uppercase tracking-wide'>
-                  Basic Information
+                  {t('customerSignup.basicInformation')}
                 </h3>
 
                 {/* Full Name */}
                 <div className='space-y-2'>
-                  <Label htmlFor='name'>Full Name *</Label>
+                  <Label htmlFor='name'>{t('customerSignup.fullNameLabel')}</Label>
                   <div className='relative'>
                     <User className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
                     <Input
                       id='name'
                       type='text'
-                      placeholder='Enter your full name'
+                      placeholder={t('shared.fullNamePlaceholder')}
                       value={formData.name}
                       onChange={(e) =>
                         handleInputChange('name', e.target.value)
@@ -736,13 +767,13 @@ function CustomerSignupForm() {
 
                 {/* Email */}
                 <div className='space-y-2'>
-                  <Label htmlFor='email'>Email Address *</Label>
+                  <Label htmlFor='email'>{t('customerSignup.emailLabel')}</Label>
                   <div className='relative'>
                     <Mail className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
                     <Input
                       id='email'
                       type='email'
-                      placeholder='Enter your email'
+                      placeholder={t('shared.emailPlaceholder')}
                       value={formData.email}
                       onChange={(e) =>
                         handleInputChange('email', e.target.value)
@@ -755,7 +786,7 @@ function CustomerSignupForm() {
 
                 {/* Phone */}
                 <div className='space-y-2'>
-                  <Label htmlFor='phone'>Phone Number *</Label>
+                  <Label htmlFor='phone'>{t('customerSignup.phoneLabel')}</Label>
                   <div className='flex gap-2'>
                     <PhoneCountryCodeSelect
                       value={formData.countryCode}
@@ -768,7 +799,7 @@ function CustomerSignupForm() {
                       <Input
                         id='phone'
                         type='tel'
-                        placeholder='Enter your phone number'
+                        placeholder={t('shared.phonePlaceholder')}
                         value={formData.phone}
                         onChange={(e) =>
                           handleInputChange('phone', e.target.value)
@@ -782,13 +813,13 @@ function CustomerSignupForm() {
 
                 {/* Password */}
                 <div className='space-y-2'>
-                  <Label htmlFor='password'>Password *</Label>
+                  <Label htmlFor='password'>{t('customerSignup.passwordLabel')}</Label>
                   <div className='relative'>
                     <Lock className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
                     <Input
                       id='password'
                       type='password'
-                      placeholder='Create a password'
+                      placeholder={t('shared.createPasswordPlaceholder')}
                       value={formData.password}
                       onChange={(e) =>
                         handleInputChange('password', e.target.value)
@@ -801,13 +832,13 @@ function CustomerSignupForm() {
 
                 {/* Confirm Password */}
                 <div className='space-y-2'>
-                  <Label htmlFor='confirmPassword'>Confirm Password *</Label>
+                  <Label htmlFor='confirmPassword'>{t('customerSignup.confirmPasswordLabel')}</Label>
                   <div className='relative'>
                     <Lock className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
                     <Input
                       id='confirmPassword'
                       type='password'
-                      placeholder='Confirm your password'
+                      placeholder={t('shared.confirmPasswordPlaceholder')}
                       value={formData.confirmPassword}
                       onChange={(e) =>
                         handleInputChange('confirmPassword', e.target.value)
@@ -823,18 +854,18 @@ function CustomerSignupForm() {
               {formData.customerType === 'business' && (
                 <div className='space-y-4 pt-2 border-t'>
                   <h3 className='text-sm font-semibold text-gray-700 uppercase tracking-wide'>
-                    Business Information
+                    {t('customerSignup.businessInformation')}
                   </h3>
 
                   {/* Company Name */}
                   <div className='space-y-2'>
-                    <Label htmlFor='companyName'>Company Name *</Label>
+                    <Label htmlFor='companyName'>{t('customerSignup.companyNameLabel')}</Label>
                     <div className='relative'>
                       <Building2 className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
                       <Input
                         id='companyName'
                         type='text'
-                        placeholder='Enter company name'
+                        placeholder={t('customerSignup.companyNamePlaceholder')}
                         value={formData.companyName}
                         onChange={(e) =>
                           handleInputChange('companyName', e.target.value)
@@ -848,10 +879,10 @@ function CustomerSignupForm() {
                   {/* VAT Number */}
                   <div className='space-y-2'>
                     <Label htmlFor='vatNumber'>
-                      VAT Number *
+                      {t('customerSignup.vatNumberLabel')}
                       {formData.vatNumber && vatValidation.valid && (
                         <span className='ml-2 text-xs text-green-600'>
-                          {getVATCountryName(formData.vatNumber)}
+                          {vatCountryName(formData.vatNumber)}
                         </span>
                       )}
                     </Label>
@@ -861,7 +892,7 @@ function CustomerSignupForm() {
                         <Input
                           id='vatNumber'
                           type='text'
-                          placeholder='e.g., BE0123456789'
+                          placeholder={t('customerSignup.vatPlaceholder')}
                           value={formData.vatNumber}
                           onChange={(e) => {
                             handleInputChange('vatNumber', e.target.value);
@@ -882,7 +913,7 @@ function CustomerSignupForm() {
                         {vatValidating ? (
                           <Loader2 className='h-4 w-4 animate-spin' />
                         ) : (
-                          'Validate'
+                          t('customerSignup.validate')
                         )}
                       </Button>
                     </div>
@@ -903,7 +934,7 @@ function CustomerSignupForm() {
                             <CheckCircle2 className='h-4 w-4 mt-0.5 shrink-0' />
                             <div>
                               <p className='font-medium'>
-                                VAT Number Validated
+                                {t('customerSignup.vatValidated')}
                               </p>
                               {vatValidation.companyName && (
                                 <p className='text-xs mt-1'>
@@ -917,7 +948,7 @@ function CustomerSignupForm() {
                             <AlertCircle className='h-4 w-4 mt-0.5 shrink-0' />
                             <div>
                               <p className='font-medium'>
-                                VIES is temporarily unavailable
+                                {t('customerSignup.viesUnavailable')}
                               </p>
                               {vatValidation.error && (
                                 <p className='text-xs mt-1'>
@@ -930,7 +961,7 @@ function CustomerSignupForm() {
                           <>
                             <XCircle className='h-4 w-4 mt-0.5 shrink-0' />
                             <div>
-                              <p className='font-medium'>Validation Failed</p>
+                              <p className='font-medium'>{t('customerSignup.validationFailed')}</p>
                               {vatValidation.error && (
                                 <p className='text-xs mt-1'>
                                   {vatValidation.error}
@@ -943,8 +974,7 @@ function CustomerSignupForm() {
                     )}
 
                     <p className='text-xs text-gray-500'>
-                      VAT number is required for business accounts. Validation is optional.
-                      Only EU VAT numbers can be validated.
+                      {t('customerSignup.vatHint')}
                     </p>
                   </div>
                 </div>
@@ -953,7 +983,7 @@ function CustomerSignupForm() {
               {/* Location Information */}
               <div className='space-y-4 pt-2 border-t'>
                 <h3 className='text-sm font-semibold text-gray-700 uppercase tracking-wide'>
-                  Location
+                  {t('customerSignup.location')}
                 </h3>
 
                 {/* Address with Autocomplete */}
@@ -962,18 +992,18 @@ function CustomerSignupForm() {
                   onChange={handleAddressChange}
                   onValidation={setIsAddressValid}
                   useCompanyAddress={false}
-                  label='Street Address'
+                  label={t('shared.streetAddress')}
                   required={true}
                 />
 
                 {/* City and Postal Code */}
                 <div className='grid grid-cols-2 gap-4'>
                   <div className='space-y-2'>
-                    <Label htmlFor='city'>City *</Label>
+                    <Label htmlFor='city'>{t('customerSignup.cityLabel')}</Label>
                     <Input
                       id='city'
                       type='text'
-                      placeholder='City'
+                      placeholder={t('customerSignup.cityPlaceholder')}
                       value={formData.city}
                       onChange={(e) =>
                         handleInputChange('city', e.target.value)
@@ -982,11 +1012,11 @@ function CustomerSignupForm() {
                     />
                   </div>
                   <div className='space-y-2'>
-                    <Label htmlFor='postalCode'>Postal Code *</Label>
+                    <Label htmlFor='postalCode'>{t('customerSignup.postalCodeLabel')}</Label>
                     <Input
                       id='postalCode'
                       type='text'
-                      placeholder='Postal code'
+                      placeholder={t('customerSignup.postalCodePlaceholder')}
                       value={formData.postalCode}
                       onChange={(e) =>
                         handleInputChange('postalCode', e.target.value)
@@ -998,11 +1028,11 @@ function CustomerSignupForm() {
 
                 {/* Country */}
                 <div className='space-y-2'>
-                  <Label htmlFor='country'>Country *</Label>
+                  <Label htmlFor='country'>{t('customerSignup.countryLabel')}</Label>
                   <Input
                     id='country'
                     type='text'
-                    placeholder='Enter your country'
+                    placeholder={t('customerSignup.countryPlaceholder')}
                     value={formData.country}
                     onChange={(e) =>
                       handleInputChange('country', e.target.value)
@@ -1014,21 +1044,20 @@ function CustomerSignupForm() {
                 <div className='flex items-start gap-2 text-xs text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200'>
                   <AlertCircle className='h-4 w-4 text-blue-600 mt-0.5 shrink-0' />
                   <p>
-                    We use your location to match you with nearby professionals
-                    and projects. Your exact address is never shared publicly.
+                    {t('customerSignup.locationNotice')}
                   </p>
                 </div>
               </div>
 
               {/* Referral Code */}
               <div className='space-y-2'>
-                <Label htmlFor='referralCode'>Referral Code (Optional)</Label>
+                <Label htmlFor='referralCode'>{t('shared.referralCode')}</Label>
                 <div className='relative'>
                   <Gift className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
                   <Input
                     id='referralCode'
                     type='text'
-                    placeholder='e.g. FIXTRACT-AHMED-7K2X'
+                    placeholder={t('shared.referralCodePlaceholder')}
                     value={formData.referralCode}
                     onChange={(e) =>
                       handleInputChange('referralCode', e.target.value.toUpperCase())
@@ -1039,13 +1068,13 @@ function CustomerSignupForm() {
                 {referralValid === true && referralReferrer && (
                   <p className='text-xs text-green-600 flex items-center gap-1'>
                     <CheckCircle2 className='h-3 w-3' />
-                    Referred by {referralReferrer} — complete your first booking to unlock your welcome discount!
+                    {t('customerSignup.referredByFull', { name: referralReferrer })}
                   </p>
                 )}
                 {referralValid === false && formData.referralCode && (
                   <p className='text-xs text-amber-600 flex items-center gap-1'>
                     <AlertCircle className='h-3 w-3' />
-                    Invalid referral code. You can still sign up without one.
+                    {t('shared.invalidReferral')}
                   </p>
                 )}
               </div>
@@ -1066,9 +1095,7 @@ function CustomerSignupForm() {
                   className='mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
                 />
                 <span className='text-xs text-gray-600 leading-relaxed'>
-                  Email me offers, platform news, and loyalty rewards. Marketing
-                  only — separate from booking and account emails, and you can
-                  unsubscribe at any time.
+                  {t('shared.marketingOptIn')}
                 </span>
               </label>
 
@@ -1082,36 +1109,36 @@ function CustomerSignupForm() {
                 {loading ? (
                   <>
                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                    Creating Account...
+                    {t('customerSignup.creatingAccount')}
                   </>
                 ) : addressValidating ? (
                   <>
                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                    Validating Address...
+                    {t('customerSignup.validatingAddress')}
                   </>
                 ) : (
-                  'Create Account'
+                  t('register.createAccount')
                 )}
               </Button>
             </form>
 
             <div className='mt-6 text-center text-sm text-gray-600'>
-              Already have an account?{' '}
+              {t('shared.alreadyHaveAccount')}{' '}
               <Link
                 href='/login'
                 className='font-semibold text-blue-600 hover:text-blue-500'
               >
-                Sign in here
+                {t('shared.signInHere')}
               </Link>
             </div>
 
             <div className='mt-4 text-center text-sm text-gray-600'>
-              Want to offer services?{' '}
+              {t('customerSignup.wantToOffer')}{' '}
               <Link
                 href='/register'
                 className='font-semibold text-blue-600 hover:text-blue-500'
               >
-                Register as Professional
+                {t('customerSignup.registerAsProfessional')}
               </Link>
             </div>
           </CardContent>

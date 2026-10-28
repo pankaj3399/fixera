@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense } from "react"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getAuthToken, buildUsernameSuggestionParams } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { CompanyAvailability, DEFAULT_COMPANY_AVAILABILITY } from "@/lib/defaults/companyAvailability"
 import {
   validateVATFormat,
@@ -34,7 +36,6 @@ import {
   validateAndPopulateVAT,
   submitForVerification,
   isEUVatNumber,
-  getVATCountryName,
   formatVATNumber
 } from "@/lib/vatValidation"
 import { toLocalInputValue } from "@/lib/dateUtils"
@@ -46,22 +47,23 @@ function normalizeCountryCode(raw: string): string {
   return EU_COUNTRIES.find((c) => c.name.toLowerCase() === raw.toLowerCase())?.code || raw
 }
 
+const VAT_ERROR_KEYS = {
+  required: 'vatFormat.required',
+  tooShort: 'vatFormat.tooShort',
+  tooLong: 'vatFormat.tooLong',
+  countryPrefix: 'vatFormat.countryPrefix',
+  invalidCharacters: 'vatFormat.invalidCharacters',
+  invalidCountry: 'vatFormat.invalidCountry',
+  validationFailed: 'vatFormat.validationFailed',
+  network: 'vatFormat.network',
+} as const
+
 function toEventDate(value: string, isEnd = false): Date {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [year, month, day] = value.split('-').map(Number)
     return new Date(year, month - 1, day, isEnd ? 23 : 0, isEnd ? 59 : 0, isEnd ? 59 : 0)
   }
   return new Date(value)
-}
-
-const DAY_LABEL_BY_INDEX: Record<number, string> = {
-  0: 'Sun',
-  1: 'Mon',
-  2: 'Tue',
-  3: 'Wed',
-  4: 'Thu',
-  5: 'Fri',
-  6: 'Sat',
 }
 
 interface StripeAccountStatus {
@@ -87,9 +89,69 @@ export default function ProfilePage() {
 }
 
 function ProfileContent() {
+  const t = useTranslations('account')
+  const { intl } = useFormatLocale()
   const { user, isAuthenticated, loading, checkAuth } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const regionNames = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([intl], { type: 'region' })
+    } catch {
+      return null
+    }
+  }, [intl])
+  const vatCountryName = (vatNumber: string) => {
+    const code = vatNumber.slice(0, 2).toUpperCase()
+    if (code.length !== 2) return ''
+    return regionNames?.of(code) ?? code
+  }
+  const vatErrorMessage = (result: { errorCode?: string; error?: string; countryCode?: string }) => {
+    const key = result.errorCode
+      ? VAT_ERROR_KEYS[result.errorCode as keyof typeof VAT_ERROR_KEYS]
+      : undefined
+    return key ? t(key, { country: result.countryCode ?? '' }) : result.error
+  }
+  const weekdayLabel = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(intl, { weekday: 'short' })
+    return (dayIndex: number) =>
+      formatter.format(new Date(Date.UTC(2024, 0, 7 + dayIndex)))
+  }, [intl])
+  const professionalStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'approved':
+        return t('professionalStatus.approved')
+      case 'pending':
+        return t('professionalStatus.pending')
+      case 'rejected':
+        return t('professionalStatus.rejected')
+      default:
+        return t('professionalStatus.notSubmitted')
+    }
+  }
+  const roleLabel = (role?: string) => {
+    switch (role) {
+      case 'customer':
+        return t('role.customer')
+      case 'professional':
+        return t('role.professional')
+      case 'employee':
+        return t('role.employee')
+      case 'admin':
+        return t('role.admin')
+      default:
+        return role ?? ''
+    }
+  }
+  const dayLabels: Record<string, string> = {
+    monday: t('companyAvailability.days.monday'),
+    tuesday: t('companyAvailability.days.tuesday'),
+    wednesday: t('companyAvailability.days.wednesday'),
+    thursday: t('companyAvailability.days.thursday'),
+    friday: t('companyAvailability.days.friday'),
+    saturday: t('companyAvailability.days.saturday'),
+    sunday: t('companyAvailability.days.sunday'),
+  }
   const [profileTab, setProfileTab] = useState('profile')
   const [vatNumber, setVatNumber] = useState('')
   const [vatValidating, setVatValidating] = useState(false)
@@ -133,7 +195,7 @@ function ProfileContent() {
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
   const [serviceCatalog, setServiceCatalog] = useState<Array<{ name: string; services: Array<{ name: string }> }>>([])
   const [serviceCatalogLoading, setServiceCatalogLoading] = useState(false)
-  const [serviceCatalogError, setServiceCatalogError] = useState<string | null>(null)
+  const [serviceCatalogError, setServiceCatalogError] = useState(false)
   const [blockedRanges, setBlockedRanges] = useState<{ startDate: string, endDate: string, reason?: string }[]>([])
   const [newBlockedRange, setNewBlockedRange] = useState({ startDate: '', endDate: '', reason: '' })
 
@@ -161,7 +223,7 @@ function ProfileContent() {
           type="button"
           onClick={() => profileImageInputRef.current?.click()}
           disabled={profileImageUploading}
-          aria-label="Edit profile photo"
+          aria-label={t('avatar.editPhoto')}
           className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-opacity cursor-pointer"
         >
           {profileImageUploading ? (
@@ -180,7 +242,7 @@ function ProfileContent() {
       </div>
       <div>
         <p className="text-sm font-medium">{user?.name}</p>
-        <p className="text-xs text-gray-500">Click photo to change</p>
+        <p className="text-xs text-gray-500">{t('avatar.clickToChange')}</p>
         {user?.profileImage && (
           <button
             type="button"
@@ -188,7 +250,7 @@ function ProfileContent() {
             disabled={profileImageUploading}
             className="text-xs text-red-500 hover:text-red-700 mt-0.5 flex items-center gap-1"
           >
-            <Trash2 className="h-3 w-3" /> Remove
+            <Trash2 className="h-3 w-3" /> {t('avatar.remove')}
           </button>
         )}
       </div>
@@ -245,7 +307,7 @@ function ProfileContent() {
   const [showIdProofWarning, setShowIdProofWarning] = useState(false)
   const [stripeAccountStatus, setStripeAccountStatus] = useState<StripeAccountStatus | null>(null)
   const [stripeStatusLoading, setStripeStatusLoading] = useState(false)
-  const [stripeStatusError, setStripeStatusError] = useState('')
+  const [stripeStatusError, setStripeStatusError] = useState<string | null>(null)
 
   const loadStripeAccountStatus = useCallback(async () => {
     if (user?.role !== 'professional') {
@@ -253,7 +315,7 @@ function ProfileContent() {
     }
 
     setStripeStatusLoading(true)
-    setStripeStatusError('')
+    setStripeStatusError(null)
 
     try {
       const token = getAuthToken()
@@ -287,9 +349,9 @@ function ProfileContent() {
         return
       }
 
-      setStripeStatusError(data?.error?.message || data?.msg || 'Failed to load Stripe account status')
+      setStripeStatusError(data?.error?.message || data?.msg || '')
     } catch (error) {
-      setStripeStatusError(error instanceof Error ? error.message : 'Failed to load Stripe account status')
+      setStripeStatusError(error instanceof Error ? error.message : '')
     } finally {
       setStripeStatusLoading(false)
     }
@@ -473,7 +535,7 @@ function ProfileContent() {
   useEffect(() => {
     if (user?.role !== 'professional') {
       setServiceCatalog([])
-      setServiceCatalogError(null)
+      setServiceCatalogError(false)
       setServiceCatalogLoading(false)
       return
     }
@@ -483,7 +545,7 @@ function ProfileContent() {
     const fetchServiceCatalog = async () => {
       try {
         setServiceCatalogLoading(true)
-        setServiceCatalogError(null)
+        setServiceCatalogError(false)
         const country = normalizeCountryCode(businessInfo.country || user?.businessInfo?.country || 'BE')
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/service-categories/active?country=${encodeURIComponent(country)}`,
@@ -498,7 +560,7 @@ function ProfileContent() {
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') return
         console.error('Failed to load service categories:', error)
-        setServiceCatalogError('Failed to load service categories')
+        setServiceCatalogError(true)
       } finally {
         if (!controller.signal.aborted) {
           setServiceCatalogLoading(false)
@@ -598,7 +660,7 @@ function ProfileContent() {
               events.push({
                 id: `booking-${booking._id}-${dayIndex}`,
                 type: 'booking',
-                title: 'Booking',
+                title: t('personalAvailability.bookingTitle'),
                 start: dayStartUtc,
                 end: new Date(dayStartUtc.getTime() + DAY_MS),
                 meta: {
@@ -618,7 +680,7 @@ function ProfileContent() {
             events.push({
               id: `booking-${booking._id}`,
               type: 'booking',
-              title: 'Booking',
+              title: t('personalAvailability.bookingTitle'),
               start: scheduledStart,
               end: executionEnd,
               meta: {
@@ -638,7 +700,7 @@ function ProfileContent() {
               events.push({
                 id: `buffer-${booking._id}`,
                 type: 'booking-buffer',
-                title: 'Buffer',
+                title: t('personalAvailability.bufferTitle'),
                 start: bufferIntervalStart,
                 end: bufferEnd,
                 meta: {
@@ -659,7 +721,7 @@ function ProfileContent() {
           return
         }
         console.error('Failed to load booking events:', error)
-        toast.error('Failed to load booking events. Please refresh to try again.')
+        toast.error(t('toasts.bookingEventsFailed'))
       }
     }
 
@@ -668,12 +730,12 @@ function ProfileContent() {
     return () => {
       abortController.abort()
     }
-  }, [loading, isAuthenticated, user?.role, user?._id])
+  }, [loading, isAuthenticated, user?.role, user?._id, t])
 
   useEffect(() => {
     if (loading || !isAuthenticated || user?.role !== 'professional') {
       setStripeAccountStatus(null)
-      setStripeStatusError('')
+      setStripeStatusError(null)
       setStripeStatusLoading(false)
       return
     }
@@ -699,7 +761,7 @@ function ProfileContent() {
     if (!formatValidation.valid) {
       setVatValidation({
         valid: false,
-        error: formatValidation.error
+        error: vatErrorMessage(formatValidation)
       })
       return
     }
@@ -708,7 +770,7 @@ function ProfileContent() {
     if (!isEUVatNumber(formatted)) {
       setVatValidation({
         valid: false,
-        error: 'Only EU VAT numbers can be validated with VIES'
+        error: t('vat.onlyEu')
       })
       return
     }
@@ -719,7 +781,7 @@ function ProfileContent() {
       setVatValidation({
         valid: result.valid,
         transient: result.transient === true,
-        error: result.error,
+        error: vatErrorMessage(result),
         companyName: result.companyName,
         companyAddress: result.companyAddress,
         parsedAddress: result.parsedAddress,
@@ -761,13 +823,13 @@ function ProfileContent() {
           }
         }
         if (changed) {
-          toast.success('Business information prefilled from VAT validation')
+          toast.success(t('toasts.businessPrefilled'))
         }
       }
     } catch {
       setVatValidation({
         valid: false,
-        error: 'Failed to validate VAT number'
+        error: t('vat.validateFailed')
       })
     } finally {
       setVatValidating(false)
@@ -784,25 +846,25 @@ function ProfileContent() {
       if (result.success) {
         if (result.viesUnavailable) {
           toast.warning(
-            'VAT number saved, but VIES is temporarily unavailable. Reverse charge will not apply until the number is verified — click Validate again in a few minutes.',
+            t('toasts.viesSavedWarning'),
             { duration: 8000 }
           )
         } else if (vatNumber && !result.isVatVerified) {
           toast.error(
-            'VAT number saved but not verified by VIES. B2B reverse charge will not apply until it is verified.',
+            t('toasts.vatSavedNotVerified'),
             { duration: 8000 }
           )
         } else {
-          toast.success(vatNumber ? 'VAT number updated successfully' : 'VAT number removed successfully')
+          toast.success(vatNumber ? t('toasts.vatUpdated') : t('toasts.vatRemoved'))
         }
         // Refresh user data
         await checkAuth()
         setVatValidation({})
       } else {
-        toast.error(result.error || 'Failed to update VAT number')
+        toast.error(result.errorCode ? t('toasts.vatUpdateFailed') : result.error)
       }
     } catch {
-      toast.error('Failed to update VAT number')
+      toast.error(t('toasts.vatUpdateFailed'))
     } finally {
       setVatSaving(false)
     }
@@ -816,13 +878,13 @@ function ProfileContent() {
       const result = await updateUserVAT('')
 
       if (result.success) {
-        toast.success('VAT number removed successfully')
+        toast.success(t('toasts.vatRemoved'))
         await checkAuth()
       } else {
-        toast.error(result.error || 'Failed to remove VAT number')
+        toast.error(result.errorCode ? t('toasts.vatRemoveFailed') : result.error)
       }
     } catch {
-      toast.error('Failed to remove VAT number')
+      toast.error(t('toasts.vatRemoveFailed'))
     } finally {
       setVatSaving(false)
     }
@@ -844,13 +906,13 @@ function ProfileContent() {
       })
       const result = await response.json()
       if (result.success) {
-        toast.success('Profile image updated')
+        toast.success(t('toasts.profileImageUpdated'))
         await checkAuth()
       } else {
-        toast.error(result.msg || 'Failed to upload image')
+        toast.error(result.msg || t('toasts.profileImageUploadFailed'))
       }
     } catch {
-      toast.error('Failed to upload image')
+      toast.error(t('toasts.profileImageUploadFailed'))
     } finally {
       setProfileImageUploading(false)
     }
@@ -865,13 +927,13 @@ function ProfileContent() {
       })
       const result = await response.json()
       if (result.success) {
-        toast.success('Profile image removed')
+        toast.success(t('toasts.profileImageRemoved'))
         await checkAuth()
       } else {
-        toast.error(result.msg || 'Failed to remove image')
+        toast.error(result.msg || t('toasts.profileImageRemoveFailed'))
       }
     } catch {
-      toast.error('Failed to remove image')
+      toast.error(t('toasts.profileImageRemoveFailed'))
     } finally {
       setProfileImageUploading(false)
     }
@@ -895,14 +957,14 @@ function ProfileContent() {
       const result = await response.json()
 
       if (result.success) {
-        toast.success('ID proof uploaded successfully')
+        toast.success(t('toasts.idProofUploaded'))
         setIdProofFile(null)
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.msg || 'Failed to upload ID proof')
+        toast.error(result.msg || t('toasts.idProofUploadFailed'))
       }
     } catch {
-      toast.error('Failed to upload ID proof')
+      toast.error(t('toasts.idProofUploadFailed'))
     } finally {
       setUploading(false)
     }
@@ -931,11 +993,11 @@ function ProfileContent() {
         await checkAuth() // Refresh user data
         return true
       } else {
-        toast.error(result.msg || 'Failed to save blocked periods')
+        toast.error(result.msg || t('toasts.blockedRangesSaveFailed'))
         return false
       }
     } catch {
-      toast.error('Failed to save blocked periods')
+      toast.error(t('toasts.blockedRangesSaveFailed'))
       return false
     } finally {
       setProfileSaving(false)
@@ -957,26 +1019,26 @@ function ProfileContent() {
     if (!editingRange) return
     const { index, startValue, endValue, reason } = editingRange
     if (!startValue || !endValue) {
-      toast.error('Select start and end values')
+      toast.error(t('toasts.selectStartEnd'))
       return
     }
     const startDate = new Date(startValue)
     const endDate = new Date(endValue)
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      toast.error('Please provide valid start and end times')
+      toast.error(t('toasts.invalidTimes'))
       return
     }
     const now = Date.now()
     if (startDate.getTime() < now) {
-      toast.error('Cannot block time in the past')
+      toast.error(t('toasts.cannotBlockPastTime'))
       return
     }
     if (endDate.getTime() < now) {
-      toast.error('End time cannot be in the past')
+      toast.error(t('toasts.endInPast'))
       return
     }
     if (startDate >= endDate) {
-      toast.error('Start must be before end time')
+      toast.error(t('toasts.startBeforeEnd'))
       return
     }
     const previousRanges = blockedRanges
@@ -992,7 +1054,7 @@ function ProfileContent() {
     setBlockedRanges(updatedRanges)
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Blocked period updated and saved')
+      toast.success(t('toasts.blockedUpdated'))
       setEditingRange(null)
     } else {
       setBlockedRanges(previousRanges)
@@ -1006,7 +1068,7 @@ function ProfileContent() {
     setBlockedRanges(updatedRanges)
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Blocked period removed and saved')
+      toast.success(t('toasts.blockedRemoved'))
       setEditingRange(null)
     } else {
       setBlockedRanges(previousRanges)
@@ -1038,13 +1100,13 @@ function ProfileContent() {
       const result = await response.json()
 
       if (result.success) {
-        toast.success('Professional profile updated successfully')
+        toast.success(t('toasts.profileUpdated'))
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.msg || 'Failed to update profile')
+        toast.error(result.msg || t('toasts.profileUpdateFailed'))
       }
     } catch {
-      toast.error('Failed to update profile')
+      toast.error(t('toasts.profileUpdateFailed'))
     } finally {
       setProfileSaving(false)
     }
@@ -1064,7 +1126,7 @@ function ProfileContent() {
     const now = new Date()
 
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      toast.error('Please provide valid start and end times')
+      toast.error(t('toasts.invalidTimes'))
       return false
     }
 
@@ -1074,16 +1136,16 @@ function ProfileContent() {
       const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
       const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate())
       if (startDateOnly < todayDateOnly) {
-        toast.error('Cannot block dates in the past')
+        toast.error(t('toasts.cannotBlockPastDates'))
         return false
       }
     } else if (startDate < now) {
-      toast.error('Cannot block time in the past')
+      toast.error(t('toasts.cannotBlockPastTime'))
       return false
     }
 
     if (startDate >= endDate) {
-      toast.error('Start must be before end time')
+      toast.error(t('toasts.startBeforeEnd'))
       return false
     }
 
@@ -1101,10 +1163,21 @@ function ProfileContent() {
       const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)
       if (durationHours >= 24) {
         const days = Math.ceil(durationHours / 24)
-        toast.success(`Blocked ${days} day${days === 1 ? '' : 's'} from ${startDate.toLocaleString()} to ${endDate.toLocaleString()}`)
+        toast.success(
+          t('toasts.blockedDays', {
+            days,
+            start: startDate.toLocaleString(intl),
+            end: endDate.toLocaleString(intl),
+          })
+        )
       } else {
         const roundedHours = Math.round(durationHours * 10) / 10
-        toast.success(`Blocked ${roundedHours} hour${roundedHours === 1 ? '' : 's'} on ${startDate.toLocaleDateString()}`)
+        toast.success(
+          t('toasts.blockedHours', {
+            hours: roundedHours,
+            date: startDate.toLocaleDateString(intl),
+          })
+        )
       }
     }
 
@@ -1113,7 +1186,7 @@ function ProfileContent() {
 
   const addBlockedRange = async () => {
     if (!newBlockedRange.startDate || !newBlockedRange.endDate) {
-      toast.error('Select start and end values')
+      toast.error(t('toasts.selectStartEnd'))
       return
     }
     const success = await addBlockedRangeEntry(newBlockedRange.startDate, newBlockedRange.endDate, newBlockedRange.reason)
@@ -1128,7 +1201,7 @@ function ProfileContent() {
 
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Blocked period removed and saved')
+      toast.success(t('toasts.blockedRemoved'))
     }
   }
 
@@ -1157,11 +1230,11 @@ function ProfileContent() {
         await checkAuth()
         return true
       } else {
-        toast.error(result.msg || 'Failed to save company blocked periods')
+        toast.error(result.msg || t('companyAvailability.saveFailed'))
         return false
       }
     } catch {
-      toast.error('Failed to save company blocked periods')
+      toast.error(t('companyAvailability.saveFailed'))
       return false
     } finally {
       setProfileSaving(false)
@@ -1176,12 +1249,12 @@ function ProfileContent() {
     const now = new Date()
 
     if (startDate < now) {
-      toast.error('Cannot block time in the past')
+      toast.error(t('toasts.cannotBlockPastTime'))
       return
     }
 
     if (startDate >= endDate) {
-      toast.error('End time must be after start time')
+      toast.error(t('toasts.endAfterStart'))
       return
     }
 
@@ -1198,7 +1271,12 @@ function ProfileContent() {
 
     const success = await saveCompanyBlockedRanges(updatedRanges)
     if (success) {
-      toast.success(`Blocked period saved: ${startDate.toLocaleString()} -> ${endDate.toLocaleString()}`)
+      toast.success(
+        t('companyAvailability.savedToast', {
+          start: startDate.toLocaleString(intl),
+          end: endDate.toLocaleString(intl),
+        })
+      )
     }
   }
 
@@ -1209,9 +1287,9 @@ function ProfileContent() {
 
     const success = await saveCompanyBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Company blocked period removed', {
+      toast.success(t('companyAvailability.removedToast'), {
         action: {
-          label: 'Undo',
+          label: t('companyAvailability.undo'),
           onClick: async () => {
             let restoredRanges: typeof companyBlockedRanges = []
             setCompanyBlockedRanges(prev => {
@@ -1249,13 +1327,13 @@ function ProfileContent() {
           postalCode: result.businessInfo?.parsedAddress?.postalCode || prev.postalCode,
         }))
 
-        toast.success('Business information auto-populated from VAT data!')
+        toast.success(t('toasts.autoPopulated'))
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.error || 'Failed to auto-populate business information')
+        toast.error(result.errorCode ? t('toasts.autoPopulateFailed') : result.error)
       }
     } catch {
-      toast.error('Failed to auto-populate business information')
+      toast.error(t('toasts.autoPopulateFailed'))
     } finally {
       setVatSaving(false)
       setShowAutoPopulateDialog(false)
@@ -1266,7 +1344,7 @@ function ProfileContent() {
 
   const handleUpdatePhone = async () => {
     if (!newPhoneNumber || newPhoneNumber.trim() === '') {
-      toast.error('Phone number cannot be empty')
+      toast.error(t('toasts.phoneEmpty'))
       return
     }
 
@@ -1288,15 +1366,15 @@ function ProfileContent() {
       const result = await response.json()
 
       if (response.ok && result.success) {
-        toast.success(result.msg || 'Phone number updated successfully')
+        toast.success(result.msg || t('toasts.phoneUpdated'))
         setIsEditingPhone(false)
         await checkAuth() // Refresh user data
       } else {
-        toast.error(result.msg || 'Failed to update phone number')
+        toast.error(result.msg || t('toasts.phoneUpdateFailed'))
       }
     } catch (error) {
       console.error('Phone update error:', error)
-      toast.error('Failed to update phone number')
+      toast.error(t('toasts.phoneUpdateFailed'))
     } finally {
       setPhoneUpdating(false)
     }
@@ -1310,21 +1388,24 @@ function ProfileContent() {
       const result = await submitForVerification()
 
       if (result.success) {
-        toast.success('Thanks for submitting. Your profile will be checked within 48 hours.', {
+        toast.success(t('toasts.submitSuccess'), {
           duration: 5000,
         })
         await checkAuth() // Refresh user data to update professional status
       } else {
         if (result.missingRequirements && result.missingRequirements.length > 0) {
-          toast.error(`Please complete: ${result.missingRequirements.join(', ')}`, {
-            duration: 6000,
-          })
+          toast.error(
+            t('toasts.completeRequirements', { items: result.missingRequirements.join(', ') }),
+            {
+              duration: 6000,
+            }
+          )
         } else {
-          toast.error(result.error || 'Failed to submit for verification')
+          toast.error(result.errorCode ? t('toasts.submitFailed') : result.error)
         }
       }
     } catch {
-      toast.error('Failed to submit for verification')
+      toast.error(t('toasts.submitFailed'))
     } finally {
       setVerificationSubmitting(false)
     }
@@ -1364,13 +1445,13 @@ function ProfileContent() {
       const result = await response.json()
 
       if (result.success) {
-        toast.success('Profile updated successfully')
+        toast.success(t('toasts.customerProfileUpdated'))
         await checkAuth()
       } else {
-        toast.error(result.msg || 'Failed to update profile')
+        toast.error(result.msg || t('toasts.customerProfileUpdateFailed'))
       }
     } catch {
-      toast.error('Failed to update profile')
+      toast.error(t('toasts.customerProfileUpdateFailed'))
     } finally {
       setCustomerProfileSaving(false)
     }
@@ -1397,14 +1478,14 @@ function ProfileContent() {
       const result = await response.json()
 
       if (result.success) {
-        toast.success(result.msg || 'ID information updated. Re-verification required.')
+        toast.success(result.msg || t('toasts.idInfoUpdated'))
         setShowIdChangeWarning(false)
         await checkAuth()
       } else {
-        toast.error(result.msg || 'Failed to update ID information')
+        toast.error(result.msg || t('toasts.idInfoUpdateFailed'))
       }
     } catch {
-      toast.error('Failed to update ID information')
+      toast.error(t('toasts.idInfoUpdateFailed'))
     } finally {
       setIdInfoSaving(false)
     }
@@ -1420,7 +1501,7 @@ function ProfileContent() {
     const personalEvents: CalendarEvent[] = blockedRanges.map((range, index) => ({
       id: `personal-${index}`,
       type: 'personal',
-      title: 'Personal Block',
+      title: t('personalAvailability.personalBlockTitle'),
       start: toEventDate(range.startDate, false),
       end: toEventDate(range.endDate, true),
       meta: { note: range.reason, rangeIndex: index }
@@ -1428,14 +1509,14 @@ function ProfileContent() {
     const companyEvents: CalendarEvent[] = companyBlockedRanges.map((range, index) => ({
       id: `company-${index}`,
       type: 'company',
-      title: range.isHoliday ? 'Holiday' : 'Company Closure',
+      title: range.isHoliday ? t('companyAvailability.holidayTitle') : t('companyAvailability.closureTitle'),
       start: toEventDate(range.startDate, false),
       end: toEventDate(range.endDate, true),
       meta: { note: range.reason },
       readOnly: true
     }))
     return [...companyEvents, ...bookingEvents, ...personalEvents]
-  }, [blockedRanges, companyBlockedRanges, bookingEvents])
+  }, [blockedRanges, companyBlockedRanges, bookingEvents, t])
 
   const scheduleWindow = useMemo(
     () => getScheduleWindow(companyAvailability),
@@ -1446,7 +1527,7 @@ function ProfileContent() {
     [companyAvailability]
   )
   const visibleDaysLabel = visibleDays
-    .map((dayIndex) => DAY_LABEL_BY_INDEX[dayIndex] || '')
+    .map((dayIndex) => weekdayLabel(dayIndex))
     .filter(Boolean)
     .join(', ')
   const companyCalendarEvents = useMemo<CalendarEvent[]>(() => {
@@ -1460,14 +1541,14 @@ function ProfileContent() {
       events.push({
         id: `company-closure-${index}`,
         type: 'company',
-        title: range.isHoliday ? 'Holiday' : 'Company Closure',
+        title: range.isHoliday ? t('companyAvailability.holidayTitle') : t('companyAvailability.closureTitle'),
         start,
         end,
         meta: { note: range.reason, rangeIndex: index }
       })
     })
     return events
-  }, [companyBlockedRanges])
+  }, [companyBlockedRanges, t])
 
   useEffect(() => {
     const tab = searchParams.get('tab')
@@ -1564,8 +1645,8 @@ function ProfileContent() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto pt-20">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile Settings</h1>
-          <p className="text-gray-600">Manage your account information and settings</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('page.title')}</h1>
+          <p className="text-gray-600">{t('page.subtitle')}</p>
           {isProfessional && (
             <div className="mt-4 space-y-3">
               <div className={`p-4 border rounded-lg ${user?.professionalStatus === 'approved' ? 'bg-green-50 border-green-200' :
@@ -1585,7 +1666,7 @@ function ProfileContent() {
                         user?.professionalStatus === 'rejected' ? 'text-red-800' :
                           'text-gray-800'
                       }`}>
-                      Professional Status: {user?.professionalStatus || 'not submitted'}
+                      {t('professionalStatus.label', { status: professionalStatusLabel(user?.professionalStatus) })}
                     </span>
                   </div>
 
@@ -1599,10 +1680,10 @@ function ProfileContent() {
                       {verificationSubmitting ? (
                         <>
                           <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          Submitting...
+                          {t('professionalStatus.submitting')}
                         </>
                       ) : (
-                        'Send for Verification'
+                        t('professionalStatus.sendForVerification')
                       )}
                     </Button>
                   )}
@@ -1610,19 +1691,19 @@ function ProfileContent() {
 
                 {user?.professionalStatus === 'rejected' && user?.rejectionReason && (
                   <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-700">
-                    <strong>Rejection Reason:</strong> {user.rejectionReason}
+                    <strong>{t('professionalStatus.rejectionReason')}</strong> {user.rejectionReason}
                   </div>
                 )}
 
                 {user?.professionalStatus === 'pending' && (
                   <div className="mt-2 text-xs text-yellow-700">
-                    Your profile is under review. You will be notified within 48 hours.
+                    {t('professionalStatus.pendingNotice')}
                   </div>
                 )}
 
                 {user?.professionalStatus === 'approved' && (
                   <div className="mt-2 text-xs text-green-700">
-                    Your professional profile has been approved. You can now receive project bookings.
+                    {t('professionalStatus.approvedNotice')}
                   </div>
                 )}
               </div>
@@ -1632,16 +1713,16 @@ function ProfileContent() {
 
         {isProfessional ? (
           <Tabs value={profileTab} onValueChange={handleProfileTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-9">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="business">Business Info</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="payments">Payments</TabsTrigger>
-              <TabsTrigger value="employees">Employees</TabsTrigger>
-              <TabsTrigger value="personal-availability">Personal Availability</TabsTrigger>
-              <TabsTrigger value="company-availability">Company Availability</TabsTrigger>
-              <TabsTrigger value="security">Security</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsList className="w-full justify-start overflow-x-auto scrollbar-thin sm:grid sm:grid-cols-9">
+              <TabsTrigger value="profile">{t('tabs.profile')}</TabsTrigger>
+              <TabsTrigger value="business">{t('tabs.business')}</TabsTrigger>
+              <TabsTrigger value="documents">{t('tabs.documents')}</TabsTrigger>
+              <TabsTrigger value="payments">{t('tabs.payments')}</TabsTrigger>
+              <TabsTrigger value="employees">{t('tabs.employees')}</TabsTrigger>
+              <TabsTrigger value="personal-availability">{t('tabs.personalAvailability')}</TabsTrigger>
+              <TabsTrigger value="company-availability">{t('tabs.companyAvailability')}</TabsTrigger>
+              <TabsTrigger value="security">{t('tabs.security')}</TabsTrigger>
+              <TabsTrigger value="notifications">{t('tabs.notifications')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-6">
@@ -1651,9 +1732,9 @@ function ProfileContent() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <User className="h-5 w-5" />
-                      Profile Information
+                      {t('profileInfo.title')}
                     </CardTitle>
-                    <CardDescription>Your account details</CardDescription>
+                    <CardDescription>{t('profileInfo.description')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {renderAvatarEditor()}
@@ -1672,10 +1753,10 @@ function ProfileContent() {
                             className="h-8 text-sm flex-1"
                           />
                           <Button size="sm" onClick={handleUpdatePhone} disabled={phoneUpdating} className="h-8">
-                            {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                            {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : t('common.save')}
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => { setIsEditingPhone(false); setNewPhoneNumber(user?.phone || '') }} className="h-8">
-                            Cancel
+                            {t('common.cancel')}
                           </Button>
                         </div>
                       ) : (
@@ -1685,14 +1766,14 @@ function ProfileContent() {
                             <Pencil className="h-3 w-3" />
                           </Button>
                           {!user?.isPhoneVerified && (
-                            <span className="text-xs text-orange-600">(Not verified)</span>
+                            <span className="text-xs text-orange-600">{t('profileInfo.notVerified')}</span>
                           )}
                         </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm capitalize">{user?.role}</span>
+                      <span className="text-sm">{roleLabel(user?.role)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -1702,28 +1783,28 @@ function ProfileContent() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Shield className="h-5 w-5" />
-                      Verification Status
+                      {t('verification.title')}
                     </CardTitle>
-                    <CardDescription>Account verification progress</CardDescription>
+                    <CardDescription>{t('verification.description')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Email Verification</span>
+                      <span className="text-sm">{t('verification.email')}</span>
                       <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
-                        {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
+                        {user?.isEmailVerified ? t('verification.verified') : t('verification.notVerified')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Phone Verification</span>
+                      <span className="text-sm">{t('verification.phone')}</span>
                       <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
-                        {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
+                        {user?.isPhoneVerified ? t('verification.verified') : t('verification.notVerified')}
                       </span>
                     </div>
                     {(user?.role === 'professional' || user?.role === 'customer') && (
                       <div className="flex items-center justify-between">
-                        <span className="text-sm">VAT Verification</span>
+                        <span className="text-sm">{t('verification.vat')}</span>
                         <span className={`text-sm font-medium ${user?.isVatVerified ? 'text-green-600' : 'text-red-600'}`}>
-                          {user?.isVatVerified ? 'Verified' : 'Not Verified'}
+                          {user?.isVatVerified ? t('verification.verified') : t('verification.notVerified')}
                         </span>
                       </div>
                     )}
@@ -1736,20 +1817,20 @@ function ProfileContent() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Building className="h-5 w-5" />
-                        VAT Information
+                        {t('vat.title')}
                       </CardTitle>
                       <CardDescription>
-                        Add your VAT number for EU tax compliance. EU VAT numbers will be verified using VIES.
-                        {user?.role === 'customer' && ' Useful for business customers who need VAT invoices.'}
+                        {t('vat.description')}
+                        {user?.role === 'customer' && ` ${t('vat.customerNote')}`}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="vatNumber">VAT Number</Label>
+                        <Label htmlFor="vatNumber">{t('vat.number')}</Label>
                         <div className="flex gap-2">
                           <Input
                             id="vatNumber"
-                            placeholder="e.g., DE123456789"
+                            placeholder={t('vat.placeholder')}
                             value={vatNumber}
                             onChange={(e) => handleVatNumberChange(e.target.value.toUpperCase())}
                             className="flex-1"
@@ -1763,15 +1844,15 @@ function ProfileContent() {
                             {vatValidating ? (
                               <>
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                Validating
+                                {t('common.validating')}
                               </>
                             ) : (
-                              'Validate'
+                              t('common.validate')
                             )}
                           </Button>
                         </div>
                         <p className="text-xs text-gray-500">
-                          Format: 2-letter country code + 4-15 characters (e.g., DE123456789, FR12345678901)
+                          {t('vat.formatHint')}
                         </p>
                       </div>
 
@@ -1794,33 +1875,33 @@ function ProfileContent() {
                             <div className="flex-1 text-sm">
                               {vatValidation.valid ? (
                                 <div>
-                                  <p className="font-medium text-green-800">VAT number is valid</p>
+                                  <p className="font-medium text-green-800">{t('vat.valid')}</p>
                                   {isEUVatNumber(vatNumber) && (
                                     <p className="text-green-700">
-                                      Country: {getVATCountryName(vatNumber)}
+                                      {t('vat.country', { country: vatCountryName(vatNumber) })}
                                     </p>
                                   )}
                                   {vatValidation.companyName && (
                                     <p className="text-green-700 mt-1">
-                                      <span className="font-medium">Company:</span> {vatValidation.companyName}
+                                      <span className="font-medium">{t('vat.company')}</span> {vatValidation.companyName}
                                     </p>
                                   )}
                                   {vatValidation.companyAddress && (
                                     <p className="text-green-700">
-                                      <span className="font-medium">Address:</span> {vatValidation.companyAddress}
+                                      <span className="font-medium">{t('vat.address')}</span> {vatValidation.companyAddress}
                                     </p>
                                   )}
                                 </div>
                               ) : vatValidation.transient ? (
                                 <div>
-                                  <p className="font-medium text-amber-800">VIES is temporarily unavailable</p>
+                                  <p className="font-medium text-amber-800">{t('vat.viesUnavailable')}</p>
                                   {vatValidation.error && (
                                     <p className="text-amber-700">{vatValidation.error}</p>
                                   )}
                                 </div>
                               ) : (
                                 <div>
-                                  <p className="font-medium text-red-800">Validation failed</p>
+                                  <p className="font-medium text-red-800">{t('vat.validationFailed')}</p>
                                   {vatValidation.error && (
                                     <p className="text-red-700">{vatValidation.error}</p>
                                   )}
@@ -1845,14 +1926,14 @@ function ProfileContent() {
                             )}
                             <div className="flex-1 text-sm">
                               <p className={`font-medium ${user.isVatVerified ? 'text-green-800' : 'text-amber-800'}`}>
-                                VAT number {user.isVatVerified ? 'verified' : 'not verified'}
+                                {user.isVatVerified ? t('vat.currentVerified') : t('vat.currentNotVerified')}
                               </p>
                               <p className={user.isVatVerified ? 'text-green-700' : 'text-amber-700'}>
-                                {user.vatNumber} ({getVATCountryName(user.vatNumber)})
+                                {user.vatNumber} ({vatCountryName(user.vatNumber)})
                               </p>
                               {!user.isVatVerified && (
                                 <p className="text-amber-700 mt-1">
-                                  B2B reverse charge will not apply until VIES verifies this number. Check the value and click Validate again.
+                                  {t('vat.reverseChargeHint')}
                                 </p>
                               )}
                             </div>
@@ -1870,10 +1951,10 @@ function ProfileContent() {
                           {vatSaving ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Saving...
+                              {t('common.saving')}
                             </>
                           ) : (
-                            vatNumber ? 'Save VAT Number' : 'Remove VAT Number'
+                            vatNumber ? t('vat.save') : t('vat.remove')
                           )}
                         </Button>
                         {user?.vatNumber && (
@@ -1882,7 +1963,7 @@ function ProfileContent() {
                             disabled={vatSaving}
                             variant="outline"
                           >
-                            Remove
+                            {t('common.remove')}
                           </Button>
                         )}
                       </div>
@@ -1895,21 +1976,21 @@ function ProfileContent() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Calendar className="h-5 w-5" />
-                      Account Stats
+                      {t('stats.title')}
                     </CardTitle>
-                    <CardDescription>Your account activity</CardDescription>
+                    <CardDescription>{t('stats.description')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Member Since</span>
+                      <span className="text-sm">{t('stats.memberSince')}</span>
                       <span className="text-sm font-medium">
-                        {new Date(user?.createdAt || '').toLocaleDateString()}
+                        {new Date(user?.createdAt || '').toLocaleDateString(intl)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Last Updated</span>
+                      <span className="text-sm">{t('stats.lastUpdated')}</span>
                       <span className="text-sm font-medium">
-                        {new Date(user?.updatedAt || '').toLocaleDateString()}
+                        {new Date(user?.updatedAt || '').toLocaleDateString(intl)}
                       </span>
                     </div>
                   </CardContent>
@@ -1923,25 +2004,25 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building className="h-5 w-5" />
-                    Business Information
+                    {t('business.title')}
                   </CardTitle>
                   <CardDescription>
-                    Complete your business profile to attract more clients
+                    {t('business.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="companyName">Company Name</Label>
+                      <Label htmlFor="companyName">{t('business.companyName')}</Label>
                       <Input
                         id="companyName"
                         value={businessInfo.companyName}
                         onChange={(e) => setBusinessInfo(prev => ({ ...prev, companyName: e.target.value }))}
-                        placeholder="Your business name"
+                        placeholder={t('business.companyNamePlaceholder')}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="website">Website</Label>
+                      <Label htmlFor="website">{t('business.website')}</Label>
                       <Input
                         id="website"
                         value={businessInfo.website}
@@ -1952,11 +2033,11 @@ function ProfileContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Display Username</Label>
-                    <p className="text-xs text-gray-500">This is how customers see you. Your company name is only visible to administrators.</p>
+                    <Label>{t('business.usernameLabel')}</Label>
+                    <p className="text-xs text-gray-500">{t('business.usernameHint')}</p>
                     {!usernameEdit ? (
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-900">{username || '(not set)'}</span>
+                        <span className="text-sm font-medium text-gray-900">{username || t('business.usernameNotSet')}</span>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -1979,11 +2060,11 @@ function ProfileContent() {
                                   setUsernameCheck({ available: data.available, reason: data.reason })
                                 } catch (err: unknown) {
                                   if (err instanceof Error && err.name === 'AbortError') return
-                                  setUsernameCheck({ reason: 'Failed to check' })
+                                  setUsernameCheck({ reason: t('toasts.usernameCheckFailed') })
                                 }
                               }, 500)
                             }}
-                            placeholder="e.g., silva-lisboa"
+                            placeholder={t('business.usernamePlaceholder')}
                             maxLength={30}
                           />
                           <Button
@@ -1999,10 +2080,10 @@ function ProfileContent() {
                                   setUsername(data.suggestions[0])
                                   setUsernameCheck({ available: true })
                                 }
-                              } catch { toast.error('Failed to generate suggestions') }
+                              } catch { toast.error(t('toasts.suggestionsFailed')) }
                             }}
                           >
-                            Suggest
+                            {t('business.suggest')}
                           </Button>
                         </div>
                         {username && username.length >= 3 && (
@@ -2011,12 +2092,12 @@ function ProfileContent() {
                             usernameCheck.available ? 'bg-green-50 text-green-700' :
                             usernameCheck.available === false ? 'bg-red-50 text-red-700' : ''
                           }`}>
-                            {usernameCheck.checking ? 'Checking...' :
-                             usernameCheck.available ? 'Username available' :
+                            {usernameCheck.checking ? t('business.checking') :
+                             usernameCheck.available ? t('business.usernameAvailable') :
                              usernameCheck.available === false ? usernameCheck.reason : null}
                           </div>
                         )}
-                        <p className="text-xs text-gray-400">3-30 characters, lowercase letters, numbers, and hyphens only</p>
+                        <p className="text-xs text-gray-400">{t('business.usernameRules')}</p>
                         {usernameSuggestions.length > 0 && (
                           <div className="flex flex-wrap gap-2">
                             {usernameSuggestions.map((s) => (
@@ -2042,84 +2123,84 @@ function ProfileContent() {
                                 })
                                 const data = await res.json()
                                 if (data.success) {
-                                  toast.success('Username updated')
+                                  toast.success(t('toasts.usernameUpdated'))
                                   setUsernameEdit(false)
                                   await checkAuth()
                                 } else {
-                                  toast.error(data.msg || 'Failed to update username')
+                                  toast.error(data.msg || t('toasts.usernameUpdateFailed'))
                                 }
-                              } catch { toast.error('Failed to update username') }
+                              } catch { toast.error(t('toasts.usernameUpdateFailed')) }
                               finally { setUsernameSaving(false) }
                             }}
                           >
-                            {usernameSaving ? 'Saving...' : 'Save Username'}
+                            {usernameSaving ? t('common.saving') : t('business.saveUsername')}
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => {
                             setUsernameEdit(false)
                             setUsername(user?.username || '')
                             setUsernameCheck({})
                             setUsernameSuggestions([])
-                          }}>Cancel</Button>
+                          }}>{t('common.cancel')}</Button>
                         </div>
                       </div>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="description">Business Description</Label>
+                    <Label htmlFor="description">{t('business.descriptionLabel')}</Label>
                     <Textarea
                       id="description"
                       value={businessInfo.description}
                       onChange={(e) => setBusinessInfo(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Describe your business and services..."
+                      placeholder={t('business.descriptionPlaceholder')}
                       rows={3}
                     />
                   </div>
 
                   <div className="grid md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="city">City</Label>
+                      <Label htmlFor="city">{t('common.city')}</Label>
                       <Input
                         id="city"
                         value={businessInfo.city}
                         onChange={(e) => setBusinessInfo(prev => ({ ...prev, city: e.target.value }))}
-                        placeholder="City"
+                        placeholder={t('common.city')}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="country">Country</Label>
+                      <Label htmlFor="country">{t('common.country')}</Label>
                       <Input
                         id="country"
                         value={businessInfo.country}
                         onChange={(e) => setBusinessInfo(prev => ({ ...prev, country: e.target.value }))}
-                        placeholder="Country"
+                        placeholder={t('common.country')}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="postalCode">Postal Code</Label>
+                      <Label htmlFor="postalCode">{t('common.postalCode')}</Label>
                       <Input
                         id="postalCode"
                         value={businessInfo.postalCode}
                         onChange={(e) => setBusinessInfo(prev => ({ ...prev, postalCode: e.target.value }))}
-                        placeholder="Postal Code"
+                        placeholder={t('common.postalCode')}
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
+                    <Label htmlFor="address">{t('customer.address')}</Label>
                     <Input
                       id="address"
                       value={businessInfo.address}
                       onChange={(e) => setBusinessInfo(prev => ({ ...prev, address: e.target.value }))}
-                      placeholder="Full business address"
+                      placeholder={t('customer.companyAddressPlaceholder')}
                     />
                   </div>
 
                   {/* Hourly Rate */}
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="hourlyRate">Hourly Rate</Label>
+                      <Label htmlFor="hourlyRate">{t('business.hourlyRate')}</Label>
                       <Input
                         id="hourlyRate"
                         type="number"
@@ -2131,7 +2212,7 @@ function ProfileContent() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="currency">Currency</Label>
+                      <Label htmlFor="currency">{t('business.currency')}</Label>
                       <Select value={currency} onValueChange={setCurrency}>
                         <SelectTrigger>
                           <SelectValue />
@@ -2149,14 +2230,14 @@ function ProfileContent() {
 
                   {/* Service Categories */}
                   <div className="space-y-2">
-                    <Label>Service Categories</Label>
+                    <Label>{t('business.serviceCategories')}</Label>
                     {serviceCatalogLoading && (
                       <div className="space-y-2">
                         {[1, 2, 3].map(i => <Skeleton key={i} className="h-5 w-full" />)}
                       </div>
                     )}
                     {serviceCatalogError && (
-                      <div className="text-sm text-red-600">{serviceCatalogError}</div>
+                      <div className="text-sm text-red-600">{t('business.serviceCatalogError')}</div>
                     )}
                     {!serviceCatalogLoading && (
                       serviceCatalog.length > 0 ? (
@@ -2182,7 +2263,7 @@ function ProfileContent() {
                         </div>
                       ) : (
                         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                          No services available for your country. Please make sure your country is set correctly above; the list will update when you change the country.
+                          {t('business.noServices')}
                         </p>
                       )
                     )}
@@ -2196,10 +2277,10 @@ function ProfileContent() {
                     {profileSaving ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Saving...
+                        {t('common.saving')}
                       </>
                     ) : (
-                      'Save Business Information'
+                      t('business.saveInfo')
                     )}
                   </Button>
                 </CardContent>
@@ -2212,10 +2293,10 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5" />
-                    Identity Documents
+                    {t('documents.title')}
                   </CardTitle>
                   <CardDescription>
-                    Upload your ID proof for verification. Required for professional approval.
+                    {t('documents.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -2225,12 +2306,16 @@ function ProfileContent() {
                       <div className="flex items-start gap-2">
                         <Check className="h-4 w-4 text-green-600 mt-0.5" />
                         <div className="flex-1 text-sm">
-                          <p className="font-medium text-green-800">ID Proof Uploaded</p>
+                          <p className="font-medium text-green-800">{t('documents.idUploaded')}</p>
                           <p className="text-green-700">
-                            Verification Status: {user.isIdVerified ? 'Verified' : 'Pending Review'}
+                            {t('documents.verificationStatus', {
+                              status: user.isIdVerified ? t('documents.verified') : t('documents.pendingReview'),
+                            })}
                           </p>
                           <p className="text-green-700 text-xs">
-                            Uploaded: {new Date(user.idProofUploadedAt || '').toLocaleDateString()}
+                            {t('documents.uploadedAt', {
+                              date: new Date(user.idProofUploadedAt || '').toLocaleDateString(intl),
+                            })}
                           </p>
                         </div>
                       </div>
@@ -2239,7 +2324,7 @@ function ProfileContent() {
 
                   {/* File Upload */}
                   <div className="space-y-2">
-                    <Label htmlFor="idProof">Upload New ID Proof</Label>
+                    <Label htmlFor="idProof">{t('documents.uploadNew')}</Label>
                     <Input
                       id="idProof"
                       type="file"
@@ -2248,7 +2333,7 @@ function ProfileContent() {
                       className="cursor-pointer"
                     />
                     <p className="text-xs text-gray-500">
-                      Accepted formats: JPEG, PNG, PDF. Maximum size: 5MB
+                      {t('documents.acceptedFormats')}
                     </p>
                   </div>
 
@@ -2257,7 +2342,7 @@ function ProfileContent() {
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-blue-600" />
                         <span className="text-sm font-medium text-blue-800">
-                          Selected: {idProofFile.name}
+                          {t('documents.selected', { name: idProofFile.name })}
                         </span>
                       </div>
                     </div>
@@ -2277,37 +2362,37 @@ function ProfileContent() {
                     {uploading ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Uploading...
+                        {t('documents.uploading')}
                       </>
                     ) : (
                       <>
                         <Upload className="h-4 w-4 mr-2" />
-                        Upload ID Proof
+                        {t('documents.upload')}
                       </>
                     )}
                   </Button>
 
                   {/* ID Metadata Fields */}
                   <div className="border-t pt-4 mt-4">
-                    <h4 className="text-sm font-medium mb-3">ID Document Details</h4>
+                    <h4 className="text-sm font-medium mb-3">{t('documents.idDetails')}</h4>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="idCountryOfIssue">Country of Issue</Label>
+                        <Label htmlFor="idCountryOfIssue">{t('documents.countryOfIssue')}</Label>
                         <Select value={idCountryOfIssue} onValueChange={setIdCountryOfIssue}>
                           <SelectTrigger id="idCountryOfIssue">
-                            <SelectValue placeholder="Select country" />
+                            <SelectValue placeholder={t('documents.selectCountry')} />
                           </SelectTrigger>
                           <SelectContent>
                             {EU_COUNTRIES.map((country) => (
                               <SelectItem key={country.code} value={country.code}>
-                                {country.flag} {country.name}
+                                {country.flag} {regionNames?.of(country.code) ?? country.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="idExpirationDate">Expiration Date</Label>
+                        <Label htmlFor="idExpirationDate">{t('documents.expirationDate')}</Label>
                         <Input
                           id="idExpirationDate"
                           type="date"
@@ -2322,7 +2407,7 @@ function ProfileContent() {
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
                           <p className="text-xs text-amber-700">
-                            Changing ID information will trigger a re-verification. Your professional status will be set to pending until an admin re-approves your profile.
+                            {t('documents.changeWarning')}
                           </p>
                         </div>
                       </div>
@@ -2343,10 +2428,10 @@ function ProfileContent() {
                       {idInfoSaving ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          Saving...
+                          {t('common.saving')}
                         </>
                       ) : (
-                        'Save ID Details'
+                        t('documents.saveIdDetails')
                       )}
                     </Button>
                   </div>
@@ -2360,52 +2445,52 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CreditCard className="h-5 w-5" />
-                    Payment Setup
+                    {t('payments.title')}
                   </CardTitle>
                   <CardDescription>
-                    Connect your Stripe account to receive payments from customers
+                    {t('payments.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {stripeStatusLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Checking Stripe account status...
+                      {t('payments.checking')}
                     </div>
                   ) : stripeAccountStatus?.hasAccount ? (
                     <div className="space-y-4">
                       <div className={`rounded-lg border p-3 ${isStripeFullyReady ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
                         <p className={`text-sm font-medium ${isStripeFullyReady ? 'text-green-800' : 'text-amber-800'}`}>
-                          {isStripeFullyReady ? 'Stripe account connected and payout-ready.' : 'Stripe account connected, but setup is not fully complete.'}
+                          {isStripeFullyReady ? t('payments.ready') : t('payments.incomplete')}
                         </p>
                       </div>
 
                       <div className="grid sm:grid-cols-3 gap-3 text-sm">
                         <div className="rounded-md border p-3">
-                          <p className="text-muted-foreground mb-1">Onboarding</p>
+                          <p className="text-muted-foreground mb-1">{t('payments.onboarding')}</p>
                           <p className="font-medium flex items-center gap-1">
                             {stripeAccountStatus.onboardingCompleted ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-red-600" />}
-                            {stripeAccountStatus.onboardingCompleted ? 'Complete' : 'Incomplete'}
+                            {stripeAccountStatus.onboardingCompleted ? t('payments.complete') : t('payments.incompleteStatus')}
                           </p>
                         </div>
                         <div className="rounded-md border p-3">
-                          <p className="text-muted-foreground mb-1">Charges</p>
+                          <p className="text-muted-foreground mb-1">{t('payments.charges')}</p>
                           <p className="font-medium flex items-center gap-1">
                             {stripeAccountStatus.chargesEnabled ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-red-600" />}
-                            {stripeAccountStatus.chargesEnabled ? 'Enabled' : 'Disabled'}
+                            {stripeAccountStatus.chargesEnabled ? t('payments.enabled') : t('payments.disabled')}
                           </p>
                         </div>
                         <div className="rounded-md border p-3">
-                          <p className="text-muted-foreground mb-1">Payouts</p>
+                          <p className="text-muted-foreground mb-1">{t('payments.payouts')}</p>
                           <p className="font-medium flex items-center gap-1">
                             {stripePayoutsEnabled ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-red-600" />}
-                            {stripePayoutsEnabled ? 'Enabled' : 'Disabled'}
+                            {stripePayoutsEnabled ? t('payments.enabled') : t('payments.disabled')}
                           </p>
                         </div>
                       </div>
 
-                      {stripeStatusError && (
-                        <p className="text-sm text-red-600">{stripeStatusError}</p>
+                      {stripeStatusError !== null && (
+                        <p className="text-sm text-red-600">{stripeStatusError || t('payments.loadFailed')}</p>
                       )}
 
                       <div className="flex flex-wrap gap-2">
@@ -2414,7 +2499,7 @@ function ProfileContent() {
                           className="w-full sm:w-auto"
                         >
                           <CreditCard className="h-4 w-4 mr-2" />
-                          {isStripeFullyReady ? 'Manage Stripe Account' : 'Complete Stripe Setup'}
+                          {isStripeFullyReady ? t('payments.manage') : t('payments.completeSetup')}
                         </Button>
                         <Button
                           type="button"
@@ -2422,17 +2507,17 @@ function ProfileContent() {
                           onClick={() => void loadStripeAccountStatus()}
                           disabled={stripeStatusLoading}
                         >
-                          Refresh Status
+                          {t('payments.refresh')}
                         </Button>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       <p className="text-sm text-muted-foreground">
-                        Set up your Stripe account to start accepting payments. You&apos;ll be guided through Stripe&apos;s secure onboarding process.
+                        {t('payments.intro')}
                       </p>
-                      {stripeStatusError && (
-                        <p className="text-sm text-red-600">{stripeStatusError}</p>
+                      {stripeStatusError !== null && (
+                        <p className="text-sm text-red-600">{stripeStatusError || t('payments.loadFailed')}</p>
                       )}
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -2440,7 +2525,7 @@ function ProfileContent() {
                           className="w-full sm:w-auto"
                         >
                           <CreditCard className="h-4 w-4 mr-2" />
-                          Go to Stripe Setup
+                          {t('payments.goToSetup')}
                         </Button>
                         <Button
                           type="button"
@@ -2448,7 +2533,7 @@ function ProfileContent() {
                           onClick={() => void loadStripeAccountStatus()}
                           disabled={stripeStatusLoading}
                         >
-                          Refresh Status
+                          {t('payments.refresh')}
                         </Button>
                       </div>
                     </div>
@@ -2463,23 +2548,23 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CalendarX className="h-5 w-5" />
-                    Availability Calendar
+                    {t('personalAvailability.title')}
                   </CardTitle>
                   <CardDescription>
-                    Weekly view with bookings, buffers, personal blocks, and company closures. Click personal blocks to edit.
+                    {t('personalAvailability.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-3">
-                    <Label className="text-base font-medium">Add Blocked Period</Label>
+                    <Label className="text-base font-medium">{t('personalAvailability.addBlocked')}</Label>
                     <p className="text-xs text-muted-foreground">
-                      Choose the exact start and end time for the blocked period.
+                      {t('personalAvailability.addBlockedHint')}
                     </p>
                   </div>
                   <div className="space-y-4">
                     <div className="grid md:grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="startDate">Start Date</Label>
+                        <Label htmlFor="startDate">{t('personalAvailability.startDate')}</Label>
                         <Input
                           id="startDate"
                           type="datetime-local"
@@ -2489,7 +2574,7 @@ function ProfileContent() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="endDate">End Date</Label>
+                        <Label htmlFor="endDate">{t('personalAvailability.endDate')}</Label>
                         <Input
                           id="endDate"
                           type="datetime-local"
@@ -2499,10 +2584,10 @@ function ProfileContent() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="reason">Reason (Optional)</Label>
+                        <Label htmlFor="reason">{t('personalAvailability.reason')}</Label>
                         <Input
                           id="reason"
-                          placeholder="Vacation, Holiday, etc."
+                          placeholder={t('personalAvailability.reasonPlaceholder')}
                           value={newBlockedRange.reason}
                           onChange={(e) => setNewBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
                         />
@@ -2520,14 +2605,14 @@ function ProfileContent() {
                         variant="outline"
                       >
                         <CalendarX className="h-4 w-4 mr-2" />
-                        Block Period
+                        {t('personalAvailability.blockPeriod')}
                       </Button>
                     </div>
                   </div>
 
                   <WeeklyAvailabilityCalendar
-                    title="Weekly Availability"
-                    description="Booking details are shown inside each block. Click personal blocks to edit."
+                    title={t('personalAvailability.calendarTitle')}
+                    description={t('personalAvailability.calendarDescription')}
                     events={calendarEvents}
                     dayStart={scheduleWindow.dayStart}
                     dayEnd={scheduleWindow.dayEnd}
@@ -2546,15 +2631,19 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Calendar className="h-5 w-5" />
-                    Personal Working Hours
+                    {t('personalAvailability.workingHoursTitle')}
                   </CardTitle>
                   <CardDescription>
-                    Read-only. Working hours follow the company schedule.
+                    {t('personalAvailability.workingHoursDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    Calendar window: {visibleDaysLabel || 'Mon-Fri'} - {scheduleWindow.dayStart} to {scheduleWindow.dayEnd}
+                    {t('personalAvailability.calendarWindow', {
+                      days: visibleDaysLabel || t('common.weekdaysMonToFri'),
+                      start: scheduleWindow.dayStart,
+                      end: scheduleWindow.dayEnd,
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -2563,8 +2652,8 @@ function ProfileContent() {
             {/* Company Availability Tab */}
             < TabsContent value="company-availability" className="space-y-6" >
               <div className="mb-6">
-                <h3 className="text-lg font-semibold">Company Availability & Holidays</h3>
-                <p className="text-sm text-muted-foreground">Set company-wide schedule that team members can inherit</p>
+                <h3 className="text-lg font-semibold">{t('companyAvailability.title')}</h3>
+                <p className="text-sm text-muted-foreground">{t('companyAvailability.description')}</p>
               </div>
 
               {/* Company Closures Card */}
@@ -2572,17 +2661,17 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CalendarX className="h-5 w-5" />
-                    Company Closures
+                    {t('companyAvailability.closuresTitle')}
                   </CardTitle>
                   <CardDescription>
-                    Block company-wide closure periods. These appear on the calendar below.
+                    {t('companyAvailability.closuresDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-4">
                     <div className="grid md:grid-cols-12 gap-4">
                       <div className="md:col-span-3">
-                        <Label htmlFor="company-range-start">Start</Label>
+                        <Label htmlFor="company-range-start">{t('companyAvailability.start')}</Label>
                         <Input
                           id="company-range-start"
                           type="datetime-local"
@@ -2592,7 +2681,7 @@ function ProfileContent() {
                         />
                       </div>
                       <div className="md:col-span-3">
-                        <Label htmlFor="company-range-end">End</Label>
+                        <Label htmlFor="company-range-end">{t('companyAvailability.end')}</Label>
                         <Input
                           id="company-range-end"
                           type="datetime-local"
@@ -2602,10 +2691,10 @@ function ProfileContent() {
                         />
                       </div>
                       <div className="md:col-span-4">
-                        <Label htmlFor="company-range-reason">Reason</Label>
+                        <Label htmlFor="company-range-reason">{t('companyAvailability.reason')}</Label>
                         <Input
                           id="company-range-reason"
-                          placeholder="Holiday period"
+                          placeholder={t('companyAvailability.reasonPlaceholder')}
                           value={newCompanyBlockedRange.reason}
                           onChange={(e) => setNewCompanyBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
                         />
@@ -2620,7 +2709,7 @@ function ProfileContent() {
                           }
                           className="w-full"
                         >
-                          Block Period
+                          {t('companyAvailability.blockPeriod')}
                         </Button>
                       </div>
                     </div>
@@ -2631,14 +2720,14 @@ function ProfileContent() {
                         onCheckedChange={(value) => setNewCompanyBlockedRange(prev => ({ ...prev, isHoliday: Boolean(value) }))}
                       />
                       <Label htmlFor="company-range-is-holiday" className="text-sm font-normal cursor-pointer">
-                        Mark as official company holiday
+                        {t('companyAvailability.markHoliday')}
                       </Label>
                     </div>
                   </div>
 
                   <WeeklyAvailabilityCalendar
-                    title="Company Closures Calendar"
-                    description="Click a closure block to remove it."
+                    title={t('companyAvailability.calendarTitle')}
+                    description={t('companyAvailability.calendarDescription')}
                     events={companyCalendarEvents}
                     dayStart={scheduleWindow.dayStart}
                     dayEnd={scheduleWindow.dayEnd}
@@ -2657,16 +2746,16 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building className="h-5 w-5" />
-                    Company Working Hours
+                    {t('companyAvailability.workingHoursTitle')}
                   </CardTitle>
                   <CardDescription>
-                    Set company office hours for your team. The weekly calendar window updates automatically.
+                    {t('companyAvailability.workingHoursDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {Object.entries(companyAvailability).map(([day, schedule]) => (
                     <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
-                      <div className="w-20 text-sm font-medium capitalize">{day}</div>
+                      <div className="w-20 text-sm font-medium">{dayLabels[day] ?? day}</div>
                       <div className="flex items-center gap-2">
                         <Checkbox
                           id={`company-day-${day}`}
@@ -2678,7 +2767,7 @@ function ProfileContent() {
                             }))
                           }}
                         />
-                        <Label htmlFor={`company-day-${day}`} className="text-sm font-normal cursor-pointer">Available</Label>
+                        <Label htmlFor={`company-day-${day}`} className="text-sm font-normal cursor-pointer">{t('common.available')}</Label>
                       </div>
                       {schedule.available && (
                         <>
@@ -2693,7 +2782,7 @@ function ProfileContent() {
                             }}
                             className="w-32"
                           />
-                          <span className="text-sm">to</span>
+                          <span className="text-sm">{t('common.to')}</span>
                           <Input
                             type="time"
                             value={schedule.endTime}
@@ -2711,7 +2800,11 @@ function ProfileContent() {
                   ))}
 
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    Calendar window: {visibleDaysLabel || 'Mon-Fri'} - {scheduleWindow.dayStart} to {scheduleWindow.dayEnd}
+                    {t('personalAvailability.calendarWindow', {
+                      days: visibleDaysLabel || t('common.weekdaysMonToFri'),
+                      start: scheduleWindow.dayStart,
+                      end: scheduleWindow.dayEnd,
+                    })}
                   </div>
 
                   <Button
@@ -2722,10 +2815,10 @@ function ProfileContent() {
                     {profileSaving ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Saving...
+                        {t('common.saving')}
                       </>
                     ) : (
-                      'Save Company Hours'
+                      t('companyAvailability.saveHours')
                     )}
                   </Button>
                 </CardContent>
@@ -2758,11 +2851,11 @@ function ProfileContent() {
           // Non-professional users (customers, employees, etc.)
           <Tabs value={profileTab} onValueChange={handleProfileTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="security">Security</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+              <TabsTrigger value="profile">{t('tabs.profile')}</TabsTrigger>
+              <TabsTrigger value="security">{t('tabs.security')}</TabsTrigger>
+              <TabsTrigger value="notifications">{t('tabs.notifications')}</TabsTrigger>
               {(user?.role === 'employee' || user?.role === 'admin') && (
-                <TabsTrigger value="availability">Availability</TabsTrigger>
+                <TabsTrigger value="availability">{t('tabs.availability')}</TabsTrigger>
               )}
             </TabsList>
 
@@ -2773,9 +2866,9 @@ function ProfileContent() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <User className="h-5 w-5" />
-                      Profile Information
+                      {t('profileInfo.title')}
                     </CardTitle>
-                    <CardDescription>Your account details</CardDescription>
+                    <CardDescription>{t('profileInfo.description')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {renderAvatarEditor()}
@@ -2794,27 +2887,27 @@ function ProfileContent() {
                             className="h-8 text-sm flex-1"
                           />
                           <Button size="sm" onClick={handleUpdatePhone} disabled={phoneUpdating} className="h-8">
-                            {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                            {phoneUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : t('common.save')}
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => { setIsEditingPhone(false); setNewPhoneNumber(user?.phone || '') }} className="h-8">
-                            Cancel
+                            {t('common.cancel')}
                           </Button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 flex-1">
-                          <span className="text-sm">{user?.phone?.startsWith('+1000000') ? 'Not provided' : user?.phone}</span>
+                          <span className="text-sm">{user?.phone?.startsWith('+1000000') ? t('common.notProvided') : user?.phone}</span>
                           <Button size="sm" variant="ghost" onClick={() => setIsEditingPhone(true)} className="h-6 w-6 p-0">
                             <Pencil className="h-3 w-3" />
                           </Button>
                           {!user?.isPhoneVerified && (
-                            <span className="text-xs text-orange-600">(Not verified)</span>
+                            <span className="text-xs text-orange-600">{t('profileInfo.notVerified')}</span>
                           )}
                         </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm capitalize">{user?.role?.replace('_', ' ')}</span>
+                      <span className="text-sm">{roleLabel(user?.role)}</span>
                     </div>
                     {user?.role === 'admin' && user.adminRole && (
                       <div className="flex items-center gap-2">
@@ -2830,21 +2923,21 @@ function ProfileContent() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Shield className="h-5 w-5" />
-                      Verification Status
+                      {t('verification.title')}
                     </CardTitle>
-                    <CardDescription>Account verification progress</CardDescription>
+                    <CardDescription>{t('verification.description')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Email Verification</span>
+                      <span className="text-sm">{t('verification.email')}</span>
                       <span className={`text-sm font-medium ${user?.isEmailVerified ? 'text-green-600' : 'text-red-600'}`}>
-                        {user?.isEmailVerified ? 'Verified' : 'Not Verified'}
+                        {user?.isEmailVerified ? t('verification.verified') : t('verification.notVerified')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Phone Verification</span>
+                      <span className="text-sm">{t('verification.phone')}</span>
                       <span className={`text-sm font-medium ${user?.isPhoneVerified ? 'text-green-600' : 'text-red-600'}`}>
-                        {user?.isPhoneVerified ? 'Verified' : 'Not Verified'}
+                        {user?.isPhoneVerified ? t('verification.verified') : t('verification.notVerified')}
                       </span>
                     </div>
                   </CardContent>
@@ -2858,16 +2951,16 @@ function ProfileContent() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <MapPin className="h-5 w-5" />
-                        Address Information
+                        {t('customer.addressTitle')}
                       </CardTitle>
                       <CardDescription>
-                        Your personal address details
+                        {t('customer.addressDescription')}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {/* Customer Type Toggle */}
                       <div className="flex flex-col space-y-2 mb-4">
-                        <Label>Account Type</Label>
+                        <Label>{t('customer.accountType')}</Label>
                         <div className="flex items-center space-x-4">
                           <div className="flex items-center space-x-2">
                             <input
@@ -2879,7 +2972,7 @@ function ProfileContent() {
                               onChange={() => setCustomerType('individual')}
                               className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
-                            <Label htmlFor="type-individual" className="font-normal cursor-pointer">Individual</Label>
+                            <Label htmlFor="type-individual" className="font-normal cursor-pointer">{t('customer.individual')}</Label>
                           </div>
                           <div className="flex items-center space-x-2">
                             <input
@@ -2891,46 +2984,46 @@ function ProfileContent() {
                               onChange={() => setCustomerType('business')}
                               className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
-                            <Label htmlFor="type-business" className="font-normal cursor-pointer">Business</Label>
+                            <Label htmlFor="type-business" className="font-normal cursor-pointer">{t('customer.business')}</Label>
                           </div>
                         </div>
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="customer-address">Address</Label>
+                          <Label htmlFor="customer-address">{t('customer.address')}</Label>
                           <Input
                             id="customer-address"
                             value={customerAddress.address}
                             onChange={(e) => setCustomerAddress(prev => ({ ...prev, address: e.target.value }))}
-                            placeholder="Street address"
+                            placeholder={t('customer.addressPlaceholder')}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="customer-city">City</Label>
+                          <Label htmlFor="customer-city">{t('common.city')}</Label>
                           <Input
                             id="customer-city"
                             value={customerAddress.city}
                             onChange={(e) => setCustomerAddress(prev => ({ ...prev, city: e.target.value }))}
-                            placeholder="City"
+                            placeholder={t('common.city')}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="customer-country">Country</Label>
+                          <Label htmlFor="customer-country">{t('common.country')}</Label>
                           <Input
                             id="customer-country"
                             value={customerAddress.country}
                             onChange={(e) => setCustomerAddress(prev => ({ ...prev, country: e.target.value }))}
-                            placeholder="Country"
+                            placeholder={t('common.country')}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="customer-postalCode">Postal Code</Label>
+                          <Label htmlFor="customer-postalCode">{t('common.postalCode')}</Label>
                           <Input
                             id="customer-postalCode"
                             value={customerAddress.postalCode}
                             onChange={(e) => setCustomerAddress(prev => ({ ...prev, postalCode: e.target.value }))}
-                            placeholder="Postal Code"
+                            placeholder={t('common.postalCode')}
                           />
                         </div>
                       </div>
@@ -2945,10 +3038,10 @@ function ProfileContent() {
                         {customerProfileSaving ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            Saving...
+                            {t('common.saving')}
                           </>
                         ) : (
-                          'Save Profile'
+                          t('customer.saveProfile')
                         )}
                       </Button>
                     </CardContent>
@@ -2963,20 +3056,20 @@ function ProfileContent() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Building className="h-5 w-5" />
-                        VAT &amp; Business Information
+                        {t('customer.vatTitle')}
                       </CardTitle>
                       <CardDescription>
-                        Add your VAT number for EU tax compliance and invoicing. Business name and company address will be prefilled after VAT validation.
+                        {t('customer.vatDescription')}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {/* VAT Number Section */}
                       <div className="space-y-2">
-                        <Label htmlFor="customer-vatNumber">VAT Number</Label>
+                        <Label htmlFor="customer-vatNumber">{t('customer.vatNumber')}</Label>
                         <div className="flex gap-2">
                           <Input
                             id="customer-vatNumber"
-                            placeholder="e.g., DE123456789"
+                            placeholder={t('vat.placeholder')}
                             value={vatNumber}
                             onChange={(e) => handleVatNumberChange(e.target.value.toUpperCase())}
                             className="flex-1"
@@ -2990,10 +3083,10 @@ function ProfileContent() {
                             {vatValidating ? (
                               <>
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                Validating
+                                {t('common.validating')}
                               </>
                             ) : (
-                              'Validate'
+                              t('common.validate')
                             )}
                           </Button>
                         </div>
@@ -3017,10 +3110,10 @@ function ProfileContent() {
                             )}
                             <div className="flex-1 text-sm">
                               {vatValidation.valid ? (
-                                <p className="font-medium text-green-800">VAT number is valid</p>
+                                <p className="font-medium text-green-800">{t('vat.valid')}</p>
                               ) : vatValidation.transient ? (
                                 <div>
-                                  <p className="font-medium text-amber-800">VIES is temporarily unavailable</p>
+                                  <p className="font-medium text-amber-800">{t('vat.viesUnavailable')}</p>
                                   <p className="text-amber-700">{vatValidation.error}</p>
                                 </div>
                               ) : (
@@ -3041,15 +3134,15 @@ function ProfileContent() {
                           {vatSaving ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Saving...
+                              {t('common.saving')}
                             </>
                           ) : (
-                            vatNumber ? 'Save VAT Number' : 'Remove VAT Number'
+                            vatNumber ? t('vat.save') : t('vat.remove')
                           )}
                         </Button>
                         {user?.vatNumber && (
                           <Button onClick={removeVatNumber} disabled={vatSaving} variant="outline">
-                            Remove
+                            {t('common.remove')}
                           </Button>
                         )}
                       </div>
@@ -3068,14 +3161,14 @@ function ProfileContent() {
                             )}
                             <div className="flex-1 text-sm">
                               <p className={`font-medium ${user.isVatVerified ? 'text-green-800' : 'text-amber-800'}`}>
-                                VAT number {user.isVatVerified ? 'verified' : 'not verified'}
+                                {user.isVatVerified ? t('vat.currentVerified') : t('vat.currentNotVerified')}
                               </p>
                               <p className={user.isVatVerified ? 'text-green-700' : 'text-amber-700'}>
-                                {user.vatNumber} ({getVATCountryName(user.vatNumber)})
+                                {user.vatNumber} ({vatCountryName(user.vatNumber)})
                               </p>
                               {!user.isVatVerified && (
                                 <p className="text-amber-700 mt-1">
-                                  B2B reverse charge will not apply until VIES verifies this number. Check the value and click Validate again.
+                                  {t('vat.reverseChargeHint')}
                                 </p>
                               )}
                             </div>
@@ -3085,52 +3178,52 @@ function ProfileContent() {
 
                       {/* Business Name & Company Address Section */}
                       <div className="border-t pt-4 mt-2 space-y-4">
-                        <h4 className="text-sm font-medium">Business Name &amp; Company Address</h4>
-                        <p className="text-xs text-muted-foreground">These fields are automatically prefilled when you validate your VAT number.</p>
+                        <h4 className="text-sm font-medium">{t('customer.businessNameAddress')}</h4>
+                        <p className="text-xs text-muted-foreground">{t('customer.prefillHint')}</p>
                         <div className="space-y-2">
-                          <Label htmlFor="customer-businessName">Business Name</Label>
+                          <Label htmlFor="customer-businessName">{t('customer.businessName')}</Label>
                           <Input
                             id="customer-businessName"
                             value={customerBusinessName}
                             onChange={(e) => setCustomerBusinessName(e.target.value)}
-                            placeholder="Your business name"
+                            placeholder={t('customer.businessNamePlaceholder')}
                           />
                         </div>
                         <div className="grid md:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="company-address">Company Address</Label>
+                            <Label htmlFor="company-address">{t('customer.companyAddress')}</Label>
                             <Input
                               id="company-address"
                               value={customerCompanyAddress.address}
                               onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, address: e.target.value }))}
-                              placeholder="Company street address"
+                              placeholder={t('customer.companyAddressPlaceholder')}
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="company-city">Company City</Label>
+                            <Label htmlFor="company-city">{t('customer.companyCity')}</Label>
                             <Input
                               id="company-city"
                               value={customerCompanyAddress.city}
                               onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, city: e.target.value }))}
-                              placeholder="City"
+                              placeholder={t('common.city')}
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="company-country">Company Country</Label>
+                            <Label htmlFor="company-country">{t('customer.companyCountry')}</Label>
                             <Input
                               id="company-country"
                               value={customerCompanyAddress.country}
                               onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, country: e.target.value }))}
-                              placeholder="Country"
+                              placeholder={t('common.country')}
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="company-postalCode">Company Postal Code</Label>
+                            <Label htmlFor="company-postalCode">{t('customer.companyPostalCode')}</Label>
                             <Input
                               id="company-postalCode"
                               value={customerCompanyAddress.postalCode}
                               onChange={(e) => setCustomerCompanyAddress(prev => ({ ...prev, postalCode: e.target.value }))}
-                              placeholder="Postal Code"
+                              placeholder={t('common.postalCode')}
                             />
                           </div>
                         </div>
@@ -3142,10 +3235,10 @@ function ProfileContent() {
                           {customerProfileSaving ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Saving...
+                              {t('common.saving')}
                             </>
                           ) : (
-                            'Save Business Info'
+                            t('customer.saveBusinessInfo')
                           )}
                         </Button>
                       </div>
@@ -3188,7 +3281,7 @@ function ProfileContent() {
         {/* Back to Dashboard */}
         <div className="mt-8">
           <Button onClick={() => router.push('/dashboard')} variant="outline">
-            Back to Dashboard
+            {t('page.backToDashboard')}
           </Button>
         </div>
 
@@ -3201,13 +3294,13 @@ function ProfileContent() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Blocked Period</DialogTitle>
-              <DialogDescription>Adjust the time range or remove the block.</DialogDescription>
+              <DialogTitle>{t('dialogs.editTitle')}</DialogTitle>
+              <DialogDescription>{t('dialogs.editDescription')}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="edit-start">Start</Label>
+                  <Label htmlFor="edit-start">{t('dialogs.start')}</Label>
                   <Input
                     id="edit-start"
                     type="datetime-local"
@@ -3221,7 +3314,7 @@ function ProfileContent() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="edit-end">End</Label>
+                  <Label htmlFor="edit-end">{t('dialogs.end')}</Label>
                   <Input
                     id="edit-end"
                     type="datetime-local"
@@ -3235,7 +3328,7 @@ function ProfileContent() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="edit-reason">Reason (optional)</Label>
+                  <Label htmlFor="edit-reason">{t('dialogs.reason')}</Label>
                   <Input
                     id="edit-reason"
                     value={editingRange?.reason || ''}
@@ -3244,19 +3337,19 @@ function ProfileContent() {
                         prev ? { ...prev, reason: e.target.value } : prev
                       )
                     }
-                    placeholder="Vacation, appointment, etc."
+                    placeholder={t('dialogs.reasonPlaceholder')}
                   />
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <Button variant="destructive" disabled={profileSaving} onClick={deleteBlockedRange}>
-                  Remove Block
+                  {t('dialogs.removeBlock')}
                 </Button>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" disabled={profileSaving} onClick={() => setEditingRange(null)}>
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
-                  <Button disabled={profileSaving} onClick={updateBlockedRange}>Save Changes</Button>
+                  <Button disabled={profileSaving} onClick={updateBlockedRange}>{t('dialogs.saveChanges')}</Button>
                 </div>
               </div>
             </div>
@@ -3271,32 +3364,32 @@ function ProfileContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building className="h-5 w-5 text-blue-600" />
-                    Auto-populate Business Information?
+                    {t('dialogs.autoPopulateTitle')}
                   </CardTitle>
                   <CardDescription>
-                    We found company information from your VAT registration. Would you like to auto-fill your business details?
+                    {t('dialogs.autoPopulateDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Preview of data to be populated */}
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h4 className="text-sm font-medium text-blue-800 mb-2">Company Information Found:</h4>
+                    <h4 className="text-sm font-medium text-blue-800 mb-2">{t('dialogs.companyInfoFound')}</h4>
                     {pendingVatData.companyName && (
-                      <p className="text-sm text-blue-700"><strong>Company Name:</strong> {pendingVatData.companyName}</p>
+                      <p className="text-sm text-blue-700"><strong>{t('dialogs.companyName')}</strong> {pendingVatData.companyName}</p>
                     )}
                     {pendingVatData.parsedAddress && (
                       <>
                         {pendingVatData.parsedAddress.streetAddress && (
-                          <p className="text-sm text-blue-700"><strong>Address:</strong> {pendingVatData.parsedAddress.streetAddress}</p>
+                          <p className="text-sm text-blue-700"><strong>{t('dialogs.address')}</strong> {pendingVatData.parsedAddress.streetAddress}</p>
                         )}
                         {pendingVatData.parsedAddress.city && (
-                          <p className="text-sm text-blue-700"><strong>City:</strong> {pendingVatData.parsedAddress.city}</p>
+                          <p className="text-sm text-blue-700"><strong>{t('dialogs.city')}</strong> {pendingVatData.parsedAddress.city}</p>
                         )}
                         {pendingVatData.parsedAddress.postalCode && (
-                          <p className="text-sm text-blue-700"><strong>Postal Code:</strong> {pendingVatData.parsedAddress.postalCode}</p>
+                          <p className="text-sm text-blue-700"><strong>{t('dialogs.postalCode')}</strong> {pendingVatData.parsedAddress.postalCode}</p>
                         )}
                         {pendingVatData.parsedAddress.country && (
-                          <p className="text-sm text-blue-700"><strong>Country:</strong> {getVATCountryName(pendingVatData.parsedAddress.country)}</p>
+                          <p className="text-sm text-blue-700"><strong>{t('dialogs.country')}</strong> {vatCountryName(pendingVatData.parsedAddress.country)}</p>
                         )}
                       </>
                     )}
@@ -3304,7 +3397,7 @@ function ProfileContent() {
 
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-xs text-amber-700">
-                      Only empty fields will be filled. Your existing data will not be overwritten.
+                      {t('dialogs.onlyEmptyFields')}
                     </p>
                   </div>
 
@@ -3317,10 +3410,10 @@ function ProfileContent() {
                       {vatSaving ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          Auto-filling...
+                          {t('dialogs.autoFilling')}
                         </>
                       ) : (
-                        'Yes, Auto-fill'
+                        t('dialogs.yesAutoFill')
                       )}
                     </Button>
                     <Button
@@ -3329,7 +3422,7 @@ function ProfileContent() {
                       disabled={vatSaving}
                       className="flex-1"
                     >
-                      No, Skip
+                      {t('dialogs.noSkip')}
                     </Button>
                   </div>
                 </CardContent>
@@ -3344,23 +3437,32 @@ function ProfileContent() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-amber-700">
                 <AlertTriangle className="h-5 w-5" />
-                Re-verification Required
+                {t('dialogs.reverificationTitle')}
               </DialogTitle>
               <DialogDescription>
-                Changing your ID information will require admin re-verification. Your professional status will be set to <strong>pending</strong> and you will not be able to receive new bookings until an admin re-approves your profile.
+                {t.rich('dialogs.changeIdDescription', {
+                  status: t('dialogs.pendingStatus'),
+                  strong: (chunks) => <strong>{chunks}</strong>,
+                })}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
-                <p className="font-medium text-amber-800 mb-1">Changes to be submitted:</p>
+                <p className="font-medium text-amber-800 mb-1">{t('dialogs.changesToSubmit')}</p>
                 {idCountryOfIssue !== normalizeCountryCode(user?.idCountryOfIssue || '') && (
                   <p className="text-amber-700">
-                    Country of Issue: {user?.idCountryOfIssue || '(empty)'} → {idCountryOfIssue || '(empty)'}
+                    {t('dialogs.countryOfIssueChange', {
+                      from: user?.idCountryOfIssue || t('common.empty'),
+                      to: idCountryOfIssue || t('common.empty'),
+                    })}
                   </p>
                 )}
                 {idExpirationDate !== (user?.idExpirationDate ? user.idExpirationDate.split('T')[0] : '') && (
                   <p className="text-amber-700">
-                    Expiration Date: {user?.idExpirationDate ? new Date(user.idExpirationDate).toLocaleDateString() : '(empty)'} → {idExpirationDate ? new Date(idExpirationDate).toLocaleDateString() : '(empty)'}
+                    {t('dialogs.expirationChange', {
+                      from: user?.idExpirationDate ? new Date(user.idExpirationDate).toLocaleDateString(intl) : t('common.empty'),
+                      to: idExpirationDate ? new Date(idExpirationDate).toLocaleDateString(intl) : t('common.empty'),
+                    })}
                   </p>
                 )}
               </div>
@@ -3373,10 +3475,10 @@ function ProfileContent() {
                   {idInfoSaving ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Saving...
+                      {t('common.saving')}
                     </>
                   ) : (
-                    'Confirm Changes'
+                    t('dialogs.confirmChanges')
                   )}
                 </Button>
                 <Button
@@ -3385,7 +3487,7 @@ function ProfileContent() {
                   disabled={idInfoSaving}
                   className="flex-1"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               </div>
             </div>
@@ -3397,10 +3499,13 @@ function ProfileContent() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-amber-700">
                 <AlertTriangle className="h-5 w-5" />
-                Re-verification Required
+                {t('dialogs.reverificationTitle')}
               </DialogTitle>
               <DialogDescription>
-                Uploading a new ID document will require admin re-verification. Your professional status will be set to <strong>pending</strong> and you will not be able to receive new bookings until an admin re-approves your profile.
+                {t.rich('dialogs.uploadIdDescription', {
+                  status: t('dialogs.pendingStatus'),
+                  strong: (chunks) => <strong>{chunks}</strong>,
+                })}
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2 justify-end mt-4">
@@ -3409,7 +3514,7 @@ function ProfileContent() {
                 variant="outline"
                 disabled={uploading}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={() => {
@@ -3422,10 +3527,10 @@ function ProfileContent() {
                 {uploading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Uploading...
+                    {t('dialogs.uploading')}
                   </>
                 ) : (
-                  'Confirm Upload'
+                  t('dialogs.confirmUpload')
                 )}
               </Button>
             </div>

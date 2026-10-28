@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,7 +38,6 @@ import { authFetch } from '@/lib/utils';
 import Link from 'next/link';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { formatCurrency } from '@/lib/formatters';
 import Image from 'next/image';
 import ProjectBookingForm from '@/components/project/ProjectBookingForm';
 import SubprojectComparisonTable from '@/components/project/SubprojectComparisonTable';
@@ -49,13 +49,10 @@ import {
 } from '@/lib/projectHighlights';
 import { emitChatWidgetOpen, PENDING_CHAT_START_KEY, LEGACY_PENDING_CHAT_START_KEY } from '@/lib/chatWidgetEvents';
 import { setMigratedItem } from '@/lib/storageMigration';
-import {
-  formatProfessionalViewerLabel,
-  formatWindowProfessionalViewer,
-  formatDateOnlyProfessionalViewer,
-  getViewerTimezone,
-} from '@/lib/timezoneDisplay';
+import { getViewerTimezone } from '@/lib/timezoneDisplay';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import type { PublicProjectDto as Project } from '@/types/project';
 import {
   getLevelColor,
@@ -83,29 +80,48 @@ interface ScheduleProposalsResponse {
   };
 }
 
-const formatWarrantyLabel = (warranty?: {
-  value?: number;
-  unit?: 'months' | 'years';
-}) => {
-  if (!warranty || !warranty.value) return null;
-  const baseUnit = warranty.unit || 'years';
-  const normalizedUnit =
-    warranty.value === 1 ? baseUnit.replace(/s$/, '') : baseUnit;
-  return `${warranty.value} ${normalizedUnit}`;
-};
+const PRICE_MODEL_KEYS = {
+  fixed: 'priceModels.fixed',
+  unit: 'priceModels.unit',
+  rfq: 'priceModels.rfq',
+  hour: 'priceModels.hour',
+  day: 'priceModels.day',
+  meter: 'priceModels.meter',
+  m2: 'priceModels.m2',
+  room: 'priceModels.room',
+} as const;
 
-const collectWarrantySummaries = (subprojects: Project['subprojects']) => {
-  return subprojects
-    .map((sub) => {
-      const label = formatWarrantyLabel(sub.warrantyPeriod);
-      if (!label) return null;
-      return {
-        name: sub.name,
-        label,
-      };
-    })
-    .filter(Boolean) as Array<{ name: string; label: string }>;
-};
+const PROFESSIONAL_LEVEL_KEYS = {
+  new: 'professionalLevels.new',
+  'level 1': 'professionalLevels.level1',
+  'level 2': 'professionalLevels.level2',
+  'level 3': 'professionalLevels.level3',
+  expert: 'professionalLevels.expert',
+} as const;
+
+const ADMIN_TAG_KEYS = {
+  verified: 'adminTags.verified',
+  'our choice': 'adminTags.ourChoice',
+} as const;
+
+const WEEKDAY_KEYS = {
+  monday: 'weekdays.monday',
+  tuesday: 'weekdays.tuesday',
+  wednesday: 'weekdays.wednesday',
+  thursday: 'weekdays.thursday',
+  friday: 'weekdays.friday',
+  saturday: 'weekdays.saturday',
+  sunday: 'weekdays.sunday',
+} as const;
+
+const WEEKDAYS = Object.keys(WEEKDAY_KEYS) as Array<keyof typeof WEEKDAY_KEYS>;
+
+const CUSTOMER_PRESENCE_KEYS = {
+  not_required: 'customerPresence.notRequired',
+  available: 'customerPresence.available',
+  first_hour_only: 'customerPresence.firstHourOnly',
+  present_throughout: 'customerPresence.presentThroughout',
+} as const;
 
 const filterQualityCertificates = (
   certifications?: Project['certifications']
@@ -120,6 +136,7 @@ type RatingSummaryProps = {
 };
 
 const RatingSummary = ({ ratingsSummary, size = 'md' }: RatingSummaryProps) => {
+  const t = useTranslations('projects');
   const starClass = size === 'md' ? 'h-5 w-5' : 'h-4 w-4';
   const avgClass = size === 'md' ? 'text-base font-semibold text-gray-800' : 'text-sm font-semibold';
   const countClass = size === 'md' ? 'text-sm text-gray-500' : 'text-xs text-gray-500';
@@ -139,7 +156,7 @@ const RatingSummary = ({ ratingsSummary, size = 'md' }: RatingSummaryProps) => {
       </div>
       <span className={avgClass}>{ratingsSummary.overallAverage.toFixed(1)}</span>
       <span className={countClass}>
-        ({ratingsSummary.totalReviews} review{ratingsSummary.totalReviews !== 1 ? 's' : ''})
+        ({t('rating.reviews', { count: ratingsSummary.totalReviews })})
       </span>
     </div>
   );
@@ -151,19 +168,24 @@ type ProvidedByCardProps = {
 };
 
 const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
+  const t = useTranslations('projects');
+  const { intl } = useFormatLocale();
   const proName =
-    pro.username || pro.name || pro.businessInfo?.companyName || 'Professional';
+    pro.username || pro.name || pro.businessInfo?.companyName || t('providedBy.professionalFallback');
   const proLocation = [pro.businessInfo?.city, pro.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
   const memberSince = pro.createdAt
-    ? new Date(pro.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    ? new Date(pro.createdAt).toLocaleDateString(intl, { month: 'short', year: 'numeric' })
     : null;
+  const levelKey = pro.professionalLevel
+    ? PROFESSIONAL_LEVEL_KEYS[pro.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
+    : undefined;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Provided By</CardTitle>
+        <CardTitle>{t('providedBy.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className='space-y-4'>
@@ -188,7 +210,7 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
                 </div>
               )}
               {memberSince && (
-                <p className='text-xs text-gray-400'>Member since {memberSince}</p>
+                <p className='text-xs text-gray-400'>{t('providedBy.memberSince', { date: memberSince })}</p>
               )}
             </div>
           </div>
@@ -196,18 +218,21 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
           <div className='flex flex-wrap gap-1.5'>
             {pro.professionalLevel && (
               <Badge variant='secondary' className={`text-xs ${getLevelColor(pro.professionalLevel)}`}>
-                {pro.professionalLevel}
+                {levelKey ? t(levelKey) : pro.professionalLevel}
               </Badge>
             )}
-            {(pro.adminTags || []).map((tag) => (
-              <Badge
-                key={tag}
-                variant='outline'
-                className={`text-xs ${getAdminTagStyle(tag)}`}
-              >
-                {formatAdminTagLabel(tag)}
-              </Badge>
-            ))}
+            {(pro.adminTags || []).map((tag) => {
+              const adminTagKey = ADMIN_TAG_KEYS[tag.toLowerCase() as keyof typeof ADMIN_TAG_KEYS];
+              return (
+                <Badge
+                  key={tag}
+                  variant='outline'
+                  className={`text-xs ${getAdminTagStyle(tag)}`}
+                >
+                  {adminTagKey ? t(adminTagKey) : formatAdminTagLabel(tag)}
+                </Badge>
+              );
+            })}
           </div>
 
           {stats && stats.totalReviews > 0 && (
@@ -230,15 +255,15 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
               </div>
               <div className='space-y-1 text-xs text-gray-600'>
                 <div className='flex justify-between'>
-                  <span>Communication</span>
+                  <span>{t('providedBy.communication')}</span>
                   <span className='font-medium'>{stats.avgCommunication.toFixed(1)}</span>
                 </div>
                 <div className='flex justify-between'>
-                  <span>Value of Delivery</span>
+                  <span>{t('providedBy.valueOfDelivery')}</span>
                   <span className='font-medium'>{stats.avgValueOfDelivery.toFixed(1)}</span>
                 </div>
                 <div className='flex justify-between'>
-                  <span>Quality of Service</span>
+                  <span>{t('providedBy.qualityOfService')}</span>
                   <span className='font-medium'>{stats.avgQualityOfService.toFixed(1)}</span>
                 </div>
               </div>
@@ -249,15 +274,16 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
             <div className='flex items-center justify-between text-xs text-gray-600 pt-2 border-t border-gray-100'>
               <span className='flex items-center gap-1'>
                 <Clock className='h-3 w-3' />
-                Avg Response
+                {t('providedBy.avgResponse')}
               </span>
-              <span className='font-medium'>{formatResponseTime(stats.avgResponseTimeMs)}</span>
+              <span className='font-medium'>{formatResponseTime(stats.avgResponseTimeMs, intl)}</span>
             </div>
           )}
 
           <p className='text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded p-3'>
-            <strong>Note:</strong> Contact details will be revealed
-            after you complete your booking and payment.
+            {t.rich('providedBy.contactNote', {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
         </div>
       </CardContent>
@@ -265,16 +291,12 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
   );
 };
 
-const CUSTOMER_PRESENCE_LABELS: Record<string, string> = {
-  not_required: 'Not required',
-  available: 'Customer should be available',
-  first_hour_only: 'Customer only needs to be present for the first hour',
-  present_throughout: 'Customer must be present throughout',
-};
-
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const t = useTranslations('projects');
+  const { intl } = useFormatLocale();
+  const { formatPrice } = useCurrency();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -422,12 +444,12 @@ export default function ProjectDetailPage() {
         setProject(data.project);
         trackProjectView(data.project);
       } else {
-        toast.error('Project not found');
+        toast.error(t('page.notFound'));
         router.push('/search');
       }
     } catch (error) {
       console.error('Error fetching project:', error);
-      toast.error('Failed to load project');
+      toast.error(t('page.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -456,13 +478,13 @@ export default function ProjectDetailPage() {
     if (!project) return;
 
     if (!isAuthenticated) {
-      toast.error('Please sign in to book this project');
+      toast.error(t('page.signInToBook'));
       router.push(`/login?redirect=/projects/${projectId}`);
       return;
     }
 
     if (user?.role !== 'customer') {
-      toast.error('Only customers can book projects');
+      toast.error(t('page.customersOnlyBook'));
       return;
     }
 
@@ -496,13 +518,13 @@ export default function ProjectDetailPage() {
         JSON.stringify({ open: true, professionalId: profId }),
         LEGACY_PENDING_CHAT_START_KEY
       );
-      toast.error('Please sign in to contact this professional');
+      toast.error(t('page.signInToContact'));
       router.push(`/login?redirect=/projects/${projectId}`);
       return;
     }
 
     if (user?.role !== 'customer') {
-      toast.error('Only customers can contact professionals');
+      toast.error(t('page.customersOnlyContact'));
       return;
     }
 
@@ -567,7 +589,7 @@ export default function ProjectDetailPage() {
   if (!project) {
     return (
       <div className='min-h-screen flex items-center justify-center'>
-        <p>Project not found</p>
+        <p>{t('page.notFound')}</p>
       </div>
     );
   }
@@ -579,23 +601,59 @@ export default function ProjectDetailPage() {
     project.firstAvailableDate;
   const firstAvailableWindow = proposals?.earliestProposal || null;
 
-  // Format dates with professional's timezone + viewer's timezone
-  // For "hours" mode, include time. For "days" mode, just show date.
+  // Locale-aware dates in the viewer's timezone. "hours" mode also shows the time.
   const includeTime = project.timeMode === 'hours';
-  const professionalTimeZone = project.professionalId?.businessInfo?.timezone || 'UTC';
 
+  const formatViewerDate = (value?: string | Date | null) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    const options: Intl.DateTimeFormatOptions = includeTime
+      ? { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }
+      : { month: 'short', day: 'numeric', year: 'numeric' };
+    return new Intl.DateTimeFormat(intl, { ...options, timeZone: viewerTimeZone }).format(date);
+  };
 
+  const formatViewerWindow = (window?: { start?: string; end?: string } | null) => {
+    if (!window) return null;
+    const start = formatViewerDate(window.start);
+    const end = formatViewerDate(window.end);
+    if (start && end) return start === end ? start : `${start} → ${end}`;
+    return start || end || null;
+  };
 
+  const priceModelKey = project.priceModel
+    ? PRICE_MODEL_KEYS[project.priceModel.toLowerCase() as keyof typeof PRICE_MODEL_KEYS]
+    : undefined;
   const priceModelLabel = project.priceModel
-    ? formatPriceModelLabel(project.priceModel)
+    ? priceModelKey
+      ? t(priceModelKey)
+      : formatPriceModelLabel(project.priceModel)
     : null;
   const qualityCertificates = filterQualityCertificates(project.certifications);
-  const warrantySummaries = collectWarrantySummaries(project.subprojects);
+  const formatWarrantyLabel = (warranty?: {
+    value?: number;
+    unit?: 'months' | 'years';
+  }) => {
+    if (!warranty || !warranty.value) return null;
+    return t(warranty.unit === 'months' ? 'units.months' : 'units.years', {
+      count: warranty.value,
+    });
+  };
+  const warrantySummaries = project.subprojects
+    .map((sub) => {
+      const label = formatWarrantyLabel(sub.warrantyPeriod);
+      return label ? { name: sub.name, label } : null;
+    })
+    .filter(Boolean) as Array<{ name: string; label: string }>;
   const hasQualityHighlights =
     qualityCertificates.length > 0 || warrantySummaries.length > 0;
-  const customerPresenceLabel = project.customerPresence
-    ? CUSTOMER_PRESENCE_LABELS[project.customerPresence] || project.customerPresence
-    : 'Not specified';
+  const customerPresenceKey = project.customerPresence
+    ? CUSTOMER_PRESENCE_KEYS[project.customerPresence as keyof typeof CUSTOMER_PRESENCE_KEYS]
+    : undefined;
+  const customerPresenceLabel = customerPresenceKey
+    ? t(customerPresenceKey)
+    : project.customerPresence || t('common.notSpecified');
   const projectTermsConditions = project.termsConditions || [];
   const hasPresenceConditionsSection = projectTermsConditions.length > 0 || !!project.customerPresence;
 
@@ -607,26 +665,21 @@ export default function ProjectDetailPage() {
       // For timemode hours: just show the first available date and time.
       const dt = firstAvailableWindow?.start || derivedFirstAvailableDate;
       if (dt) {
-        firstAvailable = formatProfessionalViewerLabel(dt, professionalTimeZone, viewerTimeZone, true)?.viewerLabel || null;
+        firstAvailable = formatViewerDate(dt);
       }
     } else {
       // For timemode days: show window or single date
       if (firstAvailableWindow) {
-        firstAvailable = formatWindowProfessionalViewer(firstAvailableWindow, professionalTimeZone, viewerTimeZone, false)?.viewerLabel || null;
+        firstAvailable = formatViewerWindow(firstAvailableWindow);
       } else if (derivedFirstAvailableDate) {
-        firstAvailable = formatDateOnlyProfessionalViewer(derivedFirstAvailableDate, professionalTimeZone, viewerTimeZone)?.viewerLabel || null;
+        firstAvailable = formatViewerDate(derivedFirstAvailableDate);
       }
     }
 
     // Shortest Throughput is NOT needed for hours timemode (includeTime === true)
     let shortestThroughput = null;
     if (!includeTime && proposals?.shortestThroughputProposal) {
-      shortestThroughput = formatWindowProfessionalViewer(
-        proposals.shortestThroughputProposal,
-        professionalTimeZone,
-        viewerTimeZone,
-        false
-      )?.viewerLabel || null;
+      shortestThroughput = formatViewerWindow(proposals.shortestThroughputProposal);
     }
 
     // Hide shortest throughput if it provides redundant information
@@ -640,9 +693,9 @@ export default function ProjectDetailPage() {
   const comparisonTableDateLabels = getComparisonTableDateLabels();
 
   const serviceAreaLabel = project.distance.noBorders
-    ? 'No borders'
+    ? t('common.noBorders')
     : project.distance.maxKmRange != null
-      ? `${project.distance.maxKmRange} km radius`
+      ? t('page.serviceRadius', { km: project.distance.maxKmRange })
       : '—';
 
   if (showBookingForm) {
@@ -665,7 +718,7 @@ export default function ProjectDetailPage() {
         <Link href='/search'>
           <Button variant='ghost' className='mb-6'>
             <ArrowLeft className='h-4 w-4 mr-2' />
-            Back to Search
+            {t('page.backToSearch')}
           </Button>
         </Link>
 
@@ -696,7 +749,7 @@ export default function ProjectDetailPage() {
                             )
                           }
                           className='absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200'
-                          aria-label='Previous image'
+                          aria-label={t('page.previousImage')}
                         >
                           <ChevronLeft className='w-6 h-6' />
                         </button>
@@ -711,7 +764,7 @@ export default function ProjectDetailPage() {
                             )
                           }
                           className='absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200'
-                          aria-label='Next image'
+                          aria-label={t('page.nextImage')}
                         >
                           <ChevronRight className='w-6 h-6' />
                         </button>
@@ -739,7 +792,7 @@ export default function ProjectDetailPage() {
                         >
                           <Image
                             src={img}
-                            alt={`${project.title} thumbnail ${idx + 1}`}
+                            alt={t('page.thumbnailAlt', { title: project.title, index: idx + 1 })}
                             fill
                             className='object-cover'
                           />
@@ -788,7 +841,7 @@ export default function ProjectDetailPage() {
               </CardHeader>
               <CardContent className='space-y-4'>
                 <div>
-                  <h3 className='font-semibold text-lg mb-2'>Description</h3>
+                  <h3 className='font-semibold text-lg mb-2'>{t('page.description')}</h3>
                   <p className='text-gray-700 whitespace-pre-wrap'>
                     {project.description}
                   </p>
@@ -799,12 +852,12 @@ export default function ProjectDetailPage() {
                     <div className='flex items-start gap-3'>
                       <Euro className='h-5 w-5 text-blue-600 mt-0.5' />
                       <div>
-                        <p className='text-sm text-gray-500'>Price Model</p>
+                        <p className='text-sm text-gray-500'>{t('page.priceModel')}</p>
                         <p className='font-medium text-gray-900'>
                           {priceModelLabel}
                         </p>
                         <p className='text-xs text-gray-500 mt-0.5'>
-                          Pricing unit: {priceModelLabel}
+                          {t('page.pricingUnit', { unit: priceModelLabel })}
                         </p>
                       </div>
                     </div>
@@ -815,19 +868,22 @@ export default function ProjectDetailPage() {
                   <div className='flex items-center gap-2'>
                     <MapPin className='h-5 w-5 text-gray-500' />
                     <div>
-                      <p className='text-sm text-gray-500'>Service Area</p>
+                      <p className='text-sm text-gray-500'>{t('page.serviceArea')}</p>
                       <p className='font-medium'>{serviceAreaLabel}</p>
                     </div>
                   </div>
                   <div className='flex items-center gap-2'>
                     <Users className='h-5 w-5 text-gray-500' />
                     <div>
-                      <p className='text-sm text-gray-500'>Team Size</p>
+                      <p className='text-sm text-gray-500'>{t('page.teamSize')}</p>
                       <p className='font-medium'>
-                        {project.resources.length} members
+                        {t('page.members', { count: project.resources.length })}
                       </p>
                       <p className='text-xs text-blue-600'>
-                        {project.minResources || 1} required ({project.minOverlapPercentage ?? 70}% overlap)
+                        {t('page.teamRequirement', {
+                          required: project.minResources || 1,
+                          overlap: project.minOverlapPercentage ?? 70,
+                        })}
                       </p>
                     </div>
                   </div>
@@ -837,7 +893,7 @@ export default function ProjectDetailPage() {
                 {/* Project Timeline */}
                 {project.executionDuration && (
                   <div className='pt-4 border-t'>
-                    <h4 className='font-semibold mb-3'>Project Timeline</h4>
+                    <h4 className='font-semibold mb-3'>{t('page.projectTimeline')}</h4>
                     <div className='grid grid-cols-2 gap-4'>
                       {project.preparationDuration &&
                         project.preparationDuration.value > 0 && (
@@ -845,11 +901,12 @@ export default function ProjectDetailPage() {
                             <Clock className='h-5 w-5 text-blue-600 mt-0.5' />
                             <div>
                               <p className='text-sm text-gray-500'>
-                                Preparation Time
+                                {t('page.preparationTime')}
                               </p>
                               <p className='font-medium'>
-                                {project.preparationDuration.value}{' '}
-                                {project.preparationDuration.unit}
+                                {t(project.preparationDuration.unit === 'days' ? 'units.days' : 'units.hours', {
+                                  count: project.preparationDuration.value,
+                                })}
                               </p>
                             </div>
                           </div>
@@ -858,11 +915,12 @@ export default function ProjectDetailPage() {
                         <Calendar className='h-5 w-5 text-blue-600 mt-0.5' />
                         <div>
                           <p className='text-sm text-gray-500'>
-                            Execution Duration
+                            {t('page.executionDuration')}
                           </p>
                           <p className='font-medium'>
-                            {project.executionDuration.value}{' '}
-                            {project.executionDuration.unit}
+                            {t(project.executionDuration.unit === 'days' ? 'units.days' : 'units.hours', {
+                              count: project.executionDuration.value,
+                            })}
                           </p>
                         </div>
                       </div>
@@ -872,14 +930,15 @@ export default function ProjectDetailPage() {
                             <Calendar className='h-5 w-5 text-yellow-600 mt-0.5' />
                             <div>
                               <p className='text-sm text-gray-500'>
-                                Buffer Time
+                                {t('page.bufferTime')}
                               </p>
                               <p className='font-medium'>
-                                {project.bufferDuration.value}{' '}
-                                {project.bufferDuration.unit}
+                                {t(project.bufferDuration.unit === 'days' ? 'units.days' : 'units.hours', {
+                                  count: project.bufferDuration.value,
+                                })}
                               </p>
                               <p className='text-xs text-gray-500'>
-                                Reserved for quality assurance
+                                {t('page.bufferNote')}
                               </p>
                             </div>
                           </div>
@@ -889,10 +948,10 @@ export default function ProjectDetailPage() {
                           <CheckCircle className='h-5 w-5 text-green-600 mt-0.5' />
                           <div>
                             <p className='text-sm text-gray-500'>
-                              Scheduling Mode
+                              {t('page.schedulingMode')}
                             </p>
                             <p className='font-medium capitalize'>
-                              {project.timeMode}
+                              {t(`timeMode.${project.timeMode}`)}
                             </p>
                           </div>
                         </div>
@@ -908,11 +967,10 @@ export default function ProjectDetailPage() {
                 <CardHeader>
                   <CardTitle className='flex items-center gap-2'>
                     <Shield className='h-5 w-5 text-green-600' />
-                    Quality & Guarantees
+                    {t('page.qualityTitle')}
                   </CardTitle>
                   <CardDescription>
-                    Professional certifications and warranty coverage per
-                    package
+                    {t('page.qualityDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-5'>
@@ -920,7 +978,7 @@ export default function ProjectDetailPage() {
                     <div>
                       <h4 className='font-semibold mb-2 flex items-center gap-2 text-gray-900'>
                         <Award className='h-4 w-4 text-amber-500' />
-                        Certified Excellence
+                        {t('page.certifiedExcellence')}
                       </h4>
                       <div className='flex flex-wrap gap-2'>
                         {qualityCertificates.map((cert, idx) => (
@@ -939,7 +997,7 @@ export default function ProjectDetailPage() {
                   {warrantySummaries.length > 0 && (
                     <div className='space-y-3'>
                       <h4 className='font-semibold text-gray-900'>
-                        Warranty Coverage
+                        {t('page.warrantyCoverage')}
                       </h4>
                       <div className='space-y-2'>
                         {warrantySummaries.map((summary) => (
@@ -970,24 +1028,24 @@ export default function ProjectDetailPage() {
                 <CardHeader>
                   <CardTitle className='flex items-center gap-2'>
                     <FileText className='h-5 w-5 text-blue-600' />
-                    Customer Presence, Conditions & Warnings
+                    {t('page.customerPresenceTitle')}
                   </CardTitle>
                   <CardDescription>
-                    Requirements the customer should review before booking
+                    {t('page.customerPresenceDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-5'>
                   <div className='rounded-lg border border-blue-100 bg-blue-50 px-4 py-3'>
                     <div className='flex items-center gap-2 text-sm font-semibold text-blue-900'>
                       <User className='h-4 w-4' />
-                      Customer Presence
+                      {t('page.customerPresence')}
                     </div>
                     <p className='mt-1 text-sm text-blue-800'>
                       {customerPresenceLabel}
                     </p>
                     {project.customerPresence && (
                       <p className='mt-2 text-xs text-blue-700'>
-                        If this presence requirement is not met at the time of service, an additional fee may be charged.
+                        {t('page.presenceFeeNote')}
                       </p>
                     )}
                   </div>
@@ -1021,7 +1079,7 @@ export default function ProjectDetailPage() {
                                       variant='outline'
                                       className='border-yellow-300 bg-yellow-100 text-yellow-800'
                                     >
-                                      Warning
+                                      {t('page.warning')}
                                     </Badge>
                                   )}
                                 </div>
@@ -1033,7 +1091,7 @@ export default function ProjectDetailPage() {
                                   Number.isFinite(term.additionalCost) &&
                                   term.additionalCost > 0 && (
                                     <p className='mt-2 text-xs text-orange-700'>
-                                      If this condition is not met at the time of service, a fee may be charged.
+                                      {t('page.conditionFeeNote')}
                                     </p>
                                   )}
                               </div>
@@ -1043,7 +1101,7 @@ export default function ProjectDetailPage() {
                                 Number.isFinite(term.additionalCost) &&
                                 term.additionalCost > 0 && (
                                   <div className='shrink-0 text-sm font-semibold text-orange-600'>
-                                    +{formatCurrency(customerPrice(term.additionalCost)) ?? 'N/A'}
+                                    +{formatPrice(customerPrice(term.additionalCost))}
                                   </div>
                                 )}
                             </div>
@@ -1060,7 +1118,7 @@ export default function ProjectDetailPage() {
             {(project.faq?.length || 0) > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Frequently Asked Questions</CardTitle>
+                  <CardTitle>{t('page.faqTitle')}</CardTitle>
                 </CardHeader>
                 <CardContent className='space-y-4'>
                   {(project.faq || []).map((item, idx) => (
@@ -1076,11 +1134,11 @@ export default function ProjectDetailPage() {
             <Card>
               <CardHeader>
                 <div className='flex items-center justify-between'>
-                  <CardTitle>Reviews From Customers</CardTitle>
+                  <CardTitle>{t('page.reviewsTitle')}</CardTitle>
                   {ordersInQueue > 0 && (
                     <div className='flex items-center gap-1.5 text-sm text-orange-600'>
                       <ShoppingCart className='h-4 w-4' />
-                      <span>{ordersInQueue} order{ordersInQueue !== 1 ? 's' : ''} in queue</span>
+                      <span>{t('page.ordersInQueue', { count: ordersInQueue })}</span>
                     </div>
                   )}
                 </div>
@@ -1093,7 +1151,7 @@ export default function ProjectDetailPage() {
                   <div className='relative flex-1'>
                     <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
                     <Input
-                      placeholder='Search reviews...'
+                      placeholder={t('page.searchReviews')}
                       value={reviewSearch}
                       onChange={(e) => { setReviewSearch(e.target.value); setReviewPage(1); }}
                       className='pl-9 h-9 text-sm'
@@ -1112,7 +1170,7 @@ export default function ProjectDetailPage() {
                       </Button>
                     ))}
                     {reviewRatingFilter && (
-                      <Button variant='ghost' size='sm' className='h-9 px-2' aria-label='Clear rating filter' title='Clear rating filter' onClick={() => { setReviewRatingFilter(null); setReviewPage(1); }}>
+                      <Button variant='ghost' size='sm' className='h-9 px-2' aria-label={t('page.clearRatingFilter')} title={t('page.clearRatingFilter')} onClick={() => { setReviewRatingFilter(null); setReviewPage(1); }}>
                         <X className='h-3 w-3' />
                       </Button>
                     )}
@@ -1133,7 +1191,7 @@ export default function ProjectDetailPage() {
                     ))}
                   </div>
                 ) : reviews.length === 0 ? (
-                  <p className='text-sm text-gray-500'>No reviews yet.</p>
+                  <p className='text-sm text-gray-500'>{t('page.noReviews')}</p>
                 ) : (
                   <div className='space-y-4'>
                     {reviews.map((review) => {
@@ -1142,7 +1200,7 @@ export default function ProjectDetailPage() {
                       return (
                         <div key={review._id} className='border-b border-gray-100 pb-4 last:border-0 last:pb-0'>
                           <div className='flex items-center gap-2 mb-1'>
-                            <span className='text-sm font-medium'>{review.customer?.name || 'Anonymous'}</span>
+                            <span className='text-sm font-medium'>{review.customer?.name || t('page.anonymous')}</span>
                             <div className='flex gap-0.5'>
                               {[1, 2, 3, 4, 5].map((star) => (
                                 <Star
@@ -1151,21 +1209,21 @@ export default function ProjectDetailPage() {
                                 />
                               ))}
                             </div>
-                            <span className='text-xs text-gray-400'>{new Date(cr.reviewedAt).toLocaleDateString()}</span>
+                            <span className='text-xs text-gray-400'>{new Date(cr.reviewedAt).toLocaleDateString(intl)}</span>
                           </div>
                           {cr.comment && <p className='text-sm text-gray-600'>{cr.comment}</p>}
                           {cr.images && cr.images.length > 0 && (
                             <div className='flex gap-2 mt-2'>
                               {cr.images.map((img, idx) => (
                                 <a key={idx} href={img} target='_blank' rel='noopener noreferrer'>
-                                  <img src={img} alt={`Review image ${idx + 1}`} className='h-20 w-20 object-cover rounded-md border border-gray-200 hover:opacity-80 transition-opacity' />
+                                  <img src={img} alt={t('page.reviewImageAlt', { index: idx + 1 })} className='h-20 w-20 object-cover rounded-md border border-gray-200 hover:opacity-80 transition-opacity' />
                                 </a>
                               ))}
                             </div>
                           )}
                           {cr.reply && (
                             <div className='mt-2 ml-4 border-l-2 border-blue-200 pl-3'>
-                              <p className='text-xs font-medium text-blue-700'>Professional&apos;s Reply</p>
+                              <p className='text-xs font-medium text-blue-700'>{t('page.professionalReply')}</p>
                               <p className='text-sm text-gray-600'>{cr.reply.comment}</p>
                             </div>
                           )}
@@ -1181,19 +1239,19 @@ export default function ProjectDetailPage() {
                           size='sm'
                           disabled={reviewPage <= 1}
                           onClick={() => setReviewPage(reviewPage - 1)}
-                          aria-label='Previous page'
+                          aria-label={t('page.previousPage')}
                         >
                           <ChevronLeft className='h-4 w-4' />
                         </Button>
                         <span className='text-sm text-gray-600'>
-                          Page {reviewPage} of {reviewTotalPages}
+                          {t('page.pageOf', { page: reviewPage, total: reviewTotalPages })}
                         </span>
                         <Button
                           variant='outline'
                           size='sm'
                           disabled={reviewPage >= reviewTotalPages}
                           onClick={() => setReviewPage(reviewPage + 1)}
-                          aria-label='Next page'
+                          aria-label={t('page.nextPage')}
                         >
                           <ChevronRight className='h-4 w-4' />
                         </Button>
@@ -1202,7 +1260,7 @@ export default function ProjectDetailPage() {
 
                     {project?.professionalId?._id && (
                       <Link href={`/professional/${project.professionalId._id}`} className='text-sm text-blue-600 hover:underline'>
-                        View all reviews
+                        {t('page.viewAllReviews')}
                       </Link>
                     )}
                   </div>
@@ -1242,7 +1300,7 @@ export default function ProjectDetailPage() {
             {project.extraOptions.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Add-On Options</CardTitle>
+                  <CardTitle>{t('page.addOnOptions')}</CardTitle>
                 </CardHeader>
                 <CardContent className='space-y-3'>
                   {project.extraOptions.map((option, idx) => (
@@ -1259,7 +1317,7 @@ export default function ProjectDetailPage() {
                         )}
                       </div>
                       <p className='font-semibold text-blue-600'>
-                        {formatCurrency(customerPrice(option.price)) ?? 'N/A'}
+                        {formatPrice(customerPrice(option.price))}
                       </p>
                     </div>
                   ))}
@@ -1273,34 +1331,25 @@ export default function ProjectDetailPage() {
                 <CardHeader>
                   <CardTitle className='flex items-center gap-2'>
                     <Clock className='h-5 w-5' />
-                    Working Hours & Availability
+                    {t('page.workingHoursTitle')}
                   </CardTitle>
                   <CardDescription>
-                    Standard business hours and upcoming closures
+                    {t('page.workingHoursDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-6'>
                   {/* Weekly Schedule */}
                   <div>
                     <h4 className='font-semibold mb-3'>
-                      Standard Working Days:
+                      {t('page.standardWorkingDays')}
                     </h4>
                     <div className='grid grid-cols-1 gap-2 text-sm'>
-                      {[
-                        'monday',
-                        'tuesday',
-                        'wednesday',
-                        'thursday',
-                        'friday',
-                        'saturday',
-                        'sunday',
-                      ].map((day) => {
+                      {WEEKDAYS.map((day) => {
                         const dayKey =
                           day as keyof typeof project.professionalId.companyAvailability;
                         const dayInfo =
                           project.professionalId.companyAvailability?.[dayKey];
-                        const dayName =
-                          day.charAt(0).toUpperCase() + day.slice(1);
+                        const dayName = t(WEEKDAY_KEYS[day]);
 
                         return (
                           <div
@@ -1314,7 +1363,7 @@ export default function ProjectDetailPage() {
                                 {dayInfo.endTime || '17:00'}
                               </span>
                             ) : (
-                              <span className='text-gray-400'>Closed</span>
+                              <span className='text-gray-400'>{t('page.closed')}</span>
                             )}
                           </div>
                         );
@@ -1327,7 +1376,7 @@ export default function ProjectDetailPage() {
                     project.professionalId.companyBlockedRanges.length > 0 && (
                       <div className='pt-4 border-t'>
                         <h4 className='font-semibold mb-3'>
-                          Upcoming Closures:
+                          {t('page.upcomingClosures')}
                         </h4>
                         <div className='space-y-2'>
                           {project.professionalId.companyBlockedRanges
@@ -1345,17 +1394,17 @@ export default function ProjectDetailPage() {
                                   <p className='font-medium text-gray-900'>
                                     {closure.reason ||
                                       (closure.isHoliday
-                                        ? 'Holiday Period'
-                                        : 'Company Closure')}
+                                        ? t('page.holidayPeriod')
+                                        : t('page.companyClosure'))}
                                   </p>
                                   <p className='text-gray-600 text-xs mt-1'>
                                     {new Date(
                                       closure.startDate
-                                    ).toLocaleDateString()}{' '}
+                                    ).toLocaleDateString(intl)}{' '}
                                     -{' '}
                                     {new Date(
                                       closure.endDate
-                                    ).toLocaleDateString()}
+                                    ).toLocaleDateString(intl)}
                                   </p>
                                 </div>
                                 {closure.isHoliday && (
@@ -1363,7 +1412,7 @@ export default function ProjectDetailPage() {
                                     variant='secondary'
                                     className='text-xs'
                                   >
-                                    Holiday
+                                    {t('page.holiday')}
                                   </Badge>
                                 )}
                               </div>

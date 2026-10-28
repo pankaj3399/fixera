@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext"
 const CONFIRM_PHRASE = "DELETE"
 
 export default function PrivacyAndData() {
+  const t = useTranslations("account")
   const router = useRouter()
   const { logout } = useAuth()
   const [downloading, setDownloading] = useState(false)
@@ -37,7 +39,7 @@ export default function PrivacyAndData() {
       if (!res.ok) {
         const body = await res.text()
         console.error("Data export failed:", res.status, body)
-        toast.error("Failed to download your data")
+        toast.error(t("privacy.downloadFailed"))
         return
       }
 
@@ -55,10 +57,10 @@ export default function PrivacyAndData() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
 
-      toast.success("Your data is downloading")
+      toast.success(t("privacy.downloading"))
     } catch (err) {
       console.error("Data export error:", err)
-      toast.error("Failed to download your data")
+      toast.error(t("privacy.downloadFailed"))
     } finally {
       setDownloading(false)
     }
@@ -74,10 +76,10 @@ export default function PrivacyAndData() {
       })
       const body = await res.json().catch(() => null)
       if (!res.ok) {
-        toast.error(body?.msg || "Failed to delete account")
+        toast.error(body?.msg || t("privacy.deleteFailed"))
         return
       }
-      toast.success(body?.msg || "Account deleted")
+      toast.success(body?.msg || t("privacy.deleted"))
       setAuthToken(null)
       try {
         await logout()
@@ -87,7 +89,7 @@ export default function PrivacyAndData() {
       router.replace("/")
     } catch (err) {
       console.error("Account delete error:", err)
-      toast.error("Failed to delete account")
+      toast.error(t("privacy.deleteFailed"))
     } finally {
       setDeleting(false)
       setConfirmOpen(false)
@@ -100,29 +102,28 @@ export default function PrivacyAndData() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldAlert className="h-5 w-5" />
-          Privacy &amp; Data
+          {t("privacy.title")}
         </CardTitle>
         <CardDescription>
-          Download a copy of your data or permanently delete your account. Financial records (bookings, payments,
-          invoices) are retained as required by law even after account deletion.
+          {t("privacy.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-medium">Download my data</p>
+            <p className="font-medium">{t("privacy.downloadTitle")}</p>
             <p className="text-sm text-muted-foreground">
-              Export everything we hold about you as a JSON file (bookings, messages, projects, points, etc.).
+              {t("privacy.downloadDescription")}
             </p>
           </div>
           <Button variant="outline" onClick={handleDownload} disabled={downloading}>
             {downloading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing…
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("privacy.preparing")}
               </>
             ) : (
               <>
-                <Download className="mr-2 h-4 w-4" /> Download JSON
+                <Download className="mr-2 h-4 w-4" /> {t("privacy.downloadJson")}
               </>
             )}
           </Button>
@@ -130,13 +131,13 @@ export default function PrivacyAndData() {
 
         <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-medium text-destructive">Delete my account</p>
+            <p className="font-medium text-destructive">{t("privacy.deleteTitle")}</p>
             <p className="text-sm text-muted-foreground">
-              Removes your personal information and signs you out. This cannot be undone.
+              {t("privacy.deleteDescription")}
             </p>
           </div>
           <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
-            Delete account
+            {t("privacy.deleteAccount")}
           </Button>
         </div>
       </CardContent>
@@ -152,17 +153,18 @@ export default function PrivacyAndData() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete your account?</DialogTitle>
+            <DialogTitle>{t("privacy.dialogTitle")}</DialogTitle>
             <DialogDescription>
-              This will remove your name, email, phone, and other personal details. Bookings, payments, and invoices
-              will be kept on file for legal record-keeping but will no longer be linked to your identifiable profile.
-              You will be logged out immediately and cannot log in again.
+              {t("privacy.dialogDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-2 py-2">
             <Label htmlFor="delete-confirm">
-              Type <span className="font-mono font-semibold">{CONFIRM_PHRASE}</span> to confirm
+              {t.rich("privacy.confirmType", {
+                phrase: CONFIRM_PHRASE,
+                code: (chunks) => <span className="font-mono font-semibold">{chunks}</span>,
+              })}
             </Label>
             <Input
               id="delete-confirm"
@@ -182,7 +184,7 @@ export default function PrivacyAndData() {
               }}
               disabled={deleting}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -191,10 +193,10 @@ export default function PrivacyAndData() {
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting…
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("privacy.deleting")}
                 </>
               ) : (
-                "Permanently delete"
+                t("privacy.permanentlyDelete")
               )}
             </Button>
           </DialogFooter>

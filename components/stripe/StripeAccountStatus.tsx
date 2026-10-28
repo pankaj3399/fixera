@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 interface StripeAccountStatusProps {
   hasAccount: boolean;
@@ -20,6 +21,8 @@ export function StripeAccountStatus({
   payoutsEnabled,
   accountStatus,
 }: StripeAccountStatusProps) {
+  const t = useTranslations('checkout');
+
   if (!hasAccount) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -28,7 +31,7 @@ export function StripeAccountStatus({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <span className="text-sm font-medium text-yellow-800">
-            No Stripe account connected
+            {t('stripeAccount.noAccount')}
           </span>
         </div>
       </div>
@@ -43,7 +46,7 @@ export function StripeAccountStatus({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="text-sm font-medium text-yellow-800">
-            Stripe setup incomplete
+            {t('stripeAccount.setupIncomplete')}
           </span>
         </div>
       </div>
@@ -58,7 +61,7 @@ export function StripeAccountStatus({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <span className="text-sm font-medium text-red-800">
-            Stripe account restricted
+            {t('stripeAccount.restricted')}
           </span>
         </div>
       </div>
@@ -73,7 +76,7 @@ export function StripeAccountStatus({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
           <span className="text-sm font-medium text-red-800">
-            Stripe account rejected
+            {t('stripeAccount.rejected')}
           </span>
         </div>
       </div>
@@ -88,18 +91,18 @@ export function StripeAccountStatus({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span className="text-sm font-medium text-green-800">
-            Stripe account connected
+            {t('stripeAccount.connected')}
           </span>
         </div>
         <div className="flex space-x-2">
           {chargesEnabled && (
             <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-              Charges
+              {t('stripeAccount.charges')}
             </span>
           )}
           {payoutsEnabled && (
             <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-              Payouts
+              {t('stripeAccount.payouts')}
             </span>
           )}
         </div>

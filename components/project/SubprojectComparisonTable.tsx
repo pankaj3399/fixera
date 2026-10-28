@@ -1,15 +1,27 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Check, Clock, Shield, ArrowRight, Calendar, Info, Package } from 'lucide-react'
-import { formatCurrency } from '@/lib/formatters'
+import { formatPriceModelLabel } from '@/lib/projectHighlights'
 import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing'
 import { useCustomerPricing } from '@/hooks/useCustomerPricing'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
+import { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME } from '@/components/professional/project-wizard/Step2Subprojects'
 
 const SUFFIXLESS_PRICE_MODEL_PREFIXES = ['rfq', 'fixed', 'total', 'unit'] as const
+
+const UNIT_SUFFIX_KEYS = {
+  hour: 'unitSuffixes.hour',
+  day: 'unitSuffixes.day',
+  meter: 'unitSuffixes.meter',
+  m2: 'unitSuffixes.m2',
+  room: 'unitSuffixes.room',
+  unit: 'unitSuffixes.unit',
+} as const
 
 const isSuffixlessPriceModel = (model: string): boolean => {
   const normalized = model.trim().toLowerCase()
@@ -62,26 +74,36 @@ export default function SubprojectComparisonTable({
   companyBlockedRanges,
   onContactProfessional
 }: SubprojectComparisonTableProps) {
+  const t = useTranslations('projects')
+  const tWizard = useTranslations('projectWizard')
+  const { formatPrice } = useCurrency()
   const { customerPrice, originalPrice, loyalty, commissionPercent, loyaltyLoaded } = useCustomerPricing()
   const isPricingReady = commissionPercent != null && loyaltyLoaded
 
+  const unitSuffixLabel = (value: string) => {
+    const key = UNIT_SUFFIX_KEYS[value.toLowerCase() as keyof typeof UNIT_SUFFIX_KEYS]
+    return key ? t(key) : formatPriceModelLabel(value)
+  }
+
+  const formatAmount = (value?: number | null) =>
+    value == null ? null : formatPrice(value)
 
   const formatDuration = (duration?: { value?: number; unit: 'hours' | 'days' }): string => {
-    if (!duration || duration.value == null) return 'N/A'
-    return `${duration.value} ${duration.unit}`
+    if (!duration || duration.value == null) return t('common.na')
+    return t(duration.unit === 'days' ? 'units.days' : 'units.hours', { count: duration.value })
   }
 
   const formatWarranty = (warranty?: { value: number; unit: 'months' | 'years' }): string => {
-    if (!warranty) return 'No warranty'
-    return `${warranty.value} ${warranty.unit}`
+    if (!warranty) return t('comparison.noWarranty')
+    return t(warranty.unit === 'years' ? 'units.years' : 'units.months', { count: warranty.value })
   }
 
   const formatProfessionalInputValue = (
     value: string | number | { min: number; max: number } | undefined,
-    unitSuffix?: string
+    unitLabel?: string
   ): string => {
-    if (value == null || value === '') return 'Not provided'
-    const suffix = unitSuffix ? ` ${unitSuffix}` : ''
+    if (value == null || value === '') return t('common.notProvided')
+    const suffix = unitLabel ? ` ${unitLabel}` : ''
     if (typeof value === 'object' && 'min' in value && 'max' in value) {
       return `${value.min}${suffix} - ${value.max}${suffix}`
     }
@@ -186,7 +208,7 @@ export default function SubprojectComparisonTable({
         !nameLower.includes(priceModelLower)
           ? priceModel
           : undefined;
-      return { ...item, paramValue: hasValue ? formatProfessionalInputValue(match!.value, suffix) : undefined };
+      return { ...item, paramValue: hasValue ? formatProfessionalInputValue(match!.value, suffix ? unitSuffixLabel(suffix) : undefined) : undefined };
     });
   }, [allIncludedItems, currentSubproject?.professionalInputs, currentSubproject?.pricing?.type, priceModel]);
 
@@ -243,7 +265,7 @@ export default function SubprojectComparisonTable({
                   {subproject.name}
                   {index === 1 && subprojects.length === 3 && (
                     <span className="absolute -top-2 right-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
-                      Popular
+                      {t('comparison.popular')}
                     </span>
                   )}
                 </button>
@@ -263,24 +285,24 @@ export default function SubprojectComparisonTable({
                 <div>
                   <div className="text-4xl font-bold text-gray-900">
                     {effectivePricingType(currentSubproject) === 'rfq' ? (
-                      <span className="text-2xl">RFQ</span>
+                      <span className="text-2xl">{t('comparison.rfq')}</span>
                     ) : !isPricingReady ? (
-                      <span className="inline-block h-10 w-32 animate-pulse rounded bg-gray-200" aria-label="Loading price" />
+                      <span className="inline-block h-10 w-32 animate-pulse rounded bg-gray-200" aria-label={t('comparison.loadingPrice')} />
                     ) : effectivePricingType(currentSubproject) === 'unit' ? (
                       <>
                         {hasCurrentDiscount ? (
                           <span className="flex flex-col">
                             <span className="text-xl font-semibold text-gray-400 line-through">
-                              {formatCurrency(currentCustomerAmount)}
+                              {formatAmount(currentCustomerAmount)}
                             </span>
-                            <span>{formatCurrency(currentDiscountedAmount)}</span>
+                            <span>{formatAmount(currentDiscountedAmount)}</span>
                           </span>
                         ) : (
-                          formatCurrency(currentCustomerAmount ?? currentSubproject.pricing.amount)
+                          formatAmount(currentCustomerAmount ?? currentSubproject.pricing.amount)
                         )}
                         {priceModel && !isSuffixlessPriceModel(priceModel) && (
                           <span className="text-lg font-normal text-gray-500 ml-2">
-                            /{priceModel}
+                            /{unitSuffixLabel(priceModel)}
                           </span>
                         )}
                       </>
@@ -288,62 +310,62 @@ export default function SubprojectComparisonTable({
                       hasCurrentDiscount ? (
                         <span className="flex flex-col">
                           <span className="text-xl font-semibold text-gray-400 line-through">
-                            {formatCurrency(currentCustomerAmount)}
+                            {formatAmount(currentCustomerAmount)}
                           </span>
-                          <span>{formatCurrency(currentDiscountedAmount)}</span>
+                          <span>{formatAmount(currentDiscountedAmount)}</span>
                         </span>
                       ) : (
-                        formatCurrency(currentCustomerAmount ?? currentSubproject.pricing.amount)
+                        formatAmount(currentCustomerAmount ?? currentSubproject.pricing.amount)
                       )
                     )}
                   </div>
                   {isPricingReady && effectivePricingType(currentSubproject) === 'unit' && currentSubproject.pricing.minProjectValue && (
                     <p className="text-sm text-gray-500 mt-2">
-                      Min. order: {hasMinProjectDiscount ? (
+                      {t('comparison.minOrder')} {hasMinProjectDiscount ? (
                         <>
                           <span className="line-through text-gray-400 mr-2">
-                            {formatCurrency(minProjectCustomerAmount)}
+                            {formatAmount(minProjectCustomerAmount)}
                           </span>
-                          <span>{formatCurrency(minProjectDiscountedAmount)}</span>
+                          <span>{formatAmount(minProjectDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatCurrency(minProjectCustomerAmount ?? currentSubproject.pricing.minProjectValue)
+                        formatAmount(minProjectCustomerAmount ?? currentSubproject.pricing.minProjectValue)
                       )}
                     </p>
                   )}
                   {isPricingReady && effectivePricingType(currentSubproject) === 'rfq' && currentSubproject.pricing.priceRange && (
                     <p className="text-sm text-gray-500 mt-2">
-                      Estimated range: {hasMinRangeDiscount ? (
+                      {t('comparison.estimatedRange')} {hasMinRangeDiscount ? (
                         <>
                           <span className="line-through text-gray-400 mr-2">
-                            {formatCurrency(minRangeCustomerAmount)}
+                            {formatAmount(minRangeCustomerAmount)}
                           </span>
-                          <span>{formatCurrency(minRangeDiscountedAmount)}</span>
+                          <span>{formatAmount(minRangeDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatCurrency(minRangeCustomerAmount ?? currentSubproject.pricing.priceRange.min)
+                        formatAmount(minRangeCustomerAmount ?? currentSubproject.pricing.priceRange.min)
                       )}{" "}
                       -{" "}
                       {hasMaxRangeDiscount ? (
                         <>
                           <span className="line-through text-gray-400 mr-2">
-                            {formatCurrency(maxRangeCustomerAmount)}
+                            {formatAmount(maxRangeCustomerAmount)}
                           </span>
-                          <span>{formatCurrency(maxRangeDiscountedAmount)}</span>
+                          <span>{formatAmount(maxRangeDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatCurrency(maxRangeCustomerAmount ?? currentSubproject.pricing.priceRange.max)
+                        formatAmount(maxRangeCustomerAmount ?? currentSubproject.pricing.priceRange.max)
                       )}
                     </p>
                   )}
                   {isPricingReady && repeatBuyerDiscount?.enabled && currentPricing.hasRepeatBuyerDiscount && (
                     <p className="text-sm text-green-600 mt-2">
-                      Returning customer price available
+                      {t('comparison.returningCustomerPrice')}
                     </p>
                   )}
                   {isPricingReady && loyalty && loyalty.percentage > 0 && currentPricing.hasLoyaltyDiscount && (
                     <p className="text-sm text-amber-700 mt-1">
-                      {loyalty.level} member savings applied
+                      {t('comparison.memberSavings', { level: loyalty.level })}
                     </p>
                   )}
                 </div>
@@ -355,13 +377,13 @@ export default function SubprojectComparisonTable({
                   {currentSubproject.executionDuration && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Clock className="w-4 h-4 mr-2 text-gray-500" />
-                      <span>{formatDuration(currentSubproject.executionDuration)} delivery</span>
+                      <span>{t('comparison.delivery', { duration: formatDuration(currentSubproject.executionDuration) })}</span>
                     </div>
                   )}
                   {currentSubproject.warrantyPeriod && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Shield className="w-4 h-4 mr-2 text-gray-500" />
-                      <span>{formatWarranty(currentSubproject.warrantyPeriod)} warranty</span>
+                      <span>{t('comparison.warranty', { duration: formatWarranty(currentSubproject.warrantyPeriod) })}</span>
                     </div>
                   )}
                 </div>
@@ -372,16 +394,19 @@ export default function SubprojectComparisonTable({
             {/* What's Included */}
             {enrichedIncludedItems.length > 0 && (
               <div className="mb-8 border-t border-gray-100 pt-6">
-                <h4 className="font-semibold text-base text-gray-900 mb-4">What&apos;s Included:</h4>
+                <h4 className="font-semibold text-base text-gray-900 mb-4">{t('comparison.whatsIncluded')}</h4>
                 <div className="space-y-3">
                   {enrichedIncludedItems.map((item, itemIdx) => {
                     const isIncluded = currentIncludedNames.has(item.name);
+                    // Stored canonical English for predefined quick-adds; show the
+                    // active-locale label and leave custom/admin names as-is.
+                    const predefinedKey = PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME.get(item.name);
                     return (
                       <div key={itemIdx} className="flex items-start space-x-3">
                         <Check className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isIncluded ? 'text-green-500' : 'text-gray-300'}`} />
                         <div>
                           <p className={`text-sm font-medium ${isIncluded ? 'text-gray-900' : 'text-gray-400'}`}>
-                            {item.name}
+                            {predefinedKey ? tWizard(`step2.predefinedItems.${predefinedKey}`) : item.name}
                             {item.paramValue && (
                               <span className="font-bold"> {item.paramValue}</span>
                             )}
@@ -402,11 +427,11 @@ export default function SubprojectComparisonTable({
               <div className="flex items-center gap-2 mb-4">
                 <Package className="w-4 h-4 text-gray-500" />
                 <h4 className="font-semibold text-base text-gray-900">
-                  Materials:{' '}
+                  {t('comparison.materials')}{' '}
                   {currentSubproject.materialsIncluded ? (
-                    <span className="text-green-600 font-semibold">Included</span>
+                    <span className="text-green-600 font-semibold">{t('comparison.included')}</span>
                   ) : (
-                    <span className="text-gray-500 font-semibold">Not included</span>
+                    <span className="text-gray-500 font-semibold">{t('comparison.notIncluded')}</span>
                   )}
                 </h4>
               </div>
@@ -420,7 +445,7 @@ export default function SubprojectComparisonTable({
                           <span className="relative group">
                             <button type="button" aria-describedby={`mat-tooltip-${matIdx}`} className="inline-flex focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 rounded">
                               <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" aria-hidden="true" />
-                              <span className="sr-only">Material info</span>
+                              <span className="sr-only">{t('comparison.materialInfo')}</span>
                             </button>
                             <span id={`mat-tooltip-${matIdx}`} role="tooltip" className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block group-focus-within:block w-48 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg z-10">
                               {mat.description}
@@ -444,13 +469,13 @@ export default function SubprojectComparisonTable({
               {dateLabels?.firstAvailable && (
                 <div className="flex items-center text-sm text-gray-600">
                   <Calendar className="w-4 h-4 mr-2 text-gray-500" />
-                  <span>First Available: <span className="font-medium text-gray-900">{dateLabels.firstAvailable}</span></span>
+                  <span>{t.rich('comparison.firstAvailable', { date: dateLabels.firstAvailable, strong: (chunks) => <span className="font-medium text-gray-900">{chunks}</span> })}</span>
                 </div>
               )}
               {timeMode !== 'hours' && dateLabels?.shortestThroughput && (
                 <div className="flex items-center text-sm text-gray-600">
                   <Calendar className="w-4 h-4 mr-2 text-gray-500" />
-                  <span>Shortest Throughput: <span className="font-medium text-gray-900">{dateLabels.shortestThroughput}</span></span>
+                  <span>{t.rich('comparison.shortestThroughput', { date: dateLabels.shortestThroughput, strong: (chunks) => <span className="font-medium text-gray-900">{chunks}</span> })}</span>
                 </div>
               )}
             </div>
@@ -460,7 +485,7 @@ export default function SubprojectComparisonTable({
               onClick={() => onSelectPackage(selectedIndex)}
               className="w-full bg-black hover:bg-gray-900 text-white h-12 text-base font-semibold group"
             >
-              {currentSubproject.pricing?.type === 'rfq' ? 'Request Quote' : 'Continue'}
+              {currentSubproject.pricing?.type === 'rfq' ? t('comparison.requestQuote') : t('comparison.continue')}
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
 
@@ -471,7 +496,7 @@ export default function SubprojectComparisonTable({
                 className="w-full mt-3 mb-8 h-12 text-base font-medium border-gray-300 hover:bg-gray-50"
                 onClick={onContactProfessional}
               >
-                Contact me
+                {t('comparison.contactMe')}
               </Button>
             )}
           </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import WeeklyAvailabilityCalendar, { CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
 import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
 import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 interface BlockedRange {
   startDate: string
@@ -64,6 +66,9 @@ interface AvailabilityData {
 export default function EmployeeAvailability({ className }: EmployeeAvailabilityProps) {
   const { user } = useAuth()
   const router = useRouter()
+  const t = useTranslations("proTools")
+  const tCalendar = useTranslations("calendar")
+  const { intl } = useFormatLocale()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [availabilityData, setAvailabilityData] = useState<AvailabilityData | null>(null)
@@ -137,19 +142,19 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           setBlockedRanges(Array.from(mergedRanges.values()))
         } else {
           console.error('Failed to load availability:', data.msg)
-          toast.error(data.msg || 'Failed to load availability')
+          toast.error(data.msg || t("employeeAvailability.toast.loadFailed"))
         }
       } else {
         console.error('Failed to load availability - server error')
-        toast.error('Failed to load availability')
+        toast.error(t("employeeAvailability.toast.loadFailed"))
       }
     } catch (error) {
       console.error('Error loading availability:', error)
-      toast.error('Failed to load availability')
+      toast.error(t("employeeAvailability.toast.loadFailed"))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   const saveBlockedRanges = async (
     customRanges: BlockedRange[] = blockedRanges
@@ -175,14 +180,14 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
           await fetchAvailability()
           return true
         }
-        toast.error(data.msg || 'Failed to update blocked periods')
+        toast.error(data.msg || t("employeeAvailability.toast.updateFailed"))
         return false
       }
-      toast.error('Failed to update blocked periods')
+      toast.error(t("employeeAvailability.toast.updateFailed"))
       return false
     } catch (error) {
       console.error('Error updating blocked periods:', error)
-      toast.error('Failed to update blocked periods')
+      toast.error(t("employeeAvailability.toast.updateFailed"))
       return false
     } finally {
       setSaving(false)
@@ -195,15 +200,15 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     const now = new Date()
 
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      toast.error('Please provide valid start and end times')
+      toast.error(t("employeeAvailability.toast.invalidStartEnd"))
       return false
     }
     if (startDate < now) {
-      toast.error('Cannot block time in the past')
+      toast.error(t("employeeAvailability.toast.noPastBlock"))
       return false
     }
     if (startDate >= endDate) {
-      toast.error('Start must be before end time')
+      toast.error(t("employeeAvailability.toast.startBeforeEnd"))
       return false
     }
 
@@ -219,7 +224,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
 
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Blocked period saved')
+      toast.success(t("employeeAvailability.toast.blockedPeriodSaved"))
       return true
     }
 
@@ -229,7 +234,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
 
   const addBlockedRange = async () => {
     if (!newBlockedRange.startDate || !newBlockedRange.endDate) {
-      toast.error('Select start and end values')
+      toast.error(t("employeeAvailability.toast.selectStartEndValues"))
       return
     }
     const success = await addBlockedRangeEntry(
@@ -248,7 +253,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     setBlockedRanges(updatedRanges)
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Blocked period removed')
+      toast.success(t("employeeAvailability.toast.blockedPeriodRemoved"))
     } else {
       setBlockedRanges(previousRanges)
     }
@@ -269,26 +274,26 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     if (!editingRange) return
     const { index, startValue, endValue, reason } = editingRange
     if (!startValue || !endValue) {
-      toast.error('Select start and end values')
+      toast.error(t("employeeAvailability.toast.selectStartEndValues"))
       return
     }
     const startDate = new Date(startValue)
     const endDate = new Date(endValue)
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      toast.error('Please provide valid start and end times')
+      toast.error(t("employeeAvailability.toast.invalidStartEnd"))
       return
     }
     const now = Date.now()
     if (startDate.getTime() < now) {
-      toast.error('Cannot block time in the past')
+      toast.error(t("employeeAvailability.toast.noPastBlock"))
       return
     }
     if (endDate.getTime() < now) {
-      toast.error('End time cannot be in the past')
+      toast.error(t("employeeAvailability.toast.endInPast"))
       return
     }
     if (startDate >= endDate) {
-      toast.error('Start must be before end time')
+      toast.error(t("employeeAvailability.toast.startBeforeEnd"))
       return
     }
 
@@ -305,7 +310,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     setBlockedRanges(updatedRanges)
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Blocked period updated')
+      toast.success(t("employeeAvailability.toast.blockedPeriodUpdated"))
       setEditingRange(null)
     } else {
       setBlockedRanges(previousRanges)
@@ -319,7 +324,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     setBlockedRanges(updatedRanges)
     const success = await saveBlockedRanges(updatedRanges)
     if (success) {
-      toast.success('Blocked period removed')
+      toast.success(t("employeeAvailability.toast.blockedPeriodRemoved"))
       setEditingRange(null)
     } else {
       setBlockedRanges(previousRanges)
@@ -339,6 +344,18 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     [availabilityData?.availability]
   )
 
+  const weekdayLabels = useMemo(() => {
+    const monday = new Date()
+    monday.setHours(12, 0, 0, 0)
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(monday)
+      day.setDate(monday.getDate() + index)
+      const name = day.toLocaleDateString(intl, { weekday: 'long' })
+      return name.charAt(0).toUpperCase() + name.slice(1)
+    })
+  }, [intl])
+
   const calendarEvents = useMemo(() => {
     const events: CalendarEvent[] = []
 
@@ -356,7 +373,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
       events.push({
         id: `personal-${index}`,
         type: 'personal',
-        title: 'Personal Block',
+        title: tCalendar('eventTitles.personalBlock'),
         start,
         end,
         meta: { note: range.reason, rangeIndex: index }
@@ -370,7 +387,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
       events.push({
         id: `company-${index}`,
         type: 'company',
-        title: range.isHoliday ? 'Holiday' : 'Company Closure',
+        title: range.isHoliday ? tCalendar('eventTitles.holiday') : tCalendar('eventTitles.companyClosure'),
         start,
         end,
         meta: { note: range.reason },
@@ -387,7 +404,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
       events.push({
         id: `company-date-${index}`,
         type: 'company',
-        title: item.isHoliday ? 'Holiday' : 'Company Closure',
+        title: item.isHoliday ? tCalendar('eventTitles.holiday') : tCalendar('eventTitles.companyClosure'),
         start,
         end,
         meta: { note: item.reason },
@@ -403,7 +420,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
       events.push({
         id: `booking-${range.bookingId || index}`,
         type,
-        title: type === 'booking-buffer' ? 'Buffer' : 'Booking',
+        title: type === 'booking-buffer' ? tCalendar('eventTitles.buffer') : tCalendar('eventTitles.booking'),
         start,
         end,
         meta: {
@@ -416,7 +433,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
     })
 
     return events
-  }, [availabilityData, blockedRanges])
+  }, [availabilityData, blockedRanges, tCalendar])
 
   if (user?.role !== 'employee') {
     return (
@@ -424,13 +441,13 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Availability Management
+            {t("employeeAvailability.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <User className="h-12 w-12 mx-auto mb-2" />
-            <p className="text-sm">This feature is only available for employees</p>
+            <p className="text-sm">{t("employeeAvailability.employeesOnly")}</p>
           </div>
         </CardContent>
       </Card>
@@ -443,7 +460,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Your Availability
+            {t("employeeAvailability.yourAvailability")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 py-6">
@@ -466,25 +483,25 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Your Availability
+            {t("employeeAvailability.yourAvailability")}
           </CardTitle>
           <CardDescription>
-            You follow the company schedule. Use blocked periods for time you are unavailable.
+            {t("employeeAvailability.description")}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
           <div className="space-y-3">
-            <Label className="text-base font-medium">Add Blocked Period</Label>
+            <Label className="text-base font-medium">{t("employeeAvailability.addBlockedPeriod")}</Label>
             <p className="text-xs text-muted-foreground">
-              Choose the exact start and end time for the blocked period.
+              {t("employeeAvailability.addBlockedPeriodHint")}
             </p>
           </div>
 
           <div className="space-y-4">
             <div className="grid md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="employee-start-date">Start Date</Label>
+                <Label htmlFor="employee-start-date">{t("employeeAvailability.startDate")}</Label>
                 <Input
                   id="employee-start-date"
                   type="datetime-local"
@@ -494,7 +511,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="employee-end-date">End Date</Label>
+                <Label htmlFor="employee-end-date">{t("employeeAvailability.endDate")}</Label>
                 <Input
                   id="employee-end-date"
                   type="datetime-local"
@@ -504,10 +521,10 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="employee-block-reason">Reason (Optional)</Label>
+                <Label htmlFor="employee-block-reason">{t("employeeAvailability.reasonOptionalTitleCase")}</Label>
                 <Input
                   id="employee-block-reason"
-                  placeholder="Vacation, appointment, etc."
+                  placeholder={t("employeeAvailability.reasonPlaceholder")}
                   value={newBlockedRange.reason}
                   onChange={(e) => setNewBlockedRange(prev => ({ ...prev, reason: e.target.value }))}
                 />
@@ -525,15 +542,15 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
                 variant="outline"
               >
                 <CalendarX className="h-4 w-4 mr-2" />
-                Block Period
+                {t("employeeAvailability.blockPeriod")}
               </Button>
             </div>
           </div>
 
           {availabilityData && (
             <WeeklyAvailabilityCalendar
-              title="Weekly Availability"
-              description="Booking details are shown inside each block. Click personal blocks to edit. Click bookings to view."
+              title={tCalendar('weeklyAvailabilityCalendar.defaultTitle')}
+              description={tCalendar('weeklyAvailabilityCalendar.description')}
               events={calendarEvents}
               dayStart={scheduleWindow.dayStart}
               dayEnd={scheduleWindow.dayEnd}
@@ -560,10 +577,10 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Company Working Hours
+                {t("employeeAvailability.companyWorkingHours")}
               </CardTitle>
               <CardDescription>
-                Read-only. Working hours follow the company schedule.
+                {t("employeeAvailability.companyWorkingHoursDescription")}
               </CardDescription>
             </div>
             <Button
@@ -579,9 +596,9 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
         <CardContent>
           {availabilityData?.availability ? (
             <div className="space-y-2">
-              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
+              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day, index) => {
                 const dayData = availabilityData.availability[day]
-                const label = day.charAt(0).toUpperCase() + day.slice(1)
+                const label = weekdayLabels[index]
                 return (
                   <div key={day} className="flex items-center justify-between text-sm">
                     <span className="font-medium">{label}</span>
@@ -590,7 +607,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
                         {dayData.startTime || '09:00'} - {dayData.endTime || '17:00'}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">Not available</span>
+                      <span className="text-muted-foreground">{t("employeeAvailability.notAvailable")}</span>
                     )}
                   </div>
                 )
@@ -598,7 +615,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
             </div>
           ) : (
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-              No company schedule set.
+              {t("employeeAvailability.noCompanySchedule")}
             </div>
           )}
         </CardContent>
@@ -612,13 +629,13 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Blocked Period</DialogTitle>
-            <DialogDescription>Adjust the time range or remove the block.</DialogDescription>
+            <DialogTitle>{t("employeeAvailability.editBlockDialog.title")}</DialogTitle>
+            <DialogDescription>{t("employeeAvailability.editBlockDialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-3">
               <div className="space-y-1">
-                <Label htmlFor="edit-employee-start">Start</Label>
+                <Label htmlFor="edit-employee-start">{t("employeeAvailability.editBlockDialog.start")}</Label>
                 <Input
                   id="edit-employee-start"
                   type="datetime-local"
@@ -632,7 +649,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="edit-employee-end">End</Label>
+                <Label htmlFor="edit-employee-end">{t("employeeAvailability.editBlockDialog.end")}</Label>
                 <Input
                   id="edit-employee-end"
                   type="datetime-local"
@@ -646,7 +663,7 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="edit-employee-reason">Reason (optional)</Label>
+                <Label htmlFor="edit-employee-reason">{t("employeeAvailability.editBlockDialog.reasonOptional")}</Label>
                 <Input
                   id="edit-employee-reason"
                   value={editingRange?.reason || ''}
@@ -655,21 +672,21 @@ export default function EmployeeAvailability({ className }: EmployeeAvailability
                       prev ? { ...prev, reason: e.target.value } : prev
                     )
                   }
-                  placeholder="Vacation, appointment, etc."
+                  placeholder={t("employeeAvailability.editBlockDialog.reasonPlaceholder")}
                 />
               </div>
             </div>
             <div className="flex items-center justify-between gap-2">
               <Button variant="destructive" disabled={saving} onClick={deleteBlockedRange}>
-                Remove Block
+                {t("employeeAvailability.editBlockDialog.removeBlock")}
               </Button>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => setEditingRange(null)} disabled={saving}>
-                  Cancel
+                  {t("employeeAvailability.cancel")}
                 </Button>
                 <Button onClick={updateBlockedRange} disabled={saving}>
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  Save Changes
+                  {t("employeeAvailability.editBlockDialog.saveChanges")}
                 </Button>
               </div>
             </div>

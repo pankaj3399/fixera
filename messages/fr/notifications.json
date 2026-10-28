@@ -1,0 +1,61 @@
+{
+  "bell": {
+    "ariaLabel": "Notifications",
+    "ariaLabelUnread": "Notifications ({count} non lues)",
+    "title": "Notifications",
+    "markAllRead": "Tout marquer comme lu",
+    "settings": "Paramètres de notification",
+    "loading": "Chargement…",
+    "empty": "Aucune notification pour l'instant",
+    "justNow": "à l'instant",
+    "minutesAgo": "il y a {count} min",
+    "hoursAgo": "il y a {count} h",
+    "daysAgo": "il y a {count} j"
+  },
+  "prompt": {
+    "ariaLabel": "Activer les notifications push",
+    "title": "Restez informé",
+    "body": "Recevez des mises à jour instantanées pour vos réservations, messages et plus encore.",
+    "enable": "Activer",
+    "enabling": "Activation…",
+    "dismiss": "Fermer"
+  },
+  "preferences": {
+    "title": "Préférences de notification",
+    "subtitle": "Choisissez comment et quand nous vous contactons.",
+    "pushBlocked": "<strong>Les notifications push sont bloquées</strong> dans les paramètres de votre navigateur. Pour les réactiver, cliquez sur l'icône de cadenas dans la barre d'adresse et autorisez les notifications pour ce site.",
+    "pushOffTitle": "Les notifications push sont désactivées",
+    "pushOffBody": "Activez-les pour recevoir des alertes instantanées.",
+    "enablePush": "Activer les push",
+    "marketingLanguageLabel": "Langue des e-mails marketing",
+    "marketingLanguageHint": "Nous utilisons cette langue pour les e-mails promotionnels lorsqu'elle est disponible. Les valeurs par défaut du pays ne s'appliquent que si aucune préférence n'est définie.",
+    "columnType": "Type de notification",
+    "columnPush": "Push",
+    "columnEmail": "E-mail",
+    "pushLabel": "Push :",
+    "emailLabel": "E-mail :",
+    "footer": "Les notifications push nécessitent l'autorisation du navigateur. Les préférences e-mail s'appliquent à la plupart des messages. Les alertes critiques concernant les réservations, les paiements, les litiges et le compte peuvent toujours être envoyées même lorsqu'un canal est désactivé.",
+    "togglePushAria": "Notifications push pour {label}",
+    "toggleEmailAria": "Notifications e-mail pour {label}",
+    "saveFailed": "Impossible d'enregistrer la préférence. Veuillez réessayer.",
+    "localeSaveFailed": "Impossible d'enregistrer la langue des e-mails marketing. Veuillez réessayer.",
+    "types": {
+      "bookingUpdates": {
+        "label": "Mises à jour des réservations",
+        "description": "Nouvelles demandes, confirmations, annulations et changements de statut."
+      },
+      "messages": {
+        "label": "Messages",
+        "description": "Nouveaux messages de clients ou de professionnels."
+      },
+      "promotions": {
+        "label": "E-mails promotionnels",
+        "description": "Avantages fidélité, offres spéciales et actualités de la plateforme. Vous pouvez vous désinscrire à tout moment."
+      },
+      "system": {
+        "label": "Système",
+        "description": "Alertes de compte, vérification d'identité et avis importants."
+      }
+    }
+  }
+}

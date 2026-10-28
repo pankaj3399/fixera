@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ function errMessage(e: unknown, fallback: string): string {
 }
 
 function UnsubscribeInner() {
+  const t = useTranslations("auth");
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const email = searchParams.get("email") || "";
@@ -38,7 +40,7 @@ function UnsubscribeInner() {
   const runUnsubscribe = async () => {
     if (status === "loading") return;
     if (!API_BASE) {
-      setMessage("Server URL is not configured");
+      setMessage(t("unsubscribe.serverNotConfigured"));
       setStatus("error");
       return;
     }
@@ -57,16 +59,16 @@ function UnsubscribeInner() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
-        throw new Error(json?.msg || "Unsubscribe failed");
+        throw new Error(json?.msg || t("unsubscribe.failed"));
       }
       if (requestParamsKey === paramsKeyRef.current) {
-        setMessage(json.data?.message || "You have been unsubscribed.");
+        setMessage(json.data?.message || t("unsubscribe.unsubscribed"));
         setStatus("done");
       }
     } catch (e: unknown) {
       if (requestParamsKey === paramsKeyRef.current) {
         const aborted = e instanceof DOMException && e.name === "AbortError";
-        setMessage(aborted ? "The request timed out. Please try again." : errMessage(e, "Unsubscribe failed"));
+        setMessage(aborted ? t("unsubscribe.timeout") : errMessage(e, t("unsubscribe.failed")));
         setStatus("error");
       }
     } finally {
@@ -78,34 +80,32 @@ function UnsubscribeInner() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Email preferences</CardTitle>
-        <CardDescription>Manage Fixtract promotional email subscription</CardDescription>
+        <CardTitle>{t("unsubscribe.title")}</CardTitle>
+        <CardDescription>{t("unsubscribe.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {status === "idle" && !hasParams && (
           <>
             <p className="text-sm text-muted-foreground">
-              Open the unsubscribe link from a campaign email, or manage preferences in your
-              profile.
+              {t("unsubscribe.noParams")}
             </p>
             <Button asChild>
-              <Link href="/profile?tab=notifications">Open notification settings</Link>
+              <Link href="/profile?tab=notifications">{t("unsubscribe.openSettings")}</Link>
             </Button>
           </>
         )}
         {status === "idle" && hasParams && (
           <>
             <p className="text-sm text-muted-foreground">
-              Confirm to stop receiving Fixtract promotional emails. Transactional booking emails
-              are unaffected.
+              {t("unsubscribe.confirm")}
             </p>
-            <Button onClick={runUnsubscribe}>Unsubscribe from promotions</Button>
+            <Button onClick={runUnsubscribe}>{t("unsubscribe.submit")}</Button>
           </>
         )}
         {status === "loading" && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Unsubscribing…
+            {t("unsubscribe.unsubscribing")}
           </div>
         )}
         {status === "done" && <p className="text-sm text-emerald-700">{message}</p>}
@@ -113,7 +113,7 @@ function UnsubscribeInner() {
           <div className="space-y-3">
             <p className="text-sm text-rose-600">{message}</p>
             <Button variant="outline" onClick={runUnsubscribe}>
-              Try again
+              {t("unsubscribe.tryAgain")}
             </Button>
           </div>
         )}

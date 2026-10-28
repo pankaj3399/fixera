@@ -1,9 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { differenceInMinutes } from 'date-fns'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { normalizeTimezone } from '@/lib/timezoneDisplay'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -139,7 +141,7 @@ const EVENT_STYLES: Record<
 }
 
 export default function WeeklyAvailabilityCalendar({
-  title = 'Weekly Availability',
+  title,
   description,
   events,
   dayStart = '09:00',
@@ -151,6 +153,9 @@ export default function WeeklyAvailabilityCalendar({
   weeklySchedule,
   weeklyScheduleTimeZone,
 }: WeeklyAvailabilityCalendarProps) {
+  const t = useTranslations('calendar')
+  const { dateFns } = useFormatLocale()
+  const resolvedTitle = title ?? t('weeklyAvailabilityCalendar.defaultTitle')
   const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const calendarTimeZone = normalizeTimezone(timeZone, browserTimeZone)
   const [weekStart, setWeekStart] = useState<Date>(
@@ -238,7 +243,7 @@ export default function WeeklyAvailabilityCalendar({
         result.push({
           id: `recurring-availability-${weekday}-${sourceDate}`,
           type: 'personal',
-          title: 'Available',
+          title: t('eventTitles.available'),
           start,
           end,
           readOnly: true,
@@ -257,7 +262,7 @@ export default function WeeklyAvailabilityCalendar({
         result.push({
           id: `recurring-availability-24-7-${sourceDate}`,
           type: 'personal',
-          title: '24/7',
+          title: t('eventTitles.allDay'),
           start,
           end,
           readOnly: true,
@@ -265,7 +270,7 @@ export default function WeeklyAvailabilityCalendar({
       }
     }
     return result
-  }, [weeklySchedule, weekStart, calendarTimeZone, scheduleTimeZone])
+  }, [weeklySchedule, weekStart, calendarTimeZone, scheduleTimeZone, t])
 
   const allEvents = useMemo(
     () => [...recurringEvents, ...events],
@@ -332,10 +337,11 @@ export default function WeeklyAvailabilityCalendar({
     return dayMap
   }, [days, allEvents, startMinutes, endMinutes, calendarTimeZone])
 
-  const headerRange = `${formatInTimeZone(days[0], calendarTimeZone, 'MMM d')} - ${formatInTimeZone(
+  const headerRange = `${formatInTimeZone(days[0], calendarTimeZone, 'MMM d', { locale: dateFns })} - ${formatInTimeZone(
     days[days.length - 1],
     calendarTimeZone,
     'MMM d',
+    { locale: dateFns },
   )}`
 
   return (
@@ -345,7 +351,7 @@ export default function WeeklyAvailabilityCalendar({
           <div>
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
-              {title}
+              {resolvedTitle}
             </CardTitle>
             {description && <CardDescription>{description}</CardDescription>}
           </div>
@@ -383,8 +389,8 @@ export default function WeeklyAvailabilityCalendar({
           <div />
           {days.map((day) => (
             <div key={day.toISOString()} className="text-sm font-semibold text-slate-700">
-              <div>{formatInTimeZone(day, calendarTimeZone, 'EEE')}</div>
-              <div className="text-xs text-slate-500">{formatInTimeZone(day, calendarTimeZone, 'MMM d')}</div>
+              <div>{formatInTimeZone(day, calendarTimeZone, 'EEE', { locale: dateFns })}</div>
+              <div className="text-xs text-slate-500">{formatInTimeZone(day, calendarTimeZone, 'MMM d', { locale: dateFns })}</div>
             </div>
           ))}
 
@@ -512,10 +518,10 @@ export default function WeeklyAvailabilityCalendar({
         <div className="mt-5 flex flex-wrap gap-3 text-xs">
           {(
             [
-              { label: 'Personal Block', type: 'personal' },
-              { label: 'Booking', type: 'booking' },
-              { label: 'Buffer', type: 'booking-buffer' },
-              { label: 'Company Closure', type: 'company' },
+              { label: t('eventTitles.personalBlock'), type: 'personal' },
+              { label: t('eventTitles.booking'), type: 'booking' },
+              { label: t('eventTitles.buffer'), type: 'booking-buffer' },
+              { label: t('eventTitles.companyClosure'), type: 'company' },
             ] as const
           ).map((item) => {
             const style = EVENT_STYLES[item.type]

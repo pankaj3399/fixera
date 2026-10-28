@@ -18,6 +18,7 @@ import {
   RefreshCw
 } from "lucide-react"
 import { toast } from 'sonner'
+import { useTranslations } from 'next-intl'
 
 interface IFAQ {
   id: string
@@ -134,6 +135,7 @@ const FAQ_TEMPLATES = {
 }
 
 export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
+  const t = useTranslations('projectWizardSteps')
   const [faqs, setFaqs] = useState<IFAQ[]>(data.faq || [])
   const [isGenerating, setIsGenerating] = useState(false)
   const [customQuestion, setCustomQuestion] = useState('')
@@ -184,16 +186,16 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
       }
 
       setFaqs(generatedFAQs)
-      toast.success('FAQs generated successfully!')
+      toast.success(t('step4.generatedSuccess'))
     } catch {
-      toast.error('Failed to generate FAQs')
+      toast.error(t('step4.generateFailed'))
     }
     setIsGenerating(false)
   }
 
   const addCustomFAQ = () => {
     if (!customQuestion.trim() || !customAnswer.trim()) {
-      toast.error('Please provide both question and answer')
+      toast.error(t('step4.needQuestionAndAnswer'))
       return
     }
 
@@ -207,12 +209,12 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
     setFaqs([...faqs, newFAQ])
     setCustomQuestion('')
     setCustomAnswer('')
-    toast.success('FAQ added successfully!')
+    toast.success(t('step4.addedSuccess'))
   }
 
   const addTemplateFAQ = (template: { question: string; answer: string }) => {
     if (faqs.some(faq => faq.question === template.question)) {
-      toast.error('This FAQ is already added')
+      toast.error(t('step4.alreadyAdded'))
       return
     }
 
@@ -238,7 +240,7 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
 
   const saveEdit = (id: string, question: string, answer: string) => {
     if (!question.trim() || !answer.trim()) {
-      toast.error('Question and answer cannot be empty')
+      toast.error(t('step4.cantBeEmpty'))
       return
     }
 
@@ -247,7 +249,7 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
         ? { ...faq, question: question.trim(), answer: answer.trim(), isEditing: false, isGenerated: false }
         : faq
     ))
-    toast.success('FAQ updated successfully!')
+    toast.success(t('step4.updatedSuccess'))
   }
 
   const cancelEdit = (id: string) => {
@@ -263,17 +265,16 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <HelpCircle className="w-5 h-5" />
-            <span>Frequently Asked Questions</span>
+            <span>{t('step4.title')}</span>
           </CardTitle>
           <CardDescription>
-            Create FAQs to help customers understand your service better. You can auto-generate common questions
-            or add your own custom ones. FAQs will be displayed on your project page.
+            {t('step4.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
-              Current FAQs: {faqs.length}
+              {t('step4.currentCount', { count: faqs.length })}
             </div>
             <div className="flex space-x-2">
               <Button
@@ -286,7 +287,7 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
                 ) : (
                   <Sparkles className="w-4 h-4" />
                 )}
-                <span>{isGenerating ? 'Generating...' : 'Generate AI FAQs'}</span>
+                <span>{isGenerating ? t('step4.generating') : t('step4.generate')}</span>
               </Button>
             </div>
           </div>
@@ -296,9 +297,11 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
       {/* FAQ Templates */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Quick Add Templates</CardTitle>
+          <CardTitle className="text-lg">{t('common.quickAddTemplates')}</CardTitle>
           <CardDescription>
-            Common questions for {data.service || 'your service'} category
+            {data.service
+              ? t('step4.templatesDescription', { service: data.service })
+              : t('step4.templatesDescriptionFallback')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -328,35 +331,39 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
       {/* Add Custom FAQ */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Add Custom FAQ</CardTitle>
+          <CardTitle className="text-lg">{t('step4.addTitle')}</CardTitle>
           <CardDescription>
-            Create your own questions specific to your service
+            {t('step4.addDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="customQuestion">Question</Label>
+            <Label htmlFor="customQuestion">{t('step4.questionLabel')}</Label>
             <Input
               id="customQuestion"
               value={customQuestion}
               onChange={(e) => setCustomQuestion(e.target.value)}
-              placeholder="What question do customers frequently ask?"
+              placeholder={t('step4.questionPlaceholder')}
               maxLength={200}
             />
-            <p className="text-sm text-gray-500 mt-1">{customQuestion.length}/200 characters</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {t('common.characters', { count: customQuestion.length, max: 200 })}
+            </p>
           </div>
 
           <div>
-            <Label htmlFor="customAnswer">Answer</Label>
+            <Label htmlFor="customAnswer">{t('step4.answerLabel')}</Label>
             <Textarea
               id="customAnswer"
               value={customAnswer}
               onChange={(e) => setCustomAnswer(e.target.value)}
-              placeholder="Provide a clear, helpful answer..."
+              placeholder={t('step4.answerPlaceholder')}
               rows={4}
               maxLength={1000}
             />
-            <p className="text-sm text-gray-500 mt-1">{customAnswer.length}/1000 characters</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {t('common.characters', { count: customAnswer.length, max: 1000 })}
+            </p>
           </div>
 
           <Button
@@ -365,7 +372,7 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
             className="w-full"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add Custom FAQ
+            {t('step4.addTitle')}
           </Button>
         </CardContent>
       </Card>
@@ -375,14 +382,14 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Your FAQs ({faqs.length})</span>
+              <span>{t('step4.yourFaqs', { count: faqs.length })}</span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setFaqs([])}
                 className="text-red-600 hover:text-red-700"
               >
-                Clear All
+                {t('common.clearAll')}
               </Button>
             </CardTitle>
           </CardHeader>
@@ -401,17 +408,19 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-2">
-                            <span className="text-sm font-medium text-blue-600">Q{index + 1}:</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              {t('common.questionIndex', { index: index + 1 })}
+                            </span>
                             <span className="font-medium">{faq.question}</span>
                             {faq.isGenerated && (
                               <Badge variant="outline" className="text-xs">
                                 <Sparkles className="w-3 h-3 mr-1" />
-                                AI Generated
+                                {t('step4.aiGenerated')}
                               </Badge>
                             )}
                           </div>
                           <div className="flex items-start space-x-2">
-                            <span className="text-sm font-medium text-green-600 mt-0.5">A:</span>
+                            <span className="text-sm font-medium text-green-600 mt-0.5">{t('step4.answerIndex')}</span>
                             <p className="text-sm text-gray-700">{faq.answer}</p>
                           </div>
                         </div>
@@ -447,10 +456,9 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
         <Card>
           <CardContent className="py-12 text-center">
             <HelpCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No FAQs yet</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('step4.noFaqsTitle')}</h3>
             <p className="text-gray-600 mb-6">
-              Add FAQs to help customers understand your service better. You can generate
-              common questions automatically or create your own.
+              {t('step4.noFaqsDescription')}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button onClick={generateAIFAQs} disabled={isGenerating}>
@@ -459,7 +467,7 @@ export default function Step4FAQ({ data, onChange, onValidate }: Step4Props) {
                 ) : (
                   <Sparkles className="w-4 h-4 mr-2" />
                 )}
-                Generate AI FAQs
+                {t('step4.generate')}
               </Button>
             </div>
           </CardContent>
@@ -479,13 +487,14 @@ function EditFAQForm({
   onSave: (id: string, question: string, answer: string) => void
   onCancel: (id: string) => void
 }) {
+  const t = useTranslations('projectWizardSteps')
   const [question, setQuestion] = useState(faq.question)
   const [answer, setAnswer] = useState(faq.answer)
 
   return (
     <div className="space-y-4">
       <div>
-        <Label>Question</Label>
+        <Label>{t('step4.questionLabel')}</Label>
         <Input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -493,7 +502,7 @@ function EditFAQForm({
         />
       </div>
       <div>
-        <Label>Answer</Label>
+        <Label>{t('step4.answerLabel')}</Label>
         <Textarea
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
@@ -508,7 +517,7 @@ function EditFAQForm({
           disabled={!question.trim() || !answer.trim()}
         >
           <Check className="w-4 h-4 mr-2" />
-          Save
+          {t('step4.save')}
         </Button>
         <Button
           variant="outline"
@@ -516,7 +525,7 @@ function EditFAQForm({
           onClick={() => onCancel(faq.id)}
         >
           <X className="w-4 h-4 mr-2" />
-          Cancel
+          {t('step4.cancel')}
         </Button>
       </div>
     </div>

@@ -1,0 +1,33 @@
+{
+  "eventTitles": {
+    "personalBlock": "Personal Block",
+    "booking": "Booking",
+    "buffer": "Buffer",
+    "companyClosure": "Company Closure",
+    "holiday": "Holiday",
+    "available": "Available",
+    "allDay": "24/7"
+  },
+  "weeklyAvailabilityCalendar": {
+    "defaultTitle": "Weekly Availability",
+    "description": "Booking details are shown inside each block. Click personal blocks to edit. Click bookings to view."
+  },
+  "availabilityCalendar": {
+    "defaultTitle": "Availability Calendar",
+    "dayStatus": {
+      "companyBlock": "Company Block",
+      "blocked": "Blocked",
+      "booked": "Booked",
+      "partiallyBooked": "Partially booked",
+      "available": "Available",
+      "off": "Off"
+    },
+    "legend": {
+      "yourBlock": "Your Block",
+      "partialBooking": "Partial Booking",
+      "workingDay": "Working Day"
+    },
+    "dateStatus": "{date} - {status}",
+    "tip": "Tip: Click once to start a range, click another day to end it. Click the same day twice to toggle a single-day block."
+  }
+}

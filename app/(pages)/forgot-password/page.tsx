@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +13,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 
 export default function ForgotPasswordPage() {
+  const t = useTranslations("auth")
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
@@ -34,13 +36,13 @@ export default function ForgotPasswordPage() {
 
       if (response.ok && data.success) {
         setEmailSent(true)
-        toast.success('Password reset email sent! Please check your inbox.')
+        toast.success(t('forgotPassword.sentToast'))
       } else {
-        toast.error(data.msg || 'Failed to send password reset email')
+        toast.error(data.msg || t('forgotPassword.failed'))
       }
     } catch (error) {
       console.error('Forgot password error:', error)
-      toast.error('An error occurred. Please try again.')
+      toast.error(t('forgotPassword.genericError'))
     } finally {
       setIsLoading(false)
     }
@@ -50,11 +52,11 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Forgot Password</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">{t("forgotPassword.title")}</CardTitle>
           <CardDescription className="text-center">
             {emailSent
-              ? "Check your email for reset instructions"
-              : "Enter your email to receive a password reset link"
+              ? t("forgotPassword.descriptionSent")
+              : t("forgotPassword.description")
             }
           </CardDescription>
         </CardHeader>
@@ -62,11 +64,11 @@ export default function ForgotPasswordPage() {
           {!emailSent ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("shared.email")}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder={t("shared.emailPlaceholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -78,12 +80,12 @@ export default function ForgotPasswordPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
+                    {t("forgotPassword.sending")}
                   </>
                 ) : (
                   <>
                     <Mail className="mr-2 h-4 w-4" />
-                    Send Reset Link
+                    {t("forgotPassword.sendResetLink")}
                   </>
                 )}
               </Button>
@@ -94,7 +96,7 @@ export default function ForgotPasswordPage() {
                   className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center"
                 >
                   <ArrowLeft className="mr-1 h-4 w-4" />
-                  Back to login
+                  {t("forgotPassword.backToLogin")}
                 </Link>
               </div>
             </form>
@@ -104,13 +106,15 @@ export default function ForgotPasswordPage() {
                 <div className="flex items-start">
                   <Mail className="h-5 w-5 text-green-600 mt-0.5 mr-3" />
                   <div>
-                    <h3 className="text-sm font-medium text-green-800">Email sent successfully!</h3>
+                    <h3 className="text-sm font-medium text-green-800">{t("forgotPassword.emailSentTitle")}</h3>
                     <p className="mt-2 text-sm text-green-700">
-                      We&apos;ve sent a password reset link to <strong>{email}</strong>.
-                      Please check your inbox and follow the instructions to reset your password.
+                      {t.rich("forgotPassword.emailSentBody", {
+                        email,
+                        strong: (chunks) => <strong>{chunks}</strong>,
+                      })}
                     </p>
                     <p className="mt-2 text-sm text-green-700">
-                      The link will expire in 1 hour for security reasons.
+                      {t("forgotPassword.emailSentExpiry")}
                     </p>
                   </div>
                 </div>
@@ -118,7 +122,7 @@ export default function ForgotPasswordPage() {
 
               <div className="text-center space-y-2">
                 <p className="text-sm text-gray-600">
-                  Didn&apos;t receive the email? Check your spam folder.
+                  {t("forgotPassword.notReceived")}
                 </p>
                 <Button
                   variant="outline"
@@ -128,7 +132,7 @@ export default function ForgotPasswordPage() {
                   }}
                   className="w-full"
                 >
-                  Try again with a different email
+                  {t("forgotPassword.tryDifferentEmail")}
                 </Button>
               </div>
 
@@ -138,7 +142,7 @@ export default function ForgotPasswordPage() {
                   className="text-sm text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center"
                 >
                   <ArrowLeft className="mr-1 h-4 w-4" />
-                  Back to login
+                  {t("forgotPassword.backToLogin")}
                 </Link>
               </div>
             </div>

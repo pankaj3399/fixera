@@ -1,0 +1,61 @@
+{
+  "bell": {
+    "ariaLabel": "Notifications",
+    "ariaLabelUnread": "Notifications ({count} unread)",
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "settings": "Notification settings",
+    "loading": "Loading…",
+    "empty": "No notifications yet",
+    "justNow": "just now",
+    "minutesAgo": "{count}m ago",
+    "hoursAgo": "{count}h ago",
+    "daysAgo": "{count}d ago"
+  },
+  "prompt": {
+    "ariaLabel": "Enable push notifications",
+    "title": "Stay in the loop",
+    "body": "Get instant updates for bookings, messages & more.",
+    "enable": "Enable",
+    "enabling": "Enabling…",
+    "dismiss": "Dismiss"
+  },
+  "preferences": {
+    "title": "Notification Preferences",
+    "subtitle": "Choose how and when you want to hear from us.",
+    "pushBlocked": "<strong>Push notifications are blocked</strong> in your browser settings. To re-enable them, click the lock icon in your address bar and allow notifications for this site.",
+    "pushOffTitle": "Push notifications are off",
+    "pushOffBody": "Enable them to receive instant alerts.",
+    "enablePush": "Enable Push",
+    "marketingLanguageLabel": "Marketing email language",
+    "marketingLanguageHint": "We use this language for promotional emails when it is available. Country defaults are used only when no preference is set.",
+    "columnType": "Notification Type",
+    "columnPush": "Push",
+    "columnEmail": "Email",
+    "pushLabel": "Push:",
+    "emailLabel": "Email:",
+    "footer": "Push notifications require browser permission. Email preferences apply to most messages. Critical booking, payment, dispute, and account alerts may still be sent even when a channel is turned off.",
+    "togglePushAria": "{label} push notifications",
+    "toggleEmailAria": "{label} email notifications",
+    "saveFailed": "Failed to save preference. Please try again.",
+    "localeSaveFailed": "Failed to save marketing email language. Please try again.",
+    "types": {
+      "bookingUpdates": {
+        "label": "Booking Updates",
+        "description": "New requests, confirmations, cancellations, and status changes."
+      },
+      "messages": {
+        "label": "Messages",
+        "description": "New chat messages from customers or professionals."
+      },
+      "promotions": {
+        "label": "Promotional emails",
+        "description": "Loyalty rewards, special offers, and platform news. You can unsubscribe at any time."
+      },
+      "system": {
+        "label": "System",
+        "description": "Account alerts, ID verification, and important notices."
+      }
+    }
+  }
+}

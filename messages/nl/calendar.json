@@ -1,0 +1,33 @@
+{
+  "eventTitles": {
+    "personalBlock": "Persoonlijke blokkade",
+    "booking": "Boeking",
+    "buffer": "Buffer",
+    "companyClosure": "Bedrijfssluiting",
+    "holiday": "Feestdag",
+    "available": "Beschikbaar",
+    "allDay": "24/7"
+  },
+  "weeklyAvailabilityCalendar": {
+    "defaultTitle": "Wekelijkse beschikbaarheid",
+    "description": "Boekingsdetails worden in elk blok weergegeven. Klik op persoonlijke blokkades om ze te bewerken. Klik op boekingen om ze te bekijken."
+  },
+  "availabilityCalendar": {
+    "defaultTitle": "Beschikbaarheidskalender",
+    "dayStatus": {
+      "companyBlock": "Bedrijfsblokkade",
+      "blocked": "Geblokkeerd",
+      "booked": "Geboekt",
+      "partiallyBooked": "Gedeeltelijk geboekt",
+      "available": "Beschikbaar",
+      "off": "Vrij"
+    },
+    "legend": {
+      "yourBlock": "Jouw blokkade",
+      "partialBooking": "Gedeeltelijke boeking",
+      "workingDay": "Werkdag"
+    },
+    "dateStatus": "{date} - {status}",
+    "tip": "Tip: klik één keer om een periode te starten en klik op een andere dag om die te beëindigen. Klik twee keer op dezelfde dag om een blokkade van één dag in of uit te schakelen."
+  }
+}

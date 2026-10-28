@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,7 +21,10 @@ interface PasswordChangeProps {
   className?: string
 }
 
+const STRENGTH_KEYS = ['veryWeak', 'weak', 'fair', 'good', 'strong', 'veryStrong'] as const
+
 export default function PasswordChange({ className }: PasswordChangeProps) {
+  const t = useTranslations("account")
   const [loading, setLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -44,28 +48,28 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
     let isValid = true
 
     if (!formData.currentPassword) {
-      newErrors.currentPassword = 'Current password is required'
+      newErrors.currentPassword = t('passwordChange.currentRequired')
       isValid = false
     }
 
     if (!formData.newPassword) {
-      newErrors.newPassword = 'New password is required'
+      newErrors.newPassword = t('passwordChange.newRequired')
       isValid = false
     } else if (formData.newPassword.length < 6) {
-      newErrors.newPassword = 'Password must be at least 6 characters'
+      newErrors.newPassword = t('passwordChange.tooShort')
       isValid = false
     }
 
     if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your new password'
+      newErrors.confirmPassword = t('passwordChange.confirmRequired')
       isValid = false
     } else if (formData.newPassword !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match'
+      newErrors.confirmPassword = t('passwordChange.mismatch')
       isValid = false
     }
 
     if (formData.currentPassword === formData.newPassword) {
-      newErrors.newPassword = 'New password must be different from current password'
+      newErrors.newPassword = t('passwordChange.sameAsCurrent')
       isValid = false
     }
 
@@ -99,19 +103,19 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
       const data = await response.json()
       
       if (data.success) {
-        toast.success('Password changed successfully!')
+        toast.success(t('passwordChange.changed'))
         setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' })
         setErrors({ currentPassword: '', newPassword: '', confirmPassword: '' })
       } else {
         if (data.msg?.includes('Current password is incorrect')) {
-          setErrors(prev => ({ ...prev, currentPassword: 'Current password is incorrect' }))
+          setErrors(prev => ({ ...prev, currentPassword: t('passwordChange.currentIncorrect') }))
         } else {
-          toast.error(data.msg || 'Failed to change password')
+          toast.error(data.msg || t('passwordChange.failed'))
         }
       }
     } catch (error) {
       console.error('Error changing password:', error)
-      toast.error('Failed to change password')
+      toast.error(t('passwordChange.failed'))
     } finally {
       setLoading(false)
     }
@@ -141,18 +145,18 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
   }
 
   const passwordStrength = getPasswordStrength(formData.newPassword)
-  const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong']
   const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500', 'bg-green-600']
+  const strengthLabel = t(`passwordChange.strengthLevels.${STRENGTH_KEYS[Math.min(passwordStrength, 5)]}`)
 
   return (
     <Card className={className}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Shield className="h-5 w-5" />
-          Change Password
+          {t('passwordChange.title')}
         </CardTitle>
         <CardDescription>
-          Update your account password for security
+          {t('passwordChange.description')}
         </CardDescription>
       </CardHeader>
       
@@ -160,14 +164,14 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Current Password */}
           <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current Password</Label>
+            <Label htmlFor="currentPassword">{t('passwordChange.currentPassword')}</Label>
             <div className="relative">
               <Input
                 id="currentPassword"
                 type={showCurrentPassword ? "text" : "password"}
                 value={formData.currentPassword}
                 onChange={(e) => handleInputChange('currentPassword', e.target.value)}
-                placeholder="Enter your current password"
+                placeholder={t('passwordChange.currentPasswordPlaceholder')}
                 className={errors.currentPassword ? "border-red-500" : ""}
               />
               <Button
@@ -191,14 +195,14 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
 
           {/* New Password */}
           <div className="space-y-2">
-            <Label htmlFor="newPassword">New Password</Label>
+            <Label htmlFor="newPassword">{t('passwordChange.newPassword')}</Label>
             <div className="relative">
               <Input
                 id="newPassword"
                 type={showNewPassword ? "text" : "password"}
                 value={formData.newPassword}
                 onChange={(e) => handleInputChange('newPassword', e.target.value)}
-                placeholder="Enter your new password"
+                placeholder={t('passwordChange.newPasswordPlaceholder')}
                 className={errors.newPassword ? "border-red-500" : ""}
               />
               <Button
@@ -232,11 +236,12 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
                   ))}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Strength: <span className={`font-medium ${
+                  {t('passwordChange.strength')}{' '}
+                  <span className={`font-medium ${
                     passwordStrength >= 4 ? 'text-green-600' : 
                     passwordStrength >= 2 ? 'text-yellow-600' : 'text-red-600'
                   }`}>
-                    {strengthLabels[Math.min(passwordStrength, 5)]}
+                    {strengthLabel}
                   </span>
                 </p>
               </div>
@@ -247,20 +252,20 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
             )}
             
             <p className="text-xs text-muted-foreground">
-              Password must be at least 6 characters long
+              {t('passwordChange.minLength')}
             </p>
           </div>
 
           {/* Confirm Password */}
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm New Password</Label>
+            <Label htmlFor="confirmPassword">{t('passwordChange.confirmPassword')}</Label>
             <div className="relative">
               <Input
                 id="confirmPassword"
                 type={showConfirmPassword ? "text" : "password"}
                 value={formData.confirmPassword}
                 onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                placeholder="Confirm your new password"
+                placeholder={t('passwordChange.confirmPasswordPlaceholder')}
                 className={errors.confirmPassword ? "border-red-500" : ""}
               />
               <Button
@@ -281,7 +286,7 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
             {formData.confirmPassword && formData.newPassword === formData.confirmPassword && (
               <div className="flex items-center gap-2 text-sm text-green-600">
                 <CheckCircle className="h-4 w-4" />
-                <span>Passwords match</span>
+                <span>{t('passwordChange.passwordsMatch')}</span>
               </div>
             )}
             
@@ -299,7 +304,7 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               <Lock className="h-4 w-4 mr-2" />
-              Change Password
+              {t('passwordChange.submit')}
             </Button>
           </div>
         </form>

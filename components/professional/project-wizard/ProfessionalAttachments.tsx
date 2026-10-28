@@ -1,6 +1,7 @@
 'use client'
 
  
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, Trash2, FileText, Loader2 } from "lucide-react";
@@ -20,8 +21,9 @@ export default function ProfessionalAttachments({
   onChange,
   questionId,
   projectId,
-  label = "Upload Supporting Documents"
+  label
 }: ProfessionalAttachmentsProps) {
+  const t = useTranslations('projectWizard');
   const { uploadFile, uploading, progress } = useFileUpload();
 
   const handleFileUpload = async (file: File) => {
@@ -29,7 +31,7 @@ export default function ProfessionalAttachments({
 
     // Validate file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('File must be less than 10MB');
+      toast.error(t('attachments.toast.tooLarge'));
       return;
     }
 
@@ -40,24 +42,24 @@ export default function ProfessionalAttachments({
 
     if (result) {
       onChange([...attachments, result.url]);
-      toast.success('File uploaded successfully');
+      toast.success(t('attachments.toast.uploaded'));
     } else {
-      toast.error('Failed to upload file');
+      toast.error(t('attachments.toast.failed'));
     }
   };
 
   const removeAttachment = (url: string) => {
     onChange(attachments.filter(a => a !== url));
-    toast.success('File removed');
+    toast.success(t('attachments.toast.removed'));
   };
 
   const getFileName = (url: string) => {
-    return url.split('/').pop() || 'file';
+    return url.split('/').pop() || t('attachments.fileFallback');
   };
 
   return (
     <div className="space-y-3">
-      <Label className="text-sm font-medium">{label}</Label>
+      <Label className="text-sm font-medium">{label ?? t('attachments.defaultLabel')}</Label>
 
       {/* Upload Button */}
       <div>
@@ -82,12 +84,12 @@ export default function ProfessionalAttachments({
           {uploading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Uploading... {progress}%
+              {t('attachments.uploading', { progress })}
             </>
           ) : (
             <>
               <Upload className="w-4 h-4 mr-2" />
-              Upload File (PDF, Image, Word)
+              {t('attachments.upload')}
             </>
           )}
         </Button>
@@ -97,7 +99,7 @@ export default function ProfessionalAttachments({
       {attachments.length > 0 && (
         <div className="space-y-2">
           <Label className="text-xs text-gray-600">
-            Uploaded Files ({attachments.length})
+            {t('attachments.uploadedFiles', { count: attachments.length })}
           </Label>
           {attachments.map((url, index) => (
             <div
@@ -116,7 +118,7 @@ export default function ProfessionalAttachments({
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:underline"
                   >
-                    View file
+                    {t('attachments.view')}
                   </a>
                 </div>
               </div>
@@ -134,7 +136,7 @@ export default function ProfessionalAttachments({
       )}
 
       <p className="text-xs text-gray-500">
-        Upload documents that help answer this question (max 10MB per file)
+        {t('attachments.hint')}
       </p>
     </div>
   );

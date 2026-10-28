@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +14,7 @@ import { CalendarIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 
 type BookingDto = Record<string, unknown>
 
@@ -31,6 +33,8 @@ export default function RFQForm({
   onSuccess,
   onCancel
 }: RFQFormProps) {
+  const t = useTranslations('checkout')
+  const { dateFns } = useFormatLocale()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     serviceType: '',
@@ -47,17 +51,17 @@ export default function RFQForm({
 
     // Validation
     if (!formData.serviceType.trim()) {
-      toast.error('Please enter the service type')
+      toast.error(t('rfqForm.validation.serviceTypeRequired'))
       return
     }
 
     if (!formData.description.trim()) {
-      toast.error('Please provide a description')
+      toast.error(t('rfqForm.validation.descriptionRequired'))
       return
     }
 
     if (formData.description.length < 20) {
-      toast.error('Description must be at least 20 characters')
+      toast.error(t('rfqForm.validation.descriptionTooShort'))
       return
     }
 
@@ -95,16 +99,16 @@ export default function RFQForm({
       const data = await response.json()
 
       if (response.ok && data.success) {
-        toast.success('Booking request submitted successfully!')
+        toast.success(t('rfqForm.validation.submitSuccess'))
         if (onSuccess) {
           onSuccess(data.booking)
         }
       } else {
-        toast.error(data.msg || 'Failed to submit booking request')
+        toast.error(data.msg || t('rfqForm.validation.submitFailed'))
       }
     } catch (error) {
       console.error('RFQ submission error:', error)
-      toast.error('An error occurred. Please try again.')
+      toast.error(t('rfqForm.validation.genericError'))
     } finally {
       setLoading(false)
     }
@@ -113,19 +117,19 @@ export default function RFQForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Request for Quote (RFQ)</CardTitle>
+        <CardTitle>{t('rfqForm.title')}</CardTitle>
         <CardDescription>
-          Tell us about your project needs and get a custom quote from the professional
+          {t('rfqForm.description')}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Service Type */}
           <div className="space-y-2">
-            <Label htmlFor="serviceType">Service Type *</Label>
+            <Label htmlFor="serviceType">{t('rfqForm.serviceTypeLabel')}</Label>
             <Input
               id="serviceType"
-              placeholder="e.g., Plumbing, Electrical, Renovation"
+              placeholder={t('rfqForm.serviceTypePlaceholder')}
               value={formData.serviceType}
               onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
               required
@@ -134,10 +138,10 @@ export default function RFQForm({
 
           {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Description *</Label>
+            <Label htmlFor="description">{t('rfqForm.descriptionLabel')}</Label>
             <Textarea
               id="description"
-              placeholder="Describe your project in detail. Include what needs to be done, any specific requirements, and expected outcomes."
+              placeholder={t('rfqForm.descriptionPlaceholder')}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={6}
@@ -145,13 +149,13 @@ export default function RFQForm({
               className="resize-none"
             />
             <p className="text-xs text-gray-500">
-              {formData.description.length} / minimum 20 characters
+              {t('rfqForm.descriptionCounter', { count: formData.description.length })}
             </p>
           </div>
 
           {/* Preferred Start Date */}
           <div className="space-y-2">
-            <Label>Preferred Start Date (Optional)</Label>
+            <Label>{t('rfqForm.preferredStartDate')}</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -163,9 +167,9 @@ export default function RFQForm({
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {formData.preferredStartDate ? (
-                    format(formData.preferredStartDate, 'PPP')
+                    format(formData.preferredStartDate, 'PPP', { locale: dateFns })
                   ) : (
-                    <span>Pick a date</span>
+                    <span>{t('rfqForm.pickDate')}</span>
                   )}
                 </Button>
               </PopoverTrigger>
@@ -183,7 +187,7 @@ export default function RFQForm({
 
           {/* Urgency */}
           <div className="space-y-2">
-            <Label htmlFor="urgency">Urgency Level</Label>
+            <Label htmlFor="urgency">{t('rfqForm.urgencyLabel')}</Label>
             <Select
               value={formData.urgency}
               onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') =>
@@ -194,22 +198,22 @@ export default function RFQForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">Low - Flexible timeline</SelectItem>
-                <SelectItem value="medium">Medium - Within a month</SelectItem>
-                <SelectItem value="high">High - Within 2 weeks</SelectItem>
-                <SelectItem value="urgent">Urgent - ASAP</SelectItem>
+                <SelectItem value="low">{t('rfqForm.urgency.low')}</SelectItem>
+                <SelectItem value="medium">{t('rfqForm.urgency.medium')}</SelectItem>
+                <SelectItem value="high">{t('rfqForm.urgency.high')}</SelectItem>
+                <SelectItem value="urgent">{t('rfqForm.urgency.urgent')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Budget Range */}
           <div className="space-y-2">
-            <Label>Budget Range (Optional)</Label>
+            <Label>{t('rfqForm.budgetRange')}</Label>
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-1">
                 <Input
                   type="number"
-                  placeholder="Min"
+                  placeholder={t('rfqForm.minPlaceholder')}
                   value={formData.budgetMin}
                   onChange={(e) => setFormData({ ...formData, budgetMin: e.target.value })}
                   min="0"
@@ -218,7 +222,7 @@ export default function RFQForm({
               <div className="col-span-1">
                 <Input
                   type="number"
-                  placeholder="Max"
+                  placeholder={t('rfqForm.maxPlaceholder')}
                   value={formData.budgetMax}
                   onChange={(e) => setFormData({ ...formData, budgetMax: e.target.value })}
                   min="0"
@@ -247,9 +251,9 @@ export default function RFQForm({
           {/* Info */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">
-              <strong>What happens next?</strong>
+              <strong>{t('rfqForm.whatNextTitle')}</strong>
               <br />
-              The professional will review your request and provide a detailed quote. You&apos;ll receive a notification once the quote is ready for review.
+              {t('rfqForm.whatNextBody')}
             </p>
           </div>
 
@@ -263,7 +267,7 @@ export default function RFQForm({
                 disabled={loading}
                 className="flex-1"
               >
-                Cancel
+                {t('rfqForm.cancel')}
               </Button>
             )}
             <Button
@@ -274,10 +278,10 @@ export default function RFQForm({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
+                  {t('rfqForm.submitting')}
                 </>
               ) : (
-                'Submit Request'
+                t('rfqForm.submitRequest')
               )}
             </Button>
           </div>

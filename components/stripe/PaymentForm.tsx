@@ -6,8 +6,10 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { PaymentStatus } from '../../types/stripe';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface PaymentFormProps {
   clientSecret: string;
@@ -26,6 +28,8 @@ export function PaymentForm({
 }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
+  const t = useTranslations('checkout');
+  const { formatMoney } = useCurrency();
 
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -34,13 +38,13 @@ export function PaymentForm({
     e.preventDefault();
 
     if (!stripe || !elements) {
-      setErrorMessage('Stripe has not loaded yet');
+      setErrorMessage(t('paymentForm.stripeNotLoaded'));
       return;
     }
 
     const cardElement = elements.getElement(CardElement);
     if (!cardElement) {
-      setErrorMessage('Card element not found');
+      setErrorMessage(t('paymentForm.cardElementNotFound'));
       return;
     }
 
@@ -58,8 +62,8 @@ export function PaymentForm({
       if (error) {
         // Payment failed
         setPaymentStatus('error');
-        setErrorMessage(error.message || 'Payment failed');
-        onError(error.message || 'Payment failed');
+        setErrorMessage(error.message || t('paymentForm.paymentFailed'));
+        onError(error.message || t('paymentForm.paymentFailed'));
         return;
       }
 
@@ -75,7 +79,7 @@ export function PaymentForm({
           // 3DS authentication needed
           setPaymentStatus('authenticating');
           if (!paymentIntent.client_secret) {
-            const message = 'Additional authentication is required, but no client secret was returned. Please try again.';
+            const message = t('paymentForm.authRequiredNoClientSecret');
             setPaymentStatus('error');
             setErrorMessage(message);
             onError(message);
@@ -85,21 +89,21 @@ export function PaymentForm({
           const { paymentIntent: updatedIntent, error: actionError } = await stripe.handleCardAction(paymentIntent.client_secret);
           if (actionError) {
             setPaymentStatus('error');
-            setErrorMessage(actionError.message || '3DS authentication failed');
-            onError(actionError.message || '3DS authentication failed');
+            setErrorMessage(actionError.message || t('paymentForm.threeDsFailed'));
+            onError(actionError.message || t('paymentForm.threeDsFailed'));
           } else if (updatedIntent && (updatedIntent.status === 'succeeded' || updatedIntent.status === 'requires_capture')) {
             setPaymentStatus('success');
             onSuccess(updatedIntent.id);
           } else if (updatedIntent && updatedIntent.status === 'requires_confirmation') {
             // Intent needs server-side confirmation after 3DS
             setPaymentStatus('error');
-            setErrorMessage('Payment requires additional confirmation. Please try again.');
-            onError('Payment requires additional confirmation');
+            setErrorMessage(t('paymentForm.requiresConfirmation'));
+            onError(t('paymentForm.requiresConfirmationShort'));
           } else {
             const status = updatedIntent?.status || 'unknown';
             setPaymentStatus('error');
-            setErrorMessage(`Payment did not complete successfully (status: ${status}). Please try again.`);
-            onError(`Payment incomplete: ${status}`);
+            setErrorMessage(t('paymentForm.incompleteWithStatus', { status }));
+            onError(t('paymentForm.incompleteShort', { status }));
           }
           break;
 
@@ -112,20 +116,20 @@ export function PaymentForm({
         case 'requires_payment_method':
           // Card declined
           setPaymentStatus('error');
-          setErrorMessage('Payment method declined. Please try another card.');
-          onError('Payment method declined');
+          setErrorMessage(t('paymentForm.declined'));
+          onError(t('paymentForm.declinedShort'));
           break;
 
         default:
           setPaymentStatus('error');
-          setErrorMessage(`Unexpected payment status: ${paymentIntent.status}`);
-          onError(`Unexpected status: ${paymentIntent.status}`);
+          setErrorMessage(t('paymentForm.unexpectedStatus', { status: paymentIntent.status }));
+          onError(t('paymentForm.unexpectedStatusShort', { status: paymentIntent.status }));
       }
 
     } catch (err) {
       setPaymentStatus('error');
-      setErrorMessage(err instanceof Error ? err.message : 'An error occurred');
-      onError(err instanceof Error ? err.message : 'An error occurred');
+      setErrorMessage(err instanceof Error ? err.message : t('paymentForm.genericError'));
+      onError(err instanceof Error ? err.message : t('paymentForm.genericError'));
     }
   };
 
@@ -148,7 +152,7 @@ export function PaymentForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="border rounded-lg p-4 bg-white">
         <label htmlFor="card-element" className="block text-sm font-medium text-gray-700 mb-2">
-          Card Details
+          {t('paymentForm.cardDetails')}
         </label>
         <CardElement id="card-element" options={cardElementOptions} />
       </div>
@@ -162,7 +166,7 @@ export function PaymentForm({
       {paymentStatus === 'authenticating' && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-sm text-blue-600">
-            Please complete authentication in the popup window...
+            {t('paymentForm.authenticating')}
           </p>
         </div>
       )}
@@ -170,7 +174,7 @@ export function PaymentForm({
       {paymentStatus === 'processing' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-sm text-yellow-600">
-            Processing payment, please wait...
+            {t('paymentForm.processingWait')}
           </p>
         </div>
       )}
@@ -180,13 +184,13 @@ export function PaymentForm({
         disabled={!stripe || paymentStatus === 'processing' || paymentStatus === 'success' || paymentStatus === 'authenticating'}
         className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
-        {paymentStatus === 'processing' ? 'Processing...' :
-         paymentStatus === 'success' ? 'Payment Successful' :
-         `Pay ${currency.toUpperCase()} ${amount.toFixed(2)}`}
+        {paymentStatus === 'processing' ? t('paymentForm.processing') :
+         paymentStatus === 'success' ? t('paymentForm.success') :
+         t('paymentForm.pay', { amount: formatMoney(amount, currency) })}
       </button>
 
       <p className="text-xs text-gray-500 text-center">
-        Your payment is secured by Stripe.
+        {t('paymentForm.securedByStripe')}
       </p>
     </form>
   );

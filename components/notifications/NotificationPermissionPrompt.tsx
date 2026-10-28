@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Bell, X } from 'lucide-react';
 import { useFCM } from '@/contexts/FCMProvider';
 import { CONSENT_EVENT, getConsent } from '@/lib/consent';
@@ -21,6 +22,7 @@ const LEGACY_DISMISSED_KEY = 'fixera_push_prompt_dismissed';
  * It is meant to be rendered inside the FCMProvider tree.
  */
 const NotificationPermissionPrompt: React.FC = () => {
+  const t = useTranslations('notifications');
   const { permissionGranted, requestPermission } = useFCM();
   const [show, setShow] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -65,7 +67,7 @@ const NotificationPermissionPrompt: React.FC = () => {
   return (
     <div
       role="dialog"
-      aria-label="Enable push notifications"
+      aria-label={t('prompt.ariaLabel')}
       className={`
         fixed bottom-6 left-1/2 -translate-x-1/2 z-40
         flex items-center gap-4
@@ -86,10 +88,10 @@ const NotificationPermissionPrompt: React.FC = () => {
       {/* Copy */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
-          Stay in the loop
+          {t('prompt.title')}
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
-          Get instant updates for bookings, messages &amp; more.
+          {t('prompt.body')}
         </p>
       </div>
 
@@ -102,13 +104,13 @@ const NotificationPermissionPrompt: React.FC = () => {
           disabled={requesting}
           className="rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all text-white text-xs font-medium px-3.5 py-2 disabled:opacity-60"
         >
-          {requesting ? 'Enabling…' : 'Enable'}
+          {requesting ? t('prompt.enabling') : t('prompt.enable')}
         </button>
         <button
           id="fcm-dismiss-btn"
           type="button"
           onClick={handleDismiss}
-          aria-label="Dismiss"
+          aria-label={t('prompt.dismiss')}
           className="rounded-lg p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         >
           <X className="h-4 w-4" />

@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { format, isSameDay, parseISO, startOfDay, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isValid } from 'date-fns'
 import { formatInTimeZone } from 'date-fns-tz'
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale'
 
 interface BlockedRange {
   startDate: string
@@ -40,13 +42,25 @@ export default function AvailabilityDatePicker({
   value,
   onChange,
   minDate,
-  placeholder = 'Select date',
+  placeholder,
   disabled = false,
   id,
   ariaLabel,
   excludeBookingId,
   subprojectIndex,
 }: AvailabilityDatePickerProps) {
+  const t = useTranslations('checkout')
+  const { dateFns } = useFormatLocale()
+  const placeholderLabel = placeholder ?? t('availabilityPicker.placeholder')
+  const weekdays = [
+    t('availabilityPicker.weekdays.mon'),
+    t('availabilityPicker.weekdays.tue'),
+    t('availabilityPicker.weekdays.wed'),
+    t('availabilityPicker.weekdays.thu'),
+    t('availabilityPicker.weekdays.fri'),
+    t('availabilityPicker.weekdays.sat'),
+    t('availabilityPicker.weekdays.sun'),
+  ]
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set())
@@ -223,7 +237,7 @@ export default function AvailabilityDatePicker({
     setOpen(false)
   }
 
-  const displayLabel = selectedDate ? format(selectedDate, 'dd MMM yyyy') : placeholder
+  const displayLabel = selectedDate ? format(selectedDate, 'dd MMM yyyy', { locale: dateFns }) : placeholderLabel
 
   return (
     <div className="relative inline-block w-full" ref={containerRef}>
@@ -234,7 +248,7 @@ export default function AvailabilityDatePicker({
         className="w-full justify-start text-left font-normal"
         onClick={() => !disabled && setOpen((prev) => !prev)}
         disabled={disabled}
-        aria-label={ariaLabel || placeholder}
+        aria-label={ariaLabel || placeholderLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
@@ -254,7 +268,7 @@ export default function AvailabilityDatePicker({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="text-sm font-medium text-gray-900">{format(viewMonth, 'MMMM yyyy')}</div>
+            <div className="text-sm font-medium text-gray-900">{format(viewMonth, 'MMMM yyyy', { locale: dateFns })}</div>
             <Button
               type="button"
               variant="ghost"
@@ -267,15 +281,15 @@ export default function AvailabilityDatePicker({
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1 text-center text-[10px] font-medium text-gray-500">
-            {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => (
-              <div key={d}>{d}</div>
+            {weekdays.map((d, idx) => (
+              <div key={idx}>{d}</div>
             ))}
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-6 text-xs text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Loading availability...
+              {t('availabilityPicker.loading')}
             </div>
           ) : (
             <div className="grid grid-cols-7 gap-1">

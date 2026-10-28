@@ -2,6 +2,7 @@
 
 
 import React, { useState, useEffect } from "react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,6 +38,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
   onVerificationSuccess,
   onBack
 }) => {
+  const t = useTranslations("auth")
  
   const [verificationState, setVerificationState] = useState<VerificationState>({
     emailVerified: false,
@@ -84,12 +86,12 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
   // Check if both verifications are complete
   useEffect(() => {
     if (verificationState.emailVerified && verificationState.phoneVerified) {
-      toast.success("Both email and phone verified successfully!");
+      toast.success(t("dualVerification.bothVerifiedToast"));
       setTimeout(() => {
         onVerificationSuccess();
       }, 1500);
     }
-  }, [verificationState.emailVerified, verificationState.phoneVerified, onVerificationSuccess]);
+  }, [verificationState.emailVerified, verificationState.phoneVerified, onVerificationSuccess, t]);
 
   const sendEmailOTP = async () => {
     setVerificationState(prev => ({ ...prev, emailResendLoading: true }));
@@ -106,17 +108,17 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       const data = await response.json();
       
       if (data.success) {
-        toast.success("Email verification code sent!");
+        toast.success(t("dualVerification.emailCodeSentToast"));
         setVerificationState(prev => ({ 
           ...prev, 
           emailResendDisabled: true, 
           emailResendTime: 60 
         }));
       } else {
-        toast.error(data.message || "Failed to send email OTP");
+        toast.error(data.message || t("dualVerification.emailCodeSendFailed"));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to send email OTP");
+      toast.error(error instanceof Error ? error.message : t("dualVerification.emailCodeSendFailed"));
     } finally {
       setVerificationState(prev => ({ ...prev, emailResendLoading: false }));
     }
@@ -137,17 +139,17 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       const data = await response.json();
       
       if (data.success) {
-        toast.success("Phone verification code sent!");
+        toast.success(t("dualVerification.phoneCodeSentToast"));
         setVerificationState(prev => ({ 
           ...prev, 
           phoneResendDisabled: true, 
           phoneResendTime: 60 
         }));
       } else {
-        toast.error(data.message || "Failed to send phone OTP");
+        toast.error(data.message || t("dualVerification.phoneCodeSendFailed"));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to send phone OTP");
+      toast.error(error instanceof Error ? error.message : t("dualVerification.phoneCodeSendFailed"));
     } finally {
       setVerificationState(prev => ({ ...prev, phoneResendLoading: false }));
     }
@@ -155,7 +157,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
 
   const verifyEmailOTP = async () => {
     if (!verificationState.emailOTP) {
-      toast.error("Please enter the email verification code");
+      toast.error(t("dualVerification.enterEmailCode"));
       return;
     }
     
@@ -177,13 +179,13 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       const data = await response.json();
       
       if (data.success) {
-        toast.success("Email verified successfully!");
+        toast.success(t("dualVerification.emailVerifiedToast"));
         setVerificationState(prev => ({ ...prev, emailVerified: true }));
       } else {
-        toast.error(data.message || "Invalid email verification code");
+        toast.error(data.message || t("dualVerification.emailCodeInvalid"));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to verify email");
+      toast.error(error instanceof Error ? error.message : t("dualVerification.emailVerifyFailed"));
     } finally {
       setVerificationState(prev => ({ ...prev, emailLoading: false }));
     }
@@ -191,7 +193,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
 
   const verifyPhoneOTP = async () => {
     if (!verificationState.phoneOTP) {
-      toast.error("Please enter the phone verification code");
+      toast.error(t("dualVerification.enterPhoneCode"));
       return;
     }
 
@@ -212,13 +214,13 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       const data = await response.json();
       
       if (data.success) {
-        toast.success("Phone verified successfully!");
+        toast.success(t("dualVerification.phoneVerifiedToast"));
         setVerificationState(prev => ({ ...prev, phoneVerified: true }));
       } else {
-        toast.error(data.message || "Invalid phone verification code");
+        toast.error(data.message || t("dualVerification.phoneCodeInvalid"));
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to verify phone");
+      toast.error(error instanceof Error ? error.message : t("dualVerification.phoneVerifyFailed"));
     } finally {
       setVerificationState(prev => ({ ...prev, phoneLoading: false }));
     }
@@ -249,7 +251,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
             className="absolute top-6 left-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            {t("dualVerification.back")}
           </Button>
           
           <div className="flex items-center justify-center mb-4">
@@ -258,17 +260,17 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
             </div>
           </div>
           
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Secure Your Account</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t("dualVerification.title")}</h1>
           <p className="text-gray-600 text-lg">
-            Complete the two-step verification process to activate your account
+            {t("dualVerification.description")}
           </p>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Verification Progress</span>
-            <span className="text-sm text-gray-600">{getProgressPercentage()}% Complete</span>
+            <span className="text-sm font-medium text-gray-700">{t("dualVerification.progress")}</span>
+            <span className="text-sm text-gray-600">{t("dualVerification.progressComplete", { percent: getProgressPercentage() })}</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
@@ -277,8 +279,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
             ></div>
           </div>
           <div className="flex justify-between text-xs text-gray-500 mt-2">
-            <span>Email Verification</span>
-            <span>Phone Verification</span>
+            <span>{t("dualVerification.emailCardTitle")}</span>
+            <span>{t("dualVerification.phoneCardTitle")}</span>
           </div>
         </div>
 
@@ -302,15 +304,15 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                   )}
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Email Verification</CardTitle>
-                  <CardDescription className="text-sm">Verify your email address</CardDescription>
+                  <CardTitle className="text-lg">{t("dualVerification.emailCardTitle")}</CardTitle>
+                  <CardDescription className="text-sm">{t("dualVerification.emailCardDescription")}</CardDescription>
                 </div>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-4">
               <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Verification code sent to:</p>
+                <p className="text-sm text-gray-600 mb-1">{t("dualVerification.codeSentTo")}</p>
                 <p className="font-medium text-gray-900 break-all">{email}</p>
               </div>
 
@@ -318,7 +320,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="email-otp" className="text-sm font-medium">
-                      Enter 6-digit verification code
+                      {t("dualVerification.enterCode")}
                     </Label>
                     <Input
                       id="email-otp"
@@ -341,7 +343,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                       className="w-full h-11 bg-blue-600 hover:bg-blue-700"
                       size="lg"
                     >
-                      {verificationState.emailLoading ? "Verifying..." : "Verify Email"}
+                      {verificationState.emailLoading ? t("dualVerification.verifying") : t("verification.verifyEmail")}
                     </Button>
                     
                     <Button
@@ -352,14 +354,14 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                       size="sm"
                     >
                       {verificationState.emailResendLoading ? (
-                        "Sending..."
+                        t("dualVerification.sending")
                       ) : verificationState.emailResendDisabled ? (
                         <div className="flex items-center gap-2">
                           <Clock className="h-3 w-3" />
-                          Resend code in {formatTime(verificationState.emailResendTime)}
+                          {t("dualVerification.resendIn", { time: formatTime(verificationState.emailResendTime) })}
                         </div>
                       ) : (
-                        "Resend verification code"
+                        t("dualVerification.resendCode")
                       )}
                     </Button>
                   </div>
@@ -367,8 +369,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
               ) : (
                 <div className="text-center py-6">
                   <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
-                  <p className="text-green-600 font-semibold text-lg">Email Verified!</p>
-                  <p className="text-green-600 text-sm">Your email has been successfully verified</p>
+                  <p className="text-green-600 font-semibold text-lg">{t("dualVerification.emailVerifiedTitle")}</p>
+                  <p className="text-green-600 text-sm">{t("dualVerification.emailVerifiedBody")}</p>
                 </div>
               )}
             </CardContent>
@@ -392,15 +394,15 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                   )}
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Phone Verification</CardTitle>
-                  <CardDescription className="text-sm">Verify your phone number</CardDescription>
+                  <CardTitle className="text-lg">{t("dualVerification.phoneCardTitle")}</CardTitle>
+                  <CardDescription className="text-sm">{t("dualVerification.phoneCardDescription")}</CardDescription>
                 </div>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-4">
               <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Verification code sent to:</p>
+                <p className="text-sm text-gray-600 mb-1">{t("dualVerification.codeSentTo")}</p>
                 <p className="font-medium text-gray-900">{phone}</p>
               </div>
 
@@ -408,7 +410,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="phone-otp" className="text-sm font-medium">
-                      Enter 6-digit verification code
+                      {t("dualVerification.enterCode")}
                     </Label>
                     <Input
                       id="phone-otp"
@@ -431,7 +433,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                       className="w-full h-11 bg-indigo-600 hover:bg-indigo-700"
                       size="lg"
                     >
-                      {verificationState.phoneLoading ? "Verifying..." : "Verify Phone"}
+                      {verificationState.phoneLoading ? t("dualVerification.verifying") : t("verification.verifyPhone")}
                     </Button>
                     
                     <Button
@@ -442,14 +444,14 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
                       size="sm"
                     >
                       {verificationState.phoneResendLoading ? (
-                        "Sending..."
+                        t("dualVerification.sending")
                       ) : verificationState.phoneResendDisabled ? (
                         <div className="flex items-center gap-2">
                           <Clock className="h-3 w-3" />
-                          Resend code in {formatTime(verificationState.phoneResendTime)}
+                          {t("dualVerification.resendIn", { time: formatTime(verificationState.phoneResendTime) })}
                         </div>
                       ) : (
-                        "Resend verification code"
+                        t("dualVerification.resendCode")
                       )}
                     </Button>
                   </div>
@@ -457,8 +459,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
               ) : (
                 <div className="text-center py-6">
                   <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
-                  <p className="text-green-600 font-semibold text-lg">Phone Verified!</p>
-                  <p className="text-green-600 text-sm">Your phone number has been successfully verified</p>
+                  <p className="text-green-600 font-semibold text-lg">{t("dualVerification.phoneVerifiedTitle")}</p>
+                  <p className="text-green-600 text-sm">{t("dualVerification.phoneVerifiedBody")}</p>
                 </div>
               )}
             </CardContent>
@@ -470,8 +472,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
           <div className="mt-8 text-center">
             <div className="p-6 bg-green-50 border-2 border-green-200 rounded-xl">
               <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
-              <h3 className="text-xl font-bold text-green-800 mb-2">Verification Complete!</h3>
-              <p className="text-green-700">Both your email and phone have been successfully verified. Redirecting you now...</p>
+              <h3 className="text-xl font-bold text-green-800 mb-2">{t("dualVerification.completeTitle")}</h3>
+              <p className="text-green-700">{t("dualVerification.completeBody")}</p>
             </div>
           </div>
         )}
@@ -479,7 +481,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
         {/* Help Text */}
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-500">
-            Having trouble? Check your spam folder or contact support for assistance.
+            {t("dualVerification.help")}
           </p>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -110,6 +111,7 @@ export interface Step1Ref {
 const DEFAULT_MIN_OVERLAP = 90
 
 const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onValidate }, ref) => {
+  const t = useTranslations('projectWizard')
   const [formData, setFormData] = useState<ProjectData>(data)
   const [keywordInput, setKeywordInput] = useState('')
   const [suggestedTitle, setSuggestedTitle] = useState('')
@@ -203,7 +205,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error)
-      toast.error('Failed to load categories')
+      toast.error(t('step1.toast.categoriesFailed'))
     } finally {
       setLoadingCategories(false)
     }
@@ -221,7 +223,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       }
     } catch (error) {
       console.error('Failed to fetch services:', error)
-      toast.error('Failed to load services')
+      toast.error(t('step1.toast.servicesFailed'))
     } finally {
       setLoadingServices(false)
     }
@@ -394,7 +396,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }, [formData.minResources, formData.resources, selectedResourceCount])
 
   const validateForm = () => {
-    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid)
+    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid, t)
     onValidate(errors.length === 0, {
       dataSignature: getStep1DataSignature(formData),
       addressValid,
@@ -404,12 +406,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }
 
   const showValidationErrors = () => {
-    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid)
+    const errors = collectStep1ComponentErrors(formData, serviceConfig, addressValid, t)
 
     if (errors.length > 0) {
       toast.error(errors.join('. '));
     } else if (!serviceConfigLoaded) {
-      toast.error('Service configuration is still loading. Please try again shortly.')
+      toast.error(t('step1.toast.configLoading'))
     }
   }
 
@@ -560,18 +562,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     const currentImages = formData.media?.images || []
 
     if (currentImages.length + files.length > maxFiles) {
-      toast.error(`Maximum ${maxFiles} images allowed. You currently have ${currentImages.length} images. You can select ${maxFiles - currentImages.length} more.`)
+      toast.error(t('step1.toast.tooManyImages', {
+        max: maxFiles,
+        current: currentImages.length,
+        remaining: maxFiles - currentImages.length,
+      }))
       return
     }
 
     const validFiles = Array.from(files).filter(file => {
       if (file.size > maxSize) {
-        toast.error(`File ${file.name} is too large. Maximum size is 5MB`)
+        toast.error(t('step1.toast.imageTooLarge', { file: file.name }))
         return false
       }
 
       if (!file.type.startsWith('image/')) {
-        toast.error(`File ${file.name} is not an image`)
+        toast.error(t('step1.toast.notAnImage', { file: file.name }))
         return false
       }
 
@@ -604,7 +610,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     const currentVideos = formData.media?.videos || []
 
     if (currentVideos.length >= 1) {
-      toast.error('Maximum 1 video allowed')
+      toast.error(t('step1.toast.oneVideoOnly'))
       return
     }
 
@@ -612,12 +618,12 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     const validTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo']
 
     if (!validTypes.includes(file.type)) {
-      toast.error('Only MP4, MOV, and AVI video formats are allowed')
+      toast.error(t('step1.toast.videoFormat'))
       return
     }
 
     if (file.size > maxSize) {
-      toast.error('Video file is too large. Maximum size is 50MB')
+      toast.error(t('step1.toast.videoTooLarge'))
       return
     }
 
@@ -637,16 +643,16 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Star className="w-5 h-5" />
-            <span>Service Information</span>
+            <span>{t('step1.service.title')}</span>
           </CardTitle>
           <CardDescription>
-            Select one service category you want to offer
+            {t('step1.service.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className='space-y-2'>
-              <Label htmlFor="category">Category *</Label>
+              <Label htmlFor="category">{t('step1.service.categoryLabel')}</Label>
               <Select
                 value={formData.category || ''}
                 onValueChange={(value) => {
@@ -662,7 +668,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 disabled={loadingCategories}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={loadingCategories ? "Loading..." : "Select category"} />
+                  <SelectValue placeholder={loadingCategories ? t('common.loading') : t('step1.service.selectCategory')} />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.filter(category => category && category.trim()).map(category => (
@@ -675,7 +681,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             </div>
 
             <div className='space-y-2'>
-              <Label htmlFor="service">Service *</Label>
+              <Label htmlFor="service">{t('step1.service.serviceLabel')}</Label>
               <Select
                 value={formData.service || ''}
                 onValueChange={(value) => {
@@ -692,7 +698,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 disabled={!formData.category || loadingServices}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={loadingServices ? "Loading..." : "Select service"} />
+                  <SelectValue placeholder={loadingServices ? t('common.loading') : t('step1.service.selectService')} />
                 </SelectTrigger>
                 <SelectContent>
                   {services.filter(service => service && service.trim()).map(service => (
@@ -708,7 +714,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             {areasOfWork.length > 0 && (
               <div className='space-y-2'>
                 <Label htmlFor="areaOfWork">
-                  Area of Work {serviceConfig?.areaOfWorkRequired ? '*' : '(Optional)'}
+                  {serviceConfig?.areaOfWorkRequired ? t('step1.service.areaRequiredLabel') : t('step1.service.areaOptionalLabel')}
                 </Label>
                 <Select
                   value={formData.areaOfWork || ''}
@@ -725,7 +731,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                   disabled={!formData.service || loadingAreas}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={loadingAreas ? "Loading..." : "Select area"} />
+                    <SelectValue placeholder={loadingAreas ? t('common.loading') : t('step1.service.selectArea')} />
                   </SelectTrigger>
                   <SelectContent>
                     {areasOfWork.filter(area => area && area.trim()).map(area => (
@@ -743,14 +749,14 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           {formData.category && formData.service && (
             <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center space-x-2">
-                <Badge className="bg-green-500">Selected</Badge>
+                <Badge className="bg-green-500">{t('step1.service.selected')}</Badge>
                 <div>
                   <div className="font-medium">{formData.service}</div>
                   <div className="text-sm text-gray-600">
-                    <span className="font-semibold">Category:</span> {formData.category}
+                    <span className="font-semibold">{t('step1.service.categoryInline')}</span> {formData.category}
                     {formData.areaOfWork && (
                       <span className="ml-3">
-                        <span className="font-semibold">Area:</span> {formData.areaOfWork}
+                        <span className="font-semibold">{t('step1.service.areaInline')}</span> {formData.areaOfWork}
                       </span>
                     )}
                   </div>
@@ -766,10 +772,10 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <MapPin className="w-5 h-5" />
-            <span>Service Area</span>
+            <span>{t('step1.area.title')}</span>
           </CardTitle>
           <CardDescription>
-            Define where you provide this service
+            {t('step1.area.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -780,7 +786,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               onCheckedChange={(checked) => updateDistance({ useCompanyAddress: checked as boolean })}
             />
             <Label htmlFor="useCompanyAddress" className="cursor-pointer">
-              Use company address
+              {t('step1.area.useCompanyAddress')}
             </Label>
           </div>
 
@@ -802,13 +808,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             onValidation={setAddressValid}
             useCompanyAddress={formData.distance?.useCompanyAddress || false}
             companyAddress={companyAddress}
-            label="Service Address"
+            label={t('address.defaultLabel')}
             required
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className='space-y-2'>
-              <Label htmlFor="maxKmRange">Maximum Range (km)</Label>
+              <Label htmlFor="maxKmRange">{t('step1.area.maxRangeLabel')}</Label>
               <Input
                 id="maxKmRange"
                 type="number"
@@ -832,7 +838,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 checked={formData.distance?.noBorders || false}
                 onCheckedChange={(checked) => updateDistance({ noBorders: checked as boolean })}
               />
-              <Label htmlFor="noBorders">Don&apos;t cross country borders</Label>
+              <Label htmlFor="noBorders">{t('step1.area.noBorders')}</Label>
 
             </div>
           </div>
@@ -851,9 +857,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       {professionalVatQuestions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>VAT classification questions</CardTitle>
+            <CardTitle>{t('step1.vat.title')}</CardTitle>
             <CardDescription>
-              These answers determine place of supply and Belgian reverse charge for this service.
+              {t('step1.vat.description')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -889,11 +895,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="yes" id={`pvat-${question.fieldName}-yes`} />
-                        <Label htmlFor={`pvat-${question.fieldName}-yes`} className="font-normal">Yes</Label>
+                        <Label htmlFor={`pvat-${question.fieldName}-yes`} className="font-normal">{t('common.yes')}</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="no" id={`pvat-${question.fieldName}-no`} />
-                        <Label htmlFor={`pvat-${question.fieldName}-no`} className="font-normal">No</Label>
+                        <Label htmlFor={`pvat-${question.fieldName}-no`} className="font-normal">{t('common.no')}</Label>
                       </div>
                     </RadioGroup>
                   )}
@@ -932,27 +938,27 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Users className="w-5 h-5" />
-              <span>Assign Execution Team Members</span>
+              <span>{t('step1.execution.title')}</span>
             </CardTitle>
             <CardDescription>
-              Select team members who will execute this project
+              {t('step1.execution.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loadingTeamMembers ? (
-              <p className="text-gray-500">Loading team members...</p>
+              <p className="text-gray-500">{t('step1.execution.loading')}</p>
             ) : teamMembers.length === 0 ? (
               <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
                 <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 font-medium">No team members available</p>
+                <p className="text-gray-600 font-medium">{t('step1.execution.emptyTitle')}</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  You haven&apos;t invited any team members yet. Go to Team Management to invite team members.
+                  {t('step1.execution.emptyDescription')}
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-gray-600 mb-3">
-                  {formData.resources?.length || 0} team member(s) selected
+                  {t('step1.execution.selectedCount', { count: formData.resources?.length || 0 })}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {teamMembers.map((member) => (
@@ -974,11 +980,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                           <p className="text-sm text-gray-500">{member.email}</p>
                         )}
                         {!member.hasEmail && (
-                          <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                          <Badge variant="secondary" className="text-xs mt-1">{t('step1.execution.managedByCompany')}</Badge>
                         )}
                         {formData.category && (
                           <div className="mt-1">
-                            <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                            <Badge variant="outline" className="text-[10px]">{t('step1.execution.categoryBadge', { category: formData.category })}</Badge>
                           </div>
                         )}
                       </div>
@@ -998,16 +1004,16 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Users className="w-5 h-5" />
-                <span>Intake Meeting</span>
+                <span>{t('step1.intake.title')}</span>
               </CardTitle>
               <CardDescription>
-                Select team members who will do the intake meeting
+                {t('step1.intake.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <p className="text-sm text-gray-600 mb-1">
-                  {formData.intakeMeeting?.resources?.length || 0} team member(s) assigned to intake
+                  {t('step1.intake.assignedCount', { count: formData.intakeMeeting?.resources?.length || 0 })}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {teamMembers.map((member) => (
@@ -1029,11 +1035,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                           <p className="text-sm text-gray-500">{member.email}</p>
                         )}
                         {!member.hasEmail && (
-                          <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                          <Badge variant="secondary" className="text-xs mt-1">{t('step1.execution.managedByCompany')}</Badge>
                         )}
                         {formData.category && (
                           <div className="mt-1">
-                            <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                            <Badge variant="outline" className="text-[10px]">{t('step1.execution.categoryBadge', { category: formData.category })}</Badge>
                           </div>
                         )}
                       </div>
@@ -1048,10 +1054,10 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Users className="w-5 h-5" />
-                <span>Renovation Planning</span>
+                <span>{t('step1.planning.title')}</span>
               </CardTitle>
               <CardDescription>
-                Choose if planning is Fixtract-managed and assign team members
+                {t('step1.planning.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1061,16 +1067,16 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                   checked={formData.renovationPlanning?.fixeraManaged ?? false}
                   onCheckedChange={(checked) => updateFormData({ renovationPlanning: { fixeraManaged: checked as boolean, resources: formData.renovationPlanning?.resources || [] } })}
                 />
-                <Label htmlFor="planningManaged" className="cursor-pointer">Fixtract-managed planning</Label>
+                <Label htmlFor="planningManaged" className="cursor-pointer">{t('step1.planning.managed')}</Label>
               </div>
 
               {(formData.renovationPlanning?.fixeraManaged) && (
                 <div className="space-y-6">
                   {/* Planning Team Selection */}
                   <div className="space-y-3">
-                    <h4 className="font-medium text-gray-900">Planning Team (Optional)</h4>
+                    <h4 className="font-medium text-gray-900">{t('step1.planning.teamTitle')}</h4>
                     <p className="text-sm text-gray-600 mb-1">
-                      {(formData.renovationPlanning?.resources.length || 0)} team member(s) assigned to planning
+                      {t('step1.planning.assignedCount', { count: formData.renovationPlanning?.resources.length || 0 })}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {teamMembers.map((member) => (
@@ -1092,11 +1098,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                               <p className="text-sm text-gray-500">{member.email}</p>
                             )}
                             {!member.hasEmail && (
-                              <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                              <Badge variant="secondary" className="text-xs mt-1">{t('step1.execution.managedByCompany')}</Badge>
                             )}
                             {formData.category && (
                               <div className="mt-1">
-                                <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                                <Badge variant="outline" className="text-[10px]">{t('step1.execution.categoryBadge', { category: formData.category })}</Badge>
                               </div>
                             )}
                           </div>
@@ -1107,9 +1113,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
                   {/* Execution Team Selection for Renovation with Planning */}
                   <div className="space-y-3 border-t pt-4">
-                    <h4 className="font-medium text-gray-900">Execution Team</h4>
+                    <h4 className="font-medium text-gray-900">{t('step1.planning.executionTeam')}</h4>
                     <p className="text-sm text-gray-600 mb-1">
-                      {formData.resources?.length || 0} team member(s) assigned to execution
+                      {t('step1.planning.executionAssignedCount', { count: formData.resources?.length || 0 })}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {teamMembers.map((member) => (
@@ -1131,11 +1137,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                               <p className="text-sm text-gray-500">{member.email}</p>
                             )}
                             {!member.hasEmail && (
-                              <Badge variant="secondary" className="text-xs mt-1">Managed by Company</Badge>
+                              <Badge variant="secondary" className="text-xs mt-1">{t('step1.execution.managedByCompany')}</Badge>
                             )}
                             {formData.category && (
                               <div className="mt-1">
-                                <Badge variant="outline" className="text-[10px]">Category: {formData.category}</Badge>
+                                <Badge variant="outline" className="text-[10px]">{t('step1.execution.categoryBadge', { category: formData.category })}</Badge>
                               </div>
                             )}
                           </div>
@@ -1153,15 +1159,15 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       {/* Resource Planning - Shown AFTER team member selection */}
       <Card>
         <CardHeader>
-          <CardTitle>Resource Planning</CardTitle>
+          <CardTitle>{t('step1.resources.title')}</CardTitle>
           <CardDescription>
-            Configure resource requirements based on your selected team members
+            {t('step1.resources.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Minimum Required Resources</Label>
+              <Label>{t('step1.resources.minLabel')}</Label>
               <Input
                 type="number"
                 min={selectedResourceCount === 0 ? 0 : 1}
@@ -1179,13 +1185,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               />
               <p className="text-xs text-gray-500">
                 {selectedResourceCount === 0
-                  ? 'Select execution team members to enable resource limits'
-                  : `Cannot exceed ${selectedResourceCount} selected resource${selectedResourceCount === 1 ? '' : 's'}`}
+                  ? t('step1.resources.selectMembersHint')
+                  : t('step1.resources.cannotExceed', { count: selectedResourceCount })}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Minimum Overlap Between Resources (%)</Label>
+              <Label>{t('step1.resources.overlapLabel')}</Label>
               <Input
                 type="number"
                 min={10}
@@ -1200,8 +1206,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               />
               <p className="text-xs text-gray-500">
                 {(formData.minResources ?? 1) <= 1
-                  ? 'Only available when required resources > 1'
-                  : 'Percentage of time resources must work together'}
+                  ? t('step1.resources.overlapUnavailable')
+                  : t('step1.resources.overlapHint')}
               </p>
             </div>
           </div>
@@ -1213,28 +1219,28 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="w-5 h-5" />
-            <span>Project Details</span>
+            <span>{t('step1.details.title')}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className='space-y-2'>
-            <Label htmlFor="description">Detailed Description *</Label>
+            <Label htmlFor="description">{t('step1.details.descriptionLabel')}</Label>
             <Textarea
               id="description"
               value={formData.description || ''}
               onChange={(e) => updateFormData({ description: e.target.value })}
-              placeholder="Describe your service in detail..."
+              placeholder={t('step1.details.descriptionPlaceholder')}
               className="min-h-[120px]"
               maxLength={1300}
             />
             <p className="text-sm text-gray-500 mt-1">
-              {formData.description?.length || 0}/1300 characters (minimum 100)
+              {t('step1.details.descriptionCounter', { count: formData.description?.length || 0 })}
             </p>
           </div>
 
           {!isRenovationCategory && (
             <div className='space-y-2'>
-              <Label htmlFor="priceModel">Price Model *</Label>
+              <Label htmlFor="priceModel">{t('step1.details.priceModelLabel')}</Label>
               <Select
                 value={formData.priceModel || ''}
                 onValueChange={(value) => {
@@ -1247,7 +1253,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select pricing model" />
+                  <SelectValue placeholder={t('step1.details.priceModelPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {pricingModels.length > 0 ? (
@@ -1258,7 +1264,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     ))
                   ) : (
                     <SelectItem value="none-available" disabled>
-                      No pricing models configured for this service
+                      {t('step1.details.noPricingModels')}
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -1271,9 +1277,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       {/* Keywords */}
       <Card>
         <CardHeader>
-          <CardTitle>Keywords/Tags</CardTitle>
+          <CardTitle>{t('step1.keywords.title')}</CardTitle>
           <CardDescription>
-            Add keywords to help customers find your service
+            {t('step1.keywords.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1281,10 +1287,10 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <Input
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
-              placeholder="Add keyword..."
+              placeholder={t('step1.keywords.placeholder')}
               onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
             />
-            <Button onClick={addKeyword} variant="outline">Add</Button>
+            <Button onClick={addKeyword} variant="outline">{t('common.add')}</Button>
           </div>
 
           {formData.keywords && formData.keywords.length > 0 && (
@@ -1306,42 +1312,42 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       {/* Title Generation */}
       <Card>
         <CardHeader>
-          <CardTitle>Project Title</CardTitle>
+          <CardTitle>{t('step1.projectTitle.cardTitle')}</CardTitle>
           <CardDescription>
-            Generate or create a compelling title for your service (30-90 characters)
+            {t('step1.projectTitle.cardDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex space-x-2">
             <Button onClick={generateTitle} variant="outline" disabled={!formData.service || !formData.description}>
-              Generate AI Title
+              {t('step1.projectTitle.generate')}
             </Button>
             {suggestedTitle && (
               <Button onClick={useGeneratedTitle} variant="outline">
-                Use Generated Title
+                {t('step1.projectTitle.useGenerated')}
               </Button>
             )}
           </div>
 
           {suggestedTitle && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-medium text-blue-900">Suggested Title:</p>
+              <p className="text-sm font-medium text-blue-900">{t('step1.projectTitle.suggested')}</p>
               <p className="text-blue-800">{suggestedTitle}</p>
             </div>
           )}
 
           <div className='space-y-2'>
-            <Label htmlFor="title">Project Title *</Label>
+            <Label htmlFor="title">{t('step1.projectTitle.label')}</Label>
             <Input
               id="title"
               value={formData.title || ''}
               onChange={(e) => updateFormData({ title: e.target.value })}
-              placeholder="Enter project title..."
+              placeholder={t('step1.projectTitle.placeholder')}
               minLength={30}
               maxLength={90}
             />
             <p className="text-sm text-gray-500 mt-1">
-              {formData.title?.length || 0}/90 characters (minimum 30)
+              {t('step1.projectTitle.counter', { count: formData.title?.length || 0 })}
             </p>
           </div>
         </CardContent>
@@ -1352,17 +1358,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Upload className="w-5 h-5" />
-            <span>Project Images (Optional)</span>
+            <span>{t('step1.images.title')}</span>
           </CardTitle>
           <CardDescription>
-            Upload up to 4 images to showcase your work (optional)
+            {t('step1.images.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Click to upload or drag and drop images here</p>
-            <p className="text-sm text-gray-500 mt-2">PNG, JPG, WebP up to 5MB each (max 4 images)</p>
+            <p className="text-gray-600">{t('step1.images.dropzone')}</p>
+            <p className="text-sm text-gray-500 mt-2">{t('step1.images.hint')}</p>
             <input
               type="file"
               multiple
@@ -1376,7 +1382,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               className="mt-4"
               onClick={() => document.getElementById('image-upload')?.click()}
             >
-              Choose Files
+              {t('step1.images.choose')}
             </Button>
           </div>
 
@@ -1384,7 +1390,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
               {formData.media.images.map((image, index) => (
                 <div key={index} className="relative">
-                  <img src={image} alt={`Project ${index + 1}`} className="w-full h-24 object-cover rounded" />
+                  <img src={image} alt={t('step1.images.alt', { index: index + 1 })} className="w-full h-24 object-cover rounded" />
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1408,17 +1414,17 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Upload className="w-5 h-5" />
-            <span>Project Video (Optional)</span>
+            <span>{t('step1.video.title')}</span>
           </CardTitle>
           <CardDescription>
-            Upload 1 video to showcase your work (optional)
+            {t('step1.video.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Click to upload or drag and drop video here</p>
-            <p className="text-sm text-gray-500 mt-2">MP4, MOV, AVI up to 50MB (max 1 video)</p>
+            <p className="text-gray-600">{t('step1.video.dropzone')}</p>
+            <p className="text-sm text-gray-500 mt-2">{t('step1.video.hint')}</p>
             <input
               type="file"
               accept="video/mp4,video/quicktime,video/x-msvideo"
@@ -1432,7 +1438,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               onClick={() => document.getElementById('video-upload')?.click()}
               disabled={formData.media?.videos && formData.media.videos.length >= 1}
             >
-              Choose Video
+              {t('step1.video.choose')}
             </Button>
           </div>
 
@@ -1450,7 +1456,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
                     }}
                   >
                     <X className="w-4 h-4 mr-1" />
-                    Remove Video
+                    {t('step1.video.remove')}
                   </Button>
                 </div>
               ))}

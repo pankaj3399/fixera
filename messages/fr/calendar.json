@@ -1,0 +1,33 @@
+{
+  "eventTitles": {
+    "personalBlock": "Blocage personnel",
+    "booking": "Réservation",
+    "buffer": "Marge",
+    "companyClosure": "Fermeture de l'entreprise",
+    "holiday": "Jour férié",
+    "available": "Disponible",
+    "allDay": "24/7"
+  },
+  "weeklyAvailabilityCalendar": {
+    "defaultTitle": "Disponibilités hebdomadaires",
+    "description": "Les détails de réservation s'affichent dans chaque bloc. Cliquez sur les blocs personnels pour les modifier. Cliquez sur les réservations pour les consulter."
+  },
+  "availabilityCalendar": {
+    "defaultTitle": "Calendrier des disponibilités",
+    "dayStatus": {
+      "companyBlock": "Blocage entreprise",
+      "blocked": "Bloqué",
+      "booked": "Réservé",
+      "partiallyBooked": "Partiellement réservé",
+      "available": "Disponible",
+      "off": "Repos"
+    },
+    "legend": {
+      "yourBlock": "Votre blocage",
+      "partialBooking": "Réservation partielle",
+      "workingDay": "Jour travaillé"
+    },
+    "dateStatus": "{date} - {status}",
+    "tip": "Astuce : cliquez une fois pour commencer une période, puis sur un autre jour pour la terminer. Cliquez deux fois sur le même jour pour activer ou désactiver un blocage d'une journée."
+  }
+}

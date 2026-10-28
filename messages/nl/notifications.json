@@ -1,0 +1,61 @@
+{
+  "bell": {
+    "ariaLabel": "Notificaties",
+    "ariaLabelUnread": "Notificaties ({count} ongelezen)",
+    "title": "Notificaties",
+    "markAllRead": "Alles als gelezen markeren",
+    "settings": "Notificatie-instellingen",
+    "loading": "Laden…",
+    "empty": "Nog geen notificaties",
+    "justNow": "zojuist",
+    "minutesAgo": "{count} min geleden",
+    "hoursAgo": "{count} u geleden",
+    "daysAgo": "{count} d geleden"
+  },
+  "prompt": {
+    "ariaLabel": "Pushnotificaties inschakelen",
+    "title": "Blijf op de hoogte",
+    "body": "Ontvang direct updates over boekingen, berichten en meer.",
+    "enable": "Inschakelen",
+    "enabling": "Inschakelen…",
+    "dismiss": "Sluiten"
+  },
+  "preferences": {
+    "title": "Notificatievoorkeuren",
+    "subtitle": "Kies hoe en wanneer je van ons hoort.",
+    "pushBlocked": "<strong>Pushnotificaties zijn geblokkeerd</strong> in je browserinstellingen. Om ze weer in te schakelen klik je op het slotpictogram in de adresbalk en sta je notificaties voor deze site toe.",
+    "pushOffTitle": "Pushnotificaties staan uit",
+    "pushOffBody": "Schakel ze in om direct meldingen te ontvangen.",
+    "enablePush": "Push inschakelen",
+    "marketingLanguageLabel": "Taal van marketinge-mails",
+    "marketingLanguageHint": "We gebruiken deze taal voor promotionele e-mails wanneer beschikbaar. Standaardwaarden per land gelden alleen als je geen voorkeur hebt ingesteld.",
+    "columnType": "Type notificatie",
+    "columnPush": "Push",
+    "columnEmail": "E-mail",
+    "pushLabel": "Push:",
+    "emailLabel": "E-mail:",
+    "footer": "Pushnotificaties vereisen toestemming van je browser. E-mailvoorkeuren gelden voor de meeste berichten. Kritieke meldingen over boekingen, betalingen, geschillen en je account kunnen toch worden verstuurd, ook als een kanaal uitstaat.",
+    "togglePushAria": "Pushnotificaties voor {label}",
+    "toggleEmailAria": "E-mailnotificaties voor {label}",
+    "saveFailed": "Voorkeur opslaan mislukt. Probeer het opnieuw.",
+    "localeSaveFailed": "Taal van marketing-e-mails opslaan mislukt. Probeer het opnieuw.",
+    "types": {
+      "bookingUpdates": {
+        "label": "Boekingsupdates",
+        "description": "Nieuwe aanvragen, bevestigingen, annuleringen en statuswijzigingen."
+      },
+      "messages": {
+        "label": "Berichten",
+        "description": "Nieuwe chatberichten van klanten of vakmensen."
+      },
+      "promotions": {
+        "label": "Promotionele e-mails",
+        "description": "Loyaliteitsvoordelen, speciale aanbiedingen en nieuws over het platform. Je kunt je op elk moment uitschrijven."
+      },
+      "system": {
+        "label": "Systeem",
+        "description": "Accountmeldingen, identiteitsverificatie en belangrijke berichten."
+      }
+    }
+  }
+}

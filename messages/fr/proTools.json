@@ -1,0 +1,173 @@
+{
+  "teamManagement": {
+    "title": "Gestion des employés",
+    "description": "Invitez et gérez vos employés",
+    "inviteEmployee": "Inviter un employé",
+    "cancel": "Annuler",
+    "invalidDate": "Date invalide",
+    "inviteDialog": {
+      "description": "Ajoutez un nouvel employé à votre entreprise",
+      "nameLabel": "Nom *",
+      "namePlaceholder": "Saisissez le nom du membre de l'équipe",
+      "hasEmail": "L'employé dispose d'une adresse e-mail",
+      "emailLabel": "Adresse e-mail *",
+      "emailPlaceholder": "Saisissez l'adresse e-mail du membre de l'équipe",
+      "credentialsNote": "Les identifiants seront envoyés à cette adresse e-mail",
+      "companyManaged": "Employé géré par l'entreprise",
+      "companyManagedNote": "Vous gérerez directement les disponibilités de cet employé",
+      "sendInvitation": "Envoyer l'invitation",
+      "addEmployee": "Ajouter un employé"
+    },
+    "empty": {
+      "title": "Aucun employé pour le moment",
+      "description": "Commencez par inviter votre premier employé"
+    },
+    "employeeCount": "{count, plural, one {# employé} other {# employés}}",
+    "table": {
+      "name": "Nom",
+      "contact": "Contact",
+      "status": "Statut",
+      "actions": "Actions"
+    },
+    "managedByCompany": "Géré par l'entreprise",
+    "selfManaged": "Autonome",
+    "noEmail": "Aucun e-mail",
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif"
+    },
+    "actions": {
+      "manageAvailability": "Gérer les disponibilités",
+      "changeEmail": "Modifier l'e-mail",
+      "linkEmail": "Associer un e-mail",
+      "deactivate": "Désactiver",
+      "reactivate": "Réactiver",
+      "resetPassword": "Réinitialiser le mot de passe",
+      "remove": "Supprimer"
+    },
+    "pagination": {
+      "showing": "Affichage de {from} à {to} sur {total}",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "pageOf": "Page {page} sur {totalPages}"
+    },
+    "passwordDialog": {
+      "title": "Réinitialiser le mot de passe de l'employé",
+      "description": "Définissez un nouveau mot de passe pour cet employé",
+      "newPassword": "Nouveau mot de passe",
+      "placeholder": "Saisissez un nouveau mot de passe (6 caractères min.)",
+      "hint": "Le mot de passe doit contenir au moins 6 caractères",
+      "submit": "Réinitialiser le mot de passe"
+    },
+    "emailDialog": {
+      "changeTitle": "Modifier l'e-mail de l'employé",
+      "linkTitle": "Associer l'e-mail de l'employé",
+      "updateDescription": "Mettez à jour l'adresse e-mail pour {name}.",
+      "linkDescription": "Associez une adresse e-mail pour {name}.",
+      "label": "Adresse e-mail",
+      "placeholder": "name@company.com",
+      "note": "Après avoir associé une adresse e-mail, vous pouvez réinitialiser le mot de passe de l'employé depuis le menu d'actions.",
+      "submit": "Enregistrer l'e-mail"
+    },
+    "deactivateDialog": {
+      "title": "Désactiver l'employé",
+      "confirm": "Voulez-vous vraiment désactiver <strong>{name}</strong> ?",
+      "warningTitle": "Cela va désactiver l'employé",
+      "warningBody": "L'employé ne pourra plus accéder au système ni être planifié pour des rendez-vous. Vous pouvez le réactiver à tout moment.",
+      "submit": "Désactiver l'employé"
+    },
+    "removeDialog": {
+      "title": "Supprimer l'employé",
+      "confirm": "Voulez-vous vraiment supprimer <strong>{name}</strong> ?",
+      "warningTitle": "Cela va supprimer définitivement l'employé",
+      "warningBody": "L'employé sera supprimé de votre entreprise et ne pourra pas être restauré.",
+      "submit": "Supprimer l'employé"
+    },
+    "availabilityDialog": {
+      "title": "Gérer les disponibilités - {name}",
+      "description": "Définissez des périodes bloquées pour cet employé. Les horaires de travail suivent le planning de l'entreprise et ne sont pas modifiables.",
+      "addBlockedPeriod": "Ajouter une période bloquée",
+      "start": "Début",
+      "end": "Fin",
+      "reasonOptional": "Motif (facultatif)",
+      "reasonPlaceholder": "Vacances, rendez-vous, etc.",
+      "addBlock": "Ajouter le blocage",
+      "workingHoursNote": "Les horaires de travail suivent le planning de l'entreprise et ne sont pas modifiables.",
+      "saveAvailability": "Enregistrer les disponibilités"
+    },
+    "editBlockDialog": {
+      "title": "Modifier la période bloquée",
+      "description": "Ajustez la période ou supprimez le blocage.",
+      "start": "Début",
+      "end": "Fin",
+      "reasonOptional": "Motif (facultatif)",
+      "reasonPlaceholder": "Vacances, rendez-vous, etc.",
+      "removeBlock": "Supprimer le blocage",
+      "saveChanges": "Enregistrer les modifications"
+    },
+    "toast": {
+      "loadFailed": "Impossible de charger les employés",
+      "invitationSent": "Invitation envoyée à l'employé !",
+      "employeeAdded": "Employé ajouté !",
+      "inviteFailed": "Impossible d'inviter l'employé",
+      "activated": "Employé activé",
+      "deactivated": "Employé désactivé",
+      "statusFailed": "Impossible de mettre à jour le statut de l'employé",
+      "passwordReset": "Mot de passe réinitialisé",
+      "passwordResetFailed": "Impossible de réinitialiser le mot de passe",
+      "emailRequired": "L'adresse e-mail est obligatoire",
+      "emailUpdated": "Adresse e-mail de l'employé mise à jour",
+      "emailUpdateFailed": "Impossible de mettre à jour l'adresse e-mail de l'employé",
+      "employeeRemoved": "Employé supprimé",
+      "removeFailed": "Impossible de supprimer l'employé",
+      "availabilityUpdated": "Disponibilités de l'employé mises à jour",
+      "availabilityUpdateFailed": "Impossible de mettre à jour les disponibilités"
+    },
+    "validation": {
+      "selectStartEnd": "Sélectionnez une heure de début et de fin",
+      "startBeforeEnd": "L'heure de début doit précéder l'heure de fin",
+      "selectStartEndValues": "Sélectionnez une date de début et de fin",
+      "validStartEnd": "Saisissez des heures de début et de fin valides"
+    }
+  },
+  "employeeAvailability": {
+    "title": "Gestion des disponibilités",
+    "employeesOnly": "Cette fonctionnalité est réservée aux employés",
+    "yourAvailability": "Vos disponibilités",
+    "description": "Vous suivez le planning de l'entreprise. Utilisez les périodes bloquées pour les moments où vous n'êtes pas disponible.",
+    "addBlockedPeriod": "Ajouter une période bloquée",
+    "addBlockedPeriodHint": "Choisissez l'heure de début et de fin exacte de la période bloquée.",
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "reasonOptionalTitleCase": "Motif (facultatif)",
+    "reasonPlaceholder": "Vacances, rendez-vous, etc.",
+    "blockPeriod": "Bloquer la période",
+    "companyWorkingHours": "Horaires de travail de l'entreprise",
+    "companyWorkingHoursDescription": "Lecture seule. Les horaires de travail suivent le planning de l'entreprise.",
+    "notAvailable": "Non disponible",
+    "noCompanySchedule": "Aucun planning d'entreprise défini.",
+    "cancel": "Annuler",
+    "editBlockDialog": {
+      "title": "Modifier la période bloquée",
+      "description": "Ajustez la période ou supprimez le blocage.",
+      "start": "Début",
+      "end": "Fin",
+      "reasonOptional": "Motif (facultatif)",
+      "reasonPlaceholder": "Vacances, rendez-vous, etc.",
+      "removeBlock": "Supprimer le blocage",
+      "saveChanges": "Enregistrer les modifications"
+    },
+    "toast": {
+      "loadFailed": "Impossible de charger les disponibilités",
+      "updateFailed": "Impossible de mettre à jour les périodes bloquées",
+      "invalidStartEnd": "Saisissez des heures de début et de fin valides",
+      "noPastBlock": "Impossible de bloquer une période dans le passé",
+      "startBeforeEnd": "Le début doit précéder la fin",
+      "selectStartEndValues": "Sélectionnez une date de début et de fin",
+      "blockedPeriodSaved": "Période bloquée enregistrée",
+      "blockedPeriodRemoved": "Période bloquée supprimée",
+      "blockedPeriodUpdated": "Période bloquée mise à jour",
+      "endInPast": "La fin ne peut pas être dans le passé"
+    }
+  }
+}

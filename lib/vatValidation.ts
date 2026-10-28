@@ -51,9 +51,22 @@ export interface VatValidationResult {
   };
   autoPopulateRecommended?: boolean;
   error?: string;
+  /** Locally generated fallback error code (server messages have no code). */
+  errorCode?: VatRequestErrorCode;
   /** VIES was unreachable/throttled: `valid: false` is inconclusive, retry later. */
   transient?: boolean;
 }
+
+/** Locally generated VAT request errors that callers translate. */
+export type VatRequestErrorCode = 'validationFailed' | 'network'
+
+export type VatFormatErrorCode =
+  | 'required'
+  | 'tooShort'
+  | 'tooLong'
+  | 'countryPrefix'
+  | 'invalidCharacters'
+  | 'invalidCountry'
 
 export const isEUVatNumber = (vatNumber: string): boolean => {
   if (!vatNumber || vatNumber.length < 4) return false;
@@ -77,40 +90,58 @@ export const isValidVATFormat = (vatNumber: string): boolean => {
   return /^[A-Z]{2}[A-Z0-9]{4,15}$/.test(formatted);
 };
 
-// Get country name from VAT number
-export const getVATCountryName = (vatNumber: string): string => {
+// Get country name from VAT number (localized for display; saved identifiers stay codes)
+export const getVATCountryName = (vatNumber: string, locale?: string): string => {
   if (!vatNumber || vatNumber.length < 2) return '';
   const countryCode = vatNumber.substring(0, 2).toUpperCase();
+  if (locale) {
+    try {
+      const name = new Intl.DisplayNames([locale], { type: 'region' }).of(countryCode);
+      if (name) return name;
+    } catch {
+      // fall through to the English catalog
+    }
+  }
   return COUNTRY_NAMES[countryCode] || countryCode;
 };
 
 // Client-side VAT format validation with specific error messages
-export const validateVATFormat = (vatNumber: string): { valid: boolean; error?: string } => {
+export const validateVATFormat = (vatNumber: string): {
+  valid: boolean;
+  error?: string;
+  errorCode?: VatFormatErrorCode;
+  countryCode?: string;
+} => {
   if (!vatNumber) {
-    return { valid: false, error: 'VAT number is required' };
+    return { valid: false, error: 'VAT number is required', errorCode: 'required' };
   }
 
   const formatted = formatVATNumber(vatNumber);
 
   if (formatted.length < 4) {
-    return { valid: false, error: 'VAT number is too short' };
+    return { valid: false, error: 'VAT number is too short', errorCode: 'tooShort' };
   }
 
   if (formatted.length > 17) {
-    return { valid: false, error: 'VAT number is too long' };
+    return { valid: false, error: 'VAT number is too long', errorCode: 'tooLong' };
   }
 
   if (!/^[A-Z]{2}/.test(formatted)) {
-    return { valid: false, error: 'VAT number must start with 2 letters (country code)' };
+    return { valid: false, error: 'VAT number must start with 2 letters (country code)', errorCode: 'countryPrefix' };
   }
 
   if (!/^[A-Z]{2}[A-Z0-9]{2,15}$/.test(formatted)) {
-    return { valid: false, error: 'VAT number contains invalid characters' };
+    return { valid: false, error: 'VAT number contains invalid characters', errorCode: 'invalidCharacters' };
   }
 
   const countryCode = formatted.substring(0, 2);
   if (!EU_COUNTRIES.includes(countryCode)) {
-    return { valid: false, error: `${countryCode} is not a valid EU country code` };
+    return {
+      valid: false,
+      error: `${countryCode} is not a valid EU country code`,
+      errorCode: 'invalidCountry',
+      countryCode,
+    };
   }
 
   return { valid: true };
@@ -143,14 +174,16 @@ export const validateVATWithAPI = async (vatNumber: string): Promise<VatValidati
     } else {
       return {
         valid: false,
-        error: data.msg || 'Failed to validate VAT number'
+        error: data.msg || 'Failed to validate VAT number',
+        errorCode: data.msg ? undefined : 'validationFailed',
       };
     }
   } catch (error) {
     console.error('VAT validation error:', error);
     return {
       valid: false,
-      error: 'Network error occurred while validating VAT number'
+      error: 'Network error occurred while validating VAT number',
+      errorCode: 'network',
     };
   }
 };
@@ -159,6 +192,8 @@ export const validateVATWithAPI = async (vatNumber: string): Promise<VatValidati
 interface UpdateVATResponse {
   success: boolean;
   error?: string;
+  /** Locally generated fallback error code (server messages have no code). */
+  errorCode?: VatRequestErrorCode;
   user?: unknown;
   /** Present after a VAT save: VIES was unreachable so the number is stored unverified. */
   viesUnavailable?: boolean;
@@ -227,14 +262,16 @@ export const validateAndPopulateVAT = async (vatNumber: string, autoPopulate: bo
     } else {
       return {
         success: false,
-        error: data.msg || 'Failed to validate and populate VAT information'
+        error: data.msg || 'Failed to validate and populate VAT information',
+        errorCode: data.msg ? undefined : 'validationFailed',
       };
     }
   } catch (error) {
     console.error('Validate and populate VAT error:', error);
     return {
       success: false,
-      error: 'Network error occurred while validating VAT number'
+      error: 'Network error occurred while validating VAT number',
+      errorCode: 'network',
     };
   }
 };
@@ -264,14 +301,16 @@ export const updateUserVAT = async (vatNumber: string): Promise<UpdateVATRespons
     } else {
       return {
         success: false,
-        error: data.msg || 'Failed to update VAT number'
+        error: data.msg || 'Failed to update VAT number',
+        errorCode: data.msg ? undefined : 'validationFailed',
       };
     }
   } catch (error) {
     console.error('Update VAT error:', error);
     return {
       success: false,
-      error: 'Network error occurred while updating VAT number'
+      error: 'Network error occurred while updating VAT number',
+      errorCode: 'network',
     };
   }
 };
@@ -312,13 +351,15 @@ export const updateProfessionalBusinessProfile = async (
 
     return {
       success: false,
-      error: data.msg || 'Failed to update professional business profile'
+      error: data.msg || 'Failed to update professional business profile',
+      errorCode: data.msg ? undefined : 'validationFailed',
     };
   } catch (error) {
     console.error('Update professional business profile error:', error);
     return {
       success: false,
-      error: 'Network error occurred while updating professional business profile'
+      error: 'Network error occurred while updating professional business profile',
+      errorCode: 'network',
     };
   }
 };
@@ -356,6 +397,7 @@ export const submitForVerification = async (onboardingAgreements?: {
       return {
         success: false,
         error: data.msg || 'Failed to submit for verification',
+        errorCode: data.msg ? undefined : 'validationFailed',
         missingRequirements: data.data?.missingRequirements,
         missingRequirementDetails: data.data?.missingRequirementDetails
       };
@@ -364,7 +406,8 @@ export const submitForVerification = async (onboardingAgreements?: {
     console.error('Submit for verification error:', error);
     return {
       success: false,
-      error: 'Network error occurred while submitting for verification'
+      error: 'Network error occurred while submitting for verification',
+      errorCode: 'network',
     };
   }
 };

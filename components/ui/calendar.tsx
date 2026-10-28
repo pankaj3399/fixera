@@ -2,6 +2,8 @@
 
 import { format } from 'date-fns'
 import React from 'react'
+import { useLocale } from 'next-intl'
+import { intlLocale } from '@/lib/i18n/format'
 
 export interface CalendarProps {
   mode?: 'single' | 'range'
@@ -17,6 +19,8 @@ const Calendar = ({
   disabled,
   initialFocus = false,
 }: CalendarProps) => {
+  const locale = useLocale()
+
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = event.target
     if (!value) {
@@ -33,6 +37,7 @@ const Calendar = ({
   return (
     <input
       type="date"
+      lang={intlLocale(locale)}
       value={selected ? format(selected, 'yyyy-MM-dd') : ''}
       onChange={handleChange}
       autoFocus={initialFocus}

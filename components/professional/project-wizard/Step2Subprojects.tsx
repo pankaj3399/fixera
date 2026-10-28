@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
+import enProjectWizard from '@/messages/en/projectWizard.json';
 import {
   Card,
   CardContent,
@@ -34,7 +36,11 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
-import { collectSubprojectErrors } from '@/lib/projectWizardValidation';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import {
+  collectSubprojectErrors,
+  isQuickAddItemIncluded,
+} from '@/lib/projectWizardValidation';
 
 interface IIncludedItem {
   name: string;
@@ -45,6 +51,8 @@ interface IIncludedItem {
   // NEW: mark included items that originate from professional input fields
   isDynamicField?: boolean;
   fieldName?: string;
+  /** Client-only: item came from the app's predefined fallback quick-add list. */
+  predefined?: boolean;
 }
 
 interface IProfessionalInput {
@@ -141,49 +149,76 @@ interface IServiceConfigurationIncludedItem {
   };
 }
 
-// Predefined included items by service category
+// Predefined included items by service category. The English label is the
+// canonical value saved with the project; the chips and saved list render the
+// active-locale label from `step2.predefinedItems`.
+const PREDEFINED_ITEM_ENGLISH_NAMES = enProjectWizard.step2.predefinedItems;
+export type PredefinedItemKey = keyof typeof PREDEFINED_ITEM_ENGLISH_NAMES;
+
+export const PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME = new Map<string, PredefinedItemKey>(
+  (Object.keys(PREDEFINED_ITEM_ENGLISH_NAMES) as PredefinedItemKey[]).map(
+    (key) => [PREDEFINED_ITEM_ENGLISH_NAMES[key], key]
+  )
+);
+
 const PREDEFINED_INCLUDED_ITEMS = {
   plumber: [
-    'Site inspection',
-    'Material calculation',
-    'Professional installation',
-    'Quality testing',
-    'Cleanup after work',
-    'Basic warranty',
-    'Emergency support',
-    'Maintenance advice',
+    'siteInspection',
+    'materialCalculation',
+    'professionalInstallation',
+    'qualityTesting',
+    'cleanupAfterWork',
+    'basicWarranty',
+    'emergencySupport',
+    'maintenanceAdvice',
   ],
   electrician: [
-    'Safety inspection',
-    'Wiring assessment',
-    'Professional installation',
-    'Code compliance check',
-    'Testing and certification',
-    'Cleanup',
-    'Safety documentation',
-    'Usage instructions',
+    'safetyInspection',
+    'wiringAssessment',
+    'professionalInstallation',
+    'codeComplianceCheck',
+    'testingAndCertification',
+    'cleanup',
+    'safetyDocumentation',
+    'usageInstructions',
   ],
   painter: [
-    'Surface preparation',
-    'Quality paint materials',
-    'Professional application',
-    'Clean lines and finish',
-    'Cleanup and disposal',
-    'Touch-up service',
-    'Color consultation',
-    'Protection of furniture',
+    'surfacePreparation',
+    'qualityPaintMaterials',
+    'professionalApplication',
+    'cleanLinesAndFinish',
+    'cleanupAndDisposal',
+    'touchUpService',
+    'colorConsultation',
+    'protectionOfFurniture',
   ],
   default: [
-    'Initial consultation',
-    'Professional execution',
-    'Quality materials',
-    'Cleanup after work',
-    'Basic warranty',
-    'Final inspection',
-    'Customer walkthrough',
-    'Maintenance tips',
+    'initialConsultation',
+    'professionalExecution',
+    'qualityMaterials',
+    'cleanupAfterWork',
+    'basicWarranty',
+    'finalInspection',
+    'customerWalkthrough',
+    'maintenanceTips',
   ],
-};
+} as const;
+
+type PredefinedService = keyof typeof PREDEFINED_INCLUDED_ITEMS;
+
+// Display labels for the legacy unit words derived from the price model text.
+// The raw unit stays untouched: it is persisted on the subproject and printed
+// on invoices.
+const UNIT_KEYS = {
+  hour: 'unitLabels.hour',
+  day: 'unitLabels.day',
+  meter: 'unitLabels.meter',
+  'm²': 'unitLabels.m2',
+  m2: 'unitLabels.m2',
+  room: 'unitLabels.room',
+  piece: 'unitLabels.piece',
+  unit: 'unitLabels.unit',
+} as const;
 
 // Check if pricing option is a fixed price type
 const isFixedPriceOption = (selectedOption?: { pricingType: string }, priceModel?: string): boolean => {
@@ -255,33 +290,6 @@ const getDefaultPricingType = (
   configPricingOptions?: Array<{ name: string; pricingType: string }>
 ): PricingType => getValidPricingTypes(category, selectedOption, priceModel, configPricingOptions)[0];
 
-const getPricingLabel = (
-  pricingType: PricingType,
-  unitLabel: string,
-  configPricingOptions: Array<{ name: string; pricingType: string }>,
-  selectedPricingOption?: { name: string; pricingType: string },
-): string => {
-  // Map subproject pricing types to config pricingType values
-  const typeMap: Record<string, string> = { fixed: 'fixed_price', unit: 'price_per_unit' };
-  const configTypeKey = typeMap[pricingType] ?? null;
-
-  // If we have a selected structured option and it matches this pricing type, use its name
-  if (selectedPricingOption && configTypeKey === selectedPricingOption.pricingType) {
-    return selectedPricingOption.name;
-  }
-
-  // Try matching from all config options
-  if (configTypeKey) {
-    const match = configPricingOptions.find(o => o.pricingType === configTypeKey);
-    if (match) return match.name;
-  }
-
-  // Defaults
-  if (pricingType === 'fixed') return 'Fixed Price (Total)';
-  if (pricingType === 'unit') return `Price per ${unitLabel}`;
-  return 'RFQ (Request for Quote)';
-};
-
 const parseNumericInput = (raw: string): number | undefined => {
   const trimmed = raw.trim();
   if (trimmed === '') return undefined;
@@ -297,8 +305,47 @@ export default function Step2Subprojects({
   onChange,
   onValidate,
 }: Step2Props) {
+  const t = useTranslations('projectWizard');
+  const { formatMoney } = useCurrency();
   // Determine if this is a total price model or unit-based model
   const unitLabel = getUnitLabel(data.selectedPricingOption, data.priceModel);
+
+  const unitDisplay = (unit: string) => {
+    const key = UNIT_KEYS[unit.toLowerCase() as keyof typeof UNIT_KEYS];
+    return key ? t(key) : unit;
+  };
+  // Translated unit word for display only — `unitLabel` itself stays raw because
+  // it can be persisted as the subproject's pricing unit.
+  const unitDisplayLabel = unitDisplay(unitLabel);
+  const durationUnitLabel = (unit: 'hours' | 'days') =>
+    t(unit === 'days' ? 'unitLabels.days' : 'unitLabels.hours');
+
+  const getPricingLabel = (
+    pricingType: PricingType,
+    unit: string,
+    configPricingOptions: Array<{ name: string; pricingType: string }>,
+    selectedPricingOption?: { name: string; pricingType: string },
+  ): string => {
+    // Map subproject pricing types to config pricingType values
+    const typeMap: Record<string, string> = { fixed: 'fixed_price', unit: 'price_per_unit' };
+    const configTypeKey = typeMap[pricingType] ?? null;
+
+    // If we have a selected structured option and it matches this pricing type, use its name
+    if (selectedPricingOption && configTypeKey === selectedPricingOption.pricingType) {
+      return selectedPricingOption.name;
+    }
+
+    // Try matching from all config options
+    if (configTypeKey) {
+      const match = configPricingOptions.find(o => o.pricingType === configTypeKey);
+      if (match) return match.name;
+    }
+
+    // Defaults
+    if (pricingType === 'fixed') return t('step2.pricing.fixedLabel');
+    if (pricingType === 'unit') return t('step2.pricing.unitLabel', { unit });
+    return t('step2.pricing.rfqLabel');
+  };
 
   // Persist the real service unit on unit-priced subprojects so invoices can
   // print it (e.g. "50 m²"). Fixed/RFQ pricing must not carry a unit.
@@ -387,7 +434,7 @@ export default function Step2Subprojects({
       }
     } catch (error) {
       console.error('Failed to fetch dynamic fields:', error);
-      toast.error('Failed to load service configuration');
+      toast.error(t('step2.toast.configFailed'));
     } finally {
       setDynamicFieldsLoaded(true);
     }
@@ -508,13 +555,13 @@ export default function Step2Subprojects({
     const isValid =
       !awaitingConfiguration &&
       subprojects.length > 0 &&
-      subprojects.every((sub, index) => collectSubprojectErrors(sub, index, requiredFields).length === 0);
+      subprojects.every((sub, index) => collectSubprojectErrors(sub, index, t, requiredFields).length === 0);
     onValidate(isValid);
   };
 
   const addSubproject = () => {
     if (subprojects.length >= 5) {
-      toast.error('Maximum 5 subprojects allowed');
+      toast.error(t('step2.toast.maxSubprojects'));
       return;
     }
 
@@ -645,19 +692,36 @@ export default function Step2Subprojects({
 
   // Note: Dynamic fields are shown only when 'Service Details' is included
 
-  const getQuickAddItems = (): { name: string; fieldName?: string }[] => {
-    // Prefer admin-configured included items
+  const getQuickAddItems = (): {
+    name: string;
+    /** Translated chip label; absent for admin-configured data. */
+    label?: string;
+    fieldName?: string;
+    predefined?: boolean;
+  }[] => {
+    // Prefer admin-configured included items (their names are data, not app copy)
     if (configIncludedItems.length > 0) {
       // Show only static included items here to avoid duplicating parameters
       return configIncludedItems.filter((i) => !i?.isDynamic && !i?.fieldName);
     }
-    // Fallback to predefined constants (names only)
-    const service = data.service || 'default';
-    const names =
-      PREDEFINED_INCLUDED_ITEMS[
-      service as keyof typeof PREDEFINED_INCLUDED_ITEMS
-      ] || PREDEFINED_INCLUDED_ITEMS.default;
-    return names.map((n) => ({ name: n }));
+    // Fallback to the app's predefined items: render the active locale, save the
+    // canonical English label so projects stay language-independent.
+    const service: PredefinedService =
+      data.service && data.service in PREDEFINED_INCLUDED_ITEMS
+        ? (data.service as PredefinedService)
+        : 'default';
+    const names = PREDEFINED_INCLUDED_ITEMS[service];
+    return names.map((key) => ({
+      name: PREDEFINED_ITEM_ENGLISH_NAMES[key],
+      label: t(`step2.predefinedItems.${key}`),
+      predefined: true,
+    }));
+  };
+
+  const getIncludedItemLabel = (item: IIncludedItem) => {
+    if (!item.predefined) return item.name;
+    const key = PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME.get(item.name);
+    return key ? t(`step2.predefinedItems.${key}`) : item.name;
   };
 
   const addMaterial = (subprojectId: string, material: IMaterial) => {
@@ -696,22 +760,20 @@ export default function Step2Subprojects({
         <CardHeader>
           <CardTitle className='flex items-center space-x-2'>
             <Package className='w-5 h-5' />
-            <span>Service Packages & Pricing</span>
+            <span>{t('step2.header.title')}</span>
           </CardTitle>
           <CardDescription>
-            Create up to 5 different service packages with varying prices and
-            inclusions. Think of these as &quot;Basic&quot;,
-            &quot;Standard&quot;, and &quot;Premium&quot; tiers.
+            {t('step2.header.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className='flex items-center justify-between'>
             <div className='text-sm text-gray-600'>
-              Packages created: {subprojects.length}/5
+              {t('step2.header.packagesCreated', { count: subprojects.length })}
             </div>
             <Button onClick={addSubproject} disabled={subprojects.length >= 5}>
               <Plus className='w-4 h-4 mr-2' />
-              Add Package
+              {t('step2.header.addPackage')}
             </Button>
           </div>
         </CardContent>
@@ -723,15 +785,14 @@ export default function Step2Subprojects({
           <CardContent className='py-12 text-center'>
             <Package className='w-12 h-12 text-gray-400 mx-auto mb-4' />
             <h3 className='text-lg font-semibold text-gray-900 mb-2'>
-              No packages yet
+              {t('step2.empty.title')}
             </h3>
             <p className='text-gray-600 mb-6'>
-              Create your first service package to get started. You can offer
-              different pricing tiers to give customers options.
+              {t('step2.empty.description')}
             </p>
             <Button onClick={addSubproject}>
               <Plus className='w-4 h-4 mr-2' />
-              Create First Package
+              {t('step2.empty.createFirst')}
             </Button>
           </CardContent>
         </Card>
@@ -742,8 +803,9 @@ export default function Step2Subprojects({
               <CardHeader>
                 <div className='flex items-center justify-between'>
                   <CardTitle className='text-lg'>
-                    Package {index + 1}
-                    {subproject.name && `: ${subproject.name}`}
+                    {subproject.name
+                      ? t('step2.packageTitleNamed', { index: index + 1, name: subproject.name })
+                      : t('step2.packageTitle', { index: index + 1 })}
                   </CardTitle>
                   <Button
                     variant='outline'
@@ -761,7 +823,7 @@ export default function Step2Subprojects({
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                   <div>
                     <Label htmlFor={`name-${subproject.id}`}>
-                      Package Name *
+                      {t('step2.nameLabel')}
                     </Label>
                     <Input
                       id={`name-${subproject.id}`}
@@ -771,13 +833,13 @@ export default function Step2Subprojects({
                           name: e.target.value,
                         })
                       }
-                      placeholder='e.g., Basic, Standard, Premium'
+                      placeholder={t('step2.namePlaceholder')}
                       maxLength={100}
                     />
                   </div>
                   <div>
                     <Label htmlFor={`warranty-${subproject.id}`}>
-                      Warranty Period *
+                      {t('step2.warrantyLabel')}
                     </Label>
                     <div className='flex space-x-2'>
                       <Select
@@ -806,9 +868,9 @@ export default function Step2Subprojects({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value='0-years'>0 years</SelectItem>
-                          <SelectItem value='months'>1-10 months</SelectItem>
-                          <SelectItem value='years'>1-10 years</SelectItem>
+                          <SelectItem value='0-years'>{t('step2.warrantyNone')}</SelectItem>
+                          <SelectItem value='months'>{t('step2.warrantyMonths')}</SelectItem>
+                          <SelectItem value='years'>{t('step2.warrantyYears')}</SelectItem>
                         </SelectContent>
                       </Select>
                       {subproject.warrantyPeriod.value > 0 && (
@@ -836,7 +898,7 @@ export default function Step2Subprojects({
 
                 <div>
                   <Label htmlFor={`description-${subproject.id}`}>
-                    Package Scope *
+                    {t('step2.scopeLabel')}
                   </Label>
                   <Textarea
                     id={`description-${subproject.id}`}
@@ -846,22 +908,22 @@ export default function Step2Subprojects({
                         description: e.target.value,
                       })
                     }
-                    placeholder="Describe what's included in this package..."
+                    placeholder={t('step2.scopePlaceholder')}
                     minLength={10}
                     maxLength={100}
                     rows={3}
                   />
                   <p className={`text-sm mt-1 ${subproject.description.length < 10 ? 'text-red-500' : 'text-gray-500'}`}>
-                    {subproject.description.length}/100 characters (minimum 10)
+                    {t('step2.scopeCounter', { count: subproject.description.length })}
                   </p>
                 </div>
 
                 {/* NEW: Project Types */}
                 {projectTypes.length > 0 && (
                   <div className='border rounded-lg p-4 bg-green-50'>
-                    <h4 className='font-semibold mb-3'>Project Types *</h4>
+                    <h4 className='font-semibold mb-3'>{t('step2.projectTypes.title')}</h4>
                     <p className='text-sm text-gray-600 mb-3'>
-                      Select all types of projects this package applies to
+                      {t('step2.projectTypes.description')}
                     </p>
                     <div className='grid grid-cols-2 md:grid-cols-3 gap-3'>
                       {projectTypes.map((type) => (
@@ -898,7 +960,7 @@ export default function Step2Subprojects({
                           htmlFor={`type-${subproject.id}-Other`}
                           className='text-sm'
                         >
-                          Other
+                          {t('step2.projectTypes.other')}
                         </Label>
                       </div>
                     </div>
@@ -907,7 +969,7 @@ export default function Step2Subprojects({
                     {subproject.projectType?.includes('Other') && (
                       <div className='mt-3'>
                         <Label htmlFor={`custom-type-${subproject.id}`}>
-                          Specify Custom Type *
+                          {t('step2.projectTypes.customLabel')}
                         </Label>
                         <Input
                           id={`custom-type-${subproject.id}`}
@@ -917,7 +979,7 @@ export default function Step2Subprojects({
                               customProjectType: e.target.value,
                             })
                           }
-                          placeholder='Enter custom project type...'
+                          placeholder={t('step2.projectTypes.customPlaceholder')}
                           maxLength={100}
                         />
                       </div>
@@ -931,12 +993,12 @@ export default function Step2Subprojects({
                 <div className='border rounded-lg p-4 bg-blue-50'>
                   <h4 className='font-semibold mb-4 flex items-center'>
                     <DollarSign className='w-4 h-4 mr-2' />
-                    Pricing Configuration
+                    {t('step2.pricing.title')}
                   </h4>
 
                   <div className='w-full flex gap-4'>
                     <div>
-                      <Label>Pricing Type *</Label>
+                      <Label>{t('step2.pricing.typeLabel')}</Label>
                       <Select
                         value={subproject.pricing.type}
                         onValueChange={(value: 'fixed' | 'unit' | 'rfq') => {
@@ -946,26 +1008,27 @@ export default function Step2Subprojects({
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder='Select pricing type' />
+                          <SelectValue placeholder={t('step2.pricing.typePlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
                           {validPricingTypes.map((pricingType) => (
                               <SelectItem key={pricingType} value={pricingType}>
-                                {getPricingLabel(pricingType, unitLabel, configPricingOptions, data.selectedPricingOption)}
+                                {getPricingLabel(pricingType, unitDisplayLabel, configPricingOptions, data.selectedPricingOption)}
                               </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <p className='text-xs text-gray-500'>
-                        Current selection:{' '}
-                        {getPricingLabel(subproject.pricing.type, unitLabel, configPricingOptions, data.selectedPricingOption)}
+                        {t('step2.pricing.currentSelection', {
+                          label: getPricingLabel(subproject.pricing.type, unitDisplayLabel, configPricingOptions, data.selectedPricingOption),
+                        })}
                       </p>
                     </div>
 
                     {subproject.pricing.type === 'fixed' && (
                       <>
                         <div>
-                          <Label>Price (EUR) *</Label>
+                          <Label>{t('step2.pricing.priceLabel')}</Label>
                           <Input
                             type='number'
                             min='0'
@@ -979,11 +1042,15 @@ export default function Step2Subprojects({
                                 },
                               })
                             }
-                            placeholder='0.00'
+                            placeholder={t('step2.pricing.amountPlaceholder')}
                           />
                           {(commissionPercent ?? 0) > 0 && subproject.pricing.amount ? (
                             <p className='text-xs text-gray-500 mt-1'>
-                              Customer sees: <span className='font-medium text-blue-600'>EUR {customerPrice(subproject.pricing.amount)}</span> (incl. {commissionPercent}% platform fee)
+                              {t.rich('step2.pricing.customerSees', {
+                                amount: (chunks) => <span className='font-medium text-blue-600'>{chunks}</span>,
+                                price: formatMoney(customerPrice(subproject.pricing.amount)),
+                                fee: commissionPercent ?? 0,
+                              })}
                             </p>
                           ) : null}
                         </div>
@@ -993,7 +1060,7 @@ export default function Step2Subprojects({
                     {subproject.pricing.type === 'unit' && (
                       <>
                         <div>
-                          <Label>Price per {unitLabel} (EUR) *</Label>
+                          <Label>{t('step2.pricing.pricePerUnitLabel', { unit: unitDisplayLabel })}</Label>
                           <Input
                             type='number'
                             min='0'
@@ -1007,16 +1074,21 @@ export default function Step2Subprojects({
                                 },
                               })
                             }
-                            placeholder='0.00'
+                            placeholder={t('step2.pricing.amountPlaceholder')}
                           />
                           {(commissionPercent ?? 0) > 0 && subproject.pricing.amount ? (
                             <p className='text-xs text-gray-500 mt-1'>
-                              Customer sees: <span className='font-medium text-blue-600'>EUR {customerPrice(subproject.pricing.amount)}/{unitLabel}</span> (incl. {commissionPercent}% platform fee)
+                              {t.rich('step2.pricing.customerSeesPerUnit', {
+                                amount: (chunks) => <span className='font-medium text-blue-600'>{chunks}</span>,
+                                price: formatMoney(customerPrice(subproject.pricing.amount)),
+                                unit: unitDisplayLabel,
+                                fee: commissionPercent ?? 0,
+                              })}
                             </p>
                           ) : null}
                         </div>
                         <div>
-                          <Label>Minimum Order Quantity ({unitLabel})</Label>
+                          <Label>{t('step2.pricing.minOrderLabel', { unit: unitDisplayLabel })}</Label>
                           <Input
                             type='number'
                             min='1'
@@ -1034,7 +1106,7 @@ export default function Step2Subprojects({
                             placeholder='1'
                           />
                           <p className='text-xs text-gray-500 mt-1'>
-                            Customer must order at least this quantity
+                            {t('step2.pricing.minOrderHint')}
                           </p>
                         </div>
                       </>
@@ -1043,7 +1115,7 @@ export default function Step2Subprojects({
                     {subproject.pricing.type === 'rfq' && (
                       <>
                         <div className='md:col-span-2'>
-                          <Label>Estimated Price Range (EUR)</Label>
+                          <Label>{t('step2.pricing.rangeLabel')}</Label>
                           <div className='flex space-x-2'>
                             <Input
                               type='number'
@@ -1072,19 +1144,19 @@ export default function Step2Subprojects({
                                   errors: {
                                     ...subproject.errors,
                                     priceRange: hasError
-                                      ? 'Min price must be less than or equal to max price'
+                                      ? t('step2.pricing.priceRangeError')
                                       : undefined,
                                   },
                                 });
                               }}
-                              placeholder='Min price'
+                              placeholder={t('step2.pricing.minPricePlaceholder')}
                               className={
                                 subproject.errors?.priceRange
                                   ? 'border-red-500'
                                   : ''
                               }
                             />
-                            <span className='self-center'>to</span>
+                            <span className='self-center'>{t('common.to')}</span>
                             <Input
                               type='number'
                               min='0'
@@ -1112,12 +1184,12 @@ export default function Step2Subprojects({
                                   errors: {
                                     ...subproject.errors,
                                     priceRange: hasError
-                                      ? 'Min price must be less than or equal to max price'
+                                      ? t('step2.pricing.priceRangeError')
                                       : undefined,
                                   },
                                 });
                               }}
-                              placeholder='Max price'
+                              placeholder={t('step2.pricing.maxPricePlaceholder')}
                               className={
                                 subproject.errors?.priceRange
                                   ? 'border-red-500'
@@ -1133,11 +1205,12 @@ export default function Step2Subprojects({
                           )}
                           {(commissionPercent ?? 0) > 0 && (subproject.pricing.priceRange?.min != null || subproject.pricing.priceRange?.max != null) ? (
                             <p className='text-xs text-gray-500 mt-1'>
-                              Customer sees: <span className='font-medium text-blue-600'>
-                                {subproject.pricing.priceRange?.min != null ? `EUR ${customerPrice(subproject.pricing.priceRange.min)}` : '...'}
-                                {' - '}
-                                {subproject.pricing.priceRange?.max != null ? `EUR ${customerPrice(subproject.pricing.priceRange.max)}` : '...'}
-                              </span> (incl. {commissionPercent}% platform fee)
+                              {t.rich('step2.pricing.customerSeesRange', {
+                                amount: (chunks) => <span className='font-medium text-blue-600'>{chunks}</span>,
+                                min: subproject.pricing.priceRange?.min != null ? formatMoney(customerPrice(subproject.pricing.priceRange.min)) : '...',
+                                max: subproject.pricing.priceRange?.max != null ? formatMoney(customerPrice(subproject.pricing.priceRange.max)) : '...',
+                                fee: commissionPercent ?? 0,
+                              })}
                             </p>
                           ) : null}
                         </div>
@@ -1151,11 +1224,11 @@ export default function Step2Subprojects({
                   <div className='mb-4'>
                     <h4 className='font-semibold flex items-center mb-4'>
                       <Shield className='w-4 h-4 mr-2' />
-                      What&apos;s Included (3-10 items required)
+                      {t('step2.included.title')}
                     </h4>
                     <div className='mb-4'>
                       <Label className='text-sm font-medium'>
-                        Materials Included *
+                        {t('step2.included.materialsIncludedLabel')}
                       </Label>
                       <RadioGroup
                         value={subproject.materialsIncluded === true ? 'yes' : subproject.materialsIncluded === false ? 'no' : ''}
@@ -1180,7 +1253,7 @@ export default function Step2Subprojects({
                               htmlFor={`materials-yes-${subproject.id}`}
                               className='text-sm font-normal'
                             >
-                              Yes
+                              {t('common.yes')}
                             </Label>
                           </div>
                           <div className='flex items-center space-x-2'>
@@ -1192,7 +1265,7 @@ export default function Step2Subprojects({
                               htmlFor={`materials-no-${subproject.id}`}
                               className='text-sm font-normal'
                             >
-                              No
+                              {t('common.no')}
                             </Label>
                           </div>
                         </div>
@@ -1204,11 +1277,10 @@ export default function Step2Subprojects({
                       <div className='border-t pt-4 mt-4'>
                         <div className='mb-3'>
                           <Label className='text-sm font-medium'>
-                            Materials List (at least 1 required) *
+                            {t('step2.included.materialsLabel')}
                           </Label>
                           <p className='text-xs text-gray-500 mt-1'>
-                            List all materials that will be provided with this
-                            package
+                            {t('step2.included.materialsHint')}
                           </p>
                         </div>
 
@@ -1216,7 +1288,7 @@ export default function Step2Subprojects({
                         <div className='grid grid-cols-12 gap-2 mb-4'>
                           <Input
                             id={`material-name-${subproject.id}`}
-                            placeholder='Material name *'
+                            placeholder={t('step2.included.materialNamePlaceholder')}
                             className='col-span-4'
                             onKeyPress={(e) => {
                               if (e.key === 'Enter') {
@@ -1288,17 +1360,17 @@ export default function Step2Subprojects({
                           />
                           <Input
                             id={`material-qty-${subproject.id}`}
-                            placeholder='Quantity'
+                            placeholder={t('step2.included.quantityPlaceholder')}
                             className='col-span-2'
                           />
                           <Input
                             id={`material-unit-${subproject.id}`}
-                            placeholder='Unit'
+                            placeholder={t('step2.included.unitPlaceholder')}
                             className='col-span-2'
                           />
                           <Input
                             id={`material-desc-${subproject.id}`}
-                            placeholder='Description'
+                            placeholder={t('step2.included.descriptionPlaceholder')}
                             className='col-span-3'
                           />
                           <Button
@@ -1356,7 +1428,7 @@ export default function Step2Subprojects({
                                   ) as HTMLInputElement
                                 ).value = '';
                               } else {
-                                toast.error('Material name is required');
+                                toast.error(t('step2.toast.materialNameRequired'));
                               }
                             }}
                           >
@@ -1380,7 +1452,7 @@ export default function Step2Subprojects({
                                   <div className='text-xs text-gray-600 mt-1'>
                                     {material.quantity && material.unit && (
                                       <span className='mr-3'>
-                                        <strong>Qty:</strong>{' '}
+                                        <strong>{t('step2.included.qty')}</strong>{' '}
                                         {material.quantity} {material.unit}
                                       </span>
                                     )}
@@ -1406,7 +1478,7 @@ export default function Step2Subprojects({
                           <div className='flex items-center space-x-2 text-amber-600 bg-amber-50 p-3 rounded'>
                             <AlertCircle className='w-4 h-4' />
                             <span className='text-sm'>
-                              Please add at least one material
+                              {t('step2.included.addMaterialHint')}
                             </span>
                           </div>
                         )}
@@ -1418,7 +1490,7 @@ export default function Step2Subprojects({
                   {dynamicFields.length > 0 && (
                     <div className='mb-4'>
                       <Label className='text-sm font-medium'>
-                        Service Parameters (Optional)
+                        {t('step2.included.parametersLabel')}
                       </Label>
                       <div className='flex flex-wrap gap-2 mt-2'>
                         {dynamicFields.map((field) => (
@@ -1456,7 +1528,7 @@ export default function Step2Subprojects({
                   {/* Predefined Items (from Admin Config if available) */}
                   <div className='mb-4'>
                     <Label className='text-sm font-medium'>
-                      Quick Add (Predefined)
+                      {t('step2.included.quickAddLabel')}
                     </Label>
                     <div className='flex flex-wrap gap-2 mt-2'>
                       {getQuickAddItems().map((item, index) => (
@@ -1475,19 +1547,26 @@ export default function Step2Subprojects({
                                   fieldName: item.fieldName,
                                 }
                               )
-                              : addIncludedItem(subproject.id, item.name)
+                              : addIncludedItem(
+                                subproject.id,
+                                item.name,
+                                false,
+                                item.predefined ? { predefined: true } : undefined
+                              )
                           }
                           disabled={
                             item.fieldName
                               ? subproject.included.some(
                                 (inc) => inc.fieldName === item.fieldName
                               )
-                              : subproject.included.some(
-                                (inc) => inc.name === item.name
+                              : isQuickAddItemIncluded(
+                                subproject.included.map((inc) => inc.name),
+                                item.name,
+                                item.label
                               )
                           }
                         >
-                          {item.name}
+                          {item.label ?? item.name}
                         </Button>
                       ))}
                     </div>
@@ -1496,7 +1575,7 @@ export default function Step2Subprojects({
                   {/* Custom Item Input */}
                   <div className='flex space-x-2 mb-4'>
                     <Input
-                      placeholder='Add custom item...'
+                      placeholder={t('step2.included.customItemPlaceholder')}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
                           const input = e.target as HTMLInputElement;
@@ -1527,7 +1606,7 @@ export default function Step2Subprojects({
                         }
                       }}
                     >
-                      Add
+                      {t('common.add')}
                     </Button>
                   </div>
 
@@ -1558,7 +1637,7 @@ export default function Step2Subprojects({
                           >
                             <div className='flex items-center justify-between mb-2'>
                               <span className='text-sm font-medium'>
-                                {item.name}
+                                {getIncludedItemLabel(item)}
                                 {dynamicField?.isRequired && (
                                   <span className='text-red-500 ml-1'>*</span>
                                 )}
@@ -1566,7 +1645,7 @@ export default function Step2Subprojects({
                               <div className='flex items-center space-x-2'>
                                 {item.isCustom && (
                                   <Badge variant='outline' className='text-xs'>
-                                    Custom
+                                    {t('step2.included.customBadge')}
                                   </Badge>
                                 )}
                                 {item.isDynamicField && (
@@ -1574,7 +1653,7 @@ export default function Step2Subprojects({
                                     variant='outline'
                                     className='text-xs bg-purple-100'
                                   >
-                                    Parameter
+                                    {t('step2.included.parameterBadge')}
                                   </Badge>
                                 )}
                                 <Button
@@ -1608,7 +1687,7 @@ export default function Step2Subprojects({
                                       <SelectValue
                                         placeholder={
                                           dynamicField.placeholder ||
-                                          `Select ${dynamicField.label}`
+                                          t('step2.included.selectFieldPlaceholder', { field: dynamicField.label })
                                         }
                                       />
                                     </SelectTrigger>
@@ -1646,7 +1725,7 @@ export default function Step2Subprojects({
                                       }}
                                       placeholder={
                                         dynamicField.placeholder ||
-                                        `Enter ${dynamicField.label}`
+                                        t('step2.included.enterFieldPlaceholder', { field: dynamicField.label })
                                       }
                                       className='h-8'
                                     />
@@ -1691,11 +1770,11 @@ export default function Step2Subprojects({
                                             newValue
                                           );
                                         }}
-                                        placeholder='Min'
+                                        placeholder={t('step2.included.minPlaceholder')}
                                         className='h-8'
                                       />
                                       <span className='self-center text-gray-500 text-sm'>
-                                        to
+                                        {t('common.to')}
                                       </span>
                                       <Input
                                         type='number'
@@ -1736,7 +1815,7 @@ export default function Step2Subprojects({
                                             newValue
                                           );
                                         }}
-                                        placeholder='Max'
+                                        placeholder={t('step2.included.maxPlaceholder')}
                                         className='h-8'
                                       />
                                     </div>
@@ -1758,7 +1837,7 @@ export default function Step2Subprojects({
                                     }}
                                     placeholder={
                                       dynamicField.placeholder ||
-                                      `Enter ${dynamicField.label}`
+                                      t('step2.included.enterFieldPlaceholder', { field: dynamicField.label })
                                     }
                                     className='h-8'
                                   />
@@ -1777,7 +1856,7 @@ export default function Step2Subprojects({
                                     }
                                     placeholder={
                                       dynamicField.placeholder ||
-                                      `Enter ${dynamicField.label}`
+                                      t('step2.included.enterFieldPlaceholder', { field: dynamicField.label })
                                     }
                                     className='h-8'
                                   />
@@ -1794,7 +1873,7 @@ export default function Step2Subprojects({
                     <div className='flex items-center space-x-2 text-amber-600 bg-amber-50 p-2 rounded mt-2'>
                       <AlertCircle className='w-4 h-4' />
                       <span className='text-sm'>
-                        Add at least 3 items to continue
+                        {t('step2.included.needThree')}
                       </span>
                     </div>
                   )}
@@ -1804,12 +1883,12 @@ export default function Step2Subprojects({
                 <div className='border rounded-lg p-4 bg-green-50'>
                   <h4 className='font-semibold mb-4 flex items-center'>
                     <Clock className='w-4 h-4 mr-2' />
-                    Timing & Duration
+                    {t('step2.timing.title')}
                   </h4>
 
                   <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                     <div>
-                      <Label className={subproject.preparationDuration?.value === undefined ? 'text-red-500' : ''}>Preparation Time *</Label>
+                      <Label className={subproject.preparationDuration?.value === undefined ? 'text-red-500' : ''}>{t('step2.timing.preparationLabel')}</Label>
                       <div className='flex space-x-2'>
                         <Input
                           type='number'
@@ -1843,21 +1922,20 @@ export default function Step2Subprojects({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value='hours'>Hours</SelectItem>
-                            <SelectItem value='days'>Days</SelectItem>
+                            <SelectItem value='hours'>{t('unitOptions.hours')}</SelectItem>
+                            <SelectItem value='days'>{t('unitOptions.days')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <p className='text-xs text-gray-500 mt-1'>
-                        Time needed before starting work (
-                        {resolvePreparationUnit(subproject)})
+                        {t('step2.timing.preparationHint', { unit: durationUnitLabel(resolvePreparationUnit(subproject)) })}
                       </p>
                     </div>
 
                     {subproject.pricing.type === 'rfq' ? (
                       <>
                         <div>
-                          <Label>Execution Duration (Range) *</Label>
+                          <Label>{t('step2.timing.executionRangeLabel')}</Label>
                           <div className='flex space-x-2'>
                             <Input
                               type='number'
@@ -1895,19 +1973,19 @@ export default function Step2Subprojects({
                                   errors: {
                                     ...subproject.errors,
                                     executionDurationRange: hasError
-                                      ? 'Min duration must be less than or equal to max duration'
+                                      ? t('step2.timing.executionRangeError')
                                       : undefined,
                                   },
                                 });
                               }}
-                              placeholder='Min'
+                              placeholder={t('step2.included.minPlaceholder')}
                               className={`w-20 ${subproject.errors?.executionDurationRange
                                 ? 'border-red-500'
                                 : ''
                                 }`}
                             />
                             <span className='self-center text-gray-500'>
-                              to
+                              {t('common.to')}
                             </span>
                             <Input
                               type='number'
@@ -1945,12 +2023,12 @@ export default function Step2Subprojects({
                                   errors: {
                                     ...subproject.errors,
                                     executionDurationRange: hasError
-                                      ? 'Min duration must be less than or equal to max duration'
+                                      ? t('step2.timing.executionRangeError')
                                       : undefined,
                                   },
                                 });
                               }}
-                              placeholder='Max'
+                              placeholder={t('step2.included.maxPlaceholder')}
                               className={`w-20 ${subproject.errors?.executionDurationRange
                                 ? 'border-red-500'
                                 : ''
@@ -1971,8 +2049,8 @@ export default function Step2Subprojects({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value='hours'>Hours</SelectItem>
-                                <SelectItem value='days'>Days</SelectItem>
+                                <SelectItem value='hours'>{t('unitOptions.hours')}</SelectItem>
+                                <SelectItem value='days'>{t('unitOptions.days')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1983,12 +2061,12 @@ export default function Step2Subprojects({
                             </p>
                           )}
                           <p className='text-xs text-gray-500 mt-1'>
-                            Estimated execution time range
+                            {t('step2.timing.executionRangeHint')}
                           </p>
                         </div>
 
                         <div>
-                          <Label>Buffer Time (optional)</Label>
+                          <Label>{t('step2.timing.bufferLabel')}</Label>
                           <div className='flex space-x-2'>
                             <Input
                               type='number'
@@ -2024,20 +2102,20 @@ export default function Step2Subprojects({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value='hours'>Hours</SelectItem>
-                                <SelectItem value='days'>Days</SelectItem>
+                                <SelectItem value='hours'>{t('unitOptions.hours')}</SelectItem>
+                                <SelectItem value='days'>{t('unitOptions.days')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <p className='text-xs text-gray-500 mt-1'>
-                            Extra time to avoid delays
+                            {t('step2.timing.bufferHint')}
                           </p>
                         </div>
                       </>
                     ) : (
                       <>
                         <div>
-                          <Label>Execution Duration *</Label>
+                          <Label>{t('step2.timing.executionLabel')}</Label>
                           <div className='flex space-x-2'>
                             <Input
                               type='number'
@@ -2068,15 +2146,15 @@ export default function Step2Subprojects({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value='hours'>Hours</SelectItem>
-                                <SelectItem value='days'>Days</SelectItem>
+                                <SelectItem value='hours'>{t('unitOptions.hours')}</SelectItem>
+                                <SelectItem value='days'>{t('unitOptions.days')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                         </div>
 
                         <div>
-                          <Label>Buffer Time (optional)</Label>
+                          <Label>{t('step2.timing.bufferLabel')}</Label>
                           <div className='flex space-x-2'>
                             <Input
                               type='number'
@@ -2112,13 +2190,13 @@ export default function Step2Subprojects({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value='hours'>Hours</SelectItem>
-                                <SelectItem value='days'>Days</SelectItem>
+                                <SelectItem value='hours'>{t('unitOptions.hours')}</SelectItem>
+                                <SelectItem value='days'>{t('unitOptions.days')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <p className='text-xs text-gray-500 mt-1'>
-                            Extra time to avoid delays
+                            {t('step2.timing.bufferHint')}
                           </p>
                         </div>
                       </>
@@ -2129,11 +2207,11 @@ export default function Step2Subprojects({
                   {data.category === 'Renovation' && (
                     <div className='mt-4 pt-4 border-t'>
                       <h5 className='font-medium mb-3'>
-                        Intake Meeting Duration
+                        {t('step2.timing.intakeTitle')}
                       </h5>
                       <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                         <div>
-                          <Label>Duration *</Label>
+                          <Label>{t('step2.timing.durationLabel')}</Label>
                           <div className='flex space-x-2'>
                             <Input
                               type='number'
@@ -2169,14 +2247,14 @@ export default function Step2Subprojects({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value='hours'>Hours</SelectItem>
-                                <SelectItem value='days'>Days</SelectItem>
+                                <SelectItem value='hours'>{t('unitOptions.hours')}</SelectItem>
+                                <SelectItem value='days'>{t('unitOptions.days')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                         </div>
                         <div>
-                          <Label>Buffer (optional)</Label>
+                          <Label>{t('step2.timing.intakeBufferLabel')}</Label>
                           <Input
                             type='number'
                             min='0'
@@ -2205,7 +2283,7 @@ export default function Step2Subprojects({
           <div className='flex justify-center pt-2'>
             <Button onClick={addSubproject} disabled={subprojects.length >= 5}>
               <Plus className='w-4 h-4 mr-2' />
-              Add Package
+              {t('step2.header.addPackage')}
             </Button>
           </div>
         </div>
@@ -2215,63 +2293,68 @@ export default function Step2Subprojects({
       {subprojects.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Package Summary</CardTitle>
+            <CardTitle>{t('step2.summary.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className='overflow-x-auto'>
               <table className='w-full border-collapse'>
                 <thead>
                   <tr className='border-b'>
-                    <th className='text-left p-2'>Package</th>
-                    <th className='text-left p-2'>Pricing</th>
-                    <th className='text-left p-2'>Duration</th>
-                    <th className='text-left p-2'>Warranty</th>
-                    <th className='text-left p-2'>Items</th>
+                    <th className='text-left p-2'>{t('step2.summary.package')}</th>
+                    <th className='text-left p-2'>{t('step2.summary.pricing')}</th>
+                    <th className='text-left p-2'>{t('step2.summary.duration')}</th>
+                    <th className='text-left p-2'>{t('step2.summary.warranty')}</th>
+                    <th className='text-left p-2'>{t('step2.summary.items')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {subprojects.map((sub, index) => (
                     <tr key={sub.id} className='border-b'>
                       <td className='p-2 font-medium'>
-                        {sub.name || `Package ${index + 1}`}
+                        {sub.name || t('step2.packageTitle', { index: index + 1 })}
                       </td>
                       <td className='p-2'>
                         {sub.pricing.type === 'fixed' &&
                           sub.pricing.amount && (
                             <div>
-                              <div>EUR {sub.pricing.amount} (Total)</div>
+                              <div>{t('step2.summary.fixedTotal', { price: formatMoney(sub.pricing.amount) })}</div>
                               {(commissionPercent ?? 0) > 0 && (
-                                <div className='text-xs text-blue-600'>Customer: EUR {customerPrice(sub.pricing.amount)}</div>
+                                <div className='text-xs text-blue-600'>{t('step2.summary.customerPrice', { price: formatMoney(customerPrice(sub.pricing.amount)) })}</div>
                               )}
                             </div>
                           )}
                         {sub.pricing.type === 'unit' &&
                           sub.pricing.amount && (
                             <div>
-                              <div>EUR {sub.pricing.amount}/{unitLabel}{sub.pricing.minOrderQuantity
-                                ? ` (min ${sub.pricing.minOrderQuantity})`
+                              <div>{t('step2.summary.unitPrice', { price: formatMoney(sub.pricing.amount), unit: unitDisplayLabel })}{sub.pricing.minOrderQuantity
+                                ? ` ${t('step2.summary.minQuantity', { quantity: sub.pricing.minOrderQuantity })}`
                                 : ''
                               }</div>
                               {(commissionPercent ?? 0) > 0 && (
-                                <div className='text-xs text-blue-600'>Customer: EUR {customerPrice(sub.pricing.amount)}/{unitLabel}</div>
+                                <div className='text-xs text-blue-600'>{t('step2.summary.customerPricePerUnit', { price: formatMoney(customerPrice(sub.pricing.amount)), unit: unitDisplayLabel })}</div>
                               )}
                             </div>
                           )}
                         {sub.pricing.type === 'rfq' && (
                           <div>
                             <div>
-                              Quote required
+                              {t('step2.summary.quoteRequired')}
                               {sub.pricing.priceRange?.min != null &&
                                 sub.pricing.priceRange?.max != null && (
                                   <span className='text-gray-500 text-sm ml-1'>
-                                    (EUR {sub.pricing.priceRange.min}-
-                                    {sub.pricing.priceRange.max})
+                                    {t('step2.summary.range', {
+                                      min: formatMoney(sub.pricing.priceRange.min),
+                                      max: formatMoney(sub.pricing.priceRange.max),
+                                    })}
                                   </span>
                                 )}
                             </div>
                             {(commissionPercent ?? 0) > 0 && (sub.pricing.priceRange?.min != null || sub.pricing.priceRange?.max != null) && (
                               <div className='text-xs text-blue-600'>
-                                Customer: EUR {sub.pricing.priceRange?.min != null ? customerPrice(sub.pricing.priceRange.min) : '...'}-{sub.pricing.priceRange?.max != null ? customerPrice(sub.pricing.priceRange.max) : '...'}
+                                {t('step2.summary.customerRange', {
+                                  min: sub.pricing.priceRange?.min != null ? formatMoney(customerPrice(sub.pricing.priceRange.min)) : '...',
+                                  max: sub.pricing.priceRange?.max != null ? formatMoney(customerPrice(sub.pricing.priceRange.max)) : '...',
+                                })}
                               </div>
                             )}
                           </div>
@@ -2281,29 +2364,33 @@ export default function Step2Subprojects({
                         {sub.pricing.type === 'rfq' ? (
                           (() => {
                             const r = sub.executionDuration.range;
+                            const unit = durationUnitLabel(sub.executionDuration.unit);
                             if (r?.min != null && r?.max != null) {
-                              return `${r.min}-${r.max} ${sub.executionDuration.unit}`;
+                              return t('step2.summary.durationRange', { min: r.min, max: r.max, unit });
                             } else if (r?.min != null) {
-                              return `${r.min}- ${sub.executionDuration.unit}`;
+                              return t('step2.summary.durationFrom', { min: r.min, unit });
                             } else if (r?.max != null) {
-                              return `- ${r.max} ${sub.executionDuration.unit}`;
+                              return t('step2.summary.durationTo', { max: r.max, unit });
                             }
                             return sub.executionDuration.value != null
-                              ? `${sub.executionDuration.value} ${sub.executionDuration.unit}`
-                              : <span className='text-gray-400 italic'>Not set</span>;
+                              ? t('step2.summary.durationValue', { value: sub.executionDuration.value, unit })
+                              : <span className='text-gray-400 italic'>{t('step2.summary.notSet')}</span>;
                           })()
                         ) : sub.executionDuration.value != null ? (
-                          `${sub.executionDuration.value} ${sub.executionDuration.unit}`
+                          t('step2.summary.durationValue', {
+                            value: sub.executionDuration.value,
+                            unit: durationUnitLabel(sub.executionDuration.unit),
+                          })
                         ) : (
-                          <span className='text-gray-400 italic'>Not set</span>
+                          <span className='text-gray-400 italic'>{t('step2.summary.notSet')}</span>
                         )}
                       </td>
                       <td className='p-2'>
                         {sub.warrantyPeriod.value === 0
-                          ? 'No warranty'
-                          : `${sub.warrantyPeriod.value} ${sub.warrantyPeriod.unit}`}
+                          ? t('step2.summary.noWarranty')
+                          : `${sub.warrantyPeriod.value} ${t(sub.warrantyPeriod.unit === 'months' ? 'unitLabels.months' : 'unitLabels.years')}`}
                       </td>
-                      <td className='p-2'>{sub.included.length} items</td>
+                      <td className='p-2'>{t('step2.summary.itemsCount', { count: sub.included.length })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2317,11 +2404,10 @@ export default function Step2Subprojects({
                   <div className='flex items-center space-x-2'>
                     <Info className='w-4 h-4 text-blue-600' />
                     <span className='font-medium text-blue-900'>
-                      Total fixed price packages: EUR{' '}
-                      {calculateTotalPrice().toFixed(2)}
+                      {t('step2.summary.totalFixed', { total: formatMoney(Number(calculateTotalPrice().toFixed(2))) })}
                       {(commissionPercent ?? 0) > 0 && (
                         <span className='text-blue-600 ml-2'>
-                          (Customer sees: EUR {customerPrice(calculateTotalPrice()).toFixed(2)})
+                          {t('step2.summary.customerSeesTotal', { price: formatMoney(Number(customerPrice(calculateTotalPrice()).toFixed(2))) })}
                         </span>
                       )}
                     </span>

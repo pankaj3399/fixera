@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,25 @@ const CERTIFICATION_TYPES = [
 
 const DISPLAY_AS_TAG = ['ISO', 'EN', 'VCA', 'BREEAM', 'LEED', 'DGNB'];
 
+// Display labels only — the stored certification `name` stays the raw type so it
+// keeps matching the backend's requiredCertifications.
+const CERTIFICATION_TYPE_KEYS = {
+  'ISO': 'certifications.types.iso',
+  'EN': 'certifications.types.en',
+  'VCA': 'certifications.types.vca',
+  'BREEAM': 'certifications.types.breeam',
+  'LEED': 'certifications.types.leed',
+  'DGNB': 'certifications.types.dgnb',
+  'Architect': 'certifications.types.architect',
+  'Demolition': 'certifications.types.demolition',
+  'EPC': 'certifications.types.epc',
+  'Asbestos': 'certifications.types.asbestos',
+  'Gas & Oil': 'certifications.types.gasOil',
+  'Electric': 'certifications.types.electric',
+  'Waste Transport': 'certifications.types.wasteTransport',
+  'Pest Control': 'certifications.types.pestControl',
+} as const;
+
 export default function CertificationManager({
   certifications,
   onChange,
@@ -40,6 +60,11 @@ export default function CertificationManager({
   projectId,
   requiredTypes = []
 }: CertificationManagerProps) {
+  const t = useTranslations('projectWizard')
+  const certificationTypeLabel = (type: string) => {
+    const key = CERTIFICATION_TYPE_KEYS[type as keyof typeof CERTIFICATION_TYPE_KEYS]
+    return key ? t(key) : type
+  }
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
     certifications.map(c => c.name)
   );
@@ -61,7 +86,7 @@ export default function CertificationManager({
 
     // Validate file
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('File must be less than 10MB');
+      toast.error(t('certifications.toast.tooLarge'));
       return;
     }
 
@@ -89,14 +114,16 @@ export default function CertificationManager({
           onChange([...certifications, newCertification]);
         }
 
-        toast.success(`${type} certification uploaded`);
+        toast.success(t('certifications.toast.uploaded', { type: certificationTypeLabel(type) }));
       } else {
         console.error('Certification upload failed - no result URL returned');
-        toast.error(`Failed to upload ${type} certification. Please check your connection and try again.`);
+        toast.error(t('certifications.toast.uploadFailedConnection', { type: certificationTypeLabel(type) }));
       }
     } catch (error) {
       console.error('Certification upload error:', error);
-      const message = error instanceof Error ? error.message : `Failed to upload ${type} certification. Please try again.`;
+      const message = error instanceof Error
+        ? error.message
+        : t('certifications.toast.uploadFailed', { type: certificationTypeLabel(type) });
       toast.error(message);
     }
   };
@@ -114,18 +141,20 @@ export default function CertificationManager({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Certifications</span>
+          <span>{t('certifications.title')}</span>
           {(required || (requiredTypes && requiredTypes.length > 0)) && (
             <Badge variant="destructive" className="text-xs">
-              {requiredTypes && requiredTypes.length > 0 ? `Required: ${requiredTypes.join(', ')}` : 'Required'}
+              {requiredTypes && requiredTypes.length > 0
+                ? t('certifications.requiredWithTypes', { types: requiredTypes.map(certificationTypeLabel).join(', ') })
+                : t('certifications.required')}
             </Badge>
           )}
         </CardTitle>
         <CardDescription>
-          Select your certifications and upload proof documents
-          {DISPLAY_AS_TAG.some(t => selectedTypes.includes(t)) && (
+          {t('certifications.description')}
+          {DISPLAY_AS_TAG.some(type => selectedTypes.includes(type)) && (
             <span className="block mt-2 text-blue-600">
-              {DISPLAY_AS_TAG.filter(t => selectedTypes.includes(t)).join(', ')} will be displayed as tags to customers
+              {t('certifications.displayedAsTags', { types: DISPLAY_AS_TAG.filter(type => selectedTypes.includes(type)).join(', ') })}
             </span>
           )}
         </CardDescription>
@@ -135,7 +164,7 @@ export default function CertificationManager({
           <div className="flex items-center space-x-2 text-amber-600 bg-amber-50 p-3 rounded-lg">
             <AlertCircle className="w-5 h-5" />
             <span className="text-sm">
-              This service requires at least one certification
+              {t('certifications.requiresOne')}
             </span>
           </div>
         )}
@@ -143,7 +172,7 @@ export default function CertificationManager({
         {/* Certification Type Selection */}
         <div>
           <Label className="text-sm font-medium mb-3 block">
-            Select Certification Types
+            {t('certifications.selectTypes')}
           </Label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {CERTIFICATION_TYPES.map(type => (
@@ -157,10 +186,10 @@ export default function CertificationManager({
                   onCheckedChange={() => toggleCertificationType(type)}
                 />
                 <Label className="cursor-pointer text-sm flex-1">
-                  {type}
+                  {certificationTypeLabel(type)}
                 </Label>
                 {requiredTypes.includes(type) && (
-                  <Badge variant="outline" className="text-[10px]">Required</Badge>
+                  <Badge variant="outline" className="text-[10px]">{t('certifications.required')}</Badge>
                 )}
               </div>
             ))}
@@ -170,16 +199,16 @@ export default function CertificationManager({
         {/* Upload Section for Selected Types */}
         {selectedTypes.length > 0 && (
           <div className="space-y-3">
-            <Label className="text-sm font-medium">Upload Certification Documents</Label>
+            <Label className="text-sm font-medium">{t('certifications.uploadTitle')}</Label>
             {selectedTypes.map(type => {
               const cert = getCertificationFile(type);
               return (
                 <div key={type} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm">{type}</span>
+                    <span className="font-medium text-sm">{certificationTypeLabel(type)}</span>
                     {DISPLAY_AS_TAG.includes(type) && (
                       <Badge variant="outline" className="text-xs">
-                        Will show as tag
+                        {t('certifications.willShowAsTag')}
                       </Badge>
                     )}
                   </div>
@@ -190,7 +219,7 @@ export default function CertificationManager({
                         <FileText className="w-4 h-4 text-green-600" />
                         <div>
                           <p className="text-sm font-medium text-green-900">
-                            Uploaded
+                            {t('certifications.uploaded')}
                           </p>
                           <a
                             href={cert.fileUrl}
@@ -198,7 +227,7 @@ export default function CertificationManager({
                             rel="noopener noreferrer"
                             className="text-xs text-green-600 hover:underline"
                           >
-                            View certificate
+                            {t('certifications.view')}
                           </a>
                         </div>
                       </div>
@@ -232,7 +261,7 @@ export default function CertificationManager({
                         className="w-full"
                       >
                         <Upload className="w-4 h-4 mr-2" />
-                        {uploading ? `Uploading... ${progress}%` : 'Upload Certificate'}
+                        {uploading ? t('certifications.uploading', { progress }) : t('certifications.upload')}
                       </Button>
                     </div>
                   )}

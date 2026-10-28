@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
+import { useTranslations } from "next-intl"
 import { Star, ImagePlus, X } from "lucide-react"
 import {
   Dialog,
@@ -23,12 +24,13 @@ interface ReviewModalProps {
 }
 
 const CUSTOMER_CATEGORIES = [
-  { key: "communicationLevel", label: "Communication Level" },
-  { key: "valueOfDelivery", label: "Value of Delivery" },
-  { key: "qualityOfService", label: "Quality of Service" },
+  { key: "communicationLevel", labelKey: "reviewModal.categories.communicationLevel" },
+  { key: "valueOfDelivery", labelKey: "reviewModal.categories.valueOfDelivery" },
+  { key: "qualityOfService", labelKey: "reviewModal.categories.qualityOfService" },
 ] as const
 
 function StarSelector({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const t = useTranslations('checkout')
   const [hover, setHover] = useState(0)
 
   return (
@@ -39,7 +41,7 @@ function StarSelector({ value, onChange }: { value: number; onChange: (v: number
           type="button"
           role="radio"
           aria-checked={star === value}
-          aria-label={`${star} star${star > 1 ? "s" : ""}`}
+          aria-label={t('reviewModal.starAriaLabel', { count: star })}
           onMouseEnter={() => setHover(star)}
           onMouseLeave={() => setHover(0)}
           onClick={() => onChange(star)}
@@ -59,6 +61,7 @@ function StarSelector({ value, onChange }: { value: number; onChange: (v: number
 }
 
 export default function ReviewModal({ open, onClose, bookingId, role, onSubmitted }: ReviewModalProps) {
+  const t = useTranslations('checkout')
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -94,18 +97,18 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
     const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
     const validatedFiles = files.filter((f) => {
       if (!validTypes.includes(f.type)) {
-        toast.error(`${f.name}: only JPEG, PNG, WebP allowed`)
+        toast.error(t('reviewModal.errors.onlyImages', { name: f.name }))
         return false
       }
       if (f.size > 5 * 1024 * 1024) {
-        toast.error(`${f.name}: must be under 5MB`)
+        toast.error(t('reviewModal.errors.maxFileSize', { name: f.name }))
         return false
       }
       return true
     })
     const remaining = 2 - images.length
     if (remaining <= 0) {
-      toast.error("Maximum 2 images allowed")
+      toast.error(t('reviewModal.errors.maxImages'))
       return
     }
     const valid = validatedFiles.slice(0, remaining)
@@ -124,12 +127,12 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
     if (isCustomer) {
       const missing = CUSTOMER_CATEGORIES.filter((c) => !ratings[c.key] || ratings[c.key] < 1)
       if (missing.length > 0) {
-        toast.error("Please rate all categories")
+        toast.error(t('reviewModal.errors.rateAllCategories'))
         return
       }
     } else {
       if (!ratings.rating || ratings.rating < 1) {
-        toast.error("Please select a rating")
+        toast.error(t('reviewModal.errors.selectRating'))
         return
       }
     }
@@ -161,11 +164,11 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
         )
         const data = await res.json()
         if (res.ok && data.success) {
-          toast.success("Review submitted successfully!")
+          toast.success(t("reviewModal.submitSuccess"))
           onSubmitted?.()
           onClose()
         } else {
-          toast.error(data.msg || "Failed to submit review")
+          toast.error(data.msg || t("reviewModal.submitFailed"))
         }
       } else {
         const body = {
@@ -186,15 +189,15 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
         )
         const data = await res.json()
         if (res.ok && data.success) {
-          toast.success("Review submitted successfully!")
+          toast.success(t("reviewModal.submitSuccess"))
           onSubmitted?.()
           onClose()
         } else {
-          toast.error(data.msg || "Failed to submit review")
+          toast.error(data.msg || t("reviewModal.submitFailed"))
         }
       }
     } catch {
-      toast.error("Failed to submit review")
+      toast.error(t("reviewModal.submitFailed"))
     } finally {
       setSubmitting(false)
     }
@@ -205,12 +208,12 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isCustomer ? "Rate this Professional" : "Rate this Customer"}
+            {isCustomer ? t("reviewModal.titleCustomer") : t("reviewModal.titleProfessional")}
           </DialogTitle>
           <DialogDescription>
             {isCustomer
-              ? "Share your experience to help others make informed decisions."
-              : "Rate your experience working with this customer."}
+              ? t("reviewModal.descriptionCustomer")
+              : t("reviewModal.descriptionProfessional")}
           </DialogDescription>
         </DialogHeader>
 
@@ -218,7 +221,7 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
           {isCustomer ? (
             CUSTOMER_CATEGORIES.map((cat) => (
               <div key={cat.key} className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">{cat.label}</label>
+                <label className="text-sm font-medium text-gray-700">{t(cat.labelKey)}</label>
                 <StarSelector
                   value={ratings[cat.key] || 0}
                   onChange={(v) => setRatings((prev) => ({ ...prev, [cat.key]: v }))}
@@ -227,7 +230,7 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
             ))
           ) : (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">Overall Rating</label>
+              <label className="text-sm font-medium text-gray-700">{t("reviewModal.overallRating")}</label>
               <StarSelector
                 value={ratings.rating || 0}
                 onChange={(v) => setRatings({ rating: v })}
@@ -237,10 +240,10 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">
-              Review <span className="text-gray-400 font-normal">(optional)</span>
+              {t("reviewModal.reviewLabel")} <span className="text-gray-400 font-normal">{t("reviewModal.optional")}</span>
             </label>
             <Textarea
-              placeholder="Share your experience..."
+              placeholder={t("reviewModal.commentPlaceholder")}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               maxLength={1000}
@@ -253,12 +256,12 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
           {isCustomer && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
-                Photos <span className="text-gray-400 font-normal">(optional, max 2)</span>
+                {t("reviewModal.photosLabel")} <span className="text-gray-400 font-normal">{t("reviewModal.photosHint")}</span>
               </label>
               <div className="flex items-center gap-2">
                 {imagePreviews.map((src, idx) => (
                   <div key={idx} className="relative">
-                    <img src={src} alt={`Preview ${idx + 1}`} className="h-16 w-16 object-cover rounded-md border border-gray-200" />
+                    <img src={src} alt={t("reviewModal.previewAlt", { number: idx + 1 })} className="h-16 w-16 object-cover rounded-md border border-gray-200" />
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}
@@ -292,10 +295,10 @@ export default function ReviewModal({ open, onClose, bookingId, role, onSubmitte
 
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose} disabled={submitting}>
-            Later
+            {t("reviewModal.later")}
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Submitting..." : "Submit Review"}
+            {submitting ? t("reviewModal.submitting") : t("reviewModal.submit")}
           </Button>
         </div>
       </DialogContent>

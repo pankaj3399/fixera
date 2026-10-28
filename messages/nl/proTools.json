@@ -1,0 +1,173 @@
+{
+  "teamManagement": {
+    "title": "Medewerkersbeheer",
+    "description": "Nodig je medewerkers uit en beheer ze",
+    "inviteEmployee": "Medewerker uitnodigen",
+    "cancel": "Annuleren",
+    "invalidDate": "Ongeldige datum",
+    "inviteDialog": {
+      "description": "Voeg een nieuwe medewerker toe aan je bedrijf",
+      "nameLabel": "Naam *",
+      "namePlaceholder": "Voer de naam van het teamlid in",
+      "hasEmail": "Medewerker heeft een e-mailadres",
+      "emailLabel": "E-mailadres *",
+      "emailPlaceholder": "Voer het e-mailadres van het teamlid in",
+      "credentialsNote": "De inloggegevens worden naar dit e-mailadres gestuurd",
+      "companyManaged": "Door het bedrijf beheerde medewerker",
+      "companyManagedNote": "Je beheert de beschikbaarheid van deze medewerker zelf",
+      "sendInvitation": "Uitnodiging versturen",
+      "addEmployee": "Medewerker toevoegen"
+    },
+    "empty": {
+      "title": "Nog geen medewerkers",
+      "description": "Begin met het uitnodigen van je eerste medewerker"
+    },
+    "employeeCount": "{count, plural, one {# medewerker} other {# medewerkers}}",
+    "table": {
+      "name": "Naam",
+      "contact": "Contact",
+      "status": "Status",
+      "actions": "Acties"
+    },
+    "managedByCompany": "Door bedrijf beheerd",
+    "selfManaged": "Zelf beheerd",
+    "noEmail": "Geen e-mailadres",
+    "status": {
+      "active": "Actief",
+      "inactive": "Inactief"
+    },
+    "actions": {
+      "manageAvailability": "Beschikbaarheid beheren",
+      "changeEmail": "E-mailadres wijzigen",
+      "linkEmail": "E-mailadres koppelen",
+      "deactivate": "Deactiveren",
+      "reactivate": "Heractiveren",
+      "resetPassword": "Wachtwoord opnieuw instellen",
+      "remove": "Verwijderen"
+    },
+    "pagination": {
+      "showing": "{from} tot {to} van {total} weergegeven",
+      "previous": "Vorige",
+      "next": "Volgende",
+      "pageOf": "Pagina {page} van {totalPages}"
+    },
+    "passwordDialog": {
+      "title": "Wachtwoord van medewerker opnieuw instellen",
+      "description": "Stel een nieuw wachtwoord in voor deze medewerker",
+      "newPassword": "Nieuw wachtwoord",
+      "placeholder": "Voer een nieuw wachtwoord in (min. 6 tekens)",
+      "hint": "Het wachtwoord moet minstens 6 tekens lang zijn",
+      "submit": "Wachtwoord opnieuw instellen"
+    },
+    "emailDialog": {
+      "changeTitle": "E-mailadres van medewerker wijzigen",
+      "linkTitle": "E-mailadres van medewerker koppelen",
+      "updateDescription": "Werk het e-mailadres voor {name} bij.",
+      "linkDescription": "Koppel een e-mailadres voor {name}.",
+      "label": "E-mailadres",
+      "placeholder": "name@company.com",
+      "note": "Nadat je een e-mailadres hebt gekoppeld, kun je het wachtwoord van de medewerker opnieuw instellen via het actiemenu.",
+      "submit": "E-mailadres opslaan"
+    },
+    "deactivateDialog": {
+      "title": "Medewerker deactiveren",
+      "confirm": "Weet je zeker dat je <strong>{name}</strong> wilt deactiveren?",
+      "warningTitle": "Hiermee deactiveer je de medewerker",
+      "warningBody": "De medewerker heeft geen toegang meer tot het systeem en kan niet meer voor afspraken worden ingepland. Je kunt de medewerker op elk moment opnieuw activeren.",
+      "submit": "Medewerker deactiveren"
+    },
+    "removeDialog": {
+      "title": "Medewerker verwijderen",
+      "confirm": "Weet je zeker dat je <strong>{name}</strong> wilt verwijderen?",
+      "warningTitle": "Hiermee verwijder je de medewerker definitief",
+      "warningBody": "De medewerker wordt uit je bedrijf verwijderd en kan niet worden hersteld.",
+      "submit": "Medewerker verwijderen"
+    },
+    "availabilityDialog": {
+      "title": "Beschikbaarheid beheren - {name}",
+      "description": "Stel geblokkeerde periodes in voor deze medewerker. De werktijden volgen de planning van het bedrijf en zijn alleen-lezen.",
+      "addBlockedPeriod": "Geblokkeerde periode toevoegen",
+      "start": "Start",
+      "end": "Einde",
+      "reasonOptional": "Reden (optioneel)",
+      "reasonPlaceholder": "Vakantie, afspraak, enz.",
+      "addBlock": "Blokkade toevoegen",
+      "workingHoursNote": "De werktijden volgen de planning van het bedrijf en zijn alleen-lezen.",
+      "saveAvailability": "Beschikbaarheid opslaan"
+    },
+    "editBlockDialog": {
+      "title": "Geblokkeerde periode bewerken",
+      "description": "Pas de periode aan of verwijder de blokkade.",
+      "start": "Start",
+      "end": "Einde",
+      "reasonOptional": "Reden (optioneel)",
+      "reasonPlaceholder": "Vakantie, afspraak, enz.",
+      "removeBlock": "Blokkade verwijderen",
+      "saveChanges": "Wijzigingen opslaan"
+    },
+    "toast": {
+      "loadFailed": "Medewerkers laden mislukt",
+      "invitationSent": "Uitnodiging voor medewerker verstuurd!",
+      "employeeAdded": "Medewerker toegevoegd!",
+      "inviteFailed": "Medewerker uitnodigen mislukt",
+      "activated": "Medewerker geactiveerd",
+      "deactivated": "Medewerker gedeactiveerd",
+      "statusFailed": "Status van medewerker bijwerken mislukt",
+      "passwordReset": "Wachtwoord opnieuw ingesteld",
+      "passwordResetFailed": "Wachtwoord opnieuw instellen mislukt",
+      "emailRequired": "E-mailadres is verplicht",
+      "emailUpdated": "E-mailadres van medewerker bijgewerkt",
+      "emailUpdateFailed": "E-mailadres van medewerker bijwerken mislukt",
+      "employeeRemoved": "Medewerker verwijderd",
+      "removeFailed": "Medewerker verwijderen mislukt",
+      "availabilityUpdated": "Beschikbaarheid van medewerker bijgewerkt",
+      "availabilityUpdateFailed": "Beschikbaarheid bijwerken mislukt"
+    },
+    "validation": {
+      "selectStartEnd": "Selecteer zowel een start- als eindtijd",
+      "startBeforeEnd": "De starttijd moet voor de eindtijd liggen",
+      "selectStartEndValues": "Selecteer een start- en eindwaarde",
+      "validStartEnd": "Geef geldige start- en eindtijden op"
+    }
+  },
+  "employeeAvailability": {
+    "title": "Beschikbaarheidsbeheer",
+    "employeesOnly": "Deze functie is alleen beschikbaar voor medewerkers",
+    "yourAvailability": "Jouw beschikbaarheid",
+    "description": "Je volgt de planning van het bedrijf. Gebruik geblokkeerde periodes voor momenten waarop je niet beschikbaar bent.",
+    "addBlockedPeriod": "Geblokkeerde periode toevoegen",
+    "addBlockedPeriodHint": "Kies de exacte start- en eindtijd voor de geblokkeerde periode.",
+    "startDate": "Startdatum",
+    "endDate": "Einddatum",
+    "reasonOptionalTitleCase": "Reden (optioneel)",
+    "reasonPlaceholder": "Vakantie, afspraak, enz.",
+    "blockPeriod": "Periode blokkeren",
+    "companyWorkingHours": "Werktijden van het bedrijf",
+    "companyWorkingHoursDescription": "Alleen-lezen. De werktijden volgen de planning van het bedrijf.",
+    "notAvailable": "Niet beschikbaar",
+    "noCompanySchedule": "Geen bedrijfsplanning ingesteld.",
+    "cancel": "Annuleren",
+    "editBlockDialog": {
+      "title": "Geblokkeerde periode bewerken",
+      "description": "Pas de periode aan of verwijder de blokkade.",
+      "start": "Start",
+      "end": "Einde",
+      "reasonOptional": "Reden (optioneel)",
+      "reasonPlaceholder": "Vakantie, afspraak, enz.",
+      "removeBlock": "Blokkade verwijderen",
+      "saveChanges": "Wijzigingen opslaan"
+    },
+    "toast": {
+      "loadFailed": "Beschikbaarheid laden mislukt",
+      "updateFailed": "Geblokkeerde periodes bijwerken mislukt",
+      "invalidStartEnd": "Geef geldige start- en eindtijden op",
+      "noPastBlock": "Je kunt geen tijd in het verleden blokkeren",
+      "startBeforeEnd": "De start moet voor de eindtijd liggen",
+      "selectStartEndValues": "Selecteer een start- en eindwaarde",
+      "blockedPeriodSaved": "Geblokkeerde periode opgeslagen",
+      "blockedPeriodRemoved": "Geblokkeerde periode verwijderd",
+      "blockedPeriodUpdated": "Geblokkeerde periode bijgewerkt",
+      "endInPast": "De eindtijd kan niet in het verleden liggen"
+    }
+  }
+}

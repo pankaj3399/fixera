@@ -2,10 +2,29 @@
 
 import React, { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Briefcase, UserCircle, CheckCircle2, Sparkles, Gift } from 'lucide-react'
 import Link from 'next/link'
+
+const CUSTOMER_FEATURES = [
+  'join.features.customer.findVerified',
+  'join.features.customer.customQuotes',
+  'join.features.customer.bookConfidence',
+  'join.features.customer.trackProgress',
+  'join.features.customer.rateReview',
+  'join.features.customer.paymentProtection',
+] as const
+
+const PROFESSIONAL_FEATURES = [
+  'join.features.professional.reachCustomers',
+  'join.features.professional.manageProjects',
+  'join.features.professional.buildProfile',
+  'join.features.professional.acceptBookings',
+  'join.features.professional.flexibleSchedule',
+  'join.features.professional.growBusiness',
+] as const
 
 export default function JoinPage() {
   return (
@@ -16,28 +35,10 @@ export default function JoinPage() {
 }
 
 function JoinContent() {
+  const t = useTranslations('auth')
   const router = useRouter()
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref')
-
-  const features = {
-    customer: [
-      'Find verified property professionals',
-      'Get custom quotes instantly',
-      'Book services with confidence',
-      'Track project progress',
-      'Rate and review professionals',
-      'Secure payment protection'
-    ],
-    professional: [
-      'Reach thousands of customers',
-      'Manage your projects easily',
-      'Build your professional profile',
-      'Accept bookings online',
-      'Flexible schedule management',
-      'Grow your business'
-    ]
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
@@ -50,7 +51,7 @@ function JoinContent() {
       <div className="relative z-10 container mx-auto px-4 py-8">
         <Link href="/">
           <Button variant="ghost" className="mb-8 hover:bg-white/50">
-            ← Back to Home
+            ← {t('shared.backToHome')}
           </Button>
         </Link>
       </div>
@@ -60,21 +61,21 @@ function JoinContent() {
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full text-blue-700 font-medium mb-6">
             <Sparkles className="h-4 w-4" />
-            Join Fixtract Today
+            {t('join.badge')}
           </div>
 
           <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">
-            How would you like to join?
+            {t('join.title')}
           </h1>
 
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Choose your path and start your journey with Europe&apos;s leading property services platform
+            {t('join.subtitle')}
           </p>
 
           {refCode && (
             <div className="mt-6 inline-flex items-center gap-2 px-5 py-3 bg-green-50 border border-green-200 rounded-full text-green-700 font-medium">
               <Gift className="h-4 w-4" />
-              You&apos;ve been referred! Complete your first booking to unlock your welcome discount.
+              {t('join.referralBanner')}
             </div>
           )}
         </div>
@@ -91,20 +92,20 @@ function JoinContent() {
               </div>
 
               <CardTitle className="text-3xl font-bold text-gray-900">
-                I&apos;m a Customer
+                {t('join.customerTitle')}
               </CardTitle>
 
               <CardDescription className="text-lg text-gray-600 mt-2">
-                Looking for trusted professionals to help with property services
+                {t('join.customerDescription')}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="relative z-10 space-y-6">
               <div className="space-y-3">
-                {features.customer.map((feature, index) => (
-                  <div key={index} className="flex items-start gap-3">
+                {CUSTOMER_FEATURES.map((featureKey) => (
+                  <div key={featureKey} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
-                    <span className="text-gray-700">{feature}</span>
+                    <span className="text-gray-700">{t(featureKey)}</span>
                   </div>
                 ))}
               </div>
@@ -114,12 +115,12 @@ function JoinContent() {
                 className="w-full h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold text-lg group/btn"
                 size="lg"
               >
-                Join as Customer
+                {t('join.customerJoin')}
                 <ArrowRight className="ml-2 h-5 w-5 group-hover/btn:translate-x-1 transition-transform" />
               </Button>
 
               <p className="text-sm text-center text-gray-500">
-                Free to join • No credit card required
+                {t('join.customerFooter')}
               </p>
             </CardContent>
           </Card>
@@ -134,20 +135,20 @@ function JoinContent() {
               </div>
 
               <CardTitle className="text-3xl font-bold text-gray-900">
-                I&apos;m a Professional
+                {t('join.professionalTitle')}
               </CardTitle>
 
               <CardDescription className="text-lg text-gray-600 mt-2">
-                Ready to offer my property services and grow my business
+                {t('join.professionalDescription')}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="relative z-10 space-y-6">
               <div className="space-y-3">
-                {features.professional.map((feature, index) => (
-                  <div key={index} className="flex items-start gap-3">
+                {PROFESSIONAL_FEATURES.map((featureKey) => (
+                  <div key={featureKey} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-purple-600 mt-0.5 shrink-0" />
-                    <span className="text-gray-700">{feature}</span>
+                    <span className="text-gray-700">{t(featureKey)}</span>
                   </div>
                 ))}
               </div>
@@ -157,12 +158,12 @@ function JoinContent() {
                 className="w-full h-12 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold text-lg group/btn"
                 size="lg"
               >
-                Join as Professional
+                {t('join.professionalJoin')}
                 <ArrowRight className="ml-2 h-5 w-5 group-hover/btn:translate-x-1 transition-transform" />
               </Button>
 
               <p className="text-sm text-center text-gray-500">
-                Free to join • Start getting bookings today
+                {t('join.professionalFooter')}
               </p>
             </CardContent>
           </Card>
@@ -171,7 +172,7 @@ function JoinContent() {
         {/* Bottom CTA */}
         <div className="text-center mt-12">
           <p className="text-gray-600 mb-4">
-            Already have an account?
+            {t('shared.alreadyHaveAccount')}
           </p>
           <Button
             onClick={() => router.push('/login')}
@@ -179,7 +180,7 @@ function JoinContent() {
             size="lg"
             className="border-2 hover:bg-white/50"
           >
-            Sign In
+            {t('shared.signIn')}
           </Button>
         </div>
 
@@ -187,19 +188,19 @@ function JoinContent() {
         <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
           <div className="text-center">
             <div className="text-3xl font-bold text-gray-900">10K+</div>
-            <div className="text-sm text-gray-600">Active Professionals</div>
+            <div className="text-sm text-gray-600">{t('join.stats.activeProfessionals')}</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-gray-900">50K+</div>
-            <div className="text-sm text-gray-600">Projects Completed</div>
+            <div className="text-sm text-gray-600">{t('join.stats.projectsCompleted')}</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-gray-900">4.8★</div>
-            <div className="text-sm text-gray-600">Average Rating</div>
+            <div className="text-sm text-gray-600">{t('join.stats.averageRating')}</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-gray-900">20+</div>
-            <div className="text-sm text-gray-600">Countries Served</div>
+            <div className="text-sm text-gray-600">{t('join.stats.countriesServed')}</div>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,8 +35,9 @@ import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
-import { formatCurrency } from '@/lib/formatters';
 import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing';
 import { getAuthToken } from '@/lib/utils';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
@@ -273,6 +275,82 @@ export default function ProjectBookingForm({
   const customerPricingReady = commissionPercent != null && loyaltyLoaded;
   const router = useRouter();
   const { user } = useAuth();
+  const t = useTranslations('projectBooking');
+  const { formatMoney, currency } = useCurrency();
+  const { intl, dateFns } = useFormatLocale();
+
+  // All amounts in this form are EUR: it is the step right before payment, so
+  // nothing is converted — only formatted in the active locale.
+  const formatAmount = useCallback(
+    (amount?: number | null) =>
+      typeof amount === 'number' ? formatMoney(amount) : null,
+    [formatMoney]
+  );
+
+  // Unit labels for the price model: known models get a translated label, an
+  // unknown (professional-defined) price model is shown as-is.
+  const getUnitLabelText = useCallback(
+    (priceModel?: string): string => {
+      const unit = getUnitLabel(priceModel);
+      switch (unit) {
+        case 'unit':
+          return t('units.unit');
+        case 'hour':
+          return t('units.hour');
+        case 'day':
+          return t('units.day');
+        case 'meter':
+          return t('units.meter');
+        case 'room':
+          return t('units.room');
+        case 'm²':
+          return t('units.squareMeter');
+        default:
+          return unit;
+      }
+    },
+    [t]
+  );
+
+  const getPricingTypeLabel = useCallback(
+    (pricingType?: string): string => {
+      switch (pricingType) {
+        case 'fixed':
+          return t('pricingType.fixed');
+        case 'unit':
+          return t('pricingType.unit');
+        case 'rfq':
+          return t('pricingType.rfq');
+        default:
+          return pricingType || '';
+      }
+    },
+    [t]
+  );
+
+  // Locale-aware clock time ("09:00" from the API → "9:00 AM" / "09:00").
+  const formatClockTime = useCallback(
+    (time: string): string => {
+      const [hours, minutes] = time.split(':').map(Number);
+      if (Number.isNaN(hours) || Number.isNaN(minutes)) return time;
+      return new Intl.DateTimeFormat(intl, {
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(new Date(2000, 0, 1, hours, minutes));
+    },
+    [intl]
+  );
+
+  // Locale-aware date/time formatting in the professional's timezone.
+  const formatZonedDate = useCallback(
+    (date: Date, timeZone: string, options: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat(intl, {
+        ...options,
+        timeZone: normalizeTimezone(timeZone),
+      }).format(date),
+    [intl]
+  );
+
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [blockedDates, setBlockedDates] = useState<BlockedDates>({
@@ -336,31 +414,71 @@ export default function ProjectBookingForm({
   const isRfqPackage = selectedPackage?.pricing?.type === 'rfq';
 
   const rfqChatPrefill = useMemo(() => {
-    const lines: string[] = ['Hello, I need a quotation. Here is the information already entered in the booking wizard:'];
-    lines.push(`- Project: ${project.title}`);
-    if (selectedPackage?.name) lines.push(`- Package: ${selectedPackage.name}`);
-    if (selectedPackage?.pricing?.type) lines.push(`- Pricing type: ${selectedPackage.pricing.type}`);
+    const lines: string[] = [t('chat.greeting')];
+    lines.push(t('chat.project', { value: project.title }));
+    if (selectedPackage?.name) {
+      lines.push(t('chat.package', { value: selectedPackage.name }));
+    }
+    if (selectedPackage?.pricing?.type) {
+      lines.push(
+        t('chat.pricingType', {
+          value: getPricingTypeLabel(selectedPackage.pricing.type),
+        })
+      );
+    }
     const bookingCollectsUsage = selectedPackage?.pricing?.type === 'unit'
       || (!selectedPackage?.pricing?.type && isUnitBasedPriceModel(project.priceModel));
     if (bookingCollectsUsage && estimatedUsage) {
-      lines.push(`- Estimated usage: ${estimatedUsage} ${getUnitLabel(project.priceModel)}`);
+      lines.push(
+        t('chat.estimatedUsage', {
+          count: estimatedUsage,
+          unit: getUnitLabelText(project.priceModel),
+        })
+      );
     }
     const selectedOptions = selectedExtraOptions
       .map((index) => project.extraOptions?.[index]?.name)
       .filter(Boolean);
-    if (selectedOptions.length > 0) lines.push(`- Selected options: ${selectedOptions.join(', ')}`);
+    if (selectedOptions.length > 0) {
+      lines.push(t('chat.selectedOptions', { value: selectedOptions.join(', ') }));
+    }
     const address = servicePlace?.formatted_address || (useProfileAddress ? user?.location?.address : manualAddress);
     const country = countryFromPlace(servicePlace) || (useProfileAddress ? user?.location?.country : undefined);
-    if (address) lines.push(`- Service address: ${address}`);
-    if (country) lines.push(`- Service country: ${country}`);
-    if (selectedDate) lines.push(`- Preferred date: ${selectedDate}`);
-    if (selectedTime) lines.push(`- Preferred time: ${selectedTime}`);
-    if (additionalNotes.trim()) lines.push(`- Additional notes: ${additionalNotes.trim()}`);
+    if (address) lines.push(t('chat.serviceAddress', { value: address }));
+    if (country) lines.push(t('chat.serviceCountry', { value: country }));
+    if (selectedDate) {
+      const parsedSelectedDate = parseISO(selectedDate);
+      lines.push(
+        t('chat.preferredDate', {
+          value:
+            Number.isNaN(parsedSelectedDate.getTime())
+              ? selectedDate
+              : format(parsedSelectedDate, 'PPP', { locale: dateFns }),
+        })
+      );
+    }
+    if (selectedTime) {
+      lines.push(t('chat.preferredTime', { value: formatClockTime(selectedTime) }));
+    }
+    if (additionalNotes.trim()) {
+      lines.push(t('chat.additionalNotes', { value: additionalNotes.trim() }));
+    }
     if (rfqAttachments.length > 0) {
-      lines.push(`- Attachments already added: ${rfqAttachments.map((attachment) => attachment.name).join(', ')}`);
+      lines.push(
+        t('chat.attachments', {
+          value: rfqAttachments.map((attachment) => attachment.name).join(', '),
+        })
+      );
     }
     if (vatPreview) {
-      lines.push(`- VAT preview: ${vatPreview.reverseCharge ? 'Reverse charge (0%)' : `${vatPreview.appliedRate}%`} for ${vatPreview.country}`);
+      lines.push(
+        vatPreview.reverseCharge
+          ? t('chat.vatPreviewReverseCharge', { country: vatPreview.country })
+          : t('chat.vatPreview', {
+            rate: vatPreview.appliedRate,
+            country: vatPreview.country,
+          })
+      );
     }
     for (const question of project.vatManagement?.reducedVatQuestions || []) {
       const answer = vatAnswers[question.fieldName]?.value;
@@ -368,18 +486,20 @@ export default function ProjectBookingForm({
       const formatted = Array.isArray(answer)
         ? answer.join(', ')
         : answer === true
-          ? 'Yes'
+          ? t('common.yes')
           : answer === false
-            ? 'No'
+            ? t('common.no')
             : String(answer);
-      lines.push(`- ${question.question}: ${formatted}`);
+      lines.push(t('chat.answer', { question: question.question, answer: formatted }));
     }
     (project.rfqQuestions || []).forEach((question, index) => {
       const answer = rfqAnswers[index]?.answer?.trim();
-      if (answer) lines.push(`- ${question.question}: ${answer}`);
+      if (answer) {
+        lines.push(t('chat.answer', { question: question.question, answer }));
+      }
     });
     return lines.length > 1 ? lines.join('\n') : '';
-  }, [project, selectedPackage, selectedExtraOptions, estimatedUsage, servicePlace, useProfileAddress, user?.location, manualAddress, selectedDate, selectedTime, additionalNotes, rfqAttachments, vatPreview, vatAnswers, rfqAnswers]);
+  }, [project, selectedPackage, selectedExtraOptions, estimatedUsage, servicePlace, useProfileAddress, user?.location, manualAddress, selectedDate, selectedTime, additionalNotes, rfqAttachments, vatPreview, vatAnswers, rfqAnswers, t, dateFns, formatClockTime, getPricingTypeLabel, getUnitLabelText]);
 
   // Best-effort VAT preview for the review step. Checkout always uses the
   // backend-computed decision, so failures here are silently ignored.
@@ -860,7 +980,7 @@ export default function ProjectBookingForm({
       }
     } catch (error) {
       debugError?.('Error fetching availability:', error);
-      toast.error('Failed to load availability calendar');
+      toast.error(t('toasts.availabilityFailed'));
     } finally {
       setLoadingAvailability(false);
     }
@@ -1614,22 +1734,19 @@ export default function ProjectBookingForm({
     const executionSource: AnyExecutionDuration | undefined =
       selectedPackage?.executionDuration || project.executionDuration;
 
-    let durationLabel = '';
-    if (executionSource) {
-      durationLabel = `${executionSource.value} ${executionSource.unit}`;
-    }
+    const durationLabel =
+      executionSource && typeof executionSource.value === 'number'
+        ? executionSource.unit === 'hours'
+          ? t('units.durationHours', { count: executionSource.value })
+          : t('units.durationDays', { count: executionSource.value })
+        : '';
 
-    // Format times to AM/PM
-    const formatTime = (time: string) => {
-      const [hours, minutes] = time.split(':').map(Number);
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-    };
+    const start = formatClockTime(startTime);
+    const end = formatClockTime(endTime);
 
-    return `${formatTime(startTime)} - ${formatTime(
-      endTime
-    )} (${durationLabel})`;
+    return durationLabel
+      ? t('schedule.timeRange', { start, end, duration: durationLabel })
+      : `${start} - ${end}`;
   };
 
   // Check if a time slot is in the past for today's date
@@ -2008,15 +2125,15 @@ export default function ProjectBookingForm({
 
       const data = await response.json();
       if (!response.ok || !data?.success || !data?.data?.url) {
-        toast.error(data?.message || 'Failed to upload attachment');
+        toast.error(data?.message || t('toasts.uploadFailed'));
         return;
       }
 
       handleRFQAnswerChange(index, data.data.url);
-      toast.success('Attachment uploaded');
+      toast.success(t('common.attachmentUploaded'));
     } catch (error) {
       console.error('Failed to upload RFQ attachment:', error);
-      toast.error('Failed to upload attachment');
+      toast.error(t('toasts.uploadFailed'));
     } finally {
       setUploadingQuestionIndexes(prev => { const next = new Set(prev); next.delete(index); return next });
     }
@@ -2025,7 +2142,7 @@ export default function ProjectBookingForm({
   const handleRfqGeneralAttachmentUpload = async (file: File | null) => {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('File must be less than 10MB');
+      toast.error(t('toasts.fileTooLarge'));
       return;
     }
     setUploadingRfqAttachment(true);
@@ -2041,14 +2158,14 @@ export default function ProjectBookingForm({
       );
       const data = await response.json();
       if (!response.ok || !data?.success || !data?.data?.url) {
-        toast.error(data?.msg || 'Failed to upload attachment');
+        toast.error(data?.msg || t('toasts.uploadFailed'));
         return;
       }
       setRfqAttachments(prev => [...prev, { url: data.data.url, name: data.data.fileName || file.name }]);
-      toast.success('Attachment uploaded');
+      toast.success(t('common.attachmentUploaded'));
     } catch (error) {
       console.error('Failed to upload RFQ attachment:', error);
-      toast.error('Failed to upload attachment');
+      toast.error(t('toasts.uploadFailed'));
     } finally {
       setUploadingRfqAttachment(false);
     }
@@ -2067,7 +2184,7 @@ export default function ProjectBookingForm({
   const validateStep = (): boolean => {
     if (currentStep === 1) {
       if (selectedPackageIndex === null || !selectedPackage) {
-        toast.error('Please select a package from the project page');
+        toast.error(t('toasts.selectPackageFromPage'));
         return false;
       }
 
@@ -2075,13 +2192,13 @@ export default function ProjectBookingForm({
         shouldCollectUsage(selectedPackage.pricing.type) &&
         (!estimatedUsage || estimatedUsage < 1)
       ) {
-        toast.error('Please provide an estimated usage amount');
+        toast.error(t('toasts.estimatedUsageRequired'));
         return false;
       }
 
       // Unit pricing: must meet minimum order quantity
       if (minOrderQuantity && estimatedUsage < minOrderQuantity) {
-        toast.error(`Minimum order quantity is ${minOrderQuantity}.`);
+        toast.error(t('toasts.minOrderQuantity', { min: minOrderQuantity }));
         return false;
       }
     }
@@ -2091,14 +2208,12 @@ export default function ProjectBookingForm({
         return true;
       }
       if (!selectedDate) {
-        toast.error('Please select a preferred start date');
+        toast.error(t('toasts.selectStartDate'));
         return false;
       }
 
       if (isDateBlocked(selectedDate)) {
-        toast.error(
-          'Selected date is not available. Please choose another date.'
-        );
+        toast.error(t('toasts.dateUnavailable'));
         return false;
       }
 
@@ -2106,25 +2221,23 @@ export default function ProjectBookingForm({
         projectMode === 'days' &&
         (loadingScheduleWindow || !scheduleWindowCompletionDate)
       ) {
-        toast.error(
-          'Selected date does not meet team availability requirements.'
-        );
+        toast.error(t('toasts.dateNotMeetingAvailability'));
         return false;
       }
 
       if (projectMode === 'hours' && loadingServerSlots) {
-        toast.error('Please wait while we load available time slots.');
+        toast.error(t('toasts.loadingSlots'));
         return false;
       }
 
       if (projectMode === 'hours' && serverSlotsError) {
-        toast.error('Could not load availability. Please try a different date.');
+        toast.error(t('toasts.slotsLoadFailed'));
         return false;
       }
 
       // Check time selection for hourly projects
       if (projectMode === 'hours' && !selectedTime) {
-        toast.error('Please select a time slot for your booking');
+        toast.error(t('toasts.selectTimeSlot'));
         return false;
       }
     }
@@ -2136,7 +2249,7 @@ export default function ProjectBookingForm({
           question.isRequired &&
           (!rfqAnswers[i] || !rfqAnswers[i].answer.trim())
         ) {
-          toast.error(`Please answer: ${question.question}`);
+          toast.error(t('toasts.answerRequired', { question: question.question }));
           return false;
         }
       }
@@ -2150,7 +2263,7 @@ export default function ProjectBookingForm({
           answer === '' ||
           (Array.isArray(answer) && answer.length === 0);
         if (question.isRequired && isMissing) {
-          toast.error(`Please answer: ${question.question}`);
+          toast.error(t('toasts.answerRequired', { question: question.question }));
           return false;
         }
       }
@@ -2159,18 +2272,18 @@ export default function ProjectBookingForm({
     if (currentStep === 4) {
       if (useProfileAddress) {
         if (!hasProfileAddress) {
-          toast.error('Please add an address to your profile or enter one.');
+          toast.error(t('toasts.profileAddressRequired'));
           return false;
         }
         if (!isServiceAddressValid) {
-          toast.error('Please confirm your profile address.');
+          toast.error(t('toasts.confirmProfileAddress'));
           return false;
         }
       } else if (!manualAddress.trim()) {
-        toast.error('Please enter the service address.');
+        toast.error(t('toasts.enterServiceAddress'));
         return false;
       } else if (!isServiceAddressValid) {
-        toast.error('Please select a valid address from the suggestions.');
+        toast.error(t('toasts.selectValidAddress'));
         return false;
       }
     }
@@ -2189,7 +2302,7 @@ export default function ProjectBookingForm({
 
   const handleNext = () => {
     if (uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment) {
-      toast.error('Please wait for all uploads to finish before continuing.');
+      toast.error(t('toasts.waitForUploads'));
       return;
     }
     if (!guardOutsideServiceArea()) return;
@@ -2210,12 +2323,12 @@ export default function ProjectBookingForm({
 
   const handleSubmit = async () => {
     if (uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment) {
-      toast.error('Please wait for all uploads to finish before submitting.');
+      toast.error(t('toasts.waitForUploadsSubmit'));
       return;
     }
 
     if (shouldPayAtCheckoutFlow && !customerPricingReady) {
-      toast.error('Please wait while we finalize pricing.');
+      toast.error(t('toasts.finalizingPricing'));
       return;
     }
 
@@ -2237,7 +2350,7 @@ export default function ProjectBookingForm({
     }
 
     if (!selectedPackage || selectedPackageIndex === null) {
-      toast.error('Please select a package before submitting');
+      toast.error(t('toasts.selectPackageBeforeSubmit'));
       return;
     }
 
@@ -2247,15 +2360,23 @@ export default function ProjectBookingForm({
     try {
       const usageRequired = shouldCollectUsage(selectedPackage.pricing.type);
       const descriptionParts: string[] = [];
-      descriptionParts.push(`Package: ${selectedPackage.name}`);
+      descriptionParts.push(
+        t('bookingDescription.package', { value: selectedPackage.name })
+      );
       if (usageRequired && estimatedUsage) {
-        descriptionParts.push(`Estimated usage: ${estimatedUsage}`);
+        descriptionParts.push(
+          t('bookingDescription.estimatedUsage', { value: estimatedUsage })
+        );
       }
       if (additionalNotes) {
-        descriptionParts.push(`Notes: ${additionalNotes}`);
+        descriptionParts.push(
+          t('bookingDescription.notes', { value: additionalNotes })
+        );
       }
       if (confirmedAddress) {
-        descriptionParts.push(`Service address: ${confirmedAddress}`);
+        descriptionParts.push(
+          t('bookingDescription.serviceAddress', { value: confirmedAddress })
+        );
       }
       const serviceDescription = descriptionParts.join('\n');
       const totalPrice = finalDisplayTotal;
@@ -2385,7 +2506,7 @@ export default function ProjectBookingForm({
           }
 
           if (returnedVatDecision?.action === 'rfq' && !returnedVatDecision?.reverseCharge) {
-            toast.info(returnedVatDecision.explanation || 'This VAT case requires quotation review. You can chat with the professional or proceed at the standard rate from your booking.');
+            toast.info(returnedVatDecision.explanation || t('toasts.vatReviewRequired'));
             // Only count as an RFQ completion when the package itself is RFQ;
             // fixed-price bookings routed here are just pending VAT review.
             if (selectedPackage?.pricing?.type === 'rfq') {
@@ -2422,7 +2543,7 @@ export default function ProjectBookingForm({
 
           if (isRfq) {
             trackCompleteRfq(project, data.booking?._id, selectedPackageIndex);
-            toast.success('Your quotation request has been submitted successfully! The professional will review your request and provide a quote.');
+            toast.success(t('toasts.rfqSubmitted'));
             router.replace('/dashboard');
             return;
           }
@@ -2457,29 +2578,23 @@ export default function ProjectBookingForm({
           // Handle specific error cases
           if (response.status === 401) {
             debugError?.('[BOOKING] Not authenticated');
-            toast.error('Please log in to submit a booking request');
+            toast.error(t('toasts.loginRequired'));
             setTimeout(() => {
               router.push('/login?redirect=/projects/' + project._id);
             }, 1500);
           } else if (response.status === 403) {
             debugError?.('[BOOKING] Permission denied');
-            toast.error(
-              data.msg || 'You do not have permission to create bookings'
-            );
+            toast.error(data.msg || t('toasts.forbidden'));
           } else if (response.status === 400) {
             debugError?.('[BOOKING] Bad request - validation error');
-            toast.error(
-              data.msg || 'Please check your booking details and try again'
-            );
+            toast.error(data.msg || t('toasts.checkDetails'));
           } else if (response.status === 404) {
             debugError?.('[BOOKING] Resource not found');
-            toast.error(data.msg || 'Project not found');
+            toast.error(data.msg || t('toasts.projectNotFound'));
           } else {
             debugError?.('[BOOKING] Unknown error status:', response.status);
             toast.error(
-              data.msg ||
-              data.message ||
-              'Failed to create booking. Please try again.'
+              data.msg || data.message || t('toasts.createFailed')
             );
           }
         }
@@ -2488,9 +2603,7 @@ export default function ProjectBookingForm({
 
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           debugError?.('[BOOKING] Request was aborted (timeout)');
-          toast.error(
-            'Request timed out. The server is taking too long to respond. Please try again.'
-          );
+          toast.error(t('toasts.timeoutServer'));
         } else {
           throw fetchError; // Re-throw to be caught by outer catch
         }
@@ -2505,15 +2618,13 @@ export default function ProjectBookingForm({
       // Network or other errors
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
         debugError?.('[BOOKING] Network/fetch error');
-        toast.error(
-          'Network error. Please check your connection and try again.'
-        );
+        toast.error(t('toasts.networkError'));
       } else if (err.name === 'AbortError') {
         debugError?.('[BOOKING] Request timeout');
-        toast.error('Request timed out. Please try again.');
+        toast.error(t('toasts.timeout'));
       } else {
         debugError?.('[BOOKING] Unexpected error type');
-        toast.error('An unexpected error occurred. Please try again.');
+        toast.error(t('toasts.unexpected'));
       }
     } finally {
       debugLog?.('[BOOKING] Request completed, resetting loading state');
@@ -2651,19 +2762,21 @@ export default function ProjectBookingForm({
     finalDisplayTotal > 0 &&
     !vatNeedsRfqReview;
   const finalStepLabel = shouldPayAtCheckoutFlow
-    ? 'Review & Pay'
-    : 'Review & Submit RFQ';
+    ? t('steps.reviewAndPay')
+    : t('steps.reviewAndSubmitRfq');
   const finalStepDescription = shouldPayAtCheckoutFlow
-    ? 'Please review your selections before proceeding to payment'
-    : 'Please review your selections before submitting your quote request';
-  const finalActionLabel = shouldPayAtCheckoutFlow ? 'Pay Now' : 'Submit RFQ';
+    ? t('steps.reviewAndPayDescription')
+    : t('steps.reviewAndSubmitRfqDescription');
+  const finalActionLabel = shouldPayAtCheckoutFlow
+    ? t('steps.payNow')
+    : t('steps.submitRfq');
   const finalActionLoadingLabel = shouldPayAtCheckoutFlow
-    ? 'Preparing Payment...'
-    : 'Submitting RFQ...';
+    ? t('steps.preparingPayment')
+    : t('steps.submittingRfq');
   const stepLabels = [
-    'Confirm Package',
-    isRfqPackage ? 'Before Booking' : 'Choose Date',
-    'Answer Questions',
+    t('steps.confirmPackage'),
+    isRfqPackage ? t('steps.beforeBooking') : t('steps.chooseDate'),
+    t('steps.answerQuestions'),
     finalStepLabel,
   ];
 
@@ -2922,14 +3035,17 @@ export default function ProjectBookingForm({
 
   const getOutsideServiceMessage = () => {
     if (!roundedMaxRadius) {
-      return 'This service is not available in your current location.';
+      return t('outsideServiceArea.noRadius');
     }
 
     if (roundedDistanceAway !== null) {
-      return `This service is only available within ${roundedMaxRadius}km. You are approximately ${roundedDistanceAway}km away from the service area.`;
+      return t('outsideServiceArea.radiusDistance', {
+        radius: roundedMaxRadius,
+        distance: roundedDistanceAway,
+      });
     }
 
-    return `This service is only available within ${roundedMaxRadius}km.`;
+    return t('outsideServiceArea.radius', { radius: roundedMaxRadius });
   };
 
   const getConsecutiveDates = (start: Date, end: Date) => {
@@ -2955,7 +3071,7 @@ export default function ProjectBookingForm({
     const tz = normalizeTimezone(professionalTimezone);
     const start = formatInTimeZone(shortestThroughputDetails.startDate, tz, 'yyyy-MM-dd');
     if (isDateBlocked(start)) {
-      toast.error('The shortest window start date is currently unavailable.');
+      toast.error(t('schedule.shortestWindowUnavailable'));
       return;
     }
     setHasUserSelectedDate(true);
@@ -3000,25 +3116,26 @@ export default function ProjectBookingForm({
         <div className='mb-8'>
           <Button variant='ghost' onClick={handleBack} className='mb-4'>
             <ArrowLeft className='h-4 w-4 mr-2' />
-            Back
+            {t('header.back')}
           </Button>
           <h1 className='text-3xl font-bold text-gray-900'>
-            Book: {project.title}
+            {t('header.title', { title: project.title })}
           </h1>
           <p className='text-gray-600 mt-2'>
-            Complete the booking process in 4 simple steps
+            {t('header.subtitle')}
           </p>
         </div>
 
         {isOutsideServiceArea && (
           <div className='mb-6 rounded-lg border border-red-200 bg-red-50 p-4'>
-            <p className='font-semibold text-red-800'>Outside service area</p>
+            <p className='font-semibold text-red-800'>
+              {t('outsideServiceArea.title')}
+            </p>
             <p className='text-sm text-red-700 mt-1'>
               {getOutsideServiceMessage()}
             </p>
             <p className='text-xs text-red-600 mt-2'>
-              Please update your profile location or choose another project
-              closer to you.
+              {t('outsideServiceArea.hint')}
             </p>
           </div>
         )}
@@ -3079,26 +3196,24 @@ export default function ProjectBookingForm({
               <div className='space-y-6'>
                 <div>
                   <h2 className='text-xl font-semibold mb-2'>
-                    Confirm Your Package
+                    {t('package.title')}
                   </h2>
                   <p className='text-gray-600 text-sm'>
-                    Each booking can include one package. Select your preferred
-                    option on the project page, then confirm it here.
+                    {t('package.description')}
                   </p>
                 </div>
 
                 {!selectedPackage && (
                   <div className='bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3'>
                     <p className='text-sm text-yellow-900'>
-                      No package selected yet. Please choose a package from the
-                      project page to continue.
+                      {t('package.noneSelected')}
                     </p>
                     <Button
                       variant='outline'
                       className='w-full'
                       onClick={onBack}
                     >
-                      Back to Packages
+                      {t('package.backToPackages')}
                     </Button>
                   </div>
                 )}
@@ -3121,16 +3236,16 @@ export default function ProjectBookingForm({
                               selectedPackage.pricing.amount && (
                                 <div className='text-2xl font-bold text-blue-600'>
                                   {!customerPricingReady ? (
-                                    <span className='inline-block h-7 w-24 animate-pulse rounded bg-gray-200' aria-label='Loading price' />
+                                    <span className='inline-block h-7 w-24 animate-pulse rounded bg-gray-200' aria-label={t('common.loadingPrice')} />
                                   ) : hasDisplayPackageDiscount ? (
                                     <div className='flex flex-col items-end'>
                                       <span className='text-base font-semibold text-gray-400 line-through'>
-                                        {formatCurrency(displayPackagePrice)}
+                                        {formatAmount(displayPackagePrice)}
                                       </span>
-                                      <span>{formatCurrency(discountedDisplayPackagePrice)}</span>
+                                      <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                     </div>
                                   ) : (
-                                    formatCurrency(displayPackagePrice ?? selectedPackage.pricing.amount)
+                                    formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)
                                   )}
                                 </div>
                               )}
@@ -3139,23 +3254,23 @@ export default function ProjectBookingForm({
                                 <div>
                                   <p className='text-2xl font-bold text-blue-600'>
                                     {hasSelectedPackageUnitDiscount
-                                      ? formatCurrency(discountedSelectedPackageUnitPrice)
-                                      : formatCurrency(
+                                      ? formatAmount(discountedSelectedPackageUnitPrice)
+                                      : formatAmount(
                                         displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
                                       )}
                                     <span className='text-sm font-normal text-gray-500 ml-1'>
-                                      /{getUnitLabel(project.priceModel)}
+                                      /{getUnitLabelText(project.priceModel)}
                                     </span>
                                   </p>
                                   {hasSelectedPackageUnitDiscount && (
                                     <p className='text-sm font-semibold text-gray-400 line-through'>
-                                      {formatCurrency(displaySelectedPackageUnitPrice)}
+                                      {formatAmount(displaySelectedPackageUnitPrice)}
                                     </p>
                                   )}
                                 </div>
                               )}
                             {selectedPackage.pricing.type === 'rfq' && (
-                              <Badge variant='outline'>RFQ</Badge>
+                              <Badge variant='outline'>{t('common.rfqBadge')}</Badge>
                             )}
                           </div>
                         </div>
@@ -3166,7 +3281,7 @@ export default function ProjectBookingForm({
                       <div className='space-y-4'>
                         <div>
                           <Label htmlFor='estimated-usage'>
-                            Estimated Usage{' '}
+                            {t('package.estimatedUsage')}{' '}
                             {project.priceModel
                               ? `(${project.priceModel})`
                               : ''}{' '}
@@ -3202,11 +3317,11 @@ export default function ProjectBookingForm({
                             )}
                           </div>
                           <p className='text-xs text-gray-500 mt-1'>
-                            Provide your best estimate
                             {project.priceModel
-                              ? ` in ${project.priceModel}`
-                              : ''}{' '}
-                            so we can calculate an indicative price.
+                              ? t('package.usageHintWithUnit', {
+                                unit: project.priceModel,
+                              })
+                              : t('package.usageHint')}
                           </p>
                         </div>
 
@@ -3214,30 +3329,30 @@ export default function ProjectBookingForm({
                           selectedPackage.pricing.amount && (
                             <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-2'>
                               <p className='text-sm text-gray-600'>
-                                Estimated Price:
+                                {t('package.estimatedPrice')}
                               </p>
                               <div className='text-4xl font-bold text-blue-600'>
                                 {!customerPricingReady ? (
-                                  <span className='inline-block h-10 w-32 animate-pulse rounded bg-gray-200' aria-label='Loading price' />
+                                  <span className='inline-block h-10 w-32 animate-pulse rounded bg-gray-200' aria-label={t('common.loadingPrice')} />
                                 ) : hasDisplayPackageDiscount ? (
                                   <div className='flex flex-col'>
                                     <span className='text-base font-semibold text-gray-400 line-through'>
-                                      {formatCurrency(displayPackagePrice)}
+                                      {formatAmount(displayPackagePrice)}
                                     </span>
-                                    <span>{formatCurrency(discountedDisplayPackagePrice)}</span>
+                                    <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                   </div>
                                 ) : (
-                                  formatCurrency(displayPackagePrice ?? getEffectivePackagePrice() ?? 0)
+                                  formatAmount(displayPackagePrice ?? getEffectivePackagePrice() ?? 0)
                                 )}
                               </div>
                               <p className='text-sm text-gray-500'>
                                 {packageUnitCount}{' '}
-                                {getUnitLabel(project.priceModel)} x{' '}
-                                {formatCurrency(
+                                {getUnitLabelText(project.priceModel)} x{' '}
+                                {formatAmount(
                                   displayPackageBreakdownUnitPrice ??
                                     selectedPackage.pricing.amount
                                 )}
-                                /{getUnitLabel(project.priceModel)}
+                                /{getUnitLabelText(project.priceModel)}
                               </p>
                             </div>
                           )}
@@ -3246,8 +3361,9 @@ export default function ProjectBookingForm({
 
                     {!shouldCollectUsage(selectedPackage.pricing.type) && (
                       <div className='rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900'>
-                        Great choice! Click <strong>Next</strong> to select your
-                        preferred start date.
+                        {t.rich('package.continueHint', {
+                          strong: (chunks) => <strong>{chunks}</strong>,
+                        })}
                       </div>
                     )}
                   </>
@@ -3259,10 +3375,11 @@ export default function ProjectBookingForm({
             {currentStep === 2 && isRfqPackage && (
               <div className='space-y-4'>
                 <div>
-                  <h2 className='text-xl font-semibold mb-2'>Before Booking</h2>
+                  <h2 className='text-xl font-semibold mb-2'>
+                    {t('schedule.rfqTitle')}
+                  </h2>
                   <p className='text-gray-600 text-sm mb-4'>
-                    Because this is an RFQ package, scheduling will happen after the professional reviews your request and provides a quote.
-                    Click &quot;Next&quot; to continue.
+                    {t('schedule.rfqBody')}
                   </p>
                 </div>
               </div>
@@ -3272,22 +3389,24 @@ export default function ProjectBookingForm({
               <div className='space-y-4'>
                 <div>
                   <h2 className='text-xl font-semibold mb-2'>
-                    Choose Preferred Start Date
+                    {t('schedule.title')}
                   </h2>
                   <p className='text-gray-600 text-sm mb-4'>
-                    Select when you&apos;d like the work to begin. Dates when
-                    team members are unavailable are disabled.
+                    {t('schedule.description')}
                   </p>
                   {blockedDates.resourcePolicy &&
                     blockedDates.resourcePolicy.minResources > 1 && (
                       <div className='bg-blue-50 border border-blue-200 rounded-md p-3 mb-4'>
                         <p className='text-sm text-blue-800'>
-                          <span className='font-medium'>Team requirement:</span>{' '}
-                          {blockedDates.resourcePolicy.minResources} of{' '}
-                          {blockedDates.resourcePolicy.totalResources} team
-                          members must be available for at least{' '}
-                          {blockedDates.resourcePolicy.minOverlapPercentage}% of
-                          the scheduled time.
+                          {t.rich('schedule.teamRequirement', {
+                            strong: (chunks) => (
+                              <span className='font-medium'>{chunks}</span>
+                            ),
+                            min: blockedDates.resourcePolicy.minResources,
+                            total: blockedDates.resourcePolicy.totalResources,
+                            percentage:
+                              blockedDates.resourcePolicy.minOverlapPercentage,
+                          })}
                         </p>
                       </div>
                     )}
@@ -3297,13 +3416,13 @@ export default function ProjectBookingForm({
                   <div className='flex items-center justify-center py-12'>
                     <Loader2 className='h-8 w-8 animate-spin text-blue-600' />
                     <p className='ml-3 text-gray-600'>
-                      Loading availability and working hours...
+                      {t('schedule.loading')}
                     </p>
                   </div>
                 ) : (
                   <div className='space-y-4'>
                     <div>
-                      <Label>Preferred Start Date *</Label>
+                      <Label>{t('schedule.preferredStartDate')}</Label>
                       <div className='mt-2'>
                         <Button
                           type='button'
@@ -3313,14 +3432,17 @@ export default function ProjectBookingForm({
                         >
                           <Calendar className='mr-2 h-4 w-4' />
                           {selectedDate
-                            ? format(parseISO(selectedDate), 'MMMM d, yyyy')
-                            : 'Select a date'}
+                            ? format(parseISO(selectedDate), 'PPP', {
+                              locale: dateFns,
+                            })
+                            : t('schedule.selectDate')}
                         </Button>
 
                         {showCalendar && (
                           <div className='mt-3 p-6 border rounded-lg bg-white shadow-xl'>
                             <DayPicker
                               mode='single'
+                              locale={dateFns}
                               selected={
                                 selectedDate
                                   ? parseISO(selectedDate)
@@ -3330,18 +3452,14 @@ export default function ProjectBookingForm({
                                 if (date) {
                                   // Prevent selection of other non-working days
                                   if (!isProfessionalWorkingDay(date)) {
-                                    toast.error(
-                                      'This day is not a working day'
-                                    );
+                                    toast.error(t('schedule.notWorkingDay'));
                                     return;
                                   }
                                   // For hours mode, check if there are available time slots
                                   if (projectMode === 'hours') {
                                     const dateStr = toLocalDateKey(date);
                                     if (isDateBlocked(dateStr)) {
-                                      toast.error(
-                                        'No available time slots on this day'
-                                      );
+                                      toast.error(t('schedule.noSlotsOnDay'));
                                       return;
                                     }
                                   }
@@ -3427,21 +3545,21 @@ export default function ProjectBookingForm({
                             <div className='mt-4 pt-4 border-t grid grid-cols-2 gap-2 text-xs'>
                               <div className='flex items-center gap-2'>
                                 <div className='w-6 h-6 bg-gray-200 border rounded opacity-70'></div>
-                                <span>Weekend (non-working)</span>
+                                <span>{t('schedule.legend.weekend')}</span>
                               </div>
                               <div className='flex items-center gap-2'>
                                 <div className='w-6 h-6 bg-red-100 border rounded line-through text-center text-red-900 opacity-50'>
                                   X
                                 </div>
-                                <span>Blocked/Booked</span>
+                                <span>{t('schedule.legend.blocked')}</span>
                               </div>
                               <div className='flex items-center gap-2'>
                                 <div className='w-6 h-6 bg-blue-500 border rounded'></div>
-                                <span>Selected</span>
+                                <span>{t('schedule.legend.selected')}</span>
                               </div>
                               <div className='flex items-center gap-2'>
                                 <div className='w-6 h-6 border-2 border-blue-500 rounded'></div>
-                                <span>Today</span>
+                                <span>{t('schedule.legend.today')}</span>
                               </div>
                             </div>
                           </div>
@@ -3454,33 +3572,34 @@ export default function ProjectBookingForm({
                       <div className='space-y-4'>
                         <div>
                           <Label className='text-base font-semibold'>
-                            Select Time Slot *
+                            {t('schedule.selectTimeSlot')}
                           </Label>
                           <p className='text-sm text-gray-600 mt-1 mb-2'>
-                            Choose your preferred start time.
+                            {t('schedule.timeSlotHint')}
                           </p>
                         </div>
 
                         {loadingServerSlots ? (
                           <div className='flex items-center justify-center py-6 text-sm text-gray-500'>
-                            <Loader2 className='animate-spin mr-2' size={16} /> Loading available times...
+                            <Loader2 className='animate-spin mr-2' size={16} />{' '}
+                            {t('schedule.loadingTimes')}
                           </div>
                         ) : serverSlotsError ? (
                           <div className='bg-amber-50 border border-amber-200 rounded-lg p-4'>
                             <p className='text-sm text-amber-900 font-semibold mb-2'>
-                              Could not load availability
+                              {t('schedule.couldNotLoadTitle')}
                             </p>
                             <p className='text-sm text-amber-800'>
-                              We could not check available times right now. Please try a different date or refresh the page.
+                              {t('schedule.couldNotLoadBody')}
                             </p>
                           </div>
                         ) : (serverSlotsForSelectedDate ?? generateTimeSlots()).length === 0 ? (
                           <div className='bg-red-50 border border-red-200 rounded-lg p-4'>
                             <p className='text-sm text-red-900 font-semibold mb-2'>
-                              No Time Slots Available
+                              {t('schedule.noSlotsTitle')}
                             </p>
                             <p className='text-sm text-red-800'>
-                              No times match team availability requirements on this date. Please pick another date.
+                              {t('schedule.noSlotsBody')}
                             </p>
                           </div>
                         ) : (
@@ -3517,10 +3636,10 @@ export default function ProjectBookingForm({
                         {proposals && (
                           <div className='mt-4 space-y-2 text-xs text-gray-600'>
                             <p className='font-semibold text-gray-700'>
-                              Suggested dates
+                              {t('schedule.suggestedDates')}
                             </p>
                             <div className='flex flex-wrap gap-2'>
-                              {proposals.earliestProposal && (
+                              {proposals.earliestProposal?.start && (
                                 <Button
                                   type='button'
                                   variant='outline'
@@ -3550,13 +3669,19 @@ export default function ProjectBookingForm({
                                     }
                                   }}
                                 >
-                                  First Available Time:{' '}
-                                  {proposals.earliestProposal.start &&
-                                    formatInTimeZone(
+                                  {t('schedule.firstAvailableTime', {
+                                    date: formatZonedDate(
                                       parseISO(proposals.earliestProposal.start),
-                                      normalizeTimezone(professionalTimezone),
-                                      'MMM d, yyyy h:mm a'
-                                    )}
+                                      professionalTimezone,
+                                      {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                      }
+                                    ),
+                                  })}
                                 </Button>
                               )}
                             </div>
@@ -3565,7 +3690,7 @@ export default function ProjectBookingForm({
                         {selectedTime && (
                           <div className='bg-green-50 border border-green-200 rounded-lg p-3 space-y-1'>
                             <p className='text-sm text-green-900'>
-                              <strong>Selected time:</strong>{' '}
+                              <strong>{t('schedule.selectedTime')}</strong>{' '}
                               {formatTimeRange(selectedTime)}
                             </p>
                           </div>
@@ -3576,8 +3701,10 @@ export default function ProjectBookingForm({
                     {selectedDate && (
                       <div className='bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3'>
                         <p className='text-sm text-blue-900'>
-                          <strong>Selected Start Date:</strong>{' '}
-                          {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
+                          <strong>{t('schedule.selectedStartDate')}</strong>{' '}
+                          {format(parseISO(selectedDate), 'PPPP', {
+                            locale: dateFns,
+                          })}
                           {projectMode === 'hours' && selectedTime && (
                             <span className='ml-2 font-bold'>
                               {formatTimeRange(selectedTime)}
@@ -3590,31 +3717,34 @@ export default function ProjectBookingForm({
                           : scheduleWindowCompletionDate) && (
                             <>
                               <p className='text-sm text-blue-900 font-semibold pt-2 border-t border-blue-300'>
-                                <strong>Projected Completion:</strong>{' '}
+                                <strong>{t('schedule.projectedCompletion')}</strong>{' '}
                                 {loadingScheduleWindow ? (
-                                  <span className='text-blue-600'>Calculating...</span>
+                                  <span className='text-blue-600'>
+                                    {t('common.calculating')}
+                                  </span>
                                 ) : projectMode === 'hours' &&
                                   projectedCompletionDateTime
-                                  ? `${format(
-                                    projectedCompletionDateTime,
-                                    'EEEE, MMMM d, yyyy'
-                                  )} at ${projectedCompletionDateTime.toLocaleTimeString(
-                                    'en-US',
-                                    {
+                                  ? t('schedule.completionAt', {
+                                    date: format(
+                                      projectedCompletionDateTime,
+                                      'PPPP',
+                                      { locale: dateFns }
+                                    ),
+                                    time: new Intl.DateTimeFormat(intl, {
                                       hour: 'numeric',
                                       minute: '2-digit',
-                                    }
-                                  )}`
+                                    }).format(projectedCompletionDateTime),
+                                  })
                                   : scheduleWindowCompletionDate
                                     ? format(
                                       scheduleWindowCompletionDate,
-                                      'EEEE, MMMM d, yyyy'
+                                      'PPPP',
+                                      { locale: dateFns }
                                     )
                                     : null}
                               </p>
                               <p className='text-xs text-blue-700 italic'>
-                                Non-working days and blocked dates are skipped
-                                automatically when calculating this estimate.
+                                {t('schedule.skippedHint')}
                               </p>
                             </>
                           )}
@@ -3623,16 +3753,16 @@ export default function ProjectBookingForm({
                           selectedDate &&
                           !scheduleWindowCompletionDate && (
                             <p className='text-sm font-semibold pt-2 border-t border-blue-300 text-red-600'>
-                              Selected date does not meet team availability.
+                              {t('schedule.doesNotMeetAvailability')}
                             </p>
                           )}
                         {projectMode === 'days' &&
                           throughputSuggestion?.exceedsSuggestion && (
                             <p className='text-sm font-semibold pt-2 border-t border-blue-300 text-amber-700'>
-                              This date is available, but it may take longer than
-                              recommended ({throughputSuggestion.throughputDays}{' '}
-                              working days vs. {throughputSuggestion.suggestionLimit}{' '}
-                              suggested).
+                              {t('schedule.throughputWarning', {
+                                days: throughputSuggestion.throughputDays,
+                                limit: throughputSuggestion.suggestionLimit,
+                              })}
                             </p>
                           )}
                         {projectMode === 'days' &&
@@ -3641,24 +3771,32 @@ export default function ProjectBookingForm({
                             <div className='border-t border-blue-300 pt-3 space-y-3'>
                               <div className='flex flex-col gap-1'>
                                 <p className='text-sm text-blue-900 font-semibold'>
-                                  <strong>Shortest Consecutive Window</strong>{' '}
+                                  <strong>{t('schedule.shortestWindow')}</strong>{' '}
                                   <span className='text-xs font-normal'>
-                                    ({shortestThroughputDetails.totalDays}{' '}
-                                    {shortestThroughputDetails.totalDays === 1
-                                      ? 'day'
-                                      : 'days'}
-                                    )
+                                    ({t('units.durationDays', {
+                                      count: shortestThroughputDetails.totalDays,
+                                    })})
                                   </span>
                                 </p>
                                 <p className='text-xs text-blue-700'>
-                                  {`${formatInTimeZone(
+                                  {`${formatZonedDate(
                                     shortestThroughputDetails.startDate,
-                                    normalizeTimezone(professionalTimezone),
-                                    'EEEE, MMMM d, yyyy'
-                                  )} - ${formatInTimeZone(
+                                    professionalTimezone,
+                                    {
+                                      weekday: 'long',
+                                      day: 'numeric',
+                                      month: 'long',
+                                      year: 'numeric',
+                                    }
+                                  )} - ${formatZonedDate(
                                     shortestThroughputDetails.endDate,
-                                    normalizeTimezone(professionalTimezone),
-                                    'EEEE, MMMM d, yyyy'
+                                    professionalTimezone,
+                                    {
+                                      weekday: 'long',
+                                      day: 'numeric',
+                                      month: 'long',
+                                      year: 'numeric',
+                                    }
                                   )}`}
                                 </p>
                               </div>
@@ -3668,7 +3806,10 @@ export default function ProjectBookingForm({
                                     key={day.toISOString()}
                                     className='px-3 py-1 text-xs rounded-full bg-white border border-blue-200 text-blue-800'
                                   >
-                                    {formatInTimeZone(day, normalizeTimezone(professionalTimezone), 'MMM d')}
+                                    {formatZonedDate(day, professionalTimezone, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}
                                   </span>
                                 ))}
                               </div>
@@ -3679,7 +3820,7 @@ export default function ProjectBookingForm({
                                 className='self-start text-xs'
                                 onClick={handleApplyShortestWindow}
                               >
-                                Use this window
+                                {t('schedule.useThisWindow')}
                               </Button>
                             </div>
                           )}
@@ -3698,11 +3839,10 @@ export default function ProjectBookingForm({
                   <div className='space-y-4 pb-6 border-b'>
                     <div>
                       <h2 className='text-xl font-semibold mb-2'>
-                        Add-On Options
+                        {t('addOns.title')}
                       </h2>
                       <p className='text-gray-600 text-sm mb-4'>
-                        Select any additional options you would like to include
-                        with your booking
+                        {t('addOns.description')}
                       </p>
                     </div>
 
@@ -3738,7 +3878,7 @@ export default function ProjectBookingForm({
                                 </div>
                                 <div className='text-right flex-shrink-0'>
                                   <p className='font-bold text-blue-600'>
-                                    +{formatCurrency(
+                                    +{formatAmount(
                                       getCustomerDisplayAmount(option.price) ?? option.price
                                     )}
                                   </p>
@@ -3754,18 +3894,20 @@ export default function ProjectBookingForm({
                     {selectedPackage && (
                       <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-3'>
                         <h3 className='font-semibold text-gray-900 mb-3'>
-                          Price Summary
+                          {t('summary.title')}
                         </h3>
 
                         {/* Base Package Price */}
                         <div className='flex justify-between items-center text-sm'>
-                          <span className='text-gray-700'>Package Price:</span>
+                          <span className='text-gray-700'>
+                            {t('summary.packagePrice')}
+                          </span>
                           <span className='font-semibold'>
                             {!customerPricingReady ? (
-                              <span className='inline-block h-4 w-20 animate-pulse rounded bg-gray-200' aria-label='Loading price' />
+                              <span className='inline-block h-4 w-20 animate-pulse rounded bg-gray-200' aria-label={t('common.loadingPrice')} />
                             ) : typeof displayPackagePrice === 'number'
-                              ? formatCurrency(displayPackagePrice)
-                              : 'Quote Required'}
+                              ? formatAmount(displayPackagePrice)
+                              : t('common.quoteRequired')}
                           </span>
                         </div>
 
@@ -3773,7 +3915,7 @@ export default function ProjectBookingForm({
                         {selectedExtraOptions.length > 0 && (
                           <div className='space-y-2 pt-2 border-t border-blue-300'>
                             <p className='text-sm font-semibold text-gray-700'>
-                              Selected Add-ons:
+                              {t('summary.selectedAddOns')}
                             </p>
                             {selectedExtraOptions.map((idx) => {
                               const option = project.extraOptions[idx];
@@ -3788,7 +3930,7 @@ export default function ProjectBookingForm({
                                     {option.name}
                                   </span>
                                   <span className='font-semibold text-green-600'>
-                                    +{formatCurrency(
+                                    +{formatAmount(
                                       getCustomerDisplayAmount(option.price) ?? option.price
                                     )}
                                   </span>
@@ -3798,10 +3940,10 @@ export default function ProjectBookingForm({
                             {/* Add-ons Subtotal */}
                             <div className='flex justify-between items-center text-sm pt-2 border-t border-blue-200'>
                               <span className='text-gray-700 font-semibold'>
-                                Add-ons Total:
+                                {t('summary.addOnsTotal')}
                               </span>
                               <span className='font-semibold'>
-                                {formatCurrency(
+                                {formatAmount(
                                   getCustomerDisplayAmount(
                                     selectedExtraOptions.reduce(
                                       (sum, idx) =>
@@ -3825,10 +3967,10 @@ export default function ProjectBookingForm({
                         {repeatBuyerDiscountAmount > 0 && (
                           <div className='flex justify-between items-center text-sm pt-2 border-t border-blue-200'>
                             <span className='text-gray-700 font-semibold'>
-                              Repeat buyer discount:
+                              {t('summary.repeatBuyerDiscount')}
                             </span>
                             <span className='font-semibold text-green-600'>
-                              -{formatCurrency(repeatBuyerDiscountAmount)}
+                              -{formatAmount(repeatBuyerDiscountAmount)}
                             </span>
                           </div>
                         )}
@@ -3837,13 +3979,13 @@ export default function ProjectBookingForm({
                         {finalDisplayTotal > 0 && (
                           <div className='flex justify-between items-center pt-3 border-t-2 border-blue-400'>
                             <span className='text-lg font-bold text-gray-900'>
-                              Grand Total:
+                              {t('summary.grandTotal')}
                             </span>
                             <span className='text-2xl font-bold text-blue-600'>
                               {customerPricingReady ? (
-                                formatCurrency(finalDisplayTotal)
+                                formatAmount(finalDisplayTotal)
                               ) : (
-                                <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label='Loading total' />
+                                <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label={t('common.loadingTotal')} />
                               )}
                             </span>
                           </div>
@@ -3851,13 +3993,15 @@ export default function ProjectBookingForm({
 
                         {shouldShowUsageBreakdown && (
                           <p className='text-xs text-gray-600 pt-2'>
-                            Based on {packageUnitCount}{' '}
-                            {getUnitLabel(project.priceModel)} at{' '}
-                            {formatCurrency(
-                              displayPackageBreakdownUnitPrice ??
-                                selectedPackage.pricing.amount
-                            )}/
-                            {getUnitLabel(project.priceModel)}
+                            {t('summary.usageBreakdown', {
+                              count: packageUnitCount,
+                              unit: getUnitLabelText(project.priceModel),
+                              price:
+                                formatAmount(
+                                  displayPackageBreakdownUnitPrice ??
+                                    selectedPackage.pricing.amount
+                                ) ?? '',
+                            })}
                           </p>
                         )}
                       </div>
@@ -3869,11 +4013,10 @@ export default function ProjectBookingForm({
                 {selectedPackage?.pricing?.type === 'rfq' && project.rfqQuestions.length > 0 && (<>
                 <div>
                   <h2 className='text-xl font-semibold mb-2'>
-                    Project Details
+                    {t('questions.title')}
                   </h2>
                   <p className='text-gray-600 text-sm mb-6'>
-                    Please answer the following questions to help us understand
-                    your needs
+                    {t('questions.description')}
                   </p>
                 </div>
 
@@ -3889,7 +4032,7 @@ export default function ProjectBookingForm({
                     {(question.professionalAttachments?.length ?? 0) > 0 && (
                         <div className='rounded-lg border border-blue-100 bg-blue-50 p-3'>
                           <p className='text-xs font-semibold text-blue-900 mb-2'>
-                            Files from the professional
+                            {t('questions.professionalFiles')}
                           </p>
                           <div className='space-y-1'>
                             {question.professionalAttachments?.map((attachment, attachmentIndex) => {
@@ -3897,8 +4040,13 @@ export default function ProjectBookingForm({
                                 typeof attachment === 'string' ? attachment : attachment.url;
                               const attachmentLabel =
                                 typeof attachment === 'string'
-                                  ? `Download attachment ${attachmentIndex + 1}`
-                                  : attachment.name?.trim() || `Download attachment ${attachmentIndex + 1}`;
+                                  ? t('questions.downloadAttachment', {
+                                    index: attachmentIndex + 1,
+                                  })
+                                  : attachment.name?.trim() ||
+                                    t('questions.downloadAttachment', {
+                                      index: attachmentIndex + 1,
+                                    });
                               return (
                               <a
                                 key={`${idx}-${attachmentIndex}`}
@@ -3919,7 +4067,7 @@ export default function ProjectBookingForm({
                     {question.type === 'text' && (
                       <Textarea
                         id={`question-${idx}`}
-                        placeholder='Your answer...'
+                        placeholder={t('questions.answerPlaceholder')}
                         value={rfqAnswers[idx]?.answer || ''}
                         onChange={(e) =>
                           handleRFQAnswerChange(idx, e.target.value)
@@ -3961,7 +4109,7 @@ export default function ProjectBookingForm({
                       <div className='border-2 border-dashed border-gray-300 rounded-lg p-6 text-center'>
                         <Upload className='h-8 w-8 text-gray-400 mx-auto mb-2' />
                         <p className='text-sm text-gray-600'>
-                          Upload a file for this question
+                          {t('questions.uploadForQuestion')}
                         </p>
                         <Input
                           type='file'
@@ -3977,7 +4125,7 @@ export default function ProjectBookingForm({
                         {uploadingQuestionIndexes.has(idx) && (
                           <div className='mt-3 inline-flex items-center text-xs text-indigo-600'>
                             <Loader2 className='h-3.5 w-3.5 mr-1 animate-spin' />
-                            Uploading...
+                            {t('common.uploading')}
                           </div>
                         )}
                         {rfqAnswers[idx]?.answer && /^https?:\/\//i.test(rfqAnswers[idx].answer) && (
@@ -3987,7 +4135,7 @@ export default function ProjectBookingForm({
                             rel='noreferrer noopener'
                             className='mt-3 inline-flex text-sm text-indigo-600 hover:underline'
                           >
-                            Open uploaded attachment
+                            {t('questions.openAttachment')}
                           </a>
                         )}
                       </div>
@@ -3999,9 +4147,11 @@ export default function ProjectBookingForm({
                 {project.vatManagement?.enabled && (project.vatManagement.reducedVatQuestions?.length ?? 0) > 0 && (
                   <div className='space-y-4 pt-4 border-t'>
                     <div>
-                      <h2 className='text-xl font-semibold mb-2'>Reduced VAT questions</h2>
+                      <h2 className='text-xl font-semibold mb-2'>
+                        {t('vat.questionsTitle')}
+                      </h2>
                       <p className='text-gray-600 text-sm'>
-                        These answers determine whether a reduced VAT route can be applied.
+                        {t('vat.questionsDescription')}
                       </p>
                     </div>
 
@@ -4042,11 +4192,11 @@ export default function ProjectBookingForm({
                             >
                               <div className='flex items-center space-x-2'>
                                 <RadioGroupItem value='yes' id={`vat-${question.fieldName}-yes`} />
-                                <Label htmlFor={`vat-${question.fieldName}-yes`} className='font-normal'>Yes</Label>
+                                <Label htmlFor={`vat-${question.fieldName}-yes`} className='font-normal'>{t('common.yes')}</Label>
                               </div>
                               <div className='flex items-center space-x-2'>
                                 <RadioGroupItem value='no' id={`vat-${question.fieldName}-no`} />
-                                <Label htmlFor={`vat-${question.fieldName}-no`} className='font-normal'>No</Label>
+                                <Label htmlFor={`vat-${question.fieldName}-no`} className='font-normal'>{t('common.no')}</Label>
                               </div>
                             </RadioGroup>
                           )}
@@ -4084,11 +4234,11 @@ export default function ProjectBookingForm({
                 {/* Additional Notes */}
                 <div className='space-y-2 pt-4 border-t'>
                   <Label htmlFor='additional-notes'>
-                    Additional Notes (Optional)
+                    {t('notes.label')}
                   </Label>
                   <Textarea
                     id='additional-notes'
-                    placeholder="Any other information you'd like to share..."
+                    placeholder={t('notes.placeholder')}
                     value={additionalNotes}
                     onChange={(e) => setAdditionalNotes(e.target.value)}
                     rows={3}
@@ -4097,9 +4247,9 @@ export default function ProjectBookingForm({
 
                 {/* Attachments */}
                 <div className='space-y-2 pt-4 border-t'>
-                  <Label>Attachments (Optional)</Label>
+                  <Label>{t('attachments.title')}</Label>
                   <p className='text-gray-500 text-xs mb-2'>
-                    Upload any relevant files (max 10MB per file)
+                    {t('attachments.hint')}
                   </p>
                   {rfqAttachments.map((att, idx) => (
                     <div key={idx} className='flex items-center gap-2 text-sm bg-gray-50 p-2 rounded'>
@@ -4110,7 +4260,7 @@ export default function ProjectBookingForm({
                         variant='ghost'
                         size='sm'
                         className='h-6 w-6 p-0'
-                        aria-label={`Remove attachment ${att.name}`}
+                        aria-label={t('attachments.remove', { name: att.name })}
                         onClick={() => removeRfqAttachment(idx)}
                       >
                         <X className='h-3 w-3' />
@@ -4133,7 +4283,7 @@ export default function ProjectBookingForm({
                     {uploadingRfqAttachment && (
                       <div className='mt-2 inline-flex items-center text-xs text-indigo-600'>
                         <Loader2 className='h-3.5 w-3.5 mr-1 animate-spin' />
-                        Uploading...
+                        {t('common.uploading')}
                       </div>
                     )}
                   </div>
@@ -4146,7 +4296,9 @@ export default function ProjectBookingForm({
               <div className='space-y-6'>
                 <div>
                   <h2 className='text-xl font-semibold mb-2'>
-                    {selectedPackage?.pricing?.type === 'rfq' ? 'Review Your Quotation Request' : 'Review Your Booking'}
+                    {selectedPackage?.pricing?.type === 'rfq'
+                      ? t('review.rfqTitle')
+                      : t('review.title')}
                   </h2>
                   <p className='text-gray-600 text-sm mb-6'>
                     {finalStepDescription}
@@ -4155,7 +4307,7 @@ export default function ProjectBookingForm({
 
                 {/* Selected Package */}
                 <div className='space-y-3'>
-                  <h3 className='font-semibold'>Selected Package</h3>
+                  <h3 className='font-semibold'>{t('review.selectedPackage')}</h3>
                   {selectedPackage ? (
                     <div className='bg-gray-50 p-4 rounded space-y-1'>
                       <p className='font-medium text-gray-900'>
@@ -4169,31 +4321,31 @@ export default function ProjectBookingForm({
                           selectedPackage.pricing.amount && (
                             <span className='font-semibold text-blue-600'>
                               {hasDisplayPackageDiscount
-                                ? formatCurrency(discountedDisplayPackagePrice)
-                                : formatCurrency(displayPackagePrice ?? selectedPackage.pricing.amount)}
+                                ? formatAmount(discountedDisplayPackagePrice)
+                                : formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)}
                             </span>
                           )}
                         {selectedPackage.pricing.type === 'unit' &&
                           selectedPackage.pricing.amount && (
                             <span className='font-semibold text-blue-600'>
                               {hasSelectedPackageUnitDiscount
-                                ? formatCurrency(discountedSelectedPackageUnitPrice)
-                                : formatCurrency(
+                                ? formatAmount(discountedSelectedPackageUnitPrice)
+                                : formatAmount(
                                   displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
                                 )}
                               <span className='text-xs font-normal text-gray-500 ml-1'>
-                                /{getUnitLabel(project.priceModel)}
+                                /{getUnitLabelText(project.priceModel)}
                               </span>
                             </span>
                           )}
                         {selectedPackage.pricing.type === 'rfq' && (
-                          <Badge variant='outline'>RFQ</Badge>
+                          <Badge variant='outline'>{t('common.rfqBadge')}</Badge>
                         )}
                       </div>
                     </div>
                   ) : (
                     <p className='text-sm text-gray-500'>
-                      No package selected.
+                      {t('review.noPackage')}
                     </p>
                   )}
                 </div>
@@ -4201,11 +4353,11 @@ export default function ProjectBookingForm({
                 {/* Selected Date */}
                 {!isRfqPackage && (
                 <div className='space-y-3'>
-                  <h3 className='font-semibold'>Project Timeline</h3>
+                  <h3 className='font-semibold'>{t('review.timeline')}</h3>
                   <div className='bg-gray-50 p-4 rounded space-y-3'>
                     <p className='text-sm'>
-                      <strong>Start Date:</strong>{' '}
-                      {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
+                      <strong>{t('review.startDate')}</strong>{' '}
+                      {format(parseISO(selectedDate), 'PPPP', { locale: dateFns })}
                       {projectMode === 'hours' && selectedTime && (
                         <span className='ml-2 font-semibold'>
                           {formatTimeRange(selectedTime)}
@@ -4217,31 +4369,34 @@ export default function ProjectBookingForm({
                       : scheduleWindowCompletionDate) && (
                         <>
                           <p className='text-sm font-semibold pt-2 border-t border-gray-300'>
-                            <strong>Expected Completion:</strong>{' '}
+                            <strong>{t('schedule.expectedCompletion')}</strong>{' '}
                             {loadingScheduleWindow ? (
-                              <span className='text-gray-500'>Calculating...</span>
+                              <span className='text-gray-500'>
+                                {t('common.calculating')}
+                              </span>
                             ) : projectMode === 'hours' &&
                               projectedCompletionDateTime
-                              ? `${format(
-                                projectedCompletionDateTime,
-                                'EEEE, MMMM d, yyyy'
-                              )} at ${projectedCompletionDateTime.toLocaleTimeString(
-                                'en-US',
-                                {
+                              ? t('schedule.completionAt', {
+                                date: format(
+                                  projectedCompletionDateTime,
+                                  'PPPP',
+                                  { locale: dateFns }
+                                ),
+                                time: new Intl.DateTimeFormat(intl, {
                                   hour: 'numeric',
                                   minute: '2-digit',
-                                }
-                              )}`
+                                }).format(projectedCompletionDateTime),
+                              })
                               : scheduleWindowCompletionDate
                                 ? format(
                                   scheduleWindowCompletionDate,
-                                  'EEEE, MMMM d, yyyy'
+                                  'PPPP',
+                                  { locale: dateFns }
                                 )
                                 : null}
                           </p>
                           <p className='text-xs text-gray-600 italic'>
-                            Non-working days and blocked dates are automatically excluded
-                            from this estimate.
+                            {t('schedule.skippedHintReview')}
                           </p>
                         </>
                       )}
@@ -4250,16 +4405,16 @@ export default function ProjectBookingForm({
                       selectedDate &&
                       !scheduleWindowCompletionDate && (
                         <p className='text-sm font-semibold pt-2 border-t border-gray-300 text-red-600'>
-                          Selected date does not meet team availability.
+                          {t('schedule.doesNotMeetAvailability')}
                         </p>
                       )}
                     {projectMode === 'days' &&
                       throughputSuggestion?.exceedsSuggestion && (
                         <p className='text-sm font-semibold pt-2 border-t border-gray-300 text-amber-700'>
-                          This date is available, but it may take longer than
-                          recommended ({throughputSuggestion.throughputDays}{' '}
-                          working days vs. {throughputSuggestion.suggestionLimit}{' '}
-                          suggested).
+                          {t('schedule.throughputWarning', {
+                            days: throughputSuggestion.throughputDays,
+                            limit: throughputSuggestion.suggestionLimit,
+                          })}
                         </p>
                       )}
                     {projectMode === 'days' &&
@@ -4268,24 +4423,32 @@ export default function ProjectBookingForm({
                         <div className='border-t border-gray-300 pt-3 space-y-3'>
                           <div className='flex flex-col gap-1'>
                             <p className='text-sm font-semibold'>
-                              <strong>Shortest Consecutive Window</strong>{' '}
+                              <strong>{t('schedule.shortestWindow')}</strong>{' '}
                               <span className='text-xs font-normal'>
-                                ({shortestThroughputDetails.totalDays}{' '}
-                                {shortestThroughputDetails.totalDays === 1
-                                  ? 'day'
-                                  : 'days'}
-                                )
+                                ({t('units.durationDays', {
+                                  count: shortestThroughputDetails.totalDays,
+                                })})
                               </span>
                             </p>
                             <p className='text-xs text-gray-600'>
-                              {`${formatInTimeZone(
+                              {`${formatZonedDate(
                                 shortestThroughputDetails.startDate,
-                                normalizeTimezone(professionalTimezone),
-                                'EEEE, MMMM d, yyyy'
-                              )} - ${formatInTimeZone(
+                                professionalTimezone,
+                                {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'long',
+                                  year: 'numeric',
+                                }
+                              )} - ${formatZonedDate(
                                 shortestThroughputDetails.endDate,
-                                normalizeTimezone(professionalTimezone),
-                                'EEEE, MMMM d, yyyy'
+                                professionalTimezone,
+                                {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'long',
+                                  year: 'numeric',
+                                }
                               )}`}
                             </p>
                           </div>
@@ -4295,7 +4458,10 @@ export default function ProjectBookingForm({
                                 key={day.toISOString()}
                                 className='px-3 py-1 text-xs rounded-full bg-white border border-gray-300 text-gray-800'
                               >
-                                {formatInTimeZone(day, normalizeTimezone(professionalTimezone), 'MMM d')}
+                                {formatZonedDate(day, professionalTimezone, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
                               </span>
                             ))}
                           </div>
@@ -4307,7 +4473,7 @@ export default function ProjectBookingForm({
 
                 {/* Service Address Confirmation */}
                 <div className='space-y-3'>
-                  <h3 className='font-semibold'>Service Address</h3>
+                  <h3 className='font-semibold'>{t('review.serviceAddress')}</h3>
                   <div className='bg-gray-50 p-4 rounded space-y-3'>
                     <div className='flex items-center space-x-2'>
                       <Checkbox
@@ -4324,7 +4490,7 @@ export default function ProjectBookingForm({
                         disabled={!hasProfileAddress}
                       />
                       <Label htmlFor='use-profile-address'>
-                        Same as profile address
+                        {t('review.sameAsProfile')}
                       </Label>
                     </div>
                     <AddressAutocomplete
@@ -4337,7 +4503,7 @@ export default function ProjectBookingForm({
                       onValidation={setIsServiceAddressValid}
                       useCompanyAddress={useProfileAddress}
                       companyAddress={profileAddress}
-                      label='Service Address'
+                      label={t('review.serviceAddress')}
                       required
                     />
                   </div>
@@ -4346,7 +4512,7 @@ export default function ProjectBookingForm({
                 {/* Attachments review */}
                 {rfqAttachments.length > 0 && (
                   <div className='space-y-3'>
-                    <h3 className='font-semibold'>Attachments</h3>
+                    <h3 className='font-semibold'>{t('attachments.reviewTitle')}</h3>
                     <div className='bg-gray-50 p-4 rounded space-y-2'>
                       {rfqAttachments.map((att, idx) => (
                         <div key={idx} className='flex items-center gap-2 text-sm'>
@@ -4363,25 +4529,24 @@ export default function ProjectBookingForm({
                   selectedPackage &&
                   shouldPayAtCheckoutFlow && (
                     <div className='space-y-3'>
-                      <h3 className='font-semibold'>Member Savings</h3>
+                      <h3 className='font-semibold'>{t('loyalty.title')}</h3>
                       <div className='bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4'>
                         <div className='flex items-center justify-between gap-3'>
                           <div>
                             <p className='text-sm font-semibold text-amber-900'>
                               {user.loyaltyLevel
-                                ? `${user.loyaltyLevel} Member`
-                                : 'Loyalty Member'}
+                                ? t('loyalty.level', { level: user.loyaltyLevel })
+                                : t('loyalty.member')}
                             </p>
                             <p className='text-xs text-amber-800 mt-1'>
-                              Your tier savings and any returning-customer discount
-                              are calculated automatically before payment.
+                              {t('loyalty.description')}
                             </p>
                           </div>
                           <Badge
                             variant='outline'
                             className='border-amber-300 bg-white text-amber-800'
                           >
-                            {user.loyaltyLevel || 'Customer'}
+                            {user.loyaltyLevel || t('loyalty.customer')}
                           </Badge>
                         </div>
                       </div>
@@ -4391,28 +4556,33 @@ export default function ProjectBookingForm({
                 {/* Price Breakdown */}
                 {selectedPackage && (
                   <div className='space-y-3'>
-                    <h3 className='font-semibold'>Price Summary</h3>
+                    <h3 className='font-semibold'>{t('summary.title')}</h3>
                     <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-3'>
                       {/* Base Package Price */}
                       <div className='flex justify-between items-center text-sm'>
-                        <span className='text-gray-700'>Package Price:</span>
+                        <span className='text-gray-700'>
+                          {t('summary.packagePrice')}
+                        </span>
                         <span className='font-semibold'>
                           {selectedPackage.pricing.type === 'rfq'
-                            ? 'Quote Required'
+                            ? t('common.quoteRequired')
                             : typeof displayPackagePrice === 'number'
-                              ? formatCurrency(displayPackagePrice)
-                              : 'Quote Required'}
+                              ? formatAmount(displayPackagePrice)
+                              : t('common.quoteRequired')}
                         </span>
                       </div>
 
                       {shouldShowUsageBreakdown && (
                         <p className='text-xs text-gray-600'>
-                          ({packageUnitCount} {getUnitLabel(project.priceModel)} x{' '}
-                          {formatCurrency(
-                            displayPackageBreakdownUnitPrice ??
-                              selectedPackage.pricing.amount
-                          )}/
-                          {getUnitLabel(project.priceModel)})
+                          {t('summary.usageBreakdown', {
+                            count: packageUnitCount,
+                            unit: getUnitLabelText(project.priceModel),
+                            price:
+                              formatAmount(
+                                displayPackageBreakdownUnitPrice ??
+                                  selectedPackage.pricing.amount
+                              ) ?? '',
+                          })}
                         </p>
                       )}
 
@@ -4420,7 +4590,7 @@ export default function ProjectBookingForm({
                       {selectedPackage?.pricing?.type !== 'rfq' && selectedExtraOptions.length > 0 && (
                         <div className='space-y-2 pt-2 border-t border-blue-300'>
                           <p className='text-sm font-semibold text-gray-700'>
-                            Selected Add-ons:
+                            {t('summary.selectedAddOns')}
                           </p>
                           {selectedExtraOptions.map((idx) => {
                             const option = project.extraOptions[idx];
@@ -4446,7 +4616,7 @@ export default function ProjectBookingForm({
                                   </div>
                                 </div>
                                 <span className='font-semibold text-green-600 ml-4 flex-shrink-0'>
-                                  +{formatCurrency(
+                                  +{formatAmount(
                                     getCustomerDisplayAmount(option.price) ?? option.price
                                   )}
                                 </span>
@@ -4457,10 +4627,10 @@ export default function ProjectBookingForm({
                           {/* Add-ons Subtotal */}
                           <div className='flex justify-between items-center text-sm pt-2 border-t border-blue-200'>
                             <span className='text-gray-700 font-semibold'>
-                              Add-ons Total:
+                              {t('summary.addOnsTotal')}
                             </span>
                             <span className='font-semibold'>
-                              {formatCurrency(
+                              {formatAmount(
                                 getCustomerDisplayAmount(
                                   selectedExtraOptions.reduce(
                                     (sum, idx) =>
@@ -4484,10 +4654,10 @@ export default function ProjectBookingForm({
                       {repeatBuyerDiscountAmount > 0 && (
                         <div className='flex justify-between items-center text-sm pt-2 border-t border-blue-200'>
                           <span className='text-gray-700 font-semibold'>
-                            Repeat buyer discount:
+                            {t('summary.repeatBuyerDiscount')}
                           </span>
                           <span className='font-semibold text-green-600'>
-                            -{formatCurrency(repeatBuyerDiscountAmount)}
+                            -{formatAmount(repeatBuyerDiscountAmount)}
                           </span>
                         </div>
                       )}
@@ -4499,18 +4669,27 @@ export default function ProjectBookingForm({
 
                       {/* Grand Total */}
                       {finalDisplayTotal > 0 && (
-                        <div className='flex justify-between items-center'>
-                          <span className='text-lg font-bold text-gray-900'>
-                            Grand Total{vatPreview && !vatPreview.reverseCharge && vatPreview.action !== 'rfq' ? ' (excl. VAT)' : ''}:
-                          </span>
-                          <span className='text-2xl font-bold text-blue-600'>
-                            {customerPricingReady ? (
-                              formatCurrency(finalDisplayTotal)
-                            ) : (
-                              <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label='Loading total' />
-                            )}
-                          </span>
-                        </div>
+                        <>
+                          <div className='flex justify-between items-center'>
+                            <span className='text-lg font-bold text-gray-900'>
+                              {vatPreview && !vatPreview.reverseCharge && vatPreview.action !== 'rfq'
+                                ? t('vat.grandTotalExclVat')
+                                : t('summary.grandTotal')}
+                            </span>
+                            <span className='text-2xl font-bold text-blue-600'>
+                              {customerPricingReady ? (
+                                formatAmount(finalDisplayTotal)
+                              ) : (
+                                <span className='inline-block h-7 w-28 animate-pulse rounded bg-gray-200' aria-label={t('common.loadingTotal')} />
+                              )}
+                            </span>
+                          </div>
+                          {currency !== 'EUR' && (
+                            <p className='text-xs text-gray-600'>
+                              {t('chargeNote')}
+                            </p>
+                          )}
+                        </>
                       )}
 
                       {/* Estimated VAT */}
@@ -4520,24 +4699,26 @@ export default function ProjectBookingForm({
                             <div className='space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3'>
                               <p className='text-amber-800'>
                                 {vatPreview.explanation ||
-                                  'Your answers require a VAT review or quotation.'}
+                                  t('vat.reviewRequiredFallback')}
                               </p>
                               {proceedAtStandardVat ? (
                                 <p className='text-xs text-green-700'>
-                                  You chose to proceed at the standard VAT rate (
-                                  {vatPreview.standardRate}%). Submit to continue checkout.
+                                  {t('vat.proceededAtStandard', {
+                                    rate: vatPreview.standardRate,
+                                  })}
                                 </p>
                               ) : (
                                 <p className='text-xs text-amber-700'>
-                                  Chat with the professional for a quotation, or proceed at the
-                                  standard VAT rate ({vatPreview.standardRate}%).
+                                  {t('vat.chatOrProceed', {
+                                    rate: vatPreview.standardRate,
+                                  })}
                                 </p>
                               )}
                               <div className='flex flex-wrap gap-2'>
                                 {project.professionalId?._id && (
                                   <StartChatButton
                                     professionalId={project.professionalId._id}
-                                    label='Chat for quotation'
+                                    label={t('vat.chatForQuotation')}
                                     size='sm'
                                     initialMessage={rfqChatPrefill}
                                   />
@@ -4549,7 +4730,7 @@ export default function ProjectBookingForm({
                                     variant='outline'
                                     onClick={() => setProceedAtStandardVat(true)}
                                   >
-                                    Proceed at standard VAT rate
+                                    {t('vat.proceedAtStandard')}
                                   </Button>
                                 )}
                                 {proceedAtStandardVat && (
@@ -4559,7 +4740,7 @@ export default function ProjectBookingForm({
                                     variant='ghost'
                                     onClick={() => setProceedAtStandardVat(false)}
                                   >
-                                    Undo standard rate
+                                    {t('vat.undoStandard')}
                                   </Button>
                                 )}
                               </div>
@@ -4567,28 +4748,34 @@ export default function ProjectBookingForm({
                           ) : vatPreview.reverseCharge ? (
                             <>
                               <div className='flex justify-between text-gray-700'>
-                                <span>VAT (Reverse Charge)</span>
-                                <span>{formatCurrency(0)}</span>
+                                <span>{t('vat.reverseCharge')}</span>
+                                <span>{formatAmount(0)}</span>
                               </div>
                               <p className='text-xs text-gray-600'>
-                                {vatPreview.explanation || 'Reverse Charge — VAT is accounted for by the customer.'}
+                                {vatPreview.explanation ||
+                                  t('vat.reverseChargeFallback')}
                               </p>
                             </>
                           ) : (
                             <>
                               <div className='flex justify-between text-gray-700'>
                                 <span>
-                                  Estimated VAT ({vatPreview.appliedRate}%
-                                  {vatPreview.action === 'reduced_rate' ? ' reduced rate' : ''})
+                                  {vatPreview.action === 'reduced_rate'
+                                    ? t('vat.estimatedReduced', {
+                                      rate: vatPreview.appliedRate,
+                                    })
+                                    : t('vat.estimated', {
+                                      rate: vatPreview.appliedRate,
+                                    })}
                                 </span>
                                 <span>
-                                  {formatCurrency(Math.round(finalDisplayTotal * vatPreview.appliedRate) / 100)}
+                                  {formatAmount(Math.round(finalDisplayTotal * vatPreview.appliedRate) / 100)}
                                 </span>
                               </div>
                               <div className='flex justify-between font-semibold text-gray-900'>
-                                <span>Estimated total incl. VAT</span>
+                                <span>{t('vat.totalInclVat')}</span>
                                 <span>
-                                  {formatCurrency(
+                                  {formatAmount(
                                     Math.round(finalDisplayTotal * (100 + vatPreview.appliedRate)) / 100
                                   )}
                                 </span>
@@ -4603,16 +4790,17 @@ export default function ProjectBookingForm({
 
                       {selectedPackage.pricing.type !== 'rfq' && (
                         <p className='text-xs text-gray-600 pt-2 border-t border-blue-200'>
-                          *Final price may vary based on professional&apos;s
-                          assessment
+                          {t('summary.finalPriceNote')}
                         </p>
                       )}
                       {selectedPackage.pricing.type === 'rfq' && project.professionalId?._id && (
                         <div className='pt-3 border-t border-blue-200'>
-                          <p className='text-sm text-gray-700 mb-2'>Want to clarify anything before submitting? The professional will see the booking details above.</p>
+                          <p className='text-sm text-gray-700 mb-2'>
+                            {t('review.rfqClarify')}
+                          </p>
                           <StartChatButton
                             professionalId={project.professionalId._id}
-                            label='Chat for quotation'
+                            label={t('vat.chatForQuotation')}
                             size='sm'
                             initialMessage={rfqChatPrefill}
                           />
@@ -4629,12 +4817,12 @@ export default function ProjectBookingForm({
         {/* Navigation Buttons */}
         <div className='flex justify-between mt-6'>
           <Button variant='outline' onClick={handleBack}>
-            {currentStep === 1 ? 'Cancel' : 'Previous'}
+            {currentStep === 1 ? t('common.cancel') : t('common.previous')}
           </Button>
 
           {currentStep < 4 ? (
             <Button onClick={handleNext} disabled={isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment}>
-              Next Step
+              {t('common.nextStep')}
             </Button>
           ) : (
             <Button

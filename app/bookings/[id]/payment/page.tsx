@@ -7,11 +7,14 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { StripeProvider } from '@/components/stripe/StripeProvider';
 import { PaymentForm } from '@/components/stripe/PaymentForm';
 import { FileText, Loader2, Calendar } from 'lucide-react';
-import type { ProjectAttachmentRef, ProjectDto } from '@/types/project';
+import type { ProjectDto } from '@/types/project';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { format, addDays, parseISO, startOfDay, isWeekend as dateFnsIsWeekend, eachDayOfInterval } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
@@ -189,20 +192,6 @@ interface ScheduleWindowPreview {
 
 const MAX_PAYMENT_RETRY_ATTEMPTS = 3;
 const PAYMENT_RETRY_DELAY_MS = 2000;
-const formatMoney = (amount: number, currencyCode = 'EUR'): string =>
-  `${currencyCode.toUpperCase()} ${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-const getAttachmentUrl = (attachment: ProjectAttachmentRef): string =>
-  typeof attachment === 'string' ? attachment : attachment.url;
-const getAttachmentLabel = (
-  attachment: ProjectAttachmentRef,
-  index: number
-): string =>
-  typeof attachment === 'string'
-    ? `Download attachment ${index + 1}`
-    : attachment.name?.trim() || `Download attachment ${index + 1}`;
 const getScheduleSelectionKey = (
   startDate: string,
   startTime: string,
@@ -213,6 +202,9 @@ export default function BookingPaymentPage() {
   const router = useRouter();
   const params = useParams();
   const bookingId = params.id as string;
+  const t = useTranslations('checkout');
+  const { formatMoney, currency: displayCurrency } = useCurrency();
+  const { intl, dateFns } = useFormatLocale();
   const { commissionPercent, customerPrice, loyalty, loyaltyLoaded, originalPrice } = useCustomerPricing();
   const customerPricingReady = commissionPercent != null && loyaltyLoaded;
 
@@ -271,7 +263,7 @@ export default function BookingPaymentPage() {
       {
         ...currentQuoteVersion,
         milestones: booking.milestonePayments.map((milestone, index) => ({
-          title: milestone.title || `Milestone ${index + 1}`,
+          title: milestone.title || t('paymentPage.milestoneFallback', { number: index + 1 }),
           amount: milestone.amount ?? 0,
           dueCondition: 'on_start',
           order: index,
@@ -280,7 +272,7 @@ export default function BookingPaymentPage() {
       },
       customerPricingReady ? customerPrice : undefined
     );
-  }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice, hasUsableQuoteTotal]);
+  }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice, hasUsableQuoteTotal, t]);
 
   const getMilestoneDisplayAmount = useCallback((index: number, netAmount: number) => {
     const grossAmount = milestoneGrossAmounts[index];
@@ -506,7 +498,7 @@ export default function BookingPaymentPage() {
     if (scheduleMode === 'hours' && !selectedStartTime) {
       setScheduleWindow(null);
       setValidatedScheduleSelectionKey('');
-      setScheduleValidationMessage('Select a valid start time to continue.');
+      setScheduleValidationMessage(t('paymentPage.validation.selectValidStartTime'));
       setValidatingScheduleSelection(false);
       return;
     }
@@ -515,7 +507,7 @@ export default function BookingPaymentPage() {
     if (selectedStartDate < earliestDate) {
       setScheduleWindow(null);
       setValidatedScheduleSelectionKey('');
-      setScheduleValidationMessage(`Please choose ${earliestDate} or later.`);
+      setScheduleValidationMessage(t('paymentPage.validation.chooseDateOrLater', { date: earliestDate }));
       setValidatingScheduleSelection(false);
       return;
     }
@@ -564,7 +556,7 @@ export default function BookingPaymentPage() {
           );
         } else {
           setScheduleValidationMessage(
-            data?.error || 'The selected schedule is not available. Please choose a different option.'
+            data?.error || t('paymentPage.validation.scheduleUnavailable')
           );
         }
       } catch (err) {
@@ -572,7 +564,7 @@ export default function BookingPaymentPage() {
           return;
         }
         console.error('Failed to validate project schedule:', err);
-        setScheduleValidationMessage('Unable to verify the selected schedule right now.');
+        setScheduleValidationMessage(t('paymentPage.validation.unableToVerify'));
       } finally {
         if (!controller.signal.aborted) {
           setValidatingScheduleSelection(false);
@@ -591,6 +583,7 @@ export default function BookingPaymentPage() {
     scheduleStep,
     selectedStartDate,
     selectedStartTime,
+    t,
   ]);
 
   const handleConfirmSchedule = async () => {
@@ -608,12 +601,12 @@ export default function BookingPaymentPage() {
 
       if (requiresProjectSchedule) {
         if (loadingScheduleProposals || validatingScheduleSelection) {
-          setError('Please wait for project availability to finish loading.');
+          setError(t('paymentPage.validation.waitAvailabilityLoading'));
           return;
         }
 
         if (!scheduleProposals || scheduleProposalsFailed || !scheduleMode) {
-          setError('Project availability must load successfully before you can continue.');
+          setError(t('paymentPage.validation.availabilityMustLoad'));
           return;
         }
 
@@ -621,7 +614,7 @@ export default function BookingPaymentPage() {
           validatedScheduleSelectionKey !== currentSelectionKey ||
           !scheduleWindow
         ) {
-          setError('Please choose a valid available schedule before continuing.');
+          setError(t('paymentPage.validation.chooseValidSchedule'));
           return;
         }
       }
@@ -647,10 +640,10 @@ export default function BookingPaymentPage() {
         setScheduleStep(false);
         await ensurePaymentIntent(bookingId, updatedBooking);
       } else {
-        setError(data?.error?.message || 'Failed to save schedule');
+        setError(data?.error?.message || t('paymentPage.validation.saveScheduleFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save schedule');
+      setError(err instanceof Error ? err.message : t('paymentPage.validation.saveScheduleFailed'));
     } finally {
       setSavingSchedule(false);
     }
@@ -701,14 +694,14 @@ export default function BookingPaymentPage() {
 
         console.warn('[PAYMENT PAGE] ensurePaymentIntent succeeded but no client secret returned.');
         restoreClientSecretOnError();
-        return { ok: false, errorMessage: 'Payment initialization did not return a client secret.', booking: nextBooking };
+        return { ok: false, errorMessage: t('paymentPage.errors.noClientSecret'), booking: nextBooking };
       }
 
       const message =
         (data?.error?.message || data?.msg) ??
         (response.status === 404
-          ? 'Payment initialization endpoint is unavailable. Please contact support.'
-          : 'Failed to initialize payment intent.');
+          ? t('paymentPage.errors.endpointUnavailable')
+          : t('paymentPage.errors.initPaymentFailed'));
       console.error('[PAYMENT PAGE] ensurePaymentIntent failed:', message);
       if (!suppressGlobalError) {
         setError(message);
@@ -716,7 +709,7 @@ export default function BookingPaymentPage() {
       restoreClientSecretOnError();
       return { ok: false, errorMessage: message };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to initialize payment intent.';
+      const message = err instanceof Error ? err.message : t('paymentPage.errors.initPaymentFailed');
       console.error('[PAYMENT PAGE] ensurePaymentIntent error:', err);
       if (!suppressGlobalError) {
         setError(message);
@@ -726,12 +719,12 @@ export default function BookingPaymentPage() {
     } finally {
       setInitializingPayment(false);
     }
-  }, [API_URL, router]);
+  }, [API_URL, router, t]);
 
   const handleApplyDiscountCode = useCallback(async () => {
     const code = discountCodeInput.trim().toUpperCase();
     if (!code) {
-      setCodeError('Enter a code to apply.');
+      setCodeError(t('paymentPage.discount.enterCode'));
       return;
     }
     if (!bookingId) return;
@@ -739,7 +732,7 @@ export default function BookingPaymentPage() {
     setCodeError(null);
     const result = await ensurePaymentIntent(bookingId, booking, code);
     if (!result.ok) {
-      setCodeError(result.errorMessage || 'Unable to apply discount code.');
+      setCodeError(result.errorMessage || t('paymentPage.discount.unableToApply'));
       setApplyingCode(false);
       return;
     }
@@ -751,10 +744,10 @@ export default function BookingPaymentPage() {
       setAppliedDiscountCode(appliedDiscount?.codeLabel || code);
       setDiscountCodeInput('');
     } else {
-      setCodeError('This code is not applicable to your booking.');
+      setCodeError(t('paymentPage.discount.notApplicable'));
     }
     setApplyingCode(false);
-  }, [bookingId, booking, discountCodeInput, ensurePaymentIntent]);
+  }, [bookingId, booking, discountCodeInput, ensurePaymentIntent, t]);
 
   const handleRemoveDiscountCode = useCallback(async () => {
     if (!bookingId) return;
@@ -762,10 +755,10 @@ export default function BookingPaymentPage() {
     setCodeError(null);
     const result = await ensurePaymentIntent(bookingId, booking, '');
     if (!result.ok) {
-      setCodeError(result.errorMessage || 'Unable to remove discount code.');
+      setCodeError(result.errorMessage || t('paymentPage.discount.unableToRemove'));
     }
     setApplyingCode(false);
-  }, [bookingId, booking, ensurePaymentIntent]);
+  }, [bookingId, booking, ensurePaymentIntent, t]);
 
   const loadBookingPaymentDetails = useCallback(async (currentBookingId: string, attempt = 1) => {
     if (retryTimeoutRef.current) {
@@ -784,7 +777,7 @@ export default function BookingPaymentPage() {
       const bookingData = await bookingResponse.json();
 
       if (!bookingData.success) {
-        setError('Failed to load booking details');
+        setError(t('paymentPage.errors.loadBookingFailed'));
         setLoading(false);
         return;
       }
@@ -838,14 +831,14 @@ export default function BookingPaymentPage() {
       }
 
       setInitializingPayment(false);
-      setError((prev) => prev || 'Payment information could not be initialized automatically. Please contact support or retry later.');
+      setError((prev) => prev || t('paymentPage.errors.paymentInfoInitFailed'));
 
     } catch (err) {
       console.error('Error loading payment details:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load payment details');
+      setError(err instanceof Error ? err.message : t('paymentPage.errors.loadPaymentDetailsFailed'));
       setLoading(false);
     }
-  }, [API_URL, ensurePaymentIntent, loadScheduleProposals, loadAvailability, loadWorkingHours, router]);
+  }, [API_URL, ensurePaymentIntent, loadScheduleProposals, loadAvailability, loadWorkingHours, router, t]);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -898,14 +891,14 @@ export default function BookingPaymentPage() {
         if (data.error?.code === 'payment_intent_unexpected_state') {
           router.push(`/bookings/${bookingId}/payment/success`);
         } else {
-          setError(data.error?.message || 'Payment confirmation failed');
+          setError(data.error?.message || t('paymentPage.errors.paymentConfirmFailed'));
           setLoading(false);
         }
       }
 
     } catch (err) {
       console.error('Error confirming payment:', err);
-      setError(err instanceof Error ? err.message : 'Failed to confirm payment');
+      setError(err instanceof Error ? err.message : t('paymentPage.errors.confirmPaymentFailed'));
       setLoading(false);
     } finally {
       setConfirming(false);
@@ -918,8 +911,12 @@ export default function BookingPaymentPage() {
     // router.push(`/bookings/${bookingId}/payment/failed?error=${encodeURIComponent(errorMessage)}`);
   };
 
-  const paymentCurrency = booking?.payment?.currency?.toUpperCase() || 'EUR';
   const discountInfo = booking?.payment?.discount;
+  // Payments are charged in the payment's own currency; formatting never converts.
+  const paymentCurrency = booking?.payment?.currency?.toUpperCase() || 'EUR';
+  const appliedDiscountDisplay = appliedDiscountCode === 'APPLIED'
+    ? t('paymentPage.discount.appliedFallback')
+    : appliedDiscountCode;
   const hasDiscountBreakdown = (discountInfo?.totalDiscount ?? 0) > 0;
   const persistedCodeLabel = discountInfo?.codeLabel ?? null;
   const persistedCodeAmount = discountInfo?.codeDiscountAmount ?? 0;
@@ -982,8 +979,8 @@ export default function BookingPaymentPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-6 text-lg font-medium text-gray-700">Processing payment...</p>
-          <p className="mt-2 text-sm text-gray-500">Please wait, do not close this page</p>
+          <p className="mt-6 text-lg font-medium text-gray-700">{t('paymentPage.loading.processingPayment')}</p>
+          <p className="mt-2 text-sm text-gray-500">{t('paymentPage.loading.pleaseWait')}</p>
         </div>
       </div>
     );
@@ -999,14 +996,14 @@ export default function BookingPaymentPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Error</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('paymentPage.errorTitle')}</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <button
               type="button"
               onClick={() => router.push('/bookings')}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700"
             >
-              Back to Bookings
+              {t('paymentPage.backToBookings')}
             </button>
           </div>
         </div>
@@ -1043,30 +1040,32 @@ export default function BookingPaymentPage() {
         <div className="max-w-3xl mx-auto">
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="bg-blue-600 px-6 py-4">
-              <h1 className="text-2xl font-bold text-white">Complete Your Booking</h1>
+              <h1 className="text-2xl font-bold text-white">{t('paymentPage.completeBooking')}</h1>
               <p className="text-blue-100 text-sm mt-1">
-                {booking?.quotationNumber ? `Quotation #${booking.quotationNumber}` : `Booking #${booking?.bookingNumber || bookingId.slice(-6)}`}
+                {booking?.quotationNumber
+                  ? t('paymentPage.quotationNumber', { number: booking.quotationNumber })
+                  : t('paymentPage.bookingNumber', { number: booking?.bookingNumber || bookingId.slice(-6) })}
               </p>
             </div>
 
             <div className="px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Booking Summary</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('paymentPage.summaryTitle')}</h2>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Service:</span>
+                  <span className="text-gray-600">{t('paymentPage.serviceLabel')}</span>
                   <span className="font-medium text-gray-900">
-                    {booking?.project?.title || booking?.quote?.description || booking?.rfqDetails?.description || 'Property Service'}
+                    {booking?.project?.title || booking?.quote?.description || booking?.rfqDetails?.description || t('paymentPage.serviceFallback')}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Professional:</span>
+                  <span className="text-gray-600">{t('paymentPage.professionalLabel')}</span>
                   <span className="font-medium text-gray-900">
-                    {booking?.professional?.username || 'N/A'}
+                    {booking?.professional?.username || t('paymentPage.notAvailable')}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">
-                    {currentQuoteTotals ? 'Quote Total (incl. VAT):' : 'Quote Amount:'}
+                    {currentQuoteTotals ? t('paymentPage.quoteTotalInclVat') : t('paymentPage.quoteAmount')}
                   </span>
                   <span className="font-medium text-gray-900">
                     {customerPricingReady
@@ -1079,7 +1078,7 @@ export default function BookingPaymentPage() {
                 </div>
                 {currentQuoteTotals && customerPricingReady && currentQuoteTotals.vatAmount > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">VAT included:</span>
+                    <span className="text-gray-500">{t('paymentPage.vatIncluded')}</span>
                     <span className="text-gray-700">
                       {formatMoney(currentQuoteTotals.vatAmount, booking?.quote?.currency?.toUpperCase() || 'EUR')}
                     </span>
@@ -1088,12 +1087,14 @@ export default function BookingPaymentPage() {
                 {booking?.milestonePayments && booking.milestonePayments.length > 0 && (
                   <div className="mt-3 pt-3 border-t">
                     <p className="text-sm font-medium text-gray-700 mb-2">
-                      Milestones{milestoneGrossAmounts.length > 0 ? ' (incl. VAT):' : ':'}
+                      {milestoneGrossAmounts.length > 0
+                        ? t('paymentPage.milestonesInclVat')
+                        : t('paymentPage.milestones')}
                     </p>
                     <div className="space-y-1">
                       {booking.milestonePayments.map((m, i) => (
                         <div key={i} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{m.title || `Milestone ${i + 1}`}</span>
+                          <span className="text-gray-600">{m.title || t('paymentPage.milestoneFallback', { number: i + 1 })}</span>
                           <span className="text-gray-900">
                             {customerPricingReady
                               ? formatMoney(
@@ -1109,30 +1110,37 @@ export default function BookingPaymentPage() {
                 )}
                 {(typeof booking?.project?.minResources === 'number' || typeof booking?.project?.minOverlapPercentage === 'number') && (
                   <div className="mt-3 pt-3 border-t">
-                    <p className="text-sm font-medium text-gray-700 mb-1">Team requirement:</p>
+                    <p className="text-sm font-medium text-gray-700 mb-1">{t('paymentPage.teamRequirement')}</p>
                     <p className="text-xs text-gray-600">
                       {typeof booking?.project?.minResources === 'number'
-                        ? `${booking.project.minResources} team member${booking.project.minResources === 1 ? '' : 's'} required`
-                        : 'Team size as configured'}
+                        ? t('paymentPage.teamMembersRequired', { count: booking.project.minResources })
+                        : t('paymentPage.teamSizeAsConfigured')}
                       {typeof booking?.project?.minOverlapPercentage === 'number'
-                        ? `, with at least ${booking.project.minOverlapPercentage}% overlap of the scheduled time.`
+                        ? t('paymentPage.teamOverlapSuffix', { percentage: booking.project.minOverlapPercentage })
                         : '.'}
                     </p>
                   </div>
                 )}
                 {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.quote?.amount != null && customerPricingReady && (() => {
-                  const currency = booking?.quote?.currency?.toUpperCase() || 'EUR';
                   const baseWithCommission = originalPrice(booking.quote.amount, booking.checkoutSnapshot);
                   const afterLoyalty = customerPrice(booking.quote.amount, booking.checkoutSnapshot);
                   const saving = Math.max(0, +(baseWithCommission - afterLoyalty).toFixed(2));
+                  const currency = booking?.quote?.currency?.toUpperCase() || 'EUR';
                   return (
                     <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                       <p className="text-xs text-amber-800">
-                        <span className="font-semibold">Your level:</span> {loyalty.level} ({loyalty.percentage}% loyalty discount)
+                        {t.rich('paymentPage.loyaltySummary', {
+                          level: loyalty.level,
+                          percent: loyalty.percentage,
+                          strong: (chunks) => <strong>{chunks}</strong>,
+                        })}
                         {saving > 0 && (
                           <>
                             <span className="mx-1">·</span>
-                            <span className="font-semibold">Saving:</span> -{formatMoney(saving, currency)}
+                            {t.rich('paymentPage.savingWithAmount', {
+                              amount: formatMoney(saving, currency),
+                              strong: (chunks) => <strong>{chunks}</strong>,
+                            })}
                           </>
                         )}
                       </p>
@@ -1142,7 +1150,9 @@ export default function BookingPaymentPage() {
                 {(!loyaltyLoaded || !loyalty || loyalty.percentage <= 0) && (
                   <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                     <p className="text-xs text-amber-800">
-                      <span className="font-semibold">Member Savings:</span> Your loyalty tier discount and any returning-customer savings are applied automatically before payment.
+                      {t.rich('paymentPage.memberSavings', {
+                        strong: (chunks) => <strong>{chunks}</strong>,
+                      })}
                     </p>
                   </div>
                 )}
@@ -1150,20 +1160,22 @@ export default function BookingPaymentPage() {
             </div>
 
             <div className="px-6 py-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">Choose Preferred Start Date</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">{t('paymentPage.chooseStartDate')}</h2>
               <p className="text-sm text-gray-600 mb-4">
                 {requiresProjectSchedule
-                  ? 'Select when you\'d like the work to begin. Dates when team members are unavailable are disabled.'
-                  : 'Choose when you would like the work to begin.'}
+                  ? t('paymentPage.scheduleIntroProject')
+                  : t('paymentPage.scheduleIntroSimple')}
               </p>
 
               {availabilityData?.resourcePolicy && availabilityData.resourcePolicy.minResources > 1 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
                   <p className="text-sm text-blue-800">
-                    <span className="font-medium">Team requirement:</span>{' '}
-                    {availabilityData.resourcePolicy.minResources} of{' '}
-                    {availabilityData.resourcePolicy.totalResources} team members must be available
-                    for at least {availabilityData.resourcePolicy.minOverlapPercentage}% of the scheduled time.
+                    <span className="font-medium">{t('paymentPage.teamRequirement')}</span>{' '}
+                    {t('paymentPage.teamAvailabilityPolicy', {
+                      min: availabilityData.resourcePolicy.minResources,
+                      total: availabilityData.resourcePolicy.totalResources,
+                      percentage: availabilityData.resourcePolicy.minOverlapPercentage,
+                    })}
                   </p>
                 </div>
               )}
@@ -1172,24 +1184,24 @@ export default function BookingPaymentPage() {
                 {(loadingScheduleProposals || loadingAvailability || loadingWorkingHours) && (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading availability and working hours...
+                    {t('paymentPage.loadingAvailability')}
                   </div>
                 )}
                 {scheduleProposalsFailed && !loadingScheduleProposals && (
                   <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    Failed to load project availability. Please try refreshing the page.
+                    {t('paymentPage.availabilityLoadFailed')}
                   </div>
                 )}
                 {requiresProjectSchedule && !loadingScheduleProposals && !scheduleProposals && !scheduleProposalsFailed && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                    Waiting for project availability before enabling scheduling.
+                    {t('paymentPage.waitingAvailability')}
                   </div>
                 )}
 
                 {!loadingScheduleProposals && !loadingAvailability && !loadingWorkingHours && (scheduleProposals || !requiresProjectSchedule) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {requiresProjectSchedule ? 'Available Start Date *' : 'Preferred Start Date *'}
+                      {requiresProjectSchedule ? t('paymentPage.availableStartDate') : t('paymentPage.preferredStartDate')}
                     </label>
                     <div className="mt-2">
                       <button
@@ -1199,14 +1211,15 @@ export default function BookingPaymentPage() {
                       >
                         <Calendar className="mr-2 h-4 w-4 text-gray-500" />
                         {selectedStartDate
-                          ? format(parseISO(selectedStartDate), 'MMMM d, yyyy')
-                          : 'Select a date'}
+                          ? format(parseISO(selectedStartDate), 'PPP', { locale: dateFns })
+                          : t('paymentPage.selectDate')}
                       </button>
 
                       {showCalendar && (
                         <div className="mt-3 p-6 border rounded-lg bg-white shadow-xl">
                           <DayPicker
                             mode="single"
+                            locale={dateFns}
                             selected={selectedStartDate ? parseISO(selectedStartDate) : undefined}
                             onSelect={(date) => {
                               if (date) {
@@ -1253,19 +1266,19 @@ export default function BookingPaymentPage() {
                           <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-2 text-xs">
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 bg-gray-200 border rounded opacity-70"></div>
-                              <span>Weekend (non-working)</span>
+                              <span>{t('paymentPage.calendar.weekend')}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 bg-red-100 border rounded line-through text-center text-red-900 opacity-50">X</div>
-                              <span>Blocked/Booked</span>
+                              <span>{t('paymentPage.calendar.blocked')}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 bg-blue-500 border rounded"></div>
-                              <span>Selected</span>
+                              <span>{t('paymentPage.calendar.selected')}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 border-2 border-blue-500 rounded"></div>
-                              <span>Today</span>
+                              <span>{t('paymentPage.calendar.today')}</span>
                             </div>
                           </div>
                         </div>
@@ -1277,7 +1290,7 @@ export default function BookingPaymentPage() {
                 {scheduleMode === 'hours' && selectedStartDate && (
                   <div>
                     <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Time *
+                      {t('paymentPage.startTime')}
                     </label>
                     <input
                       id="startTime"
@@ -1288,7 +1301,7 @@ export default function BookingPaymentPage() {
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      This project is scheduled in hours mode, so the scheduler also needs a start time.
+                      {t('paymentPage.hoursModeHint')}
                     </p>
                   </div>
                 )}
@@ -1297,15 +1310,14 @@ export default function BookingPaymentPage() {
                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
                     <div className="flex flex-col gap-1">
                       <p className="text-sm text-blue-900 font-semibold">
-                        Shortest Consecutive Window{' '}
+                        {t('paymentPage.shortestWindow')}{' '}
                         <span className="text-xs font-normal">
-                          ({shortestThroughputDetails.totalDays}{' '}
-                          {shortestThroughputDetails.totalDays === 1 ? 'day' : 'days'})
+                          ({t('paymentPage.units.days', { count: shortestThroughputDetails.totalDays })})
                         </span>
                       </p>
                       <p className="text-xs text-blue-700">
-                        {format(shortestThroughputDetails.startDate, 'EEEE, MMMM d, yyyy')} -{' '}
-                        {format(shortestThroughputDetails.endDate, 'EEEE, MMMM d, yyyy')}
+                        {format(shortestThroughputDetails.startDate, 'PPP', { locale: dateFns })} -{' '}
+                        {format(shortestThroughputDetails.endDate, 'PPP', { locale: dateFns })}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1314,7 +1326,7 @@ export default function BookingPaymentPage() {
                           key={day.toISOString()}
                           className="px-3 py-1 text-xs rounded-full bg-white border border-blue-200 text-blue-800"
                         >
-                          {format(day, 'MMM d')}
+                          {format(day, 'MMM d', { locale: dateFns })}
                         </span>
                       ))}
                     </div>
@@ -1327,7 +1339,7 @@ export default function BookingPaymentPage() {
                         setShowCalendar(false);
                       }}
                     >
-                      Use this window
+                      {t('paymentPage.useThisWindow')}
                     </button>
                   </div>
                 )}
@@ -1335,7 +1347,7 @@ export default function BookingPaymentPage() {
                 {validatingScheduleSelection && requiresProjectSchedule && (
                   <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Validating the selected schedule...
+                    {t('paymentPage.validatingSchedule')}
                   </div>
                 )}
 
@@ -1347,30 +1359,38 @@ export default function BookingPaymentPage() {
 
                 {hasValidatedProjectSelection && scheduleWindow && (
                   <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800 space-y-2">
-                    <p className="font-medium">Selected slot is available and ready to book.</p>
+                    <p className="font-medium">{t('paymentPage.slotAvailable')}</p>
                     <div className="text-xs space-y-1">
                       <p>
-                        <span className="font-medium">Start:</span>{' '}
-                        {formatInTimeZone(parseISO(scheduleWindow.scheduledStartDate), professionalTimezone, 'yyyy-MM-dd')}
-                        {scheduleWindow.scheduledStartTime ? ` at ${scheduleWindow.scheduledStartTime}` : ''}
+                        <span className="font-medium">{t('paymentPage.startLabel')}</span>{' '}
+                        {scheduleWindow.scheduledStartTime
+                          ? t('paymentPage.startWithTime', {
+                              date: formatInTimeZone(parseISO(scheduleWindow.scheduledStartDate), professionalTimezone, 'PPP', { locale: dateFns }),
+                              time: scheduleWindow.scheduledStartTime,
+                            })
+                          : formatInTimeZone(parseISO(scheduleWindow.scheduledStartDate), professionalTimezone, 'PPP', { locale: dateFns })}
                       </p>
                       {(() => {
                         const quoted = getQuotedDurations(booking);
                         const parts: string[] = [];
-                        if (quoted.preparation?.value) parts.push(`Preparation: ${quoted.preparation.value} ${quoted.preparation.unit}`);
-                        if (quoted.execution?.value) parts.push(`Execution: ${quoted.execution.value} ${quoted.execution.unit}`);
-                        if (quoted.buffer?.value) parts.push(`Buffer: ${quoted.buffer.value} ${quoted.buffer.unit}`);
+                        const durationLabel = (value: number, unit: string) =>
+                          unit === 'hours'
+                            ? t('paymentPage.units.hours', { count: value })
+                            : t('paymentPage.units.days', { count: value });
+                        if (quoted.preparation?.value) parts.push(t('paymentPage.preparationValue', { duration: durationLabel(quoted.preparation.value, quoted.preparation.unit) }));
+                        if (quoted.execution?.value) parts.push(t('paymentPage.executionValue', { duration: durationLabel(quoted.execution.value, quoted.execution.unit) }));
+                        if (quoted.buffer?.value) parts.push(t('paymentPage.bufferValue', { duration: durationLabel(quoted.buffer.value, quoted.buffer.unit) }));
                         if (parts.length === 0) return null;
-                        return <p><span className="font-medium">Duration breakdown:</span> {parts.join(' → ')}</p>;
+                        return <p><span className="font-medium">{t('paymentPage.durationBreakdown')}</span> {parts.join(' → ')}</p>;
                       })()}
                       <p>
-                        <span className="font-medium">Execution ends:</span>{' '}
-                        {formatInTimeZone(parseISO(scheduleWindow.scheduledExecutionEndDate), professionalTimezone, 'yyyy-MM-dd')}
+                        <span className="font-medium">{t('paymentPage.executionEnds')}</span>{' '}
+                        {formatInTimeZone(parseISO(scheduleWindow.scheduledExecutionEndDate), professionalTimezone, 'PPP', { locale: dateFns })}
                       </p>
                       {scheduleWindow.scheduledBufferEndDate && (
                         <p>
-                          <span className="font-medium">Project completion (incl. buffer):</span>{' '}
-                          {formatInTimeZone(parseISO(scheduleWindow.scheduledBufferEndDate), professionalTimezone, 'yyyy-MM-dd')}
+                          <span className="font-medium">{t('paymentPage.projectCompletion')}</span>{' '}
+                          {formatInTimeZone(parseISO(scheduleWindow.scheduledBufferEndDate), professionalTimezone, 'PPP', { locale: dateFns })}
                         </p>
                       )}
                     </div>
@@ -1379,7 +1399,7 @@ export default function BookingPaymentPage() {
 
                 {projectExtraOptions.length > 0 && (
                   <div className="rounded-lg border border-gray-200 p-4">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Extra Options</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">{t('paymentPage.extraOptions')}</h3>
                     <div className="space-y-2">
                       {projectExtraOptions.map((option, index) => {
                         const selected = selectedExtraOptions.includes(index);
@@ -1414,7 +1434,7 @@ export default function BookingPaymentPage() {
                     </div>
                     {selectedOptionTotal > 0 && !extrasIncludedInQuote && (
                       <p className="mt-3 text-xs font-medium text-gray-700">
-                        Selected options total: {customerPricingReady
+                        {t('paymentPage.selectedOptionsTotal')} {customerPricingReady
                           ? formatMoney(customerPrice(selectedOptionTotal), booking?.quote?.currency?.toUpperCase() || 'EUR')
                           : '...'}
                       </p>
@@ -1424,14 +1444,14 @@ export default function BookingPaymentPage() {
 
                 <div>
                   <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-                    Additional Notes <span className="text-gray-400">(optional)</span>
+                    {t('paymentPage.additionalNotes')} <span className="text-gray-400">{t('paymentPage.optional')}</span>
                   </label>
                   <textarea
                     id="notes"
                     rows={3}
                     value={additionalNotes}
                     onChange={(e) => setAdditionalNotes(e.target.value)}
-                    placeholder="Any additional details for the professional..."
+                    placeholder={t('paymentPage.notesPlaceholder')}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -1455,7 +1475,7 @@ export default function BookingPaymentPage() {
                   }
                   className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {savingSchedule ? 'Saving...' : 'Continue to Payment'}
+                  {savingSchedule ? t('paymentPage.saving') : t('paymentPage.continueToPayment')}
                 </button>
               </div>
             </div>
@@ -1466,7 +1486,7 @@ export default function BookingPaymentPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-xs text-gray-500">
-                  After selecting your start date, you will proceed to the secure payment page.
+                  {t('paymentPage.scheduleFooterNote')}
                 </p>
               </div>
             </div>
@@ -1482,31 +1502,31 @@ export default function BookingPaymentPage() {
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Header */}
           <div className="bg-blue-600 px-6 py-4">
-            <h1 className="text-2xl font-bold text-white">Complete Payment</h1>
-            <p className="text-blue-100 text-sm mt-1">Booking #{booking?.bookingNumber || bookingId.slice(-6)}</p>
+            <h1 className="text-2xl font-bold text-white">{t('paymentPage.completePayment')}</h1>
+            <p className="text-blue-100 text-sm mt-1">{t('paymentPage.bookingNumber', { number: booking?.bookingNumber || bookingId.slice(-6) })}</p>
           </div>
 
           {/* Booking Summary */}
           <div className="px-6 py-4 border-b">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Booking Summary</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('paymentPage.summaryTitle')}</h2>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-600">Service:</span>
+                <span className="text-gray-600">{t('paymentPage.serviceLabel')}</span>
                 <span className="font-medium text-gray-900">
-                  {booking?.quote?.description || booking?.rfqDetails?.description || 'Property Service'}
+                  {booking?.quote?.description || booking?.rfqDetails?.description || t('paymentPage.serviceFallback')}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Professional:</span>
+                <span className="text-gray-600">{t('paymentPage.professionalLabel')}</span>
                 <span className="font-medium text-gray-900">
-                  {booking?.professional?.username || 'N/A'}
+                  {booking?.professional?.username || t('paymentPage.notAvailable')}
                 </span>
               </div>
               {booking?.scheduledStartDate && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Start Date:</span>
+                  <span className="text-gray-600">{t('paymentPage.startDateLabel')}</span>
                   <span className="font-medium text-gray-900">
-                    {new Date(booking.scheduledStartDate).toLocaleDateString()}
+                    {new Date(booking.scheduledStartDate).toLocaleDateString(intl)}
                   </span>
                 </div>
               )}
@@ -1515,7 +1535,7 @@ export default function BookingPaymentPage() {
 
           {/* Payment Breakdown */}
           <div className="px-6 py-4 border-b bg-gray-50">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Payment Details</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('paymentPage.paymentDetails')}</h2>
 
             {booking?.payment?.status !== 'authorized' && booking?.payment?.status !== 'completed' && (
               <div className="mb-4 rounded-md border border-gray-200 bg-white px-3 py-3">
@@ -1524,11 +1544,11 @@ export default function BookingPaymentPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
-                          Code applied: <span className="font-mono text-green-700">{appliedDiscountCode}</span>
+                          {t('paymentPage.codeApplied')} <span className="font-mono text-green-700">{appliedDiscountDisplay}</span>
                         </p>
                         {(discountInfo?.codeDiscountAmount ?? 0) > 0 && (
                           <p className="text-xs text-gray-500 mt-0.5">
-                            Saving {formatMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency)}
+                            {t('paymentPage.savingAmount', { amount: formatMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency) })}
                           </p>
                         )}
                       </div>
@@ -1538,7 +1558,7 @@ export default function BookingPaymentPage() {
                         disabled={applyingCode || initializingPayment}
                         className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
                       >
-                        Remove
+                        {t('paymentPage.remove')}
                       </button>
                     </div>
                     {codeError && (
@@ -1548,7 +1568,7 @@ export default function BookingPaymentPage() {
                 ) : (
                   <div>
                     <label htmlFor="discount-code-input" className="block text-sm font-medium text-gray-700 mb-1">
-                      Have a discount code?
+                      {t('paymentPage.discount.haveCode')}
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -1565,7 +1585,7 @@ export default function BookingPaymentPage() {
                             void handleApplyDiscountCode();
                           }
                         }}
-                        placeholder="ENTER CODE"
+                        placeholder={t('paymentPage.discount.codePlaceholder')}
                         disabled={applyingCode || initializingPayment}
                         className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono uppercase focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900 disabled:bg-gray-100"
                       />
@@ -1575,7 +1595,7 @@ export default function BookingPaymentPage() {
                         disabled={applyingCode || initializingPayment || !discountCodeInput.trim()}
                         className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
                       >
-                        {applyingCode ? 'Applying...' : 'Apply'}
+                        {applyingCode ? t('paymentPage.discount.applying') : t('paymentPage.discount.apply')}
                       </button>
                     </div>
                     {codeError && (
@@ -1589,14 +1609,14 @@ export default function BookingPaymentPage() {
             {discountInfo?.loyaltyTier && (
               <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="text-sm font-medium text-amber-900">
-                  {discountInfo.loyaltyTier} member benefits applied
+                  {t('paymentPage.memberBenefitsApplied', { tier: discountInfo.loyaltyTier })}
                 </p>
               </div>
             )}
             <div className="space-y-2">
               {(hasDiscountBreakdown || commissionedOptionsAmount > 0) && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Original Service Amount:</span>
+                  <span className="text-gray-600">{t('paymentPage.originalServiceAmount')}</span>
                   <span className="text-gray-900">
                     {formatMoney(serviceOnlyAmount, paymentCurrency)}
                   </span>
@@ -1605,7 +1625,7 @@ export default function BookingPaymentPage() {
 
               {commissionedOptionsAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Selected Options:</span>
+                  <span className="text-gray-600">{t('paymentPage.selectedOptions')}</span>
                   <span className="text-gray-900">
                     {formatMoney(commissionedOptionsAmount, paymentCurrency)}
                   </span>
@@ -1615,7 +1635,7 @@ export default function BookingPaymentPage() {
               {(discountInfo?.loyaltyAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
-                    Loyalty Discount ({discountInfo?.loyaltyPercentage ?? 0}%):
+                    {t('paymentPage.loyaltyDiscountLine', { percent: discountInfo?.loyaltyPercentage ?? 0 })}
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.loyaltyAmount ?? 0, paymentCurrency)}
@@ -1626,7 +1646,7 @@ export default function BookingPaymentPage() {
               {(discountInfo?.repeatBuyerAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
-                    Returning Customer Discount ({discountInfo?.repeatBuyerPercentage ?? 0}%):
+                    {t('paymentPage.returningCustomerLine', { percent: discountInfo?.repeatBuyerPercentage ?? 0 })}
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.repeatBuyerAmount ?? 0, paymentCurrency)}
@@ -1637,7 +1657,7 @@ export default function BookingPaymentPage() {
               {(discountInfo?.pointsRedeemed ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
-                    Points Redeemed ({discountInfo?.pointsRedeemed} pts):
+                    {t('paymentPage.pointsRedeemedLine', { points: discountInfo?.pointsRedeemed ?? 0 })}
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
@@ -1648,7 +1668,9 @@ export default function BookingPaymentPage() {
               {(discountInfo?.codeDiscountAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
-                    Discount Code{discountInfo?.codeLabel ? ` (${discountInfo.codeLabel})` : ''}:
+                    {discountInfo?.codeLabel
+                      ? t('paymentPage.discountCodeLineWithCode', { code: discountInfo.codeLabel })
+                      : t('paymentPage.discountCodeLine')}
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency)}
@@ -1657,18 +1679,18 @@ export default function BookingPaymentPage() {
               )}
 
               <div className="flex justify-between">
-                <span className="text-gray-600">Service Amount:</span>
+                <span className="text-gray-600">{t('paymentPage.serviceAmount')}</span>
                 <span className="text-gray-900">
                   {formatMoney(booking?.payment?.netAmount ?? 0, paymentCurrency)}
                 </span>
               </div>
               {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1 && (
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-1">
-                  <p className="text-xs font-medium text-gray-700">VAT breakdown</p>
+                  <p className="text-xs font-medium text-gray-700">{t('paymentPage.vatBreakdown')}</p>
                   {booking.payment.vatBreakdown.map((line, index) => (
                     <div key={`${line.description}-${index}`} className="flex justify-between text-xs">
                       <span className="text-gray-600">
-                        {line.description} ({line.vatLabel || `${line.vatRate}% VAT`})
+                        {line.description} ({line.vatLabel || t('paymentPage.vatRateLabel', { rate: line.vatRate })})
                       </span>
                       <span className="text-gray-900">
                         {formatMoney(line.vatAmount, paymentCurrency)}
@@ -1680,9 +1702,9 @@ export default function BookingPaymentPage() {
               {(booking?.payment?.vatAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
-                    VAT {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1
-                      ? '(total)'
-                      : `(${booking?.payment?.vatRate ?? 0}%)`}:
+                    {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1
+                      ? t('paymentPage.vatTotalLine')
+                      : t('paymentPage.vatLine', { rate: booking?.payment?.vatRate ?? 0 })}
                   </span>
                   <span className="text-gray-900">
                     {formatMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
@@ -1691,21 +1713,26 @@ export default function BookingPaymentPage() {
               )}
               {booking?.payment?.reverseCharge && (
                 <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                  Reverse Charge — VAT is accounted for by the customer.
+                  {t('paymentPage.reverseCharge')}
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t">
-                <span className="text-lg font-semibold text-gray-900">Total:</span>
+                <span className="text-lg font-semibold text-gray-900">{t('paymentPage.total')}</span>
                 <span className="text-lg font-bold text-gray-900">
                   {formatMoney(booking?.payment?.totalWithVat ?? 0, paymentCurrency)}
                 </span>
               </div>
+              {displayCurrency !== paymentCurrency && (
+                <p className="text-right text-xs text-gray-500">
+                  {t('paymentPage.chargeCurrencyNote', { currency: paymentCurrency })}
+                </p>
+              )}
             </div>
           </div>
 
           {/* Payment Form */}
           <div className="px-6 py-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Enter Payment Details</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('paymentPage.enterPaymentDetails')}</h2>
 
             {/* Check if payment is already completed - don't show form */}
             {booking?.payment?.status === 'authorized' || booking?.payment?.status === 'completed' ? (
@@ -1714,9 +1741,9 @@ export default function BookingPaymentPage() {
                   <svg className="h-5 w-5 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <p className="text-green-700 text-sm font-medium">Payment already completed</p>
+                  <p className="text-green-700 text-sm font-medium">{t('paymentPage.paymentAlreadyCompleted')}</p>
                 </div>
-                <p className="text-xs text-green-600 mt-2">Redirecting to confirmation page...</p>
+                <p className="text-xs text-green-600 mt-2">{t('paymentPage.redirectingToConfirmation')}</p>
               </div>
             ) : clientSecret ? (
               <StripeProvider>
@@ -1730,20 +1757,20 @@ export default function BookingPaymentPage() {
               </StripeProvider>
             ) : initializingPayment ? (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-700 text-sm font-medium">Preparing payment details…</p>
+                <p className="text-blue-700 text-sm font-medium">{t('paymentPage.preparingPayment')}</p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Attempt {paymentRetryAttempt} of {MAX_PAYMENT_RETRY_ATTEMPTS}. This page will refresh automatically once your payment intent is ready.
+                  {t('paymentPage.attemptInfo', { attempt: paymentRetryAttempt, max: MAX_PAYMENT_RETRY_ATTEMPTS })}
                 </p>
               </div>
             ) : (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-600">{error || 'Unable to initialize payment. Please try again or contact support.'}</p>
+                <p className="text-red-600">{error || t('paymentPage.unableToInitialize')}</p>
                 <button
                   type="button"
                   onClick={() => void loadBookingPaymentDetails(bookingId, 1)}
                   className="mt-3 inline-flex items-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
                 >
-                  Retry initialization
+                  {t('paymentPage.retryInitialization')}
                 </button>
               </div>
             )}
@@ -1756,9 +1783,9 @@ export default function BookingPaymentPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
               <div>
-                <p className="text-sm font-medium text-gray-700">Secure Payment</p>
+                <p className="text-sm font-medium text-gray-700">{t('paymentPage.securePayment')}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Your payment is charged securely. The professional will only receive payment after you confirm the work is done.
+                  {t('paymentPage.securePaymentBody')}
                 </p>
               </div>
             </div>

@@ -20,8 +20,10 @@ import {
   Repeat
 } from "lucide-react"
 import { toast } from 'sonner'
+import { useTranslations } from 'next-intl'
 import { getAuthToken } from '@/lib/utils'
 import { useCommissionRate } from '@/hooks/useCommissionRate'
+import { useCurrency } from '@/contexts/CurrencyContext'
 
 const parseNumericInput = (raw: string): number | undefined => {
   const trimmed = raw.trim();
@@ -144,13 +146,15 @@ const PREDEFINED_TERMS = {
 }
 
 const CUSTOMER_PRESENCE_OPTIONS = [
-  { value: 'not_required', label: 'Not required' },
-  { value: 'available', label: 'Yes - Customer should be available' },
-  { value: 'first_hour_only', label: 'Yes - Only first hour' },
-  { value: 'present_throughout', label: 'Yes - Customer must be present throughout' }
-]
+  { value: 'not_required', labelKey: 'step3.customerPresence.options.notRequired' },
+  { value: 'available', labelKey: 'step3.customerPresence.options.available' },
+  { value: 'first_hour_only', labelKey: 'step3.customerPresence.options.firstHourOnly' },
+  { value: 'present_throughout', labelKey: 'step3.customerPresence.options.presentThroughout' }
+] as const
 
 export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3Props) {
+  const t = useTranslations('projectWizardSteps')
+  const { formatMoney } = useCurrency()
   const [extraOptions, setExtraOptions] = useState<IExtraOption[]>(
     data.extraOptions || []
   )
@@ -226,17 +230,17 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
     const errors: string[] = []
     if (!customerPresence) {
-      errors.push('Customer presence selection is required')
+      errors.push('customerPresenceRequired')
     }
     if (repeatBuyerDiscount.enabled) {
       if (repeatBuyerDiscount.percentage < 1 || repeatBuyerDiscount.percentage > 20) {
-        errors.push('Repeat-buyer discount percentage must be between 1 and 20')
+        errors.push('discountPercentageRange')
       }
       if (repeatBuyerDiscount.minPreviousBookings < 1) {
-        errors.push('Minimum previous bookings must be at least 1')
+        errors.push('minBookingsAtLeastOne')
       }
       if (repeatBuyerDiscount.maxDiscountAmount != null && repeatBuyerDiscount.maxDiscountAmount < 0) {
-        errors.push('Max discount cap must be non-negative')
+        errors.push('maxCapNonNegative')
       }
     }
     setValidationErrors(errors)
@@ -249,7 +253,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
     // Customer presence is now required
     if (!customerPresence) {
-      errors.push('Customer presence selection is required')
+      errors.push('customerPresenceRequired')
     }
 
     setValidationErrors(errors)
@@ -282,12 +286,12 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
   const addPredefinedExtraOption = (option: { name: string; price: number; isCustomizable?: boolean; description?: string }) => {
     if (extraOptions.length >= 10) {
-      toast.error('Maximum 10 extra options allowed')
+      toast.error(t('step3.extraOptions.maxReached'))
       return
     }
 
     if (extraOptions.some(opt => opt.name === option.name)) {
-      toast.error('This option is already added')
+      toast.error(t('step3.extraOptions.alreadyAdded'))
       return
     }
 
@@ -305,17 +309,17 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
   const addCustomExtraOption = () => {
     if (extraOptions.length >= 10) {
-      toast.error('Maximum 10 extra options allowed')
+      toast.error(t('step3.extraOptions.maxReached'))
       return
     }
 
     if (!customExtraName.trim() || !customExtraPrice) {
-      toast.error('Please fill in both name and price')
+      toast.error(t('step3.extraOptions.fillNameAndPrice'))
       return
     }
 
     if (extraOptions.some(opt => opt.name === customExtraName.trim())) {
-      toast.error('This option name is already used')
+      toast.error(t('step3.extraOptions.nameAlreadyUsed'))
       return
     }
 
@@ -343,12 +347,12 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
   const addPredefinedTerm = (term: { name: string; cost: number; description: string; type?: 'condition' | 'warning' }) => {
     if (termsConditions.length >= 5) {
-      toast.error('Maximum 5 terms and conditions allowed')
+      toast.error(t('step3.terms.maxReached'))
       return
     }
 
     if (termsConditions.some(t => t.name === term.name)) {
-      toast.error('This term is already added')
+      toast.error(t('step3.terms.alreadyAdded'))
       return
     }
 
@@ -366,17 +370,17 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
   const addCustomTerm = () => {
     if (termsConditions.length >= 5) {
-      toast.error('Maximum 5 terms and conditions allowed')
+      toast.error(t('step3.terms.maxReached'))
       return
     }
 
     if (!customTermName.trim() || !customTermDescription.trim()) {
-      toast.error('Please fill in both name and description')
+      toast.error(t('step3.terms.fillNameAndDescription'))
       return
     }
 
     if (termsConditions.some(t => t.name === customTermName.trim())) {
-      toast.error('This term name is already used')
+      toast.error(t('step3.terms.nameAlreadyUsed'))
       return
     }
 
@@ -405,6 +409,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
     ))
   }
 
+  const extraOptionsTotal = extraOptions.reduce((sum, opt) => sum + opt.price, 0)
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -412,11 +418,10 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Settings className="w-5 h-5" />
-            <span>Extra Options & Project Conditions</span>
+            <span>{t('step3.title')}</span>
           </CardTitle>
           <CardDescription>
-            Set customer presence requirements, add optional extra services and define terms & conditions for your project.
-            Extra options give customers flexibility while terms protect your business.
+            {t('step3.description')}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -426,31 +431,31 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <User className="w-5 h-5" />
-            <span>Customer Presence Required *</span>
+            <span>{t('step3.customerPresence.title')}</span>
           </CardTitle>
           <CardDescription>
-            Specify whether the customer needs to be present during the service
+            {t('step3.customerPresence.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <Label className="text-sm font-medium">
-              Select customer presence requirement *
+              {t('step3.customerPresence.label')}
             </Label>
-            {validationErrors.includes('Customer presence selection is required') && (
+            {validationErrors.includes('customerPresenceRequired') && (
               <div className="flex items-center space-x-2 text-red-600 text-sm">
                 <AlertTriangle className="w-4 h-4" />
-                <span>Please select a customer presence option</span>
+                <span>{t('step3.customerPresence.selectError')}</span>
               </div>
             )}
             <Select value={customerPresence || undefined} onValueChange={setCustomerPresence}>
               <SelectTrigger className={`w-full ${!customerPresence && validationErrors.length > 0 ? 'border-red-500' : ''}`}>
-                <SelectValue placeholder="Select customer presence requirement..." />
+                <SelectValue placeholder={t('step3.customerPresence.placeholder')} />
               </SelectTrigger>
               <SelectContent>
                 {CUSTOMER_PRESENCE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -460,7 +465,12 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                 <div className="flex items-center space-x-2">
                   <Clock className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-900">
-                    Selected: {CUSTOMER_PRESENCE_OPTIONS.find(opt => opt.value === customerPresence)?.label}
+                    {t('step3.customerPresence.selected', {
+                      label: t(
+                        CUSTOMER_PRESENCE_OPTIONS.find(opt => opt.value === customerPresence)?.labelKey
+                          ?? 'step3.customerPresence.options.notRequired'
+                      )
+                    })}
                   </span>
                 </div>
               </div>
@@ -475,20 +485,20 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <DollarSign className="w-5 h-5" />
-              <span>Extra Options (Optional, 0-10 items)</span>
+              <span>{t('step3.extraOptions.title')}</span>
             </div>
             <Badge variant="outline">
               {extraOptions.length}/10
             </Badge>
           </CardTitle>
           <CardDescription>
-            Offer additional services that customers can add to their base package
+            {t('step3.extraOptions.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Predefined Options */}
           <div>
-            <Label className="text-sm font-medium">Quick Add (Predefined Options)</Label>
+            <Label className="text-sm font-medium">{t('step3.extraOptions.quickAdd')}</Label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
               {getPredefinedExtraOptions().map((option, index) => (
                 <Button
@@ -502,13 +512,15 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     <div className="font-medium flex items-center gap-1.5">
                       {option.name}
                       {option.isCustomizable && (
-                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-normal">Customizable</span>
+                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-normal">{t('step3.extraOptions.customizable')}</span>
                       )}
                     </div>
                     <div className="text-sm text-gray-500">
-                      €{option.price}
+                      {formatMoney(option.price)}
                       {(commissionPercent ?? 0) > 0 && option.price > 0 && (
-                        <span className="text-blue-600 ml-1">(Customer: €{customerPrice(option.price)})</span>
+                        <span className="text-blue-600 ml-1">
+                          {t('step3.extraOptions.customerPrice', { amount: formatMoney(customerPrice(option.price)) })}
+                        </span>
                       )}
                     </div>
                   </span>
@@ -520,16 +532,16 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
           {/* Custom Option */}
           <div className="border rounded-lg p-4 bg-blue-50">
-            <Label className="text-sm font-medium">Add Custom Option</Label>
+            <Label className="text-sm font-medium">{t('step3.extraOptions.addCustom')}</Label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
               <Input
-                placeholder="Option name..."
+                placeholder={t('step3.extraOptions.namePlaceholder')}
                 value={customExtraName}
                 onChange={(e) => setCustomExtraName(e.target.value)}
               />
               <Input
                 type="number"
-                placeholder="Price (€)"
+                placeholder={t('step3.extraOptions.pricePlaceholder')}
                 min="0"
                 step="0.01"
                 value={customExtraPrice}
@@ -540,7 +552,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                 disabled={!customExtraName.trim() || !customExtraPrice || extraOptions.length >= 10}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Option
+                {t('step3.extraOptions.add')}
               </Button>
             </div>
           </div>
@@ -548,7 +560,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
           {/* Current Extra Options */}
           {extraOptions.length > 0 && (
             <div className="space-y-3">
-              <Label className="text-sm font-medium">Current Extra Options</Label>
+              <Label className="text-sm font-medium">{t('step3.extraOptions.current')}</Label>
               {extraOptions.map((option) => (
                 <div key={option.id} className="p-3 border rounded-lg bg-white space-y-2">
                   <div className="flex items-center justify-between">
@@ -556,10 +568,10 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                       <div className="flex items-center space-x-2">
                         <span className="font-medium">{option.name}</span>
                         {option.isCustom && (
-                          <Badge variant="outline" className="text-xs">Custom</Badge>
+                          <Badge variant="outline" className="text-xs">{t('step3.extraOptions.custom')}</Badge>
                         )}
                         {option.isCustomizable && (
-                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">Customizable</Badge>
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">{t('step3.extraOptions.customizable')}</Badge>
                         )}
                       </div>
                       {option.description && !option.isCustomizable && (
@@ -578,7 +590,9 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                           className="w-20 text-right"
                         />
                         {(commissionPercent ?? 0) > 0 && option.price > 0 && (
-                          <span className="text-xs text-blue-600 whitespace-nowrap">Customer: €{customerPrice(option.price)}</span>
+                          <span className="text-xs text-blue-600 whitespace-nowrap">
+                            {t('step3.extraOptions.customerPriceInline', { amount: formatMoney(customerPrice(option.price)) })}
+                          </span>
                         )}
                       </div>
                       <Button
@@ -593,9 +607,9 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                   </div>
                   {option.isCustomizable && (
                     <div className="pl-2 border-l-2 border-purple-200">
-                      <Label className="text-xs text-purple-700">Custom description (visible to customer)</Label>
+                      <Label className="text-xs text-purple-700">{t('step3.extraOptions.customDescriptionLabel')}</Label>
                       <Input
-                        placeholder="Describe this option in your own words..."
+                        placeholder={t('step3.extraOptions.customDescriptionPlaceholder')}
                         value={option.customDescription || ''}
                         onChange={(e) => updateExtraOption(option.id, { customDescription: e.target.value })}
                         className="mt-1"
@@ -615,20 +629,20 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <FileText className="w-5 h-5" />
-              <span>Terms & Conditions (Optional, 0-5 items)</span>
+              <span>{t('step3.terms.title')}</span>
             </div>
             <Badge variant="outline">
               {termsConditions.length}/5
             </Badge>
           </CardTitle>
           <CardDescription>
-            Define conditions and requirements for your service. Include any additional costs for non-compliance.
+            {t('step3.terms.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Predefined Terms */}
           <div>
-            <Label className="text-sm font-medium">Quick Add (Predefined Terms)</Label>
+            <Label className="text-sm font-medium">{t('step3.terms.quickAdd')}</Label>
             <div className="grid grid-cols-1 gap-2 mt-2">
               {getPredefinedTerms().map((term, index) => (
                 <Button
@@ -641,13 +655,15 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                   <div>
                     <div className="font-medium">
                       {term.name}
-                      {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                      {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">{t('step3.terms.warningSuffix')}</span>}
                     </div>
                     <div className="text-sm text-gray-500">{term.description}</div>
                   </div>
                   <div className="text-right">
                     {term.type !== 'warning' && term.cost > 0 && (
-                      <div className="text-sm font-medium text-red-600">+€{term.cost}</div>
+                      <div className="text-sm font-medium text-red-600">
+                        {t('step3.terms.additionalCost', { amount: formatMoney(term.cost) })}
+                      </div>
                     )}
                     <Plus className="w-4 h-4" />
                   </div>
@@ -658,15 +674,15 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
           {/* Custom Term */}
           <div className="border rounded-lg p-4 bg-blue-50">
-            <Label className="text-sm font-medium">Add Custom Term/Condition</Label>
+            <Label className="text-sm font-medium">{t('step3.terms.addCustom')}</Label>
             <div className="space-y-3 mt-2">
               <Input
-                placeholder="Term name..."
+                placeholder={t('step3.terms.namePlaceholder')}
                 value={customTermName}
                 onChange={(e) => setCustomTermName(e.target.value)}
               />
               <Textarea
-                placeholder="Detailed description of the requirement..."
+                placeholder={t('step3.terms.descriptionPlaceholder')}
                 value={customTermDescription}
                 onChange={(e) => setCustomTermDescription(e.target.value)}
                 rows={2}
@@ -674,7 +690,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
               <div className="flex space-x-3">
                 <Input
                   type="number"
-                  placeholder="Additional cost (€) if not met"
+                  placeholder={t('step3.terms.costPlaceholder')}
                   min="0"
                   step="0.01"
                   value={customTermCost}
@@ -686,7 +702,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                   disabled={!customTermName.trim() || !customTermDescription.trim() || termsConditions.length >= 5}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Term
+                  {t('step3.terms.add')}
                 </Button>
               </div>
             </div>
@@ -695,7 +711,7 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
           {/* Current Terms */}
           {termsConditions.length > 0 && (
             <div className="space-y-3">
-              <Label className="text-sm font-medium">Current Terms & Conditions</Label>
+              <Label className="text-sm font-medium">{t('step3.terms.current')}</Label>
               {termsConditions.map((term) => (
                 <div key={term.id} className="border rounded-lg p-4 bg-white">
                   <div className="flex items-start justify-between">
@@ -703,16 +719,16 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="font-medium">{term.name}</span>
                         {term.isCustom && (
-                          <Badge variant="outline" className="text-xs">Custom</Badge>
+                          <Badge variant="outline" className="text-xs">{t('step3.extraOptions.custom')}</Badge>
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-3">{term.description}</p>
                       {term.type === 'warning' && (
-                        <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-300 bg-yellow-50">Warning</Badge>
+                        <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-300 bg-yellow-50">{t('step3.terms.warning')}</Badge>
                       )}
                       {term.type !== 'warning' && (
                         <div className="flex items-center space-x-2">
-                          <Label className="text-xs whitespace-nowrap">Cost if not met (€):</Label>
+                          <Label className="text-xs whitespace-nowrap">{t('step3.terms.costLabel')}</Label>
                           <Input
                             type="number"
                             min="0"
@@ -746,10 +762,10 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Repeat className="w-5 h-5" />
-            <span>Returning Customer Discount (Optional)</span>
+            <span>{t('step3.repeatBuyer.title')}</span>
           </CardTitle>
           <CardDescription>
-            Offer a discount to customers who have completed previous bookings with you. This encourages repeat business.
+            {t('step3.repeatBuyer.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -762,14 +778,14 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
               className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
             />
             <Label htmlFor="repeat-buyer-toggle" className="text-sm font-medium cursor-pointer">
-              Offer returning customer discount
+              {t('step3.repeatBuyer.enable')}
             </Label>
           </div>
 
           {repeatBuyerDiscount.enabled && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-7 border-l-2 border-purple-200">
               <div className="space-y-2">
-                <Label htmlFor="repeat-discount-pct">Discount Percentage (%)</Label>
+                <Label htmlFor="repeat-discount-pct">{t('step3.repeatBuyer.percentage')}</Label>
                 <Input
                   id="repeat-discount-pct"
                   type="number"
@@ -782,10 +798,10 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     setRepeatBuyerDiscount(prev => ({ ...prev, percentage: val }))
                   }}
                 />
-                <p className="text-xs text-gray-500">1-20% off for returning customers</p>
+                <p className="text-xs text-gray-500">{t('step3.repeatBuyer.percentageHint')}</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="repeat-min-bookings">Min. Previous Bookings</Label>
+                <Label htmlFor="repeat-min-bookings">{t('step3.repeatBuyer.minBookings')}</Label>
                 <Input
                   id="repeat-min-bookings"
                   type="number"
@@ -797,10 +813,10 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     setRepeatBuyerDiscount(prev => ({ ...prev, minPreviousBookings: val }))
                   }}
                 />
-                <p className="text-xs text-gray-500">Completed bookings needed to qualify</p>
+                <p className="text-xs text-gray-500">{t('step3.repeatBuyer.minBookingsHint')}</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="repeat-max-cap">Max Discount Cap (EUR)</Label>
+                <Label htmlFor="repeat-max-cap">{t('step3.repeatBuyer.maxCap')}</Label>
                 <Input
                   id="repeat-max-cap"
                   type="number"
@@ -811,9 +827,9 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                     const val = e.target.value ? parseNumericInput(e.target.value) : undefined
                     setRepeatBuyerDiscount(prev => ({ ...prev, maxDiscountAmount: val ?? null }))
                   }}
-                  placeholder="No cap"
+                  placeholder={t('step3.repeatBuyer.maxCapPlaceholder')}
                 />
-                <p className="text-xs text-gray-500">Leave empty for no cap</p>
+                <p className="text-xs text-gray-500">{t('step3.repeatBuyer.maxCapHint')}</p>
               </div>
             </div>
           )}
@@ -824,35 +840,37 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
       {(extraOptions.length > 0 || termsConditions.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle>Summary</CardTitle>
+            <CardTitle>{t('step3.summary.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Extra Options Summary */}
               <div>
-                <h4 className="font-medium mb-3">Extra Options ({extraOptions.length})</h4>
+                <h4 className="font-medium mb-3">{t('step3.extraOptions.summaryTitle', { count: extraOptions.length })}</h4>
                 {extraOptions.length === 0 ? (
-                  <p className="text-sm text-gray-500">No extra options added</p>
+                  <p className="text-sm text-gray-500">{t('step3.extraOptions.none')}</p>
                 ) : (
                   <div className="space-y-2">
                     {extraOptions.map((option) => (
                       <div key={option.id} className="flex justify-between text-sm">
                         <span>{option.name}</span>
                         <span className="font-medium">
-                          €{option.price}
+                          {formatMoney(option.price)}
                           {(commissionPercent ?? 0) > 0 && option.price > 0 && (
-                            <span className="text-blue-600 ml-1 text-xs">(Customer: €{customerPrice(option.price)})</span>
+                            <span className="text-blue-600 ml-1 text-xs">
+                              {t('step3.extraOptions.customerPrice', { amount: formatMoney(customerPrice(option.price)) })}
+                            </span>
                           )}
                         </span>
                       </div>
                     ))}
                     <div className="border-t pt-2 flex justify-between font-medium">
-                      <span>Total extra options value:</span>
+                      <span>{t('step3.extraOptions.totalLabel')}</span>
                       <span>
-                        €{extraOptions.reduce((sum, opt) => sum + opt.price, 0).toFixed(2)}
+                        {formatMoney(extraOptionsTotal)}
                         {(commissionPercent ?? 0) > 0 && (
                           <span className="text-blue-600 ml-1 text-xs">
-                            (Customer: €{customerPrice(extraOptions.reduce((sum, opt) => sum + opt.price, 0)).toFixed(2)})
+                            {t('step3.extraOptions.customerPrice', { amount: formatMoney(customerPrice(extraOptionsTotal)) })}
                           </span>
                         )}
                       </span>
@@ -863,9 +881,9 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
 
               {/* Terms Summary */}
               <div>
-                <h4 className="font-medium mb-3">Terms & Conditions ({termsConditions.length})</h4>
+                <h4 className="font-medium mb-3">{t('step3.terms.summaryTitle', { count: termsConditions.length })}</h4>
                 {termsConditions.length === 0 ? (
-                  <p className="text-sm text-gray-500">No terms added</p>
+                  <p className="text-sm text-gray-500">{t('step3.terms.none')}</p>
                 ) : (
                   <div className="space-y-2">
                     {termsConditions.map((term) => (
@@ -873,10 +891,12 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
                         <div className="flex justify-between">
                           <span className="font-medium">
                             {term.name}
-                            {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                            {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">{t('step3.terms.warningSuffix')}</span>}
                           </span>
                           {term.type !== 'warning' && term.additionalCost && term.additionalCost > 0 && (
-                            <span className="text-red-600">+€{term.additionalCost}</span>
+                            <span className="text-red-600">
+                              {t('step3.terms.additionalCost', { amount: formatMoney(term.additionalCost) })}
+                            </span>
                           )}
                         </div>
                         <p className="text-gray-600 text-xs">{term.description}</p>

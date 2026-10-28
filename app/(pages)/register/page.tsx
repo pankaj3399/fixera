@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, User, Mail, Phone, Lock, Briefcase, Gift, CheckCircle2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { useAuth } from '@/contexts/AuthContext'
 import DualVerificationComponent from '@/components/DualVerificationComponent'
 import { PhoneCountryCodeSelect } from '@/components/PhoneCountryCodeSelect'
@@ -34,6 +35,7 @@ export default function RegisterPage() {
 }
 
 function RegisterForm() {
+  const t = useTranslations('auth')
   const [currentStep, setCurrentStep] = useState<'form' | 'verification'>('form')
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -100,27 +102,27 @@ function RegisterForm() {
 
   const validateForm = (): boolean => {
     if (!formData.name.trim()) {
-      toast.error('Please enter your full name')
+      toast.error(t('validation.fullNameRequired'))
       return false
     }
 
     if (!formData.email.trim() || !/\S+@\S+\.\S+/.test(formData.email)) {
-      toast.error('Please enter a valid email address')
+      toast.error(t('validation.emailInvalid'))
       return false
     }
 
     if (!formData.phone.trim() || !isValidPhoneNumber(formData.countryCode + formData.phone)) {
-      toast.error('Please enter a valid phone number')
+      toast.error(t('validation.phoneInvalid'))
       return false
     }
 
     if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters long')
+      toast.error(t('validation.passwordTooShort'))
       return false
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match')
+      toast.error(t('validation.passwordsDoNotMatch'))
       return false
     }
 
@@ -157,7 +159,7 @@ function RegisterForm() {
     }
   }
   const handleVerificationSuccess = () => {
-    toast.success('Account verified successfully!')
+    toast.success(t('register.verifiedToast'))
     router.push('/professional/onboarding?welcome=true')
   }
 
@@ -189,7 +191,7 @@ function RegisterForm() {
             className="absolute top-6 left-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Home
+            {t('shared.backToHome')}
           </Button>
         </Link>
 
@@ -200,9 +202,9 @@ function RegisterForm() {
                 <Briefcase className="h-8 w-8 text-purple-600" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold text-gray-900">Create Your Account</CardTitle>
+            <CardTitle className="text-2xl font-bold text-gray-900">{t('register.title')}</CardTitle>
             <CardDescription className="text-gray-600">
-              Join Fixtract as a professional and grow your business
+              {t('register.description')}
             </CardDescription>
           </CardHeader>
 
@@ -210,13 +212,13 @@ function RegisterForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Full Name */}
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">{t('shared.fullName')}</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="name"
                     type="text"
-                    placeholder="Enter your full name"
+                    placeholder={t('shared.fullNamePlaceholder')}
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     className="pl-10"
@@ -227,13 +229,13 @@ function RegisterForm() {
 
               {/* Email */}
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">{t('shared.emailAddress')}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="Enter your email"
+                    placeholder={t('shared.emailPlaceholder')}
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
                     className="pl-10"
@@ -244,7 +246,7 @@ function RegisterForm() {
 
               {/* Phone */}
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">{t('shared.phoneNumber')}</Label>
                 <div className="flex gap-2">
                   <PhoneCountryCodeSelect
                     value={formData.countryCode}
@@ -255,7 +257,7 @@ function RegisterForm() {
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="Enter your phone number"
+                      placeholder={t('shared.phonePlaceholder')}
                       value={formData.phone}
                       onChange={(e) => handleInputChange('phone', e.target.value)}
                       className="pl-10"
@@ -267,13 +269,13 @@ function RegisterForm() {
 
               {/* Password */}
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('shared.password')}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Create a password"
+                    placeholder={t('shared.createPasswordPlaceholder')}
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
                     className="pl-10"
@@ -284,13 +286,13 @@ function RegisterForm() {
 
               {/* Confirm Password */}
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">{t('shared.confirmPassword')}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="confirmPassword"
                     type="password"
-                    placeholder="Confirm your password"
+                    placeholder={t('shared.confirmPasswordPlaceholder')}
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                     className="pl-10"
@@ -301,13 +303,13 @@ function RegisterForm() {
 
               {/* Referral Code */}
               <div className="space-y-2">
-                <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                <Label htmlFor="referralCode">{t('shared.referralCode')}</Label>
                 <div className="relative">
                   <Gift className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="referralCode"
                     type="text"
-                    placeholder="e.g. FIXTRACT-AHMED-7K2X"
+                    placeholder={t('shared.referralCodePlaceholder')}
                     value={formData.referralCode}
                     onChange={(e) => handleInputChange('referralCode', e.target.value.toUpperCase())}
                     className="pl-10"
@@ -316,21 +318,21 @@ function RegisterForm() {
                 {referralValid === true && referralReferrer && (
                   <p className="text-xs text-green-600 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
-                    Referred by {referralReferrer}
+                    {t('shared.referredBy', { name: referralReferrer })}
                   </p>
                 )}
                 {referralValid === false && formData.referralCode && (
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
-                    Invalid referral code. You can still sign up without one.
+                    {t('shared.invalidReferral')}
                   </p>
                 )}
               </div>
 
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-700 font-medium">Welcome, Professional!</p>
+                <p className="text-sm text-blue-700 font-medium">{t('register.welcomeTitle')}</p>
                 <p className="text-xs text-blue-600 mt-1">
-                  After email and phone verification, you&apos;ll continue with Stripe, ID verification, availability, and the rest of the onboarding wizard.
+                  {t('register.welcomeBody')}
                 </p>
               </div>
 
@@ -349,9 +351,7 @@ function RegisterForm() {
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-xs text-gray-600 leading-relaxed">
-                  Email me offers, platform news, and loyalty rewards. Marketing
-                  only — separate from booking and account emails, and you can
-                  unsubscribe at any time.
+                  {t('shared.marketingOptIn')}
                 </span>
               </label>
 
@@ -361,14 +361,14 @@ function RegisterForm() {
                 className="w-full h-11 bg-blue-600 hover:bg-blue-700"
                 size="lg"
               >
-                {loading ? "Creating Account..." : "Create Account"}
+                {loading ? t('register.creatingAccount') : t('register.createAccount')}
               </Button>
             </form>
 
             <div className="text-center text-sm text-gray-600">
-              Already have an account?{' '}
+              {t('shared.alreadyHaveAccount')}{' '}
               <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-500">
-                Sign in here
+                {t('shared.signInHere')}
               </Link>
             </div>
           </CardContent>

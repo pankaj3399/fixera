@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useLocale } from 'next-intl';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 
@@ -18,8 +19,11 @@ interface StripeProviderProps {
 }
 
 export function StripeProvider({ children }: StripeProviderProps) {
+  // Localize Stripe's own card fields and validation errors.
+  const locale = useLocale();
+
   return (
-    <Elements stripe={stripePromise}>
+    <Elements stripe={stripePromise} options={{ locale }}>
       {children}
     </Elements>
   );

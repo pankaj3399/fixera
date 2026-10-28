@@ -3,7 +3,10 @@
 import { Suspense } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
-import { type WarrantyClaimStatus, REASON_LABELS as warrantyReasonLabels, STATUS_LABELS as warrantyStatusLabels } from "@/lib/warrantyClaim"
+import { type WarrantyClaimStatus } from "@/lib/warrantyClaim"
 import { getAuthToken } from "@/lib/utils"
 import { RESCHEDULE_REASONS } from "@/lib/constants/rescheduleReasons"
 import { CANCEL_REASONS } from "@/lib/constants/cancelReasons"
@@ -32,6 +35,7 @@ import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelp
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
+import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { createOrGetConversation } from "@/lib/chatApi"
 import {
   calculateMilestoneGrossAmounts,
@@ -50,8 +54,8 @@ const PRE_SERVICE_BOOKING_STATUSES: BookingStatus[] = BOOKING_STATUSES.filter((s
   ].includes(status)
 ) as BookingStatus[]
 
-const formatValidUntilLabel = (value?: string) => {
-  if (!value) return "N/A"
+const formatValidUntilLabel = (value: string | undefined, intl: string, notAvailable: string) => {
+  if (!value) return notAvailable
   const raw = String(value).trim()
   const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (isoMatch) {
@@ -60,13 +64,13 @@ const formatValidUntilLabel = (value?: string) => {
     const day = Number(isoMatch[3])
     const parsed = new Date(year, month - 1, day)
     if (parsed.getFullYear() === year && parsed.getMonth() + 1 === month && parsed.getDate() === day) {
-      return parsed.toLocaleDateString()
+      return parsed.toLocaleDateString(intl)
     }
-    return "N/A"
+    return notAvailable
   }
   const fallback = new Date(raw)
-  if (!isNaN(fallback.getTime())) return fallback.toLocaleDateString()
-  return "N/A"
+  if (!isNaN(fallback.getTime())) return fallback.toLocaleDateString(intl)
+  return notAvailable
 }
 
 interface PostBookingQuestion {
@@ -400,17 +404,20 @@ const DETAIL_STATUS_STYLES: Record<string, string> = {
   dispute: "bg-red-50 text-red-700 border border-red-100",
 }
 
-const formatCurrencyRange = (booking: BookingDetail): string | null => {
+const formatCurrencyRange = (
+  booking: BookingDetail,
+  formatAmount: (amount: number, currency?: string | null) => string
+): string | null => {
   const budget = booking.rfqData?.budget
   if (!budget || (budget.min == null && budget.max == null)) return null
 
   const currency = budget.currency || "€"
   if (budget.min != null && budget.max != null && budget.min !== budget.max) {
-    return `${currency}${budget.min.toLocaleString()} – ${currency}${budget.max.toLocaleString()}`
+    return `${formatAmount(budget.min, currency)} – ${formatAmount(budget.max, currency)}`
   }
   const value = budget.min ?? budget.max
   if (value == null) return null
-  return `${currency}${value.toLocaleString()}`
+  return formatAmount(value, currency)
 }
 
 type BookingApiResponse = {
@@ -471,12 +478,6 @@ const isBookingApiResponse = (value: unknown): value is BookingApiResponse => {
   return typeof record.success === "boolean"
 }
 
-const formatMoney = (amount: number, currencyCode = "EUR"): string =>
-  `${currencyCode.toUpperCase()} ${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-
 const isHttpUrl = (value?: string | null) => {
   if (!value) return false
   try {
@@ -489,7 +490,7 @@ const isHttpUrl = (value?: string | null) => {
 
 const CANCEL_ATTACHMENT_MAX_BYTES = 15 * 1024 * 1024
 
-const getFileLabel = (value?: string | null, fallback = "Open attachment") => {
+const getFileLabel = (value: string | null | undefined, fallback: string) => {
   if (!value) return fallback
   try {
     const parsed = new URL(value)
@@ -516,27 +517,43 @@ const parseResponseBody = async <T,>(response: Response): Promise<{ data: T | nu
   }
 }
 
+const RESCHEDULE_REASON_KEYS: Record<string, string> = {
+  "Weather delay": "weatherDelay",
+  "Resource availability": "resourceAvailability",
+  "Material delivery issues": "materialDeliveryIssues",
+  "Crew unavailable": "crewUnavailable",
+  "Customer request": "customerRequest",
+  "Other": "other",
+}
+
+const WARRANTY_REASON_VALUES = ["defect", "incomplete_work", "material_issue", "functionality_issue", "safety_issue", "other"] as const
+
 const WARRANTY_ALLOWED_FILE_TYPES = ['image/', 'video/', 'application/pdf']
 const WARRANTY_MAX_FILE_SIZE = 50 * 1024 * 1024
 const WARRANTY_MAX_FILES = 10
 
+type WarrantyFileRejection =
+  | { kind: "unsupportedType"; name: string }
+  | { kind: "tooLarge"; name: string }
+  | { kind: "tooMany"; max: number }
+
 const validateWarrantyFiles = (fileList: FileList | File[] | null | undefined) => {
   const raw = Array.from(fileList || [])
   const valid: File[] = []
-  const rejected: string[] = []
+  const rejected: WarrantyFileRejection[] = []
 
   for (const file of raw.slice(0, WARRANTY_MAX_FILES)) {
     if (!WARRANTY_ALLOWED_FILE_TYPES.some((type) => file.type.startsWith(type))) {
-      rejected.push(`${file.name}: unsupported type`)
+      rejected.push({ kind: "unsupportedType", name: file.name })
     } else if (file.size > WARRANTY_MAX_FILE_SIZE) {
-      rejected.push(`${file.name}: exceeds 50 MB`)
+      rejected.push({ kind: "tooLarge", name: file.name })
     } else {
       valid.push(file)
     }
   }
 
   if (raw.length > WARRANTY_MAX_FILES) {
-    rejected.push(`Only ${WARRANTY_MAX_FILES} files allowed`)
+    rejected.push({ kind: "tooMany", max: WARRANTY_MAX_FILES })
   }
 
   return { valid, rejected }
@@ -553,6 +570,25 @@ export default function BookingDetailPage() {
 
 function BookingDetailContent() {
   const { user, isAuthenticated, loading } = useAuth()
+  const t = useTranslations("bookings")
+  const { intl } = useFormatLocale()
+  const { formatMoney } = useCurrency()
+  const formatDate = (value: string | number | Date) => new Date(value).toLocaleDateString(intl)
+  const formatDateTime = (value: string | number | Date) => new Date(value).toLocaleString(intl)
+  const enumLabel = (prefix: string, value?: string | null) => {
+    if (!value) return t("common.unknown")
+    const key = `${prefix}.${value}`
+    const hasKey = (t.has as unknown as (k: string) => boolean)(key)
+    return hasKey ? (t as unknown as (k: string) => string)(key) : value.replace(/_/g, " ")
+  }
+  const formatWarrantyRejections = (rejected: WarrantyFileRejection[]) =>
+    rejected
+      .map((item) => {
+        if (item.kind === "tooMany") return t("warranty.fileTooMany", { max: item.max })
+        if (item.kind === "tooLarge") return t("warranty.fileTooLarge", { name: item.name })
+        return t("warranty.fileUnsupported", { name: item.name })
+      })
+      .join("; ")
   const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount } = useCustomerPricing()
   const customerPricingReady = commissionPercent != null && loyaltyLoaded
   const router = useRouter()
@@ -701,7 +737,7 @@ function BookingDetailContent() {
         )
         const { data, rawText } = await parseResponseBody<BookingApiResponse>(response)
         if (!data || !isBookingApiResponse(data)) {
-          setError(rawText || `Unexpected response from server (${response.status}).`)
+          setError(rawText || t("errors.unexpectedResponse", { status: response.status }))
           return
         }
 
@@ -709,17 +745,19 @@ function BookingDetailContent() {
           setBooking(data.booking)
           if (data.viewerRole) setViewerRole(data.viewerRole)
         } else {
-          setError(data.msg || "Failed to load booking details.")
+          setError(data.msg || t("errors.loadBooking"))
         }
       } catch (err) {
         console.error("Failed to fetch booking:", err instanceof Error ? err.message : err)
-        setError("Failed to load booking details.")
+        setError(t("errors.loadBooking"))
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchBooking()
+    // `t` is only used for the error message; refetching on locale change is not needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId, isAuthenticated])
 
   useEffect(() => {
@@ -845,7 +883,7 @@ function BookingDetailContent() {
     !answersSubmitted &&
     customerCanAnswerPostBooking &&
     (showPostBookingQuestions || paymentCompletedForPostBooking)
-  const currencyRange = booking ? formatCurrencyRange(booking) : null
+  const currencyRange = booking ? formatCurrencyRange(booking, formatMoney) : null
   const warrantyDurationValue = Number(booking?.warrantyCoverage?.duration?.value || 0)
   const hasWarrantyCoverage = warrantyDurationValue > 0
   const warrantyEndsAtTs = booking?.warrantyCoverage?.endsAt
@@ -944,13 +982,13 @@ function BookingDetailContent() {
 
       if (response.ok && data?.success && data.data?.url) {
         handleAnswerChange(index, data.data.url)
-        toast.success("Attachment uploaded")
+        toast.success(t("toasts.attachmentUploaded"))
       } else {
-        toast.error(data?.message || rawText || `Failed to upload attachment (${response.status}).`)
+        toast.error(data?.message || rawText || t("toasts.attachmentUploadFailedStatus", { status: response.status }))
       }
     } catch (err) {
       console.error("Failed to upload post-booking attachment:", err)
-      toast.error("Failed to upload attachment. Please try again.")
+      toast.error(t("toasts.attachmentUploadFailed"))
     } finally {
       setUploadingPostBookingQuestionIndexes(prev => { const next = new Set(prev); next.delete(index); return next })
     }
@@ -1016,7 +1054,7 @@ function BookingDetailContent() {
     }>(response)
 
     if (!response.ok || !data?.success) {
-      throw new Error(data?.msg || rawText || "Failed to upload evidence")
+      throw new Error(data?.msg || rawText || t("warranty.errors.uploadEvidence"))
     }
   }
 
@@ -1041,13 +1079,13 @@ function BookingDetailContent() {
   const handleOpenWarrantyClaim = async () => {
     if (!bookingId) return
     if (!warrantyClaimDescription.trim() || warrantyClaimDescription.trim().length < 10) {
-      toast.error("Please provide at least 10 characters describing the issue.")
+      toast.error(t("warranty.toasts.descriptionTooShort"))
       return
     }
 
     // Re-check for existing claim to prevent duplicate creation
     if (warrantyClaim && warrantyClaim.status !== "closed") {
-      toast.error("An active warranty claim already exists for this booking.")
+      toast.error(t("warranty.toasts.activeClaimExists"))
       return
     }
 
@@ -1079,7 +1117,7 @@ function BookingDetailContent() {
       }>(response)
 
       if (!response.ok || !data?.success || !data.claim) {
-        toast.error(data?.msg || rawText || "Failed to open warranty claim")
+        toast.error(data?.msg || rawText || t("warranty.toasts.openFailed"))
         return
       }
 
@@ -1106,7 +1144,7 @@ function BookingDetailContent() {
       }>(refreshRes)
 
       const finalClaim = refreshData.data?.claim || data.claim
-      toast.success("Warranty claim opened.")
+      toast.success(t("warranty.toasts.opened"))
       setWarrantyClaim(finalClaim)
       setWarrantyClaimReason("defect")
       setWarrantyClaimDescription("")
@@ -1114,7 +1152,7 @@ function BookingDetailContent() {
       setShowWarrantyClaimDialog(false)
     } catch (err) {
       console.error("Failed to open warranty claim:", err)
-      toast.error(err instanceof Error ? err.message : "Failed to open warranty claim")
+      toast.error(err instanceof Error ? err.message : t("warranty.toasts.openFailed"))
     } finally {
       setOpeningWarrantyClaim(false)
     }
@@ -1140,7 +1178,7 @@ function BookingDetailContent() {
       claim?: WarrantyClaimDetail
     }>(response)
     if (!response.ok || !data?.success) {
-      throw new Error(data?.msg || rawText || "Warranty action failed")
+      throw new Error(data?.msg || rawText || t("warranty.toasts.actionFailed"))
     }
     return data
   }
@@ -1148,11 +1186,11 @@ function BookingDetailContent() {
   const handleSubmitWarrantyProposal = async () => {
     if (!warrantyClaim?._id) return
     if (!warrantyProposalMessage.trim()) {
-      toast.error("Resolve proposal is required.")
+      toast.error(t("warranty.toasts.proposalRequired"))
       return
     }
     if (!warrantyProposalSchedule) {
-      toast.error("Resolve date is required.")
+      toast.error(t("warranty.toasts.resolveDateRequired"))
       return
     }
     setWarrantyActionLoading(true)
@@ -1164,9 +1202,9 @@ function BookingDetailContent() {
       setWarrantyClaim(data.claim || null)
       setWarrantyProposalMessage("")
       setWarrantyProposalSchedule("")
-      toast.success("Resolve proposal sent.")
+      toast.success(t("warranty.toasts.proposalSent"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to submit proposal")
+      toast.error(err instanceof Error ? err.message : t("warranty.toasts.proposalFailed"))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1176,7 +1214,7 @@ function BookingDetailContent() {
     if (!warrantyClaim?._id) return
     const trimmed = declineReason.trim()
     if (!trimmed) {
-      toast.error("Please provide a reason for declining.")
+      toast.error(t("warranty.toasts.declineReasonRequired"))
       return
     }
 
@@ -1186,9 +1224,9 @@ function BookingDetailContent() {
       setWarrantyClaim(data.claim || null)
       setShowDeclineReasonDialog(false)
       setDeclineReason("")
-      toast.success("Claim declined and escalated.")
+      toast.success(t("warranty.toasts.declined"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to decline claim")
+      toast.error(err instanceof Error ? err.message : t("warranty.toasts.declineFailed"))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1200,9 +1238,9 @@ function BookingDetailContent() {
     try {
       const data = await callWarrantyAction(`${warrantyClaim._id}/proposal-response`, { action })
       setWarrantyClaim(data.claim || null)
-      toast.success(action === "accept" ? "Proposal accepted." : "Proposal declined and escalated.")
+      toast.success(action === "accept" ? t("warranty.toasts.proposalAccepted") : t("warranty.toasts.proposalDeclined"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to respond to proposal")
+      toast.error(err instanceof Error ? err.message : t("warranty.toasts.proposalResponseFailed"))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1211,7 +1249,7 @@ function BookingDetailContent() {
   const handleMarkWarrantyResolved = async () => {
     if (!warrantyClaim?._id) return
     if (!warrantyResolutionSummary.trim()) {
-      toast.error("Resolution summary is required.")
+      toast.error(t("warranty.toasts.resolutionSummaryRequired"))
       return
     }
     setWarrantyActionLoading(true)
@@ -1230,7 +1268,7 @@ function BookingDetailContent() {
         })
         const uploadPayload = await uploadResponse.json()
         if (!uploadResponse.ok || !uploadPayload.success) {
-          throw new Error(uploadPayload.msg || "Failed to upload resolution attachments")
+          throw new Error(uploadPayload.msg || t("warranty.toasts.resolutionUploadFailed"))
         }
         uploadedFiles = Array.isArray(uploadPayload.data?.files) ? uploadPayload.data.files : []
         attachmentUrls = uploadedFiles
@@ -1267,9 +1305,9 @@ function BookingDetailContent() {
       setWarrantyClaim(data.claim || null)
       setWarrantyResolutionSummary("")
       setWarrantyResolutionFiles([])
-      toast.success("Claim marked as resolved.")
+      toast.success(t("warranty.toasts.markedResolved"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to mark claim resolved")
+      toast.error(err instanceof Error ? err.message : t("warranty.toasts.markResolvedFailed"))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1281,9 +1319,9 @@ function BookingDetailContent() {
     try {
       const data = await callWarrantyAction(`${warrantyClaim._id}/confirm`)
       setWarrantyClaim(data.claim || null)
-      toast.success("Warranty claim closed.")
+      toast.success(t("warranty.toasts.closed"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to confirm resolution")
+      toast.error(err instanceof Error ? err.message : t("warranty.toasts.confirmResolutionFailed"))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1297,9 +1335,9 @@ function BookingDetailContent() {
         reason,
       })
       setWarrantyClaim(data.claim || null)
-      toast.success("Claim escalated to admin.")
+      toast.success(t("warranty.toasts.escalated"))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to escalate claim")
+      toast.error(err instanceof Error ? err.message : t("warranty.toasts.escalateFailed"))
     } finally {
       setWarrantyActionLoading(false)
     }
@@ -1308,7 +1346,7 @@ function BookingDetailContent() {
   const handleSubmitPostBookingAnswers = async () => {
     if (!booking || !bookingId) return
     if (uploadingPostBookingQuestionIndexes.size > 0) {
-      toast.error("Please wait for all uploads to finish before submitting.")
+      toast.error(t("postBooking.waitForUploads"))
       return
     }
 
@@ -1324,7 +1362,7 @@ function BookingDetailContent() {
         ? `q${firstMissing}-opt0`
         : `q${firstMissing}-field`
       setTimeout(() => document.getElementById(focusId)?.focus(), 0)
-      toast.error(`Please answer required questions: ${missingRequired.map((index) => index + 1).join(', ')}`)
+      toast.error(t("postBooking.missingRequired", { questions: missingRequired.map((index) => index + 1).join(", ") }))
       return
     }
     setValidationErrors([])
@@ -1358,16 +1396,16 @@ function BookingDetailContent() {
       const { data, rawText } = await parseResponseBody<{ success?: boolean; postBookingData?: PostBookingAnswer[]; msg?: string }>(response)
 
       if (response.ok && data?.success) {
-        toast.success("Thank you! Your answers have been submitted.")
+        toast.success(t("postBooking.submitted"))
         setAnswersSubmitted(true)
         // Update the local booking state
         setBooking(prev => prev ? { ...prev, postBookingData: data.postBookingData || answers } : prev)
       } else {
-        toast.error(data?.msg || rawText || `Failed to submit answers (${response.status}).`)
+        toast.error(data?.msg || rawText || t("postBooking.submitFailedStatus", { status: response.status }))
       }
     } catch (err) {
       console.error("Failed to submit post-booking answers:", err)
-      toast.error("Failed to submit answers. Please try again.")
+      toast.error(t("postBooking.submitFailed"))
     } finally {
       setSubmittingAnswers(false)
     }
@@ -1401,7 +1439,7 @@ function BookingDetailContent() {
   const handleRespondToRFQ = async (action: 'accepted' | 'rejected') => {
     if (!bookingId) return
     if (action === 'rejected' && !rejectionReason.trim()) {
-      toast.error("Please provide a rejection reason")
+      toast.error(t("rfq.toasts.rejectionReasonRequired"))
       return
     }
 
@@ -1424,20 +1462,20 @@ function BookingDetailContent() {
 
       if (response.ok && data?.success) {
         if (action === 'accepted') {
-          toast.success("RFQ accepted! You can now create your quotation.")
+          toast.success(t("rfq.toasts.accepted"))
           setShowQuotationWizard(true)
         } else {
-          toast.success("RFQ rejected.")
+          toast.success(t("rfq.toasts.rejected"))
           setRejectionReason('')
           setShowRejectionModal(false)
         }
         await refreshBooking()
       } else {
-        toast.error(data?.error?.message || "Failed to respond to RFQ")
+        toast.error(data?.error?.message || t("rfq.toasts.respondFailed"))
       }
     } catch (err) {
       console.error("Error responding to RFQ:", err)
-      toast.error("Failed to respond to RFQ. Please try again.")
+      toast.error(t("rfq.toasts.respondFailedRetry"))
     } finally {
       setRespondingToRFQ(false)
     }
@@ -1457,18 +1495,18 @@ function BookingDetailContent() {
       )
       const { data } = await parseResponseBody<{ success?: boolean; msg?: string; booking?: BookingDetail }>(response)
       if (response.ok && data?.success) {
-        toast.success(data.msg || "You can now proceed at the standard VAT rate.")
+        toast.success(data.msg || t("vat.toasts.proceedStandard"))
         if (data.booking?.status === "quote_accepted" && data.booking?._id) {
           router.push(`/bookings/${data.booking._id}/payment`)
           return
         }
         await refreshBooking()
       } else {
-        toast.error(data?.msg || "Unable to update VAT preference")
+        toast.error(data?.msg || t("vat.toasts.updateFailed"))
       }
     } catch (error) {
       console.error("Proceed at standard VAT error:", error)
-      toast.error("Unable to update VAT preference")
+      toast.error(t("vat.toasts.updateFailed"))
     } finally {
       setProceedingAtStandardVat(false)
     }
@@ -1477,7 +1515,7 @@ function BookingDetailContent() {
   const handleRespondToQuotation = async (action: 'accepted' | 'rejected') => {
     if (!bookingId) return
     if (action === 'rejected' && !quoteRejectionReason.trim()) {
-      toast.error("Please provide a reason for rejection")
+      toast.error(t("quote.toasts.rejectionReasonRequired"))
       return
     }
 
@@ -1504,20 +1542,20 @@ function BookingDetailContent() {
 
       if (response.ok && data?.success) {
         if (action === 'accepted') {
-          toast.success("Quotation accepted! Please select your start date and complete the booking.")
+          toast.success(t("quotation.toasts.accepted"))
           router.push(`/bookings/${bookingId}/payment`)
         } else {
-          toast.success("Quotation rejected. The professional will be notified.")
+          toast.success(t("quotation.toasts.rejected"))
           setQuoteRejectionReason('')
           setShowQuoteRejectionModal(false)
           await refreshBooking()
         }
       } else {
-        toast.error(data?.error?.message || "Failed to respond to quotation")
+        toast.error(data?.error?.message || t("quotation.toasts.respondFailed"))
       }
     } catch (err) {
       console.error("Error responding to quotation:", err)
-      toast.error("Failed to respond. Please try again.")
+      toast.error(t("common.respondFailedRetry"))
     } finally {
       setRespondingToQuotation(false)
     }
@@ -1540,11 +1578,11 @@ function BookingDetailContent() {
       if (response.ok && data?.success) {
         router.push(`/bookings/${bookingId}/payment`)
       } else {
-        toast.error(data?.error?.message || "Failed to create payment")
+        toast.error(data?.error?.message || t("milestones.toasts.createPaymentFailed"))
       }
     } catch (err) {
       console.error("Error paying milestone:", err)
-      toast.error("Failed to initiate payment. Please try again.")
+      toast.error(t("milestones.toasts.initiatePaymentFailed"))
     } finally {
       setPayingMilestone(null)
     }
@@ -1572,14 +1610,14 @@ function BookingDetailContent() {
       const { data } = await parseResponseBody<{ success?: boolean; error?: { message?: string } }>(response)
 
       if (response.ok && data?.success) {
-        toast.success(action === "start" ? "Milestone started." : "Milestone completed.")
+        toast.success(action === "start" ? t("milestones.toasts.started") : t("milestones.toasts.completed"))
         await refreshBooking()
       } else {
-        toast.error(data?.error?.message || "Failed to update milestone.")
+        toast.error(data?.error?.message || t("milestones.toasts.updateFailed"))
       }
     } catch (err) {
       console.error("Error updating milestone:", err)
-      toast.error("Failed to update milestone. Please try again.")
+      toast.error(t("milestones.toasts.updateFailedRetry"))
     } finally {
       setUpdatingMilestoneIndexes(prev => { const next = new Set(prev); next.delete(index); return next })
     }
@@ -1629,7 +1667,7 @@ function BookingDetailContent() {
   const handleSubmitQuote = async () => {
     const parsedAmount = parseFloat(quoteAmount)
     if (!quoteAmount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      toast.error("Please enter a valid quote amount.")
+      toast.error(t("quote.toasts.invalidAmount"))
       return
     }
     if (!bookingId) return
@@ -1651,7 +1689,7 @@ function BookingDetailContent() {
           body: JSON.stringify({
             amount: parsedAmount,
             currency: "EUR",
-            description: quoteDescription || "Quote for your booking request"
+            description: quoteDescription || t("quote.defaultDescription")
           })
         }
       )
@@ -1659,15 +1697,15 @@ function BookingDetailContent() {
       const { data, rawText } = await parseResponseBody<{ success?: boolean; msg?: string }>(response)
 
       if (response.ok && data?.success) {
-        toast.success("Quote submitted successfully!")
+        toast.success(t("quote.toasts.submitted"))
         setShowQuoteForm(false)
         await refreshBooking()
       } else {
-        toast.error(data?.msg || rawText || `Failed to submit quote (${response.status}).`)
+        toast.error(data?.msg || rawText || t("quote.toasts.submitFailedStatus", { status: response.status }))
       }
     } catch (err) {
       console.error("Error submitting quote:", err instanceof Error ? err.message : err)
-      toast.error("Failed to submit quote. Please try again.")
+      toast.error(t("quote.toasts.submitFailed"))
     } finally {
       setSubmittingQuote(false)
     }
@@ -1698,18 +1736,20 @@ function BookingDetailContent() {
 
       if (response.ok && data?.success) {
         if (action === "accept") {
-          toast.success("Quote accepted! Please select your start date and proceed to payment.")
+          toast.success(t("quote.toasts.accepted"))
           router.push(`/bookings/${bookingId}/payment`)
         } else {
-          toast.success("Quote rejected.")
+          toast.success(t("quote.toasts.rejected"))
           await refreshBooking()
         }
       } else {
-        toast.error(data?.msg || rawText || `Failed to ${action} quote (${response.status}).`)
+        toast.error(data?.msg || rawText || (action === "accept"
+          ? t("quote.toasts.acceptFailedStatus", { status: response.status })
+          : t("quote.toasts.rejectFailedStatus", { status: response.status })))
       }
     } catch (err) {
       console.error(`Error ${action}ing quote:`, err instanceof Error ? err.message : err)
-      toast.error(`Failed to ${action} quote. Please try again.`)
+      toast.error(action === "accept" ? t("quote.toasts.acceptFailed") : t("quote.toasts.rejectFailed"))
     } finally {
       setRespondingToQuote(false)
     }
@@ -1743,19 +1783,19 @@ function BookingDetailContent() {
 
       if (response.ok && data?.success) {
         if (newStatus === "completed") {
-          toast.success("Booking marked as completed. Payment has been released.")
+          toast.success(t("status.toasts.completed"))
         } else if (newStatus === "in_progress") {
-          toast.success("Work started! Good luck with the project.")
+          toast.success(t("status.toasts.started"))
         } else {
-          toast.success("Booking status updated.")
+          toast.success(t("status.toasts.updated"))
         }
         await refreshBooking()
       } else {
-        toast.error(data?.msg || rawText || `Failed to update booking status (${response.status}).`)
+        toast.error(data?.msg || rawText || t("status.toasts.updateFailedStatus", { status: response.status }))
       }
     } catch (err) {
       console.error("Failed to update booking status:", err instanceof Error ? err.message : err)
-      toast.error("Failed to update booking status. Please try again.")
+      toast.error(t("status.toasts.updateFailed"))
     } finally {
       setUpdatingStatus(false)
     }
@@ -1767,7 +1807,7 @@ function BookingDetailContent() {
     const milestonesAllDone = !booking?.milestonePayments?.length
       || booking.milestonePayments.every((m) => (m.workStatus || 'pending') === 'completed')
     if (!milestonesAllDone) {
-      toast.error('Complete all milestones before confirming completion.')
+      toast.error(t("completion.toasts.milestonesIncomplete"))
       return
     }
 
@@ -1782,10 +1822,10 @@ function BookingDetailContent() {
     if (invalidExtraCost) {
       toast.error(
         invalidExtraCost.type === 'condition'
-          ? 'Select a project condition before confirming completion.'
+          ? t("completion.toasts.selectCondition")
           : invalidExtraCost.type === 'option'
-            ? 'Select a project option before confirming completion.'
-            : 'Each extra cost requires a justification.'
+            ? t("completion.toasts.selectOption")
+            : t("completion.toasts.justificationRequired")
       )
       return
     }
@@ -1809,18 +1849,18 @@ function BookingDetailContent() {
       )
       const result = await response.json()
       if (response.ok && result.success) {
-        toast.success("Completion confirmed. Awaiting customer confirmation.")
+        toast.success(t("completion.toasts.submitted"))
         setShowCompletionModal(false)
         setCompletionNotes("")
         setCompletionFiles([])
         setCompletionExtraCosts([])
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || "Failed to confirm completion")
+        toast.error(result.error?.message || t("completion.toasts.failed"))
       }
     } catch (err) {
       console.error("Failed to confirm completion:", err)
-      toast.error("Failed to confirm completion. Please try again.")
+      toast.error(t("completion.toasts.failedRetry"))
     } finally {
       setSubmittingCompletion(false)
     }
@@ -1868,11 +1908,11 @@ function BookingDetailContent() {
         return true
       }
 
-      toast.error(result.error?.message || "Failed to initialize extra cost payment")
+      toast.error(result.error?.message || t("extraCosts.toasts.initFailed"))
       return false
     } catch (err) {
       console.error("Failed to initialize extra cost payment:", err)
-      toast.error("Failed to initialize extra cost payment. Please try again.")
+      toast.error(t("extraCosts.toasts.initFailedRetry"))
       return false
     } finally {
       setLoadingExtraCostPayment(false)
@@ -1882,7 +1922,7 @@ function BookingDetailContent() {
 
   const submitCustomerConfirmCompletion = async (skipPrompt = false) => {
     if (!bookingId) return false
-    if (!skipPrompt && !confirm("Are you satisfied with the work and extra costs?\n\nThis will release the payment to the professional.")) return false
+    if (!skipPrompt && !confirm(t("completion.confirmPrompt"))) return false
 
     setConfirmingCompletion(true)
     try {
@@ -1896,7 +1936,7 @@ function BookingDetailContent() {
       )
       const result = await response.json()
       if (response.ok && result.success) {
-        toast.success("Booking completed! Payment has been released.")
+        toast.success(t("completion.toasts.completed"))
         setExtraCostClientSecret("")
         setExtraCostPaymentCompleted(false)
         await refreshBooking()
@@ -1906,16 +1946,16 @@ function BookingDetailContent() {
       if (result.error?.code === "EXTRA_COST_NOT_PAID" && (booking?.extraCostTotal || 0) > 0) {
         const paymentReady = await initializeExtraCostPayment()
         if (paymentReady) {
-          toast.info("Pay the extra costs below to complete the booking.")
+          toast.info(t("extraCosts.toasts.payToComplete"))
         }
         return false
       }
 
-      toast.error(result.error?.message || "Failed to confirm completion")
+      toast.error(result.error?.message || t("completion.toasts.failed"))
       return false
     } catch (err) {
       console.error("Failed to confirm completion:", err)
-      toast.error("Failed to confirm completion. Please try again.")
+      toast.error(t("completion.toasts.failedRetry"))
       return false
     } finally {
       setConfirmingCompletion(false)
@@ -1928,7 +1968,7 @@ function BookingDetailContent() {
 
   const handleExtraCostPaymentSuccess = async () => {
     setExtraCostPaymentCompleted(true)
-    toast.success("Extra costs paid. Finalizing booking...")
+    toast.success(t("extraCosts.toasts.paid"))
     await submitCustomerConfirmCompletion(true)
   }
 
@@ -1955,7 +1995,7 @@ function BookingDetailContent() {
         )
         const uploadPayload = await uploadResponse.json()
         if (!uploadResponse.ok || !uploadPayload.success) {
-          toast.error(uploadPayload?.error?.message || "Failed to upload attachments")
+          toast.error(uploadPayload?.error?.message || t("dispute.toasts.uploadFailed"))
           setSubmittingDispute(false)
           return
         }
@@ -1979,7 +2019,7 @@ function BookingDetailContent() {
       )
       const result = await response.json()
       if (response.ok && result.success) {
-        toast.success("Dispute raised. An admin will review your case.")
+        toast.success(t("dispute.toasts.raised"))
         setShowDisputeModal(false)
         setDisputeReason("")
         setDisputeDescription("")
@@ -1987,11 +2027,11 @@ function BookingDetailContent() {
         setDisputeStep('warning')
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || "Failed to raise dispute")
+        toast.error(result.error?.message || t("dispute.toasts.raiseFailed"))
       }
     } catch (err) {
       console.error("Failed to raise dispute:", err)
-      toast.error("Failed to raise dispute. Please try again.")
+      toast.error(t("dispute.toasts.raiseFailedRetry"))
     } finally {
       setSubmittingDispute(false)
     }
@@ -2001,18 +2041,18 @@ function BookingDetailContent() {
     if (!files || files.length === 0 || !bookingId) return
     const remaining = 10 - cancelEvidence.length
     if (remaining <= 0) {
-      toast.error("You can attach up to 10 files")
+      toast.error(t("cancel.toasts.maxFiles"))
       return
     }
     const valid: File[] = []
     for (const file of Array.from(files)) {
       const okType = /^(image\/|video\/)/.test(file.type) || file.type === "application/pdf"
       if (!okType) {
-        toast.error(`${file.name}: unsupported file type`)
+        toast.error(t("cancel.toasts.unsupportedFileType", { name: file.name }))
         continue
       }
       if (file.size > CANCEL_ATTACHMENT_MAX_BYTES) {
-        toast.error(`${file.name}: exceeds ${CANCEL_ATTACHMENT_MAX_BYTES / (1024 * 1024)}MB limit`)
+        toast.error(t("cancel.toasts.fileTooLarge", { name: file.name, size: CANCEL_ATTACHMENT_MAX_BYTES / (1024 * 1024) }))
         continue
       }
       valid.push(file)
@@ -2038,14 +2078,14 @@ function BookingDetailContent() {
         .filter((u: unknown): u is string => typeof u === "string" && /^https?:\/\//i.test(u))
       if (response.ok && result.success && urls.length > 0) {
         setCancelEvidence((prev) => [...prev, ...urls].slice(0, 10))
-        toast.success("Attachment uploaded")
+        toast.success(t("toasts.attachmentUploaded"))
       } else {
-        toast.error(result?.error?.message || "Failed to upload attachment")
+        toast.error(result?.error?.message || t("toasts.attachmentUploadFailedShort"))
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
       console.error("Failed to upload cancellation attachment:", err)
-      toast.error("Failed to upload attachment. Please try again.")
+      toast.error(t("toasts.attachmentUploadFailed"))
     } finally {
       if (cancelUploadAbortRef.current === controller) cancelUploadAbortRef.current = null
       setUploadingCancelAttachment(false)
@@ -2062,7 +2102,7 @@ function BookingDetailContent() {
 
   const handleCustomerCancel = async () => {
     if (!bookingId || !CANCEL_REASONS.some((r) => r.value === cancelReasonCategory)) {
-      toast.error("Please select a valid cancellation reason")
+      toast.error(t("cancel.toasts.reasonRequired"))
       return
     }
     setSubmittingCancel(true)
@@ -2085,16 +2125,16 @@ function BookingDetailContent() {
       )
       const result = await response.json()
       if (response.ok && result.success) {
-        toast.success(result.msg || "Cancellation request submitted")
+        toast.success(result.msg || t("cancel.toasts.submitted"))
         setShowCancelModal(false)
         resetCancelForm()
         await refreshBooking()
       } else {
-        toast.error(result.msg || result.error?.message || "Failed to cancel booking")
+        toast.error(result.msg || result.error?.message || t("cancel.toasts.failed"))
       }
     } catch (err) {
       console.error("Failed to cancel booking:", err)
-      toast.error("Failed to cancel booking. Please try again.")
+      toast.error(t("cancel.toasts.failedRetry"))
     } finally {
       setSubmittingCancel(false)
     }
@@ -2102,12 +2142,12 @@ function BookingDetailContent() {
 
   const handleCustomerReschedule = async () => {
     if (!bookingId || !rescheduleDate || !rescheduleReason) {
-      toast.error("New date and reason are required")
+      toast.error(t("reschedule.toasts.dateAndReasonRequired"))
       return
     }
     const isDaysMode = resolveBookingIsDaysMode(booking)
     if (!isDaysMode && !rescheduleTime) {
-      toast.error("Start time is required")
+      toast.error(t("reschedule.toasts.startTimeRequired"))
       return
     }
     setSubmittingReschedule(true)
@@ -2131,7 +2171,7 @@ function BookingDetailContent() {
       )
       const result = await response.json()
       if (response.ok && result.success) {
-        toast.success("Rescheduling request sent.")
+        toast.success(t("reschedule.toasts.sent"))
         setShowRescheduleModal(false)
         setRescheduleDate("")
         setRescheduleTime("")
@@ -2139,11 +2179,11 @@ function BookingDetailContent() {
         setRescheduleDescription("")
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || "Failed to request rescheduling")
+        toast.error(result.error?.message || t("reschedule.toasts.requestFailed"))
       }
     } catch (err) {
       console.error("Failed to request rescheduling:", err)
-      toast.error("Failed to request rescheduling. Please try again.")
+      toast.error(t("reschedule.toasts.requestFailedRetry"))
     } finally {
       setSubmittingReschedule(false)
     }
@@ -2169,18 +2209,18 @@ function BookingDetailContent() {
       if (response.ok && result.success) {
         toast.success(
           action === 'accept'
-            ? 'Reschedule accepted.'
-            : 'Reschedule declined and refund issued.'
+            ? t("reschedule.toasts.accepted")
+            : t("reschedule.toasts.declinedRefunded")
         )
         setShowRescheduleRefundModal(false)
         setRescheduleRefundNote("")
         await refreshBooking()
       } else {
-        toast.error(result.error?.message || "Failed to respond to reschedule")
+        toast.error(result.error?.message || t("reschedule.toasts.respondFailed"))
       }
     } catch (err) {
       console.error("Failed to respond to reschedule:", err)
-      toast.error("Failed to respond. Please try again.")
+      toast.error(t("common.respondFailedRetry"))
     } finally {
       setRespondingReschedule(false)
     }
@@ -2205,17 +2245,17 @@ function BookingDetailContent() {
       } else if (subprojects.length === 1) {
         subIdx = 0
       } else {
-        toast.error('Cannot add a unit adjustment: no subproject is selected for this booking.')
+        toast.error(t("extraCosts.toasts.noSubproject"))
         return
       }
       const sub = subprojects[subIdx]
       if (sub?.pricing?.type !== 'unit') {
-        toast.error('Cannot add a unit adjustment: this subproject is not priced per unit.')
+        toast.error(t("extraCosts.toasts.notUnitPriced"))
         return
       }
       const unitPrice = Number(sub?.pricing?.amount)
       if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-        toast.error('Cannot add a unit adjustment: the unit price is not set.')
+        toast.error(t("extraCosts.toasts.unitPriceMissing"))
         return
       }
 
@@ -2287,7 +2327,7 @@ function BookingDetailContent() {
     }
     setCompletionExtraCosts(prev => [...prev, {
       type,
-      name: type === 'unit_adjustment' ? 'Unit-based adjustment' : '',
+      name: type === 'unit_adjustment' ? t("extraCosts.unitAdjustmentName") : '',
       justification: '',
       amount: 0,
       ...(unitDefaults || {}),
@@ -2432,6 +2472,12 @@ function BookingDetailContent() {
     .map((item, originalIndex) => ({ item, originalIndex }))
     .filter(({ item }) => !item.type || item.type === 'condition')
   const projectOptions = booking?.project?.extraOptions || []
+  // The completion charge is created in the booking payment's currency; the
+  // quote currency is only a fallback for records without a payment yet.
+  const completionCurrency = resolveRecordCurrency(
+    booking?.payment?.currency,
+    booking?.quote?.currency
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
@@ -2439,10 +2485,10 @@ function BookingDetailContent() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-              Booking details
+              {t("page.title")}
             </h1>
             <p className="text-sm text-gray-600">
-              See all the information about this booking.
+              {t("page.subtitle")}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -2458,7 +2504,7 @@ function BookingDetailContent() {
               className="bg-white/80 backdrop-blur border-indigo-100 hover:border-indigo-300"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              {t("common.back")}
             </Button>
           </div>
         </div>
@@ -2489,30 +2535,30 @@ function BookingDetailContent() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-emerald-900">
-                    {booking.payment.status === 'refunded' ? 'Refund processed' : 'Partial refund processed'}
+                    {booking.payment.status === 'refunded' ? t("refund.processed") : t("refund.partial")}
                   </h3>
                   <p className="text-sm text-emerald-800 mt-0.5">
                     {booking.payment.status === 'refunded' && booking.payment.totalWithVat != null && (
                       <>
-                        <strong>{booking.payment.currency || 'EUR'} {booking.payment.totalWithVat.toFixed(2)}</strong>
-                        {' '}was refunded
+                        <strong>{formatMoney(booking.payment.totalWithVat, booking.payment.currency || 'EUR')}</strong>{' '}
+                        {t("refund.amountRefunded")}
                       </>
                     )}
                     {booking.payment.status === 'partially_refunded' && (
-                      <>A partial refund has been issued</>
+                      <>{t("refund.partialIssued")}</>
                     )}
                     {booking.payment.refundedAt && (
-                      <> on {new Date(booking.payment.refundedAt).toLocaleDateString()}</>
+                      <>{t("refund.onDate", { date: formatDate(booking.payment.refundedAt) })}</>
                     )}
                     .
                   </p>
                   {booking.payment.refundReason && (
                     <p className="text-xs text-emerald-700 mt-1">
-                      <strong>Reason:</strong> {booking.payment.refundReason}
+                      <strong>{t("refund.reasonLabel")}</strong> {booking.payment.refundReason}
                     </p>
                   )}
                   <p className="text-xs text-emerald-600 mt-1">
-                    The refund should appear on your original payment method within 5–10 business days, depending on your bank.
+                    {t("refund.timeline")}
                   </p>
                 </div>
               </div>
@@ -2527,9 +2573,9 @@ function BookingDetailContent() {
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-6 w-6 text-green-600" />
                 <div>
-                  <CardTitle className="text-lg text-green-800">Booking Confirmed!</CardTitle>
+                  <CardTitle className="text-lg text-green-800">{t("postBooking.title")}</CardTitle>
                   <CardDescription className="text-green-700">
-                    Please answer the following questions to help the service provider prepare for your appointment.
+                    {t("postBooking.description")}
                   </CardDescription>
                 </div>
               </div>
@@ -2548,7 +2594,7 @@ function BookingDetailContent() {
                   {question.type === "text" && (
                     <Textarea
                       id={`q${index}-field`}
-                      placeholder="Your answer..."
+                      placeholder={t("postBooking.answerPlaceholder")}
                       value={postBookingAnswers[index] || ""}
                       onChange={(e) => handleAnswerChange(index, e.target.value)}
                       rows={3}
@@ -2581,7 +2627,7 @@ function BookingDetailContent() {
                   {question.type === "attachment" && (
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-white">
                       <Upload className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600">Upload a file for this question</p>
+                      <p className="text-sm text-gray-600">{t("postBooking.uploadHint")}</p>
                       <Input
                         id={`q${index}-field`}
                         type="file"
@@ -2600,7 +2646,7 @@ function BookingDetailContent() {
                       {uploadingPostBookingQuestionIndexes.has(index) && (
                         <div className="mt-2 inline-flex items-center text-xs text-indigo-600">
                           <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                          Uploading...
+                          {t("common.uploading")}
                         </div>
                       )}
                       {postBookingAnswers[index] && isHttpUrl(postBookingAnswers[index]) ? (
@@ -2610,18 +2656,18 @@ function BookingDetailContent() {
                           rel="noreferrer noopener"
                           className="mt-2 inline-flex text-sm text-indigo-600 hover:underline"
                         >
-                          {getFileLabel(postBookingAnswers[index])}
+                          {getFileLabel(postBookingAnswers[index], t("common.openAttachment"))}
                         </a>
                       ) : postBookingAnswers[index] ? (
                         <span className="mt-2 inline-flex text-sm text-gray-700">
-                          {getFileLabel(postBookingAnswers[index])}
+                          {getFileLabel(postBookingAnswers[index], t("common.openAttachment"))}
                         </span>
                       ) : null}
                     </div>
                   )}
                   {hasError && (
                     <p id={errorId} role="alert" className="text-xs text-red-600">
-                      This question is required.
+                      {t("postBooking.questionRequired")}
                     </p>
                   )}
                 </div>
@@ -2637,12 +2683,12 @@ function BookingDetailContent() {
                   {submittingAnswers ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Submitting...
+                      {t("common.submitting")}
                     </>
                   ) : (
                     <>
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Submit Answers
+                      {t("postBooking.submit")}
                     </>
                   )}
                 </Button>
@@ -2650,7 +2696,7 @@ function BookingDetailContent() {
                   variant="outline"
                   onClick={() => router.push("/dashboard")}
                 >
-                  Skip for Now
+                  {t("postBooking.skip")}
                 </Button>
               </div>
             </CardContent>
@@ -2662,12 +2708,12 @@ function BookingDetailContent() {
           <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200">
             <CardContent className="py-8 text-center">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-green-800 mb-2">Thank You!</h3>
+              <h3 className="text-lg font-semibold text-green-800 mb-2">{t("postBooking.thankYouTitle")}</h3>
               <p className="text-green-700 mb-4">
-                Your answers have been submitted successfully. The service provider will review them shortly.
+                {t("postBooking.thankYouDescription")}
               </p>
               <Button onClick={() => router.push("/dashboard")} className="bg-green-600 hover:bg-green-700">
-                Go to Dashboard
+                {t("postBooking.goToDashboard")}
               </Button>
             </CardContent>
           </Card>
@@ -2689,13 +2735,13 @@ function BookingDetailContent() {
                         {booking.project?.title ||
                           booking.professional?.username ||
                           booking.rfqData?.serviceType ||
-                          "Booking"}
+                          t("page.defaultTitle")}
                       </CardTitle>
                     </div>
                     <CardDescription className="text-xs text-gray-500">
                       {booking.bookingType === "project"
-                        ? "Project booking"
-                        : "Professional booking"}
+                        ? t("page.typeProject")
+                        : t("page.typeProfessional")}
                     </CardDescription>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -2706,7 +2752,7 @@ function BookingDetailContent() {
                         "bg-slate-50 text-slate-700 border border-slate-100"
                       }`}
                     >
-                      {booking.status.replace(/_/g, " ")}
+                      {enumLabel("status", booking.status)}
                     </Badge>
                     {user?.role === "customer" && (booking.status === "booked" || booking.status === "in_progress") && (
                       <div className="flex flex-wrap gap-2 justify-end">
@@ -2719,7 +2765,7 @@ function BookingDetailContent() {
                             setShowCancelModal(true)
                           }}
                         >
-                          Cancel
+                          {t("common.cancel")}
                         </Button>
                         {booking.status === "in_progress" && (
                           <Button
@@ -2729,7 +2775,7 @@ function BookingDetailContent() {
                             onClick={() => openDisputeModal('in_progress')}
                           >
                             <AlertTriangle className="h-4 w-4 mr-1" />
-                            Dispute
+                            {t("common.dispute")}
                           </Button>
                         )}
                       </div>
@@ -2745,7 +2791,7 @@ function BookingDetailContent() {
                           disabled={respondingReschedule}
                         >
                           {respondingReschedule ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />}
-                          Accept
+                          {t("common.accept")}
                         </Button>
                         <Button
                           size="sm"
@@ -2757,7 +2803,7 @@ function BookingDetailContent() {
                           }}
                           disabled={respondingReschedule}
                         >
-                          Refund
+                          {t("common.refund")}
                         </Button>
                         <Button
                           size="sm"
@@ -2767,7 +2813,7 @@ function BookingDetailContent() {
                           disabled={respondingReschedule}
                         >
                           <AlertTriangle className="h-3.5 w-3.5 mr-1" />
-                          Dispute
+                          {t("common.dispute")}
                         </Button>
                       </div>
                     )}
@@ -2786,7 +2832,7 @@ function BookingDetailContent() {
                             onClick={() => openDisputeModal('completion_request')}
                           >
                             <AlertTriangle className="h-3.5 w-3.5 mr-1" />
-                            Dispute
+                            {t("common.dispute")}
                           </Button>
                         </div>
                       )
@@ -2802,10 +2848,10 @@ function BookingDetailContent() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="text-sm font-semibold text-blue-900 mb-1">
-                          Payment Required
+                          {t("payment.requiredTitle")}
                         </h3>
                         <p className="text-xs text-blue-700">
-                          Your quote has been accepted. Please proceed with payment to confirm your booking.
+                          {t("payment.requiredDescription")}
                         </p>
                       </div>
                       <Button
@@ -2814,7 +2860,7 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         <CreditCard className="h-4 w-4 mr-2" />
-                        Pay Now
+                        {t("payment.payNow")}
                       </Button>
                     </div>
                   </div>
@@ -2823,9 +2869,9 @@ function BookingDetailContent() {
                 {user?.role === "customer" && booking.vatDecision?.action === "rfq" && !booking.vatDecision?.reverseCharge && (
                   <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 space-y-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-amber-900 mb-1">VAT review required</h3>
+                      <h3 className="text-sm font-semibold text-amber-900 mb-1">{t("vat.reviewRequiredTitle")}</h3>
                       <p className="text-xs text-amber-800">
-                        {booking.vatDecision.explanation || "Your answers suggest this booking may qualify for reduced VAT or needs a custom quotation review."}
+                        {booking.vatDecision.explanation || t("vat.reviewRequiredFallback")}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -2847,7 +2893,7 @@ function BookingDetailContent() {
                         ) : (
                           <CheckCircle className="h-4 w-4 mr-2" />
                         )}
-                        Proceed at standard VAT rate
+                        {t("vat.proceedStandard")}
                       </Button>
                     </div>
                   </div>
@@ -2856,10 +2902,10 @@ function BookingDetailContent() {
                 {/* Professional: customer's answers triggered a VAT review */}
                 {user?.role === "professional" && booking.vatDecision?.action === "rfq" && !booking.vatDecision?.reverseCharge && (
                   <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-amber-900 mb-1">VAT review requested</h3>
+                    <h3 className="text-sm font-semibold text-amber-900 mb-1">{t("vat.reviewRequestedTitle")}</h3>
                     <p className="text-xs text-amber-800">
                       {booking.vatDecision.explanation ||
-                        "The customer's answers may qualify for a reduced VAT rate. Review their VAT answers below and reflect the correct rate in your quotation, or advise them via chat."}
+                        t("vat.reviewRequestedFallback")}
                     </p>
                   </div>
                 )}
@@ -2871,12 +2917,12 @@ function BookingDetailContent() {
                       <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                       <div>
                         <h3 className="text-sm font-semibold text-green-900 mb-1">
-                          Reduced VAT rate applied
+                          {t("vat.reducedApplied")}
                           {typeof booking.vatDecision.appliedRate === "number" ? ` (${booking.vatDecision.appliedRate}%)` : ""}
                         </h3>
                         <p className="text-xs text-green-800">
                           {booking.vatDecision.explanation || booking.vatDecision.matchedRuleText ||
-                            "This booking qualifies for a reduced VAT rate based on the answers provided."}
+                            t("vat.reducedFallback")}
                         </p>
                       </div>
                     </div>
@@ -2888,7 +2934,7 @@ function BookingDetailContent() {
                   Array.isArray(booking.vatDecision?.answers) &&
                   booking.vatDecision.answers.length > 0 && (
                   <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer VAT answers</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">{t("vat.customerAnswers")}</h3>
                     <dl className="space-y-1">
                       {booking.vatDecision.answers.map((answer) => (
                         <div key={answer.fieldName} className="flex justify-between gap-4 text-xs">
@@ -2897,7 +2943,7 @@ function BookingDetailContent() {
                             {Array.isArray(answer.value)
                               ? answer.value.join(", ")
                               : typeof answer.value === "boolean"
-                                ? answer.value ? "Yes" : "No"
+                                ? answer.value ? t("common.yes") : t("common.no")
                                 : String(answer.value ?? "—")}
                           </dd>
                         </div>
@@ -2913,10 +2959,10 @@ function BookingDetailContent() {
                       <Clock className="h-5 w-5 text-amber-600 mt-0.5" />
                       <div>
                         <h3 className="text-sm font-semibold text-amber-900 mb-1">
-                          Quote Accepted - Awaiting Payment
+                          {t("quote.acceptedAwaitingPaymentTitle")}
                         </h3>
                         <p className="text-xs text-amber-700">
-                          The customer has accepted your quote. Once they complete payment, you&apos;ll be notified to begin work.
+                          {t("quote.acceptedAwaitingPaymentDescription")}
                         </p>
                       </div>
                     </div>
@@ -2930,10 +2976,10 @@ function BookingDetailContent() {
                       <div className="space-y-3">
                         <div>
                           <h3 className="text-sm font-semibold text-purple-900 mb-1">
-                            Request for Quote Received
+                            {t("rfq.receivedTitle")}
                           </h3>
                           <p className="text-xs text-purple-700">
-                            Review the customer&apos;s requirements. Accept to start preparing a detailed quotation, or chat for more information.
+                            {t("rfq.receivedDescription")}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -2944,7 +2990,7 @@ function BookingDetailContent() {
                             size="sm"
                           >
                             {respondingToRFQ ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                            Accept & Create Quotation
+                            {t("rfq.acceptAndCreate")}
                           </Button>
                           <Button
                             variant="outline"
@@ -2957,15 +3003,15 @@ function BookingDetailContent() {
                                   router.push(`/chat?conversationId=${conversation._id}`)
                                 } catch (error) {
                                   console.error("Failed to open chat:", error)
-                                  toast.info("Unable to open the conversation right now")
+                                  toast.info(t("rfq.chatUnavailable"))
                                 }
                               } else {
-                                toast.info("Customer information not available")
+                                toast.info(t("rfq.customerUnavailable"))
                               }
                             }}
                           >
                             <MessageSquare className="h-4 w-4 mr-2" />
-                            Chat for More Info
+                            {t("rfq.chatForInfo")}
                           </Button>
                           <Button
                             onClick={() => setShowRejectionModal(true)}
@@ -2975,7 +3021,7 @@ function BookingDetailContent() {
                             size="sm"
                           >
                             <XCircle className="h-4 w-4 mr-2" />
-                            Reject
+                            {t("common.reject")}
                           </Button>
                         </div>
 
@@ -2985,16 +3031,16 @@ function BookingDetailContent() {
                             onClick={() => setShowQuoteForm(true)}
                             className="text-xs text-purple-600 hover:text-purple-800 underline"
                           >
-                            Or submit a simple quote instead
+                            {t("rfq.orSimpleQuote")}
                           </button>
                         </div>
                       </div>
                     ) : showQuoteForm ? (
                       <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-purple-900">Submit Simple Quote</h3>
+                        <h3 className="text-sm font-semibold text-purple-900">{t("quote.simpleTitle")}</h3>
                         <div className="space-y-3">
                           <div>
-                            <Label htmlFor="quoteAmount" className="text-xs">Quote Amount (EUR) *</Label>
+                            <Label htmlFor="quoteAmount" className="text-xs">{t("quote.amountLabel")}</Label>
                             <Input
                               id="quoteAmount"
                               type="number"
@@ -3005,10 +3051,10 @@ function BookingDetailContent() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor="quoteDescription" className="text-xs">Description (Optional)</Label>
+                            <Label htmlFor="quoteDescription" className="text-xs">{t("quote.descriptionLabel")}</Label>
                             <Textarea
                               id="quoteDescription"
-                              placeholder="Brief description of what's included..."
+                              placeholder={t("quote.descriptionPlaceholder")}
                               value={quoteDescription}
                               onChange={(e) => setQuoteDescription(e.target.value)}
                               className="mt-1"
@@ -3017,10 +3063,10 @@ function BookingDetailContent() {
                           </div>
                           <div className="flex gap-2">
                             <Button onClick={handleSubmitQuote} disabled={submittingQuote} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">
-                              {submittingQuote ? "Submitting..." : "Submit Quote"}
+                              {submittingQuote ? t("common.submitting") : t("quote.submit")}
                             </Button>
                             <Button onClick={() => setShowQuoteForm(false)} variant="outline" size="sm" disabled={submittingQuote}>
-                              Cancel
+                              {t("common.cancel")}
                             </Button>
                           </div>
                         </div>
@@ -3040,11 +3086,14 @@ function BookingDetailContent() {
                           <div>
                             <h3 className="text-sm font-semibold text-amber-900">
                               {rfqDeadlineRemaining > 0
-                                ? `${rfqDeadlineRemaining} hour${rfqDeadlineRemaining !== 1 ? 's' : ''} remaining to submit quotation`
-                                : 'Deadline has passed!'}
+                                ? t("rfq.deadlineRemaining", { hours: rfqDeadlineRemaining })
+                                : t("rfq.deadlinePassed")}
                             </h3>
                             <p className="text-xs text-amber-700">
-                              Deadline: {rfqDeadlineDate?.toLocaleDateString()} {rfqDeadlineDate?.toLocaleTimeString()}
+                              {t("rfq.deadline", {
+                                date: rfqDeadlineDate ? rfqDeadlineDate.toLocaleDateString(intl) : "",
+                                time: rfqDeadlineDate ? rfqDeadlineDate.toLocaleTimeString(intl) : "",
+                              })}
                             </p>
                           </div>
                         </div>
@@ -3061,12 +3110,12 @@ function BookingDetailContent() {
                       <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <h3 className="text-sm font-semibold text-purple-900 mb-1">Create Your Quotation</h3>
-                            <p className="text-xs text-purple-700">Fill out the detailed quotation wizard with scope, pricing, milestones, and timeline.</p>
+                            <h3 className="text-sm font-semibold text-purple-900 mb-1">{t("quotation.createTitle")}</h3>
+                            <p className="text-xs text-purple-700">{t("quotation.createDescription")}</p>
                           </div>
                           <Button onClick={() => setShowQuotationWizard(true)} className="bg-purple-600 hover:bg-purple-700 text-white shrink-0" size="sm">
                             <FileText className="h-4 w-4 mr-2" />
-                            Open Wizard
+                            {t("quotation.openWizard")}
                           </Button>
                         </div>
                       </div>
@@ -3087,12 +3136,12 @@ function BookingDetailContent() {
                     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <h3 className="text-sm font-semibold text-purple-900 mb-1">Direct Quotation Draft</h3>
-                          <p className="text-xs text-purple-700">Complete the quotation wizard to send this quote to the customer.</p>
+                          <h3 className="text-sm font-semibold text-purple-900 mb-1">{t("quotation.draftTitle")}</h3>
+                          <p className="text-xs text-purple-700">{t("quotation.draftDescription")}</p>
                         </div>
                         <Button onClick={() => setShowQuotationWizard(true)} className="bg-purple-600 hover:bg-purple-700 text-white shrink-0" size="sm">
                           <FileText className="h-4 w-4 mr-2" />
-                          Create Quotation
+                          {t("quotation.create")}
                         </Button>
                       </div>
                     </div>
@@ -3103,7 +3152,7 @@ function BookingDetailContent() {
                 {user?.role === "customer" && booking.status === "quoted" && hasQuotationVersions && currentVersion && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-green-900">Quotation Received</h3>
+                      <h3 className="text-sm font-semibold text-green-900">{t("quotation.receivedTitle")}</h3>
                       {booking.quotationNumber && (
                         <Badge variant="outline" className="text-xs">{booking.quotationNumber}</Badge>
                       )}
@@ -3111,34 +3160,34 @@ function BookingDetailContent() {
 
                     <div className="bg-white rounded-lg p-4 space-y-3">
                       <div>
-                        <p className="text-xs text-gray-500 font-medium">Scope</p>
+                        <p className="text-xs text-gray-500 font-medium">{t("quotation.scope")}</p>
                         <p className="text-sm text-gray-900">{currentVersion.scope}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 font-medium">Description</p>
+                        <p className="text-xs text-gray-500 font-medium">{t("quotation.description")}</p>
                         <p className="text-sm text-gray-800 whitespace-pre-wrap">{currentVersion.description}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-xs text-gray-500 font-medium">Warranty</p>
-                          <p className="text-sm">{currentVersion.warrantyDuration.value} {currentVersion.warrantyDuration.unit}</p>
+                          <p className="text-xs text-gray-500 font-medium">{t("quotation.warranty")}</p>
+                          <p className="text-sm">{currentVersion.warrantyDuration.value} {enumLabel("unit", currentVersion.warrantyDuration.unit)}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 font-medium">Materials</p>
-                          <p className="text-sm">{currentVersion.materialsIncluded ? 'Included' : 'Not included'}</p>
+                          <p className="text-xs text-gray-500 font-medium">{t("quotation.materials")}</p>
+                          <p className="text-sm">{currentVersion.materialsIncluded ? t("quotation.materialsIncluded") : t("quotation.materialsNotIncluded")}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 font-medium">Prep Time</p>
-                          <p className="text-sm">{currentVersion.preparationDuration.value} {currentVersion.preparationDuration.unit}</p>
+                          <p className="text-xs text-gray-500 font-medium">{t("quotation.prepTime")}</p>
+                          <p className="text-sm">{currentVersion.preparationDuration.value} {enumLabel("unit", currentVersion.preparationDuration.unit)}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 font-medium">Execution Time</p>
-                          <p className="text-sm">{currentVersion.executionDuration.value} {currentVersion.executionDuration.unit}</p>
+                          <p className="text-xs text-gray-500 font-medium">{t("quotation.executionTime")}</p>
+                          <p className="text-sm">{currentVersion.executionDuration.value} {enumLabel("unit", currentVersion.executionDuration.unit)}</p>
                         </div>
                       </div>
                       {currentVersion.materialsIncluded && currentVersion.materials && currentVersion.materials.length > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500 font-medium mb-1">Materials List</p>
+                          <p className="text-xs text-gray-500 font-medium mb-1">{t("quotation.materialsList")}</p>
                           <ul className="text-sm space-y-0.5">
                             {currentVersion.materials.map((m, i) => (
                               <li key={i} className="text-gray-700">
@@ -3151,12 +3200,14 @@ function BookingDetailContent() {
                       {(booking.project?.minResources != null || booking.project?.minOverlapPercentage != null) && (
                         <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
                           <p className="text-xs text-blue-800">
-                            <span className="font-semibold">Team requirement:</span>{' '}
+                            <span className="font-semibold">{t("quotation.teamRequirement")}</span>{' '}
                             {booking.project?.minResources != null
-                              ? `${booking.project.minResources}${booking.project?.resources?.length ? ` of ${booking.project.resources.length}` : ''} team member${booking.project.minResources === 1 ? '' : 's'} required`
-                              : 'No minimum team size'}
+                              ? booking.project?.resources?.length
+                                ? t("quotation.teamRequiredOf", { min: booking.project.minResources, total: booking.project.resources.length })
+                                : t("quotation.teamRequired", { count: booking.project.minResources })
+                              : t("quotation.teamNoMinimum")}
                             {booking.project?.minOverlapPercentage != null
-                              ? ` · ${booking.project.minOverlapPercentage}% schedule overlap`
+                              ? t("quotation.scheduleOverlap", { percent: booking.project.minOverlapPercentage })
                               : ''}
                           </p>
                         </div>
@@ -3164,7 +3215,7 @@ function BookingDetailContent() {
                       {/* Milestones */}
                       {currentVersion.milestones && currentVersion.milestones.length > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500 font-medium mb-1">Payment Milestones</p>
+                          <p className="text-xs text-gray-500 font-medium mb-1">{t("quotation.paymentMilestones")}</p>
                           <div className="space-y-1.5">
                             {currentVersion.milestones.map((ms, i) => (
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
@@ -3179,22 +3230,22 @@ function BookingDetailContent() {
                           </div>
                           {customerPricingReady && (
                             <p className="mt-1 text-[11px] text-gray-500">
-                              Milestones are shown incl. VAT and allocated from the quotation gross total.
+                              {t("quotation.milestonesNote")}
                             </p>
                           )}
                         </div>
                       )}
                       {currentVersion.pricingLines && currentVersion.pricingLines.length > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500 font-medium mb-2">Pricing breakdown</p>
+                          <p className="text-xs text-gray-500 font-medium mb-2">{t("quotation.pricingBreakdown")}</p>
                           <div className="rounded-md border overflow-hidden">
                             <table className="w-full text-xs">
                               <thead className="bg-gray-50 text-gray-600">
                                 <tr>
-                                  <th className="text-left px-3 py-2 font-medium">Description</th>
-                                  <th className="text-right px-3 py-2 font-medium">Net</th>
-                                  <th className="text-right px-3 py-2 font-medium">VAT</th>
-                                  <th className="text-right px-3 py-2 font-medium">Total</th>
+                                  <th className="text-left px-3 py-2 font-medium">{t("quotation.tableDescription")}</th>
+                                  <th className="text-right px-3 py-2 font-medium">{t("quotation.tableNet")}</th>
+                                  <th className="text-right px-3 py-2 font-medium">{t("quotation.tableVat")}</th>
+                                  <th className="text-right px-3 py-2 font-medium">{t("quotation.tableTotal")}</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3207,7 +3258,7 @@ function BookingDetailContent() {
                                       <td className="px-3 py-2 text-gray-800">
                                         <div>{line.description}</div>
                                         <div className="text-[10px] text-gray-500">
-                                          {line.vatLabel || `${line.vatRate}% VAT`}
+                                          {line.vatLabel || t("quotation.vatRate", { rate: line.vatRate })}
                                         </div>
                                       </td>
                                       <td className="px-3 py-2 text-right">{customerPricingReady ? formatMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
@@ -3222,26 +3273,29 @@ function BookingDetailContent() {
                         </div>
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm font-semibold text-gray-900">Total (incl. VAT)</span>
+                        <span className="text-sm font-semibold text-gray-900">{t("quotation.totalInclVat")}</span>
                         <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR') : '...'}</span>
                       </div>
                       {customerPricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
                         <p className="text-xs text-gray-500 text-right">
-                          Net {formatMoney(currentVersionQuoteTotals.netAmount, booking.quote?.currency || 'EUR')} + VAT {formatMoney(currentVersionQuoteTotals.vatAmount, booking.quote?.currency || 'EUR')}
+                          {t("quotation.netPlusVat", {
+                            net: formatMoney(currentVersionQuoteTotals.netAmount, booking.quote?.currency || 'EUR'),
+                            vat: formatMoney(currentVersionQuoteTotals.vatAmount, booking.quote?.currency || 'EUR'),
+                          })}
                         </p>
                       )}
                       {customerPricingReady && loyalty && loyalty.percentage > 0 && (
                         <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                           <div className="text-xs text-amber-800">
-                            <span className="font-semibold">{loyalty.level} Member</span> · {loyalty.percentage}% loyalty discount applied
+                            <span className="font-semibold">{t("loyalty.member", { level: loyalty.level })}</span> · {t("loyalty.discountApplied", { percentage: loyalty.percentage })}
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            You save {formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR')}
+                            {t("quotation.youSave", { amount: formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR') })}
                           </div>
                         </div>
                       )}
                       <p className="text-xs text-gray-500">
-                        Valid until: {formatValidUntilLabel(currentVersion?.validUntil)}
+                        {t("quotation.validUntil", { date: formatValidUntilLabel(currentVersion?.validUntil, intl, t("common.notAvailable")) })}
                       </p>
                     </div>
 
@@ -3252,7 +3306,7 @@ function BookingDetailContent() {
                           onClick={() => setVersionHistoryOpen(!versionHistoryOpen)}
                           className="flex items-center justify-between w-full p-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                         >
-                          <span>Version History ({booking.quoteVersions?.length} versions)</span>
+                          <span>{t("quotation.versionHistory", { count: booking.quoteVersions?.length ?? 0 })}</span>
                           {versionHistoryOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
                         {versionHistoryOpen && (
@@ -3261,7 +3315,7 @@ function BookingDetailContent() {
                               <div key={i} className={`p-2 rounded text-sm ${v.version === booking.currentQuoteVersion ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
                                 <div className="flex justify-between items-center">
                                   <span className="font-medium">v{v.version}</span>
-                                  <span className="text-xs text-gray-500">{new Date(v.createdAt).toLocaleDateString()}</span>
+                                  <span className="text-xs text-gray-500">{formatDate(v.createdAt)}</span>
                                 </div>
                                 <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, booking.quote?.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
@@ -3280,7 +3334,7 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                        Accept & Pay
+                        {t("quotation.acceptAndPay")}
                       </Button>
                       <Button
                         onClick={() => setShowQuoteRejectionModal(true)}
@@ -3290,7 +3344,7 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         <XCircle className="h-4 w-4 mr-2" />
-                        Reject with Reason
+                        {t("quotation.rejectWithReason")}
                       </Button>
                     </div>
                   </div>
@@ -3300,24 +3354,24 @@ function BookingDetailContent() {
                 {user?.role === "professional" && booking.status === "quoted" && hasQuotationVersions && currentVersion && !showQuotationWizard && (
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-blue-900">Your Quotation (v{currentVersion.version})</h3>
+                      <h3 className="text-sm font-semibold text-blue-900">{t("quotation.yourQuotation", { version: currentVersion.version })}</h3>
                       <Button onClick={() => setShowQuotationWizard(true)} variant="outline" size="sm">
                         <FileText className="h-4 w-4 mr-2" />
-                        Edit Quotation
+                        {t("quotation.edit")}
                       </Button>
                     </div>
                     <div className="bg-white rounded-lg p-3 space-y-2 text-sm">
-                      <p><span className="text-gray-500">Scope:</span> {currentVersion.scope}</p>
+                      <p><span className="text-gray-500">{t("quotation.scopeLabel")}</span> {currentVersion.scope}</p>
                       <p>
-                        <span className="text-gray-500">Net total:</span>{' '}
+                        <span className="text-gray-500">{t("quotation.netTotal")}</span>{' '}
                         <strong>{formatMoney(currentVersion.totalAmount, booking.quote?.currency || 'EUR')}</strong>
                       </p>
                       <p>
-                        <span className="text-gray-500">Total incl. VAT:</span>{' '}
+                        <span className="text-gray-500">{t("quotation.totalInclVatLabel")}</span>{' '}
                         <strong>{formatMoney(calculateQuoteVersionVatTotals(currentVersion).total, booking.quote?.currency || 'EUR')}</strong>
                       </p>
-                      <p><span className="text-gray-500">Valid until:</span> {formatValidUntilLabel(currentVersion?.validUntil)}</p>
-                      <p className="text-xs text-gray-500">Waiting for customer response...</p>
+                      <p><span className="text-gray-500">{t("quotation.validUntilLabel")}</span> {formatValidUntilLabel(currentVersion?.validUntil, intl, t("common.notAvailable"))}</p>
+                      <p className="text-xs text-gray-500">{t("quotation.waitingForCustomer")}</p>
                     </div>
                   </div>
                 )}
@@ -3338,17 +3392,17 @@ function BookingDetailContent() {
                 {user?.role === "professional" && booking.status === "quote_rejected" && (
                   <div className="space-y-4">
                     <div className="bg-gradient-to-r from-rose-50 to-red-50 border border-rose-200 rounded-lg p-4">
-                      <h3 className="text-sm font-semibold text-rose-900 mb-2">Quotation Rejected by Customer</h3>
+                      <h3 className="text-sm font-semibold text-rose-900 mb-2">{t("quotation.rejectedByCustomer")}</h3>
                       {booking.customerRejectionReason && (
                         <div className="bg-white rounded-lg p-3 mb-3">
-                          <p className="text-xs text-gray-500 mb-1">Customer&apos;s feedback:</p>
+                          <p className="text-xs text-gray-500 mb-1">{t("quotation.customerFeedback")}</p>
                           <p className="text-sm text-gray-800">{booking.customerRejectionReason}</p>
                         </div>
                       )}
                       {!showQuotationWizard && (
                         <Button onClick={() => setShowQuotationWizard(true)} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">
                           <FileText className="h-4 w-4 mr-2" />
-                          Revise & Resubmit
+                          {t("quotation.reviseAndResubmit")}
                         </Button>
                       )}
                     </div>
@@ -3368,7 +3422,7 @@ function BookingDetailContent() {
                 {/* Milestone Tracker (when booking has milestonePayments and is booked/in_progress) */}
                 {booking.milestonePayments && booking.milestonePayments.length > 0 && ['booked', 'in_progress', 'professional_completed', 'completed'].includes(booking.status) && (
                   <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-sky-900 mb-3">Milestones</h3>
+                    <h3 className="text-sm font-semibold text-sky-900 mb-3">{t("milestones.title")}</h3>
                     {(() => {
                       const isCustomerView = user?.role === 'customer'
                       const displayAmounts = booking.milestonePayments!.map((milestone, index) =>
@@ -3386,12 +3440,12 @@ function BookingDetailContent() {
                       const paymentPct = displayTotal > 0 ? Math.round((displayPaid / displayTotal) * 100) : 0
                       const workPct = displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0
                       const showAmounts = !isCustomerView || customerPricingReady
-                      const amountLabel = isCustomerView ? 'incl. VAT' : 'net'
+                      const amountLabel = isCustomerView ? t("milestones.basisInclVat") : t("milestones.basisNet")
                       return (
                         <div className="mb-4 space-y-3">
                           <div>
                             <div className="flex justify-between text-xs text-gray-600 mb-1">
-                              <span>Work progress</span>
+                              <span>{t("milestones.workProgress")}</span>
                               <span>{workPct}%</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -3400,7 +3454,7 @@ function BookingDetailContent() {
                           </div>
                           <div>
                             <div className="flex justify-between text-xs text-gray-600 mb-1">
-                              <span>Payment progress</span>
+                              <span>{t("milestones.paymentProgress")}</span>
                               <span>{paymentPct}%</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -3408,8 +3462,14 @@ function BookingDetailContent() {
                             </div>
                           </div>
                           <div className="flex justify-between text-xs text-gray-600">
-                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayCompleted.toFixed(2) : '...'} completed ({amountLabel})</span>
-                            <span>{booking.quote?.currency || 'EUR'} {showAmounts ? displayPaid.toFixed(2) : '...'} paid ({amountLabel})</span>
+                            <span>{t("milestones.completedAmount", {
+                              amount: showAmounts ? formatMoney(displayCompleted, booking.quote?.currency || 'EUR') : '...',
+                              basis: amountLabel,
+                            })}</span>
+                            <span>{t("milestones.paidAmount", {
+                              amount: showAmounts ? formatMoney(displayPaid, booking.quote?.currency || 'EUR') : '...',
+                              basis: amountLabel,
+                            })}</span>
                           </div>
                         </div>
                       )
@@ -3432,10 +3492,10 @@ function BookingDetailContent() {
                           return true
                         })()
                         const dueLabel = (() => {
-                          if (dueCondition === 'on_start') return 'Due on project start'
-                          if (dueCondition === 'on_milestone_start') return 'Due when milestone starts'
-                          if (dueCondition === 'on_milestone_completion') return 'Due on milestone completion'
-                          if (dueCondition === 'custom_date' && ms.customDueDate) return `Due ${new Date(ms.customDueDate).toLocaleDateString()}`
+                          if (dueCondition === 'on_start') return t("milestones.due.onStart")
+                          if (dueCondition === 'on_milestone_start') return t("milestones.due.onMilestoneStart")
+                          if (dueCondition === 'on_milestone_completion') return t("milestones.due.onMilestoneCompletion")
+                          if (dueCondition === 'custom_date' && ms.customDueDate) return t("milestones.due.onDate", { date: formatDate(ms.customDueDate) })
                           return null
                         })()
                         const canPay = !isPaid && prevPaid && isDueNow && user?.role === 'customer'
@@ -3463,20 +3523,19 @@ function BookingDetailContent() {
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
                                   <p className="text-xs text-gray-500">
-                                    {booking.quote?.currency || 'EUR'}{' '}
                                     {user?.role === 'customer'
-                                      ? (customerPricingReady ? (bookingMilestoneGrossAmounts[i] ?? customerPrice(ms.amount)).toFixed(2) : '...')
-                                      : ms.amount.toFixed(2)}
-                                    {user?.role === 'customer' ? ' incl. VAT' : ' net'}
+                                      ? (customerPricingReady ? formatMoney(bookingMilestoneGrossAmounts[i] ?? customerPrice(ms.amount), booking.quote?.currency || 'EUR') : '...')
+                                      : formatMoney(ms.amount, booking.quote?.currency || 'EUR')}
+                                    {user?.role === 'customer' ? ` ${t("milestones.basisInclVat")}` : ` ${t("milestones.basisNet")}`}
                                   </p>
                                   {dueLabel && !isPaid && (
                                     <p className="text-[11px] text-sky-700">{dueLabel}</p>
                                   )}
                                   {ms.startedAt && (
-                                    <p className="text-[11px] text-gray-500">Started: {new Date(ms.startedAt).toLocaleDateString()}</p>
+                                    <p className="text-[11px] text-gray-500">{t("milestones.startedAt", { date: formatDate(ms.startedAt) })}</p>
                                   )}
                                   {ms.completedAt && (
-                                    <p className="text-[11px] text-gray-500">Completed: {new Date(ms.completedAt).toLocaleDateString()}</p>
+                                    <p className="text-[11px] text-gray-500">{t("milestones.completedAt", { date: formatDate(ms.completedAt) })}</p>
                                   )}
                                 </div>
                               </div>
@@ -3488,10 +3547,10 @@ function BookingDetailContent() {
                                     ? 'bg-amber-100 text-amber-700'
                                     : 'bg-slate-100 text-slate-700'
                                 }>
-                                  {workStatus === 'completed' ? 'Completed' : workStatus === 'in_progress' ? 'In Progress' : 'Not Started'}
+                                  {enumLabel("workStatus", workStatus)}
                                 </Badge>
                                 <Badge className={isPaid ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}>
-                                  {isPaid ? 'Paid' : 'Unpaid'}
+                                  {isPaid ? t("milestones.paid") : t("milestones.unpaid")}
                                 </Badge>
                               </div>
                             </div>
@@ -3504,7 +3563,7 @@ function BookingDetailContent() {
                                   variant="outline"
                                 >
                                   {updatingMilestoneIndexes.has(i) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-                                  Start
+                                  {t("milestones.start")}
                                 </Button>
                               )}
                               {canComplete && (
@@ -3515,7 +3574,7 @@ function BookingDetailContent() {
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                 >
                                   {updatingMilestoneIndexes.has(i) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCheck className="h-4 w-4 mr-1" />}
-                                  Mark Complete
+                                  {t("milestones.markComplete")}
                                 </Button>
                               )}
                               {canPay && (
@@ -3526,7 +3585,7 @@ function BookingDetailContent() {
                                   className="bg-sky-600 hover:bg-sky-700 text-white"
                                 >
                                   {payingMilestone === i ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4 mr-1" />}
-                                  Pay
+                                  {t("milestones.pay")}
                                 </Button>
                               )}
                             </div>
@@ -3540,13 +3599,13 @@ function BookingDetailContent() {
                 {/* Customer: Legacy Quote Ready - Accept/Reject (backward compat: only when no quoteVersions) */}
                 {user?.role === "customer" && booking.status === "quoted" && !hasQuotationVersions && booking.quote && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-green-900 mb-3">Quote Received</h3>
+                    <h3 className="text-sm font-semibold text-green-900 mb-3">{t("quote.receivedTitle")}</h3>
                     <div className="bg-white rounded-lg p-4 mb-4 space-y-2">
                       {/* Original quote amount */}
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Quote Amount (excl. VAT):</span>
+                        <span className="text-sm text-gray-600">{t("quote.amountExclVat")}</span>
                         <span className={`text-2xl font-bold ${discountPreview && discountPreview.totalDiscount > 0 ? "text-gray-400 line-through text-lg" : "text-green-600"}`}>
-                          {booking.quote.currency || "€"}{booking.quote.amount != null ? booking.quote.amount.toLocaleString() : "—"}
+                          {booking.quote.amount != null ? formatMoney(booking.quote.amount, booking.quote.currency || "€") : "—"}
                         </span>
                       </div>
 
@@ -3554,7 +3613,7 @@ function BookingDetailContent() {
                       {loadingDiscountPreview && (
                         <div className="flex items-center gap-2 text-xs text-gray-500 pt-1">
                           <Loader2 className="h-3 w-3 animate-spin" />
-                          Checking available discounts...
+                          {t("quote.checkingDiscounts")}
                         </div>
                       )}
 
@@ -3564,10 +3623,10 @@ function BookingDetailContent() {
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-green-700 flex items-center gap-1">
                                 <Shield className="h-3.5 w-3.5" />
-                                {discountPreview.loyaltyDiscount.tier} Member Discount ({discountPreview.loyaltyDiscount.percentage}%)
+                                {t("loyalty.memberDiscount", { tier: discountPreview.loyaltyDiscount.tier, percentage: discountPreview.loyaltyDiscount.percentage })}
                               </span>
                               <span className="text-green-600 font-medium">
-                                -{booking.quote.currency || "€"}{discountPreview.loyaltyDiscount.amount.toLocaleString()}
+                                -{formatMoney(discountPreview.loyaltyDiscount.amount, booking.quote.currency || "€")}
                               </span>
                             </div>
                           )}
@@ -3575,10 +3634,10 @@ function BookingDetailContent() {
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-green-700 flex items-center gap-1">
                                 <Star className="h-3.5 w-3.5" />
-                                Returning Customer ({discountPreview.repeatBuyerDiscount.percentage}%)
+                                {t("loyalty.returningCustomer", { percentage: discountPreview.repeatBuyerDiscount.percentage })}
                               </span>
                               <span className="text-green-600 font-medium">
-                                -{booking.quote.currency || "€"}{discountPreview.repeatBuyerDiscount.amount.toLocaleString()}
+                                -{formatMoney(discountPreview.repeatBuyerDiscount.amount, booking.quote.currency || "€")}
                               </span>
                             </div>
                           )}
@@ -3586,41 +3645,41 @@ function BookingDetailContent() {
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-green-700 flex items-center gap-1">
                                 <Gift className="h-3.5 w-3.5" />
-                                Points Redeemed ({discountPreview.pointsDiscount.pointsUsed} pts)
+                                {t("loyalty.pointsRedeemedUpper", { points: discountPreview.pointsDiscount.pointsUsed })}
                               </span>
                               <span className="text-green-600 font-medium">
-                                -{booking.quote.currency || "€"}{discountPreview.pointsDiscount.discountAmount.toLocaleString()}
+                                -{formatMoney(discountPreview.pointsDiscount.discountAmount, booking.quote.currency || "€")}
                               </span>
                             </div>
                           )}
                           <div className="flex justify-between items-center pt-2 border-t border-green-200">
-                            <span className="text-sm font-semibold text-green-900">You Pay:</span>
+                            <span className="text-sm font-semibold text-green-900">{t("quote.youPay")}</span>
                             <span className="text-2xl font-bold text-green-600">
-                              {booking.quote.currency || "€"}{discountPreview.finalAmount.toLocaleString()}
+                              {formatMoney(discountPreview.finalAmount, booking.quote.currency || "€")}
                             </span>
                           </div>
                           <p className="text-xs text-green-600 text-right">
-                            You save {booking.quote.currency || "€"}{discountPreview.totalDiscount.toLocaleString()}!
+                            {t("quote.youSaveBang", { amount: formatMoney(discountPreview.totalDiscount, booking.quote.currency || "€") })}
                           </p>
                         </div>
                       )}
 
                       {booking.quote.description && (
                         <div className="pt-2 border-t">
-                          <p className="text-xs text-gray-600 mb-1">Description:</p>
+                          <p className="text-xs text-gray-600 mb-1">{t("quote.descriptionLabelShort")}</p>
                           <p className="text-sm text-gray-800">{booking.quote.description}</p>
                         </div>
                       )}
                       {booking.quote.submittedAt && (
                         <p className="text-xs text-gray-500 pt-2">
-                          Submitted: {new Date(booking.quote.submittedAt).toLocaleDateString()}
+                          {t("quote.submitted", { date: formatDate(booking.quote.submittedAt) })}
                         </p>
                       )}
                     </div>
 
                     {loadingDiscountPreview && (
                       <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <p className="text-xs text-blue-700">Calculating your member savings...</p>
+                        <p className="text-xs text-blue-700">{t("loyalty.calculatingSavings")}</p>
                       </div>
                     )}
 
@@ -3628,7 +3687,7 @@ function BookingDetailContent() {
                       <div className="mb-4 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-amber-900">
-                            {discountPreview.loyaltyDiscount.tier} Member Benefits
+                            {t("loyalty.memberBenefits", { tier: discountPreview.loyaltyDiscount.tier })}
                           </p>
                           <Badge variant="outline" className="border-amber-300 bg-white text-amber-800">
                             {discountPreview.loyaltyDiscount.tier}
@@ -3637,7 +3696,7 @@ function BookingDetailContent() {
 
                         <div className="mt-3 space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-gray-700">Original quote</span>
+                            <span className="text-gray-700">{t("loyalty.originalQuote")}</span>
                             <span className="font-medium text-gray-900">
                               {formatMoney(discountPreview.originalAmount, discountPreview.currency)}
                             </span>
@@ -3645,7 +3704,7 @@ function BookingDetailContent() {
 
                           <div className="flex justify-between">
                             <span className="text-gray-700">
-                              Loyalty discount ({discountPreview.loyaltyDiscount.percentage}%)
+                              {t("loyalty.loyaltyDiscount", { percentage: discountPreview.loyaltyDiscount.percentage })}
                             </span>
                             <span className="font-medium text-green-700">
                               -{formatMoney(discountPreview.loyaltyDiscount.amount, discountPreview.currency)}
@@ -3655,7 +3714,7 @@ function BookingDetailContent() {
                           {discountPreview.repeatBuyerDiscount.amount > 0 && (
                             <div className="flex justify-between">
                               <span className="text-gray-700">
-                                Returning customer discount ({discountPreview.repeatBuyerDiscount.percentage}%)
+                                {t("loyalty.returningCustomerDiscount", { percentage: discountPreview.repeatBuyerDiscount.percentage })}
                               </span>
                               <span className="font-medium text-green-700">
                                 -{formatMoney(discountPreview.repeatBuyerDiscount.amount, discountPreview.currency)}
@@ -3666,7 +3725,7 @@ function BookingDetailContent() {
                           {discountPreview.pointsDiscount && discountPreview.pointsDiscount.discountAmount > 0 && (
                             <div className="flex justify-between">
                               <span className="text-gray-700">
-                                Points redeemed ({discountPreview.pointsDiscount.pointsUsed} pts)
+                                {t("loyalty.pointsRedeemed", { points: discountPreview.pointsDiscount.pointsUsed })}
                               </span>
                               <span className="font-medium text-green-700">
                                 -{formatMoney(discountPreview.pointsDiscount.discountAmount, discountPreview.currency)}
@@ -3675,13 +3734,13 @@ function BookingDetailContent() {
                           )}
 
                           <div className="flex justify-between border-t border-amber-200 pt-2">
-                            <span className="font-semibold text-gray-900">You save</span>
+                            <span className="font-semibold text-gray-900">{t("loyalty.youSave")}</span>
                             <span className="font-semibold text-green-700">
                               {formatMoney(discountPreview.totalDiscount, discountPreview.currency)}
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="font-semibold text-gray-900">You pay</span>
+                            <span className="font-semibold text-gray-900">{t("loyalty.youPay")}</span>
                             <span className="text-base font-bold text-blue-700">
                               {formatMoney(discountPreview.finalAmount, discountPreview.currency)}
                             </span>
@@ -3697,17 +3756,16 @@ function BookingDetailContent() {
                       const maxPointsByBalance = discountPreview.availablePoints ?? 0
                       const maxPointsByPayable = conversionRate > 0 ? Math.ceil(payableAmount / conversionRate) : maxPointsByBalance
                       const maxRedeem = Math.min(maxPointsByBalance, maxPointsByPayable)
-                      const pointsEuroValue = ((discountPreview.availablePoints ?? 0) * conversionRate).toFixed(2)
                       return (
                       <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 p-3">
                         <p className="text-sm font-medium text-purple-900 mb-2 flex items-center gap-1">
                           <Gift className="h-4 w-4" />
-                          Use Your Points
+                          {t("loyalty.useYourPoints")}
                         </p>
                         <p className="text-xs text-purple-700 mb-2">
-                          You have {discountPreview.availablePoints} points available (&euro;{pointsEuroValue})
+                          {t("loyalty.pointsAvailable", { points: discountPreview.availablePoints ?? 0, value: formatMoney((discountPreview.availablePoints ?? 0) * conversionRate) })}
                           {discountPreview.pointsExpiry && (
-                            <span> &middot; Expires {new Date(discountPreview.pointsExpiry).toLocaleDateString()}</span>
+                            <span> &middot; {t("loyalty.expires", { date: formatDate(discountPreview.pointsExpiry) })}</span>
                           )}
                         </p>
                         <div className="flex items-center gap-2">
@@ -3720,14 +3778,14 @@ function BookingDetailContent() {
                             placeholder="0"
                             className="w-24 bg-white text-sm"
                           />
-                          <span className="text-xs text-purple-700">points to redeem</span>
+                          <span className="text-xs text-purple-700">{t("loyalty.pointsToRedeem")}</span>
                           <Button
                             variant="outline"
                             size="sm"
                             className="ml-auto text-xs border-purple-300"
                             onClick={() => setPointsToRedeem(maxRedeem)}
                           >
-                            Use All
+                            {t("loyalty.useAll")}
                           </Button>
                         </div>
                       </div>
@@ -3742,7 +3800,7 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
-                        {respondingToQuote ? "Processing..." : "Accept & Pay"}
+                        {respondingToQuote ? t("common.processing") : t("quotation.acceptAndPay")}
                       </Button>
                       <Button
                         onClick={() => handleRespondToQuote("reject")}
@@ -3752,7 +3810,7 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         <XCircle className="h-4 w-4 mr-2" />
-                        Reject
+                        {t("common.reject")}
                       </Button>
                     </div>
                   </div>
@@ -3764,10 +3822,10 @@ function BookingDetailContent() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="text-sm font-semibold text-blue-900 mb-1">
-                          Ready to Start Work
+                          {t("work.readyToStartTitle")}
                         </h3>
                         <p className="text-xs text-blue-700">
-                          Payment has been authorized and is held in escrow. Click below to mark the work as started.
+                          {t("work.readyToStartDescription")}
                         </p>
                       </div>
                       <Button
@@ -3779,12 +3837,12 @@ function BookingDetailContent() {
                         {updatingStatus ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Starting...
+                            {t("work.starting")}
                           </>
                         ) : (
                           <>
                             <Play className="h-4 w-4 mr-2" />
-                            Start Work
+                            {t("work.startWork")}
                           </>
                         )}
                       </Button>
@@ -3798,10 +3856,10 @@ function BookingDetailContent() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="text-sm font-semibold text-green-900 mb-1">
-                          Ready to confirm completion?
+                          {t("completion.readyTitle")}
                         </h3>
                         <p className="text-xs text-green-700 mb-2">
-                          Once you confirm completion, you can attach certificates/photos and declare any extra costs. The customer will then review and confirm.
+                          {t("completion.readyDescription")}
                         </p>
                       </div>
                       <Button
@@ -3810,7 +3868,7 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         <CheckCheck className="h-4 w-4 mr-2" />
-                        Confirm Completion
+                        {t("completion.confirmButton")}
                       </Button>
                     </div>
                   </div>
@@ -3822,10 +3880,12 @@ function BookingDetailContent() {
                     <div className="flex items-start gap-4">
                       <div>
                         <h3 className="text-sm font-semibold text-amber-900 mb-1">
-                          Awaiting customer confirmation
+                          {t("completion.awaitingCustomerTitle")}
                         </h3>
                         <p className="text-xs text-amber-700 mb-2">
-                          You have confirmed completion. The customer is reviewing the work{booking.extraCostTotal ? ` and extra costs (${booking.payment?.currency || 'EUR'} ${booking.extraCostTotal.toFixed(2)})` : ''}.
+                          {booking.extraCostTotal
+                            ? t("completion.awaitingCustomerWithExtras", { amount: formatMoney(booking.extraCostTotal, booking.payment?.currency || 'EUR') })
+                            : t("completion.awaitingCustomerDescription")}
                         </p>
                       </div>
                     </div>
@@ -3838,13 +3898,13 @@ function BookingDetailContent() {
                     <div className="flex items-start gap-4">
                       <div>
                         <h3 className="text-sm font-semibold text-teal-900 mb-1">
-                          Work In Progress
+                          {t("work.inProgressTitle")}
                         </h3>
                         <p className="text-xs text-teal-700 mb-2">
-                          The professional is currently working on your request. They will confirm completion when done.
+                          {t("work.inProgressDescription")}
                         </p>
                         <p className="text-xs text-teal-600 font-medium">
-                          Payment is held in escrow until the work is completed and confirmed.
+                          {t("work.escrowNote")}
                         </p>
                       </div>
                     </div>
@@ -3856,23 +3916,23 @@ function BookingDetailContent() {
                   <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4 space-y-3">
                     <div>
                       <h3 className="text-sm font-semibold text-teal-900 mb-1">
-                        Professional has completed the work
+                        {t("completion.professionalCompletedTitle")}
                       </h3>
                       <p className="text-xs text-teal-700">
-                        Review the completion details below and confirm to release payment.
+                        {t("completion.professionalCompletedDescription")}
                       </p>
                     </div>
 
                     {booking.completionAttestation?.notes && (
                       <div className="bg-white/60 rounded p-2">
-                        <p className="text-xs font-medium text-gray-700 mb-1">Professional&apos;s notes:</p>
+                        <p className="text-xs font-medium text-gray-700 mb-1">{t("completion.professionalNotes")}</p>
                         <p className="text-xs text-gray-600">{booking.completionAttestation.notes}</p>
                       </div>
                     )}
 
                     {booking.completionAttestation?.attachments && booking.completionAttestation.attachments.length > 0 && (
                       <div className="bg-white/60 rounded p-2 space-y-1">
-                        <p className="text-xs font-medium text-gray-700 mb-1">Attachments ({booking.completionAttestation.attachments.length}):</p>
+                        <p className="text-xs font-medium text-gray-700 mb-1">{t("completion.attachments", { count: booking.completionAttestation.attachments.length })}</p>
                         <div className="flex flex-col gap-1">
                           {booking.completionAttestation.attachments.map((url, i) => (
                             <a
@@ -3882,8 +3942,8 @@ function BookingDetailContent() {
                               rel="noreferrer noopener"
                               className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-indigo-700 hover:bg-slate-100"
                             >
-                              <span className="truncate pr-3">{getFileLabel(url, `Attachment ${i + 1}`)}</span>
-                              <span className="font-medium">Open</span>
+                              <span className="truncate pr-3">{getFileLabel(url, t("common.attachmentNumber", { number: i + 1 }))}</span>
+                              <span className="font-medium">{t("common.open")}</span>
                             </a>
                           ))}
                         </div>
@@ -3892,7 +3952,7 @@ function BookingDetailContent() {
 
                     {booking.extraCosts && booking.extraCosts.length > 0 && (
                       <div className="bg-white/60 rounded p-2 space-y-2">
-                        <p className="text-xs font-semibold text-gray-700">Extra Costs:</p>
+                        <p className="text-xs font-semibold text-gray-700">{t("extraCosts.title")}</p>
                         {booking.extraCosts.map((cost, i) => {
                           const displayAmount = customerPricingReady ? commissionedExtraCost(cost, commissionPercent ?? 0) : null
                           const isPositive = displayAmount == null ? cost.amount >= 0 : displayAmount >= 0
@@ -3902,13 +3962,13 @@ function BookingDetailContent() {
                                 <span className="text-xs font-medium text-gray-800">{cost.name}</span>
                                 <span className={`text-xs font-semibold ${isPositive ? 'text-red-600' : 'text-green-600'}`}>
                                   {customerPricingReady
-                                    ? `${displayAmount! >= 0 ? '+' : ''}${booking.payment?.currency || 'EUR'} ${displayAmount!.toFixed(2)}`
+                                    ? `${displayAmount! >= 0 ? '+' : ''}${formatMoney(displayAmount!, booking.payment?.currency || 'EUR')}`
                                     : '...'}
                                 </span>
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                <span className="capitalize">{cost.type.replace('_', ' ')}</span>
-                                {cost.type === 'unit_adjustment' && ` (estimated: ${cost.estimatedUnits}, actual: ${cost.actualUnits})`}
+                                <span className="capitalize">{enumLabel("extraCostType", cost.type)}</span>
+                                {cost.type === 'unit_adjustment' && ` ${t("extraCosts.unitDetail", { estimated: cost.estimatedUnits ?? 0, actual: cost.actualUnits ?? 0 })}`}
                               </p>
                               <p className="text-xs text-gray-500 italic">{cost.justification}</p>
                             </div>
@@ -3936,33 +3996,33 @@ function BookingDetailContent() {
                             <div className="space-y-1 pt-1 border-t border-gray-200 text-xs">
                               {commissionPercent != null && rawTotal !== 0 && (
                                 <div className="flex justify-between text-gray-600">
-                                  <span>Subtotal (incl. {commissionPercent}% platform fee)</span>
-                                  <span>{subtotalInclCommission >= 0 ? '+' : ''}{currency} {subtotalInclCommission.toFixed(2)}</span>
+                                  <span>{t("extraCosts.subtotal", { percent: commissionPercent })}</span>
+                                  <span>{subtotalInclCommission >= 0 ? '+' : ''}{formatMoney(subtotalInclCommission, currency)}</span>
                                 </div>
                               )}
                               {showLoyalty && (
                                 <div className="flex justify-between text-green-600">
-                                  <span>{loyaltyLevel} loyalty ({loyaltyPercentage}%)</span>
-                                  <span>−{currency} {loyaltyDiscount.toFixed(2)}</span>
+                                  <span>{t("extraCosts.loyaltyLine", { level: loyaltyLevel, percentage: loyaltyPercentage })}</span>
+                                  <span>−{formatMoney(loyaltyDiscount, currency)}</span>
                                 </div>
                               )}
                               {vatAmount > 0 && (
                                 <div className="flex justify-between text-gray-600">
-                                  <span>VAT{vatRate > 0 ? ` (${vatRate}%)` : ''}</span>
-                                  <span>+{currency} {vatAmount.toFixed(2)}</span>
+                                  <span>{t("extraCosts.vat")}{vatRate > 0 ? ` (${vatRate}%)` : ''}</span>
+                                  <span>+{formatMoney(vatAmount, currency)}</span>
                                 </div>
                               )}
                               <div className="flex justify-between items-center pt-1 border-t border-gray-200">
-                                <span className="text-xs font-semibold text-gray-800">Total Extra Costs</span>
+                                <span className="text-xs font-semibold text-gray-800">{t("extraCosts.total")}</span>
                                 <span className={`text-sm font-bold ${displayedTotal >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  {displayedTotal >= 0 ? '+' : ''}{currency} {displayedTotal.toFixed(2)}
+                                  {displayedTotal >= 0 ? '+' : ''}{formatMoney(displayedTotal, currency)}
                                 </span>
                               </div>
                             </div>
                           )
                         })() : (
                           <div className="flex justify-between items-center pt-1 border-t border-gray-200 text-xs">
-                            <span className="font-semibold text-gray-800">Total Extra Costs</span>
+                            <span className="font-semibold text-gray-800">{t("extraCosts.total")}</span>
                             <span className="font-bold text-gray-400">...</span>
                           </div>
                         )}
@@ -3971,7 +4031,7 @@ function BookingDetailContent() {
 
                     {Array.isArray(booking.milestonePayments) && booking.milestonePayments.length > 0 && booking.milestonePayments.some(m => m.status !== 'paid') && (
                       <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-800">
-                        One or more milestone payments are still outstanding. Pay the remaining milestones above before confirming completion.
+                        {t("completion.outstandingMilestones")}
                       </div>
                     )}
                     <div className="flex gap-2 pt-1">
@@ -3986,9 +4046,9 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         {confirmingCompletion || loadingExtraCostPayment ? (
-                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.processing")}</>
                         ) : (
-                          <><CheckCheck className="h-4 w-4 mr-2" />{booking.extraCostTotal && booking.extraCostTotal > 0 ? 'Review Payment & Complete' : 'Confirm Completion'}</>
+                          <><CheckCheck className="h-4 w-4 mr-2" />{booking.extraCostTotal && booking.extraCostTotal > 0 ? t("completion.reviewPaymentAndComplete") : t("completion.confirmButton")}</>
                         )}
                       </Button>
                       <Button
@@ -3998,21 +4058,21 @@ function BookingDetailContent() {
                         size="sm"
                       >
                         <AlertTriangle className="h-4 w-4 mr-2" />
-                        Dispute
+                        {t("common.dispute")}
                       </Button>
                     </div>
 
                     {(booking.extraCostTotal || 0) > 0 && extraCostClientSecret && (booking.payment?.extraCostAmount != null || customerPricingReady) && (
                       <div className="rounded-lg border border-teal-200 bg-white/80 p-3 space-y-3">
                         <div>
-                          <p className="text-sm font-semibold text-teal-900">Pay extra costs before final confirmation</p>
+                          <p className="text-sm font-semibold text-teal-900">{t("extraCosts.payBeforeConfirmTitle")}</p>
                           <p className="text-xs text-teal-700">
-                            Once this payment succeeds, the booking will be finalized automatically.
+                            {t("extraCosts.payBeforeConfirmDescription")}
                           </p>
                         </div>
                         {extraCostPaymentCompleted && (
                           <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
-                            Extra cost payment succeeded. Finalizing the booking now. If the page does not refresh, use the confirm button again.
+                            {t("extraCosts.paymentSucceeded")}
                           </div>
                         )}
                         <StripeProvider>
@@ -4036,14 +4096,14 @@ function BookingDetailContent() {
                       <CheckCircle className="h-6 w-6 text-emerald-600 mt-0.5" />
                       <div className="flex-1">
                         <h3 className="text-sm font-semibold text-emerald-900 mb-1">
-                          Work Completed
+                          {t("work.completedTitle")}
                         </h3>
                         <p className="text-xs text-emerald-700">
-                          This booking has been marked as completed. Payment has been transferred to the professional.
+                          {t("work.completedDescription")}
                         </p>
                         {user?.role === "professional" && (
                           <p className="text-xs text-emerald-600 font-medium mt-2">
-                            Funds will arrive in your bank account within 2-7 business days.
+                            {t("work.payoutTimeline")}
                           </p>
                         )}
 
@@ -4063,7 +4123,7 @@ function BookingDetailContent() {
                                 onClick={() => setShowReviewModal(true)}
                               >
                                 <Star className="h-4 w-4 mr-1.5" />
-                                Leave a Review
+                                {t("review.leaveReview")}
                               </Button>
                             )
                           }
@@ -4072,7 +4132,7 @@ function BookingDetailContent() {
                             return (
                               <p className="text-xs text-emerald-600 font-medium mt-2 flex items-center gap-1">
                                 <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                You have already reviewed this booking
+                                {t("review.alreadyReviewed")}
                               </p>
                             )
                           }
@@ -4088,17 +4148,19 @@ function BookingDetailContent() {
                   <div className="bg-white border border-indigo-100 rounded-lg p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-sm font-semibold text-indigo-900">Warranty</h3>
+                        <h3 className="text-sm font-semibold text-indigo-900">{t("warranty.title")}</h3>
                         {!hasWarrantyCoverage && (
                           <p className="text-xs text-gray-600 mt-1">
-                            This booking has no warranty coverage.
+                            {t("warranty.noCoverage")}
                           </p>
                         )}
                         {hasWarrantyCoverage && (
                           <p className="text-xs text-gray-600 mt-1">
-                            Coverage: {booking.warrantyCoverage?.duration?.value} {booking.warrantyCoverage?.duration?.unit}
+                            {t("warranty.coverage", {
+                              duration: `${booking.warrantyCoverage?.duration?.value ?? 0} ${enumLabel("unit", booking.warrantyCoverage?.duration?.unit)}`,
+                            })}
                             {warrantyEndsAtDate && (
-                              <> · Expires on {warrantyEndsAtDate.toLocaleDateString()}</>
+                              <> · {t("warranty.expiresOn", { date: warrantyEndsAtDate.toLocaleDateString(intl) })}</>
                             )}
                           </p>
                         )}
@@ -4109,15 +4171,15 @@ function BookingDetailContent() {
                           disabled={!canOpenWarrantyClaim}
                           title={
                             hasActiveWarrantyClaim
-                              ? "An active claim already exists"
+                              ? t("warranty.activeClaimExists")
                               : isWarrantyExpired
-                              ? "Warranty period expired"
+                              ? t("warranty.periodExpired")
                               : undefined
                           }
                           onClick={() => setShowWarrantyClaimDialog(true)}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
-                          Open Warranty Claim
+                          {t("warranty.openClaim")}
                         </Button>
                       )}
                     </div>
@@ -4125,7 +4187,7 @@ function BookingDetailContent() {
                     {loadingWarrantyClaim && (
                       <div className="text-xs text-gray-500 flex items-center gap-2">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Loading warranty claim...
+                        {t("warranty.loadingClaim")}
                       </div>
                     )}
 
@@ -4137,11 +4199,11 @@ function BookingDetailContent() {
                               {warrantyClaim.claimNumber}
                             </p>
                             <p className="text-xs text-gray-500">
-                              Reason: {warrantyReasonLabels[warrantyClaim.reason] || warrantyClaim.reason}
+                              {t("warranty.reasonLabel", { reason: enumLabel("warrantyReason", warrantyClaim.reason) })}
                             </p>
                           </div>
                           <Badge variant="outline" className="text-xs bg-white">
-                            {warrantyStatusLabels[warrantyClaim.status] || warrantyClaim.status}
+                            {enumLabel("warrantyStatus", warrantyClaim.status)}
                           </Badge>
                         </div>
 
@@ -4151,7 +4213,7 @@ function BookingDetailContent() {
 
                         {Array.isArray(warrantyClaim.evidence) && warrantyClaim.evidence.length > 0 && (
                           <div className="text-xs">
-                            <p className="font-medium text-gray-600 mb-1">Evidence</p>
+                            <p className="font-medium text-gray-600 mb-1">{t("warranty.evidence")}</p>
                             <div className="flex flex-wrap gap-2">
                               {warrantyClaim.evidence.map((url, idx) => (
                                 <a
@@ -4161,7 +4223,7 @@ function BookingDetailContent() {
                                   rel="noreferrer"
                                   className="underline text-indigo-600"
                                 >
-                                  File {idx + 1}
+                                  {t("warranty.fileNumber", { number: idx + 1 })}
                                 </a>
                               ))}
                             </div>
@@ -4170,11 +4232,11 @@ function BookingDetailContent() {
 
                         {warrantyClaim.proposal?.message && (
                           <div className="rounded border bg-white p-2">
-                            <p className="text-xs font-medium text-gray-700 mb-1">Resolve Proposal</p>
+                            <p className="text-xs font-medium text-gray-700 mb-1">{t("warranty.resolveProposal")}</p>
                             <p className="text-xs text-gray-700 whitespace-pre-line">{warrantyClaim.proposal.message}</p>
                             {(warrantyClaim.proposal.resolveByDate || warrantyClaim.proposal.proposedScheduleAt) && (
                               <p className="mt-1 text-[11px] text-gray-500">
-                                Resolve date: {new Date(warrantyClaim.proposal.resolveByDate || warrantyClaim.proposal.proposedScheduleAt || "").toLocaleString()}
+                                {t("warranty.resolveDate", { date: formatDateTime(warrantyClaim.proposal.resolveByDate || warrantyClaim.proposal.proposedScheduleAt || "") })}
                               </p>
                             )}
                           </div>
@@ -4182,7 +4244,7 @@ function BookingDetailContent() {
 
                         {warrantyClaim.escalation && (
                           <div className="rounded border border-amber-200 bg-amber-50 p-2">
-                            <p className="text-xs font-medium text-amber-800">Escalated to Admin</p>
+                            <p className="text-xs font-medium text-amber-800">{t("warranty.escalatedToAdmin")}</p>
                             <p className="text-xs text-amber-700">
                               {warrantyClaim.escalation.reason}
                               {warrantyClaim.escalation.note ? ` · ${warrantyClaim.escalation.note}` : ""}
@@ -4192,7 +4254,7 @@ function BookingDetailContent() {
 
                         {warrantyClaim.resolution?.summary && (
                           <div className="rounded border border-green-200 bg-green-50 p-2">
-                            <p className="text-xs font-medium text-green-800">Resolution</p>
+                            <p className="text-xs font-medium text-green-800">{t("warranty.resolution")}</p>
                             <p className="text-xs text-green-700 whitespace-pre-line">{warrantyClaim.resolution.summary}</p>
                             {Array.isArray(warrantyClaim.resolution.attachments) && warrantyClaim.resolution.attachments.length > 0 && (
                               <div className="mt-2 space-y-1">
@@ -4204,7 +4266,7 @@ function BookingDetailContent() {
                                     rel="noreferrer noopener"
                                     className="block text-[11px] text-green-700 hover:underline"
                                   >
-                                    {getFileLabel(attachment, `Resolution attachment ${index + 1}`)}
+                                    {getFileLabel(attachment, t("warranty.resolutionAttachment", { number: index + 1 }))}
                                   </a>
                                 ))}
                               </div>
@@ -4214,14 +4276,14 @@ function BookingDetailContent() {
 
                         {user?.role === "professional" && warrantyClaim.status === "open" && (
                           <div className="space-y-2 rounded border bg-white p-3">
-                            <Label className="text-xs">Resolve Proposal</Label>
+                            <Label className="text-xs">{t("warranty.resolveProposalLabel")}</Label>
                             <Textarea
                               value={warrantyProposalMessage}
                               onChange={(e) => setWarrantyProposalMessage(e.target.value)}
-                              placeholder="Describe your solution and repair plan..."
+                              placeholder={t("warranty.resolveProposalPlaceholder")}
                               className="text-xs min-h-[90px]"
                             />
-                            <Label className="text-xs">Resolve Date</Label>
+                            <Label className="text-xs">{t("warranty.resolveDateLabel")}</Label>
                             <Input
                               type="datetime-local"
                               value={warrantyProposalSchedule}
@@ -4236,7 +4298,7 @@ function BookingDetailContent() {
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                               >
                                 {warrantyActionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                                Send Resolve Proposal
+                                {t("warranty.sendProposal")}
                               </Button>
                               <Button
                                 size="sm"
@@ -4245,7 +4307,7 @@ function BookingDetailContent() {
                                 disabled={warrantyActionLoading}
                                 className="border-rose-300 text-rose-700"
                               >
-                                Decline Claim
+                                {t("warranty.declineClaim")}
                               </Button>
                             </div>
                           </div>
@@ -4259,7 +4321,7 @@ function BookingDetailContent() {
                               disabled={warrantyActionLoading}
                               className="bg-emerald-600 hover:bg-emerald-700 text-white"
                             >
-                              Accept Proposal
+                              {t("warranty.acceptProposal")}
                             </Button>
                             <Button
                               size="sm"
@@ -4268,22 +4330,22 @@ function BookingDetailContent() {
                               disabled={warrantyActionLoading}
                               className="border-rose-300 text-rose-700"
                             >
-                              Decline & Escalate
+                              {t("warranty.declineAndEscalate")}
                             </Button>
                           </div>
                         )}
 
                         {user?.role === "professional" && warrantyClaim.status === "proposal_accepted" && (
                           <div className="space-y-2 rounded border bg-white p-3">
-                            <Label className="text-xs">Resolution Summary</Label>
+                            <Label className="text-xs">{t("warranty.resolutionSummaryLabel")}</Label>
                             <Textarea
                               value={warrantyResolutionSummary}
                               onChange={(e) => setWarrantyResolutionSummary(e.target.value)}
-                              placeholder="Summarize what was fixed..."
+                              placeholder={t("warranty.resolutionSummaryPlaceholder")}
                               className="text-xs min-h-[80px]"
                             />
                             <div className="space-y-2">
-                              <Label className="text-xs">Resolution Attachments</Label>
+                              <Label className="text-xs">{t("warranty.resolutionAttachments")}</Label>
                               <Input
                                 type="file"
                                 multiple
@@ -4292,13 +4354,13 @@ function BookingDetailContent() {
                                   const { valid, rejected } = validateWarrantyFiles(e.target.files)
                                   setWarrantyResolutionFiles(valid)
                                   if (rejected.length > 0) {
-                                    toast.error(rejected.join('; '))
+                                    toast.error(formatWarrantyRejections(rejected))
                                   }
                                 }}
                                 className="text-xs"
                               />
                               {warrantyResolutionFiles.length > 0 && (
-                                <p className="text-[11px] text-gray-500">{warrantyResolutionFiles.length} file(s) selected</p>
+                                <p className="text-[11px] text-gray-500">{t("warranty.filesSelected", { count: warrantyResolutionFiles.length })}</p>
                               )}
                             </div>
                             <Button
@@ -4307,7 +4369,7 @@ function BookingDetailContent() {
                               disabled={warrantyActionLoading}
                               className="bg-green-600 hover:bg-green-700 text-white"
                             >
-                              Mark Resolved
+                              {t("warranty.markResolved")}
                             </Button>
                           </div>
                         )}
@@ -4320,7 +4382,7 @@ function BookingDetailContent() {
                               disabled={warrantyActionLoading}
                               className="bg-green-600 hover:bg-green-700 text-white"
                             >
-                              Accept Resolution
+                              {t("warranty.acceptResolution")}
                             </Button>
                             <Button
                               size="sm"
@@ -4331,7 +4393,7 @@ function BookingDetailContent() {
                               disabled={warrantyActionLoading}
                               className="border-rose-300 text-rose-700"
                             >
-                              Decline Resolution
+                              {t("warranty.declineResolution")}
                             </Button>
                           </div>
                         )}
@@ -4356,40 +4418,40 @@ function BookingDetailContent() {
                 <Dialog open={showWarrantyClaimDialog} onOpenChange={setShowWarrantyClaimDialog}>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Open Warranty Claim</DialogTitle>
+                      <DialogTitle>{t("warranty.openClaimTitle")}</DialogTitle>
                       <DialogDescription>
-                        Describe the issue and upload optional evidence files.
+                        {t("warranty.openClaimDescription")}
                       </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="warranty-reason">Reason</Label>
+                        <Label htmlFor="warranty-reason">{t("warranty.reason")}</Label>
                         <select
                           id="warranty-reason"
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           value={warrantyClaimReason}
                           onChange={(e) => setWarrantyClaimReason(e.target.value)}
                         >
-                          {Object.entries(warrantyReasonLabels).map(([key, label]) => (
-                            <option key={key} value={key}>{label}</option>
+                          {WARRANTY_REASON_VALUES.map((value) => (
+                            <option key={value} value={value}>{enumLabel("warrantyReason", value)}</option>
                           ))}
                         </select>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="warranty-description">Issue Description</Label>
+                        <Label htmlFor="warranty-description">{t("warranty.issueDescription")}</Label>
                         <Textarea
                           id="warranty-description"
                           value={warrantyClaimDescription}
                           onChange={(e) => setWarrantyClaimDescription(e.target.value)}
-                          placeholder="Describe what is wrong and what outcome you expect..."
+                          placeholder={t("warranty.issueDescriptionPlaceholder")}
                           className="min-h-[120px]"
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="warranty-files">Evidence (optional)</Label>
+                        <Label htmlFor="warranty-files">{t("warranty.evidenceOptional")}</Label>
                         <Input
                           id="warranty-files"
                           type="file"
@@ -4399,13 +4461,13 @@ function BookingDetailContent() {
                             const { valid, rejected } = validateWarrantyFiles(e.target.files)
                             setWarrantyEvidenceFiles(valid)
                             if (rejected.length > 0) {
-                              toast.error(rejected.join('; '))
+                              toast.error(formatWarrantyRejections(rejected))
                             }
                           }}
                         />
                         {warrantyEvidenceFiles.length > 0 && (
                           <p className="text-xs text-gray-500">
-                            {warrantyEvidenceFiles.length} file(s) selected
+                            {t("warranty.filesSelected", { count: warrantyEvidenceFiles.length })}
                           </p>
                         )}
                       </div>
@@ -4416,7 +4478,7 @@ function BookingDetailContent() {
                           onClick={() => setShowWarrantyClaimDialog(false)}
                           disabled={openingWarrantyClaim}
                         >
-                          Cancel
+                          {t("common.cancel")}
                         </Button>
                         <Button
                           onClick={handleOpenWarrantyClaim}
@@ -4424,7 +4486,7 @@ function BookingDetailContent() {
                           className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
                           {openingWarrantyClaim ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Submit Claim
+                          {t("warranty.submitClaim")}
                         </Button>
                       </div>
                     </div>
@@ -4434,19 +4496,19 @@ function BookingDetailContent() {
                 <Dialog open={showDeclineReasonDialog} onOpenChange={(open) => { setShowDeclineReasonDialog(open); if (!open) setDeclineReason("") }}>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Decline Warranty Claim</DialogTitle>
+                      <DialogTitle>{t("warranty.declineTitle")}</DialogTitle>
                       <DialogDescription>
-                        Please provide a reason for declining this claim. The claim will be escalated for admin review.
+                        {t("warranty.declineDescription")}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="decline-reason">Reason</Label>
+                        <Label htmlFor="decline-reason">{t("warranty.reason")}</Label>
                         <Textarea
                           id="decline-reason"
                           value={declineReason}
                           onChange={(e) => setDeclineReason(e.target.value)}
-                          placeholder="Explain why you are declining this claim..."
+                          placeholder={t("warranty.declineReasonPlaceholder")}
                           className="min-h-[100px]"
                           aria-required="true"
                           autoFocus
@@ -4458,7 +4520,7 @@ function BookingDetailContent() {
                           onClick={() => { setShowDeclineReasonDialog(false); setDeclineReason("") }}
                           disabled={warrantyActionLoading}
                         >
-                          Cancel
+                          {t("common.cancel")}
                         </Button>
                         <Button
                           onClick={handleDeclineWarrantyClaim}
@@ -4466,7 +4528,7 @@ function BookingDetailContent() {
                           className="bg-rose-600 hover:bg-rose-700 text-white"
                         >
                           {warrantyActionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Decline Claim
+                          {t("warranty.declineClaim")}
                         </Button>
                       </div>
                     </div>
@@ -4479,10 +4541,7 @@ function BookingDetailContent() {
                     <div className="flex items-center gap-2">
                       <Clock className="h-3 w-3 text-gray-400" />
                       <span>
-                        Requested on{" "}
-                        <span className="font-medium">
-                          {new Date(booking.createdAt).toLocaleString()}
-                        </span>
+                        {t("info.requestedOn", { date: formatDateTime(booking.createdAt) })}
                       </span>
                     </div>
                   )}
@@ -4490,10 +4549,7 @@ function BookingDetailContent() {
                     <div className="flex items-center gap-2">
                       <Calendar className="h-3 w-3 text-indigo-500" />
                       <span>
-                        Preferred start:{" "}
-                        <span className="font-medium">
-                          {new Date(booking.rfqData.preferredStartDate).toLocaleDateString()}
-                        </span>
+                        {t("info.preferredStart", { date: formatDate(booking.rfqData.preferredStartDate) })}
                       </span>
                     </div>
                   )}
@@ -4501,10 +4557,7 @@ function BookingDetailContent() {
                     <div className="flex items-center gap-2">
                       <Calendar className="h-3 w-3 text-emerald-500" />
                       <span>
-                        Start Date:{" "}
-                        <span className="font-medium">
-                          {new Date(booking.scheduledStartDate).toLocaleDateString()}
-                        </span>
+                        {t("info.startDate", { date: formatDate(booking.scheduledStartDate) })}
                       </span>
                     </div>
                   )}
@@ -4512,21 +4565,15 @@ function BookingDetailContent() {
                     <div className="flex items-center gap-2">
                       <Calendar className="h-3 w-3 text-blue-500" />
                       <span>
-                        Completion Date:{" "}
-                        <span className="font-medium">
-                          {new Date(booking.scheduledExecutionEndDate || booking.scheduledEndDate || "").toLocaleDateString()}
-                        </span>
+                        {t("info.completionDate", { date: formatDate(booking.scheduledExecutionEndDate || booking.scheduledEndDate || "") })}
                       </span>
                     </div>
                   )}
                   {booking.rfqData?.urgency && (
                     <div className="flex items-center gap-2">
                       <Clock className="h-3 w-3 text-amber-500" />
-                      <span className="capitalize">
-                        Urgency:{" "}
-                        <span className="font-medium">
-                          {booking.rfqData.urgency}
-                        </span>
+                      <span>
+                        {t("info.urgency", { urgency: enumLabel("urgency", booking.rfqData.urgency) })}
                       </span>
                     </div>
                   )}
@@ -4536,10 +4583,7 @@ function BookingDetailContent() {
                         €
                       </span>
                       <span>
-                        Budget:{" "}
-                        <span className="font-medium">
-                          {currencyRange}
-                        </span>
+                        {t("info.budget", { range: currencyRange })}
                       </span>
                     </div>
                   )}
@@ -4549,7 +4593,7 @@ function BookingDetailContent() {
                 {booking.rfqData?.description && (
                   <section className="space-y-2">
                     <h2 className="text-sm font-semibold text-gray-900">
-                      Request details
+                      {t("info.requestDetails")}
                     </h2>
                     <p className="text-xs leading-relaxed text-gray-700 whitespace-pre-line">
                       {booking.rfqData.description}
@@ -4565,18 +4609,18 @@ function BookingDetailContent() {
                   const reason = booking.payment?.refundReason || booking.cancellation?.reason
                   return (
                     <section className="space-y-2">
-                      <h2 className="text-sm font-semibold text-gray-900">Cancellation details</h2>
+                      <h2 className="text-sm font-semibold text-gray-900">{t("cancellation.title")}</h2>
                       <div className="rounded-lg border border-rose-100 bg-rose-50/60 p-3 space-y-1 text-xs text-gray-700">
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Cancellation date</span>
-                          <span className="font-medium">{cancelledAtRaw ? new Date(cancelledAtRaw).toLocaleString() : '—'}</span>
+                          <span className="text-gray-500">{t("cancellation.date")}</span>
+                          <span className="font-medium">{cancelledAtRaw ? formatDateTime(cancelledAtRaw) : '—'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Refund amount</span>
-                          <span className="font-medium">{refundAmount != null ? `${refundCurrency} ${refundAmount.toFixed(2)}` : '—'}</span>
+                          <span className="text-gray-500">{t("cancellation.refundAmount")}</span>
+                          <span className="font-medium">{refundAmount != null ? formatMoney(refundAmount, refundCurrency) : '—'}</span>
                         </div>
                         <div className="flex justify-between gap-3">
-                          <span className="text-gray-500 shrink-0">Reason</span>
+                          <span className="text-gray-500 shrink-0">{t("cancellation.reason")}</span>
                           <span className="font-medium text-right break-words">{reason || '—'}</span>
                         </div>
                       </div>
@@ -4587,7 +4631,7 @@ function BookingDetailContent() {
                 {Array.isArray(booking.rfqData?.attachments) && booking.rfqData.attachments.length > 0 && (
                   <section className="space-y-2">
                     <h2 className="text-sm font-semibold text-gray-900">
-                      Request attachments
+                      {t("info.requestAttachments")}
                     </h2>
                     <div className="space-y-2">
                       {booking.rfqData.attachments.map((attachment, index) => (
@@ -4598,8 +4642,8 @@ function BookingDetailContent() {
                           rel="noreferrer noopener"
                           className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-indigo-700 hover:bg-slate-100"
                         >
-                          <span className="truncate pr-3">{getFileLabel(attachment, `Attachment ${index + 1}`)}</span>
-                          <span className="font-medium">Open</span>
+                          <span className="truncate pr-3">{getFileLabel(attachment, t("common.attachmentNumber", { number: index + 1 }))}</span>
+                          <span className="font-medium">{t("common.open")}</span>
                         </a>
                       ))}
                     </div>
@@ -4609,7 +4653,7 @@ function BookingDetailContent() {
                 {Array.isArray(booking.rfqData?.answers) && booking.rfqData.answers.length > 0 && (
                   <section className="space-y-2">
                     <h2 className="text-sm font-semibold text-gray-900">
-                      RFQ answers
+                      {t("info.rfqAnswers")}
                     </h2>
                     <div className="space-y-2">
                       {booking.rfqData.answers.map((answer, index) => (
@@ -4622,7 +4666,7 @@ function BookingDetailContent() {
                               rel="noreferrer noopener"
                               className="mt-1 inline-flex text-xs text-indigo-700 hover:underline"
                             >
-                              {getFileLabel(answer.answer)}
+                              {getFileLabel(answer.answer, t("common.openAttachment"))}
                             </a>
                           ) : (
                             <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">{answer.answer}</p>
@@ -4636,7 +4680,7 @@ function BookingDetailContent() {
                 {Array.isArray(booking.postBookingData) && booking.postBookingData.length > 0 && (
                   <section className="space-y-2">
                     <h2 className="text-sm font-semibold text-gray-900">
-                      Post-booking answers
+                      {t("info.postBookingAnswers")}
                     </h2>
                     <div className="space-y-2">
                       {booking.postBookingData.map((answer, index) => (
@@ -4649,7 +4693,7 @@ function BookingDetailContent() {
                               rel="noreferrer noopener"
                               className="mt-1 inline-flex text-xs text-indigo-700 hover:underline"
                             >
-                              {getFileLabel(answer.answer)}
+                              {getFileLabel(answer.answer, t("common.openAttachment"))}
                             </a>
                           ) : (
                             <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">{answer.answer}</p>
@@ -4667,7 +4711,7 @@ function BookingDetailContent() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-xs">
                           <User className="h-4 w-4 text-slate-600" />
-                          Customer
+                          {t("info.customer")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-1 text-xs text-gray-700">
@@ -4702,7 +4746,7 @@ function BookingDetailContent() {
                           ) : (
                             <Briefcase className="h-4 w-4 text-slate-600" />
                           )}
-                          Service provider
+                          {t("info.serviceProvider")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-1 text-xs text-gray-700">
@@ -4768,7 +4812,7 @@ function BookingDetailContent() {
                                 {booking.professional.businessInfo?.vatNumber && (
                                   <div className="flex items-center gap-2">
                                     <FileText className="h-3 w-3 text-gray-400" />
-                                    <span>VAT: {booking.professional.businessInfo.vatNumber}</span>
+                                    <span>{t("info.vat", { number: booking.professional.businessInfo.vatNumber })}</span>
                                   </div>
                                 )}
                               </>
@@ -4784,7 +4828,7 @@ function BookingDetailContent() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-xs">
                           <User className="h-4 w-4 text-slate-600" />
-                          Customer
+                          {t("info.customer")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-1 text-xs text-gray-700">
@@ -4815,7 +4859,7 @@ function BookingDetailContent() {
                         {booking.customer.vatNumber && (
                           <div className="flex items-center gap-2">
                             <FileText className="h-3 w-3 text-gray-400" />
-                            <span>VAT: {booking.customer.vatNumber}</span>
+                            <span>{t("info.vat", { number: booking.customer.vatNumber })}</span>
                           </div>
                         )}
                       </CardContent>
@@ -4827,29 +4871,29 @@ function BookingDetailContent() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-xs">
                           <CreditCard className="h-4 w-4 text-slate-600" />
-                          Payment Breakdown
+                          {t("payment.breakdown")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-1.5 text-xs text-gray-700">
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Status</span>
-                          <Badge variant="outline" className="text-[10px] h-5">{booking.payment.status || 'unknown'}</Badge>
+                          <span className="text-gray-500">{t("payment.status")}</span>
+                          <Badge variant="outline" className="text-[10px] h-5">{enumLabel("paymentStatus", booking.payment.status)}</Badge>
                         </div>
                         {booking.payment.amount != null && (
                           <div className="flex justify-between">
-                            <span className="text-gray-500">Net Amount</span>
-                            <span>{booking.payment.currency || 'EUR'} {booking.payment.amount.toFixed(2)}</span>
+                            <span className="text-gray-500">{t("payment.netAmount")}</span>
+                            <span>{formatMoney(booking.payment.amount, booking.payment.currency || 'EUR')}</span>
                           </div>
                         )}
                         {booking.payment.vatAmount != null && (
                           <div className="flex justify-between">
-                            <span className="text-gray-500">VAT ({booking.payment.vatRate || 0}%)</span>
-                            <span>{booking.payment.currency || 'EUR'} {booking.payment.vatAmount.toFixed(2)}</span>
+                            <span className="text-gray-500">{t("payment.vat", { rate: booking.payment.vatRate || 0 })}</span>
+                            <span>{formatMoney(booking.payment.vatAmount, booking.payment.currency || 'EUR')}</span>
                           </div>
                         )}
                         {booking.payment.reverseCharge && (
                           <div className="rounded-md border border-blue-100 bg-blue-50 p-2 text-[11px] text-blue-800">
-                            Reverse Charge — VAT is accounted for by the customer.
+                            {t("payment.reverseCharge")}
                           </div>
                         )}
                         {booking.vatDecision?.explanation && (
@@ -4859,42 +4903,42 @@ function BookingDetailContent() {
                         )}
                         {booking.payment.totalWithVat != null && (
                           <div className="flex justify-between font-medium">
-                            <span>Total (incl. VAT)</span>
-                            <span>{booking.payment.currency || 'EUR'} {booking.payment.totalWithVat.toFixed(2)}</span>
+                            <span>{t("payment.totalInclVat")}</span>
+                            <span>{formatMoney(booking.payment.totalWithVat, booking.payment.currency || 'EUR')}</span>
                           </div>
                         )}
                         {booking.payment.discount && booking.payment.discount.totalDiscount != null && booking.payment.discount.totalDiscount > 0 && (
                           <div className="flex justify-between text-green-600">
-                            <span>Discount</span>
-                            <span>-{booking.payment.currency || 'EUR'} {booking.payment.discount.totalDiscount.toFixed(2)}</span>
+                            <span>{t("payment.discount")}</span>
+                            <span>-{formatMoney(booking.payment.discount.totalDiscount, booking.payment.currency || 'EUR')}</span>
                           </div>
                         )}
                         <div className="border-t border-gray-200 pt-1.5 mt-1.5 space-y-1">
                           {booking.payment.platformCommission != null && (
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Platform Commission</span>
-                              <span>{booking.payment.currency || 'EUR'} {booking.payment.platformCommission.toFixed(2)}</span>
+                              <span className="text-gray-500">{t("payment.platformCommission")}</span>
+                              <span>{formatMoney(booking.payment.platformCommission, booking.payment.currency || 'EUR')}</span>
                             </div>
                           )}
                           {booking.payment.stripeFeeAmount != null && (
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Stripe Fee</span>
-                              <span>{booking.payment.currency || 'EUR'} {booking.payment.stripeFeeAmount.toFixed(2)}</span>
+                              <span className="text-gray-500">{t("payment.stripeFee")}</span>
+                              <span>{formatMoney(booking.payment.stripeFeeAmount, booking.payment.currency || 'EUR')}</span>
                             </div>
                           )}
                           {booking.payment.professionalPayout != null && (
                             <div className="flex justify-between font-medium">
-                              <span>Professional Payout</span>
-                              <span>{booking.payment.currency || 'EUR'} {booking.payment.professionalPayout.toFixed(2)}</span>
+                              <span>{t("payment.professionalPayout")}</span>
+                              <span>{formatMoney(booking.payment.professionalPayout, booking.payment.currency || 'EUR')}</span>
                             </div>
                           )}
                         </div>
                         {booking.extraCostTotal != null && booking.extraCostTotal !== 0 && (
                           <div className="border-t border-gray-200 pt-1.5 mt-1.5">
                             <div className="flex justify-between font-medium">
-                              <span>Extra Costs</span>
+                              <span>{t("extraCosts.titleShort")}</span>
                               <span className={booking.extraCostTotal >= 0 ? 'text-red-600' : 'text-green-600'}>
-                                {booking.extraCostTotal >= 0 ? '+' : ''}{booking.payment.currency || 'EUR'} {booking.extraCostTotal.toFixed(2)}
+                                {booking.extraCostTotal >= 0 ? '+' : ''}{formatMoney(booking.extraCostTotal, booking.payment.currency || 'EUR')}
                               </span>
                             </div>
                           </div>
@@ -4918,25 +4962,25 @@ function BookingDetailContent() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex items-center gap-2 text-xs">
                           <FileText className="h-4 w-4 text-slate-600" />
-                          Invoice
+                          {t("invoice.title")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-2 text-xs text-gray-700">
                         {viewerRole !== 'professional' && (
                           <>
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Invoice #</span>
-                              <span>{booking.payment.invoiceNumber || 'Generated'}</span>
+                              <span className="text-gray-500">{t("invoice.number")}</span>
+                              <span>{booking.payment.invoiceNumber || t("invoice.generated")}</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {booking.payment.invoiceUrl && (
                                 <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">Download PDF</a>
+                                  <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">{t("invoice.downloadPdf")}</a>
                                 </Button>
                               )}
                               {booking.payment.invoiceUblUrl && (
                                 <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.invoiceUblUrl} target="_blank" rel="noreferrer">Download UBL</a>
+                                  <a href={booking.payment.invoiceUblUrl} target="_blank" rel="noreferrer">{t("invoice.downloadUbl")}</a>
                                 </Button>
                               )}
                             </div>
@@ -4946,18 +4990,18 @@ function BookingDetailContent() {
                           (booking.payment.supplierInvoiceUrl || booking.payment.supplierInvoiceUblUrl) && (
                           <div className="border-t border-gray-200 pt-2 space-y-2">
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Self-bill #</span>
-                              <span>{booking.payment.supplierInvoiceNumber || 'Generated'}</span>
+                              <span className="text-gray-500">{t("invoice.selfBillNumber")}</span>
+                              <span>{booking.payment.supplierInvoiceNumber || t("invoice.generated")}</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {booking.payment.supplierInvoiceUrl && (
                                 <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.supplierInvoiceUrl} target="_blank" rel="noreferrer">Self-bill PDF</a>
+                                  <a href={booking.payment.supplierInvoiceUrl} target="_blank" rel="noreferrer">{t("invoice.selfBillPdf")}</a>
                                 </Button>
                               )}
                               {booking.payment.supplierInvoiceUblUrl && (
                                 <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.supplierInvoiceUblUrl} target="_blank" rel="noreferrer">Self-bill UBL</a>
+                                  <a href={booking.payment.supplierInvoiceUblUrl} target="_blank" rel="noreferrer">{t("invoice.selfBillUbl")}</a>
                                 </Button>
                               )}
                             </div>
@@ -4965,24 +5009,24 @@ function BookingDetailContent() {
                         )}
                         {viewerRole !== 'professional' && booking.payment.peppolDispatchStatus && booking.payment.peppolDispatchStatus !== 'skipped' && (
                           <p className="text-[11px] text-gray-500">
-                            Peppol status: {booking.payment.peppolDispatchStatus}
+                            {t("invoice.peppolStatus", { status: booking.payment.peppolDispatchStatus })}
                           </p>
                         )}
                         {viewerRole !== 'professional' && (booking.payment.creditNoteUrl || booking.payment.creditNoteUblUrl) && (
                           <div className="border-t border-gray-200 pt-2 space-y-2">
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Credit note #</span>
+                              <span className="text-gray-500">{t("invoice.creditNoteNumber")}</span>
                               <span>{booking.payment.creditNoteNumber}</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {booking.payment.creditNoteUrl && (
                                 <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.creditNoteUrl} target="_blank" rel="noreferrer">Credit note PDF</a>
+                                  <a href={booking.payment.creditNoteUrl} target="_blank" rel="noreferrer">{t("invoice.creditNotePdf")}</a>
                                 </Button>
                               )}
                               {booking.payment.creditNoteUblUrl && (
                                 <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.creditNoteUblUrl} target="_blank" rel="noreferrer">Credit note UBL</a>
+                                  <a href={booking.payment.creditNoteUblUrl} target="_blank" rel="noreferrer">{t("invoice.creditNoteUbl")}</a>
                                 </Button>
                               )}
                             </div>
@@ -5001,25 +5045,25 @@ function BookingDetailContent() {
         <Dialog open={showRejectionModal} onOpenChange={setShowRejectionModal}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Reject Request</DialogTitle>
-              <DialogDescription>Please provide a reason for rejecting this request. The customer will be notified.</DialogDescription>
+              <DialogTitle>{t("rfq.rejectTitle")}</DialogTitle>
+              <DialogDescription>{t("rfq.rejectDescription")}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <Textarea
                 value={rejectionReason}
                 onChange={e => setRejectionReason(e.target.value)}
-                placeholder="Explain why you cannot take on this request..."
+                placeholder={t("rfq.rejectPlaceholder")}
                 rows={3}
               />
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowRejectionModal(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setShowRejectionModal(false)}>{t("common.cancel")}</Button>
                 <Button
                   onClick={() => handleRespondToRFQ('rejected')}
                   disabled={respondingToRFQ || !rejectionReason.trim()}
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   {respondingToRFQ ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Reject Request
+                  {t("rfq.rejectSubmit")}
                 </Button>
               </div>
             </div>
@@ -5030,25 +5074,25 @@ function BookingDetailContent() {
         <Dialog open={showQuoteRejectionModal} onOpenChange={setShowQuoteRejectionModal}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Reject Quotation</DialogTitle>
-              <DialogDescription>Please explain what changes you&apos;d like. The professional will be notified and can revise the quotation.</DialogDescription>
+              <DialogTitle>{t("quotation.rejectTitle")}</DialogTitle>
+              <DialogDescription>{t("quotation.rejectDescription")}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <Textarea
                 value={quoteRejectionReason}
                 onChange={e => setQuoteRejectionReason(e.target.value)}
-                placeholder="What would you like changed? (e.g., price too high, missing scope items...)"
+                placeholder={t("quotation.rejectPlaceholder")}
                 rows={3}
               />
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowQuoteRejectionModal(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setShowQuoteRejectionModal(false)}>{t("common.cancel")}</Button>
                 <Button
                   onClick={() => handleRespondToQuotation('rejected')}
                   disabled={respondingToQuotation || !quoteRejectionReason.trim()}
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Reject & Send Feedback
+                  {t("quotation.rejectSubmit")}
                 </Button>
               </div>
             </div>
@@ -5059,27 +5103,27 @@ function BookingDetailContent() {
         <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Confirm Completion</DialogTitle>
+              <DialogTitle>{t("completion.dialogTitle")}</DialogTitle>
               <DialogDescription>
-                Confirm the work is done, attach any documents, and declare extra costs if applicable.
+                {t("completion.dialogDescription")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="completion-notes">Notes (optional)</Label>
+                <Label htmlFor="completion-notes">{t("completion.notesLabel")}</Label>
                 <Textarea
                   id="completion-notes"
                   value={completionNotes}
                   onChange={(e) => setCompletionNotes(e.target.value)}
-                  placeholder="Any notes about the completed work..."
+                  placeholder={t("completion.notesPlaceholder")}
                   className="min-h-[80px]"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="completion-files">Attachments (optional)</Label>
-                <p className="text-xs text-gray-500">Certificates, photos, documents</p>
+                <Label htmlFor="completion-files">{t("completion.attachmentsLabel")}</Label>
+                <p className="text-xs text-gray-500">{t("completion.attachmentsHint")}</p>
                 <Input
                   id="completion-files"
                   type="file"
@@ -5088,37 +5132,37 @@ function BookingDetailContent() {
                   onChange={(e) => setCompletionFiles(Array.from(e.target.files || []))}
                 />
                 {completionFiles.length > 0 && (
-                  <p className="text-xs text-gray-500">{completionFiles.length} file(s) selected</p>
+                  <p className="text-xs text-gray-500">{t("common.filesSelected", { count: completionFiles.length })}</p>
                 )}
               </div>
 
               <div className="space-y-3 border-t pt-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Extra Costs</Label>
+                  <Label className="text-sm font-semibold">{t("extraCosts.label")}</Label>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={() => addExtraCost('unit_adjustment')} className="text-xs h-7">+ Unit Adj.</Button>
-                    <Button size="sm" variant="outline" onClick={() => addExtraCost('condition')} className="text-xs h-7">+ Condition</Button>
-                    <Button size="sm" variant="outline" onClick={() => addExtraCost('option')} className="text-xs h-7">+ Option</Button>
-                    <Button size="sm" variant="outline" onClick={() => addExtraCost('other')} className="text-xs h-7">+ Other</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('unit_adjustment')} className="text-xs h-7">{t("extraCosts.addUnit")}</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('condition')} className="text-xs h-7">{t("extraCosts.addCondition")}</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('option')} className="text-xs h-7">{t("extraCosts.addOption")}</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('other')} className="text-xs h-7">{t("extraCosts.addOther")}</Button>
                   </div>
                 </div>
 
                 {completionExtraCosts.map((cost, i) => (
                   <div key={i} className="border rounded-lg p-3 space-y-2 bg-gray-50">
                     <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs capitalize">{cost.type.replace('_', ' ')}</Badge>
-                      <Button size="sm" variant="ghost" onClick={() => removeExtraCost(i)} className="text-red-500 h-6 text-xs">Remove</Button>
+                      <Badge variant="outline" className="text-xs capitalize">{enumLabel("extraCostType", cost.type)}</Badge>
+                      <Button size="sm" variant="ghost" onClick={() => removeExtraCost(i)} className="text-red-500 h-6 text-xs">{t("common.remove")}</Button>
                     </div>
 
                     {cost.type === 'unit_adjustment' && (() => {
                       const projectPriceModel = (booking?.project as { priceModel?: string } | undefined)?.priceModel || ''
                       const unitLabel = projectPriceModel && !/^(rfq|fixed|total|unit)/i.test(projectPriceModel.trim())
                         ? projectPriceModel
-                        : 'Units'
+                        : t("extraCosts.unitsFallback")
                       return (
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <Label className="text-xs">Estimated {unitLabel}</Label>
+                          <Label className="text-xs">{t("extraCosts.estimatedUnits", { unit: unitLabel })}</Label>
                           <Input
                             type="number"
                             value={cost.estimatedUnits || ''}
@@ -5127,11 +5171,11 @@ function BookingDetailContent() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs">Actual {unitLabel}</Label>
+                          <Label className="text-xs">{t("extraCosts.actualUnits", { unit: unitLabel })}</Label>
                           <Input type="number" value={cost.actualUnits || ''} onChange={(e) => updateExtraCost(i, 'actualUnits', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
                         </div>
                         <div>
-                          <Label className="text-xs">Unit Price</Label>
+                          <Label className="text-xs">{t("extraCosts.unitPrice")}</Label>
                           <Input
                             type="number"
                             value={cost.unitPrice || ''}
@@ -5145,22 +5189,21 @@ function BookingDetailContent() {
 
                     {cost.type === 'condition' && (
                       <div>
-                        <Label className="text-xs">Condition (select from project)</Label>
+                        <Label className="text-xs">{t("extraCosts.conditionLabel")}</Label>
                         <Select
                           value={hasSelectedReferenceIndex(cost.referenceIndex) ? String(cost.referenceIndex) : undefined}
                           onValueChange={(value) => updateExtraCost(i, 'referenceIndex', parseInt(value, 10))}
                         >
                           <SelectTrigger className="h-8 text-sm">
-                            <SelectValue placeholder={projectConditions.length > 0 ? "Select a condition" : "No project conditions available"} />
+                            <SelectValue placeholder={projectConditions.length > 0 ? t("extraCosts.selectCondition") : t("extraCosts.noConditions")} />
                           </SelectTrigger>
                           <SelectContent>
                             {projectConditions.map(({ item: condition, originalIndex }) => {
                               const cost = Number(condition.additionalCost) || 0
-                              const currency = booking?.quote?.currency || booking?.payment?.currency || 'EUR'
-                              const label = cost > 0 ? `(+${currency} ${cost.toFixed(2)})` : '(no extra cost)'
+                              const label = cost > 0 ? t("extraCosts.conditionCost", { amount: formatMoney(cost, completionCurrency) }) : t("extraCosts.noExtraCost")
                               return (
                                 <SelectItem key={`condition-${originalIndex}`} value={String(originalIndex)}>
-                                  {(condition.name || `Condition ${originalIndex + 1}`)} {label}
+                                  {(condition.name || t("extraCosts.conditionFallback", { number: originalIndex + 1 }))} {label}
                                 </SelectItem>
                               )
                             })}
@@ -5171,19 +5214,19 @@ function BookingDetailContent() {
 
                     {cost.type === 'option' && (
                       <div>
-                        <Label className="text-xs">Option (select from project)</Label>
+                        <Label className="text-xs">{t("extraCosts.optionLabel")}</Label>
                         <Select
                           value={hasSelectedReferenceIndex(cost.referenceIndex) ? String(cost.referenceIndex) : undefined}
                           onValueChange={(value) => updateExtraCost(i, 'referenceIndex', parseInt(value, 10))}
                         >
                           <SelectTrigger className="h-8 text-sm">
-                            <SelectValue placeholder={projectOptions.length > 0 ? "Select an option" : "No project options available"} />
+                            <SelectValue placeholder={projectOptions.length > 0 ? t("extraCosts.selectOption") : t("extraCosts.noOptions")} />
                           </SelectTrigger>
                           <SelectContent>
                             {projectOptions.map((option, optionIndex) => (
                               <SelectItem key={`option-${optionIndex}`} value={String(optionIndex)}>
-                                {(option.name || `Option ${optionIndex + 1}`)}
-                                {typeof option.price === 'number' ? ` (+${option.price.toFixed(2)})` : ''}
+                                {(option.name || t("extraCosts.optionFallback", { number: optionIndex + 1 }))}
+                                {typeof option.price === 'number' ? ` ${t("extraCosts.conditionCost", { amount: formatMoney(option.price, completionCurrency) })}` : ''}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -5194,24 +5237,24 @@ function BookingDetailContent() {
                     {cost.type === 'other' && (
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs">Name</Label>
+                          <Label className="text-xs">{t("extraCosts.name")}</Label>
                           <Input value={cost.name} onChange={(e) => updateExtraCost(i, 'name', e.target.value)} className="h-8 text-sm" />
                         </div>
                         <div>
-                          <Label className="text-xs">Amount</Label>
+                          <Label className="text-xs">{t("extraCosts.amount")}</Label>
                           <Input type="number" value={cost.amount || ''} onChange={(e) => updateExtraCost(i, 'amount', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
                         </div>
                       </div>
                     )}
 
                     <div>
-                      <Label className="text-xs">Justification (required)</Label>
-                      <Textarea value={cost.justification} onChange={(e) => updateExtraCost(i, 'justification', e.target.value)} placeholder="Explain why this cost is necessary..." className="min-h-[50px] text-sm" />
+                      <Label className="text-xs">{t("extraCosts.justification")}</Label>
+                      <Textarea value={cost.justification} onChange={(e) => updateExtraCost(i, 'justification', e.target.value)} placeholder={t("extraCosts.justificationPlaceholder")} className="min-h-[50px] text-sm" />
                     </div>
 
                     {(cost.type === 'unit_adjustment' || cost.type === 'condition' || cost.type === 'option') && (
                       <p className="text-xs text-gray-600">
-                        Calculated: {cost.amount >= 0 ? '+' : ''}{cost.amount.toFixed(2)}
+                        {t("extraCosts.calculated", { amount: `${cost.amount >= 0 ? '+' : ''}${formatMoney(cost.amount, completionCurrency)}` })}
                       </p>
                     )}
                   </div>
@@ -5219,23 +5262,23 @@ function BookingDetailContent() {
 
                 {completionExtraCosts.length > 0 && (
                   <div className="flex justify-between items-center pt-2 border-t">
-                    <span className="text-sm font-semibold">Total Extra Costs:</span>
+                    <span className="text-sm font-semibold">{t("extraCosts.totalLabel")}</span>
                     <span className={`text-sm font-bold ${completionExtraCosts.reduce((s, c) => s + c.amount, 0) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {completionExtraCosts.reduce((s, c) => s + c.amount, 0).toFixed(2)}
+                      {formatMoney(completionExtraCosts.reduce((s, c) => s + c.amount, 0), completionCurrency)}
                     </span>
                   </div>
                 )}
               </div>
 
               <div className="flex gap-2 justify-end pt-2">
-                <Button variant="outline" onClick={() => setShowCompletionModal(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setShowCompletionModal(false)}>{t("common.cancel")}</Button>
                 <Button
                   onClick={handleProfessionalComplete}
                   disabled={submittingCompletion || invalidCompletionExtraCosts}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   {submittingCompletion ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCheck className="h-4 w-4 mr-2" />}
-                  Confirm Completion
+                  {t("completion.confirmButton")}
                 </Button>
               </div>
             </div>
@@ -5257,9 +5300,9 @@ function BookingDetailContent() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Dispute</DialogTitle>
+              <DialogTitle>{t("common.dispute")}</DialogTitle>
               <DialogDescription>
-                Raise a dispute for admin review.
+                {t("dispute.dialogDescription")}
               </DialogDescription>
             </DialogHeader>
             {disputeStep === 'warning' ? (
@@ -5267,45 +5310,45 @@ function BookingDetailContent() {
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-900">Have you tried chatting with the professional first?</p>
+                    <p className="text-sm font-semibold text-amber-900">{t("dispute.triedChatTitle")}</p>
                     <p className="text-xs text-amber-800 mt-1">
-                      Disputes should only be raised after attempting to resolve the issue through the chat. Fixtract support will review the chat history. Do you want to continue with the dispute?
+                      {t("dispute.triedChatDescription")}
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setShowDisputeModal(false)}>Cancel</Button>
+                  <Button variant="outline" onClick={() => setShowDisputeModal(false)}>{t("common.cancel")}</Button>
                   <Button
                     className="bg-red-600 hover:bg-red-700 text-white"
                     onClick={() => setDisputeStep('form')}
                   >
-                    Continue to dispute
+                    {t("dispute.continue")}
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dispute-reason">Reason</Label>
+                  <Label htmlFor="dispute-reason">{t("dispute.reasonLabel")}</Label>
                   <Input
                     id="dispute-reason"
                     value={disputeReason}
                     onChange={(e) => setDisputeReason(e.target.value)}
-                    placeholder="Brief reason for the dispute"
+                    placeholder={t("dispute.reasonPlaceholder")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dispute-description">Description (optional)</Label>
+                  <Label htmlFor="dispute-description">{t("dispute.descriptionLabel")}</Label>
                   <Textarea
                     id="dispute-description"
                     value={disputeDescription}
                     onChange={(e) => setDisputeDescription(e.target.value)}
-                    placeholder="Provide more details about your dispute..."
+                    placeholder={t("dispute.descriptionPlaceholder")}
                     className="min-h-[100px]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dispute-files">Attachments (optional)</Label>
+                  <Label htmlFor="dispute-files">{t("dispute.attachmentsLabel")}</Label>
                   <Input
                     id="dispute-files"
                     type="file"
@@ -5319,18 +5362,18 @@ function BookingDetailContent() {
                     }}
                   />
                   {disputeAttachments.length > 0 && (
-                    <p className="text-[11px] text-gray-500">{disputeAttachments.length} file(s) selected</p>
+                    <p className="text-[11px] text-gray-500">{t("common.filesSelected", { count: disputeAttachments.length })}</p>
                   )}
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setDisputeStep('warning')}>Back</Button>
+                  <Button variant="outline" onClick={() => setDisputeStep('warning')}>{t("common.back")}</Button>
                   <Button
                     onClick={handleCustomerDispute}
                     disabled={submittingDispute || !disputeReason.trim()}
                     className="bg-red-600 hover:bg-red-700 text-white"
                   >
                     {submittingDispute ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-2" />}
-                    Submit Dispute
+                    {t("dispute.submit")}
                   </Button>
                 </div>
               </div>
@@ -5342,35 +5385,35 @@ function BookingDetailContent() {
         <Dialog open={showCancelModal} onOpenChange={(open) => { if (!open) resetCancelForm(); setShowCancelModal(open) }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Cancel Booking</DialogTitle>
-              <DialogDescription>Select a reason for cancellation. Your refund request is sent to the professional, who has 5 business days to respond before it escalates to Fixtract.</DialogDescription>
+              <DialogTitle>{t("cancel.title")}</DialogTitle>
+              <DialogDescription>{t("cancel.description")}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="cancel-reason-category">Reason</Label>
+                <Label htmlFor="cancel-reason-category">{t("cancel.reasonLabel")}</Label>
                 <Select value={cancelReasonCategory} onValueChange={setCancelReasonCategory}>
                   <SelectTrigger id="cancel-reason-category">
-                    <SelectValue placeholder="Select a reason" />
+                    <SelectValue placeholder={t("cancel.selectReason")} />
                   </SelectTrigger>
                   <SelectContent>
                     {CANCEL_REASONS.map((r) => (
-                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      <SelectItem key={r.value} value={r.value}>{enumLabel("cancelReason", r.value)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cancel-reason">Explanation (optional)</Label>
+                <Label htmlFor="cancel-reason">{t("cancel.explanationLabel")}</Label>
                 <Textarea
                   id="cancel-reason"
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   className="min-h-[90px]"
-                  placeholder="Add any additional details..."
+                  placeholder={t("cancel.explanationPlaceholder")}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cancel-attachment">Attachment (optional)</Label>
+                <Label htmlFor="cancel-attachment">{t("cancel.attachmentLabel")}</Label>
                 <Input
                   id="cancel-attachment"
                   type="file"
@@ -5380,21 +5423,21 @@ function BookingDetailContent() {
                   onChange={(e) => { handleCancelAttachmentUpload(e.target.files); e.target.value = "" }}
                 />
                 {uploadingCancelAttachment && (
-                  <p className="text-xs text-gray-500 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</p>
+                  <p className="text-xs text-gray-500 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> {t("common.uploading")}</p>
                 )}
                 {cancelEvidence.length > 0 && (
                   <div className="space-y-1">
                     {cancelEvidence.map((url, i) => (
                       <div key={url} className="flex items-center justify-between gap-2 text-xs">
                         <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
-                          {getFileLabel(url, `Attachment ${i + 1}`)}
+                          {getFileLabel(url, t("common.attachmentNumber", { number: i + 1 }))}
                         </a>
                         <button
                           type="button"
                           className="text-rose-600 hover:text-rose-700"
                           onClick={() => setCancelEvidence((prev) => prev.filter((u) => u !== url))}
                         >
-                          Remove
+                          {t("common.remove")}
                         </button>
                       </div>
                     ))}
@@ -5402,14 +5445,14 @@ function BookingDetailContent() {
                 )}
               </div>
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => { resetCancelForm(); setShowCancelModal(false) }} disabled={submittingCancel}>Back</Button>
+                <Button variant="outline" onClick={() => { resetCancelForm(); setShowCancelModal(false) }} disabled={submittingCancel}>{t("common.back")}</Button>
                 <Button
                   className="bg-rose-600 hover:bg-rose-700 text-white"
                   onClick={handleCustomerCancel}
                   disabled={submittingCancel || uploadingCancelAttachment || !cancelReasonCategory}
                 >
                   {submittingCancel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Submit Cancellation
+                  {t("cancel.submit")}
                 </Button>
               </div>
             </div>
@@ -5420,13 +5463,13 @@ function BookingDetailContent() {
         <Dialog open={showRescheduleModal} onOpenChange={setShowRescheduleModal}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Request Rescheduling</DialogTitle>
-              <DialogDescription>Pick a new start date. Your professional will be notified.</DialogDescription>
+              <DialogTitle>{t("reschedule.title")}</DialogTitle>
+              <DialogDescription>{t("reschedule.description")}</DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div className={`grid gap-3 ${resolveBookingIsDaysMode(booking) ? '' : 'sm:grid-cols-2'}`}>
                 <div className="space-y-2">
-                  <Label htmlFor="customer-reschedule-date">New start date</Label>
+                  <Label htmlFor="customer-reschedule-date">{t("reschedule.newDate")}</Label>
                   <AvailabilityDatePicker
                     id="customer-reschedule-date"
                     projectId={booking?.project?._id}
@@ -5434,12 +5477,12 @@ function BookingDetailContent() {
                     subprojectIndex={booking?.selectedSubprojectIndex}
                     value={rescheduleDate}
                     onChange={setRescheduleDate}
-                    ariaLabel="New start date"
+                    ariaLabel={t("reschedule.newDate")}
                   />
                 </div>
                 {!resolveBookingIsDaysMode(booking) && (
                   <div className="space-y-2">
-                    <Label htmlFor="customer-reschedule-time">Start time</Label>
+                    <Label htmlFor="customer-reschedule-time">{t("reschedule.startTime")}</Label>
                     <Input
                       id="customer-reschedule-time"
                       type="time"
@@ -5450,30 +5493,30 @@ function BookingDetailContent() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customer-reschedule-reason">Reason</Label>
+                <Label htmlFor="customer-reschedule-reason">{t("reschedule.reason")}</Label>
                 <Select value={rescheduleReason} onValueChange={setRescheduleReason}>
                   <SelectTrigger id="customer-reschedule-reason">
-                    <SelectValue placeholder="Select a reason" />
+                    <SelectValue placeholder={t("cancel.selectReason")} />
                   </SelectTrigger>
                   <SelectContent>
                     {RESCHEDULE_REASONS.map((option) => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                      <SelectItem key={option} value={option}>{enumLabel("rescheduleReason", RESCHEDULE_REASON_KEYS[option] ?? option)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customer-reschedule-description">Description (optional)</Label>
+                <Label htmlFor="customer-reschedule-description">{t("reschedule.descriptionLabel")}</Label>
                 <Textarea
                   id="customer-reschedule-description"
                   value={rescheduleDescription}
                   onChange={(e) => setRescheduleDescription(e.target.value)}
                   className="min-h-[80px]"
-                  placeholder="Add any additional details..."
+                  placeholder={t("reschedule.descriptionPlaceholder")}
                 />
               </div>
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowRescheduleModal(false)} disabled={submittingReschedule}>Back</Button>
+                <Button variant="outline" onClick={() => setShowRescheduleModal(false)} disabled={submittingReschedule}>{t("common.back")}</Button>
                 <Button
                   onClick={handleCustomerReschedule}
                   disabled={
@@ -5484,7 +5527,7 @@ function BookingDetailContent() {
                   }
                 >
                   {submittingReschedule ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Send Request
+                  {t("reschedule.sendRequest")}
                 </Button>
               </div>
             </div>
@@ -5495,31 +5538,31 @@ function BookingDetailContent() {
         <Dialog open={showRescheduleRefundModal} onOpenChange={setShowRescheduleRefundModal}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Decline & Refund</DialogTitle>
+              <DialogTitle>{t("rescheduleRefund.title")}</DialogTitle>
               <DialogDescription>
-                Declining cancels this booking and triggers a full refund.
+                {t("rescheduleRefund.description")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="reschedule-refund-note">Note (optional)</Label>
+                <Label htmlFor="reschedule-refund-note">{t("rescheduleRefund.noteLabel")}</Label>
                 <Textarea
                   id="reschedule-refund-note"
                   value={rescheduleRefundNote}
                   onChange={(e) => setRescheduleRefundNote(e.target.value)}
                   className="min-h-[80px]"
-                  placeholder="Tell us why..."
+                  placeholder={t("rescheduleRefund.notePlaceholder")}
                 />
               </div>
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowRescheduleRefundModal(false)} disabled={respondingReschedule}>Back</Button>
+                <Button variant="outline" onClick={() => setShowRescheduleRefundModal(false)} disabled={respondingReschedule}>{t("common.back")}</Button>
                 <Button
                   className="bg-rose-600 hover:bg-rose-700 text-white"
                   onClick={() => handleRespondReschedule('refund', { note: rescheduleRefundNote.trim() || undefined })}
                   disabled={respondingReschedule}
                 >
                   {respondingReschedule ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  Decline & Refund
+                  {t("rescheduleRefund.submit")}
                 </Button>
               </div>
             </div>

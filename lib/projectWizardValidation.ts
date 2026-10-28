@@ -1,20 +1,57 @@
+import type { useTranslations } from 'next-intl'
+
 import { parseFlexibleNumber } from '@/lib/numberInput'
 
-export const WIZARD_STEP_TITLES: Record<number, string> = {
-  1: "Basic Info",
-  2: "Subprojects & Pricing",
-  3: "Extra Options",
-  4: "FAQ",
-  5: "RFQ Questions",
-  6: "Post-Booking Questions",
-  7: "Custom Message",
-  8: "Review & Submit",
+/**
+ * Translator for the `projectWizard` namespace. Validators live outside React,
+ * so every consumer passes its `useTranslations("projectWizard")` result in and
+ * the messages are resolved in the active locale.
+ */
+export type WizardTranslator = ReturnType<typeof useTranslations<'projectWizard'>>
+
+export type WizardStepTitleKey =
+  | 'steps.1'
+  | 'steps.2'
+  | 'steps.3'
+  | 'steps.4'
+  | 'steps.5'
+  | 'steps.6'
+  | 'steps.7'
+  | 'steps.8'
+
+/** Step title message keys — translate with the `projectWizard` namespace. */
+export const WIZARD_STEP_TITLES: Record<number, WizardStepTitleKey> = {
+  1: 'steps.1',
+  2: 'steps.2',
+  3: 'steps.3',
+  4: 'steps.4',
+  5: 'steps.5',
+  6: 'steps.6',
+  7: 'steps.7',
+  8: 'steps.8',
 }
 
 export type WizardStepError = {
   step: number
-  stepTitle: string
+  stepTitle: WizardStepTitleKey
   messages: string[]
+}
+
+/**
+ * Quick-add detection. New projects store canonical English item names, while
+ * drafts created before the canonical-name fix may still contain the translated
+ * label; both must disable the chip instead of adding a duplicate.
+ */
+export function isQuickAddItemIncluded(
+  includedNames: ReadonlyArray<string | null | undefined>,
+  canonicalName: string,
+  translatedLabel?: string
+): boolean {
+  return includedNames.some(
+    (name) =>
+      name === canonicalName ||
+      (translatedLabel != null && name === translatedLabel)
+  )
 }
 
 type SubprojectSnapshot = {
@@ -119,116 +156,122 @@ export const getStep1DataSignature = (data: WizardProjectSnapshot): string => JS
   vatProfessionalAnswers: data.vatProfessionalAnswers || [],
 })
 
-export function collectStep1ComponentErrors(data: WizardProjectSnapshot, serviceConfig: Step1ServiceConfig | null, addressValid: boolean): string[] {
+export function collectStep1ComponentErrors(
+  data: WizardProjectSnapshot,
+  serviceConfig: Step1ServiceConfig | null,
+  addressValid: boolean,
+  t: WizardTranslator,
+): string[] {
   const errors: string[] = []
   const isRenovation = (data.category || '').toLowerCase() === 'renovation'
   const requiredTypes = serviceConfig?.requiredCertifications || []
   const certRequired = !!serviceConfig?.certificationRequired
-  if (!data.category) errors.push('Category is required')
-  if (!data.service) errors.push('Service is required')
-  if (serviceConfig?.areaOfWorkRequired && !data.areaOfWork) errors.push('Area of Work is required for this service')
-  if (!data.title) errors.push('Title is required')
-  else if (data.title.length < 30) errors.push('Title must be at least 30 characters long')
+  if (!data.category) errors.push(t('validation.categoryRequired'))
+  if (!data.service) errors.push(t('validation.serviceRequired'))
+  if (serviceConfig?.areaOfWorkRequired && !data.areaOfWork) errors.push(t('validation.areaOfWorkRequired'))
+  if (!data.title) errors.push(t('validation.titleRequired'))
+  else if (data.title.length < 30) errors.push(t('validation.titleMin30Long'))
   if (requiredTypes.length > 0) {
     const missing = requiredTypes.filter((type) => !data.certifications?.some((certification) => certification.name === type && !!certification.fileUrl))
-    if (missing.length > 0) errors.push(`Missing required certifications: ${missing.join(', ')}`)
+    if (missing.length > 0) errors.push(t('validation.missingCertifications', { certifications: missing.join(', ') }))
   } else if (certRequired) {
     const hasValidCertification = Array.isArray(data.certifications) && data.certifications.length > 0 && data.certifications.every((certification) => !!certification.fileUrl)
-    if (!hasValidCertification) errors.push('At least one valid certification is required for this service')
+    if (!hasValidCertification) errors.push(t('validation.validCertificationRequired'))
   }
   const hasExecutionResources = Array.isArray(data.resources) && data.resources.length > 0
   const hasIntakeResources = Array.isArray(data.intakeMeeting?.resources) && data.intakeMeeting.resources.length > 0
   if (isRenovation) {
-    if (!hasIntakeResources) errors.push('At least one intake meeting resource is required for Renovation')
-    if (!hasExecutionResources) errors.push('At least one execution resource is required for Renovation')
-  } else if (!hasExecutionResources) errors.push('At least one team member must be assigned for execution')
-  if (!data.description) errors.push('Description is required')
-  else if (data.description.length < 100) errors.push(`Description must be at least 100 characters (currently ${data.description.length})`)
-  if (!isRenovation && !data.priceModel) errors.push('Price Model is required')
-  if (!data.distance?.address) errors.push('Service Address is required')
-  if (!addressValid) errors.push('Please enter a valid address')
-  if (!data.distance?.maxKmRange) errors.push('Maximum Service Range is required')
-  else if (data.distance.maxKmRange <= 0) errors.push('Maximum Service Range must be positive')
+    if (!hasIntakeResources) errors.push(t('validation.intakeResourceRenovation'))
+    if (!hasExecutionResources) errors.push(t('validation.executionResourceRenovation'))
+  } else if (!hasExecutionResources) errors.push(t('validation.teamMemberExecution'))
+  if (!data.description) errors.push(t('validation.descriptionRequired'))
+  else if (data.description.length < 100) errors.push(t('validation.descriptionMin100', { count: data.description.length }))
+  if (!isRenovation && !data.priceModel) errors.push(t('validation.priceModelRequiredUpper'))
+  if (!data.distance?.address) errors.push(t('validation.serviceAddressRequiredUpper'))
+  if (!addressValid) errors.push(t('validation.invalidAddress'))
+  if (!data.distance?.maxKmRange) errors.push(t('validation.maxRangeRequiredUpper'))
+  else if (data.distance.maxKmRange <= 0) errors.push(t('validation.maxRangePositive'))
   const requiredVatQuestions = serviceConfig?.vatManagement?.enabled ? serviceConfig.vatManagement.professionalVatQuestions || [] : []
   for (const question of requiredVatQuestions.filter((candidate) => candidate.isRequired !== false)) {
     const value = data.vatProfessionalAnswers?.find((answer) => answer.fieldName === question.fieldName)?.value
-    if (!isProfessionalVatAnswered(question, value)) errors.push(`VAT question required: ${question.question}`)
+    if (!isProfessionalVatAnswered(question, value)) errors.push(t('validation.vatQuestionRequired', { question: question.question }))
   }
   return errors
 }
 
-function packageLabel(sub: SubprojectSnapshot, index: number): string {
-  return sub.name?.trim() || `Package ${index + 1}`
+function packageLabel(sub: SubprojectSnapshot, index: number, t: WizardTranslator): string {
+  return sub.name?.trim() || t('validation.packageFallback', { index: index + 1 })
 }
 
 export function collectSubprojectErrors(
   sub: SubprojectSnapshot,
   index: number,
+  t: WizardTranslator,
   requiredFields: Array<{ fieldName: string; label?: string }> = [],
 ): string[] {
-  const label = packageLabel(sub, index)
+  const label = packageLabel(sub, index, t)
   const errors: string[] = []
 
-  if (!sub.name?.trim()) errors.push(`${label}: package name is required`)
+  if (!sub.name?.trim()) errors.push(t('validation.packageNameRequired', { package: label }))
   if (!sub.description?.trim()) {
-    errors.push(`${label}: package scope is required`)
+    errors.push(t('validation.packageScopeRequired', { package: label }))
   } else if (sub.description.trim().length < 10) {
-    errors.push(`${label}: package scope must be at least 10 characters`)
+    errors.push(t('validation.packageScopeMin10', { package: label }))
   }
 
   if (!sub.pricing?.type) {
-    errors.push(`${label}: pricing type is required`)
+    errors.push(t('validation.pricingTypeRequired', { package: label }))
   } else if (sub.pricing.type === "rfq") {
     const { min, max } = sub.pricing.priceRange || {}
     if (min !== undefined && max !== undefined && min > max) {
-      errors.push(`${label}: RFQ price range minimum cannot be above maximum`)
+      errors.push(t('validation.rfqRangeMinMax', { package: label }))
     }
     const range = sub.executionDuration?.range
     const hasMin = typeof range?.min === "number" && Number.isFinite(range.min)
     const hasMax = typeof range?.max === "number" && Number.isFinite(range.max)
     if (!hasMin && !hasMax) {
-      errors.push(`${label}: execution duration range is required for RFQ packages`)
+      errors.push(t('validation.rfqDurationRangeRequired', { package: label }))
     } else {
-      if (hasMin && range!.min! <= 0) errors.push(`${label}: execution duration minimum must be greater than 0`)
-      if (hasMax && range!.max! <= 0) errors.push(`${label}: execution duration maximum must be greater than 0`)
+      if (hasMin && range!.min! <= 0) errors.push(t('validation.executionDurationMinPositive', { package: label }))
+      if (hasMax && range!.max! <= 0) errors.push(t('validation.executionDurationMaxPositive', { package: label }))
       if (hasMin && hasMax && range!.min! > range!.max!) {
-        errors.push(`${label}: execution duration minimum cannot be above maximum`)
+        errors.push(t('validation.executionDurationMinMax', { package: label }))
       }
     }
   } else {
     if (sub.pricing.amount == null || sub.pricing.amount <= 0) {
-      errors.push(`${label}: a price greater than 0 is required`)
+      errors.push(t('validation.pricePositive', { package: label }))
     }
     if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) {
-      errors.push(`${label}: execution duration is required`)
+      errors.push(t('validation.executionDurationRequired', { package: label }))
     }
   }
 
   const namedIncluded = (sub.included || []).filter((item) => item.name?.trim())
   if (namedIncluded.length < 3) {
-    errors.push(`${label}: at least 3 included items with names are required`)
+    errors.push(t('validation.includedItemsMin3', { package: label }))
   }
   if ((sub.included || []).some((item) => !item.name?.trim())) {
-    errors.push(`${label}: every included item needs a name`)
+    errors.push(t('validation.includedItemNameRequired', { package: label }))
   }
 
   if (typeof sub.materialsIncluded !== "boolean") {
-    errors.push(`${label}: say whether materials are included`)
+    errors.push(t('validation.materialsIncludedRequired', { package: label }))
   } else if (sub.materialsIncluded) {
     const namedMaterials = (sub.materials || []).filter((item) => item.name?.trim())
     if (namedMaterials.length === 0) {
-      errors.push(`${label}: add at least one material when materials are included`)
+      errors.push(t('validation.materialRequired', { package: label }))
     }
   }
 
   if (typeof sub.preparationDuration?.value !== "number") {
-    errors.push(`${label}: preparation duration is required`)
+    errors.push(t('validation.preparationDurationRequired', { package: label }))
   }
 
-  if (sub.errors?.priceRange) errors.push(`${label}: ${sub.errors.priceRange}`)
-  if (sub.errors?.executionDurationRange) errors.push(`${label}: ${sub.errors.executionDurationRange}`)
+  if (sub.errors?.priceRange) errors.push(t('validation.packageError', { package: label, message: sub.errors.priceRange }))
+  if (sub.errors?.executionDurationRange) errors.push(t('validation.packageError', { package: label, message: sub.errors.executionDurationRange }))
 
-  errors.push(...collectRequiredProfessionalInputErrors(sub, index, requiredFields))
+  errors.push(...collectRequiredProfessionalInputErrors(sub, index, t, requiredFields))
   return errors
 }
 
@@ -246,62 +289,63 @@ export function isProfessionalInputMissing(value: ProfessionalInputValue): boole
 export function collectRequiredProfessionalInputErrors(
   sub: SubprojectSnapshot,
   index: number,
+  t: WizardTranslator,
   requiredFields: Array<{ fieldName: string; label?: string }> = [],
 ): string[] {
   if (requiredFields.length === 0) return []
-  const label = packageLabel(sub, index)
+  const label = packageLabel(sub, index, t)
   return requiredFields.flatMap((field) => {
     const input = (sub.professionalInputs || []).find((item) => item.fieldName === field.fieldName)
     return isProfessionalInputMissing(input?.value)
-      ? [`${label}: ${field.label || field.fieldName} is required`]
+      ? [t('validation.fieldRequired', { package: label, field: field.label || field.fieldName })]
       : []
   })
 }
 
-export function collectStepErrors(step: number, data: WizardProjectSnapshot): string[] {
+export function collectStepErrors(step: number, data: WizardProjectSnapshot, t: WizardTranslator): string[] {
   switch (step) {
     case 1: {
       const errors: string[] = []
-      if (!data.category) errors.push("Category is required")
-      if (!data.service) errors.push("Service is required")
-      if (!data.title?.trim()) errors.push("Title is required")
-      else if (data.title.trim().length < 30) errors.push("Title must be at least 30 characters")
-      if (!data.description?.trim()) errors.push("Description is required")
+      if (!data.category) errors.push(t('validation.categoryRequired'))
+      if (!data.service) errors.push(t('validation.serviceRequired'))
+      if (!data.title?.trim()) errors.push(t('validation.titleRequired'))
+      else if (data.title.trim().length < 30) errors.push(t('validation.titleMin30'))
+      if (!data.description?.trim()) errors.push(t('validation.descriptionRequired'))
       else if (data.description.trim().length < 100) {
-        errors.push(`Description must be at least 100 characters (currently ${data.description.trim().length})`)
+        errors.push(t('validation.descriptionMin100', { count: data.description.trim().length }))
       }
       const isRenovation = (data.category || "").toLowerCase() === "renovation"
-      if (!isRenovation && !data.priceModel) errors.push("Price model is required")
-      if (!data.distance?.address?.trim()) errors.push("Service address is required")
+      if (!isRenovation && !data.priceModel) errors.push(t('validation.priceModelRequired'))
+      if (!data.distance?.address?.trim()) errors.push(t('validation.serviceAddressRequired'))
       if (!data.distance?.maxKmRange || data.distance.maxKmRange <= 0) {
-        errors.push("Maximum service range is required")
+        errors.push(t('validation.maxRangeRequired'))
       }
       if (!Array.isArray(data.resources) || data.resources.length === 0) {
-        errors.push("At least one team member must be assigned for execution")
+        errors.push(t('validation.teamMemberExecution'))
       }
       if (isRenovation && (!data.intakeMeeting?.resources || data.intakeMeeting.resources.length === 0)) {
-        errors.push("At least one intake meeting resource is required for renovation")
+        errors.push(t('validation.intakeResourceRenovationLower'))
       }
       return errors
     }
     case 2: {
       if (!data.subprojects || data.subprojects.length === 0) {
-        return ["At least one package / subproject is required"]
+        return [t('validation.atLeastOnePackage')]
       }
       return data.subprojects.flatMap((sub, index) =>
-        collectSubprojectErrors(sub, index, data.requiredProfessionalFields),
+        collectSubprojectErrors(sub, index, t, data.requiredProfessionalFields),
       )
     }
     case 3: {
       const errors: string[] = []
-      if (!data.customerPresence) errors.push("Customer presence selection is required")
+      if (!data.customerPresence) errors.push(t('validation.customerPresenceRequired'))
       for (const [index, option] of (data.extraOptions || []).entries()) {
-        if (!option.name?.trim()) errors.push(`Extra option ${index + 1}: name is required`)
-        if (option.price == null || option.price < 0) errors.push(`Extra option ${index + 1}: price is required`)
+        if (!option.name?.trim()) errors.push(t('validation.extraOptionName', { index: index + 1 }))
+        if (option.price == null || option.price < 0) errors.push(t('validation.extraOptionPrice', { index: index + 1 }))
       }
       for (const [index, term] of (data.termsConditions || []).entries()) {
-        if (!term.name?.trim()) errors.push(`Term ${index + 1}: name is required`)
-        if (!term.description?.trim()) errors.push(`Term ${index + 1}: description is required`)
+        if (!term.name?.trim()) errors.push(t('validation.termName', { index: index + 1 }))
+        if (!term.description?.trim()) errors.push(t('validation.termDescription', { index: index + 1 }))
       }
       return errors
     }
@@ -309,7 +353,7 @@ export function collectStepErrors(step: number, data: WizardProjectSnapshot): st
       return (data.faq || [])
         .map((item, index) => {
           if (!item.question?.trim() || !item.answer?.trim()) {
-            return `FAQ ${index + 1}: question and answer are both required`
+            return t('validation.faqIncomplete', { index: index + 1 })
           }
           return null
         })
@@ -317,9 +361,9 @@ export function collectStepErrors(step: number, data: WizardProjectSnapshot): st
     case 5:
       return (data.rfqQuestions || [])
         .map((item, index) => {
-          if (!item.question?.trim()) return `RFQ question ${index + 1}: question text is required`
+          if (!item.question?.trim()) return t('validation.rfqQuestionText', { index: index + 1 })
           if (item.type === "multiple_choice" && (!item.options || item.options.filter(Boolean).length < 2)) {
-            return `RFQ question ${index + 1}: add at least two choices`
+            return t('validation.rfqQuestionChoices', { index: index + 1 })
           }
           return null
         })
@@ -327,9 +371,9 @@ export function collectStepErrors(step: number, data: WizardProjectSnapshot): st
     case 6:
       return (data.postBookingQuestions || [])
         .map((item, index) => {
-          if (!item.question?.trim()) return `Post-booking question ${index + 1}: question text is required`
+          if (!item.question?.trim()) return t('validation.postBookingQuestionText', { index: index + 1 })
           if (item.type === "multiple_choice" && (!item.options || item.options.filter(Boolean).length < 2)) {
-            return `Post-booking question ${index + 1}: add at least two choices`
+            return t('validation.postBookingQuestionChoices', { index: index + 1 })
           }
           return null
         })
@@ -342,10 +386,10 @@ export function collectStepErrors(step: number, data: WizardProjectSnapshot): st
 // Steps 7 and 8 carry no blocking rules; 4-6 only fail when the user added incomplete entries.
 const VALIDATED_STEPS = [1, 2, 3, 4, 5, 6]
 
-export function collectBlockingWizardErrors(data: WizardProjectSnapshot): WizardStepError[] {
+export function collectBlockingWizardErrors(data: WizardProjectSnapshot, t: WizardTranslator): WizardStepError[] {
   const blocking: WizardStepError[] = []
   for (const step of VALIDATED_STEPS) {
-    const messages = collectStepErrors(step, data)
+    const messages = collectStepErrors(step, data, t)
     if (messages.length > 0) {
       blocking.push({ step, stepTitle: WIZARD_STEP_TITLES[step], messages })
     }
@@ -363,11 +407,14 @@ export function mapBackendFieldToStep(path: string): number {
   return 1
 }
 
-export function parseProjectSaveError(payload: {
-  error?: unknown
-  details?: unknown
-  qualityChecks?: Array<{ message?: string }>
-}): { messages: string[]; step: number | null } {
+export function parseProjectSaveError(
+  payload: {
+    error?: unknown
+    details?: unknown
+    qualityChecks?: Array<{ message?: string }>
+  },
+  t: WizardTranslator,
+): { messages: string[]; step: number | null } {
   const messages: string[] = []
   if (Array.isArray(payload.qualityChecks)) {
     for (const check of payload.qualityChecks) {
@@ -385,7 +432,7 @@ export function parseProjectSaveError(payload: {
   if (error && !messages.includes(error)) messages.push(error)
 
   if (messages.length === 0) {
-    messages.push("Could not save the project. Check the highlighted step and try again.")
+    messages.push(t('validation.saveFailed'))
   }
 
   const blob = messages.join(" ")

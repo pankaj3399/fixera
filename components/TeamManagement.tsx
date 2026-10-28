@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +32,7 @@ import {
 import { toast } from "sonner"
 import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
 import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 type Day =
   | 'monday'
@@ -87,6 +89,9 @@ interface Employee {
 
 export default function EmployeeManagement() {
   const router = useRouter()
+  const t = useTranslations("proTools")
+  const tCalendar = useTranslations("calendar")
+  const { intl } = useFormatLocale()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
@@ -170,7 +175,7 @@ export default function EmployeeManagement() {
       }
     } catch (error) {
       console.error('Error fetching employees:', error)
-      toast.error('Failed to load employees')
+      toast.error(t("teamManagement.toast.loadFailed"))
     } finally {
       setLoading(false)
     }
@@ -195,18 +200,18 @@ export default function EmployeeManagement() {
       if (data.success) {
         toast.success(
           inviteForm.hasEmail
-            ? 'Employee invitation sent successfully!'
-            : 'Employee added successfully!'
+            ? t("teamManagement.toast.invitationSent")
+            : t("teamManagement.toast.employeeAdded")
         )
         setInviteDialogOpen(false)
         setInviteForm({ name: '', email: '', hasEmail: true })
         fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || 'Failed to invite employee')
+        toast.error(data.msg || t("teamManagement.toast.inviteFailed"))
       }
     } catch (error) {
       console.error('Error inviting employee:', error)
-      toast.error('Failed to invite employee')
+      toast.error(t("teamManagement.toast.inviteFailed"))
     } finally {
       setInviting(false)
     }
@@ -238,14 +243,18 @@ export default function EmployeeManagement() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success(`Employee ${isActive ? 'activated' : 'deactivated'} successfully`)
+        toast.success(
+          isActive
+            ? t("teamManagement.toast.activated")
+            : t("teamManagement.toast.deactivated")
+        )
         fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || 'Failed to update employee status')
+        toast.error(data.msg || t("teamManagement.toast.statusFailed"))
       }
     } catch (error) {
       console.error('Error updating employee status:', error)
-      toast.error('Failed to update employee status')
+      toast.error(t("teamManagement.toast.statusFailed"))
     } finally {
       setDeactivating(false)
     }
@@ -281,15 +290,15 @@ export default function EmployeeManagement() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success('Password reset successfully')
+        toast.success(t("teamManagement.toast.passwordReset"))
         setResetPasswordDialog(null)
         setNewPassword('')
       } else {
-        toast.error(data.msg || 'Failed to reset password')
+        toast.error(data.msg || t("teamManagement.toast.passwordResetFailed"))
       }
     } catch (error) {
       console.error('Error resetting password:', error)
-      toast.error('Failed to reset password')
+      toast.error(t("teamManagement.toast.passwordResetFailed"))
     } finally {
       setResettingPassword(false)
     }
@@ -307,7 +316,7 @@ export default function EmployeeManagement() {
   const updateEmployeeEmail = async () => {
     if (!emailDialog) return
     if (!emailValue.trim()) {
-      toast.error('Email is required')
+      toast.error(t("teamManagement.toast.emailRequired"))
       return
     }
 
@@ -325,16 +334,16 @@ export default function EmployeeManagement() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success('Employee email updated successfully')
+        toast.success(t("teamManagement.toast.emailUpdated"))
         setEmailDialog(null)
         setEmailValue('')
         fetchEmployees()
       } else {
-        toast.error(data.msg || 'Failed to update employee email')
+        toast.error(data.msg || t("teamManagement.toast.emailUpdateFailed"))
       }
     } catch (error) {
       console.error('Error updating employee email:', error)
-      toast.error('Failed to update employee email')
+      toast.error(t("teamManagement.toast.emailUpdateFailed"))
     } finally {
       setUpdatingEmail(false)
     }
@@ -357,15 +366,15 @@ export default function EmployeeManagement() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success('Employee removed successfully')
+        toast.success(t("teamManagement.toast.employeeRemoved"))
         setRemoveDialog(null)
         fetchEmployees()
       } else {
-        toast.error(data.msg || 'Failed to remove employee')
+        toast.error(data.msg || t("teamManagement.toast.removeFailed"))
       }
     } catch (error) {
       console.error('Error removing employee:', error)
-      toast.error('Failed to remove employee')
+      toast.error(t("teamManagement.toast.removeFailed"))
     } finally {
       setRemoving(false)
     }
@@ -373,10 +382,10 @@ export default function EmployeeManagement() {
 
   const formatDateTimeSafe = (value: DateInput): string => {
     const dateStr = getDateValue(value);
-    if (!dateStr) return 'Invalid Date';
+    if (!dateStr) return t("teamManagement.invalidDate");
     const parsed = new Date(dateStr);
-    if (Number.isNaN(parsed.getTime())) return 'Invalid Date';
-    return parsed.toLocaleString();
+    if (Number.isNaN(parsed.getTime())) return t("teamManagement.invalidDate");
+    return parsed.toLocaleString(intl);
   };
 
   // Open availability dialog
@@ -417,11 +426,11 @@ export default function EmployeeManagement() {
   // Add blocked range
   const addBlockedRange = () => {
     if (!newBlockedRange.startDate || !newBlockedRange.endDate) {
-      toast.error('Please select both start and end times')
+      toast.error(t("teamManagement.validation.selectStartEnd"))
       return
     }
     if (new Date(newBlockedRange.startDate) >= new Date(newBlockedRange.endDate)) {
-      toast.error('Start time must be before end time')
+      toast.error(t("teamManagement.validation.startBeforeEnd"))
       return
     }
     setBlockedRanges(prev => [...prev, {
@@ -452,17 +461,17 @@ export default function EmployeeManagement() {
     if (!editingRange) return
     const { index, startValue, endValue, reason } = editingRange
     if (!startValue || !endValue) {
-      toast.error('Select start and end values')
+      toast.error(t("teamManagement.validation.selectStartEndValues"))
       return
     }
     const startDate = new Date(startValue)
     const endDate = new Date(endValue)
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      toast.error('Please provide valid start and end times')
+      toast.error(t("teamManagement.validation.validStartEnd"))
       return
     }
     if (startDate >= endDate) {
-      toast.error('Start time must be before end time')
+      toast.error(t("teamManagement.validation.startBeforeEnd"))
       return
     }
     setBlockedRanges(prev =>
@@ -495,7 +504,7 @@ export default function EmployeeManagement() {
       events.push({
         id: `personal-${index}`,
         type: 'personal',
-        title: 'Personal Block',
+        title: tCalendar('eventTitles.personalBlock'),
         start,
         end,
         meta: { note: range.reason, rangeIndex: index }
@@ -510,7 +519,7 @@ export default function EmployeeManagement() {
       events.push({
         id: `booking-${range.bookingId || index}`,
         type,
-        title: type === 'booking-buffer' ? 'Buffer' : 'Booking',
+        title: type === 'booking-buffer' ? tCalendar('eventTitles.buffer') : tCalendar('eventTitles.booking'),
         start,
         end,
         meta: {
@@ -523,7 +532,7 @@ export default function EmployeeManagement() {
     })
 
     return events
-  }, [availabilityDialog?.bookingBlockedRanges, blockedRanges])
+  }, [availabilityDialog?.bookingBlockedRanges, blockedRanges, tCalendar])
 
   // Save employee blocked dates (employees follow company weekly schedule)
   const saveEmployeeAvailability = async () => {
@@ -547,15 +556,15 @@ export default function EmployeeManagement() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success('Employee availability updated successfully')
+        toast.success(t("teamManagement.toast.availabilityUpdated"))
         setAvailabilityDialog(null)
         fetchEmployees() // Refresh the list
       } else {
-        toast.error(data.msg || 'Failed to update availability')
+        toast.error(data.msg || t("teamManagement.toast.availabilityUpdateFailed"))
       }
     } catch (error) {
       console.error('Error updating availability:', error)
-      toast.error('Failed to update availability')
+      toast.error(t("teamManagement.toast.availabilityUpdateFailed"))
     } finally {
       setSavingAvailability(false)
     }
@@ -572,7 +581,7 @@ export default function EmployeeManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Employee Management
+            {t("teamManagement.title")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 py-6">
@@ -594,14 +603,14 @@ export default function EmployeeManagement() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Employee Management
+                {t("teamManagement.title")}
               </CardTitle>
               <CardDescription>
-                Invite and manage your employees
+                {t("teamManagement.description")}
               </CardDescription>
             </div>
 
@@ -609,25 +618,25 @@ export default function EmployeeManagement() {
               <DialogTrigger asChild>
                 <Button className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" />
-                  Invite Employee
+                  {t("teamManagement.inviteEmployee")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Invite Employee</DialogTitle>
+                  <DialogTitle>{t("teamManagement.inviteEmployee")}</DialogTitle>
                   <DialogDescription>
-                    Add a new employee to your company
+                    {t("teamManagement.inviteDialog.description")}
                   </DialogDescription>
                 </DialogHeader>
                 
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="memberName">Name *</Label>
+                    <Label htmlFor="memberName">{t("teamManagement.inviteDialog.nameLabel")}</Label>
                     <Input
                       id="memberName"
                       value={inviteForm.name}
                       onChange={(e) => setInviteForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter team member's name"
+                      placeholder={t("teamManagement.inviteDialog.namePlaceholder")}
                     />
                   </div>
                   
@@ -642,31 +651,31 @@ export default function EmployeeManagement() {
                           email: checked ? prev.email : ''
                         }))}
                       />
-                      <Label htmlFor="hasEmail">Employee has email address</Label>
+                      <Label htmlFor="hasEmail">{t("teamManagement.inviteDialog.hasEmail")}</Label>
                     </div>
                     
                     {inviteForm.hasEmail ? (
                       <div>
-                        <Label htmlFor="memberEmail">Email Address *</Label>
+                        <Label htmlFor="memberEmail">{t("teamManagement.inviteDialog.emailLabel")}</Label>
                         <Input
                           id="memberEmail"
                           type="email"
                           value={inviteForm.email}
                           onChange={(e) => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
-                          placeholder="Enter team member's email"
+                          placeholder={t("teamManagement.inviteDialog.emailPlaceholder")}
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Credentials will be sent to this email
+                          {t("teamManagement.inviteDialog.credentialsNote")}
                         </p>
                       </div>
                     ) : (
                       <div className="bg-muted p-3 rounded-md">
                         <div className="flex items-center gap-2 text-sm">
                           <AlertCircle className="h-4 w-4 text-amber-500" />
-                          <span className="font-medium">Company-managed employee</span>
+                          <span className="font-medium">{t("teamManagement.inviteDialog.companyManaged")}</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          You will manage this employee&apos;s availability directly
+                          {t("teamManagement.inviteDialog.companyManagedNote")}
                         </p>
                       </div>
                     )}
@@ -678,14 +687,16 @@ export default function EmployeeManagement() {
                       onClick={() => setInviteDialogOpen(false)}
                       disabled={inviting}
                     >
-                      Cancel
+                      {t("teamManagement.cancel")}
                     </Button>
                     <Button
                       onClick={inviteEmployee}
                       disabled={!inviteForm.name || (inviteForm.hasEmail && !inviteForm.email) || inviting}
                     >
                       {inviting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      {inviteForm.hasEmail ? 'Send Invitation' : 'Add Employee'}
+                      {inviteForm.hasEmail
+                        ? t("teamManagement.inviteDialog.sendInvitation")
+                        : t("teamManagement.inviteDialog.addEmployee")}
                     </Button>
                   </div>
                 </div>
@@ -698,20 +709,20 @@ export default function EmployeeManagement() {
           {employees.length === 0 ? (
             <div className="text-center py-12">
               <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">No Employees Yet</h3>
+              <h3 className="text-lg font-medium mb-2">{t("teamManagement.empty.title")}</h3>
               <p className="text-muted-foreground mb-4">
-                Start by inviting your first employee
+                {t("teamManagement.empty.description")}
               </p>
               <Button onClick={() => setInviteDialogOpen(true)}>
                 <UserPlus className="h-4 w-4 mr-2" />
-                Invite Employee
+                {t("teamManagement.inviteEmployee")}
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
-                  {employees.length} employee{employees.length !== 1 ? 's' : ''}
+                  {t("teamManagement.employeeCount", { count: employees.length })}
                 </div>
                 <Button
                   variant="ghost"
@@ -731,14 +742,14 @@ export default function EmployeeManagement() {
                 )
                 return (
                   <>
-                    <div className="border rounded-lg overflow-hidden">
+                    <div className="border rounded-lg overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Contact</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead>{t("teamManagement.table.name")}</TableHead>
+                            <TableHead>{t("teamManagement.table.contact")}</TableHead>
+                            <TableHead>{t("teamManagement.table.status")}</TableHead>
+                            <TableHead>{t("teamManagement.table.actions")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -752,7 +763,9 @@ export default function EmployeeManagement() {
                             <div>
                               <div className="font-medium">{member.name}</div>
                               <div className="text-xs text-muted-foreground">
-                                {member.managedByCompany ? 'Company managed' : 'Self-managed'}
+                                {member.managedByCompany
+                                  ? t("teamManagement.managedByCompany")
+                                  : t("teamManagement.selfManaged")}
                               </div>
                             </div>
                           </div>
@@ -766,7 +779,7 @@ export default function EmployeeManagement() {
                             </div>
                           ) : (
                             <Badge variant="secondary" className="text-xs">
-                              No Email
+                              {t("teamManagement.noEmail")}
                             </Badge>
                           )}
                         </TableCell>
@@ -777,14 +790,14 @@ export default function EmployeeManagement() {
                               <>
                                 <CheckCircle className="h-4 w-4 text-green-500" />
                                 <Badge variant="default" className="bg-green-100 text-green-800">
-                                  Active
+                                  {t("teamManagement.status.active")}
                                 </Badge>
                               </>
                             ) : (
                               <>
                                 <AlertCircle className="h-4 w-4 text-gray-500" />
                                 <Badge variant="secondary">
-                                  Inactive
+                                  {t("teamManagement.status.inactive")}
                                 </Badge>
                               </>
                             )}
@@ -798,7 +811,7 @@ export default function EmployeeManagement() {
                               size="sm"
                               onClick={() => openAvailabilityDialog(member)}
                               className="h-8 px-2"
-                              title="Manage Availability"
+                              title={t("teamManagement.actions.manageAvailability")}
                             >
                               <Calendar className="h-4 w-4" />
                             </Button>
@@ -809,7 +822,9 @@ export default function EmployeeManagement() {
                               onClick={() => openEmailDialog(member)}
                               className="h-8 px-2"
                               disabled={updatingEmail}
-                              title={member.hasEmail ? 'Change Email' : 'Link Email'}
+                              title={member.hasEmail
+                                ? t("teamManagement.actions.changeEmail")
+                                : t("teamManagement.actions.linkEmail")}
                             >
                               <Mail className="h-4 w-4" />
                             </Button>
@@ -821,7 +836,7 @@ export default function EmployeeManagement() {
                                 onClick={() => handleDeactivate(member._id, member.name)}
                                 className="h-8 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                                 disabled={deactivating}
-                                title="Deactivate"
+                                title={t("teamManagement.actions.deactivate")}
                               >
                                 <UserX className="h-4 w-4" />
                               </Button>
@@ -832,7 +847,7 @@ export default function EmployeeManagement() {
                                 onClick={() => handleReactivate(member._id)}
                                 className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
                                 disabled={deactivating}
-                                title="Reactivate"
+                                title={t("teamManagement.actions.reactivate")}
                               >
                                 <CheckCircle className="h-4 w-4" />
                               </Button>
@@ -844,7 +859,7 @@ export default function EmployeeManagement() {
                                 size="sm"
                                 onClick={() => setResetPasswordDialog(member._id)}
                                 className="h-8 px-2"
-                                title="Reset Password"
+                                title={t("teamManagement.actions.resetPassword")}
                               >
                                 <RotateCcw className="h-4 w-4" />
                               </Button>
@@ -856,7 +871,7 @@ export default function EmployeeManagement() {
                               onClick={() => handleRemove(member._id, member.name)}
                               className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                               disabled={removing}
-                              title="Remove"
+                              title={t("teamManagement.actions.remove")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -872,8 +887,11 @@ export default function EmployeeManagement() {
                   {totalEmployeesPages > 1 && (
                     <div className="flex items-center justify-between pt-4">
                       <div className="text-sm text-muted-foreground">
-                        Showing {(employeesPage - 1) * EMPLOYEES_PER_PAGE + 1} to{' '}
-                        {Math.min(employeesPage * EMPLOYEES_PER_PAGE, employees.length)} of {employees.length}
+                        {t("teamManagement.pagination.showing", {
+                          from: (employeesPage - 1) * EMPLOYEES_PER_PAGE + 1,
+                          to: Math.min(employeesPage * EMPLOYEES_PER_PAGE, employees.length),
+                          total: employees.length
+                        })}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -883,10 +901,13 @@ export default function EmployeeManagement() {
                           disabled={employeesPage === 1}
                         >
                           <ChevronLeft className="h-4 w-4" />
-                          Previous
+                          {t("teamManagement.pagination.previous")}
                         </Button>
                         <span className="text-sm">
-                          Page {employeesPage} of {totalEmployeesPages}
+                          {t("teamManagement.pagination.pageOf", {
+                            page: employeesPage,
+                            totalPages: totalEmployeesPages
+                          })}
                         </span>
                         <Button
                           variant="outline"
@@ -894,7 +915,7 @@ export default function EmployeeManagement() {
                           onClick={() => setEmployeesPage(p => Math.min(totalEmployeesPages, p + 1))}
                           disabled={employeesPage === totalEmployeesPages}
                         >
-                          Next
+                          {t("teamManagement.pagination.next")}
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </div>
@@ -912,25 +933,25 @@ export default function EmployeeManagement() {
       <Dialog open={!!resetPasswordDialog} onOpenChange={() => setResetPasswordDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset Employee Password</DialogTitle>
+            <DialogTitle>{t("teamManagement.passwordDialog.title")}</DialogTitle>
             <DialogDescription>
-              Set a new password for this employee
+              {t("teamManagement.passwordDialog.description")}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
             <div>
-              <Label htmlFor="newPassword">New Password</Label>
+              <Label htmlFor="newPassword">{t("teamManagement.passwordDialog.newPassword")}</Label>
               <Input
                 id="newPassword"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password (min 6 characters)"
+                placeholder={t("teamManagement.passwordDialog.placeholder")}
                 minLength={6}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Password must be at least 6 characters long
+                {t("teamManagement.passwordDialog.hint")}
               </p>
             </div>
             
@@ -943,14 +964,14 @@ export default function EmployeeManagement() {
                 }}
                 disabled={resettingPassword}
               >
-                Cancel
+                {t("teamManagement.cancel")}
               </Button>
               <Button
                 onClick={resetEmployeePassword}
                 disabled={!newPassword || newPassword.length < 6 || resettingPassword}
               >
                 {resettingPassword && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Reset Password
+                {t("teamManagement.passwordDialog.submit")}
               </Button>
             </div>
           </div>
@@ -970,28 +991,30 @@ export default function EmployeeManagement() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {emailDialog?.currentEmail ? 'Change Employee Email' : 'Link Employee Email'}
+              {emailDialog?.currentEmail
+                ? t("teamManagement.emailDialog.changeTitle")
+                : t("teamManagement.emailDialog.linkTitle")}
             </DialogTitle>
             <DialogDescription>
               {emailDialog?.currentEmail
-                ? `Update the email for ${emailDialog?.memberName}.`
-                : `Link an email address for ${emailDialog?.memberName}.`}
+                ? t("teamManagement.emailDialog.updateDescription", { name: emailDialog?.memberName ?? "" })
+                : t("teamManagement.emailDialog.linkDescription", { name: emailDialog?.memberName ?? "" })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="employeeEmail">Email Address</Label>
+              <Label htmlFor="employeeEmail">{t("teamManagement.emailDialog.label")}</Label>
               <Input
                 id="employeeEmail"
                 type="email"
                 value={emailValue}
                 onChange={(e) => setEmailValue(e.target.value)}
-                placeholder="name@company.com"
+                placeholder={t("teamManagement.emailDialog.placeholder")}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              After linking an email, you can reset the employee&apos;s password from the actions menu.
+              {t("teamManagement.emailDialog.note")}
             </p>
             <div className="flex justify-end gap-2 pt-4">
               <Button
@@ -1002,14 +1025,14 @@ export default function EmployeeManagement() {
                 }}
                 disabled={updatingEmail}
               >
-                Cancel
+                {t("teamManagement.cancel")}
               </Button>
               <Button
                 onClick={updateEmployeeEmail}
                 disabled={!emailValue.trim() || updatingEmail}
               >
                 {updatingEmail && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Save Email
+                {t("teamManagement.emailDialog.submit")}
               </Button>
             </div>
           </div>
@@ -1020,9 +1043,12 @@ export default function EmployeeManagement() {
       <Dialog open={!!deactivateDialog} onOpenChange={() => setDeactivateDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Deactivate Employee</DialogTitle>
+            <DialogTitle>{t("teamManagement.deactivateDialog.title")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to deactivate <strong>{deactivateDialog?.memberName}</strong>?
+              {t.rich("teamManagement.deactivateDialog.confirm", {
+                name: deactivateDialog?.memberName ?? "",
+                strong: (chunks) => <strong>{chunks}</strong>
+              })}
             </DialogDescription>
           </DialogHeader>
 
@@ -1032,11 +1058,10 @@ export default function EmployeeManagement() {
                 <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-amber-800">
-                    This will deactivate the employee
+                    {t("teamManagement.deactivateDialog.warningTitle")}
                   </p>
                   <p className="text-sm text-amber-700 mt-1">
-                    The employee will no longer be able to access the system or be scheduled for appointments.
-                    You can reactivate them at any time.
+                    {t("teamManagement.deactivateDialog.warningBody")}
                   </p>
                 </div>
               </div>
@@ -1048,7 +1073,7 @@ export default function EmployeeManagement() {
                 onClick={() => setDeactivateDialog(null)}
                 disabled={deactivating}
               >
-                Cancel
+                {t("teamManagement.cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -1056,7 +1081,7 @@ export default function EmployeeManagement() {
                 disabled={deactivating}
               >
                 {deactivating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Deactivate Employee
+                {t("teamManagement.deactivateDialog.submit")}
               </Button>
             </div>
           </div>
@@ -1067,9 +1092,12 @@ export default function EmployeeManagement() {
       <Dialog open={!!removeDialog} onOpenChange={() => setRemoveDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove Employee</DialogTitle>
+            <DialogTitle>{t("teamManagement.removeDialog.title")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove <strong>{removeDialog?.memberName}</strong>?
+              {t.rich("teamManagement.removeDialog.confirm", {
+                name: removeDialog?.memberName ?? "",
+                strong: (chunks) => <strong>{chunks}</strong>
+              })}
             </DialogDescription>
           </DialogHeader>
 
@@ -1079,10 +1107,10 @@ export default function EmployeeManagement() {
                 <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-red-800">
-                    This will permanently remove the employee
+                    {t("teamManagement.removeDialog.warningTitle")}
                   </p>
                   <p className="text-sm text-red-700 mt-1">
-                    The employee will be deleted from your company and cannot be restored.
+                    {t("teamManagement.removeDialog.warningBody")}
                   </p>
                 </div>
               </div>
@@ -1094,7 +1122,7 @@ export default function EmployeeManagement() {
                 onClick={() => setRemoveDialog(null)}
                 disabled={removing}
               >
-                Cancel
+                {t("teamManagement.cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -1102,7 +1130,7 @@ export default function EmployeeManagement() {
                 disabled={removing}
               >
                 {removing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Remove Employee
+                {t("teamManagement.removeDialog.submit")}
               </Button>
             </div>
           </div>
@@ -1113,18 +1141,20 @@ export default function EmployeeManagement() {
       <Dialog open={!!availabilityDialog} onOpenChange={() => setAvailabilityDialog(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Manage Availability - {availabilityDialog?.name}</DialogTitle>
+            <DialogTitle>
+              {t("teamManagement.availabilityDialog.title", { name: availabilityDialog?.name ?? "" })}
+            </DialogTitle>
             <DialogDescription>
-              Set blocked periods for this employee. Working hours follow the company schedule and are read-only.
+              {t("teamManagement.availabilityDialog.description")}
             </DialogDescription>
           </DialogHeader>
 
             <div className="space-y-6">
               <div className="space-y-3">
-              <Label className="text-base font-medium">Add Blocked Period</Label>
+              <Label className="text-base font-medium">{t("teamManagement.availabilityDialog.addBlockedPeriod")}</Label>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="space-y-1">
-                  <Label htmlFor="employee-range-start">Start</Label>
+                  <Label htmlFor="employee-range-start">{t("teamManagement.availabilityDialog.start")}</Label>
                   <Input
                     id="employee-range-start"
                     type="datetime-local"
@@ -1133,7 +1163,7 @@ export default function EmployeeManagement() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="employee-range-end">End</Label>
+                  <Label htmlFor="employee-range-end">{t("teamManagement.availabilityDialog.end")}</Label>
                   <Input
                     id="employee-range-end"
                     type="datetime-local"
@@ -1142,26 +1172,26 @@ export default function EmployeeManagement() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="employee-range-reason">Reason (optional)</Label>
+                  <Label htmlFor="employee-range-reason">{t("teamManagement.availabilityDialog.reasonOptional")}</Label>
                   <Input
                     id="employee-range-reason"
                     value={newBlockedRange.reason}
                     onChange={(e) => setNewBlockedRange(prev => ({...prev, reason: e.target.value}))}
-                    placeholder="Vacation, appointment, etc."
+                    placeholder={t("teamManagement.availabilityDialog.reasonPlaceholder")}
                   />
                 </div>
               </div>
               <div className="flex justify-end">
                 <Button onClick={addBlockedRange} size="sm">
                   <Plus className="h-4 w-4 mr-1" />
-                  Add Block
+                  {t("teamManagement.availabilityDialog.addBlock")}
                 </Button>
               </div>
             </div>
 
             <WeeklyAvailabilityCalendar
-              title="Weekly Availability"
-              description="Booking details are shown inside each block. Click personal blocks to edit. Click bookings to view."
+              title={tCalendar('weeklyAvailabilityCalendar.defaultTitle')}
+              description={tCalendar('weeklyAvailabilityCalendar.description')}
               events={calendarEvents}
               dayStart={scheduleWindow.dayStart}
               dayEnd={scheduleWindow.dayEnd}
@@ -1180,7 +1210,7 @@ export default function EmployeeManagement() {
             />
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-              Working hours follow the company schedule and are read-only.
+              {t("teamManagement.availabilityDialog.workingHoursNote")}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -1189,14 +1219,14 @@ export default function EmployeeManagement() {
                 onClick={() => setAvailabilityDialog(null)}
                 disabled={savingAvailability}
               >
-                Cancel
+                {t("teamManagement.cancel")}
               </Button>
               <Button
                 onClick={saveEmployeeAvailability}
                 disabled={savingAvailability}
               >
                 {savingAvailability && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Save Availability
+                {t("teamManagement.availabilityDialog.saveAvailability")}
               </Button>
             </div>
           </div>
@@ -1212,13 +1242,13 @@ export default function EmployeeManagement() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Blocked Period</DialogTitle>
-            <DialogDescription>Adjust the time range or remove the block.</DialogDescription>
+            <DialogTitle>{t("teamManagement.editBlockDialog.title")}</DialogTitle>
+            <DialogDescription>{t("teamManagement.editBlockDialog.description")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-3">
               <div className="space-y-1">
-                <Label htmlFor="edit-employee-start">Start</Label>
+                <Label htmlFor="edit-employee-start">{t("teamManagement.editBlockDialog.start")}</Label>
                 <Input
                   id="edit-employee-start"
                   type="datetime-local"
@@ -1231,7 +1261,7 @@ export default function EmployeeManagement() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="edit-employee-end">End</Label>
+                <Label htmlFor="edit-employee-end">{t("teamManagement.editBlockDialog.end")}</Label>
                 <Input
                   id="edit-employee-end"
                   type="datetime-local"
@@ -1244,7 +1274,7 @@ export default function EmployeeManagement() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="edit-employee-reason">Reason (optional)</Label>
+                <Label htmlFor="edit-employee-reason">{t("teamManagement.editBlockDialog.reasonOptional")}</Label>
                 <Input
                   id="edit-employee-reason"
                   value={editingRange?.reason || ''}
@@ -1253,19 +1283,19 @@ export default function EmployeeManagement() {
                       prev ? { ...prev, reason: e.target.value } : prev
                     )
                   }
-                  placeholder="Vacation, appointment, etc."
+                  placeholder={t("teamManagement.editBlockDialog.reasonPlaceholder")}
                 />
               </div>
             </div>
             <div className="flex items-center justify-between gap-2">
               <Button variant="destructive" onClick={removeEditingRange}>
-                Remove Block
+                {t("teamManagement.editBlockDialog.removeBlock")}
               </Button>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => setEditingRange(null)}>
-                  Cancel
+                  {t("teamManagement.cancel")}
                 </Button>
-                <Button onClick={applyEditRange}>Save Changes</Button>
+                <Button onClick={applyEditRange}>{t("teamManagement.editBlockDialog.saveChanges")}</Button>
               </div>
             </div>
           </div>

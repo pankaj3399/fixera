@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Loader2, Plus, Trash2, Package, Clock, Shield, FileText, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
+import { useCurrency } from '@/contexts/CurrencyContext'
 import type { QuoteVersion, QuoteMaterial, QuotationMilestone, QuotationPricingLine, QuotationWizardFormData } from '@/types/quotation'
 import { calculateVatTotalsFromPricingLines } from '@/lib/vatPricing'
 import { parseFlexibleNumber } from '@/lib/numberInput'
@@ -227,10 +229,23 @@ const getDefaultFormData = (existing?: QuoteVersion): QuotationWizardFormData =>
 }
 
 export default function QuotationWizard({ bookingId, existingVersion, isEditing, commissionPercent, onSuccess, onCancel }: QuotationWizardProps) {
+  const t = useTranslations('quotation')
+  const { formatMoney } = useCurrency()
   const [form, setForm] = useState<QuotationWizardFormData>(getDefaultFormData(existingVersion))
+  // Quotation amounts are stored in the quotation's own currency (never converted).
+  const formatAmount = (amount: number) => formatMoney(amount, form.currency || 'EUR')
   const [submitting, setSubmitting] = useState(false)
   const [vatRateOptions, setVatRateOptions] = useState<VatRateOption[]>([])
   const [vatRateDrafts, setVatRateDrafts] = useState<Record<string, string>>({})
+
+  // Stored VAT labels are identifiers (they are persisted with the quote), so
+  // the built-in ones get a translated display label while the value stays put.
+  const getVatOptionLabel = (option: VatRateOption): string => {
+    if (option.isCustom) return t('wizard.vat.custom')
+    if (option.label === LEGACY_VAT_RATE_OPTION.label) return t('wizard.vat.legacy')
+    if (option.label === FALLBACK_VAT_RATE_OPTIONS[0].label) return t('wizard.vat.unavailable')
+    return option.label
+  }
 
   const effectiveVatRateOptions = useMemo(
     () => vatRateOptions.length > 0 ? vatRateOptions : FALLBACK_VAT_RATE_OPTIONS,
@@ -418,19 +433,19 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const handleSubmit = async () => {
     // Validation
     if (!form.scope || form.scope.length < 10 || form.scope.length > 100) {
-      toast.error('Scope must be between 10 and 100 characters')
+      toast.error(t('wizard.validation.scopeLength'))
       return
     }
     if (!form.description) {
-      toast.error('Description is required')
+      toast.error(t('wizard.validation.descriptionRequired'))
       return
     }
     if (form.materialsIncluded === null) {
-      toast.error('Please specify whether materials are included')
+      toast.error(t('wizard.validation.materialsRequired'))
       return
     }
     if (!form.serviceLocation?.country?.trim()) {
-      toast.error('Booking address country is required')
+      toast.error(t('wizard.validation.countryRequired'))
       return
     }
     const invalidVatLine = form.pricingLines.find((line, index) => {
@@ -448,7 +463,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       )
     })
     if (invalidVatLine) {
-      toast.error('Enter a valid VAT rate for every pricing line before submitting')
+      toast.error(t('wizard.validation.invalidVatRate'))
       return
     }
 
@@ -464,41 +479,41 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       return line.description.trim() && Number.isFinite(price) && price > 0 && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
     })
     if (validPricingLines.length === 0) {
-      toast.error('Add at least one pricing line')
+      toast.error(t('wizard.validation.noPricingLines'))
       return
     }
     if (validPricingLines.some(line => !line.price || line.price <= 0)) {
-      toast.error('Each pricing line needs a price greater than 0')
+      toast.error(t('wizard.validation.linePricePositive'))
       return
     }
     if (!pricingTotal || pricingTotal <= 0) {
-      toast.error('Total amount must be greater than 0')
+      toast.error(t('wizard.validation.totalPositive'))
       return
     }
     if (!form.validUntil) {
-      toast.error('Validity date is required')
+      toast.error(t('wizard.validation.validUntilRequired'))
       return
     }
     if (form.useMilestones) {
       const validMilestones = form.milestones.filter(m => m.title.trim())
       const validSum = validMilestones.reduce((sum, m) => sum + (m.amount || 0), 0)
       if (Math.abs(validSum - pricingTotal) >= 0.01) {
-        toast.error('Sum of milestone amounts must equal the total amount')
+        toast.error(t('wizard.validation.milestoneSumMismatch'))
         return
       }
       const missingDate = validMilestones.find(m => m.dueCondition === 'custom_date' && !m.customDueDate)
       if (missingDate) {
-        toast.error('Please set a date for all milestones with custom date condition')
+        toast.error(t('wizard.validation.milestoneDateRequired'))
         return
       }
       const earliestMilestone = getEarliestSubmittedMilestone(validMilestones)
       if (!earliestMilestone || !isImmediatelyPayableAndPositive(earliestMilestone)) {
-        toast.error('At least one milestone must be payable up front. Set its due condition to "On Project Start" (typical deposit) so the customer can pay to kick off the work.')
+        toast.error(t('wizard.validation.upfrontMilestone'))
         return
       }
     }
     if (isEditing && !form.changeNote) {
-      toast.error('Please provide a reason for the changes')
+      toast.error(t('wizard.validation.changeReasonRequired'))
       return
     }
 
@@ -546,14 +561,14 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       const data = await response.json()
 
       if (response.ok && data?.success) {
-        toast.success(isEditing ? 'Quotation updated successfully!' : 'Quotation submitted successfully!')
+        toast.success(isEditing ? t('wizard.updateSuccess') : t('wizard.submitSuccess'))
         onSuccess()
       } else {
-        toast.error(data?.error?.message || data?.msg || 'Failed to submit quotation')
+        toast.error(data?.error?.message || data?.msg || t('wizard.submitFailed'))
       }
     } catch (err) {
       console.error('Error submitting quotation:', err)
-      toast.error('Failed to submit quotation. Please try again.')
+      toast.error(t('wizard.submitFailedRetry'))
     } finally {
       setSubmitting(false)
     }
@@ -564,51 +579,51 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       <CardHeader className="pb-4">
         <CardTitle className="text-lg text-purple-900 flex items-center gap-2">
           <FileText className="h-5 w-5" />
-          {isEditing ? 'Edit Quotation' : 'Create Quotation'}
+          {isEditing ? t('wizard.titleEdit') : t('wizard.titleCreate')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Scope */}
         <div>
-          <Label className="text-sm font-medium">Scope of Work *</Label>
-          <p className="text-xs text-gray-500 mb-1">Brief summary of the work (10-100 characters)</p>
+          <Label className="text-sm font-medium">{t('wizard.scopeLabel')}</Label>
+          <p className="text-xs text-gray-500 mb-1">{t('wizard.scopeHint')}</p>
           <Input
             value={form.scope}
             onChange={e => updateForm('scope', e.target.value)}
-            placeholder="e.g., Complete bathroom renovation including plumbing"
+            placeholder={t('wizard.scopePlaceholder')}
             maxLength={100}
           />
-          <p className="text-xs text-gray-400 mt-1">{form.scope.length}/100</p>
+          <p className="text-xs text-gray-400 mt-1">{t('wizard.scopeCounter', { count: form.scope.length })}</p>
         </div>
 
         {/* Booking address — flowchart SSOT needs the service/property address
             to determine VAT country for Standard/Reduced tier resolution. */}
         <div>
-          <Label className="text-sm font-medium">Booking address (service location) *</Label>
-          <p className="text-xs text-gray-500 mb-1">Country is required — it determines VAT via the flowchart. Select Standard or Reduced VAT below.</p>
+          <Label className="text-sm font-medium">{t('wizard.addressLabel')}</Label>
+          <p className="text-xs text-gray-500 mb-1">{t('wizard.addressHint')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
             <Input
               value={form.serviceLocation?.country || ''}
               onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), country: e.target.value })}
-              placeholder="Country (e.g. BE, NL, DE)"
+              placeholder={t('wizard.countryPlaceholder')}
               maxLength={50}
             />
             <Input
               value={form.serviceLocation?.postalCode || ''}
               onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), postalCode: e.target.value })}
-              placeholder="Postal code"
+              placeholder={t('wizard.postalCodePlaceholder')}
               maxLength={50}
             />
             <Input
               value={form.serviceLocation?.city || ''}
               onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), city: e.target.value })}
-              placeholder="City"
+              placeholder={t('wizard.cityPlaceholder')}
               maxLength={200}
             />
             <Input
               value={form.serviceLocation?.address || ''}
               onChange={e => updateForm('serviceLocation', { ...(form.serviceLocation || { country: '' }), address: e.target.value })}
-              placeholder="Street address"
+              placeholder={t('wizard.streetPlaceholder')}
               maxLength={500}
             />
           </div>
@@ -617,7 +632,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         {/* Warranty */}
         <div>
           <Label className="text-sm font-medium flex items-center gap-1">
-            <Shield className="h-4 w-4" /> Warranty *
+            <Shield className="h-4 w-4" /> {t('wizard.warrantyLabel')}
           </Label>
           <div className="flex gap-2 mt-1">
             <Input
@@ -635,8 +650,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="months">Months</SelectItem>
-                <SelectItem value="years">Years</SelectItem>
+                <SelectItem value="months">{t('wizard.units.months')}</SelectItem>
+                <SelectItem value="years">{t('wizard.units.years')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -645,7 +660,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         {/* Materials */}
         <div>
           <Label className="text-sm font-medium flex items-center gap-1">
-            <Package className="h-4 w-4" /> Materials Included *
+            <Package className="h-4 w-4" /> {t('wizard.materialsLabel')}
           </Label>
           <RadioGroup
             value={form.materialsIncluded === null ? '' : form.materialsIncluded ? 'yes' : 'no'}
@@ -654,11 +669,11 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="yes" id="mat-yes" />
-              <Label htmlFor="mat-yes" className="text-sm">Yes</Label>
+              <Label htmlFor="mat-yes" className="text-sm">{t('wizard.yes')}</Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="no" id="mat-no" />
-              <Label htmlFor="mat-no" className="text-sm">No</Label>
+              <Label htmlFor="mat-no" className="text-sm">{t('wizard.no')}</Label>
             </div>
           </RadioGroup>
 
@@ -667,20 +682,20 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
               {form.materials.map((mat, i) => (
                 <div key={i} className="flex gap-2 items-start">
                   <Input
-                    placeholder="Material name"
+                    placeholder={t('wizard.materialNamePlaceholder')}
                     value={mat.name}
                     onChange={e => updateMaterial(i, 'name', e.target.value)}
                     className="flex-1"
                   />
                   <Input
                     type="number"
-                    placeholder="Qty"
+                    placeholder={t('wizard.materialQuantityPlaceholder')}
                     value={mat.quantity ?? ''}
                     onChange={e => updateMaterial(i, 'quantity', e.target.value ? parseInt(e.target.value) : undefined)}
                     className="w-20"
                   />
                   <Input
-                    placeholder="Unit"
+                    placeholder={t('wizard.materialUnitPlaceholder')}
                     value={mat.unit ?? ''}
                     onChange={e => updateMaterial(i, 'unit', e.target.value)}
                     className="w-20"
@@ -693,7 +708,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                 </div>
               ))}
               <Button type="button" variant="outline" size="sm" onClick={addMaterial}>
-                <Plus className="h-4 w-4 mr-1" /> Add Material
+                <Plus className="h-4 w-4 mr-1" /> {t('wizard.addMaterial')}
               </Button>
             </div>
           )}
@@ -701,11 +716,11 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
         {/* Description */}
         <div>
-          <Label className="text-sm font-medium">Description (What&apos;s Included) *</Label>
+          <Label className="text-sm font-medium">{t('wizard.descriptionLabel')}</Label>
           <Textarea
             value={form.description}
             onChange={e => updateForm('description', e.target.value)}
-            placeholder="Describe what is included in this quotation..."
+            placeholder={t('wizard.descriptionPlaceholder')}
             rows={4}
             className="mt-1"
           />
@@ -714,18 +729,18 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         {/* Price */}
         <div>
           <Label className="text-sm font-medium flex items-center gap-1">
-            <CreditCard className="h-4 w-4" /> Pricing Lines *
+            <CreditCard className="h-4 w-4" /> {t('wizard.pricingLinesLabel')}
           </Label>
           <div className="mt-2 space-y-3">
             {!vatCountryKnown && (
-              <p className="text-sm text-amber-700">Enter a valid booking address country to load the Standard and Reduced VAT rates.</p>
+              <p className="text-sm text-amber-700">{t('wizard.vatCountryMissing')}</p>
             )}
             {form.pricingLines.map((line, index) => (
               <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_180px_40px] gap-2 items-start">
                 <Input
                   value={line.description}
                   onChange={e => updatePricingLine(index, 'description', e.target.value)}
-                  placeholder="Description"
+                  placeholder={t('wizard.pricingLineDescriptionPlaceholder')}
                 />
                 <Input
                   type="number"
@@ -733,7 +748,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   step={0.01}
                   value={line.price || ''}
                   onChange={e => updatePricingLine(index, 'price', parseFloat(e.target.value) || 0)}
-                  placeholder="1500.00"
+                  placeholder={t('wizard.pricePlaceholder')}
                 />
                 <Select
                   value={getVatOptionValue(findVatOptionForPricingLine(line))}
@@ -751,7 +766,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                         key={getVatOptionValue(option)}
                         value={getVatOptionValue(option)}
                       >
-                        {option.label}
+                        {getVatOptionLabel(option)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -762,26 +777,26 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={addPricingLine}>
-              <Plus className="h-4 w-4 mr-1" /> Add Pricing Line
+              <Plus className="h-4 w-4 mr-1" /> {t('wizard.addPricingLine')}
             </Button>
           </div>
 
           <div className="mt-2 space-y-1">
             <p className="text-sm text-gray-600">
-              Net total: <span className="font-medium text-gray-800">EUR {pricingTotal.toFixed(2)}</span>
+              {t('wizard.netTotal')} <span className="font-medium text-gray-800">{formatAmount(pricingTotal)}</span>
             </p>
             <p className="text-sm text-gray-600">
-              VAT: <span className="font-medium text-gray-800">EUR {pricingVatTotals.vatAmount.toFixed(2)}</span>
+              {t('wizard.vatTotal')} <span className="font-medium text-gray-800">{formatAmount(pricingVatTotals.vatAmount)}</span>
             </p>
             <p className="text-sm font-medium text-gray-700">
-              Total (incl. VAT): <span className="font-semibold text-gray-900">EUR {pricingVatTotals.total.toFixed(2)}</span>
+              {t('wizard.totalInclVat')} <span className="font-semibold text-gray-900">{formatAmount(pricingVatTotals.total)}</span>
             </p>
           </div>
 
           {pricingVatTotals.total > 0 && typeof commissionPercent === 'number' && commissionPercent > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              Price shown to customer: <span className="font-semibold text-gray-700">EUR {(pricingVatTotals.total * (1 + commissionPercent / 100)).toFixed(2)}</span>
-              <span className="text-gray-400 ml-1">({commissionPercent}% commission included)</span>
+              {t('wizard.priceShownToCustomer')} <span className="font-semibold text-gray-700">{formatAmount(pricingVatTotals.total * (1 + commissionPercent / 100))}</span>
+              <span className="text-gray-400 ml-1">{t('wizard.commissionIncluded', { percent: commissionPercent })}</span>
             </p>
           )}
 
@@ -794,32 +809,32 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                 onChange={e => updateForm('useMilestones', e.target.checked)}
                 className="rounded border-gray-300"
               />
-              Split into milestone payments
+              {t('wizard.splitMilestones')}
             </label>
           </div>
 
           {form.useMilestones && (
             <div className="mt-3 space-y-3 bg-white/50 rounded-lg p-3 border">
-              <p className="text-xs text-gray-500">Define payment milestones. Amounts must equal the total.</p>
+              <p className="text-xs text-gray-500">{t('wizard.milestonesHint')}</p>
               {form.milestones.map((ms, i) => (
                 <div key={i} className="flex gap-2 items-start">
                   <div className="flex-1 space-y-1">
                     <Input
-                      placeholder="Milestone title"
+                      placeholder={t('wizard.milestoneTitlePlaceholder')}
                       value={ms.title}
                       onChange={e => updateMilestone(i, 'title', e.target.value)}
                     />
                     <div className="flex gap-2">
                       <Input
                         type="number"
-                        placeholder="Amount"
+                        placeholder={t('wizard.milestoneAmountPlaceholder')}
                         value={ms.amount || ''}
                         onChange={e => updateMilestone(i, 'amount', parseFloat(e.target.value) || 0)}
                         className="w-32"
                       />
                       {i === 0 ? (
                         <div className="flex-1 flex items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
-                          On Project Start (locked)
+                          {t('wizard.onProjectStartLocked')}
                         </div>
                       ) : (
                         <Select
@@ -830,16 +845,16 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="on_milestone_start">On Milestone Start</SelectItem>
-                            <SelectItem value="on_milestone_completion">On Milestone Completion</SelectItem>
-                            <SelectItem value="custom_date">Custom Date</SelectItem>
+                            <SelectItem value="on_milestone_start">{t('wizard.dueConditions.onMilestoneStart')}</SelectItem>
+                            <SelectItem value="on_milestone_completion">{t('wizard.dueConditions.onMilestoneCompletion')}</SelectItem>
+                            <SelectItem value="custom_date">{t('wizard.dueConditions.customDate')}</SelectItem>
                           </SelectContent>
                         </Select>
                       )}
                     </div>
                     {i === 0 && ms.amount <= 0 && (
                       <p className="text-xs text-amber-600">
-                        The first milestone is an upfront deposit that unlocks project start — set an amount greater than 0.
+                        {t('wizard.firstMilestoneHint')}
                       </p>
                     )}
                     {ms.dueCondition === 'custom_date' && (
@@ -858,11 +873,12 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                 </div>
               ))}
               <Button type="button" variant="outline" size="sm" onClick={addMilestone}>
-                <Plus className="h-4 w-4 mr-1" /> Add Milestone
+                <Plus className="h-4 w-4 mr-1" /> {t('wizard.addMilestone')}
               </Button>
               <div className={`text-xs font-medium ${milestoneSumMatches ? 'text-green-600' : 'text-red-600'}`}>
-                Milestone total: EUR {milestoneSum.toFixed(2)} / {pricingTotal.toFixed(2)}
-                {!milestoneSumMatches && ' (must match)'}
+                {milestoneSumMatches
+                  ? t('wizard.milestoneTotal', { current: formatAmount(milestoneSum), total: formatAmount(pricingTotal) })
+                  : t('wizard.milestoneTotalMismatch', { current: formatAmount(milestoneSum), total: formatAmount(pricingTotal) })}
               </div>
             </div>
           )}
@@ -872,7 +888,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label className="text-sm font-medium flex items-center gap-1">
-              <Clock className="h-4 w-4" /> Preparation Time *
+              <Clock className="h-4 w-4" /> {t('wizard.preparationLabel')}
             </Label>
             <div className="flex gap-2 mt-1">
               <Input
@@ -890,8 +906,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="hours">Hours</SelectItem>
-                  <SelectItem value="days">Days</SelectItem>
+                  <SelectItem value="hours">{t('wizard.units.hours')}</SelectItem>
+                  <SelectItem value="days">{t('wizard.units.days')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -899,7 +915,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
           <div>
             <Label className="text-sm font-medium flex items-center gap-1">
-              <Clock className="h-4 w-4" /> Execution Time *
+              <Clock className="h-4 w-4" /> {t('wizard.executionLabel')}
             </Label>
             <div className="flex gap-2 mt-1">
               <Input
@@ -917,8 +933,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="hours">Hours</SelectItem>
-                  <SelectItem value="days">Days</SelectItem>
+                  <SelectItem value="hours">{t('wizard.units.hours')}</SelectItem>
+                  <SelectItem value="days">{t('wizard.units.days')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -934,7 +950,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
               onChange={e => updateForm('useBuffer', e.target.checked)}
               className="rounded border-gray-300"
             />
-            Include buffer time
+            {t('wizard.includeBuffer')}
           </label>
           {form.useBuffer && (
             <div className="flex gap-2 mt-2">
@@ -953,8 +969,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="hours">Hours</SelectItem>
-                  <SelectItem value="days">Days</SelectItem>
+                  <SelectItem value="hours">{t('wizard.units.hours')}</SelectItem>
+                  <SelectItem value="days">{t('wizard.units.days')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -963,7 +979,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
         {/* Validity */}
         <div>
-          <Label className="text-sm font-medium">Valid Until *</Label>
+          <Label className="text-sm font-medium">{t('wizard.validUntilLabel')}</Label>
           <Input
             type="date"
             value={form.validUntil}
@@ -975,11 +991,11 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         {/* Change note (required for editing) */}
         {isEditing && (
           <div>
-            <Label className="text-sm font-medium">Reason for Changes *</Label>
+            <Label className="text-sm font-medium">{t('wizard.changeReasonLabel')}</Label>
             <Textarea
               value={form.changeNote}
               onChange={e => updateForm('changeNote', e.target.value)}
-              placeholder="Explain what changed and why..."
+              placeholder={t('wizard.changeReasonPlaceholder')}
               rows={2}
               className="mt-1"
             />
@@ -996,17 +1012,17 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {isEditing ? 'Updating...' : 'Submitting...'}
+                {isEditing ? t('wizard.updating') : t('wizard.submitting')}
               </>
             ) : (
               <>
                 <FileText className="h-4 w-4 mr-2" />
-                {isEditing ? 'Update Quotation' : 'Submit Quotation'}
+                {isEditing ? t('wizard.updateQuotation') : t('wizard.submitQuotation')}
               </>
             )}
           </Button>
           <Button variant="outline" onClick={onCancel} disabled={submitting}>
-            Cancel
+            {t('wizard.cancel')}
           </Button>
         </div>
       </CardContent>

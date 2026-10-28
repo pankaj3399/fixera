@@ -7,14 +7,16 @@
 
 import React, { Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 function PaymentFailedContent() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const bookingId = params.id as string;
+  const t = useTranslations('checkout');
 
-  const errorMessage = searchParams.get('error') || 'Payment failed. Please try again.';
+  const errorMessage = searchParams.get('error') || t('paymentFailed.defaultMessage');
 
   const handleTryAgain = () => {
     router.push(`/bookings/${bookingId}/payment`);
@@ -32,41 +34,41 @@ function PaymentFailedContent() {
             <svg
               className="h-10 w-10 text-red-600"
               role="img"
-              aria-label="Payment failed"
+              aria-label={t('paymentFailed.paymentFailed')}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <title>Payment failed</title>
+              <title>{t('paymentFailed.paymentFailed')}</title>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Payment Failed
+            {t('paymentFailed.title')}
           </h1>
           <p className="text-gray-600 mb-6">
             {errorMessage}
           </p>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-left">
-            <h3 className="font-semibold text-yellow-900 mb-2">Common reasons for payment failure:</h3>
+            <h3 className="font-semibold text-yellow-900 mb-2">{t('paymentFailed.reasonsTitle')}</h3>
             <ul className="text-sm text-yellow-800 space-y-1">
-              <li>- Insufficient funds in your account</li>
-              <li>- Card declined by your bank</li>
-              <li>- Incorrect card details</li>
-              <li>- Card expired or reached its limit</li>
-              <li>- 3D Secure authentication failed</li>
+              <li>- {t('paymentFailed.reason1')}</li>
+              <li>- {t('paymentFailed.reason2')}</li>
+              <li>- {t('paymentFailed.reason3')}</li>
+              <li>- {t('paymentFailed.reason4')}</li>
+              <li>- {t('paymentFailed.reason5')}</li>
             </ul>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
-            <h3 className="font-semibold text-blue-900 mb-2">What you can do:</h3>
+            <h3 className="font-semibold text-blue-900 mb-2">{t('paymentFailed.actionsTitle')}</h3>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>- Try a different payment method</li>
-              <li>- Contact your bank to authorize the payment</li>
-              <li>- Verify your card details are correct</li>
-              <li>- Check your card has sufficient funds</li>
+              <li>- {t('paymentFailed.action1')}</li>
+              <li>- {t('paymentFailed.action2')}</li>
+              <li>- {t('paymentFailed.action3')}</li>
+              <li>- {t('paymentFailed.action4')}</li>
             </ul>
           </div>
 
@@ -75,7 +77,7 @@ function PaymentFailedContent() {
             onClick={handleTryAgain}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3"
           >
-            Try Again
+            {t('paymentFailed.tryAgain')}
           </button>
 
           <button
@@ -83,7 +85,7 @@ function PaymentFailedContent() {
             onClick={() => router.push(`/bookings/${bookingId}`)}
             className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 mb-3"
           >
-            Back to Booking
+            {t('paymentFailed.backToBooking')}
           </button>
 
           <button
@@ -91,11 +93,11 @@ function PaymentFailedContent() {
             onClick={handleContactSupport}
             className="w-full text-blue-600 py-2 px-4 rounded-lg font-medium hover:bg-blue-50"
           >
-            Contact Support
+            {t('paymentFailed.contactSupport')}
           </button>
 
           <p className="text-xs text-gray-500 mt-4">
-            No charges were made to your account. Your payment information is secure.
+            {t('paymentFailed.footnote')}
           </p>
         </div>
       </div>

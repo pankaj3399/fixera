@@ -141,10 +141,10 @@ export interface BookingBase {
 export const isProjectBooking = (booking: BookingBase) =>
   booking.bookingType === "project"
 
-export const getBookingTitle = (booking: BookingBase) => {
+export const getBookingTitle = (booking: BookingBase, fallback = "Booking") => {
   const trimmedTitle = booking.project?.title?.trim()
   if (booking.bookingType === "project") {
-    return trimmedTitle || "Booking"
+    return trimmedTitle || fallback
   }
-  return trimmedTitle || booking.rfqData?.serviceType || booking.professional?.businessInfo?.companyName || "Booking"
+  return trimmedTitle || booking.rfqData?.serviceType || booking.professional?.businessInfo?.companyName || fallback
 }

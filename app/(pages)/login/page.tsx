@@ -10,9 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 
 function LoginPageContent() {
+  const t = useTranslations("auth")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -50,17 +52,17 @@ function LoginPageContent() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
-          <CardDescription className="text-center">Sign in to your Fixtract account</CardDescription>
+          <CardTitle className="text-2xl font-bold text-center">{t("login.title")}</CardTitle>
+          <CardDescription className="text-center">{t("login.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("shared.email")}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder={t("shared.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -69,12 +71,12 @@ function LoginPageContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("shared.password")}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder={t("login.passwordPlaceholder")}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -94,11 +96,11 @@ function LoginPageContent() {
               <div className="flex items-center space-x-2">
                 <input id="remember" type="checkbox" className="rounded border-gray-300" />
                 <Label htmlFor="remember" className="text-sm text-gray-600">
-                  Remember me
+                  {t("login.rememberMe")}
                 </Label>
               </div>
               <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
-                Forgot password?
+                {t("login.forgotPassword")}
               </Link>
             </div>
 
@@ -106,19 +108,19 @@ function LoginPageContent() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {t("login.signingIn")}
                 </>
               ) : (
-                "Sign In"
+                t("shared.signIn")
               )}
             </Button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Don&apos;t have an account?{" "}
+              {t("login.noAccount")}{" "}
               <Link href="/join" className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
-                Sign up here
+                {t("login.signUpHere")}
               </Link>
             </p>
           </div>

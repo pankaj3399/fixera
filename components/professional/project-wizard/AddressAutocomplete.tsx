@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
@@ -31,9 +32,10 @@ export default function AddressAutocomplete({
   onValidation,
   useCompanyAddress,
   companyAddress,
-  label = "Service Address",
+  label,
   required = false
 }: AddressAutocompleteProps) {
+  const t = useTranslations('projectWizard')
   const [validating, setValidating] = useState(false);
   const [isValid, setIsValid] = useState<boolean | null>(null);
   const selectedFromDropdownRef = useRef(false);
@@ -242,7 +244,7 @@ export default function AddressAutocomplete({
   return (
     <div>
       <Label htmlFor="address">
-        {label} {required && '*'}
+        {label ?? t('address.defaultLabel')} {required && '*'}
       </Label>
       <div className="relative mt-2">
         <Input
@@ -263,7 +265,7 @@ export default function AddressAutocomplete({
           onFocus={enableAutocomplete}
           onPointerDown={enableAutocomplete}
           onBlur={handleBlur}
-          placeholder={useCompanyAddress ? "Using company address..." : "Start typing address..."}
+          placeholder={useCompanyAddress ? t('address.useCompanyPlaceholder') : t('address.typePlaceholder')}
           disabled={useCompanyAddress}
           className={
             isValid === true ? 'border-green-500' :
@@ -278,12 +280,12 @@ export default function AddressAutocomplete({
       </div>
       {isValid === false && (
         <p className="text-sm text-red-500 mt-1">
-          Please enter a valid address
+          {t('address.invalid')}
         </p>
       )}
       {isValid === true && (
         <p className="text-sm text-green-600 mt-1">
-          Address verified ✓
+          {t('address.verified')}
         </p>
       )}
     </div>

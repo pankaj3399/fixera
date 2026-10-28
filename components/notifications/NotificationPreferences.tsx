@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Bell, Mail, Smartphone, BookOpen, MessageSquare, Tag, Settings, Languages } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAuthToken } from '@/lib/utils';
@@ -26,6 +27,7 @@ interface Preferences {
   marketingLocale?: string;
 }
 
+/** Native language names for the marketing language fallback (never translated). */
 const MARKETING_LOCALES = [
   { code: 'en', label: 'English' },
   { code: 'nl', label: 'Nederlands' },
@@ -46,32 +48,32 @@ const DEFAULT_PREFS: Preferences = {
   marketingLocale: 'en',
 };
 
-const TYPE_META: { type: NotificationType; label: string; desc: string; icon: React.ReactNode }[] = [
+const TYPE_META = [
   {
     type: 'booking_updates',
-    label: 'Booking Updates',
-    desc: 'New requests, confirmations, cancellations, and status changes.',
+    labelKey: 'preferences.types.bookingUpdates.label',
+    descKey: 'preferences.types.bookingUpdates.description',
     icon: <BookOpen className="h-5 w-5 text-blue-500" />,
   },
   {
     type: 'messages',
-    label: 'Messages',
-    desc: 'New chat messages from customers or professionals.',
+    labelKey: 'preferences.types.messages.label',
+    descKey: 'preferences.types.messages.description',
     icon: <MessageSquare className="h-5 w-5 text-purple-500" />,
   },
   {
     type: 'promotions',
-    label: 'Promotional emails',
-    desc: 'Loyalty rewards, special offers, and platform news. You can unsubscribe at any time.',
+    labelKey: 'preferences.types.promotions.label',
+    descKey: 'preferences.types.promotions.description',
     icon: <Tag className="h-5 w-5 text-amber-500" />,
   },
   {
     type: 'system',
-    label: 'System',
-    desc: 'Account alerts, ID verification, and important notices.',
+    labelKey: 'preferences.types.system.label',
+    descKey: 'preferences.types.system.description',
     icon: <Settings className="h-5 w-5 text-gray-500" />,
   },
-];
+] as const;
 
 // ------------------------------------------------------------------
 // Helpers
@@ -189,6 +191,7 @@ const Toggle: React.FC<ToggleProps> = ({ checked, onChange, disabled = false, id
 // ------------------------------------------------------------------
 
 const NotificationPreferences: React.FC = () => {
+  const t = useTranslations('notifications');
   const { permissionGranted, requestPermission } = useFCM();
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
   const [loading, setLoading] = useState(true);
@@ -245,10 +248,10 @@ const NotificationPreferences: React.FC = () => {
           ...prev,
           [type]: { ...prev[type], [channel]: !enabled },
         }));
-        toast.error('Failed to save preference. Please try again.');
+        toast.error(t('preferences.saveFailed'));
       }
     },
-    [permissionGranted, requestPermission, syncPushBlocked],
+    [permissionGranted, requestPermission, syncPushBlocked, t],
   );
 
   const handleEnablePush = useCallback(async () => {
@@ -263,14 +266,14 @@ const NotificationPreferences: React.FC = () => {
     try {
       if (await patchMarketingLocale(marketingLocale)) return;
       setPrefs((current) => ({ ...current, marketingLocale: previous }));
-      toast.error('Failed to save marketing email language. Please try again.');
+      toast.error(t('preferences.localeSaveFailed'));
     } catch {
       setPrefs((current) => ({ ...current, marketingLocale: previous }));
-      toast.error('Failed to save marketing email language. Please try again.');
+      toast.error(t('preferences.localeSaveFailed'));
     } finally {
       setMarketingLocaleSaving(false);
     }
-  }, [prefs.marketingLocale]);
+  }, [prefs.marketingLocale, t]);
 
   if (loading) {
     return (
@@ -290,9 +293,9 @@ const NotificationPreferences: React.FC = () => {
           <Bell className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Notification Preferences</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('preferences.title')}</h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            Choose how and when you want to hear from us.
+            {t('preferences.subtitle')}
           </p>
         </div>
       </div>
@@ -302,7 +305,9 @@ const NotificationPreferences: React.FC = () => {
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex gap-3 items-start">
           <Smartphone className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
           <div>
-            <strong>Push notifications are blocked</strong> in your browser settings. To re-enable them, click the lock icon in your address bar and allow notifications for this site.
+            {t.rich('preferences.pushBlocked', {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </div>
         </div>
       )}
@@ -313,8 +318,8 @@ const NotificationPreferences: React.FC = () => {
           <div className="flex items-center gap-3">
             <Smartphone className="h-5 w-5 text-blue-500 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-blue-900">Push notifications are off</p>
-              <p className="text-xs text-blue-600 mt-0.5">Enable them to receive instant alerts.</p>
+              <p className="text-sm font-medium text-blue-900">{t('preferences.pushOffTitle')}</p>
+              <p className="text-xs text-blue-600 mt-0.5">{t('preferences.pushOffBody')}</p>
             </div>
           </div>
           <button
@@ -323,7 +328,7 @@ const NotificationPreferences: React.FC = () => {
             onClick={handleEnablePush}
             className="shrink-0 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-4 py-2 transition-colors"
           >
-            Enable Push
+            {t('preferences.enablePush')}
           </button>
         </div>
       )}
@@ -333,10 +338,10 @@ const NotificationPreferences: React.FC = () => {
           <Languages className="mt-0.5 h-5 w-5 text-blue-500" />
           <div className="min-w-0 flex-1">
             <label htmlFor="marketing-email-language" className="text-sm font-medium text-gray-900">
-              Marketing email language
+              {t('preferences.marketingLanguageLabel')}
             </label>
             <p className="mt-1 text-xs text-gray-500">
-              We use this language for promotional emails when it is available. Country defaults are used only when no preference is set.
+              {t('preferences.marketingLanguageHint')}
             </p>
             <select
               id="marketing-email-language"
@@ -355,19 +360,20 @@ const NotificationPreferences: React.FC = () => {
 
       {/* Column headers */}
       <div className="hidden sm:grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5">
-        <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Notification Type</span>
+        <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">{t('preferences.columnType')}</span>
         <span className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center gap-1.5 w-20 justify-center">
-          <Smartphone className="h-3.5 w-3.5" /> Push
+          <Smartphone className="h-3.5 w-3.5" /> {t('preferences.columnPush')}
         </span>
         <span className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center gap-1.5 w-20 justify-center">
-          <Mail className="h-3.5 w-3.5" /> Email
+          <Mail className="h-3.5 w-3.5" /> {t('preferences.columnEmail')}
         </span>
       </div>
 
       {/* Rows */}
       <div className="space-y-3">
-        {TYPE_META.map(({ type, label, desc, icon }) => {
+        {TYPE_META.map(({ type, labelKey, descKey, icon }) => {
           const pref = prefs[type];
+          const label = t(labelKey);
           return (
             <div
               key={type}
@@ -378,16 +384,16 @@ const NotificationPreferences: React.FC = () => {
                 <div className="mt-0.5 shrink-0">{icon}</div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">{label}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{t(descKey)}</p>
                 </div>
               </div>
 
               {/* Push toggle */}
               <div className="flex items-center gap-2 sm:justify-center">
-                <span className="text-xs text-gray-500 sm:hidden">Push:</span>
+                <span className="text-xs text-gray-500 sm:hidden">{t('preferences.pushLabel')}</span>
                 <Toggle
                   id={`toggle-push-${type}`}
-                  aria-label={`${label} push notifications`}
+                  aria-label={t('preferences.togglePushAria', { label })}
                   checked={pref.push}
                   onChange={(val) => handleToggle(type, 'push', val)}
                   disabled={saving === `${type}.push` || pushBlocked}
@@ -396,10 +402,10 @@ const NotificationPreferences: React.FC = () => {
 
               {/* Email toggle */}
               <div className="flex items-center gap-2 sm:justify-center">
-                <span className="text-xs text-gray-500 sm:hidden">Email:</span>
+                <span className="text-xs text-gray-500 sm:hidden">{t('preferences.emailLabel')}</span>
                 <Toggle
                   id={`toggle-email-${type}`}
-                  aria-label={`${label} email notifications`}
+                  aria-label={t('preferences.toggleEmailAria', { label })}
                   checked={pref.email}
                   onChange={(val) => handleToggle(type, 'email', val)}
                   disabled={saving === `${type}.email`}
@@ -411,8 +417,7 @@ const NotificationPreferences: React.FC = () => {
       </div>
 
       <p className="text-xs text-gray-400">
-        Push notifications require browser permission. Email preferences apply to most messages.
-        Critical booking, payment, dispute, and account alerts may still be sent even when a channel is turned off.
+        {t('preferences.footer')}
       </p>
     </div>
   );

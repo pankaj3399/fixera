@@ -1,16 +1,27 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle, Circle, Save, ArrowLeft, ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { WIZARD_STEP_TITLES } from "@/lib/projectWizardValidation"
+
+type StepDescriptionKey =
+  | 'stepDescriptions.1'
+  | 'stepDescriptions.2'
+  | 'stepDescriptions.3'
+  | 'stepDescriptions.4'
+  | 'stepDescriptions.5'
+  | 'stepDescriptions.6'
+  | 'stepDescriptions.7'
+  | 'stepDescriptions.8'
 
 interface WizardStep {
   id: number
-  title: string
-  description: string
+  descriptionKey: StepDescriptionKey
   isCompleted: boolean
 }
 
@@ -33,50 +44,42 @@ interface WizardLayoutProps {
 const WIZARD_STEPS: WizardStep[] = [
   {
     id: 1,
-    title: "Basic Info",
-    description: "Service, distance, resources, type, terms, description",
+    descriptionKey: "stepDescriptions.1",
     isCompleted: false
   },
   {
     id: 2,
-    title: "Subprojects & Pricing",
-    description: "Variation table and pricing logic",
+    descriptionKey: "stepDescriptions.2",
     isCompleted: false
   },
   {
     id: 3,
-    title: "Extra Options",
-    description: "Additional options and terms",
+    descriptionKey: "stepDescriptions.3",
     isCompleted: false
   },
   {
     id: 4,
-    title: "FAQ",
-    description: "Frequently asked questions",
+    descriptionKey: "stepDescriptions.4",
     isCompleted: false
   },
   {
     id: 5,
-    title: "RFQ Questions",
-    description: "Request for quote questions",
+    descriptionKey: "stepDescriptions.5",
     isCompleted: false
   },
   {
     id: 6,
-    title: "Post-Booking Questions",
-    description: "Questions after booking",
+    descriptionKey: "stepDescriptions.6",
     isCompleted: false
   },
   {
     id: 7,
-    title: "Custom Message",
-    description: "Confirmation message",
+    descriptionKey: "stepDescriptions.7",
     isCompleted: false
   },
   {
     id: 8,
-    title: "Review & Submit",
-    description: "Preview and submit for approval",
+    descriptionKey: "stepDescriptions.8",
     isCompleted: false
   }
 ]
@@ -96,6 +99,7 @@ export default function WizardLayout({
   isEditing = false,
   projectStatus
 }: WizardLayoutProps) {
+  const t = useTranslations('projectWizard')
   const [steps] = useState(WIZARD_STEPS)
   const progress = (currentStep / 8) * 100
 
@@ -111,18 +115,23 @@ export default function WizardLayout({
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Create Professional Service Project
+            {t('layout.title')}
           </h1>
           <p className="text-gray-600">
-            Step {currentStep} of 8: {steps[currentStep - 1]?.title}
+            {steps[currentStep - 1]
+              ? t('layout.stepOfWithTitle', {
+                  step: currentStep,
+                  title: t(WIZARD_STEP_TITLES[currentStep]),
+                })
+              : null}
           </p>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Progress</span>
-            <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
+            <span className="text-sm font-medium text-gray-700">{t('layout.progress')}</span>
+            <span className="text-sm text-gray-500">{t('layout.progressPercent', { percent: Math.round(progress) })}</span>
           </div>
           <Progress value={progress} className="h-2" />
         </div>
@@ -132,7 +141,7 @@ export default function WizardLayout({
           <div className="lg:col-span-1">
             <Card className="sticky top-4">
               <CardHeader>
-                <CardTitle className="text-lg">Steps</CardTitle>
+                <CardTitle className="text-lg">{t('layout.steps')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {steps.map((step) => (
@@ -175,10 +184,10 @@ export default function WizardLayout({
                           ? "text-green-900"
                           : "text-gray-700"
                       )}>
-                        {step.title}
+                        {t(WIZARD_STEP_TITLES[step.id])}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {step.description}
+                        {t(step.descriptionKey)}
                       </div>
                     </div>
                   </button>
@@ -194,15 +203,15 @@ export default function WizardLayout({
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-xl">
-                      {steps[currentStep - 1]?.title}
+                      {steps[currentStep - 1] ? t(WIZARD_STEP_TITLES[currentStep]) : null}
                     </CardTitle>
                     <p className="text-gray-600 mt-1">
-                      {steps[currentStep - 1]?.description}
+                      {steps[currentStep - 1] ? t(steps[currentStep - 1].descriptionKey) : null}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-500">
-                      Step {currentStep} of 8
+                      {t('layout.stepOf', { step: currentStep })}
                     </span>
                   </div>
                 </div>
@@ -211,7 +220,7 @@ export default function WizardLayout({
               <CardContent className="p-6">
                 {validationMessages.length > 0 && (
                   <div role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                    <p className="font-semibold mb-2">Fix these before continuing</p>
+                    <p className="font-semibold mb-2">{t('layout.fixBeforeContinuing')}</p>
                     <ul className="list-disc pl-5 space-y-1">
                       {validationMessages.map((message, index) => (
                         <li key={`${index}-${message}`}>{message}</li>
@@ -232,7 +241,7 @@ export default function WizardLayout({
                     className="flex items-center space-x-2"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    <span>Previous</span>
+                    <span>{t('layout.previous')}</span>
                   </Button>
 
                   <div className="flex space-x-3">
@@ -244,7 +253,7 @@ export default function WizardLayout({
                         className="flex items-center space-x-2"
                       >
                         <Save className="w-4 h-4" />
-                        <span>Save Draft</span>
+                        <span>{t('layout.saveDraft')}</span>
                       </Button>
                     )}
 
@@ -267,10 +276,10 @@ export default function WizardLayout({
                         <CheckCircle className="w-4 h-4" />
                         <span>
                           {projectStatus === 'pending_approval' 
-                            ? 'Already Submitted - Go to Projects' 
+                            ? t('layout.alreadySubmitted')
                             : projectStatus === 'published' || projectStatus === 'on_hold'
-                            ? 'Submit Changes for Re-approval'
-                            : 'Submit for Approval'
+                            ? t('layout.submitChanges')
+                            : t('layout.submitForApproval')
                           }
                         </span>
                       </Button>
@@ -286,7 +295,7 @@ export default function WizardLayout({
                         disabled={isLoading}
                         className="flex items-center space-x-2"
                       >
-                        <span>Next</span>
+                        <span>{t('layout.next')}</span>
                         <ArrowRight className="w-4 h-4" />
                       </Button>
                     )}

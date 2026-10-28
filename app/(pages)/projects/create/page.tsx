@@ -3,9 +3,10 @@
 import { Suspense } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import WizardLayout from '@/components/professional/project-wizard/WizardLayout'
 import Step1BasicInfo, { type Step1Ref } from '@/components/professional/project-wizard/Step1BasicInfo'
-import Step2Subprojects from '@/components/professional/project-wizard/Step2Subprojects'
+import Step2Subprojects, { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME } from '@/components/professional/project-wizard/Step2Subprojects'
 import Step3ExtraOptions from '@/components/professional/project-wizard/Step3ExtraOptions'
 import Step4FAQ from '@/components/professional/project-wizard/Step4FAQ'
 import Step5RFQQuestions from '@/components/professional/project-wizard/Step5RFQQuestions'
@@ -14,15 +15,29 @@ import Step7CustomMessage from '@/components/professional/project-wizard/Step7Cu
 import { toast } from 'sonner'
 import { getAuthToken } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatPriceModelLabel } from '@/lib/projectHighlights'
 import {
   collectBlockingWizardErrors,
   collectStep1ComponentErrors,
   collectStepErrors,
   getStep1DataSignature,
   parseProjectSaveError,
+  WIZARD_STEP_TITLES,
   type Step1ValidationContext,
   type WizardStepError,
 } from '@/lib/projectWizardValidation'
+
+const PRICE_MODEL_KEYS = {
+  fixed: 'priceModels.fixed',
+  unit: 'priceModels.unit',
+  rfq: 'priceModels.rfq',
+  hour: 'priceModels.hour',
+  day: 'priceModels.day',
+  meter: 'priceModels.meter',
+  m2: 'priceModels.m2',
+  room: 'priceModels.room',
+} as const
 
 interface IIncludedItem {
   name: string
@@ -211,6 +226,9 @@ export default function ProjectCreatePage() {
 function ProjectCreateContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const t = useTranslations('projects')
+  const tWizard = useTranslations('projectWizard')
+  const { formatMoney } = useCurrency()
   const { user, isAuthenticated, loading } = useAuth()
   const projectId = searchParams.get('id')
   const [currentStep, setCurrentStep] = useState(1)
@@ -256,16 +274,16 @@ function ProjectCreateContent() {
     }
 
     if (user?.role !== 'professional') {
-      toast.error('Only professionals can access project creation')
+      toast.error(t('create.onlyProfessionals'))
       router.replace('/dashboard')
       return
     }
 
     if (!canCreateProjects) {
-      toast.error('Admin approval is required before creating projects')
+      toast.error(t('create.adminApprovalRequired'))
       router.replace('/professional/projects/manage')
     }
-  }, [loading, isAuthenticated, user?.role, canCreateProjects, router])
+  }, [loading, isAuthenticated, user?.role, canCreateProjects, router, t])
 
   const normalizePreparationDuration = (subprojects?: ISubproject[]) => {
     if (!Array.isArray(subprojects)) return subprojects
@@ -316,20 +334,20 @@ function ProjectCreateContent() {
             })
 
             if (response.status === 401) {
-              toast.error('Please log in to edit this project')
+              toast.error(t('create.pleaseLogIn'))
               router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
               return
             } else if (response.status === 404) {
-              toast.error('Project not found')
+              toast.error(t('page.notFound'))
               router.replace('/professional/projects/manage')
               return
             } else if (response.status === 403) {
-              toast.error('You do not have permission to edit this project')
+              toast.error(t('create.noPermission'))
               router.replace('/professional/projects/manage')
               return
             }
 
-            throw new Error(errorData.msg || 'Failed to load project')
+            throw new Error(errorData.msg || t('create.loadFailed'))
           }
 
           const project = await response.json()
@@ -387,7 +405,7 @@ function ProjectCreateContent() {
           setCanProceed(true)
         } catch (error) {
           console.error('Failed to load project:', error)
-          toast.error('Failed to load project data')
+          toast.error(t('create.loadFailed'))
         } finally {
           setIsLoading(false)
         }
@@ -456,14 +474,14 @@ function ProjectCreateContent() {
         }
 
         if (!options?.silent) {
-          toast.success('Project draft saved successfully!')
+          toast.success(t('create.draftSaved'))
         }
         setStepErrors([])
         return savedProject
       } else {
         const errorData = await response.json().catch(() => ({}))
         console.error('Save failed:', errorData)
-        const parsed = parseProjectSaveError(errorData)
+        const parsed = parseProjectSaveError(errorData, tWizard)
         setStepErrors(parsed.messages)
         if (parsed.step != null && parsed.step !== currentStep) {
           const nextStep = parsed.step
@@ -474,7 +492,7 @@ function ProjectCreateContent() {
       }
     } catch (error) {
       console.error('Save error:', error)
-      const message = error instanceof Error ? error.message : 'Failed to save project draft'
+      const message = error instanceof Error ? error.message : t('create.saveFailed')
       toast.error(message)
       return null
     }
@@ -495,7 +513,7 @@ function ProjectCreateContent() {
   }
 
   const handleNext = () => {
-    const errors = collectStepErrors(currentStep, projectData)
+    const errors = collectStepErrors(currentStep, projectData, tWizard)
     if (errors.length > 0) {
       setStepErrors(errors)
       if (currentStep === 1) {
@@ -551,24 +569,24 @@ function ProjectCreateContent() {
     if (!step1ValidationContext || step1ValidationContext.dataSignature !== getStep1DataSignature(projectData)) {
       return [
         step1ValidationContext
-          ? 'Step 1 (Basic Info) changed after its last validation. Open Step 1 and review your details before submitting.'
-          : 'Step 1 (Basic Info) has not been validated yet. Open Step 1 (Basic Info) and complete its required fields before submitting.',
+          ? t('create.step1Changed')
+          : t('create.step1NotValidated'),
       ]
     }
     if (!step1ValidationContext.serviceConfigLoaded) {
-      return ['Service configuration is unavailable. Reload the service details before submitting']
+      return [t('create.serviceConfigUnavailable')]
     }
-    return collectStep1ComponentErrors(projectData, step1ValidationContext.serviceConfig, step1ValidationContext.addressValid)
-  }, [projectData, step1ValidationContext])
+    return collectStep1ComponentErrors(projectData, step1ValidationContext.serviceConfig, step1ValidationContext.addressValid, tWizard)
+  }, [projectData, step1ValidationContext, t, tWizard])
 
   // One shared blocking-list builder so every entry point reports the same
   // steps in the same order (step 1 first, then steps 2-6).
   const buildBlockingWizardStepErrors = useCallback((): WizardStepError[] => {
-    const blocking = collectBlockingWizardErrors(projectData).filter((entry) => entry.step !== 1)
+    const blocking = collectBlockingWizardErrors(projectData, tWizard).filter((entry) => entry.step !== 1)
     const step1Errors = getStep1SubmitErrors()
-    if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: 'Basic Info', messages: step1Errors })
+    if (step1Errors.length > 0) blocking.unshift({ step: 1, stepTitle: WIZARD_STEP_TITLES[1], messages: step1Errors })
     return blocking
-  }, [projectData, getStep1SubmitErrors])
+  }, [projectData, getStep1SubmitErrors, tWizard])
 
   // Step 8 is review-only. Required earlier steps must still be valid before submit.
   useEffect(() => {
@@ -588,7 +606,11 @@ function ProjectCreateContent() {
       step1Ref.current?.showValidationErrors()
     }
     toast.error(
-      `Fix ${blocking.length} step${blocking.length > 1 ? 's' : ''} before submitting. Starting at Step ${first.step} (${first.stepTitle}).`
+      t('create.fixSteps', {
+        count: blocking.length,
+        step: first.step,
+        stepTitle: tWizard(first.stepTitle),
+      })
     )
   }
 
@@ -639,7 +661,7 @@ function ProjectCreateContent() {
           // Check if project is already in pending_approval status
           if (currentProject.status === 'pending_approval') {
             console.log('Project already pending approval, redirecting...')
-            toast.success('Project is already submitted and pending approval!')
+            toast.success(t('create.alreadySubmitted'))
             shouldResetLoading = false
             router.replace('/professional/projects/manage')
             return
@@ -661,7 +683,7 @@ function ProjectCreateContent() {
               if (!statusChangeResponse.ok) {
                 const statusError = await statusChangeResponse.json()
                 console.error('Failed to change on_hold to published:', statusError)
-                toast.error('Failed to prepare project for submission')
+                toast.error(t('create.prepareFailed'))
                 return
               }
 
@@ -669,7 +691,7 @@ function ProjectCreateContent() {
               setProjectData(prev => ({ ...prev, status: 'published' }))
             } catch (error) {
               console.error('Error changing status to published:', error)
-              toast.error('Failed to prepare project for submission')
+              toast.error(t('create.prepareFailed'))
               return
             }
           }
@@ -696,24 +718,24 @@ function ProjectCreateContent() {
         const submittedProject = await response.json()
         console.log('Project submitted successfully:', submittedProject)
 
-        toast.success('Project submitted for approval!')
+        toast.success(t('create.submitted'))
         shouldResetLoading = false
         router.replace('/professional/projects/manage')
       } else {
         const error = await response.json().catch(() => ({}))
         console.error('Submission failed:', error)
-        const parsed = parseProjectSaveError(error)
+        const parsed = parseProjectSaveError(error, tWizard)
         setStepErrors(parsed.messages)
         if (parsed.step != null && parsed.step !== currentStep) {
           const nextStep = parsed.step
           setCurrentStep(nextStep)
           setProjectData(prev => ({ ...prev, currentStep: nextStep }))
         }
-        toast.error(parsed.messages.join(' | ') || 'Failed to submit project')
+        toast.error(parsed.messages.join(' | ') || t('create.submitFailed'))
       }
     } catch (error) {
       console.error('Submit error:', error)
-      toast.error('Failed to submit project')
+      toast.error(t('create.submitFailed'))
     } finally {
       if (shouldResetLoading) {
         setIsLoading(false)
@@ -730,7 +752,7 @@ function ProjectCreateContent() {
       }
     }
 
-    const errors = collectStepErrors(currentStep, projectData)
+    const errors = collectStepErrors(currentStep, projectData, tWizard)
     setStepErrors(errors)
     if (currentStep === 1) {
       step1Ref.current?.showValidationErrors()
@@ -745,6 +767,35 @@ function ProjectCreateContent() {
       return
     }
     handleNext()
+  }
+
+  const priceModelLabel = (value?: string | null) => {
+    if (!value) return t('common.notSpecified')
+    const key = PRICE_MODEL_KEYS[value.toLowerCase() as keyof typeof PRICE_MODEL_KEYS]
+    return key ? t(key) : formatPriceModelLabel(value)
+  }
+
+  const formatDurationValue = (value?: number, unit?: 'hours' | 'days') => {
+    if (value == null) return t('common.notSet')
+    return t(unit === 'days' ? 'units.days' : 'units.hours', { count: value })
+  }
+
+  const formatDurationRange = (
+    min: number | undefined,
+    max: number | undefined,
+    unit: 'hours' | 'days'
+  ) => {
+    const unitWord = t(unit === 'days' ? 'unitWords.days' : 'unitWords.hours')
+    if (min != null && max != null) {
+      return t('create.durationRange', { min, max, unit: unitWord })
+    }
+    if (min != null) {
+      return t('create.durationFrom', { min, unit: unitWord })
+    }
+    if (max != null) {
+      return t('create.durationTo', { max, unit: unitWord })
+    }
+    return t('common.notSet')
   }
 
   const renderCurrentStep = () => {
@@ -811,38 +862,42 @@ function ProjectCreateContent() {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h3 className="text-lg font-semibold mb-4">Step 8: Review & Submit</h3>
-              <p className="text-gray-600 mb-6">Review your project and submit for admin approval</p>
+              <h3 className="text-lg font-semibold mb-4">{t('create.reviewTitle')}</h3>
+              <p className="text-gray-600 mb-6">{t('create.reviewDescription')}</p>
             </div>
 
             {/* Project Summary */}
             <div className="bg-white border rounded-lg p-6">
-              <h4 className="font-semibold mb-4">Project Summary</h4>
+              <h4 className="font-semibold mb-4">{t('create.projectSummary')}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <strong>Category:</strong> {projectData.category || 'Not specified'}
+                  <strong>{t('create.categoryLabel')}</strong> {projectData.category || t('common.notSpecified')}
                 </div>
                 <div>
-                  <strong>Service:</strong> {projectData.service || 'Not specified'}
+                  <strong>{t('create.serviceLabel')}</strong> {projectData.service || t('common.notSpecified')}
                 </div>
                 <div>
-                  <strong>Price Model:</strong> {projectData.priceModel || 'Not specified'}
+                  <strong>{t('create.priceModelLabel')}</strong> {priceModelLabel(projectData.priceModel)}
                 </div>
                 <div>
-                  <strong>Service Range:</strong> {projectData.distance?.noBorders ? 'No borders' : (projectData.distance?.maxKmRange != null ? `${projectData.distance.maxKmRange} km` : 'Not specified')}
+                  <strong>{t('create.serviceRangeLabel')}</strong> {projectData.distance?.noBorders
+                    ? t('common.noBorders')
+                    : projectData.distance?.maxKmRange != null
+                      ? t('create.kmRange', { km: projectData.distance.maxKmRange })
+                      : t('common.notSpecified')}
                 </div>
               </div>
 
               {projectData.title && (
                 <div className="mt-4">
-                  <strong>Title:</strong>
+                  <strong>{t('create.titleLabel')}</strong>
                   <p className="mt-1 text-gray-700">{projectData.title}</p>
                 </div>
               )}
 
               {projectData.description && (
                 <div className="mt-4">
-                  <strong>Description:</strong>
+                  <strong>{t('create.descriptionLabel')}</strong>
                   <p className="mt-1 text-gray-700 break-words whitespace-pre-wrap">{projectData.description.length > 200 ? `${projectData.description.substring(0, 200)}...` : projectData.description}</p>
                 </div>
               )}
@@ -851,32 +906,37 @@ function ProjectCreateContent() {
             {/* Subprojects side-by-side comparison */}
             {projectData.subprojects && projectData.subprojects.length > 0 && (
               <div className="bg-white border rounded-lg p-6">
-                <h4 className="font-semibold mb-4">Service Packages ({projectData.subprojects.length})</h4>
+                <h4 className="font-semibold mb-4">{t('create.servicePackages', { count: projectData.subprojects.length })}</h4>
                 <div className={`grid gap-4 ${projectData.subprojects.length === 1 ? 'grid-cols-1' : projectData.subprojects.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
                   {projectData.subprojects.map((sub, idx) => (
                     <div key={sub.id || idx} className="border rounded-lg p-4 bg-gray-50">
                       <div className="flex items-center justify-between mb-2">
-                        <h5 className="font-semibold text-sm">{sub.name || `Package ${idx + 1}`}</h5>
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{sub.pricing.type}</span>
+                        <h5 className="font-semibold text-sm">{sub.name || t('create.packageFallback', { index: idx + 1 })}</h5>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{priceModelLabel(sub.pricing.type)}</span>
                       </div>
                       {sub.description && <p className="text-xs text-gray-600 mb-3">{sub.description}</p>}
 
                       <div className="space-y-2 text-xs">
                         {/* Pricing */}
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Price:</span>
+                          <span className="text-gray-500">{t('create.price')}</span>
                           <span className="font-medium">
-                            {sub.pricing.type === 'fixed' && sub.pricing.amount != null ? `€${sub.pricing.amount}` : ''}
-                            {sub.pricing.type === 'unit' && sub.pricing.amount != null ? `€${sub.pricing.amount}/unit` : ''}
-                            {sub.pricing.type === 'rfq' ? 'Quote required' : ''}
+                            {sub.pricing.type === 'fixed' && sub.pricing.amount != null ? formatMoney(sub.pricing.amount) : ''}
+                            {sub.pricing.type === 'unit' && sub.pricing.amount != null ? `${formatMoney(sub.pricing.amount)}${t('create.perUnitSuffix')}` : ''}
+                            {sub.pricing.type === 'rfq' ? t('create.quoteRequired') : ''}
                             {sub.pricing.type === 'rfq' && sub.pricing.priceRange?.min != null && sub.pricing.priceRange?.max != null && (
-                              <span className="text-gray-500 ml-1">(€{sub.pricing.priceRange.min}-{sub.pricing.priceRange.max})</span>
+                              <span className="text-gray-500 ml-1">
+                                {t('create.priceRange', {
+                                  min: formatMoney(sub.pricing.priceRange.min),
+                                  max: formatMoney(sub.pricing.priceRange.max),
+                                })}
+                              </span>
                             )}
                           </span>
                         </div>
                         {sub.pricing.type === 'unit' && sub.pricing.minOrderQuantity != null && (
                           <div className="flex justify-between">
-                            <span className="text-gray-500">Min order qty:</span>
+                            <span className="text-gray-500">{t('create.minOrderQty')}</span>
                             <span className="font-medium">{sub.pricing.minOrderQuantity}</span>
                           </div>
                         )}
@@ -884,52 +944,46 @@ function ProjectCreateContent() {
                         {/* Timing */}
                         {sub.preparationDuration?.value != null && (
                           <div className="flex justify-between">
-                            <span className="text-gray-500">Preparation:</span>
-                            <span>{sub.preparationDuration.value} {sub.preparationDuration.unit}</span>
+                            <span className="text-gray-500">{t('create.preparation')}</span>
+                            <span>{formatDurationValue(sub.preparationDuration.value, sub.preparationDuration.unit)}</span>
                           </div>
                         )}
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Execution:</span>
+                          <span className="text-gray-500">{t('create.execution')}</span>
                           <span>
                             {sub.pricing.type === 'rfq'
                               ? (() => {
                                 const r = sub.executionDuration?.range;
                                 const unit = sub.executionDuration?.unit || 'days';
-                                if (r?.min != null && r?.max != null) {
-                                  return `${r.min}-${r.max} ${unit}`;
-                                } else if (r?.min != null) {
-                                  return `${r.min}- ${unit}`;
-                                } else if (r?.max != null) {
-                                  return `- ${r.max} ${unit}`;
+                                if (r?.min != null || r?.max != null) {
+                                  return formatDurationRange(r?.min, r?.max, unit);
                                 }
-                                return sub.executionDuration?.value != null
-                                  ? `${sub.executionDuration.value} ${unit}`
-                                  : 'Not set';
+                                return formatDurationValue(sub.executionDuration?.value, unit);
                               })()
-                              : sub.executionDuration?.value != null ? `${sub.executionDuration.value} ${sub.executionDuration.unit}` : 'Not set'}
+                              : formatDurationValue(sub.executionDuration?.value, sub.executionDuration?.unit)}
                           </span>
                         </div>
                         {sub.buffer?.value != null && sub.buffer.value > 0 && (
                           <div className="flex justify-between">
-                            <span className="text-gray-500">Buffer:</span>
-                            <span>{sub.buffer.value} {sub.buffer.unit}</span>
+                            <span className="text-gray-500">{t('create.buffer')}</span>
+                            <span>{formatDurationValue(sub.buffer.value, sub.buffer.unit)}</span>
                           </div>
                         )}
 
                         {/* Warranty */}
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Warranty:</span>
+                          <span className="text-gray-500">{t('create.warranty')}</span>
                           <span>
                             {!sub.warrantyPeriod || sub.warrantyPeriod.value === 0
-                              ? 'None'
-                              : `${sub.warrantyPeriod.value} ${sub.warrantyPeriod.unit || ''}`}
+                              ? t('create.none')
+                              : t(sub.warrantyPeriod.unit === 'months' ? 'units.months' : 'units.years', { count: sub.warrantyPeriod.value })}
                           </span>
                         </div>
 
                         {/* Materials */}
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Materials:</span>
-                          <span>{sub.materialsIncluded ? 'Included' : 'Not included'}</span>
+                          <span className="text-gray-500">{t('create.materials')}</span>
+                          <span>{sub.materialsIncluded ? t('create.included') : t('create.notIncluded')}</span>
                         </div>
                         {sub.materialsIncluded && sub.materials && sub.materials.length > 0 && (
                           <div className="pl-2 border-l-2 border-gray-200">
@@ -942,11 +996,16 @@ function ProjectCreateContent() {
                         {/* Included items */}
                         {(sub.included ?? []).length > 0 && (
                           <div>
-                            <span className="text-gray-500">Included ({(sub.included ?? []).length}):</span>
+                            <span className="text-gray-500">{t('create.includedItems', { count: (sub.included ?? []).length })}</span>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {(sub.included ?? []).map((item, ii) => (
-                                <span key={ii} className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded">{item.name}</span>
-                              ))}
+                              {(sub.included ?? []).map((item, ii) => {
+                                // Predefined quick-adds are stored by canonical English name;
+                                // resolve the active-locale label, leave custom names as-is.
+                                const predefinedKey = PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME.get(item.name);
+                                return (
+                                  <span key={ii} className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded">{predefinedKey ? tWizard(`step2.predefinedItems.${predefinedKey}`) : item.name}</span>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -954,7 +1013,7 @@ function ProjectCreateContent() {
                         {/* Professional inputs / service parameters */}
                         {sub.professionalInputs && sub.professionalInputs.length > 0 && (
                           <div>
-                            <span className="text-gray-500">Service Parameters:</span>
+                            <span className="text-gray-500">{t('create.serviceParameters')}</span>
                             <div className="mt-1 space-y-0.5">
                               {sub.professionalInputs.map((input, ii) => (
                                 <div key={ii} className="flex justify-between">
@@ -979,12 +1038,12 @@ function ProjectCreateContent() {
             {/* Extra Options */}
             {projectData.extraOptions && projectData.extraOptions.length > 0 && (
               <div className="bg-white border rounded-lg p-6">
-                <h4 className="font-semibold mb-4">Extra Options ({projectData.extraOptions.length})</h4>
+                <h4 className="font-semibold mb-4">{t('create.extraOptions', { count: projectData.extraOptions.length })}</h4>
                 <div className="space-y-2 text-sm">
                   {projectData.extraOptions.map((opt) => (
                     <div key={opt.id} className="flex justify-between p-2 bg-gray-50 rounded">
                       <span>{opt.name}</span>
-                      <span className="font-medium">€{(opt.price ?? 0).toFixed(2)}</span>
+                      <span className="font-medium">{formatMoney(opt.price ?? 0)}</span>
                     </div>
                   ))}
                 </div>
@@ -994,17 +1053,17 @@ function ProjectCreateContent() {
             {/* Terms & Conditions */}
             {projectData.termsConditions && projectData.termsConditions.length > 0 && (
               <div className="bg-white border rounded-lg p-6">
-                <h4 className="font-semibold mb-4">Terms & Conditions ({projectData.termsConditions.length})</h4>
+                <h4 className="font-semibold mb-4">{t('create.terms', { count: projectData.termsConditions.length })}</h4>
                 <div className="space-y-2 text-sm">
                   {projectData.termsConditions.map((term) => (
                     <div key={term.id} className="p-2 bg-gray-50 rounded">
                       <div className="flex justify-between">
                         <span className="font-medium">
                           {term.name}
-                          {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">(Warning)</span>}
+                          {term.type === 'warning' && <span className="ml-1 text-xs text-yellow-600">{t('create.warningParen')}</span>}
                         </span>
                         {term.type !== 'warning' && term.additionalCost != null && term.additionalCost > 0 && (
-                          <span className="text-red-600">+€{(term.additionalCost ?? 0).toFixed(2)}</span>
+                          <span className="text-red-600">+{formatMoney(term.additionalCost ?? 0)}</span>
                         )}
                       </div>
                       <p className="text-xs text-gray-600 mt-1">{term.description}</p>
@@ -1017,12 +1076,12 @@ function ProjectCreateContent() {
             {/* FAQ */}
             {projectData.faq && projectData.faq.length > 0 && (
               <div className="bg-white border rounded-lg p-6">
-                <h4 className="font-semibold mb-4">FAQ ({projectData.faq.length})</h4>
+                <h4 className="font-semibold mb-4">{t('create.faq', { count: projectData.faq.length })}</h4>
                 <div className="space-y-3 text-sm">
                   {projectData.faq.map((item) => (
                     <div key={item.id} className="p-3 bg-gray-50 rounded">
-                      <div className="font-medium">Q: {item.question}</div>
-                      <div className="text-gray-600 mt-1">A: {item.answer}</div>
+                      <div className="font-medium">{t('create.question', { question: item.question })}</div>
+                      <div className="text-gray-600 mt-1">{t('create.answer', { answer: item.answer })}</div>
                     </div>
                   ))}
                 </div>
@@ -1032,7 +1091,7 @@ function ProjectCreateContent() {
             {/* Custom Confirmation Message */}
             {projectData.customConfirmationMessage && (
               <div className="bg-white border rounded-lg p-6">
-                <h4 className="font-semibold mb-4">Custom Confirmation Message</h4>
+                <h4 className="font-semibold mb-4">{t('create.customConfirmation')}</h4>
                 <p className="text-sm text-gray-700 whitespace-pre-wrap">{projectData.customConfirmationMessage}</p>
               </div>
             )}
