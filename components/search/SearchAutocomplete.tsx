@@ -1,9 +1,17 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Search, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Suggestion } from '@/hooks/useSearchAutocomplete';
+
+const SUGGESTION_TYPE_KEYS = {
+  category: 'autocomplete.types.category',
+  service: 'autocomplete.types.service',
+  professional: 'autocomplete.types.professional',
+  project: 'autocomplete.types.project',
+} as const;
 
 interface SearchAutocompleteProps {
   suggestions: Suggestion[];
@@ -20,7 +28,12 @@ const SearchAutocomplete = ({
   isOpen,
   onClose,
 }: SearchAutocompleteProps) => {
+  const t = useTranslations('search');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const suggestionTypeLabel = (type: string) => {
+    const key = SUGGESTION_TYPE_KEYS[type as keyof typeof SUGGESTION_TYPE_KEYS];
+    return key ? t(key) : type;
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -51,7 +64,7 @@ const SearchAutocomplete = ({
         </div>
       ) : suggestions.length === 0 ? (
         <div className="py-6 text-center text-gray-500">
-          No suggestions found
+          {t('autocomplete.noSuggestions')}
         </div>
       ) : (
         <ul className="py-2">
@@ -78,7 +91,7 @@ const SearchAutocomplete = ({
                     {suggestion.label}
                   </div>
                   <div className="text-xs text-gray-500 capitalize">
-                    {suggestion.type}
+                    {suggestionTypeLabel(suggestion.type)}
                   </div>
                 </div>
               </button>

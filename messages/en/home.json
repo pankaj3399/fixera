@@ -1,0 +1,250 @@
+{
+  "hero": {
+    "badge": "One Platform. Every Solution.",
+    "titleTop": "Find Trusted Property",
+    "titleBottom": "Professionals Fast",
+    "description": "From quick repairs to full renovations, connect with verified professionals across Europe. Book instantly or get custom quotes with guaranteed quality.",
+    "benefits": {
+      "moneyBack": {
+        "title": "Money Back Guarantee",
+        "description": "Not satisfied? Get your money back with our guarantee policy."
+      },
+      "fastResponse": {
+        "title": "Fast Response",
+        "description": "Get matched with available professionals within minutes."
+      },
+      "qualityAssured": {
+        "title": "Quality Assured",
+        "description": "All professionals are verified and highly rated by customers."
+      },
+      "securePayments": {
+        "title": "Secure Payments",
+        "description": "Your payment is protected until work is completed successfully."
+      }
+    }
+  },
+  "meta": {
+    "description": "Fixtract connects customers with verified professionals for any property service — from minor repairs to full renovations. Get the job done with quality and security guaranteed."
+  },
+  "search": {
+    "serviceLabel": "Service search",
+    "servicePlaceholder": "What service do you need?",
+    "locationLabel": "Location",
+    "locationPlaceholder": "City, Country",
+    "typePlaceholder": "Search for...",
+    "typeProjects": "Search projects",
+    "typeProfessionals": "Search professionals",
+    "submit": "Search",
+    "popular": "Popular:"
+  },
+  "popularProjects": {
+    "heading": "Popular projects",
+    "priceOnRequest": "Price on request",
+    "rfq": "RFQ",
+    "fromPrice": "From {price}",
+    "noPreview": "No preview",
+    "unknownProfessional": "Unknown professional",
+    "professionalAlt": "Professional",
+    "scrollPrevious": "Scroll left",
+    "scrollNext": "Scroll right"
+  },
+  "features": {
+    "badge": "Why Choose Fixtract",
+    "title": "Built for Trust, Designed for Results",
+    "description": "Every feature is designed to give you confidence, quality, and peace of mind from start to finish.",
+    "items": {
+      "verifiedProfessionals": {
+        "title": "Verified Professionals",
+        "description": "Every professional undergoes identity verification, background checks, and certification validation to ensure you work with the best.",
+        "benefits": {
+          "identity": "ID & passport verification",
+          "background": "Background checks",
+          "insurance": "Insurance validation",
+          "skills": "Skill assessments"
+        }
+      },
+      "qualityGuaranteed": {
+        "title": "Quality Guaranteed",
+        "description": "All work is backed by the Fixtract Guarantee, which includes warranty protection and our comprehensive satisfaction promise.",
+        "benefits": {
+          "warranty": "Up to 10-year warranty",
+          "satisfaction": "Satisfaction guarantee",
+          "qualityControl": "Quality control checks",
+          "disputes": "24/7 dispute resolution"
+        }
+      },
+      "fastReliable": {
+        "title": "Fast & Reliable",
+        "description": "Get matched instantly for urgent jobs or receive competitive quotes within hours. Most projects start within 48 hours.",
+        "benefits": {
+          "instantBooking": "Instant booking available",
+          "quickQuotes": "Quick quote responses",
+          "flexibleSchedule": "Flexible scheduling",
+          "emergency": "Emergency services"
+        }
+      },
+      "securePayments": {
+        "title": "Secure Payments",
+        "description": "Your money is held securely with our escrow system. You only pay when the work is completed to your satisfaction.",
+        "benefits": {
+          "escrow": "Escrow protection",
+          "methods": "Multiple payment options",
+          "invoicing": "Automatic invoicing",
+          "refunds": "Refund guarantee"
+        }
+      }
+    },
+    "stats": {
+      "satisfaction": "Customer Satisfaction",
+      "projects": "Projects Completed",
+      "support": "Customer Support",
+      "countries": "Countries & Growing"
+    },
+    "cta": "Start Your Project"
+  },
+  "howItWorks": {
+    "badge": "Simple & Secure",
+    "title": "Get Projects Done in 3 Easy Steps",
+    "description": "From finding the right professional to completing the work, our process is designed to be seamless, transparent, and secure.",
+    "steps": {
+      "search": {
+        "title": "Search & Compare",
+        "description": "Browse verified professionals, compare prices, read reviews, and find the perfect match for your project.",
+        "features": {
+          "verified": "Verified professionals",
+          "reviews": "Real customer reviews",
+          "pricing": "Transparent pricing",
+          "availability": "Local availability"
+        }
+      },
+      "book": {
+        "title": "Book or Get Quote",
+        "description": "Book instantly for standard services or request custom quotes for complex projects.",
+        "features": {
+          "instantBooking": "Instant booking",
+          "customQuotes": "Custom quotes",
+          "messaging": "Secure messaging",
+          "planning": "Project planning"
+        }
+      },
+      "complete": {
+        "title": "Get Work Done",
+        "description": "Professional completes the work, you confirm satisfaction, and secure payment is released.",
+        "features": {
+          "quality": "Quality guaranteed",
+          "payments": "Secure payments",
+          "tracking": "Progress tracking",
+          "warranty": "Warranty included"
+        }
+      }
+    }
+  },
+  "cta": {
+    "badge": "Ready to Get Started?",
+    "titleTop": "Your Perfect Project",
+    "titleBottom": "Starts Here",
+    "description": "Join thousands of satisfied customers and professionals. Quality work, guaranteed results, secure payments.",
+    "needService": "I Need a Service",
+    "or": "or",
+    "imProfessional": "I'm a Professional",
+    "stats": {
+      "customers": "50K+ Happy Customers",
+      "guarantee": "Money Back Guarantee",
+      "support": "24/7 Customer Support",
+      "rating": "4.9/5 Average Rating"
+    }
+  },
+  "services": {
+    "badge": "Our Services",
+    "titleTop": "Every Service You Need,",
+    "titleBottom": "All in One Place",
+    "description": "From quick fixes to major renovations, find verified professionals for every project. Quality guaranteed, payments protected.",
+    "explore": "Explore",
+    "empty": "Services are being updated. Check back soon!",
+    "viewAll": "View All Services"
+  },
+  "learnMore": "Learn more",
+  "professionals": {
+    "badge": "For Professionals",
+    "titleTop": "Turn Your Skills Into",
+    "titleBottom": "Sustainable Income",
+    "description": "Join thousands of professionals earning more, working smarter, and growing their businesses across Europe with Fixtract's comprehensive platform.",
+    "benefits": {
+      "customers": {
+        "title": "Access Verified Customers",
+        "description": "Connect with real customers who have verified payment methods and genuine project needs across Europe."
+      },
+      "payments": {
+        "title": "Secure & Timely Payments",
+        "description": "Our escrow system protects your earnings. Get paid securely and on time after work is completed."
+      },
+      "scheduling": {
+        "title": "Smart Scheduling Tools",
+        "description": "Manage your calendar, team availability, and project timelines all in one integrated system."
+      },
+      "growth": {
+        "title": "Grow Your Business",
+        "description": "Expand to new markets, build your reputation with reviews, and access tools to scale your operations."
+      }
+    },
+    "join": "Join as Professional",
+    "dashboard": {
+      "title": "Professional Dashboard",
+      "earnings": "This Month's Earnings",
+      "activeProjects": "Active Projects",
+      "rating": "Overall Rating"
+    },
+    "storiesTitle": "Real Growth, Real Results",
+    "storiesDescription": "See how professionals like you have transformed their business with Fixtract.",
+    "stories": {
+      "thomas": {
+        "profession": "Electrician",
+        "location": "Berlin, Germany",
+        "growth": "+150% Income",
+        "story": "Fixtract doubled my client base in just 6 months. The platform handles all the admin, so I can focus on quality work."
+      },
+      "elena": {
+        "profession": "Interior Designer",
+        "location": "Barcelona, Spain",
+        "growth": "+200% Projects",
+        "story": "I now work with clients across 3 countries. The variety and scale of projects I get through Fixtract is incredible."
+      },
+      "marco": {
+        "profession": "Renovation Contractor",
+        "location": "Rotterdam, Netherlands",
+        "growth": "Grew to a team of 10",
+        "story": "I started as a solo contractor. Fixtract's tools made it effortless to manage a growing team and bigger projects."
+      }
+    }
+  },
+  "testimonials": {
+    "badge": "Customer Stories",
+    "title": "Loved by Customers Across Europe",
+    "description": "Real stories from real customers who transformed their properties with help from Fixtract professionals.",
+    "previous": "Previous testimonial",
+    "next": "Next testimonial",
+    "goTo": "Go to testimonial {index}",
+    "projectValue": "{price} project",
+    "items": {
+      "sophie": {
+        "location": "Brussels, Belgium",
+        "service": "Kitchen Renovation",
+        "text": "Absolutely incredible experience! The renovation team was professional, punctual, and delivered exactly what was promised. My kitchen looks amazing and the whole process was stress-free."
+      },
+      "jan": {
+        "location": "Amsterdam, Netherlands",
+        "service": "Plumbing Emergency",
+        "text": "Had a major plumbing emergency on a Sunday. Through Fixtract, I found a professional who came within 2 hours and fixed everything. The pricing was transparent and the service was exceptional. Highly recommend!"
+      },
+      "marie": {
+        "location": "Ghent, Belgium",
+        "service": "Interior Painting",
+        "text": "The painter I found transformed my entire apartment. Attention to detail was outstanding, and he even helped choose the perfect colors. The booking process was simple and the results exceeded my expectations."
+      }
+    }
+  },
+  "placeholderPage": {
+    "description": "This is a placeholder page. In a real application, this would contain the full feature and content.",
+    "backHome": "Go Back Home"
+  }
+}

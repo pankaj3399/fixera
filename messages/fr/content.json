@@ -1,0 +1,122 @@
+{
+  "breadcrumbs": {
+    "home": "Accueil",
+    "about": "À propos",
+    "blog": "Blog",
+    "news": "Actualités",
+    "faq": "FAQ",
+    "privacyPolicy": "Politique de confidentialité"
+  },
+  "pagination": {
+    "previous": "Précédent",
+    "next": "Suivant",
+    "pageOf": "Page {page} sur {totalPages}"
+  },
+  "byAuthor": "par {author}",
+  "about": {
+    "metaTitle": "À propos de Fixtract",
+    "metaDescription": "Découvrez Fixtract — notre mission : mettre en relation les clients avec des professionnels vérifiés pour tous les services liés au logement.",
+    "missionBadge": "Notre mission",
+    "title": "Rétablir la confiance dans les services du logement.",
+    "description": "Fixtract repose sur un principe simple : trouver des professionnels fiables et compétents pour son logement ne devrait pas être un pari. Nous nous engageons à créer une plateforme transparente, sécurisée et de haute qualité, pour les propriétaires comme pour les professionnels.",
+    "values": {
+      "trust": {
+        "title": "Confiance et sécurité",
+        "description": "Chaque professionnel est vérifié et chaque projet est protégé par notre garantie Fixtract."
+      },
+      "quality": {
+        "title": "Engagement envers la qualité",
+        "description": "Nous recherchons sans relâche un artisanat de qualité et un service d'exception."
+      },
+      "community": {
+        "title": "Au service de la communauté",
+        "description": "Nous donnons aux professionnels locaux les moyens d'agir et contribuons à renforcer les communautés, projet après projet."
+      }
+    },
+    "team": {
+      "title": "Les personnes derrière la plateforme",
+      "description": "Une équipe passionnée qui s'engage à améliorer le secteur des services du logement.",
+      "roles": {
+        "alex": "Fondateur et CEO",
+        "jasmine": "Responsable des opérations",
+        "leo": "Designer produit principal",
+        "sofia": "Responsable des relations professionnels"
+      }
+    }
+  },
+  "blog": {
+    "metaTitle": "Blog",
+    "metaDescription": "Conseils, guides et récits de la communauté Fixtract. Des astuces pour les propriétaires et les professionnels sur la rénovation, l'entretien et les projets de construction.",
+    "title": "Le blog Fixtract",
+    "subtitle": "Astuces, récits et conseils d'initiés sur les projets de la maison.",
+    "filteredBy": "Filtré par",
+    "emptyTitle": "Rien de publié pour l'instant",
+    "emptyDescription": "Restez connecté — de nouveaux articles arrivent.",
+    "notFoundTitle": "Article introuvable",
+    "backToBlog": "Retour au blog"
+  },
+  "news": {
+    "metaTitle": "Actualités",
+    "metaDescription": "Mises à jour, annonces et actualités produit de Fixtract.",
+    "title": "Actualités Fixtract",
+    "subtitle": "Mises à jour de la plateforme, annonces et actualités produit.",
+    "emptyTitle": "Pas encore d'actualités",
+    "emptyDescription": "Revenez bientôt.",
+    "notFoundTitle": "Actualités",
+    "articleNotFoundTitle": "Article d'actualité introuvable",
+    "unavailableTitle": "Cet article est temporairement indisponible",
+    "unavailableDescription": "Veuillez réessayer dans un instant.",
+    "allNews": "Toutes les actualités"
+  },
+  "faq": {
+    "metaTitle": "Questions fréquentes",
+    "metaDescription": "Réponses aux questions les plus fréquentes sur Fixtract — réservation, paiements, garantie, professionnels et plus encore.",
+    "title": "Questions fréquentes",
+    "subtitle": "Les réponses aux questions qu'on nous pose le plus souvent.",
+    "emptyTitle": "Pas encore de questions",
+    "emptyDescription": "Le contenu de la FAQ est en préparation.",
+    "stillQuestions": "D'autres questions ?",
+    "happyToHelp": "Nous sommes là pour vous aider.",
+    "contactSupport": "Contacter le support",
+    "categories": {
+      "general": "Général",
+      "booking": "Réservation",
+      "paymentsInvoicing": "Paiements et facturation",
+      "warrantyDisputes": "Garantie et litiges",
+      "professionals": "Pour les professionnels",
+      "account": "Compte et profil"
+    },
+    "questionCount": "{count, plural, one {# question} other {# questions}}"
+  },
+  "cmsPage": {
+    "notFoundTitle": "Page introuvable"
+  },
+  "privacyPolicy": {
+    "metaTitle": "Politique de confidentialité",
+    "metaDescription": "Consultez la politique de confidentialité de Fixtract — comment nous collectons, utilisons et protégeons vos données personnelles.",
+    "comingSoonTitle": "Politique de confidentialité bientôt disponible",
+    "comingSoonDescription": "Ce contenu est en cours de préparation et sera publié prochainement."
+  },
+  "articleRelated": {
+    "relatedService": "Service associé",
+    "exploreService": "Découvrir {service}",
+    "serviceDescription": "Trouvez des professionnels vérifiés et d'autres guides pour ce service sur Fixtract.",
+    "viewService": "Voir {service}",
+    "relatedReading": "À lire aussi",
+    "relatedReadingDescription": "D'autres articles qui pourraient vous intéresser."
+  },
+  "announcements": {
+    "previewAria": "Aperçu de l'annonce",
+    "promotionAria": "Promotion du site",
+    "close": "Fermer",
+    "beforeYouGo": "Avant de partir",
+    "limitedOffer": "Offre limitée",
+    "promoCode": "Code promo",
+    "copyCode": "Copier le code promo",
+    "codeCopied": "Code copié",
+    "copyFailed": "Impossible de copier le code",
+    "maybeLater": "Plus tard",
+    "claimOffer": "Profiter de l'offre",
+    "previewToast": "Aperçu affiché pendant {seconds} secondes"
+  }
+}

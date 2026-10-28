@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +10,41 @@ import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '
 import { getLevelColor, getAdminTagStyle, formatAdminTagLabel } from '@/lib/professionalLevel';
 import type { PublicProfessionalDto } from '@/types/project';
 import FavoriteButton from '@/components/favorites/FavoriteButton';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+
+const PRICE_MODEL_KEYS = {
+  fixed: 'priceModels.fixed',
+  unit: 'priceModels.unit',
+  rfq: 'priceModels.rfq',
+  hour: 'priceModels.hour',
+  day: 'priceModels.day',
+  meter: 'priceModels.meter',
+  m2: 'priceModels.m2',
+  room: 'priceModels.room',
+} as const;
+
+const UNIT_SUFFIX_KEYS = {
+  hour: 'units.hourSuffix',
+  day: 'units.daySuffix',
+  meter: 'units.meterSuffix',
+  m2: 'units.m2Suffix',
+  room: 'units.roomSuffix',
+  unit: 'units.unitSuffix',
+} as const;
+
+const PROFESSIONAL_LEVEL_KEYS = {
+  new: 'professionalLevels.new',
+  'level 1': 'professionalLevels.level1',
+  'level 2': 'professionalLevels.level2',
+  'level 3': 'professionalLevels.level3',
+  expert: 'professionalLevels.expert',
+} as const;
+
+const ADMIN_TAG_KEYS = {
+  verified: 'adminTags.verified',
+  'our choice': 'adminTags.ourChoice',
+} as const;
 
 interface ProjectCardProps {
   customerPrice: (value: number) => number;
@@ -88,20 +124,31 @@ interface ProjectCardProps {
 }
 
 const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, onFavoriteToggled }: ProjectCardProps) => {
+  const t = useTranslations('search');
+  const { formatPrice } = useCurrency();
+  const { intl } = useFormatLocale();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
-  const formatAmount = (value: number) => `€${customerPrice(value).toLocaleString()}`;
+  const formatAmount = (value: number) => formatPrice(customerPrice(value));
   const formatOriginalAmount = (value: number) =>
-    originalPrice ? `€${originalPrice(value).toLocaleString()}` : null;
+    originalPrice ? formatPrice(originalPrice(value)) : null;
   const hasDiscount = (value: number) =>
     !!originalPrice && originalPrice(value) - customerPrice(value) >= 0.01;
-  const unitSuffix = project.priceModel
-    ? formatPriceModelLabel(project.priceModel)
-    : project.pricing?.type === 'unit'
-      ? 'unit'
-      : '';
+  const priceModelLabel = (value?: string | null) => {
+    if (!value) return '';
+    const key = PRICE_MODEL_KEYS[value.toLowerCase() as keyof typeof PRICE_MODEL_KEYS];
+    return key ? t(key) : formatPriceModelLabel(value);
+  };
+  const perUnitSuffix = () => {
+    const model = project.priceModel?.toLowerCase();
+    if (model) {
+      const key = UNIT_SUFFIX_KEYS[model as keyof typeof UNIT_SUFFIX_KEYS];
+      return key ? t(key) : `/${formatPriceModelLabel(project.priceModel)}`;
+    }
+    return t('units.unitSuffix');
+  };
   const professional = project.professionalId;
-  const professionalName = professional?.username || professional?.name || 'Professional';
+  const professionalName = professional?.username || professional?.name || t('projectCard.professionalFallback');
   const location = [professional?.businessInfo?.city, professional?.businessInfo?.country]
     .filter(Boolean)
     .join(', ');
@@ -123,7 +170,11 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     if (project.executionDuration) {
       const exec = project.executionDuration;
       const buffer = project.bufferDuration;
-      return `${exec.value}${buffer?.value ? `+${buffer.value}` : ''} ${exec.unit}`;
+      // The unit message already renders the full "<count> <unit>" label, so
+      // pass a combined "base+buffer" count instead of prefixing the value —
+      // otherwise durations render as "2 2 hours".
+      const count = (buffer?.value ? `${exec.value}+${buffer.value}` : exec.value) as unknown as number;
+      return t(exec.unit === 'days' ? 'units.days' : 'units.hours', { count });
     }
     return null;
   };
@@ -143,8 +194,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
       return formatAmount(amount);
     }
     if (pricing.type === 'unit') {
-      const subprojectSuffix = project.priceModel ? formatPriceModelLabel(project.priceModel) : 'unit';
-      const perUnit = subprojectSuffix ? `/${subprojectSuffix}` : '';
+      const perUnit = perUnitSuffix();
       if (
         pricing.priceRange &&
         Number.isFinite(pricing.priceRange.min) &&
@@ -165,9 +215,9 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
       }
     }
     if (pricing.type === 'rfq') {
-      return 'RFQ';
+      return t('projectCard.rfq');
     }
-    return 'Contact';
+    return t('projectCard.contact');
   };
 
   const handlePrevImage = (e: React.MouseEvent) => {
@@ -196,8 +246,8 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="text-sm text-gray-500" aria-label="No preview available">
-              No preview available
+            <div className="text-sm text-gray-500" aria-label={t('projectCard.noPreview')}>
+              {t('projectCard.noPreview')}
             </div>
           </div>
         )}
@@ -220,7 +270,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
         {project.firstAvailableDate && (
           <Badge className="absolute top-3 left-3 bg-emerald-600 text-white flex items-center gap-1">
             <Calendar className="w-3 h-3" />
-            {new Date(project.firstAvailableDate).toLocaleDateString('en-US', {
+            {new Date(project.firstAvailableDate).toLocaleDateString(intl, {
               month: 'short',
               day: 'numeric',
             })}
@@ -233,14 +283,14 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
             <button
               onClick={handlePrevImage}
               className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              aria-label="Previous image"
+              aria-label={t('projectCard.previousImage')}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={handleNextImage}
               className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              aria-label="Next image"
+              aria-label={t('projectCard.nextImage')}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -262,7 +312,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                   ? 'bg-white w-4'
                   : 'bg-white/60 hover:bg-white/80'
                   }`}
-                aria-label={`Go to image ${idx + 1}`}
+                aria-label={t('projectCard.goToImage', { index: idx + 1 })}
               />
             ))}
           </div>
@@ -307,7 +357,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
             </Badge>
             {project.priceModel && (
               <Badge className="text-xs bg-gradient-to-r from-blue-600 to-cyan-500 text-white border-0">
-                {formatPriceModelLabel(project.priceModel)}
+                {priceModelLabel(project.priceModel)}
               </Badge>
             )}
             {qualityCertificates.slice(0, 3).map((cert, idx) => (
@@ -320,7 +370,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
             ))}
             {qualityCertificates.length > 3 && (
               <Badge variant="secondary" className="text-xs">
-                +{qualityCertificates.length - 3} more
+                {t('projectCard.moreCertificates', { count: qualityCertificates.length - 3 })}
               </Badge>
             )}
           </div>
@@ -332,7 +382,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
             {getProjectDuration() && (
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-blue-600" />
-                <span className="font-medium">Duration: {getProjectDuration()}</span>
+                <span className="font-medium">{t('projectCard.duration', { duration: getProjectDuration() ?? '' })}</span>
               </div>
             )}
             {/* ProjectCard doesn't display First Available explicitly here besides the badge, so we'll just leave it clean */}
@@ -342,7 +392,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
         {/* Subprojects/Packages */}
         {project.subprojects && project.subprojects.length > 0 && (
           <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-700 mb-2">Available Packages:</p>
+            <p className="text-xs font-semibold text-gray-700 mb-2">{t('projectCard.availablePackages')}</p>
             <div className="space-y-2">
               {project.subprojects.slice(0, 3).map((subproject, idx) => (
                 <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs border border-gray-200">
@@ -351,21 +401,25 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                     <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-gray-500">
                       {subproject.executionDuration && (
                         <span>
-                          {subproject.executionDuration.value} {subproject.executionDuration.unit}
+                          {t(subproject.executionDuration.unit === 'days' ? 'units.days' : 'units.hours', { count: subproject.executionDuration.value })}
                         </span>
                       )}
                       {subproject.warrantyPeriod && (
                         <span>
-                          {subproject.warrantyPeriod.value} {subproject.warrantyPeriod.unit} warranty
+                          {t('projectCard.warranty', {
+                            duration: t(subproject.warrantyPeriod.unit === 'years' ? 'units.years' : 'units.months', { count: subproject.warrantyPeriod.value }),
+                          })}
                         </span>
                       )}
                     </div>
                     {subproject.firstAvailableDate && (
                       <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
                         <Calendar className="w-3 h-3" />
-                        Available: {new Date(subproject.firstAvailableDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
+                        {t('projectCard.available', {
+                          date: new Date(subproject.firstAvailableDate).toLocaleDateString(intl, {
+                            month: 'short',
+                            day: 'numeric',
+                          }),
                         })}
                       </p>
                     )}
@@ -377,7 +431,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
               ))}
               {project.subprojects.length > 3 && (
                 <p className="text-[10px] text-gray-500 text-center">
-                  +{project.subprojects.length - 3} more package{project.subprojects.length - 3 > 1 ? 's' : ''}
+                  {t('projectCard.morePackages', { count: project.subprojects.length - 3 })}
                 </p>
               )}
             </div>
@@ -406,7 +460,9 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                   </p>
                   {professional?.professionalLevel && (
                     <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${getLevelColor(professional.professionalLevel)}`}>
-                      {professional.professionalLevel}
+                      {PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
+                        ? t(PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS])
+                        : professional.professionalLevel}
                     </Badge>
                   )}
                   {(professional?.adminTags || []).slice(0, 2).map((tag) => (
@@ -415,7 +471,9 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                       variant="outline"
                       className={`text-[9px] px-1.5 py-0 ${getAdminTagStyle(tag)}`}
                     >
-                      {formatAdminTagLabel(tag)}
+                      {ADMIN_TAG_KEYS[tag.toLowerCase() as keyof typeof ADMIN_TAG_KEYS]
+                        ? t(ADMIN_TAG_KEYS[tag.toLowerCase() as keyof typeof ADMIN_TAG_KEYS])
+                        : formatAdminTagLabel(tag)}
                     </Badge>
                   ))}
                   {extraTagCount > 0 && (
@@ -436,7 +494,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
         {/* CTA Button */}
         <Button asChild className="w-full mt-4" variant="default">
           <Link href={`/projects/${project._id}`}>
-            View Project <ArrowRight className="w-4 h-4 ml-2" />
+            {t('projectCard.viewProject')} <ArrowRight className="w-4 h-4 ml-2" />
           </Link>
         </Button>
       </CardContent>

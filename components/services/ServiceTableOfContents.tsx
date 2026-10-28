@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TocItem } from '@/lib/cms/toc';
@@ -75,6 +76,8 @@ function LinkList({ items, className }: { items: TocItem[]; className?: string }
 }
 
 export default function ServiceTableOfContents({ items }: Props) {
+  const t = useTranslations('catalog');
+
   if (!items || items.length < 2) return null;
 
   return (
@@ -84,7 +87,7 @@ export default function ServiceTableOfContents({ items }: Props) {
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3 text-gray-900">
               <List className="w-4 h-4" />
-              <h3 className="text-sm font-semibold uppercase tracking-wide">On this page</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide">{t('tableOfContents.onThisPage')}</h3>
             </div>
             <LinkList items={items} />
           </div>
@@ -94,8 +97,10 @@ export default function ServiceTableOfContents({ items }: Props) {
       <details className="lg:hidden mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
         <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gray-900">
           <List className="w-4 h-4" />
-          On this page
-          <span className="ml-auto text-xs font-normal text-gray-500">{items.length} sections</span>
+          {t('tableOfContents.onThisPage')}
+          <span className="ml-auto text-xs font-normal text-gray-500">
+            {t('tableOfContents.sections', { count: items.length })}
+          </span>
         </summary>
         <div className="px-4 pb-4 pt-1">
           <LinkList items={items} />

@@ -1,17 +1,23 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const CARD_CLASS =
   'min-w-[280px] max-w-[280px] snap-start flex-shrink-0 rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm h-full flex flex-col'
 
 export function PopularProjectsCarouselSkeleton({
-  heading = 'Popular Projects',
+  heading,
 }: {
   heading?: string
 }) {
+  const t = useTranslations('home')
+  const headingText = heading ?? t('popularProjects.heading')
+
   return (
     <div className="mt-10 max-w-5xl mx-auto text-left" aria-hidden>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">{heading}</h3>
+        <h3 className="text-lg font-semibold text-gray-800">{headingText}</h3>
         <div className="flex gap-2">
           <span className="p-1.5 rounded-full border border-gray-200">
             <Skeleton className="h-4 w-4 rounded-full" />

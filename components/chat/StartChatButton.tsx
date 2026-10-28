@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,12 +21,13 @@ interface StartChatButtonProps {
 
 export default function StartChatButton({
   professionalId,
-  label = "Start Chat",
+  label,
   className,
   variant = "outline",
   size = "sm",
   initialMessage,
 }: StartChatButtonProps) {
+  const t = useTranslations("chat");
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, loading } = useAuth();
@@ -60,7 +62,7 @@ export default function StartChatButton({
     }
 
     if (user?.role !== "customer") {
-      toast.error("Only customers can start conversations");
+      toast.error(t("startChatButton.onlyCustomers"));
       return;
     }
 
@@ -70,7 +72,7 @@ export default function StartChatButton({
   return (
     <Button type="button" variant={variant} size={size} className={className} onClick={handleClick}>
       <MessageSquare className="h-4 w-4 mr-2" />
-      {label}
+      {label ?? t("startChatButton.label")}
     </Button>
   );
 }

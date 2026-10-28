@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { publicGetCms } from "@/lib/cms/public";
 import { cmsCoverAlt } from "@/lib/cms";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
@@ -18,10 +19,11 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  if (RESERVED_SLUGS.has(slug)) return buildMetadata({ title: "Page not found", path: `/pages/${slug}`, noindex: true });
+  const t = await getTranslations("content");
+  if (RESERVED_SLUGS.has(slug)) return buildMetadata({ title: t("cmsPage.notFoundTitle"), path: `/pages/${slug}`, noindex: true });
   const landing = await publicGetCms("landing", slug);
   const content = landing || (await publicGetCms("policy", slug));
-  if (!content) return buildMetadata({ title: "Page not found", path: `/pages/${slug}`, noindex: true });
+  if (!content) return buildMetadata({ title: t("cmsPage.notFoundTitle"), path: `/pages/${slug}`, noindex: true });
   return buildMetadata({
     title: content.seo?.titleTag || content.title,
     description: content.seo?.metaDescription || content.excerpt,
@@ -33,6 +35,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function GenericCmsPage({ params }: Props) {
   const { slug } = await params;
+  const t = await getTranslations("content");
   if (RESERVED_SLUGS.has(slug)) notFound();
   const landing = await publicGetCms("landing", slug);
   const policy = !landing ? await publicGetCms("policy", slug) : null;
@@ -43,7 +46,7 @@ export default async function GenericCmsPage({ params }: Props) {
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white pt-24 pb-20">
       <JsonLd
         data={breadcrumbSchema([
-          { name: "Home", path: "/" },
+          { name: t("breadcrumbs.home"), path: "/" },
           { name: content.title, path: `/pages/${content.slug}` },
         ])}
       />

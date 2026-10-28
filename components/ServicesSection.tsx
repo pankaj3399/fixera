@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +24,7 @@ interface ApiCategory {
 
 const ServiceCard = ({ service }: { service: ApiService }) => {
   const iconName = getServiceIconName(service.slug, service.icon) as IconName;
+  const t = useTranslations('home')
 
   return (
     <Link href={`/services/${service.slug}`} className="block group">
@@ -42,9 +44,9 @@ const ServiceCard = ({ service }: { service: ApiService }) => {
             {service.name}
           </h3>
           <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
-            <span className="text-sm text-gray-500">Learn more</span>
+            <span className="text-sm text-gray-500">{t('learnMore')}</span>
             <div className="px-4 py-2 bg-blue-600 text-white rounded-full font-semibold group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 transition-all duration-300">
-              Explore
+              {t('services.explore')}
             </div>
           </div>
         </CardContent>
@@ -55,6 +57,7 @@ const ServiceCard = ({ service }: { service: ApiService }) => {
 
 // --- Main ServicesSection Component ---
 const ServicesSection = () => {
+  const t = useTranslations('home')
   const [services, setServices] = useState<ApiService[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -99,18 +102,17 @@ const ServicesSection = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <Badge className="mb-4 bg-blue-100 text-blue-800 px-4 py-2 border-blue-200">
-            Our Services
+            {t('services.badge')}
           </Badge>
           <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
-            Every Service You Need,
+            {t('services.titleTop')}
             <br />
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              All in One Place
+              {t('services.titleBottom')}
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            From quick fixes to major renovations, find verified professionals for every project.
-            Quality guaranteed, payments protected.
+            {t('services.description')}
           </p>
         </div>
 
@@ -126,7 +128,7 @@ const ServicesSection = () => {
           </div>
         ) : (
           <p className="text-center text-gray-500 py-12">
-            Services are being updated. Check back soon!
+            {t('services.empty')}
           </p>
         )}
 
@@ -138,7 +140,7 @@ const ServicesSection = () => {
               variant="outline"
               className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-8 py-4 rounded-full text-lg font-semibold transition-all duration-300 group"
             >
-              View All Services
+              {t('services.viewAll')}
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
           </Link>

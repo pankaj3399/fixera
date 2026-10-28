@@ -1,5 +1,6 @@
 import { Shield } from "lucide-react";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { publicGetCms } from "@/lib/cms/public";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -13,27 +14,33 @@ async function fetchPrivacyContent() {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const content = await fetchPrivacyContent();
+  const [content, t] = await Promise.all([
+    fetchPrivacyContent(),
+    getTranslations("content"),
+  ]);
   return buildMetadata({
-    title: content?.seo?.titleTag || content?.title || "Privacy Policy",
+    title: content?.seo?.titleTag || content?.title || t("privacyPolicy.metaTitle"),
     description:
       content?.seo?.metaDescription ||
       content?.excerpt ||
-      "Read Fixtract's privacy policy — how we collect, use, and protect your personal data.",
+      t("privacyPolicy.metaDescription"),
     path: content?.seo?.canonical || "/privacy-policy",
     noindex: content?.seo?.noindex,
   });
 }
 
 export default async function PrivacyPolicyPage() {
-  const content = await fetchPrivacyContent();
+  const [content, t] = await Promise.all([
+    fetchPrivacyContent(),
+    getTranslations("content"),
+  ]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white pb-20">
       <JsonLd
         data={breadcrumbSchema([
-          { name: "Home", path: "/" },
-          { name: "Privacy Policy", path: "/privacy-policy" },
+          { name: t("breadcrumbs.home"), path: "/" },
+          { name: t("breadcrumbs.privacyPolicy"), path: "/privacy-policy" },
         ])}
       />
       <div className="mx-auto max-w-4xl px-6 pt-24">
@@ -43,7 +50,7 @@ export default async function PrivacyPolicyPage() {
               <Shield size={22} />
             </div>
             <h1 className="bg-gradient-to-r from-rose-600 via-pink-500 to-orange-500 bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
-              {content?.title || "Privacy Policy"}
+              {content?.title || t("privacyPolicy.metaTitle")}
             </h1>
             {content?.excerpt && (
               <p className="mt-3 text-rose-600/80">{content.excerpt}</p>
@@ -57,8 +64,8 @@ export default async function PrivacyPolicyPage() {
               <RichTextRenderer html={content.body} />
             ) : (
               <div className="py-10 text-center">
-                <h2 className="text-xl font-semibold text-rose-900">Privacy policy coming soon</h2>
-                <p className="mt-2 text-sm text-rose-500">This content is being prepared and will be published shortly.</p>
+                <h2 className="text-xl font-semibold text-rose-900">{t("privacyPolicy.comingSoonTitle")}</h2>
+                <p className="mt-2 text-sm text-rose-500">{t("privacyPolicy.comingSoonDescription")}</p>
               </div>
             )}
           </div>

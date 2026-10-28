@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,7 @@ import Calendar from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Filter, X, ChevronDown, ChevronUp, CalendarIcon, Star } from 'lucide-react';
 import { format } from 'date-fns';
+import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import LocationAutocomplete, { type LocationData } from '@/components/search/LocationAutocomplete';
 import {
   PROFESSIONAL_LEVELS,
@@ -22,6 +24,39 @@ import {
 } from '@/lib/professionalLevel';
 
 export type SortOption = 'relevant' | 'price_low' | 'price_high' | 'newest' | 'availability' | 'popularity';
+
+const SORT_OPTION_KEYS: Record<SortOption, 'filters.sort.relevant' | 'filters.sort.priceLow' | 'filters.sort.priceHigh' | 'filters.sort.newest' | 'filters.sort.availability' | 'filters.sort.popularity'> = {
+  relevant: 'filters.sort.relevant',
+  price_low: 'filters.sort.priceLow',
+  price_high: 'filters.sort.priceHigh',
+  newest: 'filters.sort.newest',
+  availability: 'filters.sort.availability',
+  popularity: 'filters.sort.popularity',
+};
+
+const PRICE_MODEL_KEYS = {
+  fixed: 'priceModels.fixed',
+  unit: 'priceModels.unit',
+  rfq: 'priceModels.rfq',
+  hour: 'priceModels.hour',
+  day: 'priceModels.day',
+  meter: 'priceModels.meter',
+  m2: 'priceModels.m2',
+  room: 'priceModels.room',
+} as const;
+
+const PROFESSIONAL_LEVEL_KEYS = {
+  new: 'professionalLevels.new',
+  'level 1': 'professionalLevels.level1',
+  'level 2': 'professionalLevels.level2',
+  'level 3': 'professionalLevels.level3',
+  expert: 'professionalLevels.expert',
+} as const;
+
+const ADMIN_TAG_KEYS = {
+  verified: 'adminTags.verified',
+  'our choice': 'adminTags.ourChoice',
+} as const;
 
 export interface SearchFiltersState {
   query: string;
@@ -104,6 +139,8 @@ const SearchFilters = ({
   facets,
   onLocationCoordinatesChange,
 }: SearchFiltersProps) => {
+  const t = useTranslations('search');
+  const { dateFns } = useFormatLocale();
   // Use dynamic filter options if provided, otherwise fall back to hardcoded values
   const servicesList = filterOptions?.services || COMMON_SERVICES;
   const projectTypesList = filterOptions?.projectTypes || PROJECT_TYPES;
@@ -170,9 +207,25 @@ const SearchFilters = ({
     priceModelsList.map(model => model.value)
   );
 
-  const getPriceModelLabel = (value: string) =>
-    priceModelsList.find(model => model.value === value)?.label ||
-    value.replace(/^\w/, char => char.toUpperCase());
+  const getPriceModelLabel = (value: string) => {
+    const key = PRICE_MODEL_KEYS[value.toLowerCase() as keyof typeof PRICE_MODEL_KEYS];
+    if (key) return t(key);
+    return priceModelsList.find(model => model.value === value)?.label ||
+      value.replace(/^\w/, char => char.toUpperCase());
+  };
+
+  const professionalLevelLabel = (level: string) => {
+    const key = PROFESSIONAL_LEVEL_KEYS[level.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS];
+    return key ? t(key) : level;
+  };
+
+  const adminTagLabel = (tag: string) => {
+    const key = ADMIN_TAG_KEYS[tag.toLowerCase() as keyof typeof ADMIN_TAG_KEYS];
+    return key ? t(key) : formatAdminTagLabel(tag);
+  };
+
+  const sectionLabel = (label: string, count: number) =>
+    count > 0 ? t('filters.sectionCount', { label, count }) : label;
 
   const renderOptionContent = (label: string, count?: number) => (
     <span className="flex w-full items-center justify-between">
@@ -218,7 +271,7 @@ const SearchFilters = ({
       <div className="flex items-center justify-between pb-4 border-b">
         <div className="flex items-center gap-2">
           <Filter className="w-5 h-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('filters.title')}</h3>
           {activeFiltersCount > 0 && (
             <Badge variant="default" className="ml-1">
               {activeFiltersCount}
@@ -233,28 +286,28 @@ const SearchFilters = ({
           className="text-gray-600 hover:text-gray-900"
         >
           <X className="w-4 h-4 mr-1" />
-          Clear All
+          {t('filters.clearAll')}
         </Button>
       </div>
 
       {/* Sort By */}
       <div className="space-y-2 border-b pb-4">
         <Label htmlFor="sortBy" className="text-sm font-semibold text-gray-900">
-          Sort By
+          {t('filters.sortBy')}
         </Label>
         <Select value={filters.sortBy} onValueChange={(val) => onFilterChange('sortBy', val as SortOption)}>
           <SelectTrigger id="sortBy" className="w-full">
-            <SelectValue placeholder="Most Relevant" />
+            <SelectValue placeholder={t('filters.sortPlaceholder')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="relevant">Most Relevant</SelectItem>
-            <SelectItem value="price_low">Price: Low to High</SelectItem>
-            <SelectItem value="price_high">Price: High to Low</SelectItem>
-            <SelectItem value="newest">Newest First</SelectItem>
+            <SelectItem value="relevant">{t(SORT_OPTION_KEYS.relevant)}</SelectItem>
+            <SelectItem value="price_low">{t(SORT_OPTION_KEYS.price_low)}</SelectItem>
+            <SelectItem value="price_high">{t(SORT_OPTION_KEYS.price_high)}</SelectItem>
+            <SelectItem value="newest">{t(SORT_OPTION_KEYS.newest)}</SelectItem>
             {searchType === 'projects' && (
-              <SelectItem value="availability">Availability</SelectItem>
+              <SelectItem value="availability">{t(SORT_OPTION_KEYS.availability)}</SelectItem>
             )}
-            <SelectItem value="popularity">Most Popular</SelectItem>
+            <SelectItem value="popularity">{t(SORT_OPTION_KEYS.popularity)}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -267,7 +320,7 @@ const SearchFilters = ({
           className="flex items-center justify-between w-full text-left"
         >
           <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-            Location {(filters.location || filters.geographicArea) && '✓'}
+            {t('filters.location')} {(filters.location || filters.geographicArea) && '✓'}
           </Label>
           {expandedSections.location ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -289,7 +342,7 @@ const SearchFilters = ({
                   onLocationCoordinatesChange(locationData?.coordinates || null);
                 }
               }}
-              placeholder="City, Region, or Postal Code"
+              placeholder={t('filters.locationPlaceholder')}
               className="border rounded-md px-3 py-2"
             />
           </div>
@@ -305,7 +358,7 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Service {filters.services.length > 0 && `(${filters.services.length})`}
+              {sectionLabel(t('filters.service'), filters.services.length)}
             </Label>
             {expandedSections.service ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -344,7 +397,7 @@ const SearchFilters = ({
           className="flex items-center justify-between w-full text-left"
         >
           <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-            Professional Level {filters.professionalLevels.length > 0 && `(${filters.professionalLevels.length})`}
+            {sectionLabel(t('filters.professionalLevel'), filters.professionalLevels.length)}
           </Label>
           {expandedSections.professionalLevel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -361,7 +414,7 @@ const SearchFilters = ({
                   htmlFor={`level-${level}`}
                   className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                 >
-                  <Badge variant="secondary" className={`font-medium ${getLevelColor(level)}`}>{level}</Badge>
+                  <Badge variant="secondary" className={`font-medium ${getLevelColor(level)}`}>{professionalLevelLabel(level)}</Badge>
                 </Label>
               </div>
             ))}
@@ -377,7 +430,7 @@ const SearchFilters = ({
           className="flex items-center justify-between w-full text-left"
         >
           <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-            Professional Tags {filters.adminTags.length > 0 && `(${filters.adminTags.length})`}
+            {sectionLabel(t('filters.professionalTags'), filters.adminTags.length)}
           </Label>
           {expandedSections.adminTags ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -395,7 +448,7 @@ const SearchFilters = ({
                   className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                 >
                   <Badge variant="outline" className={`font-medium ${getAdminTagStyle(tag)}`}>
-                    {formatAdminTagLabel(tag)}
+                    {adminTagLabel(tag)}
                   </Badge>
                 </Label>
               </div>
@@ -413,7 +466,9 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Min Rating {filters.minProjectRating > 0 && `(${filters.minProjectRating}+)`}
+              {filters.minProjectRating > 0
+                ? t('filters.minRatingValue', { rating: filters.minProjectRating })
+                : t('filters.minRating')}
             </Label>
             {expandedSections.minRating ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -433,7 +488,7 @@ const SearchFilters = ({
                   }
                   className="flex items-center gap-1"
                 >
-                  {n === 0 ? 'Any' : (
+                  {n === 0 ? t('filters.any') : (
                     <>
                       {n}
                       <Star className="w-3 h-3 fill-current" />
@@ -455,7 +510,7 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Area of Work {filters.areasOfWork.length > 0 && `(${filters.areasOfWork.length})`}
+              {sectionLabel(t('filters.areaOfWork'), filters.areasOfWork.length)}
             </Label>
             {expandedSections.areaOfWork ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -492,7 +547,7 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Price Model {filters.priceModel.length > 0 && `(${filters.priceModel.length})`}
+              {sectionLabel(t('filters.priceModel'), filters.priceModel.length)}
             </Label>
             {expandedSections.priceModel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -532,7 +587,7 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Project Type {filters.projectTypes.length > 0 && `(${filters.projectTypes.length})`}
+              {sectionLabel(t('filters.projectType'), filters.projectTypes.length)}
             </Label>
             {expandedSections.projectType ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -572,7 +627,7 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Included Items {filters.includedItems.length > 0 && `(${filters.includedItems.length})`}
+              {sectionLabel(t('filters.includedItems'), filters.includedItems.length)}
             </Label>
             {expandedSections.includedItems ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -607,14 +662,14 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Start Date Range {(filters.startDateFrom || filters.startDateTo) && '✓'}
+              {t('filters.startDateRange')} {(filters.startDateFrom || filters.startDateTo) && '✓'}
             </Label>
             {expandedSections.startDate ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
           {expandedSections.startDate && (
             <div className="space-y-3 mt-2">
               <div>
-                <Label className="text-xs text-gray-600 mb-1">From Date</Label>
+                <Label className="text-xs text-gray-600 mb-1">{t('filters.fromDate')}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -623,7 +678,7 @@ const SearchFilters = ({
                       className="w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filters.startDateFrom ? format(filters.startDateFrom, 'PPP') : <span>Pick a date</span>}
+                      {filters.startDateFrom ? format(filters.startDateFrom, 'PPP', { locale: dateFns }) : <span>{t('filters.pickDate')}</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -638,7 +693,7 @@ const SearchFilters = ({
                 </Popover>
               </div>
               <div>
-                <Label className="text-xs text-gray-600 mb-1">To Date</Label>
+                <Label className="text-xs text-gray-600 mb-1">{t('filters.toDate')}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -647,7 +702,7 @@ const SearchFilters = ({
                       className="w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filters.startDateTo ? format(filters.startDateTo, 'PPP') : <span>Pick a date</span>}
+                      {filters.startDateTo ? format(filters.startDateTo, 'PPP', { locale: dateFns }) : <span>{t('filters.pickDate')}</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -674,7 +729,7 @@ const SearchFilters = ({
           className="flex items-center justify-between w-full text-left"
         >
           <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-            {searchType === 'professionals' ? 'Hourly Rate (€)' : 'Price Range (€)'} {(filters.priceMin || filters.priceMax) && '✓'}
+            {searchType === 'professionals' ? t('filters.hourlyRate') : t('filters.priceRange')} {(filters.priceMin || filters.priceMax) && '✓'}
           </Label>
           {expandedSections.price ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -696,7 +751,7 @@ const SearchFilters = ({
                 value={filters.priceMin}
                 onChange={(e) => onFilterChange('priceMin', e.target.value)}
                 className="w-20 h-8 text-xs"
-                placeholder="Min"
+                placeholder={t('filters.min')}
               />
               <span>-</span>
               <Input
@@ -704,7 +759,7 @@ const SearchFilters = ({
                 value={filters.priceMax}
                 onChange={(e) => onFilterChange('priceMax', e.target.value)}
                 className="w-20 h-8 text-xs"
-                placeholder="Max"
+                placeholder={t('filters.max')}
               />
             </div>
           </div>
@@ -720,7 +775,7 @@ const SearchFilters = ({
             className="flex items-center justify-between w-full text-left"
           >
             <Label className="text-sm font-semibold text-gray-900 cursor-pointer">
-              Category {filters.category && '(1)'}
+              {sectionLabel(t('filters.category'), filters.category ? 1 : 0)}
             </Label>
             {expandedSections.category ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -758,7 +813,7 @@ const SearchFilters = ({
               htmlFor="availability"
               className="text-sm font-medium text-gray-700 cursor-pointer"
             >
-              Available for booking
+              {t('filters.availability')}
             </Label>
           </div>
         </div>

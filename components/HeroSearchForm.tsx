@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, ArrowRight } from 'lucide-react'
@@ -23,6 +24,7 @@ export default function HeroSearchForm({
   popularServices: string[]
 }) {
   const router = useRouter()
+  const t = useTranslations('home')
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [location, setLocation] = useState('')
@@ -84,11 +86,11 @@ export default function HeroSearchForm({
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-3 relative">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
           <div className="lg:col-span-4 flex items-center px-2 relative">
-            <label htmlFor="service-search" className="sr-only">Service Search</label>
+            <label htmlFor="service-search" className="sr-only">{t('search.serviceLabel')}</label>
             <Search className="w-5 h-5 text-gray-400 mr-3 shrink-0" />
             <Input
               id="service-search"
-              placeholder="What service do you need?"
+              placeholder={t('search.servicePlaceholder')}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value)
@@ -100,25 +102,25 @@ export default function HeroSearchForm({
           </div>
 
           <div className="lg:col-span-3 px-2 lg:border-l lg:border-gray-200">
-            <label htmlFor="location-search" className="sr-only">Location</label>
+            <label htmlFor="location-search" className="sr-only">{t('search.locationLabel')}</label>
             <LocationAutocomplete
               value={location}
               onChange={(value: string, locationData?: LocationData) => {
                 setLocation(value)
                 setLocationCoordinates(locationData?.coordinates || null)
               }}
-              placeholder="City, Country"
+              placeholder={t('search.locationPlaceholder')}
             />
           </div>
 
           <div className="lg:col-span-3 lg:border-l lg:border-gray-200">
             <Select value={searchType} onValueChange={setSearchType}>
               <SelectTrigger className="w-full h-full text-lg px-4 ml-2 mt-1 text-gray-500 border-0 focus-visible:ring-0 focus:ring-0">
-                <SelectValue placeholder="Search for..." />
+                <SelectValue placeholder={t('search.typePlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="projects">Search Projects</SelectItem>
-                <SelectItem value="professionals">Search Professionals</SelectItem>
+                <SelectItem value="projects">{t('search.typeProjects')}</SelectItem>
+                <SelectItem value="professionals">{t('search.typeProfessionals')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -128,7 +130,7 @@ export default function HeroSearchForm({
               type="submit"
               className="w-full h-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
             >
-              Search
+              {t('search.submit')}
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </div>
@@ -146,7 +148,7 @@ export default function HeroSearchForm({
       {popularServices.length > 0 && (
         <div className="mt-6 text-center">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            <p className="text-gray-600 text-sm">Popular:</p>
+            <p className="text-gray-600 text-sm">{t('search.popular')}</p>
             <div className="flex flex-wrap justify-center gap-2">
               {popularServices.map((service) => (
                 <button

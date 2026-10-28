@@ -1,14 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ArrowUpRight, Calendar } from "lucide-react";
 import { CmsContent, cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
+import { intlLocale } from "@/lib/i18n/format";
 
 interface Props {
   item: CmsContent;
   basePath: "blog" | "news";
 }
 
-export default function BlogCard({ item, basePath }: Props) {
+export default async function BlogCard({ item, basePath }: Props) {
+  const [t, locale] = await Promise.all([getTranslations("content"), getLocale()]);
   const authorName = cmsAuthorName(item);
   const date = item.publishedAt || item.updatedAt;
 
@@ -33,12 +36,12 @@ export default function BlogCard({ item, basePath }: Props) {
         <div className="flex flex-1 flex-col p-6">
           {item.tags?.length ? (
             <div className="mb-3 flex flex-wrap gap-1.5">
-              {item.tags.slice(0, 3).map((t) => (
+              {item.tags.slice(0, 3).map((tag) => (
                 <span
-                  key={t}
+                  key={tag}
                   className="rounded-full bg-gradient-to-r from-rose-100 to-pink-100 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700"
                 >
-                  {t}
+                  {tag}
                 </span>
               ))}
             </div>
@@ -54,10 +57,14 @@ export default function BlogCard({ item, basePath }: Props) {
               {date && (
                 <span className="inline-flex items-center gap-1">
                   <Calendar size={12} />
-                  {new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                  {new Date(date).toLocaleDateString(intlLocale(locale), {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
                 </span>
               )}
-              {authorName && <span>· by {authorName}</span>}
+              {authorName && <span>· {t("byAuthor", { author: authorName })}</span>}
             </div>
             <ArrowUpRight size={16} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </div>

@@ -93,5 +93,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     );
   }
 
-  return entries;
+  // Auto-translated CMS docs (nl/fr) share the English slug and the language is
+  // switched on the same URL, so the backend list can contain the same
+  // type+slug (i.e. the same URL) several times. Keep one entry per URL, with
+  // the most recent lastModified.
+  const byUrl = new Map<string, MetadataRoute.Sitemap[number]>();
+  for (const entry of entries) {
+    const existing = byUrl.get(entry.url);
+    if (!existing) {
+      byUrl.set(entry.url, entry);
+      continue;
+    }
+    const existingTime = existing.lastModified ? new Date(existing.lastModified).getTime() : 0;
+    const entryTime = entry.lastModified ? new Date(entry.lastModified).getTime() : 0;
+    if (entryTime > existingTime) byUrl.set(entry.url, entry);
+  }
+
+  return [...byUrl.values()];
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import type { Metadata } from "next";
+import { getLocale, getTranslations } from "next-intl/server";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
@@ -10,6 +11,7 @@ import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { articleSchema, breadcrumbSchema } from "@/lib/seo/jsonLd";
+import { intlLocale } from "@/lib/i18n/format";
 
 export const revalidate = 21600;
 
@@ -19,11 +21,12 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const t = await getTranslations("content");
   const { post, fetchError } = await fetchCmsPostWithError("news", slug);
   if (fetchError) {
-    return buildMetadata({ title: "News", path: `/news/${slug}` });
+    return buildMetadata({ title: t("news.notFoundTitle"), path: `/news/${slug}` });
   }
-  if (!post) return buildMetadata({ title: "News article not found", path: `/news/${slug}`, noindex: true });
+  if (!post) return buildMetadata({ title: t("news.articleNotFoundTitle"), path: `/news/${slug}`, noindex: true });
   return buildMetadata({
     title: post.seo?.titleTag || post.title,
     description: post.seo?.metaDescription || post.excerpt,
@@ -38,15 +41,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
+  const [t, locale] = await Promise.all([getTranslations("content"), getLocale()]);
   const { post, fetchError } = await fetchCmsPostWithError("news", slug);
   if (fetchError) throw new Error(`Failed to load news article ${slug}`);
   if (!post && !fetchError) notFound();
   if (!post) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white px-6 pt-32 pb-20 text-center">
-        <h1 className="text-3xl font-bold text-rose-700">This article is temporarily unavailable</h1>
-        <p className="mt-3 text-rose-500">Please try again in a moment.</p>
-        <Link href="/news" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">All news</Link>
+        <h1 className="text-3xl font-bold text-rose-700">{t("news.unavailableTitle")}</h1>
+        <p className="mt-3 text-rose-500">{t("news.unavailableDescription")}</p>
+        <Link href="/news" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200">{t("news.allNews")}</Link>
       </div>
     );
   }
@@ -68,15 +72,15 @@ export default async function NewsDetailPage({ params }: Props) {
             authorName,
           }),
           breadcrumbSchema([
-            { name: "Home", path: "/" },
-            { name: "News", path: "/news" },
+            { name: t("breadcrumbs.home"), path: "/" },
+            { name: t("breadcrumbs.news"), path: "/news" },
             { name: post.title, path: `/news/${post.slug}` },
           ]),
         ]}
       />
       <div className="mx-auto max-w-4xl px-6 pt-24">
         <Link href="/news" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-50">
-          <ArrowLeft size={16} /> All news
+          <ArrowLeft size={16} /> {t("news.allNews")}
         </Link>
       </div>
       {post.coverImage && (
@@ -102,10 +106,14 @@ export default async function NewsDetailPage({ params }: Props) {
           {date && (
             <span className="inline-flex items-center gap-1">
               <Calendar size={14} />
-              {new Date(date).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+              {new Date(date).toLocaleDateString(intlLocale(locale), {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
             </span>
           )}
-          {authorName && <span>· by {authorName}</span>}
+          {authorName && <span>· {t("byAuthor", { author: authorName })}</span>}
         </div>
         <div className="mt-8">
           <RichTextRenderer html={post.body} className="prose-lg" />

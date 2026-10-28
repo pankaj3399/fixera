@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { hasConsented, CONSENT_EVENT } from "@/lib/consent";
 import { PREVIEW_DURATION_MS, shouldSkipAnnouncements } from "@/lib/marketing/siteAnnouncements/constants";
@@ -28,6 +29,7 @@ import {
 } from "./context";
 
 export function SiteAnnouncementsProvider({ children }: { children: ReactNode }) {
+  const t = useTranslations("content");
   const pathname = usePathname();
   const skip = shouldSkipAnnouncements(pathname);
 
@@ -50,13 +52,15 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
     (announcement: SiteAnnouncement) => {
       clearPreview();
       setPreview(announcement);
-      toast.message("Showing preview for 5 seconds");
+      toast.message(
+        t("announcements.previewToast", { seconds: PREVIEW_DURATION_MS / 1000 }),
+      );
       previewTimerRef.current = setTimeout(() => {
         setPreview(null);
         previewTimerRef.current = undefined;
       }, PREVIEW_DURATION_MS);
     },
-    [clearPreview],
+    [clearPreview, t],
   );
 
   useEffect(() => () => clearPreview(), [clearPreview]);

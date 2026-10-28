@@ -1,0 +1,8 @@
+{
+  "add": "Toevoegen aan favorieten",
+  "remove": "Verwijderen uit favorieten",
+  "customersOnlyAria": "Favorieten zijn alleen beschikbaar voor klanten",
+  "customersOnlyTitle": "Alleen klanten kunnen favorieten opslaan",
+  "customersOnlyToast": "Alleen klanten kunnen favorieten opslaan",
+  "updateFailed": "Kon de favoriet niet bijwerken"
+}

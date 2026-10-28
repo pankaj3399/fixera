@@ -1,0 +1,250 @@
+{
+  "hero": {
+    "badge": "Eén platform. Elke oplossing.",
+    "titleTop": "Betrouwbare vakmensen,",
+    "titleBottom": "razendsnel geregeld",
+    "description": "Van kleine reparaties tot volledige renovaties: kom in contact met geverifieerde vakmensen in heel Europa. Boek meteen of vraag een offerte op maat aan, altijd met gegarandeerde kwaliteit.",
+    "benefits": {
+      "moneyBack": {
+        "title": "Geld-teruggarantie",
+        "description": "Niet tevreden? Je krijgt je geld terug via ons garantiebeleid."
+      },
+      "fastResponse": {
+        "title": "Snel antwoord",
+        "description": "Binnen enkele minuten gekoppeld aan beschikbare vakmensen."
+      },
+      "qualityAssured": {
+        "title": "Gegarandeerde kwaliteit",
+        "description": "Alle vakmensen zijn geverifieerd en worden hoog beoordeeld door klanten."
+      },
+      "securePayments": {
+        "title": "Veilige betalingen",
+        "description": "Je betaling is beschermd tot het werk naar wens is afgerond."
+      }
+    }
+  },
+  "meta": {
+    "description": "Fixtract verbindt klanten met geverifieerde vakmensen voor elke dienst rond je woning — van kleine reparaties tot volledige renovaties. Laat het werk uitvoeren met gegarandeerde kwaliteit en veiligheid."
+  },
+  "search": {
+    "serviceLabel": "Dienst zoeken",
+    "servicePlaceholder": "Welke dienst heb je nodig?",
+    "locationLabel": "Locatie",
+    "locationPlaceholder": "Stad, land",
+    "typePlaceholder": "Zoeken naar...",
+    "typeProjects": "Projecten zoeken",
+    "typeProfessionals": "Vakmensen zoeken",
+    "submit": "Zoeken",
+    "popular": "Populair:"
+  },
+  "popularProjects": {
+    "heading": "Populaire projecten",
+    "priceOnRequest": "Prijs op aanvraag",
+    "rfq": "Prijs op aanvraag",
+    "fromPrice": "Vanaf {price}",
+    "noPreview": "Geen voorbeeld",
+    "unknownProfessional": "Onbekende vakman",
+    "professionalAlt": "Vakman",
+    "scrollPrevious": "Naar links scrollen",
+    "scrollNext": "Naar rechts scrollen"
+  },
+  "features": {
+    "badge": "Waarom Fixtract",
+    "title": "Gebouwd op vertrouwen, gemaakt voor resultaten",
+    "description": "Elke functie is ontworpen om je van begin tot eind vertrouwen, kwaliteit en gemoedsrust te geven.",
+    "items": {
+      "verifiedProfessionals": {
+        "title": "Geverifieerde vakmensen",
+        "description": "Elke vakman doorloopt een identiteitscontrole, een achtergrondonderzoek en een validatie van certificaten, zodat je met de besten werkt.",
+        "benefits": {
+          "identity": "ID- en paspoortcontrole",
+          "background": "Achtergrondonderzoek",
+          "insurance": "Verzekeringscontrole",
+          "skills": "Beoordeling van vaardigheden"
+        }
+      },
+      "qualityGuaranteed": {
+        "title": "Kwaliteitsgarantie",
+        "description": "Al het werk valt onder de Fixtract-garantie, met garantiebescherming en onze volledige tevredenheidsbelofte.",
+        "benefits": {
+          "warranty": "Tot 10 jaar garantie",
+          "satisfaction": "Tevredenheidsgarantie",
+          "qualityControl": "Kwaliteitscontroles",
+          "disputes": "Geschillen oplossen 24/7"
+        }
+      },
+      "fastReliable": {
+        "title": "Snel en betrouwbaar",
+        "description": "Krijg direct een match voor dringende klussen of ontvang binnen enkele uren concurrerende offertes. De meeste projecten starten binnen 48 uur.",
+        "benefits": {
+          "instantBooking": "Direct boeken mogelijk",
+          "quickQuotes": "Snel antwoord op je offerteaanvraag",
+          "flexibleSchedule": "Flexibele planning",
+          "emergency": "Spoeddiensten"
+        }
+      },
+      "securePayments": {
+        "title": "Veilige betalingen",
+        "description": "Je geld wordt veilig bewaard via ons escrowsysteem. Je betaalt pas wanneer het werk naar tevredenheid is afgerond.",
+        "benefits": {
+          "escrow": "Escrowbescherming",
+          "methods": "Meerdere betaalmethoden",
+          "invoicing": "Automatische facturatie",
+          "refunds": "Terugbetalingsgarantie"
+        }
+      }
+    },
+    "stats": {
+      "satisfaction": "Klanttevredenheid",
+      "projects": "Afgeronde projecten",
+      "support": "Klantenservice",
+      "countries": "Steeds meer landen"
+    },
+    "cta": "Start je project"
+  },
+  "howItWorks": {
+    "badge": "Eenvoudig en veilig",
+    "title": "Je project in 3 eenvoudige stappen geregeld",
+    "description": "Van het vinden van de juiste vakman tot het afronden van het werk: ons proces is vlot, transparant en veilig.",
+    "steps": {
+      "search": {
+        "title": "Zoeken en vergelijken",
+        "description": "Bekijk geverifieerde vakmensen, vergelijk prijzen, lees beoordelingen en vind de perfecte match voor je project.",
+        "features": {
+          "verified": "Geverifieerde vakmensen",
+          "reviews": "Echte klantbeoordelingen",
+          "pricing": "Transparante prijzen",
+          "availability": "Beschikbaarheid in je buurt"
+        }
+      },
+      "book": {
+        "title": "Boeken of offerte aanvragen",
+        "description": "Boek meteen voor standaarddiensten of vraag een offerte op maat aan voor complexe projecten.",
+        "features": {
+          "instantBooking": "Direct boeken",
+          "customQuotes": "Offertes op maat",
+          "messaging": "Veilig berichten",
+          "planning": "Projectplanning"
+        }
+      },
+      "complete": {
+        "title": "Laat het werk uitvoeren",
+        "description": "De vakman rondt het werk af, jij bevestigt je tevredenheid en de beveiligde betaling wordt vrijgegeven.",
+        "features": {
+          "quality": "Gegarandeerde kwaliteit",
+          "payments": "Veilige betalingen",
+          "tracking": "Voortgang volgen",
+          "warranty": "Garantie inbegrepen"
+        }
+      }
+    }
+  },
+  "cta": {
+    "badge": "Klaar om te beginnen?",
+    "titleTop": "Jouw perfecte project",
+    "titleBottom": "begint hier",
+    "description": "Sluit je aan bij duizenden tevreden klanten en vakmensen. Kwaliteitswerk, gegarandeerde resultaten, veilige betalingen.",
+    "needService": "Ik heb een dienst nodig",
+    "or": "of",
+    "imProfessional": "Ik ben vakman",
+    "stats": {
+      "customers": "50.000+ tevreden klanten",
+      "guarantee": "Geld-teruggarantie",
+      "support": "Klantenservice 24/7",
+      "rating": "Gemiddelde score 4,9/5"
+    }
+  },
+  "services": {
+    "badge": "Onze diensten",
+    "titleTop": "Elke dienst die je nodig hebt,",
+    "titleBottom": "op één plek",
+    "description": "Van kleine herstellingen tot grote renovaties: vind geverifieerde vakmensen voor elk project. Gegarandeerde kwaliteit, beschermde betalingen.",
+    "explore": "Ontdekken",
+    "empty": "De diensten worden bijgewerkt. Kom snel terug!",
+    "viewAll": "Alle diensten bekijken"
+  },
+  "learnMore": "Meer info",
+  "professionals": {
+    "badge": "Voor vakmensen",
+    "titleTop": "Maak van je vaardigheden",
+    "titleBottom": "een duurzaam inkomen",
+    "description": "Sluit je aan bij duizenden vakmensen die meer verdienen, slimmer werken en hun zaak in heel Europa laten groeien met het complete platform van Fixtract.",
+    "benefits": {
+      "customers": {
+        "title": "Geverifieerde klanten",
+        "description": "Kom in contact met echte klanten met geverifieerde betaalmethoden en concrete projecten in heel Europa."
+      },
+      "payments": {
+        "title": "Veilige en tijdige betalingen",
+        "description": "Ons escrowsysteem beschermt je inkomsten. Je wordt veilig en op tijd betaald zodra het werk is afgerond."
+      },
+      "scheduling": {
+        "title": "Slimme planningstools",
+        "description": "Beheer je agenda, de beschikbaarheid van je team en projecttermijnen in één geïntegreerd systeem."
+      },
+      "growth": {
+        "title": "Laat je zaak groeien",
+        "description": "Breid uit naar nieuwe markten, bouw je reputatie op met beoordelingen en krijg tools om je activiteiten op te schalen."
+      }
+    },
+    "join": "Word vakman",
+    "dashboard": {
+      "title": "Dashboard voor vakmensen",
+      "earnings": "Inkomsten deze maand",
+      "activeProjects": "Actieve projecten",
+      "rating": "Algemene score"
+    },
+    "storiesTitle": "Echte groei, echte resultaten",
+    "storiesDescription": "Ontdek hoe vakmensen zoals jij hun zaak hebben laten groeien met Fixtract.",
+    "stories": {
+      "thomas": {
+        "profession": "Elektricien",
+        "location": "Berlijn, Duitsland",
+        "growth": "+150% inkomsten",
+        "story": "Fixtract verdubbelde mijn klantenbestand in slechts 6 maanden. Het platform regelt al het administratieve werk, zodat ik me op kwaliteit kan richten."
+      },
+      "elena": {
+        "profession": "Interieurontwerper",
+        "location": "Barcelona, Spanje",
+        "growth": "+200% projecten",
+        "story": "Ik werk nu met klanten in 3 landen. De variatie en omvang van de projecten die ik via Fixtract krijg, zijn ongelooflijk."
+      },
+      "marco": {
+        "profession": "Renovatie-aannemer",
+        "location": "Rotterdam, Nederland",
+        "growth": "Gegroeid naar een team van 10",
+        "story": "Ik begon als zelfstandige. Dankzij de tools van Fixtract kon ik moeiteloos een groeiend team en grotere projecten beheren."
+      }
+    }
+  },
+  "testimonials": {
+    "badge": "Klantenverhalen",
+    "title": "Geliefd bij klanten in heel Europa",
+    "description": "Echte verhalen van echte klanten die hun woning transformeerden met hulp van Fixtract-vakmensen.",
+    "previous": "Vorige beoordeling",
+    "next": "Volgende beoordeling",
+    "goTo": "Ga naar beoordeling {index}",
+    "projectValue": "{price} project",
+    "items": {
+      "sophie": {
+        "location": "Brussel, België",
+        "service": "Keukenrenovatie",
+        "text": "Werkelijk een geweldige ervaring! Het renovatieteam was professioneel, stipt en leverde precies wat was beloofd. Mijn keuken ziet er fantastisch uit en het hele proces verliep stressvrij."
+      },
+      "jan": {
+        "location": "Amsterdam, Nederland",
+        "service": "Dringende loodgieterswerken",
+        "text": "Op een zondag een groot loodgietersprobleem. Via Fixtract vond ik een vakman die binnen 2 uur ter plaatse was en alles oploste. De prijzen waren transparant en de service uitzonderlijk. Echt een aanrader!"
+      },
+      "marie": {
+        "location": "Gent, België",
+        "service": "Interieurschilderwerk",
+        "text": "De schilder die ik vond, transformeerde mijn hele appartement. Het oog voor detail was uitstekend en hij hielp zelfs bij het kiezen van de perfecte kleuren. Het boeken verliep eenvoudig en het resultaat overtrof mijn verwachtingen."
+      }
+    }
+  },
+  "placeholderPage": {
+    "description": "Dit is een tijdelijke pagina. In een echte toepassing zou hier de volledige functie en inhoud staan.",
+    "backHome": "Terug naar de homepage"
+  }
+}

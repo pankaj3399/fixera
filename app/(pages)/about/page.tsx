@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import AboutHero from "@/components/about-page/AboutHero";
 import TeamSection from "@/components/about-page/TeamSection";
 import CTASection from "@/components/CTASection";
@@ -24,13 +25,16 @@ async function fetchAboutContent() {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const content = await fetchAboutContent();
+  const [content, t] = await Promise.all([
+    fetchAboutContent(),
+    getTranslations("content"),
+  ]);
   return buildMetadata({
-    title: content?.seo?.titleTag || content?.title || "About Fixtract",
+    title: content?.seo?.titleTag || content?.title || t("about.metaTitle"),
     description:
       content?.seo?.metaDescription ||
       content?.excerpt ||
-      "Learn about Fixtract — our mission to connect customers with verified professionals for every property service.",
+      t("about.metaDescription"),
     path: content?.seo?.canonical || "/about",
     image: content?.seo?.ogImage || content?.coverImage,
     noindex: content?.seo?.noindex,
@@ -38,11 +42,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AboutPage() {
-  const content = await fetchAboutContent();
+  const [content, t] = await Promise.all([
+    fetchAboutContent(),
+    getTranslations("content"),
+  ]);
 
   return (
     <main className="mt-10">
-      <JsonLd data={breadcrumbSchema([{ name: "Home", path: "/" }, { name: "About", path: "/about" }])} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: t("breadcrumbs.home"), path: "/" },
+          { name: t("breadcrumbs.about"), path: "/about" },
+        ])}
+      />
       <AboutHero />
       {content?.body && (
         <section className="bg-gradient-to-br from-rose-50 via-pink-50 to-white py-16">

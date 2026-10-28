@@ -17,6 +17,15 @@ export const NAMESPACES = [
   "footer",
   "cookieConsent",
   "localeSwitcher",
+  "home",
+  "content",
+  "catalog",
+  "auth",
+  "search",
+  "professionalProfile",
+  "favorites",
+  "projects",
+  "chat",
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];

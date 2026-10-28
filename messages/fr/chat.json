@@ -1,0 +1,203 @@
+{
+  "meta": {
+    "title": "Messagerie"
+  },
+  "common": {
+    "official": "Officiel",
+    "fixtractSupport": "Assistance Fixtract",
+    "supportThread": "Conversation d'assistance",
+    "officialSupportTeam": "Équipe d'assistance officielle",
+    "customer": "Client",
+    "professional": "Professionnel",
+    "user": "Utilisateur",
+    "conversation": "Conversation",
+    "untitledProject": "Projet sans titre",
+    "cancel": "Annuler",
+    "chat": "Discuter",
+    "retry": "Réessayer",
+    "image": "[Image]",
+    "attachment": "[Pièce jointe]"
+  },
+  "page": {
+    "title": "Messages",
+    "unavailableTitle": "Messagerie indisponible",
+    "unavailableBody": "La messagerie est réservée aux clients et aux professionnels.",
+    "newChat": "Nouvelle conversation",
+    "searchConversations": "Rechercher des conversations...",
+    "pickProfessional": "Choisissez un professionnel ci-dessous pour démarrer une conversation.",
+    "noProfessionals": "Aucun professionnel disponible pour le moment.",
+    "backToConversations": "Retour aux conversations",
+    "sendQuotation": "Envoyer un devis",
+    "sendQuotationTitle": "Envoyer un devis",
+    "searchInChat": "Rechercher dans la conversation",
+    "hideInfoPanel": "Masquer le panneau d'infos",
+    "showInfoPanel": "Afficher le panneau d'infos",
+    "searchMessages": "Rechercher des messages...",
+    "searchPosition": "{current}/{total}",
+    "supportClosed": "🔒 Cette conversation d'assistance a été fermée par Fixtract. Vous ne pouvez plus répondre.",
+    "selectConversation": "Sélectionnez une conversation pour afficher les messages",
+    "absence": "Le professionnel est absent du <date>{from}</date> au <date>{to}</date>"
+  },
+  "quotationDialog": {
+    "title": "Créer un devis direct",
+    "description": "Choisissez si ce devis doit être lié à l'un de vos projets publiés.",
+    "linkedProject": "Projet lié",
+    "loadingProjects": "Chargement des projets...",
+    "chooseProject": "Choisir un projet",
+    "noLinkedProject": "Aucun projet lié",
+    "createDraft": "Créer un brouillon de devis"
+  },
+  "toasts": {
+    "customerNotFound": "Client introuvable",
+    "createQuotationFailed": "Échec de la création du devis",
+    "loadConversationsFailed": "Échec du chargement des conversations",
+    "loadMessagesFailed": "Échec du chargement des messages",
+    "loadProfessionalsFailed": "Échec du chargement des professionnels",
+    "startChatFailed": "Échec du démarrage de la conversation",
+    "selectConversationFirst": "Sélectionnez d'abord une conversation",
+    "sendMessageFailed": "Échec de l'envoi du message",
+    "toggleStarFailed": "Échec de la mise à jour du favori",
+    "toggleArchiveFailed": "Échec de l'archivage",
+    "addLabelFailed": "Échec de l'ajout du libellé",
+    "removeLabelFailed": "Échec de la suppression du libellé",
+    "searchFailed": "Échec de la recherche",
+    "startConversationWithCustomerFailed": "Échec du démarrage de la conversation avec ce client.",
+    "prefillSendFailed": "Conversation ouverte, mais les réponses au devis n'ont pas pu être envoyées automatiquement."
+  },
+  "list": {
+    "filters": {
+      "all": "Toutes",
+      "unread": "Non lues",
+      "starred": "Favoris",
+      "archived": "Archivées"
+    },
+    "empty": "Aucune conversation trouvée.",
+    "options": "Options de la conversation",
+    "star": "Ajouter aux favoris",
+    "unstar": "Retirer des favoris",
+    "archive": "Archiver",
+    "unarchive": "Désarchiver",
+    "labels": "Libellés",
+    "labelName": "Nom du libellé",
+    "add": "Ajouter",
+    "addLabel": "+ Ajouter un libellé",
+    "justNow": "à l'instant",
+    "minutesAgo": "il y a {count} min",
+    "hoursAgo": "il y a {count} h",
+    "daysAgo": "il y a {count} j",
+    "monthsAgo": "il y a {count} mois"
+  },
+  "thread": {
+    "empty": "Aucun message pour le moment. Dites bonjour.",
+    "chatAttachment": "Pièce jointe de la conversation",
+    "captionsUnavailable": "Sous-titres (indisponibles)",
+    "videoUnsupported": "Votre navigateur ne prend pas en charge la lecture vidéo.",
+    "reply": "Répondre",
+    "report": "Signaler",
+    "newQuotation": "Nouveau devis",
+    "updatedQuotation": "Devis mis à jour",
+    "scope": "Périmètre :",
+    "amount": "Montant :",
+    "validUntil": "Valable jusqu'au {date}",
+    "viewAndRespond": "Voir et répondre",
+    "status": "Statut : {status}",
+    "warrantyStatuses": {
+      "open": "Ouverte",
+      "proposalSent": "Proposition envoyée",
+      "proposalAccepted": "Proposition acceptée",
+      "resolved": "Résolue",
+      "escalated": "Escaladée",
+      "closed": "Clôturée"
+    },
+    "quotationStatuses": {
+      "quoted": "Devis envoyé"
+    },
+    "openClaimDetails": "Ouvrir les détails de la réclamation",
+    "warrantyClaimUpdate": "Mise à jour de la réclamation de garantie",
+    "openWarrantyPage": "Ouvrir la page de garantie"
+  },
+  "report": {
+    "title": "Signaler le message",
+    "selectReason": "Veuillez sélectionner un motif",
+    "submitted": "Signalement envoyé",
+    "failed": "Échec de l'envoi du signalement",
+    "detailsPlaceholder": "Détails supplémentaires (facultatif)",
+    "submit": "Envoyer le signalement",
+    "reasons": {
+      "spam": "Spam",
+      "harassment": "Harcèlement",
+      "inappropriate": "Contenu inapproprié",
+      "scam": "Arnaque",
+      "other": "Autre"
+    }
+  },
+  "reviewCard": {
+    "title": "Nouvel avis de {name}",
+    "replyPublicly": "Répondre publiquement",
+    "replyPlaceholder": "Rédigez votre réponse publique...",
+    "postReply": "Publier la réponse",
+    "enterReply": "Veuillez saisir une réponse",
+    "replyPosted": "Réponse publiée",
+    "replyFailed": "Échec de la publication de la réponse"
+  },
+  "ratings": {
+    "communication": "Communication",
+    "valueOfDelivery": "Rapport qualité-prix",
+    "qualityOfService": "Qualité du service"
+  },
+  "composer": {
+    "cancelReply": "Annuler la réponse",
+    "removeFile": "Supprimer le fichier",
+    "attachFile": "Joindre un fichier",
+    "placeholder": "Écrivez un message...",
+    "send": "Envoyer le message"
+  },
+  "info": {
+    "title": "Infos",
+    "supportDescription": "Il s'agit d'une conversation officielle avec l'équipe Fixtract. Nous vous aidons pour tout ce qui concerne la plateforme.",
+    "memberSince": "Membre depuis {date}",
+    "viewProfile": "Voir le profil complet",
+    "openBooking": "Ouvrir la réservation",
+    "professionalInfo": "Informations sur le professionnel",
+    "level": "Niveau",
+    "tags": "Étiquettes",
+    "avgResponse": "Délai moyen de réponse",
+    "professionalRatings": "Évaluations du professionnel",
+    "customerRating": "Évaluation du client",
+    "averageFromProfessionals": "Moyenne attribuée par les professionnels",
+    "bookingHistory": "Historique des réservations",
+    "totalBookings": "Total des réservations",
+    "completed": "Terminées",
+    "noBookings": "Aucune réservation entre vous pour le moment",
+    "pendingOrders": "Commandes en attente",
+    "inProgress": "En cours",
+    "booked": "Réservée",
+    "start": "Début : {date}",
+    "duration": "Durée : {duration}",
+    "professionalLevels": {
+      "new": "Nouveau",
+      "level1": "Niveau 1",
+      "level2": "Niveau 2",
+      "level3": "Niveau 3",
+      "expert": "Expert"
+    },
+    "adminTags": {
+      "verified": "Vérifié",
+      "ourChoice": "Notre sélection"
+    }
+  },
+  "widget": {
+    "button": "Discuter",
+    "newChat": "Nouvelle conversation",
+    "backToConversations": "Retour aux conversations",
+    "startNewChat": "Démarrer une nouvelle conversation",
+    "minimize": "Réduire la messagerie",
+    "close": "Fermer la messagerie",
+    "startingConversation": "Démarrage de la conversation...",
+    "pickProfessional": "Choisissez un professionnel ci-dessous et nous ouvrons la conversation immédiatement."
+  },
+  "startChatButton": {
+    "label": "Démarrer la conversation",
+    "onlyCustomers": "Seuls les clients peuvent démarrer des conversations"
+  }
+}

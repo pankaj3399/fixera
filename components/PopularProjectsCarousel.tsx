@@ -3,8 +3,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, MapPin, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import type { PopularProject } from '@/lib/popularProject';
 
 export type { PopularProject };
@@ -16,8 +18,11 @@ interface PopularProjectsCarouselProps {
 
 const PopularProjectsCarousel = ({
   projects,
-  heading = 'Popular Projects',
+  heading,
 }: PopularProjectsCarouselProps) => {
+  const t = useTranslations('home');
+  const { formatPrice } = useCurrency();
+  const headingText = heading ?? t('popularProjects.heading');
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -53,10 +58,12 @@ const PopularProjectsCarousel = ({
     });
   };
 
-  const formatPrice = (price: number | null, type: string) => {
-    if (price === null) return type === 'rfq' ? 'RFQ' : 'Price on request';
-    if (type === 'unit' || type === 'rfq') return `From \u20AC${price.toLocaleString()}`;
-    return `\u20AC${price.toLocaleString()}`;
+  const formatProjectPrice = (price: number | null, type: string) => {
+    if (price === null) return type === 'rfq' ? t('popularProjects.rfq') : t('popularProjects.priceOnRequest');
+    if (type === 'unit' || type === 'rfq') {
+      return t('popularProjects.fromPrice', { price: formatPrice(price) });
+    }
+    return formatPrice(price);
   };
 
   if (projects.length === 0) return null;
@@ -64,13 +71,13 @@ const PopularProjectsCarousel = ({
   return (
     <div className="mt-10 max-w-5xl mx-auto text-left">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">{heading}</h3>
+        <h3 className="text-lg font-semibold text-gray-800">{headingText}</h3>
         <div className="flex gap-2">
           <button
             onClick={() => scroll('left')}
             disabled={!canScrollLeft}
             className="p-1.5 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Scroll left"
+            aria-label={t('popularProjects.scrollPrevious')}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -78,7 +85,7 @@ const PopularProjectsCarousel = ({
             onClick={() => scroll('right')}
             disabled={!canScrollRight}
             className="p-1.5 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label="Scroll right"
+            aria-label={t('popularProjects.scrollNext')}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -113,7 +120,7 @@ const PopularProjectsCarousel = ({
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-sm text-gray-400">
-                      No preview
+                      {t('popularProjects.noPreview')}
                     </div>
                   )}
                   <Badge className="absolute top-2 right-2 bg-blue-600 text-white text-[10px]">
@@ -131,7 +138,7 @@ const PopularProjectsCarousel = ({
                   </Badge>
 
                   <p className="text-sm font-bold text-gray-900 mb-2">
-                    {formatPrice(project.startingPrice, project.priceType)}
+                    {formatProjectPrice(project.startingPrice, project.priceType)}
                   </p>
 
                   {project.avgRating > 0 && (
@@ -151,7 +158,7 @@ const PopularProjectsCarousel = ({
                       {project.professional.profileImage ? (
                         <Image
                           src={project.professional.profileImage}
-                          alt={project.professional.name || 'Professional'}
+                          alt={project.professional.name || t('popularProjects.professionalAlt')}
                           width={24}
                           height={24}
                           className="w-6 h-6 rounded-full object-cover"
@@ -163,7 +170,7 @@ const PopularProjectsCarousel = ({
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-medium text-gray-800 truncate">
-                          {project.professional.name || 'Unknown'}
+                          {project.professional.name || t('popularProjects.unknownProfessional')}
                         </p>
                         {profLocation && (
                           <p className="text-[10px] text-gray-500 flex items-center gap-0.5 truncate">

@@ -1,0 +1,122 @@
+{
+  "breadcrumbs": {
+    "home": "Home",
+    "about": "About",
+    "blog": "Blog",
+    "news": "News",
+    "faq": "FAQ",
+    "privacyPolicy": "Privacy Policy"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {totalPages}"
+  },
+  "byAuthor": "by {author}",
+  "about": {
+    "metaTitle": "About Fixtract",
+    "metaDescription": "Learn about Fixtract — our mission to connect customers with verified professionals for every property service.",
+    "missionBadge": "Our Mission",
+    "title": "Rebuilding Trust in Property Services.",
+    "description": "Fixtract was founded on a simple principle: finding reliable, skilled professionals for your home shouldn't be a gamble. We're dedicated to creating a transparent, secure, and high-quality platform for homeowners and professionals alike.",
+    "values": {
+      "trust": {
+        "title": "Trust & Safety",
+        "description": "Every professional is verified, and every project is protected by our Fixtract Guarantee."
+      },
+      "quality": {
+        "title": "Commitment to Quality",
+        "description": "We are relentless in our pursuit of high-quality craftsmanship and exceptional service."
+      },
+      "community": {
+        "title": "Community Focused",
+        "description": "We empower local professionals and help build stronger communities, one project at a time."
+      }
+    },
+    "team": {
+      "title": "The People Behind the Platform",
+      "description": "A passionate team dedicated to improving the property service industry.",
+      "roles": {
+        "alex": "Founder & CEO",
+        "jasmine": "Head of Operations",
+        "leo": "Lead Product Designer",
+        "sofia": "Head of Professional Relations"
+      }
+    }
+  },
+  "blog": {
+    "metaTitle": "Blog",
+    "metaDescription": "Insights, guides, and stories from the Fixtract community. Tips for homeowners and professionals on renovation, maintenance, and building projects.",
+    "title": "The Fixtract Blog",
+    "subtitle": "Tips, stories, and insider advice on home projects.",
+    "filteredBy": "Filtered by",
+    "emptyTitle": "Nothing published yet",
+    "emptyDescription": "Stay tuned — new posts are on the way.",
+    "notFoundTitle": "Post not found",
+    "backToBlog": "Back to blog"
+  },
+  "news": {
+    "metaTitle": "News",
+    "metaDescription": "Platform updates, announcements, and product news from Fixtract.",
+    "title": "Fixtract News",
+    "subtitle": "Platform updates, announcements, and product news.",
+    "emptyTitle": "No news yet",
+    "emptyDescription": "Check back soon.",
+    "notFoundTitle": "News",
+    "articleNotFoundTitle": "News article not found",
+    "unavailableTitle": "This article is temporarily unavailable",
+    "unavailableDescription": "Please try again in a moment.",
+    "allNews": "All news"
+  },
+  "faq": {
+    "metaTitle": "Frequently Asked Questions",
+    "metaDescription": "Answers to the most common questions about using Fixtract — booking, payments, warranty, professionals, and more.",
+    "title": "Frequently Asked Questions",
+    "subtitle": "Answers to the questions we hear most often.",
+    "emptyTitle": "No questions yet",
+    "emptyDescription": "FAQ content is being prepared.",
+    "stillQuestions": "Still have questions?",
+    "happyToHelp": "We're happy to help.",
+    "contactSupport": "Contact support",
+    "categories": {
+      "general": "General",
+      "booking": "Booking",
+      "paymentsInvoicing": "Payments & Invoicing",
+      "warrantyDisputes": "Warranty & Disputes",
+      "professionals": "For Professionals",
+      "account": "Account & Profile"
+    },
+    "questionCount": "{count, plural, one {# question} other {# questions}}"
+  },
+  "cmsPage": {
+    "notFoundTitle": "Page not found"
+  },
+  "privacyPolicy": {
+    "metaTitle": "Privacy Policy",
+    "metaDescription": "Read Fixtract's privacy policy — how we collect, use, and protect your personal data.",
+    "comingSoonTitle": "Privacy policy coming soon",
+    "comingSoonDescription": "This content is being prepared and will be published shortly."
+  },
+  "articleRelated": {
+    "relatedService": "Related service",
+    "exploreService": "Explore {service}",
+    "serviceDescription": "Find verified professionals and more guides for this service on Fixtract.",
+    "viewService": "View {service}",
+    "relatedReading": "Related reading",
+    "relatedReadingDescription": "More articles you may find useful."
+  },
+  "announcements": {
+    "previewAria": "Announcement preview",
+    "promotionAria": "Site promotion",
+    "close": "Close",
+    "beforeYouGo": "Before you go",
+    "limitedOffer": "Limited offer",
+    "promoCode": "Promo code",
+    "copyCode": "Copy promo code",
+    "codeCopied": "Code copied",
+    "copyFailed": "Could not copy code",
+    "maybeLater": "Maybe later",
+    "claimOffer": "Claim offer",
+    "previewToast": "Showing preview for {seconds} seconds"
+  }
+}

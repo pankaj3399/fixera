@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +34,7 @@ interface ServiceCategory {
 
 // Reusable Service Card Component
 const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service; categoryName: string; categoryIcon?: IconName }) => {
+  const t = useTranslations('catalog');
   const serviceIconName = getServiceIconName(service.slug, service.icon) as IconName;
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col">
@@ -52,14 +54,14 @@ const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service
         <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">
           <div className="flex items-center gap-1.5">
             <Shield className="w-4 h-4 text-green-500" />
-            <span className="text-gray-700 font-medium">Verified Service</span>
+            <span className="text-gray-700 font-medium">{t('servicesPage.verifiedService')}</span>
           </div>
         </div>
       </CardContent>
       <div className="p-4 border-t">
         <Button asChild size="sm" className="w-full">
           <Link href={`/services/${service.slug}`}>
-            View Details <ArrowRight className="w-4 h-4 ml-2" />
+            {t('servicesPage.viewDetails')} <ArrowRight className="w-4 h-4 ml-2" />
           </Link>
         </Button>
       </div>
@@ -69,18 +71,13 @@ const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service
 
 // The Main Page Component
 export default function ServicesHubPage() {
+  const t = useTranslations('catalog');
   const [activeCategory, setActiveCategory] = useState('all');
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const ac = new AbortController();
-    fetchServiceCategories(ac.signal);
-    return () => ac.abort();
-  }, []);
-
-  const fetchServiceCategories = async (signal?: AbortSignal) => {
+  const fetchServiceCategories = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -98,12 +95,18 @@ export default function ServicesHubPage() {
     } catch (error) {
       if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return;
       console.error('Error fetching service categories:', error);
-      setError('Unable to load services. Please try again later.');
-      toast.error('Failed to load services');
+      setError(t('servicesPage.errorMessage'));
+      toast.error(t('servicesPage.toastError'));
     } finally {
       if (!signal?.aborted) setIsLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchServiceCategories(ac.signal);
+    return () => ac.abort();
+  }, [fetchServiceCategories]);
 
   const getFilteredData = () => {
     if (activeCategory === 'all') {
@@ -164,10 +167,10 @@ export default function ServicesHubPage() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
           <div className="flex flex-col items-center justify-center py-20">
             <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Services</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('servicesPage.errorTitle')}</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <Button onClick={() => fetchServiceCategories()}>
-              Try Again
+              {t('tryAgain')}
             </Button>
           </div>
         </main>
@@ -179,15 +182,15 @@ export default function ServicesHubPage() {
     <div className="bg-white">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
         <div className="mb-12">
-          <h1 className="text-5xl font-bold text-gray-900">All Services</h1>
+          <h1 className="text-5xl font-bold text-gray-900">{t('servicesPage.title')}</h1>
           <p className="mt-4 text-xl text-gray-600 max-w-3xl">
-            Explore the full range of professional services available on Fixtract. Find exactly what you need for your next project.
+            {t('servicesPage.description')}
           </p>
         </div>
 
         <Tabs defaultValue="all" onValueChange={setActiveCategory} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 h-auto">
-            <TabsTrigger value="all">All Services</TabsTrigger>
+            <TabsTrigger value="all">{t('servicesPage.title')}</TabsTrigger>
             {categories.map(cat => (
               <TabsTrigger key={cat.slug} value={cat.slug}>{cat.name}</TabsTrigger>
             ))}
@@ -197,12 +200,12 @@ export default function ServicesHubPage() {
             <div className="mt-12">
               <h2 className="text-3xl font-bold text-gray-900 mb-6">
                 {activeCategory === 'all'
-                  ? 'All Services'
-                  : categories.find(c => c.slug === activeCategory)?.name || 'Services'}
+                  ? t('servicesPage.title')
+                  : categories.find(c => c.slug === activeCategory)?.name || t('servicesPage.servicesLabel')}
               </h2>
               {filteredData.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-gray-600">No services available in this category.</p>
+                  <p className="text-gray-600">{t('servicesPage.empty')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">

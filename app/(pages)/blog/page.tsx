@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { type CmsContent } from "@/lib/cms";
 import { publicListCms } from "@/lib/cms/public";
 import BlogCard from "@/components/cms/BlogCard";
@@ -9,17 +10,21 @@ import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 
 export const revalidate = 21600;
 
-export const metadata: Metadata = buildMetadata({
-  title: "Blog",
-  description: "Insights, guides, and stories from the Fixtract community. Tips for homeowners and professionals on renovation, maintenance, and building projects.",
-  path: "/blog",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("content");
+  return buildMetadata({
+    title: t("blog.metaTitle"),
+    description: t("blog.metaDescription"),
+    path: "/blog",
+  });
+}
 
 interface PageProps {
   searchParams: Promise<{ page?: string; tag?: string }>;
 }
 
 export default async function BlogIndexPage({ searchParams }: PageProps) {
+  const t = await getTranslations("content");
   const { page: pageRaw, tag } = await searchParams;
   const page = Math.max(1, parseInt(pageRaw || "1", 10) || 1);
   const res = await publicListCms("blog", { page, limit: 12, tag });
@@ -28,13 +33,18 @@ export default async function BlogIndexPage({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white pt-24 pb-20">
-      <JsonLd data={breadcrumbSchema([{ name: "Home", path: "/" }, { name: "Blog", path: "/blog" }])} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: t("breadcrumbs.home"), path: "/" },
+          { name: t("breadcrumbs.blog"), path: "/blog" },
+        ])}
+      />
       <div className="mx-auto max-w-6xl px-6">
-        <Header title="The Fixtract Blog" subtitle="Tips, stories, and insider advice on home projects." />
+        <Header title={t("blog.title")} subtitle={t("blog.subtitle")} />
 
         {tag && (
           <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-100 to-pink-100 px-4 py-1.5 text-sm text-rose-700">
-            Filtered by <span className="font-semibold">#{tag}</span>
+            {t("blog.filteredBy")} <span className="font-semibold">#{tag}</span>
             <Link href="/blog" className="text-rose-500 hover:text-rose-700">×</Link>
           </div>
         )}
@@ -79,16 +89,19 @@ function Header({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function EmptyBlog() {
+async function EmptyBlog() {
+  const t = await getTranslations("content");
+
   return (
     <div className="rounded-3xl border border-dashed border-pink-300 bg-gradient-to-br from-rose-50 via-pink-50 to-white py-20 text-center">
-      <h2 className="text-xl font-semibold text-rose-900">Nothing published yet</h2>
-      <p className="mt-2 text-sm text-rose-500">Stay tuned — new posts are on the way.</p>
+      <h2 className="text-xl font-semibold text-rose-900">{t("blog.emptyTitle")}</h2>
+      <p className="mt-2 text-sm text-rose-500">{t("blog.emptyDescription")}</p>
     </div>
   );
 }
 
-function Pagination({ page, totalPages, basePath, tag }: { page: number; totalPages: number; basePath: string; tag?: string }) {
+async function Pagination({ page, totalPages, basePath, tag }: { page: number; totalPages: number; basePath: string; tag?: string }) {
+  const t = await getTranslations("content");
   const link = (p: number) => {
     const qs = new URLSearchParams({ page: String(p) });
     if (tag) qs.set("tag", tag);
@@ -98,15 +111,15 @@ function Pagination({ page, totalPages, basePath, tag }: { page: number; totalPa
     <div className="mt-10 flex items-center justify-center gap-2">
       {page > 1 && (
         <Link href={link(page - 1)} className="rounded-xl border border-pink-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50">
-          Previous
+          {t("pagination.previous")}
         </Link>
       )}
       <span className="rounded-xl bg-gradient-to-r from-rose-100 to-pink-100 px-4 py-2 text-sm font-medium text-rose-700">
-        Page {page} of {totalPages}
+        {t("pagination.pageOf", { page, totalPages })}
       </span>
       {page < totalPages && (
         <Link href={link(page + 1)} className="rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200 transition hover:shadow-lg hover:shadow-rose-300">
-          Next
+          {t("pagination.next")}
         </Link>
       )}
     </div>

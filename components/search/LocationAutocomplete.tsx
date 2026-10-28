@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Input } from '@/components/ui/input'
 import { MapPin } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/useGoogleMaps'
@@ -27,10 +28,11 @@ interface LocationAutocompleteProps {
 export default function LocationAutocomplete({
   value,
   onChange,
-  placeholder = 'Location',
+  placeholder,
   className = '',
   id = 'location-search'
 }: LocationAutocompleteProps) {
+  const t = useTranslations('search')
   const inputRef = useRef<HTMLInputElement>(null)
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
   const { isLoaded, loadGoogleMaps } = useGoogleMaps()
@@ -131,7 +133,7 @@ export default function LocationAutocomplete({
       <Input
         ref={inputRef}
         id={id}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('filters.location')}
         value={value}
         onFocus={enableAutocomplete}
         onPointerDown={enableAutocomplete}

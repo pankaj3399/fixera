@@ -1,0 +1,301 @@
+{
+  "breadcrumbs": {
+    "home": "Accueil",
+    "services": "Services",
+    "categories": "Catégories"
+  },
+  "tryAgain": "Réessayer",
+  "startingAt": "À partir de",
+  "browseAllServices": "Voir tous les services",
+  "categoriesLayout": {
+    "metaTitle": "Catégories de services",
+    "metaDescription": "Découvrez les catégories de services Fixtract — intérieur, extérieur, structure et plus encore."
+  },
+  "categoryLayout": {
+    "fallbackDescription": "Découvrez des professionnels vérifiés pour {category} sur Fixtract."
+  },
+  "categoryPage": {
+    "description": "Trouvez des professionnels vérifiés en {category}",
+    "coverAlt": "Professionnels en {category}",
+    "verifiedProfessional": "Professionnel vérifié",
+    "newBadge": "(Nouveau)",
+    "perHour": "{price}/h",
+    "startChat": "Démarrer la discussion",
+    "locationNotSpecified": "Localisation non précisée",
+    "errorTitle": "Impossible de charger les professionnels",
+    "errorMessage": "Impossible de charger les professionnels. Veuillez réessayer plus tard.",
+    "toastError": "Échec du chargement des professionnels",
+    "emptyTitle": "Aucun professionnel trouvé",
+    "emptyDescription": "Nous n'avons actuellement aucun professionnel dans cette catégorie. Revenez bientôt ou explorez d'autres catégories."
+  },
+  "servicesLayout": {
+    "metaTitle": "Services",
+    "metaDescription": "Parcourez le catalogue complet des services proposés sur Fixtract — intérieur, extérieur, structure et plus encore. Trouvez des professionnels vérifiés près de chez vous."
+  },
+  "servicesPage": {
+    "title": "Tous les services",
+    "description": "Découvrez toute la gamme de services professionnels disponibles sur Fixtract. Trouvez exactement ce qu'il vous faut pour votre prochain projet.",
+    "servicesLabel": "Services",
+    "verifiedService": "Service vérifié",
+    "viewDetails": "Voir les détails",
+    "empty": "Aucun service disponible dans cette catégorie.",
+    "errorTitle": "Impossible de charger les services",
+    "errorMessage": "Impossible de charger les services. Veuillez réessayer plus tard.",
+    "toastError": "Échec du chargement des services"
+  },
+  "servicePage": {
+    "fallbackMetaDescription": "Trouvez des professionnels vérifiés pour {service} sur Fixtract.",
+    "missingMetaDescription": "Les informations sur {service} sur Fixtract sont en cours de préparation. Découvrez nos autres services en attendant.",
+    "popularProjectsHeading": "Projets populaires : {service}",
+    "relatedArticles": "Articles associés",
+    "moreReading": "Pour en savoir plus sur {service}.",
+    "coverAlt": "Aperçu de {service}",
+    "comingSoon": "Bientôt disponible",
+    "comingSoonDescription": "Nous finalisons cette page. En attendant, découvrez les autres services disponibles sur Fixtract ou contactez-nous : nous vous aiderons à trouver le bon professionnel.",
+    "contactUs": "Nous contacter",
+    "backHome": "← Retour à l'accueil"
+  },
+  "levels": {
+    "topRated": "Très bien noté",
+    "level1": "Niveau 1",
+    "level2": "Niveau 2"
+  },
+  "landingSearch": {
+    "serviceLabel": "Rechercher un service",
+    "servicePlaceholder": "De quel service avez-vous besoin ?",
+    "locationLabel": "Localisation",
+    "locationPlaceholder": "Ville, pays",
+    "submit": "Rechercher"
+  },
+  "tableOfContents": {
+    "onThisPage": "Sur cette page",
+    "sections": "{count, plural, one {# section} other {# sections}}"
+  },
+  "names": {
+    "categories": {
+      "interior-services": {
+        "name": "Services d'intérieur",
+        "description": "Transformez l'intérieur de votre logement grâce à nos services d'intérieur experts."
+      },
+      "exterior-structural": {
+        "name": "Extérieur et structure",
+        "description": "Améliorez l'aspect extérieur et la solidité structurelle de votre logement."
+      },
+      "outdoor-garden": {
+        "name": "Extérieur et jardin",
+        "description": "Créez et entretenez votre havre de paix extérieur."
+      }
+    },
+    "services": {
+      "interior-design": {
+        "name": "Design d'intérieur",
+        "description": "Concevez et planifiez l'espace parfait."
+      },
+      "3d-modeling": {
+        "name": "Modélisation 3D",
+        "description": "Visualisez votre projet avant même de commencer."
+      },
+      "plumbing-services": {
+        "name": "Plomberie",
+        "description": "Robinetterie qui fuit, nouvelles installations et plus encore."
+      },
+      "electrical-work": {
+        "name": "Travaux électriques",
+        "description": "Des services électriques sûrs et certifiés."
+      },
+      "hvac-services": {
+        "name": "CVC",
+        "description": "Chauffage, ventilation et climatisation."
+      },
+      "painting-services": {
+        "name": "Peinture",
+        "description": "Peinture intérieure et extérieure professionnelle."
+      },
+      "flooring-tiling": {
+        "name": "Revêtements de sol et carrelage",
+        "description": "Pose de parquet, de carrelage et de moquette."
+      },
+      "carpentry": {
+        "name": "Menuiserie",
+        "description": "Étagères sur mesure, mobilier et finitions."
+      },
+      "home-renovation": {
+        "name": "Rénovation complète",
+        "description": "Projets de rénovation de grande envergure."
+      },
+      "roofing": {
+        "name": "Toiture",
+        "description": "Réparations, remplacement et nouvelles installations."
+      },
+      "masonry-brickwork": {
+        "name": "Maçonnerie",
+        "description": "Murs, terrasses et réparations structurelles."
+      },
+      "window-door-installation": {
+        "name": "Fenêtres et portes",
+        "description": "Installation et remplacement."
+      },
+      "siding-cladding": {
+        "name": "Bardage",
+        "description": "Protégez et embellissez l'extérieur de votre logement."
+      },
+      "garden-landscaping": {
+        "name": "Aménagement paysager",
+        "description": "Conception complète de jardins et d'espaces verts."
+      },
+      "lawn-care": {
+        "name": "Entretien de pelouse",
+        "description": "Tonte, fertilisation et entretien."
+      },
+      "deck-patio-building": {
+        "name": "Terrasses et planchers extérieurs",
+        "description": "Créez votre espace de vie extérieur idéal."
+      },
+      "fence-installation": {
+        "name": "Clôtures",
+        "description": "Installation et réparation de tous types de clôtures."
+      }
+    },
+    "navServices": {
+      "full-renovation": {
+        "name": "Rénovation complète de la maison"
+      },
+      "kitchen-remodeling": {
+        "name": "Rénovation de cuisine"
+      },
+      "bathroom-remodeling": {
+        "name": "Rénovation de salle de bain"
+      },
+      "basement-finishing": {
+        "name": "Aménagement de sous-sol"
+      },
+      "roofing-services": {
+        "name": "Toiture et gouttières"
+      },
+      "flooring-installation": {
+        "name": "Installation de revêtements de sol"
+      },
+      "demolition-services": {
+        "name": "Travaux de démolition"
+      },
+      "architectural-design": {
+        "name": "Conception architecturale"
+      },
+      "landscape-design": {
+        "name": "Aménagement paysager"
+      },
+      "lighting-design": {
+        "name": "Conception d’éclairage"
+      },
+      "permit-drawing": {
+        "name": "Plans de permis et planification"
+      },
+      "structural-engineering": {
+        "name": "Ingénierie structurelle"
+      },
+      "space-planning": {
+        "name": "Aménagement de l’espace"
+      },
+      "emergency-plumbing": {
+        "name": "Plomberie d’urgence"
+      },
+      "pipe-installation": {
+        "name": "Installation et réparation de tuyaux"
+      },
+      "electrical-wiring": {
+        "name": "Câblage et recâblage électrique"
+      },
+      "fixture-installation": {
+        "name": "Installation d’appareils et de luminaires"
+      },
+      "boiler-maintenance": {
+        "name": "Entretien et réparation de chaudières"
+      },
+      "solar-panel-installation": {
+        "name": "Installation de panneaux solaires"
+      },
+      "charging-station": {
+        "name": "Installation de bornes de recharge pour VE"
+      },
+      "interior-painting": {
+        "name": "Peinture intérieure"
+      },
+      "exterior-painting": {
+        "name": "Peinture extérieure"
+      },
+      "wallpaper-installation": {
+        "name": "Pose de papier peint"
+      },
+      "plastering-drywall": {
+        "name": "Plâtrerie et cloisons sèches"
+      },
+      "tiling-services": {
+        "name": "Travaux de carrelage"
+      },
+      "finish-carpentry": {
+        "name": "Menuiserie de finition"
+      },
+      "cabinet-refinishing": {
+        "name": "Rénovation de meubles"
+      },
+      "deck-staining": {
+        "name": "Teinture de terrasses"
+      },
+      "garden-maintenance": {
+        "name": "Entretien de jardin et pelouse"
+      },
+      "deck-patio-construction": {
+        "name": "Construction de terrasses et patios"
+      },
+      "driveway-paving": {
+        "name": "Pavage et scellement d’allées"
+      },
+      "pool-installation": {
+        "name": "Installation et entretien de piscines"
+      },
+      "tree-surgery": {
+        "name": "Élagage et abattage d’arbres"
+      },
+      "outdoor-lighting": {
+        "name": "Éclairage extérieur"
+      },
+      "irrigation-systems": {
+        "name": "Systèmes d’irrigation"
+      },
+      "deep-house-cleaning": {
+        "name": "Nettoyage complet de la maison"
+      },
+      "window-cleaning": {
+        "name": "Nettoyage des vitres"
+      },
+      "gutter-cleaning": {
+        "name": "Nettoyage des gouttières"
+      },
+      "pest-control": {
+        "name": "Lutte contre les nuisibles"
+      },
+      "pressure-washing": {
+        "name": "Nettoyage haute pression"
+      },
+      "handyman-services": {
+        "name": "Services de bricolage généraux"
+      },
+      "furniture-assembly": {
+        "name": "Montage de meubles"
+      },
+      "appliance-repair": {
+        "name": "Réparation d’appareils"
+      }
+    }
+  },
+  "fallbackProfessionals": {
+    "titles": {
+      "prof-1": "Designer d’intérieur moderne très bien noté",
+      "prof-2": "Aménageur d’espaces minimaliste et scandinave",
+      "prof-3": "Home stylist bohème et éclectique",
+      "prof-4": "Designer d’espaces commerciaux et de bureaux",
+      "prof-5": "Designer résidentiel haut de gamme",
+      "prof-6": "Expert en design durable et écologique"
+    }
+  }
+}

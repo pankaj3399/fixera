@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ArrowRight, Check, Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export function PromoOverlay({
   variant: "offer" | "exit";
   isPreview?: boolean;
 }) {
+  const t = useTranslations("content");
   const href = resolveAnnouncementHref(announcement);
   const [copied, setCopied] = useState(false);
   const canDismiss = announcement.dismissible || isPreview;
@@ -41,11 +43,11 @@ export function PromoOverlay({
     try {
       await navigator.clipboard.writeText(announcement.discountCode);
       setCopied(true);
-      toast.success("Code copied");
+      toast.success(t("announcements.codeCopied"));
       if (!canDismiss) onCta();
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Could not copy code");
+      toast.error(t("announcements.copyFailed"));
       // Failed copy must not count as a CTA click for analytics; still acknowledge
       // non-dismissible offers so the overlay can clear.
       if (!canDismiss) onClose();
@@ -73,7 +75,7 @@ export function PromoOverlay({
         {canDismiss ? (
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t("announcements.close")}
             className="absolute right-3 top-3 z-10 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             onClick={onClose}
           >
@@ -83,7 +85,7 @@ export function PromoOverlay({
 
         <DialogHeader className="space-y-1 border-b border-slate-100 bg-slate-50 px-6 pb-5 pt-6 text-left">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-            {variant === "exit" ? "Before you go" : "Limited offer"}
+            {variant === "exit" ? t("announcements.beforeYouGo") : t("announcements.limitedOffer")}
           </p>
           <DialogTitle className="pr-8 text-xl font-semibold leading-snug text-slate-900">
             {announcement.title}
@@ -99,7 +101,7 @@ export function PromoOverlay({
             <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                  Promo code
+                  {t("announcements.promoCode")}
                 </p>
                 <p className="font-mono text-base font-semibold text-slate-900">
                   {announcement.discountCode}
@@ -110,7 +112,7 @@ export function PromoOverlay({
                 variant="outline"
                 size="sm"
                 onClick={copyCode}
-                aria-label="Copy promo code"
+                aria-label={t("announcements.copyCode")}
               >
                 {copied ? (
                   <Check className="h-4 w-4 text-emerald-600" />
@@ -124,19 +126,19 @@ export function PromoOverlay({
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
             {canDismiss ? (
               <Button variant="ghost" size="sm" className="order-2 sm:order-1" onClick={onClose}>
-                Maybe later
+                {t("announcements.maybeLater")}
               </Button>
             ) : null}
             {href && !isPreview ? (
               <Button asChild size="sm" className="order-1 sm:order-2" onClick={onCta}>
                 <Link href={href} className="gap-1.5">
-                  {announcement.ctaLabel || "Claim offer"}
+                  {announcement.ctaLabel || t("announcements.claimOffer")}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </Button>
             ) : href ? (
               <Button size="sm" className="order-1 sm:order-2" type="button" tabIndex={-1}>
-                {announcement.ctaLabel || "Claim offer"}
+                {announcement.ctaLabel || t("announcements.claimOffer")}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             ) : null}

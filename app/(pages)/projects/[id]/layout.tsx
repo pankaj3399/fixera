@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -33,19 +34,20 @@ async function fetchProject(id: string): Promise<ProjectData | null> {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
+  const t = await getTranslations("projects");
   const project = await fetchProject(id);
   const safePath = `/projects/${encodeURIComponent(id)}`;
   if (!project) {
     return buildMetadata({
-      title: "Project",
-      description: "View a published project on Fixtract.",
+      title: t("meta.projectTitle"),
+      description: t("meta.projectDescription"),
       path: safePath,
     });
   }
-  const title = project.title || "Project";
+  const title = project.title || t("meta.projectTitle");
   const description =
     (project.description && project.description.slice(0, 160)) ||
-    `A ${title.toLowerCase()} project listed by a verified Fixtract professional.`;
+    t("meta.projectFallbackDescription", { title: title.toLowerCase() });
   const image = project.coverImage || project.images?.[0];
   return buildMetadata({
     title,
@@ -57,15 +59,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProjectLayout({ children, params }: Props) {
   const { id } = await params;
+  const t = await getTranslations("projects");
   const project = await fetchProject(id);
   const safePath = `/projects/${encodeURIComponent(id)}`;
   return (
     <>
       <JsonLd
         data={breadcrumbSchema([
-          { name: "Home", path: "/" },
-          { name: "Projects", path: "/projects" },
-          { name: project?.title || "Project", path: safePath },
+          { name: t("meta.breadcrumbHome"), path: "/" },
+          { name: t("meta.breadcrumbProjects"), path: "/projects" },
+          { name: project?.title || t("meta.projectTitle"), path: safePath },
         ])}
       />
       {children}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import {
   Star,
@@ -35,6 +36,9 @@ import Link from "next/link"
 import StartChatButton from "@/components/chat/StartChatButton"
 import FavoriteButton from "@/components/favorites/FavoriteButton"
 import { useFavoriteStatus } from "@/hooks/useFavoriteStatus"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { CurrencySymbol } from "@/components/currency/CurrencySymbol"
+import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 interface ProfessionalData {
   _id: string
@@ -140,12 +144,13 @@ function RatingBar({ label, value, icon }: { label: string; value: number; icon?
 }
 
 function RatingScoreBadge({ rating, totalReviews }: { rating: number; totalReviews: number }) {
+  const t = useTranslations("professionalProfile")
   return (
     <div className="flex flex-col items-center gap-2 p-6 rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-100">
       <div className="text-5xl font-bold text-gray-900 tracking-tight">{rating.toFixed(1)}</div>
       <StarDisplay rating={rating} size="lg" />
       <p className="text-sm text-gray-500 font-medium">
-        {totalReviews} review{totalReviews !== 1 ? "s" : ""}
+        {t("page.reviewCount", { count: totalReviews })}
       </p>
     </div>
   )
@@ -154,6 +159,9 @@ function RatingScoreBadge({ rating, totalReviews }: { rating: number; totalRevie
 export default function ProfessionalProfilePage() {
   const params = useParams()
   const router = useRouter()
+  const t = useTranslations("professionalProfile")
+  const { formatPrice } = useCurrency()
+  const { intl } = useFormatLocale()
   const professionalId = params?.id as string
   const { user, loading: authLoading } = useAuth()
 
@@ -226,7 +234,7 @@ export default function ProfessionalProfilePage() {
       )
       const data = await res.json()
       if (!res.ok || !data.success) {
-        toast.error(data.msg || "Failed to load professional profile")
+        toast.error(data.msg || t("toast.loadFailed"))
         setProfessional(null)
         setReviews([])
         setRatingsSummary(null)
@@ -240,11 +248,11 @@ export default function ProfessionalProfilePage() {
       if (data.data.projects) setProjectOptions(data.data.projects)
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return
-      toast.error("Failed to load professional profile")
+      toast.error(t("toast.loadFailed"))
     } finally {
       setLoading(false)
     }
-  }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter])
+  }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter, t])
 
   useEffect(() => {
     if (!professionalId) return
@@ -257,7 +265,7 @@ export default function ProfessionalProfilePage() {
 
   const handleReply = async (bookingId: string) => {
     if (!replyText.trim()) {
-      toast.error("Please enter a reply")
+      toast.error(t("toast.replyRequired"))
       return
     }
 
@@ -278,15 +286,15 @@ export default function ProfessionalProfilePage() {
       )
       const data = await res.json()
       if (res.ok && data.success) {
-        toast.success("Reply posted successfully")
+        toast.success(t("toast.replyPosted"))
         setReplyingTo(null)
         setReplyText("")
         fetchReviews(page)
       } else {
-        toast.error(data.msg || "Failed to post reply")
+        toast.error(data.msg || t("toast.replyFailed"))
       }
     } catch {
-      toast.error("Failed to post reply")
+      toast.error(t("toast.replyFailed"))
     } finally {
       setSubmittingReply(false)
     }
@@ -308,13 +316,13 @@ export default function ProfessionalProfilePage() {
       )
       const data = await res.json()
       if (res.ok && data.success) {
-        toast.success("Review hidden")
+        toast.success(t("toast.reviewHidden"))
         fetchReviews(page)
       } else {
-        toast.error(data.msg || "Failed to hide review")
+        toast.error(data.msg || t("toast.reviewHideFailed"))
       }
     } catch {
-      toast.error("Failed to hide review")
+      toast.error(t("toast.reviewHideFailed"))
     } finally {
       setHidingReview(null)
     }
@@ -362,22 +370,22 @@ export default function ProfessionalProfilePage() {
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
             <MessageSquare className="h-7 w-7 text-gray-400" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800">Professional not found</h2>
-          <p className="text-gray-500 text-sm">This profile may have been removed or is no longer available.</p>
+          <h2 className="text-xl font-semibold text-gray-800">{t("page.notFoundTitle")}</h2>
+          <p className="text-gray-500 text-sm">{t("page.notFoundDescription")}</p>
           <Button variant="outline" onClick={() => router.push("/search")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Search
+            {t("page.backToSearch")}
           </Button>
         </div>
       </div>
     )
   }
 
-  const name = professional.username || professional.name || "Professional"
+  const name = professional.username || professional.name || t("page.professionalFallback")
   const personalName: string | null = professional.username && professional.name && professional.name !== professional.username ? professional.name : null
   const location = [professional.businessInfo?.city, professional.businessInfo?.country].filter(Boolean).join(", ")
   const memberSince = professional.createdAt
-    ? new Date(professional.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    ? new Date(professional.createdAt).toLocaleDateString(intl, { month: "long", year: "numeric" })
     : null
   const hasReviews = ratingsSummary && ratingsSummary.totalReviews > 0
 
@@ -393,7 +401,7 @@ export default function ProfessionalProfilePage() {
           onClick={() => router.back()}
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
-          Back
+          {t("page.back")}
         </Button>
 
         {/* Hero Card */}
@@ -430,13 +438,13 @@ export default function ProfessionalProfilePage() {
                       {memberSince && (
                         <span className="flex items-center gap-1.5">
                           <Calendar className="h-4 w-4 text-gray-400" />
-                          Since {memberSince}
+                          {t("page.since", { date: memberSince })}
                         </span>
                       )}
                       {professional.hourlyRate && (
                         <span className="flex items-center gap-1.5 font-medium text-gray-700">
-                          <Euro className="h-4 w-4 text-gray-400" />
-                          {professional.currency || "\u20AC"}{professional.hourlyRate}/hr
+                          <CurrencySymbol className="h-4 w-4 text-gray-400" />
+                          {t("page.perHour", { price: formatPrice(professional.hourlyRate) })}
                         </span>
                       )}
                       {professional.businessInfo?.website && (() => {
@@ -451,7 +459,7 @@ export default function ProfessionalProfilePage() {
                               className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 hover:underline"
                             >
                               <Globe className="h-4 w-4" />
-                              Website
+                              {t("page.website")}
                             </a>
                           )
                         } catch {
@@ -477,7 +485,7 @@ export default function ProfessionalProfilePage() {
                     <div className="shrink-0 flex flex-col gap-2 sm:items-end">
                       <StartChatButton
                         professionalId={professional._id}
-                        label="Send Message"
+                        label={t("page.sendMessage")}
                         variant="default"
                         size="default"
                       />
@@ -497,7 +505,7 @@ export default function ProfessionalProfilePage() {
                   {isOwner && (
                     <Badge variant="secondary" className="text-xs">
                       <Shield className="h-3 w-3 mr-1" />
-                      Your Profile
+                      {t("page.yourProfile")}
                     </Badge>
                   )}
                 </div>
@@ -517,7 +525,7 @@ export default function ProfessionalProfilePage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-indigo-500" />
-                  Rating Overview
+                  {t("page.ratingOverview")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -529,17 +537,17 @@ export default function ProfessionalProfilePage() {
                     />
                     <div className="space-y-4 pt-2">
                       <RatingBar
-                        label="Communication"
+                        label={t("page.communication")}
                         value={ratingsSummary!.avgCommunication}
                         icon={<MessageSquare className="h-3.5 w-3.5 text-gray-400" />}
                       />
                       <RatingBar
-                        label="Value of Delivery"
+                        label={t("page.valueOfDelivery")}
                         value={ratingsSummary!.avgValueOfDelivery}
                         icon={<Euro className="h-3.5 w-3.5 text-gray-400" />}
                       />
                       <RatingBar
-                        label="Quality of Service"
+                        label={t("page.qualityOfService")}
                         value={ratingsSummary!.avgQualityOfService}
                         icon={<Star className="h-3.5 w-3.5 text-gray-400" />}
                       />
@@ -550,7 +558,7 @@ export default function ProfessionalProfilePage() {
                     <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
                       <Star className="h-5 w-5 text-gray-300" />
                     </div>
-                    <p className="text-sm text-gray-400">No reviews yet</p>
+                    <p className="text-sm text-gray-400">{t("page.noReviewsYet")}</p>
                   </div>
                 )}
               </CardContent>
@@ -561,23 +569,23 @@ export default function ProfessionalProfilePage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <Shield className="h-4 w-4 text-green-500" />
-                  Verified Professional
+                  {t("page.verifiedProfessional")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center gap-2.5 text-gray-600">
                     <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                    <span>Identity verified</span>
+                    <span>{t("page.identityVerified")}</span>
                   </div>
                   <div className="flex items-center gap-2.5 text-gray-600">
                     <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                    <span>Professional approved</span>
+                    <span>{t("page.professionalApproved")}</span>
                   </div>
                   {hasReviews && (
                     <div className="flex items-center gap-2.5 text-gray-600">
                       <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                      <span>{ratingsSummary!.totalReviews} verified review{ratingsSummary!.totalReviews !== 1 ? "s" : ""}</span>
+                      <span>{t("page.verifiedReviews", { count: ratingsSummary!.totalReviews })}</span>
                     </div>
                   )}
                 </div>
@@ -592,7 +600,7 @@ export default function ProfessionalProfilePage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
                     <Quote className="h-5 w-5 text-indigo-500" />
-                    Customer Reviews
+                    {t("page.customerReviews")}
                     {hasReviews && (
                       <Badge variant="secondary" className="ml-1 text-xs font-medium">
                         {ratingsSummary!.totalReviews}
@@ -607,7 +615,7 @@ export default function ProfessionalProfilePage() {
                     <div className="relative flex-1">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
-                        placeholder="Search reviews..."
+                        placeholder={t("page.searchReviews")}
                         value={reviewSearch}
                         onChange={(e) => { setReviewSearch(e.target.value); setPage(1) }}
                         className="pl-9 h-9 text-sm"
@@ -619,7 +627,7 @@ export default function ProfessionalProfilePage() {
                         onChange={(e) => { setReviewProjectFilter(e.target.value); setPage(1) }}
                         className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                       >
-                        <option value="">All Projects</option>
+                        <option value="">{t("page.allProjects")}</option>
                         {projectOptions.map((p) => (
                           <option key={p._id} value={p._id}>{p.title}</option>
                         ))}
@@ -645,7 +653,7 @@ export default function ProfessionalProfilePage() {
                         className="h-8 px-2 text-xs"
                         onClick={() => { setReviewRatingFilter(null); setReviewSearch(""); setReviewProjectFilter(""); setPage(1) }}
                       >
-                        <X className="h-3 w-3 mr-1" /> Clear
+                        <X className="h-3 w-3 mr-1" /> {t("page.clear")}
                       </Button>
                     )}
                   </div>
@@ -657,9 +665,9 @@ export default function ProfessionalProfilePage() {
                     <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
                       <MessageSquare className="h-7 w-7 text-gray-300" />
                     </div>
-                    <h3 className="text-base font-medium text-gray-700">No reviews yet</h3>
+                    <h3 className="text-base font-medium text-gray-700">{t("page.noReviewsYet")}</h3>
                     <p className="text-sm text-gray-400 mt-1 max-w-sm mx-auto">
-                      Reviews from customers will appear here once bookings are completed.
+                      {t("page.reviewsEmptyDescription")}
                     </p>
                   </div>
                 ) : (
@@ -674,10 +682,10 @@ export default function ProfessionalProfilePage() {
                           <div className="flex items-start gap-4">
                             <Avatar className="h-10 w-10 shrink-0">
                               {review.customer?.profileImage ? (
-                                <AvatarImage src={review.customer.profileImage} alt={review.customer.name || "User"} />
+                                <AvatarImage src={review.customer.profileImage} alt={review.customer.name || t("page.userFallback")} />
                               ) : null}
                               <AvatarFallback className="bg-gradient-to-br from-blue-100 to-indigo-100 text-indigo-600 text-sm font-semibold">
-                                {(review.customer?.name || "U").charAt(0).toUpperCase()}
+                                {(review.customer?.name || t("page.userFallback")).charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
 
@@ -685,10 +693,10 @@ export default function ProfessionalProfilePage() {
                               {/* Name and date row */}
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-sm font-semibold text-gray-900">
-                                  {review.customer?.name || "Anonymous"}
+                                  {review.customer?.name || t("page.anonymous")}
                                 </span>
                                 <span className="text-xs text-gray-400 shrink-0">
-                                  {new Date(cr.reviewedAt).toLocaleDateString(undefined, {
+                                  {new Date(cr.reviewedAt).toLocaleDateString(intl, {
                                     year: "numeric",
                                     month: "short",
                                     day: "numeric",
@@ -708,20 +716,20 @@ export default function ProfessionalProfilePage() {
                                   href={`/projects/${review.project._id}`}
                                   className="inline-flex items-center text-xs text-indigo-600 hover:underline mt-1"
                                 >
-                                  Project: {review.project.title}
+                                  {t("page.projectLink", { title: review.project.title })}
                                 </Link>
                               )}
 
                               {/* Category breakdown pills */}
                               <div className="flex flex-wrap gap-2 mt-2">
                                 <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                                  Communication {cr.communicationLevel}/5
+                                  {t("page.ratingOutOfFive", { label: t("page.communication"), value: cr.communicationLevel })}
                                 </span>
                                 <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700">
-                                  Value {cr.valueOfDelivery}/5
+                                  {t("page.ratingOutOfFive", { label: t("page.valueOfDelivery"), value: cr.valueOfDelivery })}
                                 </span>
                                 <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
-                                  Quality {cr.qualityOfService}/5
+                                  {t("page.ratingOutOfFive", { label: t("page.qualityOfService"), value: cr.qualityOfService })}
                                 </span>
                               </div>
 
@@ -735,7 +743,7 @@ export default function ProfessionalProfilePage() {
                                 <div className="flex gap-2 mt-2">
                                   {cr.images.map((img, idx) => (
                                     <a key={idx} href={img} target="_blank" rel="noopener noreferrer">
-                                      <img src={img} alt={`Review image ${idx + 1}`} className="h-20 w-20 object-cover rounded-md border border-gray-200 hover:opacity-80 transition-opacity" />
+                                      <img src={img} alt={t("page.reviewImageAlt", { index: idx + 1 })} className="h-20 w-20 object-cover rounded-md border border-gray-200 hover:opacity-80 transition-opacity" />
                                     </a>
                                   ))}
                                 </div>
@@ -749,11 +757,11 @@ export default function ProfessionalProfilePage() {
                                       <MessageSquare className="h-3 w-3 text-white" />
                                     </div>
                                     <span className="text-xs font-semibold text-indigo-700">
-                                      Professional&apos;s Response
+                                      {t("page.professionalResponse")}
                                     </span>
                                     {cr.reply.repliedAt && (
                                       <span className="text-xs text-indigo-400">
-                                        {new Date(cr.reply.repliedAt).toLocaleDateString(undefined, {
+                                        {new Date(cr.reply.repliedAt).toLocaleDateString(intl, {
                                           year: "numeric",
                                           month: "short",
                                           day: "numeric",
@@ -780,7 +788,7 @@ export default function ProfessionalProfilePage() {
                                     ) : (
                                       <EyeOff className="h-3 w-3 mr-1" />
                                     )}
-                                    Hide Review
+                                    {t("page.hideReview")}
                                   </Button>
                                 </div>
                               )}
@@ -791,7 +799,7 @@ export default function ProfessionalProfilePage() {
                                   {replyingTo === review._id ? (
                                     <div className="space-y-3 rounded-xl bg-white border border-gray-200 p-4">
                                       <Textarea
-                                        placeholder="Write your public reply to this review..."
+                                        placeholder={t("page.replyPlaceholder")}
                                         value={replyText}
                                         onChange={(e) => setReplyText(e.target.value)}
                                         maxLength={1000}
@@ -800,7 +808,7 @@ export default function ProfessionalProfilePage() {
                                       />
                                       <div className="flex items-center justify-between">
                                         <span className="text-xs text-gray-400">
-                                          {replyText.length}/1000
+                                          {t("page.replyCharacterCount", { count: replyText.length })}
                                         </span>
                                         <div className="flex gap-2">
                                           <Button
@@ -812,7 +820,7 @@ export default function ProfessionalProfilePage() {
                                             }}
                                             disabled={submittingReply}
                                           >
-                                            Cancel
+                                            {t("page.cancel")}
                                           </Button>
                                           <Button
                                             size="sm"
@@ -824,7 +832,7 @@ export default function ProfessionalProfilePage() {
                                             ) : (
                                               <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
                                             )}
-                                            Post Reply
+                                            {t("page.postReply")}
                                           </Button>
                                         </div>
                                       </div>
@@ -837,7 +845,7 @@ export default function ProfessionalProfilePage() {
                                       onClick={() => setReplyingTo(review._id)}
                                     >
                                       <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
-                                      Reply to this review
+                                      {t("page.replyToReview")}
                                     </Button>
                                   )}
                                 </div>
@@ -858,24 +866,24 @@ export default function ProfessionalProfilePage() {
                       size="sm"
                       disabled={page <= 1}
                       onClick={() => setPage((p) => p - 1)}
-                      aria-label="Previous page"
+                      aria-label={t("page.previousPage")}
                       className="rounded-lg"
                     >
                       <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
+                      {t("page.previous")}
                     </Button>
                     <span className="text-sm text-gray-500 font-medium">
-                      {page} / {totalPages}
+                      {t("page.pageOf", { page, totalPages })}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={page >= totalPages}
                       onClick={() => setPage((p) => p + 1)}
-                      aria-label="Next page"
+                      aria-label={t("page.nextPage")}
                       className="rounded-lg"
                     >
-                      Next
+                      {t("page.next")}
                       <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { resolveAnnouncementHref } from "@/lib/marketing/siteAnnouncements/href";
 import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements/types";
 
@@ -13,6 +14,7 @@ export function AnnouncementTopBar({
   isPreview?: boolean;
   onCta: () => void;
 }) {
+  const t = useTranslations("content");
   const line = [announcement.title, announcement.message]
     .filter(Boolean)
     .join("  |  ")
@@ -53,7 +55,7 @@ export function AnnouncementTopBar({
       data-testid="site-announce-top-bar"
       className={barClass}
       role="region"
-      aria-label={isPreview ? "Announcement preview" : "Site promotion"}
+      aria-label={isPreview ? t("announcements.previewAria") : t("announcements.promotionAria")}
     >
       <div className="mx-auto flex h-9 max-w-7xl items-center justify-center px-3 sm:px-6">
         {content}

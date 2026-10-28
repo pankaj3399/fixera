@@ -1,0 +1,250 @@
+{
+  "hero": {
+    "badge": "Une seule plateforme. Toutes les solutions.",
+    "titleTop": "Des professionnels de confiance",
+    "titleBottom": "en un clin d'œil",
+    "description": "De la petite réparation à la rénovation complète, connectez-vous avec des professionnels vérifiés partout en Europe. Réservez directement ou demandez un devis personnalisé, avec une qualité garantie.",
+    "benefits": {
+      "moneyBack": {
+        "title": "Garantie satisfait ou remboursé",
+        "description": "Pas satisfait ? Obtenez le remboursement grâce à notre politique de garantie."
+      },
+      "fastResponse": {
+        "title": "Réponse rapide",
+        "description": "Soyez mis en relation avec des professionnels disponibles en quelques minutes."
+      },
+      "qualityAssured": {
+        "title": "Qualité assurée",
+        "description": "Tous les professionnels sont vérifiés et très bien notés par les clients."
+      },
+      "securePayments": {
+        "title": "Paiements sécurisés",
+        "description": "Votre paiement est protégé jusqu'à la réalisation complète des travaux."
+      }
+    }
+  },
+  "meta": {
+    "description": "Fixtract met en relation les clients avec des professionnels vérifiés pour tous les services du logement — de la petite réparation à la rénovation complète. Des travaux réalisés avec une qualité et une sécurité garanties."
+  },
+  "search": {
+    "serviceLabel": "Rechercher un service",
+    "servicePlaceholder": "De quel service avez-vous besoin ?",
+    "locationLabel": "Localisation",
+    "locationPlaceholder": "Ville, pays",
+    "typePlaceholder": "Rechercher...",
+    "typeProjects": "Rechercher des projets",
+    "typeProfessionals": "Rechercher des professionnels",
+    "submit": "Rechercher",
+    "popular": "Populaire :"
+  },
+  "popularProjects": {
+    "heading": "Projets populaires",
+    "priceOnRequest": "Prix sur demande",
+    "rfq": "Sur devis",
+    "fromPrice": "À partir de {price}",
+    "noPreview": "Aucun aperçu",
+    "unknownProfessional": "Professionnel inconnu",
+    "professionalAlt": "Professionnel",
+    "scrollPrevious": "Faire défiler vers la gauche",
+    "scrollNext": "Faire défiler vers la droite"
+  },
+  "features": {
+    "badge": "Pourquoi choisir Fixtract",
+    "title": "Pensé pour la confiance, conçu pour les résultats",
+    "description": "Chaque fonctionnalité est pensée pour vous apporter confiance, qualité et sérénité du début à la fin.",
+    "items": {
+      "verifiedProfessionals": {
+        "title": "Professionnels vérifiés",
+        "description": "Chaque professionnel fait l'objet d'une vérification d'identité, d'une vérification des antécédents et d'une validation de ses certifications, pour que vous travailliez avec les meilleurs.",
+        "benefits": {
+          "identity": "Vérification d'identité et de passeport",
+          "background": "Vérification des antécédents",
+          "insurance": "Validation de l'assurance",
+          "skills": "Évaluation des compétences"
+        }
+      },
+      "qualityGuaranteed": {
+        "title": "Qualité garantie",
+        "description": "Tous les travaux sont couverts par la garantie Fixtract, qui comprend une protection sous garantie et notre promesse de satisfaction complète.",
+        "benefits": {
+          "warranty": "Garantie jusqu'à 10 ans",
+          "satisfaction": "Garantie de satisfaction",
+          "qualityControl": "Contrôles qualité",
+          "disputes": "Résolution des litiges 24/7"
+        }
+      },
+      "fastReliable": {
+        "title": "Rapide et fiable",
+        "description": "Soyez mis en relation instantanément pour les urgences ou recevez des devis compétitifs en quelques heures. La plupart des projets démarrent sous 48 heures.",
+        "benefits": {
+          "instantBooking": "Réservation immédiate",
+          "quickQuotes": "Réponse rapide aux devis",
+          "flexibleSchedule": "Planning flexible",
+          "emergency": "Services d'urgence"
+        }
+      },
+      "securePayments": {
+        "title": "Paiements sécurisés",
+        "description": "Votre argent est conservé en toute sécurité grâce à notre système d'entiercement. Vous ne payez qu'une fois les travaux réalisés à votre satisfaction.",
+        "benefits": {
+          "escrow": "Protection par entiercement",
+          "methods": "Plusieurs moyens de paiement",
+          "invoicing": "Facturation automatique",
+          "refunds": "Garantie de remboursement"
+        }
+      }
+    },
+    "stats": {
+      "satisfaction": "Satisfaction client",
+      "projects": "Projets réalisés",
+      "support": "Service client",
+      "countries": "De plus en plus de pays"
+    },
+    "cta": "Lancer votre projet"
+  },
+  "howItWorks": {
+    "badge": "Simple et sécurisé",
+    "title": "Réalisez vos projets en 3 étapes simples",
+    "description": "De la recherche du bon professionnel à la fin des travaux, notre processus se veut fluide, transparent et sécurisé.",
+    "steps": {
+      "search": {
+        "title": "Rechercher et comparer",
+        "description": "Parcourez des professionnels vérifiés, comparez les prix, lisez les avis et trouvez la personne idéale pour votre projet.",
+        "features": {
+          "verified": "Professionnels vérifiés",
+          "reviews": "Avis clients authentiques",
+          "pricing": "Prix transparents",
+          "availability": "Disponibilité locale"
+        }
+      },
+      "book": {
+        "title": "Réserver ou demander un devis",
+        "description": "Réservez directement pour les services standards ou demandez un devis personnalisé pour les projets complexes.",
+        "features": {
+          "instantBooking": "Réservation immédiate",
+          "customQuotes": "Devis personnalisés",
+          "messaging": "Messagerie sécurisée",
+          "planning": "Planification du projet"
+        }
+      },
+      "complete": {
+        "title": "Les travaux sont réalisés",
+        "description": "Le professionnel réalise les travaux, vous confirmez votre satisfaction et le paiement sécurisé est libéré.",
+        "features": {
+          "quality": "Qualité garantie",
+          "payments": "Paiements sécurisés",
+          "tracking": "Suivi de l'avancement",
+          "warranty": "Garantie incluse"
+        }
+      }
+    }
+  },
+  "cta": {
+    "badge": "Prêt à commencer ?",
+    "titleTop": "Votre projet idéal",
+    "titleBottom": "commence ici",
+    "description": "Rejoignez des milliers de clients et de professionnels satisfaits. Un travail de qualité, des résultats garantis, des paiements sécurisés.",
+    "needService": "J'ai besoin d'un service",
+    "or": "ou",
+    "imProfessional": "Je suis professionnel",
+    "stats": {
+      "customers": "Plus de 50 000 clients satisfaits",
+      "guarantee": "Garantie satisfait ou remboursé",
+      "support": "Service client 24/7",
+      "rating": "Note moyenne de 4,9/5"
+    }
+  },
+  "services": {
+    "badge": "Nos services",
+    "titleTop": "Tous les services dont vous avez besoin,",
+    "titleBottom": "au même endroit",
+    "description": "De la petite réparation à la grande rénovation, trouvez des professionnels vérifiés pour chaque projet. Qualité garantie, paiements protégés.",
+    "explore": "Découvrir",
+    "empty": "Les services sont en cours de mise à jour. Revenez bientôt !",
+    "viewAll": "Voir tous les services"
+  },
+  "learnMore": "En savoir plus",
+  "professionals": {
+    "badge": "Pour les professionnels",
+    "titleTop": "Transformez vos compétences en",
+    "titleBottom": "revenus durables",
+    "description": "Rejoignez des milliers de professionnels qui gagnent plus, travaillent plus intelligemment et développent leur activité partout en Europe grâce à la plateforme complète de Fixtract.",
+    "benefits": {
+      "customers": {
+        "title": "Des clients vérifiés",
+        "description": "Entrez en contact avec de vrais clients disposant de moyens de paiement vérifiés et de besoins concrets partout en Europe."
+      },
+      "payments": {
+        "title": "Des paiements sûrs et ponctuels",
+        "description": "Notre système d'entiercement protège vos revenus. Vous êtes payé en toute sécurité et à temps une fois les travaux terminés."
+      },
+      "scheduling": {
+        "title": "Des outils de planification intelligents",
+        "description": "Gérez votre agenda, les disponibilités de votre équipe et les délais de vos projets dans un seul système intégré."
+      },
+      "growth": {
+        "title": "Développez votre activité",
+        "description": "Ouvrez-vous de nouveaux marchés, construisez votre réputation grâce aux avis et accédez aux outils pour faire évoluer votre activité."
+      }
+    },
+    "join": "Devenir professionnel",
+    "dashboard": {
+      "title": "Tableau de bord du professionnel",
+      "earnings": "Revenus de ce mois",
+      "activeProjects": "Projets en cours",
+      "rating": "Note globale"
+    },
+    "storiesTitle": "Une croissance réelle, des résultats concrets",
+    "storiesDescription": "Découvrez comment des professionnels comme vous ont transformé leur activité avec Fixtract.",
+    "stories": {
+      "thomas": {
+        "profession": "Électricien",
+        "location": "Berlin, Allemagne",
+        "growth": "+150 % de revenus",
+        "story": "Fixtract a doublé ma clientèle en seulement 6 mois. La plateforme gère toute l'administration, ce qui me permet de me concentrer sur la qualité de mon travail."
+      },
+      "elena": {
+        "profession": "Architecte d'intérieur",
+        "location": "Barcelone, Espagne",
+        "growth": "+200 % de projets",
+        "story": "Je travaille désormais avec des clients dans 3 pays. La variété et l'ampleur des projets que je reçois via Fixtract sont incroyables."
+      },
+      "marco": {
+        "profession": "Entrepreneur en rénovation",
+        "location": "Rotterdam, Pays-Bas",
+        "growth": "Une équipe de 10 personnes",
+        "story": "J'ai commencé seul. Les outils de Fixtract m'ont permis de gérer sans effort une équipe grandissante et des projets plus ambitieux."
+      }
+    }
+  },
+  "testimonials": {
+    "badge": "Témoignages clients",
+    "title": "Plébiscité par les clients partout en Europe",
+    "description": "Des histoires authentiques de clients qui ont transformé leur logement avec l'aide de professionnels Fixtract.",
+    "previous": "Témoignage précédent",
+    "next": "Témoignage suivant",
+    "goTo": "Aller au témoignage {index}",
+    "projectValue": "Projet de {price}",
+    "items": {
+      "sophie": {
+        "location": "Bruxelles, Belgique",
+        "service": "Rénovation de cuisine",
+        "text": "Une expérience absolument incroyable ! L'équipe de rénovation était professionnelle, ponctuelle et a livré exactement ce qui avait été promis. Ma cuisine est magnifique et tout le processus s'est déroulé sans stress."
+      },
+      "jan": {
+        "location": "Amsterdam, Pays-Bas",
+        "service": "Urgence plomberie",
+        "text": "J'ai eu une grosse urgence de plomberie un dimanche. Grâce à Fixtract, j'ai trouvé un professionnel qui est venu en 2 heures et a tout réparé. Les prix étaient transparents et le service exceptionnel. Je recommande vivement !"
+      },
+      "marie": {
+        "location": "Gand, Belgique",
+        "service": "Peinture intérieure",
+        "text": "Le peintre que j'ai trouvé a transformé tout mon appartement. Le souci du détail était remarquable et il m'a même aidé à choisir les couleurs parfaites. La réservation était simple et le résultat a dépassé mes attentes."
+      }
+    }
+  },
+  "placeholderPage": {
+    "description": "Il s'agit d'une page provisoire. Dans une vraie application, elle contiendrait la fonctionnalité et le contenu complets.",
+    "backHome": "Retour à l'accueil"
+  }
+}

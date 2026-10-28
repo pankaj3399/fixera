@@ -1,0 +1,178 @@
+{
+  "meta": {
+    "title": "Zoeken",
+    "description": "Zoek op Fixtract naar diensten, vakmensen en projecten in alle categorieën.",
+    "professionalsTitle": "Word vakman bij Fixtract",
+    "professionalsDescription": "Sluit je aan bij Fixtract als geverifieerde vakman. Laat je zaak groeien, verdien meer en kom in contact met klanten in jouw regio.",
+    "breadcrumbHome": "Home",
+    "breadcrumbProfessionals": "Vakmensen"
+  },
+  "page": {
+    "heading": "Zoekresultaten",
+    "headingFor": "Zoekresultaten <strong>voor \"{query}\"</strong>",
+    "searching": "Zoeken...",
+    "resultsFound": "{count, plural, =0 {Geen resultaten} one {# resultaat gevonden} other {# resultaten gevonden}}",
+    "tabProfessionals": "Vakmensen",
+    "tabProjects": "Projecten",
+    "errorTitle": "Zoeken mislukt",
+    "errorFallback": "Het zoeken is mislukt. Probeer het opnieuw.",
+    "tryAgain": "Opnieuw proberen",
+    "emptyTitle": "Geen resultaten gevonden",
+    "emptyDescription": "Pas je zoekopdracht of filters aan om te vinden wat je zoekt.",
+    "clearFilters": "Filters wissen",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "pageNumber": "Ga naar pagina {page}"
+  },
+  "filters": {
+    "title": "Filters",
+    "clearAll": "Alles wissen",
+    "sortBy": "Sorteren op",
+    "sortPlaceholder": "Meest relevant",
+    "sort": {
+      "relevant": "Meest relevant",
+      "priceLow": "Prijs: laag naar hoog",
+      "priceHigh": "Prijs: hoog naar laag",
+      "newest": "Nieuwste eerst",
+      "availability": "Beschikbaarheid",
+      "popularity": "Meest populair"
+    },
+    "sectionCount": "{label} ({count})",
+    "location": "Locatie",
+    "locationPlaceholder": "Stad, regio of postcode",
+    "service": "Dienst",
+    "professionalLevel": "Niveau vakman",
+    "professionalTags": "Labels",
+    "minRating": "Min. beoordeling",
+    "minRatingValue": "Min. beoordeling ({rating}+)",
+    "any": "Alle",
+    "areaOfWork": "Werkgebied",
+    "priceModel": "Prijsmodel",
+    "projectType": "Projecttype",
+    "includedItems": "Inbegrepen",
+    "startDateRange": "Startdatum",
+    "fromDate": "Vanaf",
+    "toDate": "Tot",
+    "pickDate": "Kies een datum",
+    "priceRange": "Prijsbereik (€)",
+    "hourlyRate": "Uurtarief (€)",
+    "category": "Categorie",
+    "availability": "Beschikbaar om te boeken",
+    "min": "Min",
+    "max": "Max"
+  },
+  "priceModels": {
+    "fixed": "Vaste prijs",
+    "unit": "Per eenheid",
+    "rfq": "Prijs op aanvraag",
+    "hour": "Per uur",
+    "day": "Per dag",
+    "meter": "Per meter",
+    "m2": "Per m²",
+    "room": "Per kamer"
+  },
+  "units": {
+    "hours": "{count, plural, one {# uur} other {# uur}}",
+    "days": "{count, plural, one {# dag} other {# dagen}}",
+    "months": "{count, plural, one {# maand} other {# maanden}}",
+    "years": "{count, plural, one {# jaar} other {# jaar}}",
+    "hourSuffix": "/uur",
+    "daySuffix": "/dag",
+    "meterSuffix": "/m",
+    "m2Suffix": "/m²",
+    "roomSuffix": "/kamer",
+    "unitSuffix": "/eenheid"
+  },
+  "professionalLevels": {
+    "new": "Nieuw",
+    "level1": "Niveau 1",
+    "level2": "Niveau 2",
+    "level3": "Niveau 3",
+    "expert": "Expert"
+  },
+  "adminTags": {
+    "verified": "Geverifieerd",
+    "ourChoice": "Onze keuze"
+  },
+  "autocomplete": {
+    "noSuggestions": "Geen suggesties gevonden",
+    "types": {
+      "category": "Categorie",
+      "service": "Dienst",
+      "professional": "Vakman",
+      "project": "Project"
+    }
+  },
+  "professionalCard": {
+    "available": "Beschikbaar",
+    "perHour": "{price}/uur",
+    "viewProfile": "Profiel bekijken",
+    "startChat": "Chat starten"
+  },
+  "projectCard": {
+    "noPreview": "Geen voorbeeld beschikbaar",
+    "previousImage": "Vorige afbeelding",
+    "nextImage": "Volgende afbeelding",
+    "goToImage": "Ga naar afbeelding {index}",
+    "moreCertificates": "+{count} meer",
+    "duration": "Duur: {duration}",
+    "availablePackages": "Beschikbare pakketten:",
+    "warranty": "{duration} garantie",
+    "available": "Beschikbaar: {date}",
+    "morePackages": "+{count, plural, one {# pakket meer} other {# pakketten meer}}",
+    "viewProject": "Project bekijken",
+    "professionalFallback": "Vakman",
+    "rfq": "Prijs op aanvraag",
+    "contact": "Contact"
+  },
+  "professionalFilters": {
+    "available": "{count, plural, one {# vakman beschikbaar} other {# vakmensen beschikbaar}}",
+    "sortBy": "Sorteren op:",
+    "sortPlaceholder": "Sorteren op",
+    "recommended": "Aanbevolen",
+    "topRated": "Best beoordeeld",
+    "newest": "Nieuwste"
+  },
+  "prosPage": {
+    "hero": {
+      "title": "Laat je zaak groeien met Fixtract",
+      "description": "Krijg toegang tot duizenden kwalitatieve opdrachten, beheer je werk met krachtige tools en word veilig uitbetaald. Sluit je aan bij het toonaangevende platform voor professionals in woning en vastgoed.",
+      "cta": "Gratis starten"
+    },
+    "stats": {
+      "averageProjectValue": "Gemiddelde projectwaarde",
+      "topEarner": "Topverdieners (per maand)",
+      "newJobsDaily": "Nieuwe opdrachten per dag",
+      "activeProfessionals": "Actieve vakmensen"
+    },
+    "earnings": {
+      "badge": "Verdienpotentieel",
+      "title": "Breng je groei in beeld",
+      "description": "Ons platform biedt de tools en kansen om je inkomen flink te verhogen. Bekijk het potentieel op basis van gemiddelde toppresteerders.",
+      "cardTitle": "Potentiële maandelijkse inkomsten (€)",
+      "cardDescription": "Geschatte groei van je inkomsten over 9 maanden op het platform."
+    },
+    "faq": {
+      "title": "Veelgestelde vragen",
+      "description": "Snelle antwoorden op de meestgestelde vragen van vakmensen.",
+      "items": {
+        "payment": {
+          "question": "Hoe word ik uitbetaald?",
+          "answer": "Betalingen worden beveiligd via ons escrowsysteem. Zodra de klant een project als afgerond markeert, wordt het bedrag binnen 2 tot 3 werkdagen op je rekening gestort."
+        },
+        "fees": {
+          "question": "Welke kosten rekent Fixtract aan?",
+          "answer": "Fixtract rekent alleen bij afgeronde projecten een competitieve commissie. Er zijn geen abonnementskosten en deelnemen is gratis. De commissie is een percentage van de definitieve projectprijs en wordt duidelijk getoond wanneer je een offerte uitbrengt."
+        },
+        "chooseProjects": {
+          "question": "Kan ik zelf kiezen aan welke projecten ik werk?",
+          "answer": "Absoluut. Je hebt volledige controle. Je kunt beschikbare opdrachten bekijken, reageren op offerteaanvragen en elk projectvoorstel dat binnenkomt aanvaarden of weigeren."
+        },
+        "manageBusiness": {
+          "question": "Hoe helpt Fixtract me bij het beheren van mijn zaak?",
+          "answer": "Ons platform bevat tools voor planning, communicatie met klanten, automatische facturatie en een dashboard om je inkomsten en projectgeschiedenis op te volgen. Zo blijf je georganiseerd en kun je je op je werk concentreren."
+        }
+      }
+    }
+  }
+}

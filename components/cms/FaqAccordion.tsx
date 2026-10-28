@@ -1,35 +1,61 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import RichTextRenderer from "./RichTextRenderer";
 import { FaqGroup } from "@/lib/cms";
+
+/**
+ * FAQ group names come from the backend's hardcoded FAQ_CATEGORIES list, so the
+ * public labels are translated here by category slug (unknown slugs fall back
+ * to the backend name).
+ */
+const FAQ_CATEGORY_KEYS = {
+  general: "faq.categories.general",
+  booking: "faq.categories.booking",
+  "payments-invoicing": "faq.categories.paymentsInvoicing",
+  "warranty-disputes": "faq.categories.warrantyDisputes",
+  professionals: "faq.categories.professionals",
+  account: "faq.categories.account",
+} as const;
+
+function faqCategoryKey(slug: string) {
+  return FAQ_CATEGORY_KEYS[slug as keyof typeof FAQ_CATEGORY_KEYS];
+}
 
 interface Props {
   groups: FaqGroup[];
 }
 
 export default function FaqAccordion({ groups }: Props) {
+  const t = useTranslations("content");
+
   return (
     <div className="space-y-8">
-      {groups.map((group) => (
-        <section key={group.slug} id={group.slug} className="space-y-4">
-          <div className="rounded-2xl bg-gradient-to-br from-rose-400 via-pink-400 to-orange-300 p-[1.5px] shadow-md shadow-rose-100">
-            <div className="rounded-[calc(1rem-1.5px)] bg-white px-6 py-3">
-              <h2 className="bg-gradient-to-r from-rose-600 to-pink-500 bg-clip-text text-xl font-bold text-transparent">
-                {group.name}
-              </h2>
-              <p className="text-xs text-rose-500">{group.items.length} question{group.items.length === 1 ? "" : "s"}</p>
+      {groups.map((group) => {
+        const categoryKey = faqCategoryKey(group.slug);
+        return (
+          <section key={group.slug} id={group.slug} className="space-y-4">
+            <div className="rounded-2xl bg-gradient-to-br from-rose-400 via-pink-400 to-orange-300 p-[1.5px] shadow-md shadow-rose-100">
+              <div className="rounded-[calc(1rem-1.5px)] bg-white px-6 py-3">
+                <h2 className="bg-gradient-to-r from-rose-600 to-pink-500 bg-clip-text text-xl font-bold text-transparent">
+                  {categoryKey ? t(categoryKey) : group.name}
+                </h2>
+                <p className="text-xs text-rose-500">
+                  {t("faq.questionCount", { count: group.items.length })}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="space-y-3">
-            {group.items.map((item) => (
-              <FaqItem key={item._id} anchor={`${group.slug}-${item.slug}`} title={item.title} body={item.body} />
-            ))}
-          </div>
-        </section>
-      ))}
+            <div className="space-y-3">
+              {group.items.map((item) => (
+                <FaqItem key={item._id} anchor={`${group.slug}-${item.slug}`} title={item.title} body={item.body} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

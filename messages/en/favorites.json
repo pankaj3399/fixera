@@ -1,0 +1,8 @@
+{
+  "add": "Add to favorites",
+  "remove": "Remove from favorites",
+  "customersOnlyAria": "Favorites are only available to customers",
+  "customersOnlyTitle": "Only customers can save favorites",
+  "customersOnlyToast": "Only customers can save favorites",
+  "updateFailed": "Failed to update favorite"
+}

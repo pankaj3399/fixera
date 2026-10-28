@@ -1,0 +1,178 @@
+{
+  "meta": {
+    "title": "Recherche",
+    "description": "Recherchez sur Fixtract des services, des professionnels et des projets dans toutes les catégories.",
+    "professionalsTitle": "Devenez professionnel Fixtract",
+    "professionalsDescription": "Rejoignez Fixtract en tant que professionnel vérifié. Développez votre activité, gagnez plus et rencontrez des clients dans votre région.",
+    "breadcrumbHome": "Accueil",
+    "breadcrumbProfessionals": "Professionnels"
+  },
+  "page": {
+    "heading": "Résultats de recherche",
+    "headingFor": "Résultats de recherche <strong>pour \"{query}\"</strong>",
+    "searching": "Recherche...",
+    "resultsFound": "{count, plural, =0 {Aucun résultat} one {# résultat trouvé} other {# résultats trouvés}}",
+    "tabProfessionals": "Professionnels",
+    "tabProjects": "Projets",
+    "errorTitle": "Échec de la recherche",
+    "errorFallback": "La recherche a échoué. Veuillez réessayer.",
+    "tryAgain": "Réessayer",
+    "emptyTitle": "Aucun résultat trouvé",
+    "emptyDescription": "Modifiez votre recherche ou vos filtres pour trouver ce que vous cherchez.",
+    "clearFilters": "Effacer les filtres",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "pageNumber": "Aller à la page {page}"
+  },
+  "filters": {
+    "title": "Filtres",
+    "clearAll": "Tout effacer",
+    "sortBy": "Trier par",
+    "sortPlaceholder": "Le plus pertinent",
+    "sort": {
+      "relevant": "Le plus pertinent",
+      "priceLow": "Prix : croissant",
+      "priceHigh": "Prix : décroissant",
+      "newest": "Plus récents",
+      "availability": "Disponibilité",
+      "popularity": "Les plus populaires"
+    },
+    "sectionCount": "{label} ({count})",
+    "location": "Localisation",
+    "locationPlaceholder": "Ville, région ou code postal",
+    "service": "Service",
+    "professionalLevel": "Niveau du professionnel",
+    "professionalTags": "Étiquettes",
+    "minRating": "Note min.",
+    "minRatingValue": "Note min. ({rating}+)",
+    "any": "Toutes",
+    "areaOfWork": "Zone d'intervention",
+    "priceModel": "Modèle de prix",
+    "projectType": "Type de projet",
+    "includedItems": "Prestations incluses",
+    "startDateRange": "Période de début",
+    "fromDate": "Du",
+    "toDate": "Au",
+    "pickDate": "Choisir une date",
+    "priceRange": "Fourchette de prix (€)",
+    "hourlyRate": "Taux horaire (€)",
+    "category": "Catégorie",
+    "availability": "Disponible pour réservation",
+    "min": "Min",
+    "max": "Max"
+  },
+  "priceModels": {
+    "fixed": "Prix fixe",
+    "unit": "À l'unité",
+    "rfq": "Sur devis",
+    "hour": "Par heure",
+    "day": "Par jour",
+    "meter": "Par mètre",
+    "m2": "Par m²",
+    "room": "Par pièce"
+  },
+  "units": {
+    "hours": "{count, plural, one {# heure} other {# heures}}",
+    "days": "{count, plural, one {# jour} other {# jours}}",
+    "months": "{count, plural, one {# mois} other {# mois}}",
+    "years": "{count, plural, one {# an} other {# ans}}",
+    "hourSuffix": "/h",
+    "daySuffix": "/jour",
+    "meterSuffix": "/m",
+    "m2Suffix": "/m²",
+    "roomSuffix": "/pièce",
+    "unitSuffix": "/unité"
+  },
+  "professionalLevels": {
+    "new": "Nouveau",
+    "level1": "Niveau 1",
+    "level2": "Niveau 2",
+    "level3": "Niveau 3",
+    "expert": "Expert"
+  },
+  "adminTags": {
+    "verified": "Vérifié",
+    "ourChoice": "Notre choix"
+  },
+  "autocomplete": {
+    "noSuggestions": "Aucune suggestion trouvée",
+    "types": {
+      "category": "Catégorie",
+      "service": "Service",
+      "professional": "Professionnel",
+      "project": "Projet"
+    }
+  },
+  "professionalCard": {
+    "available": "Disponible",
+    "perHour": "{price}/h",
+    "viewProfile": "Voir le profil",
+    "startChat": "Démarrer la discussion"
+  },
+  "projectCard": {
+    "noPreview": "Aucun aperçu disponible",
+    "previousImage": "Image précédente",
+    "nextImage": "Image suivante",
+    "goToImage": "Aller à l'image {index}",
+    "moreCertificates": "+{count} de plus",
+    "duration": "Durée : {duration}",
+    "availablePackages": "Forfaits disponibles :",
+    "warranty": "{duration} de garantie",
+    "available": "Disponible : {date}",
+    "morePackages": "+{count, plural, one {# forfait de plus} other {# forfaits de plus}}",
+    "viewProject": "Voir le projet",
+    "professionalFallback": "Professionnel",
+    "rfq": "Sur devis",
+    "contact": "Contact"
+  },
+  "professionalFilters": {
+    "available": "{count, plural, one {# professionnel disponible} other {# professionnels disponibles}}",
+    "sortBy": "Trier par :",
+    "sortPlaceholder": "Trier par",
+    "recommended": "Recommandés",
+    "topRated": "Les mieux notés",
+    "newest": "Nouveaux"
+  },
+  "prosPage": {
+    "hero": {
+      "title": "Développez votre activité avec Fixtract",
+      "description": "Accédez à des milliers de missions de qualité, gérez votre activité avec des outils performants et soyez payé en toute sécurité. Rejoignez la plateforme de référence des professionnels de l'habitat et de l'immobilier.",
+      "cta": "Commencer gratuitement"
+    },
+    "stats": {
+      "averageProjectValue": "Valeur moyenne d'un projet",
+      "topEarner": "Meilleurs revenus (par mois)",
+      "newJobsDaily": "Nouvelles missions par jour",
+      "activeProfessionals": "Professionnels actifs"
+    },
+    "earnings": {
+      "badge": "Potentiel de revenus",
+      "title": "Visualisez votre croissance",
+      "description": "Notre plateforme vous offre les outils et les opportunités pour augmenter sensiblement vos revenus. Découvrez le potentiel des professionnels les plus performants.",
+      "cardTitle": "Revenus mensuels potentiels (€)",
+      "cardDescription": "Croissance estimée de vos revenus sur 9 mois sur la plateforme."
+    },
+    "faq": {
+      "title": "Questions fréquentes",
+      "description": "Des réponses rapides aux questions les plus fréquentes des professionnels.",
+      "items": {
+        "payment": {
+          "question": "Comment suis-je payé ?",
+          "answer": "Les paiements sont sécurisés par notre système d'escrow. Dès que le client marque un projet comme terminé, les fonds sont versés sur votre compte sous 2 à 3 jours ouvrables."
+        },
+        "fees": {
+          "question": "Quels sont les frais d'utilisation de Fixtract ?",
+          "answer": "Fixtract prélève une commission compétitive uniquement sur les projets terminés. Il n'y a aucun abonnement ni frais d'inscription. La commission représente un pourcentage du prix final du projet et est clairement indiquée lorsque vous envoyez un devis."
+        },
+        "chooseProjects": {
+          "question": "Puis-je choisir les projets sur lesquels je travaille ?",
+          "answer": "Absolument. Vous gardez le contrôle total. Vous pouvez parcourir les missions disponibles, répondre aux demandes de devis et accepter ou refuser toute offre de projet."
+        },
+        "manageBusiness": {
+          "question": "Comment Fixtract m'aide-t-il à gérer mon activité ?",
+          "answer": "Notre plateforme comprend des outils de planification, de communication avec les clients, de facturation automatique et un tableau de bord pour suivre vos revenus et l'historique de vos projets. Vous restez organisé et concentré sur votre travail."
+        }
+      }
+    }
+  }
+}

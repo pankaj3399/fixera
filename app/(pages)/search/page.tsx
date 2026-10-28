@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense, ComponentProps, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Loader2, AlertCircle, Search as SearchIcon } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button';
@@ -178,6 +179,7 @@ const extractLocationDetails = (raw?: string | null) => {
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
+  const t = useTranslations('search');
   const { user, loading: authLoading } = useAuth();
   const initialQuery = searchParams.get('q') || '';
   const initialLocation = searchParams.get('loc') || '';
@@ -400,7 +402,7 @@ function SearchPageContent() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Search API error:', response.status, errorText);
-        throw new Error(`Search failed: ${response.status}`);
+        throw new Error(t('page.errorFallback'));
       }
 
       const data = (await response.json()) as {
@@ -455,8 +457,10 @@ function SearchPageContent() {
     } catch (err) {
       if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return;
       console.error('Search error:', err);
-      const message =
-        err instanceof Error ? err.message : 'Failed to perform search. Please try again.';
+      // fetch() rejects with a TypeError for network-level failures, whatever
+      // the browser wording; server errors are thrown above with translated
+      // copy, so only non-TypeError Errors can carry displayable text.
+      const message = err instanceof TypeError ? t('page.errorFallback') : err instanceof Error ? err.message : t('page.errorFallback');
       setError(message);
     } finally {
       if (searchAbortRef.current === controller) {
@@ -517,21 +521,23 @@ function SearchPageContent() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Search Results
-            {filters.query && (
-              <span className="text-blue-600"> for &quot;{filters.query}&quot;</span>
-            )}
+            {filters.query
+              ? t.rich('page.headingFor', {
+                  query: filters.query,
+                  strong: (chunks) => <span className="text-blue-600">{chunks}</span>,
+                })
+              : t('page.heading')}
           </h1>
           <p className="text-gray-600">
-            {isLoading ? 'Searching...' : `${pagination.total} results found`}
+            {isLoading ? t('page.searching') : t('page.resultsFound', { count: pagination.total })}
           </p>
         </div>
 
         {/* Search Type Tabs */}
         <Tabs value={searchType} onValueChange={(val) => handleSearchTypeChange(val as 'professionals' | 'projects')} className="mb-8">
           <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="professionals">Professionals</TabsTrigger>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="professionals">{t('page.tabProfessionals')}</TabsTrigger>
+            <TabsTrigger value="projects">{t('page.tabProjects')}</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -577,18 +583,18 @@ function SearchPageContent() {
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Search Failed</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('page.errorTitle')}</h2>
                 <p className="text-gray-600 mb-6">{error}</p>
-                <Button onClick={performSearch}>Try Again</Button>
+                <Button onClick={performSearch}>{t('page.tryAgain')}</Button>
               </div>
             ) : results.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <SearchIcon className="w-16 h-16 text-gray-300 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">No Results Found</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('page.emptyTitle')}</h2>
                 <p className="text-gray-600 mb-6">
-                  Try adjusting your search or filters to find what you&apos;re looking for.
+                  {t('page.emptyDescription')}
                 </p>
-                <Button onClick={handleClearFilters}>Clear Filters</Button>
+                <Button onClick={handleClearFilters}>{t('page.clearFilters')}</Button>
               </div>
             ) : (
               <>
@@ -621,7 +627,7 @@ function SearchPageContent() {
                       onClick={() => handlePageChange(pagination.page - 1)}
                       disabled={pagination.page === 1}
                     >
-                      Previous
+                      {t('page.previous')}
                     </Button>
                     <div className="flex items-center gap-1">
                       {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
@@ -642,6 +648,7 @@ function SearchPageContent() {
                             variant={pagination.page === pageNum ? 'default' : 'outline'}
                             onClick={() => handlePageChange(pageNum)}
                             className="w-10 h-10 p-0"
+                            aria-label={t('page.pageNumber', { page: pageNum })}
                           >
                             {pageNum}
                           </Button>
@@ -653,7 +660,7 @@ function SearchPageContent() {
                       onClick={() => handlePageChange(pagination.page + 1)}
                       disabled={pagination.page === pagination.totalPages}
                     >
-                      Next
+                      {t('page.next')}
                     </Button>
                   </div>
                 )}

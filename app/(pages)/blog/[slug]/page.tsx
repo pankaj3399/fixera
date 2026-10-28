@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import type { Metadata } from "next";
+import { getLocale, getTranslations } from "next-intl/server";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
@@ -10,6 +11,7 @@ import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { articleSchema, breadcrumbSchema } from "@/lib/seo/jsonLd";
+import { intlLocale } from "@/lib/i18n/format";
 
 export const revalidate = 21600;
 
@@ -19,12 +21,13 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const t = await getTranslations("content");
   const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (fetchError) {
     throw new Error(`Failed to load blog metadata for ${slug}`);
   }
   if (!post) {
-    return buildMetadata({ title: "Post not found", path: `/blog/${slug}`, noindex: true });
+    return buildMetadata({ title: t("blog.notFoundTitle"), path: `/blog/${slug}`, noindex: true });
   }
   return buildMetadata({
     title: post.seo?.titleTag || post.title,
@@ -42,6 +45,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
+  const [t, locale] = await Promise.all([getTranslations("content"), getLocale()]);
   const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (fetchError) throw new Error(`Failed to load blog post ${slug}`);
   if (!post && !fetchError) notFound();
@@ -65,15 +69,15 @@ export default async function BlogDetailPage({ params }: Props) {
             tags: post.tags,
           }),
           breadcrumbSchema([
-            { name: "Home", path: "/" },
-            { name: "Blog", path: "/blog" },
+            { name: t("breadcrumbs.home"), path: "/" },
+            { name: t("breadcrumbs.blog"), path: "/blog" },
             { name: post.title, path: `/blog/${post.slug}` },
           ]),
         ]}
       />
       <div className="mx-auto max-w-4xl px-6 pt-24">
         <Link href="/blog" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-50">
-          <ArrowLeft size={16} /> Back to blog
+          <ArrowLeft size={16} /> {t("blog.backToBlog")}
         </Link>
       </div>
 
@@ -114,10 +118,14 @@ export default async function BlogDetailPage({ params }: Props) {
           {date && (
             <span className="inline-flex items-center gap-1">
               <Calendar size={14} />
-              {new Date(date).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+              {new Date(date).toLocaleDateString(intlLocale(locale), {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
             </span>
           )}
-          {authorName && <span>· by {authorName}</span>}
+          {authorName && <span>· {t("byAuthor", { author: authorName })}</span>}
         </div>
         {post.excerpt && (
           <p className="mt-6 border-l-4 border-rose-300 bg-gradient-to-r from-rose-50 to-transparent px-5 py-3 text-lg italic text-rose-700 rounded-r-xl">

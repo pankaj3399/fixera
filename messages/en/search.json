@@ -1,0 +1,178 @@
+{
+  "meta": {
+    "title": "Search",
+    "description": "Search Fixtract for services, professionals, and projects across every category.",
+    "professionalsTitle": "Become a Fixtract Professional",
+    "professionalsDescription": "Join Fixtract as a verified professional. Grow your business, earn more, and connect with customers across your area.",
+    "breadcrumbHome": "Home",
+    "breadcrumbProfessionals": "Professionals"
+  },
+  "page": {
+    "heading": "Search Results",
+    "headingFor": "Search Results <strong>for \"{query}\"</strong>",
+    "searching": "Searching...",
+    "resultsFound": "{count, plural, =0 {No results} one {# result found} other {# results found}}",
+    "tabProfessionals": "Professionals",
+    "tabProjects": "Projects",
+    "errorTitle": "Search Failed",
+    "errorFallback": "Failed to perform search. Please try again.",
+    "tryAgain": "Try Again",
+    "emptyTitle": "No Results Found",
+    "emptyDescription": "Try adjusting your search or filters to find what you're looking for.",
+    "clearFilters": "Clear Filters",
+    "previous": "Previous",
+    "next": "Next",
+    "pageNumber": "Go to page {page}"
+  },
+  "filters": {
+    "title": "Filters",
+    "clearAll": "Clear All",
+    "sortBy": "Sort By",
+    "sortPlaceholder": "Most Relevant",
+    "sort": {
+      "relevant": "Most Relevant",
+      "priceLow": "Price: Low to High",
+      "priceHigh": "Price: High to Low",
+      "newest": "Newest First",
+      "availability": "Availability",
+      "popularity": "Most Popular"
+    },
+    "sectionCount": "{label} ({count})",
+    "location": "Location",
+    "locationPlaceholder": "City, Region, or Postal Code",
+    "service": "Service",
+    "professionalLevel": "Professional Level",
+    "professionalTags": "Professional Tags",
+    "minRating": "Min Rating",
+    "minRatingValue": "Min Rating ({rating}+)",
+    "any": "Any",
+    "areaOfWork": "Area of Work",
+    "priceModel": "Price Model",
+    "projectType": "Project Type",
+    "includedItems": "Included Items",
+    "startDateRange": "Start Date Range",
+    "fromDate": "From Date",
+    "toDate": "To Date",
+    "pickDate": "Pick a date",
+    "priceRange": "Price Range (€)",
+    "hourlyRate": "Hourly Rate (€)",
+    "category": "Category",
+    "availability": "Available for booking",
+    "min": "Min",
+    "max": "Max"
+  },
+  "priceModels": {
+    "fixed": "Fixed Price",
+    "unit": "Unit Based",
+    "rfq": "Request for Quote",
+    "hour": "Per Hour",
+    "day": "Per Day",
+    "meter": "Per Metre",
+    "m2": "Per m²",
+    "room": "Per Room"
+  },
+  "units": {
+    "hours": "{count, plural, one {# hour} other {# hours}}",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "years": "{count, plural, one {# year} other {# years}}",
+    "hourSuffix": "/hr",
+    "daySuffix": "/day",
+    "meterSuffix": "/m",
+    "m2Suffix": "/m²",
+    "roomSuffix": "/room",
+    "unitSuffix": "/unit"
+  },
+  "professionalLevels": {
+    "new": "New",
+    "level1": "Level 1",
+    "level2": "Level 2",
+    "level3": "Level 3",
+    "expert": "Expert"
+  },
+  "adminTags": {
+    "verified": "Verified",
+    "ourChoice": "Our Choice"
+  },
+  "autocomplete": {
+    "noSuggestions": "No suggestions found",
+    "types": {
+      "category": "Category",
+      "service": "Service",
+      "professional": "Professional",
+      "project": "Project"
+    }
+  },
+  "professionalCard": {
+    "available": "Available",
+    "perHour": "{price}/hr",
+    "viewProfile": "View Profile",
+    "startChat": "Start Chat"
+  },
+  "projectCard": {
+    "noPreview": "No preview available",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "goToImage": "Go to image {index}",
+    "moreCertificates": "+{count} more",
+    "duration": "Duration: {duration}",
+    "availablePackages": "Available Packages:",
+    "warranty": "{duration} warranty",
+    "available": "Available: {date}",
+    "morePackages": "+{count, plural, one {# more package} other {# more packages}}",
+    "viewProject": "View Project",
+    "professionalFallback": "Professional",
+    "rfq": "RFQ",
+    "contact": "Contact"
+  },
+  "professionalFilters": {
+    "available": "{count, plural, one {# professional available} other {# professionals available}}",
+    "sortBy": "Sort by:",
+    "sortPlaceholder": "Sort by",
+    "recommended": "Recommended",
+    "topRated": "Top Rated",
+    "newest": "Newest Arrivals"
+  },
+  "prosPage": {
+    "hero": {
+      "title": "Grow Your Business with Fixtract",
+      "description": "Access thousands of high-quality jobs, manage your workflow with powerful tools, and get paid securely. Join the leading platform for property professionals.",
+      "cta": "Get Started for Free"
+    },
+    "stats": {
+      "averageProjectValue": "Average Project Value",
+      "topEarner": "Top Earner (Monthly)",
+      "newJobsDaily": "New Jobs Posted Daily",
+      "activeProfessionals": "Active Professionals"
+    },
+    "earnings": {
+      "badge": "Earnings Potential",
+      "title": "Visualize Your Growth",
+      "description": "Our platform provides the tools and opportunities to significantly boost your income. See the potential based on average top-performing professionals.",
+      "cardTitle": "Potential Monthly Earnings (€)",
+      "cardDescription": "Estimated earnings growth over 9 months on the platform."
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "description": "Quick answers to the most common questions from professionals.",
+      "items": {
+        "payment": {
+          "question": "How do I get paid?",
+          "answer": "Payments are secured through our Escrow system. Once a project is marked as complete by the customer, funds are released to your account within 2-3 business days."
+        },
+        "fees": {
+          "question": "What are the fees for using Fixtract?",
+          "answer": "Fixtract charges a competitive commission fee only on completed projects. There are no subscription fees or costs to join. The fee is a percentage of the final project price and is clearly shown when you provide a quote."
+        },
+        "chooseProjects": {
+          "question": "Can I choose which projects I want to work on?",
+          "answer": "Absolutely. You have full control. You can browse available jobs, respond to quote requests (RFQs), and accept or decline any project offer that comes your way."
+        },
+        "manageBusiness": {
+          "question": "How does Fixtract help me manage my business?",
+          "answer": "Our platform includes tools for scheduling, communication with clients, automatic invoicing, and a dashboard to track your earnings and project history, helping you stay organized and focus on your work."
+        }
+      }
+    }
+  }
+}

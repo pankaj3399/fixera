@@ -1,0 +1,122 @@
+{
+  "breadcrumbs": {
+    "home": "Home",
+    "about": "Over ons",
+    "blog": "Blog",
+    "news": "Nieuws",
+    "faq": "FAQ",
+    "privacyPolicy": "Privacybeleid"
+  },
+  "pagination": {
+    "previous": "Vorige",
+    "next": "Volgende",
+    "pageOf": "Pagina {page} van {totalPages}"
+  },
+  "byAuthor": "door {author}",
+  "about": {
+    "metaTitle": "Over Fixtract",
+    "metaDescription": "Ontdek Fixtract — onze missie om klanten te verbinden met geverifieerde vakmensen voor elke dienst rond je woning.",
+    "missionBadge": "Onze missie",
+    "title": "Vertrouwen in woningdiensten herstellen.",
+    "description": "Fixtract is opgericht op een eenvoudig principe: een betrouwbare, vakkundige professional vinden voor je woning zou geen gok moeten zijn. We bouwen aan een transparant, veilig en kwalitatief platform voor zowel huiseigenaren als vakmensen.",
+    "values": {
+      "trust": {
+        "title": "Vertrouwen en veiligheid",
+        "description": "Elke vakman is geverifieerd en elk project is beschermd door onze Fixtract-garantie."
+      },
+      "quality": {
+        "title": "Toewijding aan kwaliteit",
+        "description": "We streven onvermoeibaar naar hoogwaardig vakmanschap en uitzonderlijke service."
+      },
+      "community": {
+        "title": "Gericht op de community",
+        "description": "We versterken lokale vakmensen en bouwen stap voor stap aan hechtere communities."
+      }
+    },
+    "team": {
+      "title": "De mensen achter het platform",
+      "description": "Een gepassioneerd team dat de woningdienstensector beter wil maken.",
+      "roles": {
+        "alex": "Oprichter en CEO",
+        "jasmine": "Hoofd operaties",
+        "leo": "Lead productontwerper",
+        "sofia": "Hoofd professionalrelaties"
+      }
+    }
+  },
+  "blog": {
+    "metaTitle": "Blog",
+    "metaDescription": "Inzichten, gidsen en verhalen uit de Fixtract-community. Tips voor huiseigenaren en vakmensen over renovatie, onderhoud en bouwprojecten.",
+    "title": "De Fixtract-blog",
+    "subtitle": "Tips, verhalen en insideradvies over projecten in en om het huis.",
+    "filteredBy": "Gefilterd op",
+    "emptyTitle": "Nog niets gepubliceerd",
+    "emptyDescription": "Blijf op de hoogte — er komen nieuwe artikelen aan.",
+    "notFoundTitle": "Artikel niet gevonden",
+    "backToBlog": "Terug naar de blog"
+  },
+  "news": {
+    "metaTitle": "Nieuws",
+    "metaDescription": "Platformupdates, aankondigingen en productnieuws van Fixtract.",
+    "title": "Fixtract-nieuws",
+    "subtitle": "Platformupdates, aankondigingen en productnieuws.",
+    "emptyTitle": "Nog geen nieuws",
+    "emptyDescription": "Kom snel terug.",
+    "notFoundTitle": "Nieuws",
+    "articleNotFoundTitle": "Nieuwsartikel niet gevonden",
+    "unavailableTitle": "Dit artikel is tijdelijk niet beschikbaar",
+    "unavailableDescription": "Probeer het zo meteen opnieuw.",
+    "allNews": "Al het nieuws"
+  },
+  "faq": {
+    "metaTitle": "Veelgestelde vragen",
+    "metaDescription": "Antwoorden op de meestgestelde vragen over Fixtract — boeken, betalingen, garantie, vakmensen en meer.",
+    "title": "Veelgestelde vragen",
+    "subtitle": "Antwoorden op de vragen die we het vaakst horen.",
+    "emptyTitle": "Nog geen vragen",
+    "emptyDescription": "De FAQ-inhoud wordt voorbereid.",
+    "stillQuestions": "Nog vragen?",
+    "happyToHelp": "We helpen je graag.",
+    "contactSupport": "Contacteer support",
+    "categories": {
+      "general": "Algemeen",
+      "booking": "Boekingen",
+      "paymentsInvoicing": "Betalingen en facturatie",
+      "warrantyDisputes": "Garantie en geschillen",
+      "professionals": "Voor vakmensen",
+      "account": "Account en profiel"
+    },
+    "questionCount": "{count, plural, one {# vraag} other {# vragen}}"
+  },
+  "cmsPage": {
+    "notFoundTitle": "Pagina niet gevonden"
+  },
+  "privacyPolicy": {
+    "metaTitle": "Privacybeleid",
+    "metaDescription": "Lees het privacybeleid van Fixtract — hoe we je persoonsgegevens verzamelen, gebruiken en beschermen.",
+    "comingSoonTitle": "Privacybeleid volgt binnenkort",
+    "comingSoonDescription": "Deze inhoud wordt voorbereid en verschijnt binnenkort."
+  },
+  "articleRelated": {
+    "relatedService": "Gerelateerde dienst",
+    "exploreService": "Ontdek {service}",
+    "serviceDescription": "Vind geverifieerde vakmensen en meer gidsen voor deze dienst op Fixtract.",
+    "viewService": "Bekijk {service}",
+    "relatedReading": "Gerelateerde artikelen",
+    "relatedReadingDescription": "Meer artikelen die je misschien interessant vindt."
+  },
+  "announcements": {
+    "previewAria": "Voorbeeld van aankondiging",
+    "promotionAria": "Siteactie",
+    "close": "Sluiten",
+    "beforeYouGo": "Voor je vertrekt",
+    "limitedOffer": "Tijdelijke actie",
+    "promoCode": "Promocode",
+    "copyCode": "Promocode kopiëren",
+    "codeCopied": "Code gekopieerd",
+    "copyFailed": "Code kopiëren mislukt",
+    "maybeLater": "Misschien later",
+    "claimOffer": "Profiteer van de actie",
+    "previewToast": "Voorbeeld wordt {seconds} seconden getoond"
+  }
+}

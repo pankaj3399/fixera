@@ -1,0 +1,301 @@
+{
+  "breadcrumbs": {
+    "home": "Home",
+    "services": "Diensten",
+    "categories": "Categorieën"
+  },
+  "tryAgain": "Opnieuw proberen",
+  "startingAt": "Vanaf",
+  "browseAllServices": "Alle diensten bekijken",
+  "categoriesLayout": {
+    "metaTitle": "Dienstcategorieën",
+    "metaDescription": "Ontdek de dienstcategorieën van Fixtract — interieur, exterieur, structuur en meer."
+  },
+  "categoryLayout": {
+    "fallbackDescription": "Bekijk geverifieerde vakmensen voor {category} op Fixtract."
+  },
+  "categoryPage": {
+    "description": "Vind geverifieerde vakmensen voor {category}",
+    "coverAlt": "Vakmensen voor {category}",
+    "verifiedProfessional": "Geverifieerde vakman",
+    "newBadge": "(Nieuw)",
+    "perHour": "{price}/uur",
+    "startChat": "Start een gesprek",
+    "locationNotSpecified": "Locatie niet opgegeven",
+    "errorTitle": "Kan vakmensen niet laden",
+    "errorMessage": "Kan vakmensen niet laden. Probeer het later opnieuw.",
+    "toastError": "Laden van vakmensen mislukt",
+    "emptyTitle": "Geen vakmensen gevonden",
+    "emptyDescription": "We hebben momenteel geen vakmensen in deze categorie. Kom snel terug of bekijk andere categorieën."
+  },
+  "servicesLayout": {
+    "metaTitle": "Diensten",
+    "metaDescription": "Bekijk de volledige catalogus van diensten op Fixtract — interieur, exterieur, structuur en meer. Vind geverifieerde vakmensen in je buurt."
+  },
+  "servicesPage": {
+    "title": "Alle diensten",
+    "description": "Ontdek het volledige aanbod aan professionele diensten op Fixtract. Vind precies wat je nodig hebt voor je volgende project.",
+    "servicesLabel": "Diensten",
+    "verifiedService": "Geverifieerde dienst",
+    "viewDetails": "Bekijk details",
+    "empty": "Geen diensten beschikbaar in deze categorie.",
+    "errorTitle": "Kan diensten niet laden",
+    "errorMessage": "Kan diensten niet laden. Probeer het later opnieuw.",
+    "toastError": "Laden van diensten mislukt"
+  },
+  "servicePage": {
+    "fallbackMetaDescription": "Vind geverifieerde vakmensen voor {service} op Fixtract.",
+    "missingMetaDescription": "De informatie over {service} op Fixtract wordt voorbereid. Bekijk ondertussen onze andere diensten.",
+    "popularProjectsHeading": "Populaire projecten: {service}",
+    "relatedArticles": "Gerelateerde artikelen",
+    "moreReading": "Meer lezen over {service}.",
+    "coverAlt": "Impressie van {service}",
+    "comingSoon": "Binnenkort beschikbaar",
+    "comingSoonDescription": "We werken nog aan deze pagina. Bekijk ondertussen de andere diensten op Fixtract of neem contact op, dan helpen we je de juiste vakman te vinden.",
+    "contactUs": "Contacteer ons",
+    "backHome": "← Terug naar de homepage"
+  },
+  "levels": {
+    "topRated": "Top beoordeeld",
+    "level1": "Niveau 1",
+    "level2": "Niveau 2"
+  },
+  "landingSearch": {
+    "serviceLabel": "Dienst zoeken",
+    "servicePlaceholder": "Welke dienst heb je nodig?",
+    "locationLabel": "Locatie",
+    "locationPlaceholder": "Stad, land",
+    "submit": "Zoeken"
+  },
+  "tableOfContents": {
+    "onThisPage": "Op deze pagina",
+    "sections": "{count, plural, one {# sectie} other {# secties}}"
+  },
+  "names": {
+    "categories": {
+      "interior-services": {
+        "name": "Interieurdiensten",
+        "description": "Transformeer het interieur van je woning met onze deskundige interieurdiensten."
+      },
+      "exterior-structural": {
+        "name": "Exterieur en structuur",
+        "description": "Verbeter de uitstraling en de structurele integriteit van je woning."
+      },
+      "outdoor-garden": {
+        "name": "Buiten en tuin",
+        "description": "Creëer en onderhoud je perfecte buitenruimte."
+      }
+    },
+    "services": {
+      "interior-design": {
+        "name": "Interieurdesign",
+        "description": "Bedenk en plan je perfecte ruimte."
+      },
+      "3d-modeling": {
+        "name": "3D-modellering",
+        "description": "Visualiseer je project voordat het begint."
+      },
+      "plumbing-services": {
+        "name": "Loodgieterswerk",
+        "description": "Lekkende kranen, nieuwe installaties en meer."
+      },
+      "electrical-work": {
+        "name": "Elektriciteitswerken",
+        "description": "Veilige en gecertificeerde elektrische diensten."
+      },
+      "hvac-services": {
+        "name": "HVAC",
+        "description": "Verwarming, ventilatie en airconditioning."
+      },
+      "painting-services": {
+        "name": "Schilderwerk",
+        "description": "Professioneel binnen- en buitenschilderwerk."
+      },
+      "flooring-tiling": {
+        "name": "Vloeren en tegelwerk",
+        "description": "Plaatsing van parket, tegels en tapijt."
+      },
+      "carpentry": {
+        "name": "Schrijnwerk",
+        "description": "Maatwerk planken, meubels en afwerking."
+      },
+      "home-renovation": {
+        "name": "Volledige renovatie",
+        "description": "Grootschalige renovatieprojecten."
+      },
+      "roofing": {
+        "name": "Dakwerken",
+        "description": "Herstellingen, vervanging en nieuwe installaties."
+      },
+      "masonry-brickwork": {
+        "name": "Metselwerk",
+        "description": "Muren, terrassen en structurele herstellingen."
+      },
+      "window-door-installation": {
+        "name": "Ramen en deuren",
+        "description": "Plaatsing en vervanging."
+      },
+      "siding-cladding": {
+        "name": "Gevelbekleding",
+        "description": "Bescherm en verfraai de buitenkant van je woning."
+      },
+      "garden-landscaping": {
+        "name": "Tuinaanleg",
+        "description": "Volledige tuin- en landschapsplanning."
+      },
+      "lawn-care": {
+        "name": "Gazononderhoud",
+        "description": "Maaiwerk, bemesting en onderhoud."
+      },
+      "deck-patio-building": {
+        "name": "Terrassen en vlonders",
+        "description": "Bouw je ideale buitenleefruimte."
+      },
+      "fence-installation": {
+        "name": "Omheiningen",
+        "description": "Plaatsing en herstelling van alle soorten omheiningen."
+      }
+    },
+    "navServices": {
+      "full-renovation": {
+        "name": "Volledige woningrenovatie"
+      },
+      "kitchen-remodeling": {
+        "name": "Keukenrenovatie"
+      },
+      "bathroom-remodeling": {
+        "name": "Badkamerrenovatie"
+      },
+      "basement-finishing": {
+        "name": "Kelderafwerking"
+      },
+      "roofing-services": {
+        "name": "Dakbedekking en goten"
+      },
+      "flooring-installation": {
+        "name": "Vloerinstallatie"
+      },
+      "demolition-services": {
+        "name": "Sloopwerkzaamheden"
+      },
+      "architectural-design": {
+        "name": "Architecturaal ontwerp"
+      },
+      "landscape-design": {
+        "name": "Landschapsontwerp"
+      },
+      "lighting-design": {
+        "name": "Verlichtingsontwerp"
+      },
+      "permit-drawing": {
+        "name": "Vergunningstekeningen en planning"
+      },
+      "structural-engineering": {
+        "name": "Structurele engineering"
+      },
+      "space-planning": {
+        "name": "Ruimteplanning"
+      },
+      "emergency-plumbing": {
+        "name": "Dringende loodgieterij"
+      },
+      "pipe-installation": {
+        "name": "Leidinginstallatie en -reparatie"
+      },
+      "electrical-wiring": {
+        "name": "Elektrische bedrading en herbedrading"
+      },
+      "fixture-installation": {
+        "name": "Installatie van armaturen en apparaten"
+      },
+      "boiler-maintenance": {
+        "name": "Onderhoud en reparatie van boilers"
+      },
+      "solar-panel-installation": {
+        "name": "Installatie van zonnepanelen"
+      },
+      "charging-station": {
+        "name": "Installatie van laadstations voor EV"
+      },
+      "interior-painting": {
+        "name": "Binnenschilderwerk"
+      },
+      "exterior-painting": {
+        "name": "Buitenschilderwerk"
+      },
+      "wallpaper-installation": {
+        "name": "Behanginstallatie"
+      },
+      "plastering-drywall": {
+        "name": "Pleisterwerk en gipsplaten"
+      },
+      "tiling-services": {
+        "name": "Tegelwerk"
+      },
+      "finish-carpentry": {
+        "name": "Afwerking en schrijnwerk"
+      },
+      "cabinet-refinishing": {
+        "name": "Opknappen van kasten"
+      },
+      "deck-staining": {
+        "name": "Beitsen van terrassen"
+      },
+      "garden-maintenance": {
+        "name": "Tuinonderhoud en grasmaaien"
+      },
+      "deck-patio-construction": {
+        "name": "Aanleg van terrassen en patio’s"
+      },
+      "driveway-paving": {
+        "name": "Aanleg en dichting van opritten"
+      },
+      "pool-installation": {
+        "name": "Installatie en onderhoud van zwembaden"
+      },
+      "tree-surgery": {
+        "name": "Boomverzorging en -verwijdering"
+      },
+      "outdoor-lighting": {
+        "name": "Buitenverlichting"
+      },
+      "irrigation-systems": {
+        "name": "Irrigatiesystemen"
+      },
+      "deep-house-cleaning": {
+        "name": "Grondige huisschoonmaak"
+      },
+      "window-cleaning": {
+        "name": "Ramen wassen"
+      },
+      "gutter-cleaning": {
+        "name": "Goten reinigen"
+      },
+      "pest-control": {
+        "name": "Ongediertebestrijding"
+      },
+      "pressure-washing": {
+        "name": "Hogedrukreiniging"
+      },
+      "handyman-services": {
+        "name": "Algemene klusjesdiensten"
+      },
+      "furniture-assembly": {
+        "name": "Meubelmontage"
+      },
+      "appliance-repair": {
+        "name": "Reparatie van apparaten"
+      }
+    }
+  },
+  "fallbackProfessionals": {
+    "titles": {
+      "prof-1": "Modern interieurontwerper met toprating",
+      "prof-2": "Minimalistische en Scandinavische ruimteplanner",
+      "prof-3": "Bohemien en eclectische homestylist",
+      "prof-4": "Ontwerper voor commerciële en kantoorruimtes",
+      "prof-5": "Ontwerper voor luxe en high-end residentiële projecten",
+      "prof-6": "Expert in duurzaam en milieuvriendelijk design"
+    }
+  }
+}

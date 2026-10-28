@@ -66,17 +66,36 @@ export const formatAdminTagLabel = (tag: string): string =>
     .map((w) => (w.length === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
     .join(" ");
 
-export const formatResponseTime = (ms: number): string => {
+export const formatResponseTime = (ms: number, locale?: string): string => {
   if (!ms || ms <= 0) return "N/A";
   const minutes = Math.floor(ms / 60000);
-  if (minutes < 1) return "<1m";
-  if (minutes < 60) return `${minutes}m`;
+  const localize = Boolean(locale && !locale.toLowerCase().startsWith("en"));
+  const unit = (value: number, unit: "minute" | "hour" | "day") => {
+    if (!localize) {
+      return `${value}${unit === "minute" ? "m" : unit === "hour" ? "h" : "d"}`;
+    }
+    try {
+      return new Intl.NumberFormat(locale, {
+        style: "unit",
+        unit,
+        unitDisplay: "short",
+      }).format(value);
+    } catch {
+      return `${value}${unit === "minute" ? "m" : unit === "hour" ? "h" : "d"}`;
+    }
+  };
+  if (minutes < 1) return localize ? `<${unit(1, "minute")}` : "<1m";
+  if (minutes < 60) return unit(minutes, "minute");
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
   if (hours < 24) {
-    return remainingMinutes === 0 ? `${hours}h` : `${hours}h ${remainingMinutes}m`;
+    return remainingMinutes === 0
+      ? unit(hours, "hour")
+      : `${unit(hours, "hour")} ${unit(remainingMinutes, "minute")}`;
   }
   const days = Math.floor(hours / 24);
   const remainingHours = hours % 24;
-  return remainingHours === 0 ? `${days}d` : `${days}d ${remainingHours}h`;
+  return remainingHours === 0
+    ? unit(days, "day")
+    : `${unit(days, "day")} ${unit(remainingHours, "hour")}`;
 };

@@ -10,6 +10,19 @@ function asTrimmedString(value: unknown): string | undefined {
   return typeof value === 'string' ? value.trim() || undefined : undefined;
 }
 
+/**
+ * Browser/transport failures (offline, DNS, CORS) reject `fetch` with a
+ * runtime-generated TypeError such as "Failed to fetch" / "NetworkError…" /
+ * "Load failed". Those are not backend `msg` values, so callers should show
+ * their translated fallback instead of the raw runtime text.
+ */
+export function isTransportError(error: unknown): boolean {
+  if (!(error instanceof TypeError)) return false;
+  return /failed to fetch|fetch failed|networkerror|load failed|network request failed|internet connection appears to be offline/i.test(
+    error.message,
+  );
+}
+
 export function messageFromApiBody(body: ApiErrorBody | null | undefined, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback;
   return (

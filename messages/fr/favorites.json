@@ -1,0 +1,8 @@
+{
+  "add": "Ajouter aux favoris",
+  "remove": "Retirer des favoris",
+  "customersOnlyAria": "Les favoris sont réservés aux clients",
+  "customersOnlyTitle": "Seuls les clients peuvent enregistrer des favoris",
+  "customersOnlyToast": "Seuls les clients peuvent enregistrer des favoris",
+  "updateFailed": "Impossible de mettre à jour le favori"
+}

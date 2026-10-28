@@ -1,0 +1,203 @@
+{
+  "meta": {
+    "title": "Chat"
+  },
+  "common": {
+    "official": "Officieel",
+    "fixtractSupport": "Fixtract Support",
+    "supportThread": "Supportgesprek",
+    "officialSupportTeam": "Officieel supportteam",
+    "customer": "Klant",
+    "professional": "Vakman",
+    "user": "Gebruiker",
+    "conversation": "Gesprek",
+    "untitledProject": "Naamloos project",
+    "cancel": "Annuleren",
+    "chat": "Chatten",
+    "retry": "Opnieuw proberen",
+    "image": "[Afbeelding]",
+    "attachment": "[Bijlage]"
+  },
+  "page": {
+    "title": "Berichten",
+    "unavailableTitle": "Chat niet beschikbaar",
+    "unavailableBody": "Chat is alleen beschikbaar voor klanten en vakmensen.",
+    "newChat": "Nieuwe chat",
+    "searchConversations": "Zoek in gesprekken...",
+    "pickProfessional": "Kies hieronder een vakman om een gesprek te starten.",
+    "noProfessionals": "Er zijn momenteel geen vakmensen beschikbaar.",
+    "backToConversations": "Terug naar gesprekken",
+    "sendQuotation": "Offerte versturen",
+    "sendQuotationTitle": "Offerte versturen",
+    "searchInChat": "Zoeken in chat",
+    "hideInfoPanel": "Infopaneel verbergen",
+    "showInfoPanel": "Infopaneel tonen",
+    "searchMessages": "Berichten zoeken...",
+    "searchPosition": "{current}/{total}",
+    "supportClosed": "🔒 Deze supportchat is door Fixtract gesloten. Je kunt niet meer antwoorden.",
+    "selectConversation": "Selecteer een gesprek om berichten te bekijken",
+    "absence": "De vakman is afwezig van <date>{from}</date> tot <date>{to}</date>"
+  },
+  "quotationDialog": {
+    "title": "Directe offerte aanmaken",
+    "description": "Kies of deze offerte aan een van je gepubliceerde projecten moet worden gekoppeld.",
+    "linkedProject": "Gekoppeld project",
+    "loadingProjects": "Projecten laden...",
+    "chooseProject": "Kies een project",
+    "noLinkedProject": "Geen gekoppeld project",
+    "createDraft": "Offerteconcept aanmaken"
+  },
+  "toasts": {
+    "customerNotFound": "Klant niet gevonden",
+    "createQuotationFailed": "Offerte aanmaken mislukt",
+    "loadConversationsFailed": "Gesprekken laden mislukt",
+    "loadMessagesFailed": "Berichten laden mislukt",
+    "loadProfessionalsFailed": "Vakmensen laden mislukt",
+    "startChatFailed": "Chat starten mislukt",
+    "selectConversationFirst": "Selecteer eerst een gesprek",
+    "sendMessageFailed": "Bericht verzenden mislukt",
+    "toggleStarFailed": "Ster bijwerken mislukt",
+    "toggleArchiveFailed": "Archiveren mislukt",
+    "addLabelFailed": "Label toevoegen mislukt",
+    "removeLabelFailed": "Label verwijderen mislukt",
+    "searchFailed": "Zoeken mislukt",
+    "startConversationWithCustomerFailed": "Gesprek met deze klant starten mislukt.",
+    "prefillSendFailed": "Chat geopend, maar de antwoorden op de offerte konden niet automatisch worden verzonden."
+  },
+  "list": {
+    "filters": {
+      "all": "Alle",
+      "unread": "Ongelezen",
+      "starred": "Gemarkeerd",
+      "archived": "Gearchiveerd"
+    },
+    "empty": "Geen gesprekken gevonden.",
+    "options": "Gespreksopties",
+    "star": "Markeren",
+    "unstar": "Markering verwijderen",
+    "archive": "Archiveren",
+    "unarchive": "Archivering ongedaan maken",
+    "labels": "Labels",
+    "labelName": "Labelnaam",
+    "add": "Toevoegen",
+    "addLabel": "+ Label toevoegen",
+    "justNow": "zojuist",
+    "minutesAgo": "{count} min. geleden",
+    "hoursAgo": "{count} u geleden",
+    "daysAgo": "{count} d geleden",
+    "monthsAgo": "{count} mnd geleden"
+  },
+  "thread": {
+    "empty": "Nog geen berichten. Zeg hallo.",
+    "chatAttachment": "Chatbijlage",
+    "captionsUnavailable": "Ondertiteling (niet beschikbaar)",
+    "videoUnsupported": "Je browser ondersteunt geen videoweergave.",
+    "reply": "Antwoorden",
+    "report": "Rapporteren",
+    "newQuotation": "Nieuwe offerte",
+    "updatedQuotation": "Bijgewerkte offerte",
+    "scope": "Omschrijving:",
+    "amount": "Bedrag:",
+    "validUntil": "Geldig tot {date}",
+    "viewAndRespond": "Bekijken en reageren",
+    "status": "Status: {status}",
+    "warrantyStatuses": {
+      "open": "Open",
+      "proposalSent": "Voorstel verzonden",
+      "proposalAccepted": "Voorstel geaccepteerd",
+      "resolved": "Opgelost",
+      "escalated": "Geëscaleerd",
+      "closed": "Gesloten"
+    },
+    "quotationStatuses": {
+      "quoted": "Offerte uitgebracht"
+    },
+    "openClaimDetails": "Claimdetails openen",
+    "warrantyClaimUpdate": "Update garantieclaim",
+    "openWarrantyPage": "Garantiepagina openen"
+  },
+  "report": {
+    "title": "Bericht rapporteren",
+    "selectReason": "Selecteer een reden",
+    "submitted": "Melding verzonden",
+    "failed": "Melding verzenden mislukt",
+    "detailsPlaceholder": "Aanvullende details (optioneel)",
+    "submit": "Melding verzenden",
+    "reasons": {
+      "spam": "Spam",
+      "harassment": "Intimidatie",
+      "inappropriate": "Ongepaste inhoud",
+      "scam": "Oplichting",
+      "other": "Overig"
+    }
+  },
+  "reviewCard": {
+    "title": "Nieuwe beoordeling van {name}",
+    "replyPublicly": "Openbaar antwoorden",
+    "replyPlaceholder": "Schrijf je openbare antwoord...",
+    "postReply": "Antwoord plaatsen",
+    "enterReply": "Voer een antwoord in",
+    "replyPosted": "Antwoord geplaatst",
+    "replyFailed": "Antwoord plaatsen mislukt"
+  },
+  "ratings": {
+    "communication": "Communicatie",
+    "valueOfDelivery": "Prijs-kwaliteitverhouding",
+    "qualityOfService": "Kwaliteit van de dienstverlening"
+  },
+  "composer": {
+    "cancelReply": "Antwoord annuleren",
+    "removeFile": "Bestand verwijderen",
+    "attachFile": "Bestand toevoegen",
+    "placeholder": "Typ een bericht...",
+    "send": "Bericht verzenden"
+  },
+  "info": {
+    "title": "Info",
+    "supportDescription": "Dit is een officieel gesprek met het Fixtract-team. We helpen je graag met alles rond het platform.",
+    "memberSince": "Lid sinds {date}",
+    "viewProfile": "Volledig profiel bekijken",
+    "openBooking": "Boeking openen",
+    "professionalInfo": "Informatie over de vakman",
+    "level": "Niveau",
+    "tags": "Labels",
+    "avgResponse": "Gem. reactietijd",
+    "professionalRatings": "Beoordelingen van de vakman",
+    "customerRating": "Beoordeling van de klant",
+    "averageFromProfessionals": "Gemiddelde van vakmensen",
+    "bookingHistory": "Boekingsgeschiedenis",
+    "totalBookings": "Totaal aantal boekingen",
+    "completed": "Afgerond",
+    "noBookings": "Nog geen boekingen tussen jullie",
+    "pendingOrders": "Openstaande opdrachten",
+    "inProgress": "In uitvoering",
+    "booked": "Geboekt",
+    "start": "Start: {date}",
+    "duration": "Duur: {duration}",
+    "professionalLevels": {
+      "new": "Nieuw",
+      "level1": "Niveau 1",
+      "level2": "Niveau 2",
+      "level3": "Niveau 3",
+      "expert": "Expert"
+    },
+    "adminTags": {
+      "verified": "Geverifieerd",
+      "ourChoice": "Onze keuze"
+    }
+  },
+  "widget": {
+    "button": "Chatten",
+    "newChat": "Nieuwe chat",
+    "backToConversations": "Terug naar gesprekken",
+    "startNewChat": "Nieuwe chat starten",
+    "minimize": "Chat minimaliseren",
+    "close": "Chat sluiten",
+    "startingConversation": "Gesprek wordt gestart...",
+    "pickProfessional": "Kies hieronder een vakman en we openen de chat meteen."
+  },
+  "startChatButton": {
+    "label": "Chat starten",
+    "onlyCustomers": "Alleen klanten kunnen gesprekken starten"
+  }
+}

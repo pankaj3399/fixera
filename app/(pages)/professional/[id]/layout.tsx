@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema, localBusinessSchema } from "@/lib/seo/jsonLd";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -48,21 +49,24 @@ async function fetchProfessional(id: string): Promise<{ professional: Profession
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
+  const t = await getTranslations("professionalProfile");
   const { professional } = await fetchProfessional(id);
   if (!professional) {
     return buildMetadata({
-      title: "Professional",
-      description: "View a verified Fixtract professional's profile, services, and reviews.",
+      title: t("meta.fallbackTitle"),
+      description: t("meta.fallbackDescription"),
       path: `/professional/${id}`,
     });
   }
-  const name = professional.name || "Professional";
+  const name = professional.name || t("meta.fallbackTitle");
   const city = professional.businessInfo?.city || professional.location?.city;
   const country = professional.businessInfo?.country || professional.location?.country;
   const where = [city, country].filter(Boolean).join(", ");
   const description =
     professional.businessInfo?.description ||
-    `${name}${where ? ` — verified Fixtract professional in ${where}` : " on Fixtract"}. View services, reviews, and book directly.`;
+    (where
+      ? t("meta.descriptionWithLocation", { name, where })
+      : t("meta.descriptionNoLocation", { name }));
   return buildMetadata({
     title: name,
     description,
@@ -73,13 +77,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProfessionalLayout({ children, params }: Props) {
   const { id } = await params;
+  const t = await getTranslations("professionalProfile");
   const { professional, ratings } = await fetchProfessional(id);
 
   const schemas: Array<Record<string, unknown>> = [
     breadcrumbSchema([
-      { name: "Home", path: "/" },
-      { name: "Professionals", path: "/professionals" },
-      { name: professional?.name || "Profile", path: `/professional/${id}` },
+      { name: t("meta.breadcrumbHome"), path: "/" },
+      { name: t("meta.breadcrumbProfessionals"), path: "/professionals" },
+      { name: professional?.name || t("meta.breadcrumbFallback"), path: `/professional/${id}` },
     ]),
   ];
 
@@ -89,7 +94,7 @@ export default async function ProfessionalLayout({ children, params }: Props) {
     const reviewCount = ratings?.totalReviews || 0;
     schemas.push(
       localBusinessSchema({
-        name: professional.name || "Professional",
+        name: professional.name || t("meta.fallbackTitle"),
         path: `/professional/${id}`,
         image: professional.profileImage,
         description: professional.businessInfo?.description,

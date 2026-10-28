@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from '@/components/ui/separator';
@@ -11,8 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button';
 import ProfessionalFilters from '@/components/ProfessionalFilters';
 import { toast } from 'sonner';
-import { useParams } from 'next/navigation';
 import StartChatButton from '@/components/chat/StartChatButton';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface Professional {
   _id: string;
@@ -29,12 +31,27 @@ interface Professional {
   profileImage?: string;
 }
 
+/** Catalog categories with translated copy in the `catalog` namespace. */
+const TRANSLATED_CATEGORY_SLUGS = [
+  'interior-services',
+  'exterior-structural',
+  'outdoor-garden',
+] as const;
+
+function isTranslatedCategorySlug(
+  slug: string
+): slug is (typeof TRANSLATED_CATEGORY_SLUGS)[number] {
+  return (TRANSLATED_CATEGORY_SLUGS as readonly string[]).includes(slug);
+}
+
 const ProfessionalCard = ({ professional }: { professional: Professional }) => {
+  const t = useTranslations('catalog');
+  const { formatPrice } = useCurrency();
   const displayName = professional.username || professional.name;
   const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   const location = professional.businessInfo?.city
     ? `${professional.businessInfo.city}, ${professional.businessInfo.country || ''}`
-    : professional.businessInfo?.country || 'Location not specified';
+    : professional.businessInfo?.country || t('categoryPage.locationNotSpecified');
 
   return (
     <Card className="group overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col w-full">
@@ -65,7 +82,7 @@ const ProfessionalCard = ({ professional }: { professional: Professional }) => {
           <div>
             <p className="font-semibold text-base leading-tight">{displayName}</p>
             <p className="text-xs text-blue-600 font-medium flex items-center gap-1">
-              <Award className="w-3 h-3" />Verified Professional
+              <Award className="w-3 h-3" />{t('categoryPage.verifiedProfessional')}
             </p>
           </div>
         </div>
@@ -84,17 +101,17 @@ const ProfessionalCard = ({ professional }: { professional: Professional }) => {
         <div className="flex items-center gap-1 mt-auto">
           <Star className="w-4 h-4 text-yellow-400 fill-current" />
           <span className="font-bold text-gray-700">5.0</span>
-          <span className="text-sm text-gray-500">(New)</span>
+          <span className="text-sm text-gray-500">{t('categoryPage.newBadge')}</span>
         </div>
       </CardContent>
       <div className="p-4 border-t flex items-center justify-between">
         <div>
-          <span className="text-xs text-gray-500 font-semibold tracking-wider">STARTING AT</span>
+          <span className="text-xs text-gray-500 font-semibold tracking-wider">{t('startingAt')}</span>
           <p className="text-xl font-bold text-gray-900">
-            {professional.currency || 'EUR'} {professional.hourlyRate || 0}/hr
+            {t('categoryPage.perHour', { price: formatPrice(professional.hourlyRate || 0) })}
           </p>
         </div>
-        <StartChatButton professionalId={professional._id} label="Start Chat" />
+        <StartChatButton professionalId={professional._id} label={t('categoryPage.startChat')} />
       </div>
     </Card>
   );
@@ -103,6 +120,7 @@ const ProfessionalCard = ({ professional }: { professional: Professional }) => {
 export default function CategoryPage() {
   const params = useParams();
   const categorySlug = params?.categorySlug as string;
+  const t = useTranslations('catalog');
 
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -141,7 +159,12 @@ export default function CategoryPage() {
   }, [categorySlug])
 
   const resolvedCategoryName = categoryName || getFallbackName(categorySlug);
-  const categoryDescription = `Find verified professionals for all your ${resolvedCategoryName.toLowerCase()} needs`;
+  const displayCategoryName = isTranslatedCategorySlug(categorySlug)
+    ? t(`names.categories.${categorySlug}.name`)
+    : resolvedCategoryName;
+  const categoryDescription = t('categoryPage.description', {
+    category: displayCategoryName.toLowerCase(),
+  });
 
   const fetchProfessionals = useCallback(async () => {
     setIsLoading(true);
@@ -162,12 +185,12 @@ export default function CategoryPage() {
       setProfessionals(data);
     } catch (error) {
       console.error('Error fetching professionals:', error);
-      setError('Unable to load professionals. Please try again later.');
-      toast.error('Failed to load professionals');
+      setError(t('categoryPage.errorMessage'));
+      toast.error(t('categoryPage.toastError'));
     } finally {
       setIsLoading(false);
     }
-  }, [categorySlug]);
+  }, [categorySlug, t]);
 
   useEffect(() => {
     if (categorySlug) {
@@ -228,10 +251,10 @@ export default function CategoryPage() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex flex-col items-center justify-center py-20">
             <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Professionals</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('categoryPage.errorTitle')}</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <Button onClick={fetchProfessionals}>
-              Try Again
+              {t('tryAgain')}
             </Button>
           </div>
         </main>
@@ -244,7 +267,7 @@ export default function CategoryPage() {
       <div className="relative h-72 md:h-96 w-full">
         <Image
           src="/images/banner.jpg"
-          alt={`${resolvedCategoryName} professionals`}
+          alt={t('categoryPage.coverAlt', { category: displayCategoryName })}
           fill
           className="object-cover"
           priority
@@ -253,14 +276,14 @@ export default function CategoryPage() {
         <div className="absolute inset-0 flex flex-col justify-end">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-12">
             <div className="flex items-center text-sm text-white mb-2">
-              <Link href="/" className="hover:underline">Home</Link>
+              <Link href="/" className="hover:underline">{t('breadcrumbs.home')}</Link>
               <ChevronRight className="w-4 h-4 mx-1" />
-              <Link href="/services" className="hover:underline">Services</Link>
+              <Link href="/services" className="hover:underline">{t('breadcrumbs.services')}</Link>
               <ChevronRight className="w-4 h-4 mx-1" />
-              <span>Categories</span>
+              <span>{t('breadcrumbs.categories')}</span>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight mb-3">
-              {resolvedCategoryName}
+              {displayCategoryName}
             </h1>
             <p className="text-lg md:text-xl text-white/90 max-w-2xl">
               {categoryDescription}
@@ -277,13 +300,13 @@ export default function CategoryPage() {
           <div className="text-center py-20">
             <div className="mb-4">
               <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">No Professionals Found</h3>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('categoryPage.emptyTitle')}</h3>
               <p className="text-gray-600 max-w-md mx-auto">
-                We currently don&apos;t have any professionals in this category. Check back soon or explore other categories.
+                {t('categoryPage.emptyDescription')}
               </p>
             </div>
             <Button asChild className="mt-6">
-              <Link href="/services">Browse All Services</Link>
+              <Link href="/services">{t('browseAllServices')}</Link>
             </Button>
           </div>
         ) : (

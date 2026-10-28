@@ -1,0 +1,203 @@
+{
+  "meta": {
+    "title": "Chat"
+  },
+  "common": {
+    "official": "Official",
+    "fixtractSupport": "Fixtract Support",
+    "supportThread": "Support thread",
+    "officialSupportTeam": "Official support team",
+    "customer": "Customer",
+    "professional": "Professional",
+    "user": "User",
+    "conversation": "Conversation",
+    "untitledProject": "Untitled project",
+    "cancel": "Cancel",
+    "chat": "Chat",
+    "retry": "Retry",
+    "image": "[Image]",
+    "attachment": "[Attachment]"
+  },
+  "page": {
+    "title": "Messages",
+    "unavailableTitle": "Chat Unavailable",
+    "unavailableBody": "Chat is available for customers and professionals only.",
+    "newChat": "New chat",
+    "searchConversations": "Search conversations...",
+    "pickProfessional": "Pick a professional below to start a conversation.",
+    "noProfessionals": "No professionals available right now.",
+    "backToConversations": "Back to conversations",
+    "sendQuotation": "Send quotation",
+    "sendQuotationTitle": "Send Quotation",
+    "searchInChat": "Search in chat",
+    "hideInfoPanel": "Hide info panel",
+    "showInfoPanel": "Show info panel",
+    "searchMessages": "Search messages...",
+    "searchPosition": "{current}/{total}",
+    "supportClosed": "🔒 This support chat has been closed by Fixtract. You can no longer reply.",
+    "selectConversation": "Select a conversation to view messages",
+    "absence": "Professional is absent from <date>{from}</date> to <date>{to}</date>"
+  },
+  "quotationDialog": {
+    "title": "Create Direct Quotation",
+    "description": "Choose whether this quotation should be linked to one of your published projects.",
+    "linkedProject": "Linked project",
+    "loadingProjects": "Loading projects...",
+    "chooseProject": "Choose a project",
+    "noLinkedProject": "No linked project",
+    "createDraft": "Create quotation draft"
+  },
+  "toasts": {
+    "customerNotFound": "Customer not found",
+    "createQuotationFailed": "Failed to create quotation",
+    "loadConversationsFailed": "Failed to load conversations",
+    "loadMessagesFailed": "Failed to load messages",
+    "loadProfessionalsFailed": "Failed to load professionals",
+    "startChatFailed": "Failed to start chat",
+    "selectConversationFirst": "Select a conversation first",
+    "sendMessageFailed": "Failed to send message",
+    "toggleStarFailed": "Failed to toggle star",
+    "toggleArchiveFailed": "Failed to toggle archive",
+    "addLabelFailed": "Failed to add label",
+    "removeLabelFailed": "Failed to remove label",
+    "searchFailed": "Search failed",
+    "startConversationWithCustomerFailed": "Failed to start conversation with this customer.",
+    "prefillSendFailed": "Chat opened, but the quotation answers could not be sent automatically."
+  },
+  "list": {
+    "filters": {
+      "all": "All",
+      "unread": "Unread",
+      "starred": "Starred",
+      "archived": "Archived"
+    },
+    "empty": "No conversations found.",
+    "options": "Conversation options",
+    "star": "Star",
+    "unstar": "Unstar",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "labels": "Labels",
+    "labelName": "Label name",
+    "add": "Add",
+    "addLabel": "+ Add label",
+    "justNow": "just now",
+    "minutesAgo": "{count}m ago",
+    "hoursAgo": "{count}h ago",
+    "daysAgo": "{count}d ago",
+    "monthsAgo": "{count}mo ago"
+  },
+  "thread": {
+    "empty": "No messages yet. Say hello.",
+    "chatAttachment": "Chat attachment",
+    "captionsUnavailable": "Captions (not available)",
+    "videoUnsupported": "Your browser does not support video playback.",
+    "reply": "Reply",
+    "report": "Report",
+    "newQuotation": "New Quotation",
+    "updatedQuotation": "Updated Quotation",
+    "scope": "Scope:",
+    "amount": "Amount:",
+    "validUntil": "Valid until {date}",
+    "viewAndRespond": "View & Respond",
+    "status": "Status: {status}",
+    "warrantyStatuses": {
+      "open": "Open",
+      "proposalSent": "Proposal sent",
+      "proposalAccepted": "Proposal accepted",
+      "resolved": "Resolved",
+      "escalated": "Escalated",
+      "closed": "Closed"
+    },
+    "quotationStatuses": {
+      "quoted": "Quoted"
+    },
+    "openClaimDetails": "Open claim details",
+    "warrantyClaimUpdate": "Warranty Claim Update",
+    "openWarrantyPage": "Open warranty page"
+  },
+  "report": {
+    "title": "Report Message",
+    "selectReason": "Please select a reason",
+    "submitted": "Report submitted",
+    "failed": "Failed to submit report",
+    "detailsPlaceholder": "Additional details (optional)",
+    "submit": "Submit Report",
+    "reasons": {
+      "spam": "Spam",
+      "harassment": "Harassment",
+      "inappropriate": "Inappropriate content",
+      "scam": "Scam",
+      "other": "Other"
+    }
+  },
+  "reviewCard": {
+    "title": "New Review from {name}",
+    "replyPublicly": "Reply Publicly",
+    "replyPlaceholder": "Write your public reply...",
+    "postReply": "Post Reply",
+    "enterReply": "Please enter a reply",
+    "replyPosted": "Reply posted successfully",
+    "replyFailed": "Failed to post reply"
+  },
+  "ratings": {
+    "communication": "Communication",
+    "valueOfDelivery": "Value of Delivery",
+    "qualityOfService": "Quality of Service"
+  },
+  "composer": {
+    "cancelReply": "Cancel reply",
+    "removeFile": "Remove file",
+    "attachFile": "Attach file",
+    "placeholder": "Type a message...",
+    "send": "Send message"
+  },
+  "info": {
+    "title": "Info",
+    "supportDescription": "This is an official conversation with the Fixtract team. We'll help you with anything platform-related.",
+    "memberSince": "Member since {date}",
+    "viewProfile": "View Full Profile",
+    "openBooking": "Open Booking",
+    "professionalInfo": "Professional Info",
+    "level": "Level",
+    "tags": "Tags",
+    "avgResponse": "Avg. Response",
+    "professionalRatings": "Professional Ratings",
+    "customerRating": "Customer Rating",
+    "averageFromProfessionals": "Average from professionals",
+    "bookingHistory": "Booking History",
+    "totalBookings": "Total Bookings",
+    "completed": "Completed",
+    "noBookings": "No bookings between you yet",
+    "pendingOrders": "Pending Orders",
+    "inProgress": "In Progress",
+    "booked": "Booked",
+    "start": "Start: {date}",
+    "duration": "Duration: {duration}",
+    "professionalLevels": {
+      "new": "New",
+      "level1": "Level 1",
+      "level2": "Level 2",
+      "level3": "Level 3",
+      "expert": "Expert"
+    },
+    "adminTags": {
+      "verified": "Verified",
+      "ourChoice": "Our Choice"
+    }
+  },
+  "widget": {
+    "button": "Chat",
+    "newChat": "New chat",
+    "backToConversations": "Back to conversations",
+    "startNewChat": "Start new chat",
+    "minimize": "Minimize chat",
+    "close": "Close chat",
+    "startingConversation": "Starting conversation...",
+    "pickProfessional": "Pick a professional below and we will open the chat instantly."
+  },
+  "startChatButton": {
+    "label": "Start Chat",
+    "onlyCustomers": "Only customers can start conversations"
+  }
+}

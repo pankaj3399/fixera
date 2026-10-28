@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useId } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { authFetch } from "@/lib/utils";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ export default function FavoriteButton({
 }: FavoriteButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useTranslations("favorites");
   const { user, isAuthenticated, loading } = useAuth();
   const [favorited, setFavorited] = useState(initialFavorited);
   const [count, setCount] = useState<number | undefined>(initialCount);
@@ -77,7 +79,7 @@ export default function FavoriteButton({
     }
 
     if (user?.role !== "customer") {
-      toast.error("Only customers can favorite");
+      toast.error(t("customersOnlyToast"));
       return;
     }
 
@@ -100,7 +102,7 @@ export default function FavoriteButton({
       );
       const json = await res.json();
       if (!res.ok || !json?.success) {
-        throw new Error(json?.msg || "Failed to update favorite");
+        throw new Error(json?.msg || t("updateFailed"));
       }
       const nextFavorited: boolean = json.data.favorited;
       const nextCount: number = json.data.count;
@@ -110,7 +112,7 @@ export default function FavoriteButton({
     } catch (err) {
       setFavorited(prevFavorited);
       setCount(prevCount);
-      const message = err instanceof Error ? err.message : "Failed to update favorite";
+      const message = err instanceof Error ? err.message : t("updateFailed");
       toast.error(message);
     } finally {
       setBusy(false);
@@ -127,6 +129,7 @@ export default function FavoriteButton({
     onToggled,
     pathname,
     router,
+    t,
   ]);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -141,10 +144,10 @@ export default function FavoriteButton({
   const { wrap, icon } = sizeMap[size];
 
   const ariaLabel = disabled
-    ? "Favoriting is for customers"
+    ? t("customersOnlyAria")
     : favorited
-      ? "Remove from favorites"
-      : "Add to favorites";
+      ? t("remove")
+      : t("add");
 
   return (
     <div className={cn("inline-flex items-center gap-2", className)}>
@@ -154,7 +157,7 @@ export default function FavoriteButton({
         disabled={disabled || busy}
         aria-label={ariaLabel}
         aria-pressed={favorited}
-        title={disabled ? "Only customers can favorite" : undefined}
+        title={disabled ? t("customersOnlyTitle") : undefined}
         className={cn(
           "rounded-full bg-white/95 backdrop-blur border shadow-md",
           "flex items-center justify-center transition-all duration-200",
