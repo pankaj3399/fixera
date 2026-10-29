@@ -4,10 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ArrowLeft,
   ExternalLink,
   FileText,
+  Languages,
   Loader2,
+  RefreshCw,
   Save,
   Send,
   Tag,
@@ -15,16 +18,19 @@ import {
   X,
 } from "lucide-react";
 import {
-  adminCreateCms,
+  adminCreateCmsWithTranslations,
   adminDeleteCms,
   adminGetCms,
   adminListCmsServiceOptions,
   adminListFaqCategories,
-  adminUpdateCms,
+  adminTranslateCms,
+  adminUpdateCmsWithTranslations,
   CmsContent,
   CmsContentStatus,
   CmsContentType,
   CmsServiceOption,
+  CmsTranslationResult,
+  CmsTranslationStatus,
   CmsUpsertPayload,
   CMS_CONTENT_LOCALE_LABELS,
   CMS_CONTENT_LOCALES,
@@ -34,6 +40,7 @@ import {
   getPublicPathForCms,
   getPublicSlugPrefixForCms,
   normalizeCmsContentLocale,
+  normalizeCmsTranslationResults,
   persistableCmsHtml,
   persistableCmsMediaUrl,
   slugify,
@@ -93,6 +100,54 @@ const EMPTY: Partial<CmsContent> = {
   activeCountries: [],
 };
 
+const TRANSLATION_STATUS_LABELS: Record<CmsTranslationStatus, string> = {
+  created: "Created",
+  updated: "Updated",
+  synced: "Up to date",
+  skipped_manual: "Manual kept",
+  failed: "Failed",
+  disabled: "Azure not configured",
+};
+
+const TRANSLATION_STASH_PREFIX = "fixera:cms:translation-results:";
+
+function stashTranslationResults(id: string, results: CmsTranslationResult[]) {
+  if (!results.length || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(
+      `${TRANSLATION_STASH_PREFIX}${id}`,
+      JSON.stringify(results)
+    );
+  } catch {
+    // Session storage can be unavailable (private mode); the inline panel still works.
+  }
+}
+
+function readStashedTranslationResults(id: string): CmsTranslationResult[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(`${TRANSLATION_STASH_PREFIX}${id}`);
+    if (!raw) return [];
+    window.sessionStorage.removeItem(`${TRANSLATION_STASH_PREFIX}${id}`);
+    return normalizeCmsTranslationResults(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+function translationTone(status: CmsTranslationStatus): string {
+  switch (status) {
+    case "failed":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "disabled":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "skipped_manual":
+      return "border-sky-200 bg-sky-50 text-sky-700";
+    default:
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+}
+
 export default function CmsContentForm({ mode, initial, lockedType, initialSlug, initialTitle }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<Partial<CmsContent>>(() => {
@@ -121,12 +176,29 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const [relatedItems, setRelatedItems] = useState(() => relatedItemsFromCms(initial?.relatedContent));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showForceTranslateConfirm, setShowForceTranslateConfirm] = useState(false);
+  const [translationResults, setTranslationResults] = useState<CmsTranslationResult[]>([]);
+  const [translationSource, setTranslationSource] = useState<"save" | "retranslate" | null>(null);
+  /** Results describe the last saved content; editing makes them potentially stale. */
+  const [translationsStale, setTranslationsStale] = useState(false);
   /** Monotonic form revision, so a retry/save finishing late can't claim fresh state. */
   const formRevision = useRef(0);
   const savedRevision = useRef(0);
-  const actionLock = useRef<"save" | "delete" | null>(null);
-  const busy = saving || deleting;
+  const actionLock = useRef<"save" | "delete" | "translate" | null>(null);
+  const busy = saving || deleting || translating;
+
+  // A create redirects to the edit page; carry the per-locale save results
+  // across that navigation so they are not silently lost.
+  useEffect(() => {
+    if (!initial?._id) return;
+    const results = readStashedTranslationResults(initial._id);
+    if (!results.length) return;
+    setTranslationResults(results);
+    setTranslationSource("save");
+    setTranslationsStale(false);
+  }, [initial?._id]);
 
   useEffect(() => {
     const stubs = relatedItems.filter((item) => !item.slug);
@@ -196,10 +268,13 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
     ? withCmsLangParam(publicPreviewPath, normalizeCmsContentLocale(form.locale))
     : null;
   const formLocale = normalizeCmsContentLocale(form.locale);
+  const isMachineTranslation = form.autoTranslated === true;
+  const isManualTranslation = !isMachineTranslation && Boolean(form.translatedFrom);
   const coverRecommendation = COVER_RECOMMENDATIONS[type] ?? DEFAULT_COVER_RECOMMENDATION;
 
   const markFormChanged = () => {
     formRevision.current += 1;
+    setTranslationsStale(true);
   };
 
   const update = (patch: Partial<CmsContent>) => {
@@ -225,6 +300,21 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
     if (isFaq && !form.category) return false;
     return true;
   }, [form, requiresCover, isFaq, faqCategoriesError]);
+
+  const announceTranslationOutcome = (results: CmsTranslationResult[]) => {
+    if (!results.length) return;
+    const failed = results.filter((result) => result.status === "failed");
+    if (failed.length > 0) {
+      const locales = failed
+        .map((result) => (result.locale === "*" ? "all locales" : result.locale.toUpperCase()))
+        .join(", ");
+      toast.warning(`Content saved, but translation failed for ${locales}. See Translations.`);
+      return;
+    }
+    if (results.every((result) => result.status === "disabled")) {
+      toast.info("Content saved. Azure Translator is not configured, so translations were skipped.");
+    }
+  };
 
   const save = async (status: CmsContentStatus) => {
     if (actionLock.current) return;
@@ -263,16 +353,16 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         activeCountries: supportsCountryTargeting ? form.activeCountries || [] : [],
       };
       if (mode === "create") {
-        const created = await adminCreateCms(payload);
+        const { content: created, translations } =
+          await adminCreateCmsWithTranslations(payload);
+        stashTranslationResults(created._id, translations);
         toast.success(status === "published" ? "Published!" : "Draft saved");
+        announceTranslationOutcome(translations);
         router.push(`/admin/cms/${created._id}/edit`);
       } else if (initial?._id) {
-        const updated = await adminUpdateCms(initial._id, payload);
+        const { content: updated, translations } =
+          await adminUpdateCmsWithTranslations(initial._id, payload);
         savedRevision.current = revisionAtSaveStart;
-        // The saved status always applies (it drives publish state and the
-        // "View live" link); other fields keep the revision guard so typing
-        // during the request is never clobbered by the server echo.
-        setForm((prev) => ({ ...prev, status: updated.status }));
         if (formRevision.current === revisionAtSaveStart) {
           setForm({
             ...updated,
@@ -282,14 +372,65 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             activeCountries: Array.isArray(updated.activeCountries) ? updated.activeCountries : [],
           });
           setRelatedItems(relatedItemsFromCms(updated.relatedContent));
+          setTranslationsStale(false);
+        } else {
+          // The admin kept typing while the request was in flight; never
+          // discard those edits just to apply the server echo.
+          setTranslationsStale(true);
         }
+        setTranslationResults(translations);
+        setTranslationSource("save");
         toast.success(status === "published" ? "Published!" : "Draft saved");
+        announceTranslationOutcome(translations);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       actionLock.current = null;
       setSaving(false);
+    }
+  };
+
+  const runTranslate = async (force: boolean) => {
+    if (actionLock.current || !initial?._id) return;
+    actionLock.current = "translate";
+    setShowForceTranslateConfirm(false);
+    setTranslating(true);
+    try {
+      // Deliberately does not touch `form`: unsaved edits must survive, and a
+      // translation run must never masquerade as a content save.
+      const { translations } = await adminTranslateCms(initial._id, { force });
+      setTranslationResults(translations);
+      setTranslationSource("retranslate");
+      // The translation reflects the saved document. If the form has unsaved
+      // edits (before or during this request), keep it marked stale instead of
+      // claiming the translations match what is on screen.
+      setTranslationsStale(formRevision.current !== savedRevision.current);
+      const failed = translations.filter((result) => result.status === "failed");
+      const disabled = translations.every((result) => result.status === "disabled");
+      const manualKept = translations.filter((result) => result.status === "skipped_manual");
+      if (failed.length > 0) {
+        toast.warning(
+          `Translation failed for ${failed
+            .map((r) => (r.locale === "*" ? "all locales" : r.locale.toUpperCase()))
+            .join(", ")}.`
+        );
+      } else if (translations.length === 0) {
+        toast.info("No translation results were returned.");
+      } else if (disabled && translations.length > 0) {
+        toast.info("Azure Translator is not configured, so translations were skipped.");
+      } else if (manualKept.length > 0 && !force) {
+        toast.info(
+          `Manual translations kept for ${manualKept.map((r) => r.locale.toUpperCase()).join(", ")}.`
+        );
+      } else {
+        toast.success(force ? "Translations overwritten" : "Translations updated");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Translation failed");
+    } finally {
+      actionLock.current = null;
+      setTranslating(false);
     }
   };
 
@@ -389,6 +530,23 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                   <p className="text-xs text-rose-500">
                     {CMS_TYPE_LABELS[type]} · {form.status} · {CMS_CONTENT_LOCALE_LABELS[formLocale]} ({formLocale})
                   </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {isMachineTranslation ? (
+                      <span
+                        title="Generated by Azure Translator; editing it turns it into a manual translation."
+                        className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700"
+                      >
+                        Auto-translated
+                      </span>
+                    ) : isManualTranslation ? (
+                      <span
+                        title="Manual translation: automatic sync never overwrites it unless you explicitly force it."
+                        className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+                      >
+                        Manual translation
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -707,8 +865,129 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             </div>
           </GradientCard>
 
+          <GradientCard>
+            <div className="p-6 space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-rose-700">
+                <Languages size={14} /> Translations
+              </h3>
+
+              {isManualTranslation ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+                  This is a manual translation. Automatic saves and normal re-translation keep
+                  manual text untouched; only the explicit overwrite action below replaces it.
+                </p>
+              ) : isMachineTranslation ? (
+                <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-800">
+                  This document is a machine translation. Editing and saving it turns it into a
+                  manual translation that future automatic syncs will not overwrite.
+                </p>
+              ) : (
+                <p className="text-[11px] leading-relaxed text-rose-400">
+                  Saving this original syncs the other supported languages. Manual translations
+                  are never overwritten without an explicit confirmation.
+                </p>
+              )}
+
+              {translationResults.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-medium text-rose-500">
+                    {translationSource === "retranslate" ? "Last re-translate" : "Last save"}
+                    {translationsStale ? " — content changed since, results may be out of date" : ""}
+                  </p>
+                  {translationResults.map((result) => (
+                    <div
+                      key={`${result.locale}-${result.status}`}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-[11px]",
+                        translationTone(result.status)
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2 font-medium">
+                        <span>{result.locale === "*" ? "All locales" : result.locale.toUpperCase()}</span>
+                        <span>{TRANSLATION_STATUS_LABELS[result.status]}</span>
+                      </div>
+                      {result.error ? (
+                        <p className="mt-1 break-words opacity-90">{result.error}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                  {translationsStale ? (
+                    <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Save or re-translate to refresh the translation status.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              {mode === "edit" && initial?._id ? (
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => runTranslate(false)}
+                    disabled={busy}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-pink-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+                  >
+                    {translating ? (
+                      <Loader2 className="animate-spin" size={13} />
+                    ) : (
+                      <RefreshCw size={13} />
+                    )}
+                    Re-translate
+                  </button>
+                  <p className="text-[11px] leading-relaxed text-rose-400">
+                    Retries only missing or stale machine translations. Manual translations are
+                    kept.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowForceTranslateConfirm(true)}
+                    disabled={busy}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    Overwrite manual translations…
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-rose-400">
+                  Save this content first to run or retry translations.
+                </p>
+              )}
+            </div>
+          </GradientCard>
+
         </div>
       </div>
+
+      <Dialog open={showForceTranslateConfirm} onOpenChange={setShowForceTranslateConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Overwrite manual translations?</DialogTitle>
+            <DialogDescription>
+              Azure Translator will replace any manually edited translations in the other
+              supported locales with machine translations. This cannot be undone from this
+              screen.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setShowForceTranslateConfirm(false)}
+              className="inline-flex items-center justify-center rounded-xl border border-pink-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => runTranslate(true)}
+              disabled={busy}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200 transition hover:shadow-lg hover:shadow-rose-300 disabled:opacity-50"
+            >
+              <RefreshCw size={14} /> Overwrite translations
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent className="sm:max-w-md">
