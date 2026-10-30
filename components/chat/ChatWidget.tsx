@@ -105,6 +105,7 @@ export default function ChatWidget() {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("none");
   const conversationListRef = useRef<ChatConversation[]>([]);
+  const selectedConversationIdRef = useRef<string | null>(null);
   const conversationListRequestRef = useRef<Promise<void> | null>(null);
   const conversationListRequestGenerationRef = useRef(0);
   const pendingStartInFlightRef = useRef<string | null>(null);
@@ -202,6 +203,10 @@ export default function ChatWidget() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
+
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId;
+  }, [selectedConversationId]);
 
   const userRole = user?.role;
   const userId = user?._id || null;
@@ -346,6 +351,20 @@ export default function ChatWidget() {
       }
     },
     [open, t]
+  );
+
+  const selectConversation = useCallback(
+    (conversationId: string) => {
+      setManualNewChatPanel(false);
+      if (selectedConversationIdRef.current === conversationId) {
+        // Re-selecting the already-open conversation (e.g. after a failed or
+        // stale load) must still fetch and display its messages.
+        void loadMessages(conversationId, true);
+        return;
+      }
+      setSelectedConversationId(conversationId);
+    },
+    [loadMessages]
   );
 
   const loadProfessionalOptions = useCallback(async () => {
@@ -661,7 +680,12 @@ export default function ChatWidget() {
       {!open && (
         <Button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true);
+            // Load explicitly: opening from the floating button must show the
+            // conversation list immediately instead of waiting for a poll tick.
+            void loadConversationList(true);
+          }}
           className="h-14 rounded-full bg-indigo-600 px-5 text-white shadow-xl hover:bg-indigo-700"
         >
           <MessageSquare className="mr-2 h-5 w-5" />
@@ -873,8 +897,7 @@ export default function ChatWidget() {
                     userLabels={[]}
                     compact
                     onSelect={(conversationId) => {
-                      setManualNewChatPanel(false);
-                      setSelectedConversationId(conversationId);
+                      selectConversation(conversationId);
                     }}
                     onFilterChange={() => {}}
                     onToggleStar={() => {}}

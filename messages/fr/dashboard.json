@@ -458,6 +458,14 @@
       "unknownCoverage": "{count, plural, one {# réservation réglée est} other {# réservations réglées sont}} antérieure(s) aux relevés de remises : le total est donc une borne basse.",
       "excludedUncertain": "{count, plural, one {# réservation est} other {# réservations sont}} exclue(s) (remboursement partiel ou litige : aucune répartition exacte enregistrée).",
       "bookingsCount": "{count, plural, one {# réservation réglée} other {# réservations réglées}}"
+    },
+    "wallet": {
+      "title": "Comment fonctionne le portefeuille de points",
+      "bodyCustomer": "Vous gagnez des points Fixtract à chaque réservation et les échangez au paiement contre une remise immédiate. Votre solde est affiché ci-dessus, vos économies par réservation ci-dessous.",
+      "bodyProfessional": "Vos points sont convertis en crédits de réservation pour votre progression de niveau via l'action boost : utilisez le boost pour ajouter des crédits vers votre niveau suivant.",
+      "balanceLink": "Voir le solde",
+      "historyLink": "Voir l'historique des économies",
+      "benefitsLink": "Voir les avantages"
     }
   },
   "disputes": {

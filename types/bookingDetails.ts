@@ -553,6 +553,14 @@ export interface MilestonePaymentDto {
   paidAt?: string | null;
   customerChargeTotalWithVat?: number | null;
   paymentRowPresent?: boolean;
+  /**
+   * Expected customer charge for this milestone from the shared charge plan
+   * (recorded commission; selected options in full on the first milestone).
+   * Null when no commission was recorded for the booking.
+   */
+  expectedCustomerCharge?: number | null;
+  /** True when this milestone carries the selected options in full. */
+  includesSelectedOptions?: boolean | null;
 }
 
 export interface ExtraCostPaymentDto {
@@ -688,6 +696,9 @@ export interface RescheduleHistoryDto {
   previousSchedule?: BookingOverviewSchedule | null;
   proposedSchedule?: BookingOverviewSchedule | null;
   timeZone?: string | null;
+  timeZoneRecorded?: boolean;
+  /** False once the request is disputed/terminal — the UI must disable accept/decline. */
+  canRespond?: boolean | null;
 }
 
 export interface CancellationRequestDto {
@@ -695,6 +706,8 @@ export interface CancellationRequestDto {
   status?: string | null;
   reasonCategory?: string | null;
   reason?: string | null;
+  /** Admin-only resolution note; only present for admin viewers. */
+  adminResolutionNote?: string | null;
   evidence?: AttachmentDto[];
   requestedBy?: ActorDto | null;
   requestedRole?: string | null;
