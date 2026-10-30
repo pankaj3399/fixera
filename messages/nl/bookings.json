@@ -157,7 +157,11 @@
     "subtitle": "Bekijk alle informatie over deze boeking.",
     "defaultTitle": "Boeking",
     "typeProject": "Projectboeking",
-    "typeProfessional": "Boeking bij een vakman"
+    "typeProfessional": "Boeking bij een vakman",
+    "titleRfq": "Offerteaanvraag",
+    "subtitleRfq": "Bekijk deze offerteaanvraag en reageer met een offerte.",
+    "defaultTitleRfq": "Offerteaanvraag",
+    "typeRfq": "Offerteaanvraag"
   },
   "toasts": {
     "attachmentUploaded": "Bijlage geüpload",
@@ -389,7 +393,9 @@
       "updateFailed": "Mijlpaal bijwerken is mislukt.",
       "updateFailedRetry": "Mijlpaal bijwerken is mislukt. Probeer het opnieuw."
     },
-    "currentPreviewNote": "Huidig afrekenoverzicht. Vastgelegde grootboekbedragen staan in het tabblad Betalingen."
+    "currentPreviewNote": "Huidig afrekenoverzicht. Vastgelegde grootboekbedragen staan in het tabblad Betalingen.",
+    "optionsIncluded": "Inclusief geselecteerde opties",
+    "optionsFirstNote": "Geselecteerde opties worden volledig bij de eerste mijlpaal in rekening gebracht, niet verdeeld over mijlpalen."
   },
   "work": {
     "readyToStartTitle": "Klaar om te starten",
@@ -556,7 +562,13 @@
       "confirmResolutionFailed": "Oplossing bevestigen is mislukt",
       "escalated": "Claim geëscaleerd naar beheerder.",
       "escalateFailed": "Claim escaleren is mislukt"
-    }
+    },
+    "proposalDeclineTitle": "Voorstel afwijzen",
+    "proposalDeclineDescription": "Vertel de professional waarom dit voorstel niet werkt voor jou. Je toelichting wordt meegestuurd en de claim wordt geëscaleerd.",
+    "clarificationLabel": "Toelichting",
+    "clarificationPlaceholder": "Leg uit wat er ontbreekt of mis is met de voorgestelde oplossing...",
+    "clarificationRequired": "Voeg een korte toelichting toe voordat je afwijst.",
+    "confirmDecline": "Voorstel afwijzen"
   },
   "dispute": {
     "dialogDescription": "Dien een geschil in voor beoordeling door een beheerder.",
@@ -673,7 +685,8 @@
       "booking": "Boeking",
       "quotation": "Offerte",
       "payments": "Betalingen",
-      "activity": "Activiteit"
+      "activity": "Activiteit",
+      "bookingRfq": "Offerteaanvraag"
     },
     "fields": {
       "unknown": "Onbekend",
@@ -1280,6 +1293,65 @@
     "timeZone": {
       "recorded": "Tijdstempels gebruiken de vastgelegde boekingszone: {zone}.",
       "viewer": "Er is geen boekingszone vastgelegd; tijdstempels gebruiken de tijdzone van je browser: {zone}."
+    }
+  },
+  "cancellationRequest": {
+    "title": "Annuleringsverzoek",
+    "requestedBy": "Aangevraagd door",
+    "customerFallback": "Klant",
+    "professionalFallback": "Professional",
+    "role": {
+      "customer": "klant",
+      "professional": "professional"
+    },
+    "category": "Categorie",
+    "reason": "Reden",
+    "professionalNote": "Opmerking professional: {note}",
+    "counterOffer": "Tegenbod",
+    "responseDeadline": "Reageer vóór {date}",
+    "refundAmount": "Terugbetalingsbedrag",
+    "denyReason": "Reden voor afwijzing",
+    "approve": "Annulering goedkeuren",
+    "reject": "Verzoek afwijzen",
+    "status": {
+      "pending": "In afwachting",
+      "processing": "In behandeling",
+      "negotiating": "Onderhandeling",
+      "escalated": "Geëscaleerd",
+      "approved": "Goedgekeurd",
+      "denied": "Geweigerd"
+    },
+    "toasts": {
+      "respondFailed": "Reageren op het annuleringsverzoek is mislukt.",
+      "approved": "Annulering goedgekeurd en terugbetaling uitgevoerd.",
+      "rejected": "Annuleringsverzoek afgewezen."
+    },
+    "adminNote": "Beheerdersnotitie: {note}"
+  },
+  "rescheduleRequest": {
+    "title": "Verzoek tot verzetten",
+    "requestedTitle": "Aangevraagd {date}",
+    "dateNotRecorded": "datum niet geregistreerd",
+    "actorNotRecorded": "aanvrager niet geregistreerd",
+    "unknownRequester": "Onbekend",
+    "requestedBy": "Aangevraagd door",
+    "reason": "Reden",
+    "noReason": "Geen reden opgegeven",
+    "responseNote": "Reactie: {note}",
+    "previousSchedule": "Oorspronkelijke planning",
+    "proposedSchedule": "Nieuwe planning",
+    "disputedNotice": "Dit verzoek is betwist en kan niet meer worden geaccepteerd of afgewezen.",
+    "noActionAvailable": "Er is geen actie beschikbaar voor dit verzoek.",
+    "historyTitle": "Eerdere verzoeken",
+    "status": {
+      "pending": "In afwachting",
+      "accepted": "Geaccepteerd",
+      "declined": "Afgewezen",
+      "disputed": "Betwist",
+      "auto_cancelled": "Automatisch geannuleerd"
+    },
+    "toasts": {
+      "disputed": "Dit verzetverzoek is betwist en kan niet meer worden geaccepteerd of afgewezen."
     }
   }
 }

@@ -93,8 +93,6 @@
       "unableToRemove": "Kortingscode kon niet worden verwijderd."
     },
     "memberBenefitsApplied": "Voordelen van {tier}-lid toegepast",
-    "originalServiceAmount": "Oorspronkelijk dienstbedrag:",
-    "selectedOptions": "Geselecteerde opties:",
     "loyaltyDiscountLine": "Loyaliteitskorting ({percent}%):",
     "returningCustomerLine": "Korting terugkerende klant ({percent}%):",
     "pointsRedeemedLine": "Ingewisselde punten ({points} pt):",
@@ -132,7 +130,11 @@
     "bufferValue": "Buffer: {duration}",
     "saving": "Opslaan...",
     "backToDetails": "Terug naar boekingsgegevens",
-    "previousToSchedule": "Vorige: boekingsinfo"
+    "previousToSchedule": "Vorige: boekingsinfo",
+    "fullPrice": "Volledige prijs",
+    "milestoneIncludesOptions": "Inclusief geselecteerde opties (volledig)",
+    "optionsFirstMilestoneNote": "Geselecteerde opties worden volledig bij de eerste mijlpaal in rekening gebracht, niet verdeeld over mijlpalen.",
+    "selectedOptionsInfo": "Geselecteerde opties (inbegrepen)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Betaling geslaagd",

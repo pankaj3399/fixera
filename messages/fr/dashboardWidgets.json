@@ -474,5 +474,13 @@
     "colPayoutRefund": "Versement / remboursement",
     "colActions": "Actions rapides",
     "colDetails": "Détails"
+  },
+  "levelUp": {
+    "customerTitle": "Niveau supérieur !",
+    "professionalTitle": "Niveau supérieur !",
+    "customerBody": "Félicitations — vous avez atteint un nouveau niveau de fidélité.",
+    "professionalBody": "Félicitations — vous avez atteint un nouveau niveau professionnel.",
+    "viewBenefits": "Voir mes avantages",
+    "dismiss": "Plus tard"
   }
 }

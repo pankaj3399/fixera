@@ -102,9 +102,11 @@ export function BookingDetailsTabs({
     [pathname, router]
   )
 
+  // Task 17: RFQ surfaces say "Quotation request", not "Booking".
+  const isRfqBooking = booking?.status === "rfq" || booking?.status === "rfq_accepted"
   const labels: Record<DetailTab, string> = {
     overview: dt("tabs.overview", "Overview"),
-    booking: dt("tabs.booking", "Booking"),
+    booking: isRfqBooking ? dt("tabs.bookingRfq", "Quotation request") : dt("tabs.booking", "Booking"),
     quotation: dt("tabs.quotation", "Quotation"),
     payments: dt("tabs.payments", "Payments"),
     activity: dt("tabs.activity", "Activity"),

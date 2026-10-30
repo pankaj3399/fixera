@@ -93,8 +93,6 @@
       "unableToRemove": "Impossible de supprimer le code de réduction."
     },
     "memberBenefitsApplied": "Avantages membre {tier} appliqués",
-    "originalServiceAmount": "Montant initial du service :",
-    "selectedOptions": "Options sélectionnées :",
     "loyaltyDiscountLine": "Remise fidélité ({percent} %) :",
     "returningCustomerLine": "Remise client fidèle ({percent} %) :",
     "pointsRedeemedLine": "Points utilisés ({points} pts) :",
@@ -132,7 +130,11 @@
     "bufferValue": "Marge : {duration}",
     "saving": "Enregistrement...",
     "backToDetails": "Retour aux détails de la réservation",
-    "previousToSchedule": "Précédent : infos de réservation"
+    "previousToSchedule": "Précédent : infos de réservation",
+    "fullPrice": "Prix total",
+    "milestoneIncludesOptions": "Inclut les options sélectionnées (en totalité)",
+    "optionsFirstMilestoneNote": "Les options sélectionnées sont facturées en totalité avec le premier jalon, et non réparties sur les jalons.",
+    "selectedOptionsInfo": "Options sélectionnées (incluses)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Paiement réussi",

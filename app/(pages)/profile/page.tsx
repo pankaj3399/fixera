@@ -44,6 +44,7 @@ import { listSupportAvailability } from "@/lib/support"
 import { supportCalendarDisplayEvents, supportCalendarWarning } from "@/lib/support/calendar"
 import { resolveSupportTimeZone, supportDateWindow } from "@/lib/support/dates"
 import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
+import { bookingCalendarEventType } from "@/lib/calendar/bookingEvents"
 
 
 function normalizeCountryCode(raw: string): string {
@@ -637,7 +638,7 @@ function ProfileContent() {
         const activeBookings = (result.bookings || []).filter((booking: BookingData) =>
           booking?.scheduledStartDate &&
           (booking?.scheduledExecutionEndDate || booking?.scheduledBufferEndDate) &&
-          !['completed', 'cancelled', 'refunded'].includes(booking?.status || '')
+          bookingCalendarEventType(booking?.status) !== null
         )
 
         const events: CalendarEvent[] = []
@@ -650,6 +651,9 @@ function ProfileContent() {
           const customerName = booking.customer && typeof booking.customer === 'object'
             ? booking.customer.name
             : undefined
+          // Blue = pending bookings; in-progress work renders indigo and
+          // completed bookings render emerald (see bookingCalendarEventType).
+          const bookingEventType = bookingCalendarEventType(booking?.status) ?? 'booking'
 
           const plan = Array.isArray(booking.resourcePlan) ? booking.resourcePlan : []
           const hasPlan = plan.some((entry) => Array.isArray(entry?.days) && entry.days.length > 0)
@@ -670,7 +674,7 @@ function ProfileContent() {
               const dayStartUtc = new Date(Date.UTC(dayStart.getUTCFullYear(), dayStart.getUTCMonth(), dayStart.getUTCDate(), 0, 0, 0, 0))
               events.push({
                 id: `booking-${booking._id}-${dayIndex}`,
-                type: 'booking',
+                type: bookingEventType,
                 title: t('personalAvailability.bookingTitle'),
                 start: dayStartUtc,
                 end: new Date(dayStartUtc.getTime() + DAY_MS),
@@ -690,7 +694,7 @@ function ProfileContent() {
           if (scheduledStart && executionEnd && executionEnd > scheduledStart) {
             events.push({
               id: `booking-${booking._id}`,
-              type: 'booking',
+              type: bookingEventType,
               title: t('personalAvailability.bookingTitle'),
               start: scheduledStart,
               end: executionEnd,

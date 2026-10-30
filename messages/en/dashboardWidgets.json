@@ -474,5 +474,13 @@
     "colPayoutRefund": "Payout / refund",
     "colActions": "Quick actions",
     "colDetails": "Details"
+  },
+  "levelUp": {
+    "customerTitle": "Level up!",
+    "professionalTitle": "Level up!",
+    "customerBody": "Congratulations — you reached a new loyalty tier.",
+    "professionalBody": "Congratulations — you reached a new professional level.",
+    "viewBenefits": "View my benefits",
+    "dismiss": "Maybe later"
   }
 }

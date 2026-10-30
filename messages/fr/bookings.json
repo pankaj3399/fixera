@@ -157,7 +157,11 @@
     "subtitle": "Consultez toutes les informations de cette réservation.",
     "defaultTitle": "Réservation",
     "typeProject": "Réservation de projet",
-    "typeProfessional": "Réservation chez un professionnel"
+    "typeProfessional": "Réservation chez un professionnel",
+    "titleRfq": "Demande de devis",
+    "subtitleRfq": "Examinez cette demande de devis et répondez avec un devis.",
+    "defaultTitleRfq": "Demande de devis",
+    "typeRfq": "Demande de devis"
   },
   "toasts": {
     "attachmentUploaded": "Pièce jointe envoyée",
@@ -389,7 +393,9 @@
       "updateFailed": "La mise à jour de l'étape a échoué.",
       "updateFailedRetry": "La mise à jour de l'étape a échoué. Veuillez réessayer."
     },
-    "currentPreviewNote": "Aperçu actuel du paiement. Les montants comptables enregistrés se trouvent dans l'onglet Paiements."
+    "currentPreviewNote": "Aperçu actuel du paiement. Les montants comptables enregistrés se trouvent dans l'onglet Paiements.",
+    "optionsIncluded": "Inclut les options sélectionnées",
+    "optionsFirstNote": "Les options sélectionnées sont facturées en totalité avec le premier jalon, et non réparties sur les jalons."
   },
   "work": {
     "readyToStartTitle": "Prêt à démarrer les travaux",
@@ -556,7 +562,13 @@
       "confirmResolutionFailed": "La confirmation de la solution a échoué",
       "escalated": "Réclamation escaladée à l'administrateur.",
       "escalateFailed": "L'escalade de la réclamation a échoué"
-    }
+    },
+    "proposalDeclineTitle": "Refuser la proposition",
+    "proposalDeclineDescription": "Expliquez au professionnel pourquoi cette proposition ne vous convient pas. Votre clarification est envoyée avec la réponse et le dossier est escaladé.",
+    "clarificationLabel": "Clarification",
+    "clarificationPlaceholder": "Expliquez ce qui manque ou ne convient pas dans la solution proposée...",
+    "clarificationRequired": "Veuillez ajouter une courte clarification avant de refuser.",
+    "confirmDecline": "Refuser la proposition"
   },
   "dispute": {
     "dialogDescription": "Ouvrez un litige pour examen par un administrateur.",
@@ -673,7 +685,8 @@
       "booking": "Réservation",
       "quotation": "Devis",
       "payments": "Paiements",
-      "activity": "Activité"
+      "activity": "Activité",
+      "bookingRfq": "Demande de devis"
     },
     "fields": {
       "unknown": "Inconnu",
@@ -1280,6 +1293,65 @@
     "timeZone": {
       "recorded": "Les horodatages utilisent le fuseau horaire enregistré de la réservation : {zone}.",
       "viewer": "Aucun fuseau horaire de réservation n'a été enregistré ; les horodatages utilisent le fuseau horaire de votre navigateur : {zone}."
+    }
+  },
+  "cancellationRequest": {
+    "title": "Demande d'annulation",
+    "requestedBy": "Demandé par",
+    "customerFallback": "Client",
+    "professionalFallback": "Professionnel",
+    "role": {
+      "customer": "client",
+      "professional": "professionnel"
+    },
+    "category": "Catégorie",
+    "reason": "Motif",
+    "professionalNote": "Note du professionnel : {note}",
+    "counterOffer": "Contre-offre",
+    "responseDeadline": "Veuillez répondre avant le {date}",
+    "refundAmount": "Montant du remboursement",
+    "denyReason": "Motif du refus",
+    "approve": "Approuver l'annulation",
+    "reject": "Rejeter la demande",
+    "status": {
+      "pending": "En attente",
+      "processing": "En cours",
+      "negotiating": "Négociation",
+      "escalated": "Escaladé",
+      "approved": "Approuvé",
+      "denied": "Refusé"
+    },
+    "toasts": {
+      "respondFailed": "Échec de la réponse à la demande d'annulation.",
+      "approved": "Annulation approuvée et remboursement effectué.",
+      "rejected": "Demande d'annulation rejetée."
+    },
+    "adminNote": "Note admin : {note}"
+  },
+  "rescheduleRequest": {
+    "title": "Demande de report",
+    "requestedTitle": "Demandé le {date}",
+    "dateNotRecorded": "date non enregistrée",
+    "actorNotRecorded": "demandeur non enregistré",
+    "unknownRequester": "Inconnu",
+    "requestedBy": "Demandé par",
+    "reason": "Motif",
+    "noReason": "Aucun motif indiqué",
+    "responseNote": "Réponse : {note}",
+    "previousSchedule": "Planning initial",
+    "proposedSchedule": "Nouveau planning",
+    "disputedNotice": "Cette demande a été contestée et ne peut plus être acceptée ni refusée.",
+    "noActionAvailable": "Aucune action n'est disponible pour cette demande.",
+    "historyTitle": "Demandes précédentes",
+    "status": {
+      "pending": "En attente",
+      "accepted": "Acceptée",
+      "declined": "Refusée",
+      "disputed": "Contestée",
+      "auto_cancelled": "Annulée automatiquement"
+    },
+    "toasts": {
+      "disputed": "Cette demande de report a été contestée et ne peut plus être acceptée ni refusée."
     }
   }
 }

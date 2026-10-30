@@ -157,7 +157,11 @@
     "subtitle": "See all the information about this booking.",
     "defaultTitle": "Booking",
     "typeProject": "Project booking",
-    "typeProfessional": "Professional booking"
+    "typeProfessional": "Professional booking",
+    "titleRfq": "Quotation request",
+    "subtitleRfq": "Review this quotation request and respond with a quotation.",
+    "defaultTitleRfq": "Quotation request",
+    "typeRfq": "Quotation request"
   },
   "toasts": {
     "attachmentUploaded": "Attachment uploaded",
@@ -389,7 +393,9 @@
       "updateFailed": "Failed to update milestone.",
       "updateFailedRetry": "Failed to update milestone. Please try again."
     },
-    "currentPreviewNote": "Current checkout preview. Recorded ledger amounts are in the Payments tab."
+    "currentPreviewNote": "Current checkout preview. Recorded ledger amounts are in the Payments tab.",
+    "optionsIncluded": "Includes selected options",
+    "optionsFirstNote": "Selected options are charged in full with the first milestone, not split across milestones."
   },
   "work": {
     "readyToStartTitle": "Ready to Start Work",
@@ -556,7 +562,13 @@
       "confirmResolutionFailed": "Failed to confirm resolution",
       "escalated": "Claim escalated to admin.",
       "escalateFailed": "Failed to escalate claim"
-    }
+    },
+    "proposalDeclineTitle": "Decline proposal",
+    "proposalDeclineDescription": "Tell the professional why this proposal does not work for you. Your clarification is sent with the response and the claim is escalated.",
+    "clarificationLabel": "Clarification",
+    "clarificationPlaceholder": "Explain what is missing or wrong with the proposed solution...",
+    "clarificationRequired": "Please add a short clarification before declining.",
+    "confirmDecline": "Decline proposal"
   },
   "dispute": {
     "dialogDescription": "Raise a dispute for admin review.",
@@ -673,7 +685,8 @@
       "booking": "Booking",
       "quotation": "Quotation",
       "payments": "Payments",
-      "activity": "Activity"
+      "activity": "Activity",
+      "bookingRfq": "Quotation request"
     },
     "fields": {
       "unknown": "Unknown",
@@ -1280,6 +1293,65 @@
     "timeZone": {
       "recorded": "Record timestamps use the booking time zone: {zone}.",
       "viewer": "No booking time zone was recorded; record timestamps use your browser time zone: {zone}."
+    }
+  },
+  "cancellationRequest": {
+    "title": "Cancellation request",
+    "requestedBy": "Requested by",
+    "customerFallback": "Customer",
+    "professionalFallback": "Professional",
+    "role": {
+      "customer": "customer",
+      "professional": "professional"
+    },
+    "category": "Category",
+    "reason": "Reason",
+    "professionalNote": "Professional note: {note}",
+    "counterOffer": "Counter offer",
+    "responseDeadline": "Please respond before {date}",
+    "refundAmount": "Refund amount",
+    "denyReason": "Denial reason",
+    "approve": "Approve cancellation",
+    "reject": "Reject request",
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "negotiating": "Negotiating",
+      "escalated": "Escalated",
+      "approved": "Approved",
+      "denied": "Denied"
+    },
+    "toasts": {
+      "respondFailed": "Failed to respond to the cancellation request.",
+      "approved": "Cancellation approved and refund issued.",
+      "rejected": "Cancellation request rejected."
+    },
+    "adminNote": "Admin note: {note}"
+  },
+  "rescheduleRequest": {
+    "title": "Reschedule request",
+    "requestedTitle": "Requested {date}",
+    "dateNotRecorded": "date not recorded",
+    "actorNotRecorded": "actor not recorded",
+    "unknownRequester": "Unknown",
+    "requestedBy": "Requested by",
+    "reason": "Reason",
+    "noReason": "No reason recorded",
+    "responseNote": "Response: {note}",
+    "previousSchedule": "Original schedule",
+    "proposedSchedule": "New schedule",
+    "disputedNotice": "This request was disputed and can no longer be accepted or declined.",
+    "noActionAvailable": "No action is available for this request.",
+    "historyTitle": "Earlier requests",
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "disputed": "Disputed",
+      "auto_cancelled": "Auto-cancelled"
+    },
+    "toasts": {
+      "disputed": "This rescheduling request was disputed and can no longer be accepted or declined."
     }
   }
 }

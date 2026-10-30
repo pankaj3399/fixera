@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar, Star } from 'lucide-react';
 import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } from '@/lib/projectHighlights';
 import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
-import { getLevelColor, getAdminTagStyle, formatAdminTagLabel } from '@/lib/professionalLevel';
+import { getAdminTagStyle, formatAdminTagLabel } from '@/lib/professionalLevel';
+import TierBadge from '@/components/dashboard/TierBadge';
+import { useTierColors } from '@/lib/tierColors';
 import type { PublicProfessionalDto } from '@/types/project';
 import FavoriteButton from '@/components/favorites/FavoriteButton';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -127,6 +129,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
   const t = useTranslations('search');
   const { formatPrice } = useCurrency();
   const { intl } = useFormatLocale();
+  const { levelColor } = useTierColors();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
   const formatAmount = (value: number) => formatPrice(customerPrice(value));
@@ -459,11 +462,13 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                     {professionalName}
                   </p>
                   {professional?.professionalLevel && (
-                    <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${getLevelColor(professional.professionalLevel)}`}>
-                      {PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
+                    <TierBadge
+                      level={PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
                         ? t(PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS])
                         : professional.professionalLevel}
-                    </Badge>
+                      color={levelColor(professional.professionalLevel)}
+                      className="text-[9px] px-1.5 py-0"
+                    />
                   )}
                   {(professional?.adminTags || []).slice(0, 2).map((tag) => (
                     <Badge

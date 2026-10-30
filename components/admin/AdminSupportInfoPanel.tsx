@@ -3,11 +3,12 @@
 import { messageFromApiBody } from "@/lib/apiErrors";
 
 import { useEffect, useState } from "react"
-import { Award, Mail, Phone, Star, UserRound } from "lucide-react"
+import { Mail, Phone, Star, UserRound } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { authFetch } from "@/lib/utils"
-import { getLevelColor } from "@/lib/professionalLevel"
+import TierBadge from "@/components/dashboard/TierBadge"
+import { useTierColors } from "@/lib/tierColors"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 interface ParticipantUser {
@@ -63,6 +64,7 @@ function KpiRow({ label, value }: { label: string; value: string | number }) {
 }
 
 export default function AdminSupportInfoPanel({ conversationId }: { conversationId: string }) {
+  const { levelColor } = useTierColors()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<ParticipantUser | null>(null)
@@ -149,10 +151,7 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
                 </p>
               )}
               {user.role === "professional" && kpis.level && (
-                <Badge className={`mt-2 text-[10px] ${getLevelColor(kpis.level)}`}>
-                  <Award className="mr-1 h-3 w-3" />
-                  {kpis.level}
-                </Badge>
+                <TierBadge level={kpis.level} color={levelColor(kpis.level)} className="mt-2 text-[10px]" />
               )}
               {user.role !== "professional" && (
                 <Badge variant="secondary" className="mt-2 text-[10px] capitalize">{user.role}</Badge>

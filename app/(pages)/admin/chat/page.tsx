@@ -67,6 +67,7 @@ function AdminChatInner() {
   const [conversation, setConversation] = useState<AdminConversation | null>(null)
   const [messages, setMessages] = useState<AdminMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -172,7 +173,7 @@ function AdminChatInner() {
     } finally {
       if (!silent) setIsLoading(false)
     }
-  }, [conversationId])
+  }, [conversationId, reloadKey])
 
   useEffect(() => {
     if (user?.role === 'admin' && conversationId) {
@@ -212,11 +213,17 @@ function AdminChatInner() {
   }, [messages])
 
   const selectConversation = (id: string) => {
-    if (id === selectedId) return
-    setSelectedId(id)
+    if (id !== selectedId) {
+      setSelectedId(id)
+      router.replace(`/admin/chat?conversationId=${id}`)
+    }
+    // Always reset the thread and force a reload: clicking the active
+    // conversation (or landing on it from a launcher) must still fetch and
+    // display its messages, even if a previous load failed or stalled.
     setConversation(null)
     setMessages([])
-    router.replace(`/admin/chat?conversationId=${id}`)
+    setLoadError(null)
+    setReloadKey((key) => key + 1)
   }
 
   const send = async () => {

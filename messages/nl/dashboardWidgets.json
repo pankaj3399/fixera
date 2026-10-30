@@ -474,5 +474,13 @@
     "colPayoutRefund": "Uitbetaling / terugbetaling",
     "colActions": "Snelle acties",
     "colDetails": "Details"
+  },
+  "levelUp": {
+    "customerTitle": "Niveau omhoog!",
+    "professionalTitle": "Niveau omhoog!",
+    "customerBody": "Gefeliciteerd — je hebt een nieuw loyaliteitsniveau bereikt.",
+    "professionalBody": "Gefeliciteerd — je hebt een nieuw professioneel niveau bereikt.",
+    "viewBenefits": "Bekijk mijn voordelen",
+    "dismiss": "Later"
   }
 }
