@@ -16,10 +16,9 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { ArrowLeft, Calendar, Clock, Package, Briefcase, User, Mail, Phone, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Upload, Star, Gift, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Clock, Package, Briefcase, Shield, CheckCircle, XCircle, Play, CheckCheck, CreditCard, FileText, Loader2, Star, Gift, ChevronDown, ChevronUp, MessageSquare, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { type WarrantyClaimStatus } from "@/lib/warrantyClaim"
 import { getAuthToken } from "@/lib/utils"
@@ -33,12 +32,17 @@ import AvailabilityDatePicker from "@/components/booking/AvailabilityDatePicker"
 import CustomerRefundOffer from "@/components/booking/CustomerRefundOffer"
 import { StripeProvider } from "@/components/stripe/StripeProvider"
 import { PaymentForm } from "@/components/stripe/PaymentForm"
+import { BookingDetailsTabs } from "@/components/booking/details/BookingDetailsTabs"
+import { PostBookingQuestionField } from "@/components/booking/details/PostBookingQuestionField"
+import type { BookingDetailsDto } from "@/types/bookingDetails"
 import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
+import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
 import {
   calculateMilestoneGrossAmounts,
@@ -407,25 +411,10 @@ const DETAIL_STATUS_STYLES: Record<string, string> = {
   dispute: "bg-red-50 text-red-700 border border-red-100",
 }
 
-const formatCurrencyRange = (
-  booking: BookingDetail,
-  formatAmount: (amount: number, currency?: string | null) => string
-): string | null => {
-  const budget = booking.rfqData?.budget
-  if (!budget || (budget.min == null && budget.max == null)) return null
-
-  const currency = budget.currency || "€"
-  if (budget.min != null && budget.max != null && budget.min !== budget.max) {
-    return `${formatAmount(budget.min, currency)} – ${formatAmount(budget.max, currency)}`
-  }
-  const value = budget.min ?? budget.max
-  if (value == null) return null
-  return formatAmount(value, currency)
-}
-
 type BookingApiResponse = {
   success: boolean
   booking?: BookingDetail
+  details?: BookingDetailsDto
   viewerRole?: 'admin' | 'customer' | 'professional'
   msg?: string
 }
@@ -479,16 +468,6 @@ const isBookingApiResponse = (value: unknown): value is BookingApiResponse => {
   if (!value || typeof value !== "object") return false
   const record = value as Record<string, unknown>
   return typeof record.success === "boolean"
-}
-
-const isHttpUrl = (value?: string | null) => {
-  if (!value) return false
-  try {
-    const parsed = new URL(value)
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
-  } catch {
-    return false
-  }
 }
 
 const CANCEL_ATTACHMENT_MAX_BYTES = 15 * 1024 * 1024
@@ -611,9 +590,11 @@ function BookingDetailContent() {
   const autoPayExtras = searchParams?.get("payExtras") === "1"
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
+  const [details, setDetails] = useState<BookingDetailsDto | null>(null)
   const [viewerRole, setViewerRole] = useState<'admin' | 'customer' | 'professional' | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
   const [showQuoteForm, setShowQuoteForm] = useState(false)
   const [quoteAmount, setQuoteAmount] = useState("")
   const [quoteDescription, setQuoteDescription] = useState("")
@@ -747,6 +728,7 @@ function BookingDetailContent() {
 
         if (response.ok && data.success && data.booking) {
           setBooking(data.booking)
+          setDetails(data.details ?? null)
           if (data.viewerRole) setViewerRole(data.viewerRole)
         } else {
           setError(getErrorText(data, t("errors.loadBooking")))
@@ -762,7 +744,7 @@ function BookingDetailContent() {
     fetchBooking()
     // `t` is only used for the error message; refetching on locale change is not needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingId, isAuthenticated])
+  }, [bookingId, isAuthenticated, reloadToken])
 
   useEffect(() => {
     const canPreviewDiscount =
@@ -869,8 +851,14 @@ function BookingDetailContent() {
     }
   }, [booking, searchParams, user?.role])
 
-  // Check if post-booking questions need to be answered
-  const postBookingQuestions = booking?.project?.postBookingQuestions || []
+  // The submission handler validates the recorded snapshot (or the live
+  // project questions for a legacy booking without one). The form must ask
+  // that same authoritative set, not the current project after later edits.
+  const postBookingFormSource = useMemo(
+    () => resolvePostBookingFormQuestions(details, booking?.project?.postBookingQuestions || []),
+    [booking?.project?.postBookingQuestions, details]
+  )
+  const postBookingQuestions = postBookingFormSource.questions
   const hasPostBookingQuestions = postBookingQuestions.length > 0
   const alreadyAnswered = (booking?.postBookingData?.length || 0) > 0
   const paymentCompletedForPostBooking =
@@ -887,7 +875,10 @@ function BookingDetailContent() {
     !answersSubmitted &&
     customerCanAnswerPostBooking &&
     (showPostBookingQuestions || paymentCompletedForPostBooking)
-  const currencyRange = booking ? formatCurrencyRange(booking, formatMoney) : null
+  const recordedBookingTitle =
+    details?.bookingSnapshot?.project?.title ||
+    (details?.bookingSnapshot?.immutable ? details?.booking?.title : null) ||
+    null
   const warrantyDurationValue = Number(booking?.warrantyCoverage?.duration?.value || 0)
   const hasWarrantyCoverage = warrantyDurationValue > 0
   const warrantyEndsAtTs = booking?.warrantyCoverage?.endsAt
@@ -1154,6 +1145,7 @@ function BookingDetailContent() {
       setWarrantyClaimDescription("")
       setWarrantyEvidenceFiles([])
       setShowWarrantyClaimDialog(false)
+      await refreshBooking()
     } catch (err) {
       console.error("Failed to open warranty claim:", err)
       toast.error(getErrorText(err, t("warranty.toasts.openFailed")))
@@ -1184,6 +1176,10 @@ function BookingDetailContent() {
     if (!response.ok || !data?.success) {
       throw new Error(getErrorText(data, t("warranty.toasts.actionFailed")))
     }
+    // Warranty events feed the Activity tab and the admin warranty link; a
+    // successful action must refresh those authoritative details, not only the
+    // local claim card.
+    await refreshBooking()
     return data
   }
 
@@ -1355,9 +1351,10 @@ function BookingDetailContent() {
     }
 
     // Validate required answers
-    const missingRequired = postBookingQuestions
-      .map((q, index) => (q.isRequired && !postBookingAnswers[index]?.trim() ? index : null))
-      .filter((index): index is number => index != null)
+    const missingRequired = missingRequiredPostBookingQuestionIndexes(
+      postBookingQuestions,
+      postBookingAnswers
+    )
 
     if (missingRequired.length > 0) {
       setValidationErrors(missingRequired)
@@ -1374,11 +1371,7 @@ function BookingDetailContent() {
     setSubmittingAnswers(true)
 
     try {
-      const answers = postBookingQuestions.map((q, index) => ({
-        questionId: q._id || q.id || `q-${index}`,
-        question: q.question,
-        answer: postBookingAnswers[index] || ""
-      })).filter(a => a.answer.trim())
+      const answers = buildPostBookingAnswerPayload(postBookingQuestions, postBookingAnswers)
 
       // Get token for Authorization header fallback
       const token = getAuthToken()
@@ -1400,10 +1393,14 @@ function BookingDetailContent() {
       const { data } = await parseResponseBody<{ success?: boolean; postBookingData?: PostBookingAnswer[]; msg?: string }>(response)
 
       if (response.ok && data?.success) {
+        const submittedAnswers = data.postBookingData || answers
         toast.success(t("postBooking.submitted"))
         setAnswersSubmitted(true)
-        // Update the local booking state
-        setBooking(prev => prev ? { ...prev, postBookingData: data.postBookingData || answers } : prev)
+        // Optimistically show the answers, then reload the authoritative
+        // details so the Booking tab and Activity timeline agree immediately.
+        setBooking(prev => prev ? { ...prev, postBookingData: submittedAnswers } : prev)
+        setDetails(prev => withSubmittedPostBookingAnswers(prev, submittedAnswers))
+        await refreshBooking()
       } else {
         toast.error(getErrorText(data, t("postBooking.submitFailed")))
       }
@@ -1415,26 +1412,45 @@ function BookingDetailContent() {
     }
   }
 
-  const refreshBooking = async () => {
-    if (!bookingId) return
+  async function refreshBooking(): Promise<boolean> {
+    if (!bookingId) return false
+    const reportRefreshFailure = () => {
+      // The mutation itself succeeded; keep the optimistic state and offer a
+      // retry instead of reverting it or silently showing stale details.
+      toast.error(t("toasts.refreshFailedAfterSave"), {
+        id: "booking-refresh-failed",
+        action: {
+          label: t("common.tryAgain"),
+          onClick: () => {
+            void refreshBooking()
+          },
+        },
+      })
+    }
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}`,
-        { credentials: "include", headers }
-      )
-      if (!response.ok) return
-      const { data } = await parseResponseBody<BookingApiResponse>(response)
-      if (isBookingApiResponse(data) && data.success && data.booking) {
-        setBooking(data.booking)
-        if (data.viewerRole) setViewerRole(data.viewerRole)
+      const result = await requestBookingDetailsRefresh({
+        url: `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}`,
+        headers,
+      })
+      if (result.ok) {
+        const data = result.data as BookingApiResponse
+        if (isBookingApiResponse(data) && data.success && data.booking) {
+          setBooking(data.booking)
+          setDetails(data.details ?? null)
+          if (data.viewerRole) setViewerRole(data.viewerRole)
+          return true
+        }
       }
+      reportRefreshFailure()
+      return false
     } catch {
-      // Silently fail - the page already has stale data
+      reportRefreshFailure()
+      return false
     }
   }
 
@@ -2486,8 +2502,8 @@ function BookingDetailContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
       <div className="max-w-4xl mx-auto pt-20 space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">
               {t("page.title")}
             </h1>
@@ -2495,7 +2511,7 @@ function BookingDetailContent() {
               {t("page.subtitle")}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             {user?.role === "customer" && booking?.professional?._id && (
               <StartChatButton
                 professionalId={booking.professional._id}
@@ -2515,8 +2531,20 @@ function BookingDetailContent() {
 
         {error && (
           <Card className="bg-rose-50 border border-rose-100">
-            <CardContent className="py-4 text-sm text-rose-700">
-              {error}
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-rose-700">
+              <span>{error}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setError(null)
+                  setReloadToken((value) => value + 1)
+                }}
+                disabled={isLoading}
+              >
+                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {t("common.tryAgain")}
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -2585,100 +2613,30 @@ function BookingDetailContent() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {postBookingQuestions.map((question, index) => {
-                const hasError = validationErrors.includes(index)
-                const errorId = hasError ? `q${index}-error` : undefined
-                return (
-                  <div key={index} className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-900">
-                    {question.question}
-                    {question.isRequired && <span className="text-red-500 ml-1">*</span>}
-                  </Label>
+              {postBookingFormSource.legacyFallback ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  {t("postBooking.legacyQuestionSource")}
+                </p>
+              ) : null}
+              {postBookingFormSource.laterProjectQuestions ? (
+                <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                  {t("postBooking.laterQuestionSource")}
+                </p>
+              ) : null}
+              {postBookingQuestions.map((question, index) => (
+                <PostBookingQuestionField
+                  key={question._id || question.id || `post-booking-${index}`}
+                  question={question}
+                  index={index}
+                  value={postBookingAnswers[index] || ""}
+                  hasError={validationErrors.includes(index)}
+                  uploading={uploadingPostBookingQuestionIndexes.has(index)}
+                  onChange={(value) => handleAnswerChange(index, value)}
+                  onUpload={(file) => void handlePostBookingAttachmentUpload(index, file)}
+                />
+              ))}
 
-                  {question.type === "text" && (
-                    <Textarea
-                      id={`q${index}-field`}
-                      placeholder={t("postBooking.answerPlaceholder")}
-                      value={postBookingAnswers[index] || ""}
-                      onChange={(e) => handleAnswerChange(index, e.target.value)}
-                      rows={3}
-                      className="bg-white"
-                      aria-invalid={hasError}
-                      aria-describedby={errorId}
-                      aria-required={question.isRequired}
-                    />
-                  )}
-
-                  {question.type === "multiple_choice" && question.options && (
-                    <RadioGroup
-                      value={postBookingAnswers[index] || ""}
-                      onValueChange={(value) => handleAnswerChange(index, value)}
-                      aria-invalid={hasError}
-                      aria-describedby={errorId}
-                      aria-required={question.isRequired}
-                    >
-                      {question.options.map((option, optIdx) => (
-                        <div key={optIdx} className="flex items-center space-x-2">
-                          <RadioGroupItem value={option} id={`q${index}-opt${optIdx}`} />
-                          <Label htmlFor={`q${index}-opt${optIdx}`} className="font-normal cursor-pointer">
-                            {option}
-                          </Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  )}
-
-                  {question.type === "attachment" && (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-white">
-                      <Upload className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600">{t("postBooking.uploadHint")}</p>
-                      <Input
-                        id={`q${index}-field`}
-                        type="file"
-                        accept=".pdf,image/*"
-                        disabled={uploadingPostBookingQuestionIndexes.has(index)}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0] || null
-                          void handlePostBookingAttachmentUpload(index, file)
-                          e.currentTarget.value = ""
-                        }}
-                        className="mt-2"
-                        aria-invalid={hasError}
-                        aria-describedby={errorId}
-                        aria-required={question.isRequired}
-                      />
-                      {uploadingPostBookingQuestionIndexes.has(index) && (
-                        <div className="mt-2 inline-flex items-center text-xs text-indigo-600">
-                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                          {t("common.uploading")}
-                        </div>
-                      )}
-                      {postBookingAnswers[index] && isHttpUrl(postBookingAnswers[index]) ? (
-                        <a
-                          href={postBookingAnswers[index]}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="mt-2 inline-flex text-sm text-indigo-600 hover:underline"
-                        >
-                          {getFileLabel(postBookingAnswers[index], t("common.openAttachment"))}
-                        </a>
-                      ) : postBookingAnswers[index] ? (
-                        <span className="mt-2 inline-flex text-sm text-gray-700">
-                          {getFileLabel(postBookingAnswers[index], t("common.openAttachment"))}
-                        </span>
-                      ) : null}
-                    </div>
-                  )}
-                  {hasError && (
-                    <p id={errorId} role="alert" className="text-xs text-red-600">
-                      {t("postBooking.questionRequired")}
-                    </p>
-                  )}
-                </div>
-                )
-              })}
-
-              <div className="flex gap-3 pt-4 border-t">
+              <div className="flex flex-wrap gap-3 border-t pt-4">
                 <Button
                   onClick={handleSubmitPostBookingAnswers}
                   disabled={submittingAnswers}
@@ -2736,9 +2694,9 @@ function BookingDetailContent() {
                         <Briefcase className="h-5 w-5 text-indigo-500" />
                       )}
                       <CardTitle className="text-lg text-gray-900">
-                        {booking.project?.title ||
-                          booking.professional?.username ||
+                        {recordedBookingTitle ||
                           booking.rfqData?.serviceType ||
+                          booking.professional?.username ||
                           t("page.defaultTitle")}
                       </CardTitle>
                     </div>
@@ -2940,18 +2898,35 @@ function BookingDetailContent() {
                   <div className="bg-white border border-gray-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-gray-900 mb-2">{t("vat.customerAnswers")}</h3>
                     <dl className="space-y-1">
-                      {booking.vatDecision.answers.map((answer) => (
-                        <div key={answer.fieldName} className="flex justify-between gap-4 text-xs">
-                          <dt className="text-gray-600 capitalize">{answer.fieldName.replace(/[_-]+/g, " ")}</dt>
-                          <dd className="font-medium text-gray-900 text-right">
-                            {Array.isArray(answer.value)
-                              ? answer.value.join(", ")
-                              : typeof answer.value === "boolean"
-                                ? answer.value ? t("common.yes") : t("common.no")
-                                : String(answer.value ?? "—")}
-                          </dd>
-                        </div>
-                      ))}
+                      {booking.vatDecision.answers.map((answer) => {
+                        const fieldKey = vatAnswerFieldLabelKey(answer.fieldName)
+                        const valueKey = vatAnswerValueKey(answer.value)
+                        const useStandardLabel =
+                          Boolean(fieldKey) &&
+                          (t.has as unknown as (k: string) => boolean)(fieldKey as string)
+                        const fieldLabel =
+                          (useStandardLabel
+                            ? (t as unknown as (k: string) => string)(fieldKey as string)
+                            : fieldKey) || answer.fieldName.replace(/[_-]+/g, " ")
+                        const renderedValue = Array.isArray(answer.value)
+                          ? answer.value.map((entry) => {
+                              const entryKey = vatAnswerValueKey(entry)
+                              return entryKey && (t.has as unknown as (k: string) => boolean)(entryKey)
+                                ? (t as unknown as (k: string) => string)(entryKey)
+                                : String(entry)
+                            }).join(", ")
+                          : typeof answer.value === "boolean"
+                            ? answer.value ? t("common.yes") : t("common.no")
+                            : valueKey && (t.has as unknown as (k: string) => boolean)(valueKey)
+                              ? (t as unknown as (k: string) => string)(valueKey)
+                              : String(answer.value ?? "—")
+                        return (
+                          <div key={answer.fieldName} className="flex justify-between gap-4 text-xs">
+                            <dt className="text-gray-600 capitalize">{fieldLabel}</dt>
+                            <dd className="font-medium text-gray-900 text-right">{renderedValue}</dd>
+                          </div>
+                        )
+                      })}
                     </dl>
                   </div>
                 )}
@@ -3161,6 +3136,9 @@ function BookingDetailContent() {
                         <Badge variant="outline" className="text-xs">{booking.quotationNumber}</Badge>
                       )}
                     </div>
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                      {t("quotation.currentPreviewNote")}
+                    </p>
 
                     <div className="bg-white rounded-lg p-4 space-y-3">
                       <div>
@@ -3201,21 +3179,6 @@ function BookingDetailContent() {
                           </ul>
                         </div>
                       )}
-                      {(booking.project?.minResources != null || booking.project?.minOverlapPercentage != null) && (
-                        <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
-                          <p className="text-xs text-blue-800">
-                            <span className="font-semibold">{t("quotation.teamRequirement")}</span>{' '}
-                            {booking.project?.minResources != null
-                              ? booking.project?.resources?.length
-                                ? t("quotation.teamRequiredOf", { min: booking.project.minResources, total: booking.project.resources.length })
-                                : t("quotation.teamRequired", { count: booking.project.minResources })
-                              : t("quotation.teamNoMinimum")}
-                            {booking.project?.minOverlapPercentage != null
-                              ? t("quotation.scheduleOverlap", { percent: booking.project.minOverlapPercentage })
-                              : ''}
-                          </p>
-                        </div>
-                      )}
                       {/* Milestones */}
                       {currentVersion.milestones && currentVersion.milestones.length > 0 && (
                         <div>
@@ -3226,7 +3189,7 @@ function BookingDetailContent() {
                                 <span className="text-gray-700">{ms.title}</span>
                                 <span className="font-medium">
                                   {customerPricingReady
-                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i] ?? 0, booking.quote?.currency || 'EUR')
+                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i] ?? 0, currentVersion.currency || 'EUR')
                                     : '...'}
                                 </span>
                               </div>
@@ -3242,8 +3205,8 @@ function BookingDetailContent() {
                       {currentVersion.pricingLines && currentVersion.pricingLines.length > 0 && (
                         <div>
                           <p className="text-xs text-gray-500 font-medium mb-2">{t("quotation.pricingBreakdown")}</p>
-                          <div className="rounded-md border overflow-hidden">
-                            <table className="w-full text-xs">
+                          <div className="rounded-md border overflow-x-auto">
+                            <table className="w-full min-w-[26rem] text-xs">
                               <thead className="bg-gray-50 text-gray-600">
                                 <tr>
                                   <th className="text-left px-3 py-2 font-medium">{t("quotation.tableDescription")}</th>
@@ -3278,13 +3241,13 @@ function BookingDetailContent() {
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm font-semibold text-gray-900">{t("quotation.totalInclVat")}</span>
-                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR') : '...'}</span>
+                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') : '...'}</span>
                       </div>
                       {customerPricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
                         <p className="text-xs text-gray-500 text-right">
                           {t("quotation.netPlusVat", {
-                            net: formatMoney(currentVersionQuoteTotals.netAmount, booking.quote?.currency || 'EUR'),
-                            vat: formatMoney(currentVersionQuoteTotals.vatAmount, booking.quote?.currency || 'EUR'),
+                            net: formatMoney(currentVersionQuoteTotals.netAmount, currentVersion.currency || 'EUR'),
+                            vat: formatMoney(currentVersionQuoteTotals.vatAmount, currentVersion.currency || 'EUR'),
                           })}
                         </p>
                       )}
@@ -3294,7 +3257,7 @@ function BookingDetailContent() {
                             <span className="font-semibold">{t("loyalty.member", { level: loyalty.level })}</span> · {t("loyalty.discountApplied", { percentage: loyalty.percentage })}
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            {t("quotation.youSave", { amount: formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, booking.quote?.currency || 'EUR') })}
+                            {t("quotation.youSave", { amount: formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') })}
                           </div>
                         </div>
                       )}
@@ -3321,7 +3284,7 @@ function BookingDetailContent() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{formatDate(v.createdAt)}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, booking.quote?.currency || 'EUR') : '...'}</p>
+                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, v.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </div>
                             ))}
@@ -3330,11 +3293,11 @@ function BookingDetailContent() {
                       </div>
                     )}
 
-                    <div className="flex gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row">
                       <Button
                         onClick={() => handleRespondToQuotation('accepted')}
                         disabled={respondingToQuotation}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        className="h-auto min-w-0 w-full whitespace-normal bg-green-600 py-2 text-center hover:bg-green-700 sm:flex-1 text-white"
                         size="sm"
                       >
                         {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
@@ -3344,7 +3307,7 @@ function BookingDetailContent() {
                         onClick={() => setShowQuoteRejectionModal(true)}
                         disabled={respondingToQuotation}
                         variant="outline"
-                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                        className="h-auto min-w-0 w-full whitespace-normal border-red-300 py-2 text-center text-red-600 hover:bg-red-50 sm:flex-1"
                         size="sm"
                       >
                         <XCircle className="h-4 w-4 mr-2" />
@@ -3368,11 +3331,11 @@ function BookingDetailContent() {
                       <p><span className="text-gray-500">{t("quotation.scopeLabel")}</span> {currentVersion.scope}</p>
                       <p>
                         <span className="text-gray-500">{t("quotation.netTotal")}</span>{' '}
-                        <strong>{formatMoney(currentVersion.totalAmount, booking.quote?.currency || 'EUR')}</strong>
+                        <strong>{formatMoney(currentVersion.totalAmount, currentVersion.currency || 'EUR')}</strong>
                       </p>
                       <p>
                         <span className="text-gray-500">{t("quotation.totalInclVatLabel")}</span>{' '}
-                        <strong>{formatMoney(calculateQuoteVersionVatTotals(currentVersion).total, booking.quote?.currency || 'EUR')}</strong>
+                        <strong>{formatMoney(calculateQuoteVersionVatTotals(currentVersion).total, currentVersion.currency || 'EUR')}</strong>
                       </p>
                       <p><span className="text-gray-500">{t("quotation.validUntilLabel")}</span> {formatValidUntilLabel(currentVersion?.validUntil, intl, t("common.notAvailable"))}</p>
                       <p className="text-xs text-gray-500">{t("quotation.waitingForCustomer")}</p>
@@ -3427,6 +3390,9 @@ function BookingDetailContent() {
                 {booking.milestonePayments && booking.milestonePayments.length > 0 && ['booked', 'in_progress', 'professional_completed', 'completed'].includes(booking.status) && (
                   <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-sky-900 mb-3">{t("milestones.title")}</h3>
+                    <p className="mb-3 rounded-md border border-sky-200 bg-white/70 px-2.5 py-1.5 text-[11px] text-sky-800">
+                      {t("milestones.currentPreviewNote")}
+                    </p>
                     {(() => {
                       const isCustomerView = user?.role === 'customer'
                       const displayAmounts = booking.milestonePayments!.map((milestone, index) =>
@@ -3796,11 +3762,11 @@ function BookingDetailContent() {
                       )
                     })()}
 
-                    <div className="flex gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row">
                       <Button
                         onClick={() => handleRespondToQuote("accept")}
                         disabled={respondingToQuote}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        className="h-auto min-w-0 w-full whitespace-normal bg-green-600 py-2 text-center hover:bg-green-700 sm:flex-1 text-white"
                         size="sm"
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
@@ -3810,7 +3776,7 @@ function BookingDetailContent() {
                         onClick={() => handleRespondToQuote("reject")}
                         disabled={respondingToQuote}
                         variant="outline"
-                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                        className="h-auto min-w-0 w-full whitespace-normal border-red-300 py-2 text-center text-red-600 hover:bg-red-50 sm:flex-1"
                         size="sm"
                       >
                         <XCircle className="h-4 w-4 mr-2" />
@@ -4150,8 +4116,8 @@ function BookingDetailContent() {
 
                 {booking.status === "completed" && (
                   <div className="bg-white border border-indigo-100 rounded-lg p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <h3 className="text-sm font-semibold text-indigo-900">{t("warranty.title")}</h3>
                         {!hasWarrantyCoverage && (
                           <p className="text-xs text-gray-600 mt-1">
@@ -4181,7 +4147,7 @@ function BookingDetailContent() {
                               : undefined
                           }
                           onClick={() => setShowWarrantyClaimDialog(true)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                          className="h-auto max-w-full whitespace-normal bg-indigo-600 py-2 text-center hover:bg-indigo-700 text-white"
                         >
                           {t("warranty.openClaim")}
                         </Button>
@@ -4197,9 +4163,9 @@ function BookingDetailContent() {
 
                     {warrantyClaim && (
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-semibold text-gray-800">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="break-words text-xs font-semibold text-gray-800">
                               {warrantyClaim.claimNumber}
                             </p>
                             <p className="text-xs text-gray-500">
@@ -4476,7 +4442,7 @@ function BookingDetailContent() {
                         )}
                       </div>
 
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <Button
                           variant="outline"
                           onClick={() => setShowWarrantyClaimDialog(false)}
@@ -4518,7 +4484,7 @@ function BookingDetailContent() {
                           autoFocus
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <Button
                           variant="outline"
                           onClick={() => { setShowDeclineReasonDialog(false); setDeclineReason("") }}
@@ -4539,510 +4505,15 @@ function BookingDetailContent() {
                   </DialogContent>
                 </Dialog>
 
-                {/* Core info */}
-                <section className="grid md:grid-cols-2 gap-4 text-xs text-gray-700">
-                  {booking.createdAt && (
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3 w-3 text-gray-400" />
-                      <span>
-                        {t("info.requestedOn", { date: formatDateTime(booking.createdAt) })}
-                      </span>
-                    </div>
-                  )}
-                  {booking.rfqData?.preferredStartDate && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-indigo-500" />
-                      <span>
-                        {t("info.preferredStart", { date: formatDate(booking.rfqData.preferredStartDate) })}
-                      </span>
-                    </div>
-                  )}
-                  {booking.scheduledStartDate && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-emerald-500" />
-                      <span>
-                        {t("info.startDate", { date: formatDate(booking.scheduledStartDate) })}
-                      </span>
-                    </div>
-                  )}
-                  {(booking.scheduledExecutionEndDate || booking.scheduledEndDate) && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-blue-500" />
-                      <span>
-                        {t("info.completionDate", { date: formatDate(booking.scheduledExecutionEndDate || booking.scheduledEndDate || "") })}
-                      </span>
-                    </div>
-                  )}
-                  {booking.rfqData?.urgency && (
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3 w-3 text-amber-500" />
-                      <span>
-                        {t("info.urgency", { urgency: enumLabel("urgency", booking.rfqData.urgency) })}
-                      </span>
-                    </div>
-                  )}
-                  {currencyRange && (
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold">
-                        €
-                      </span>
-                      <span>
-                        {t("info.budget", { range: currencyRange })}
-                      </span>
-                    </div>
-                  )}
-                </section>
-
-                {/* Description */}
-                {booking.rfqData?.description && (
-                  <section className="space-y-2">
-                    <h2 className="text-sm font-semibold text-gray-900">
-                      {t("info.requestDetails")}
-                    </h2>
-                    <p className="text-xs leading-relaxed text-gray-700 whitespace-pre-line">
-                      {booking.rfqData.description}
-                    </p>
-                  </section>
-                )}
-
-                {(booking.status === "cancelled" || booking.status === "refunded") && (() => {
-                  const cancelledAtRaw = booking.cancellation?.cancelledAt
-                    || booking.statusHistory?.find((s) => s.status === 'cancelled')?.timestamp
-                  const refundAmount = booking.cancellation?.refundAmount
-                  const refundCurrency = booking.payment?.currency || 'EUR'
-                  const reason = booking.payment?.refundReason || booking.cancellation?.reason
-                  return (
-                    <section className="space-y-2">
-                      <h2 className="text-sm font-semibold text-gray-900">{t("cancellation.title")}</h2>
-                      <div className="rounded-lg border border-rose-100 bg-rose-50/60 p-3 space-y-1 text-xs text-gray-700">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">{t("cancellation.date")}</span>
-                          <span className="font-medium">{cancelledAtRaw ? formatDateTime(cancelledAtRaw) : '—'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">{t("cancellation.refundAmount")}</span>
-                          <span className="font-medium">{refundAmount != null ? formatMoney(refundAmount, refundCurrency) : '—'}</span>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                          <span className="text-gray-500 shrink-0">{t("cancellation.reason")}</span>
-                          <span className="font-medium text-right break-words">{reason || '—'}</span>
-                        </div>
-                      </div>
-                    </section>
-                  )
-                })()}
-
-                {Array.isArray(booking.rfqData?.attachments) && booking.rfqData.attachments.length > 0 && (
-                  <section className="space-y-2">
-                    <h2 className="text-sm font-semibold text-gray-900">
-                      {t("info.requestAttachments")}
-                    </h2>
-                    <div className="space-y-2">
-                      {booking.rfqData.attachments.map((attachment, index) => (
-                        <a
-                          key={`${attachment}-${index}`}
-                          href={attachment}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-indigo-700 hover:bg-slate-100"
-                        >
-                          <span className="truncate pr-3">{getFileLabel(attachment, t("common.attachmentNumber", { number: index + 1 }))}</span>
-                          <span className="font-medium">{t("common.open")}</span>
-                        </a>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {Array.isArray(booking.rfqData?.answers) && booking.rfqData.answers.length > 0 && (
-                  <section className="space-y-2">
-                    <h2 className="text-sm font-semibold text-gray-900">
-                      {t("info.rfqAnswers")}
-                    </h2>
-                    <div className="space-y-2">
-                      {booking.rfqData.answers.map((answer, index) => (
-                        <div key={`${answer.question}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                          <p className="text-xs font-medium text-gray-900">{answer.question}</p>
-                          {isHttpUrl(answer.answer) ? (
-                            <a
-                              href={answer.answer}
-                              target="_blank"
-                              rel="noreferrer noopener"
-                              className="mt-1 inline-flex text-xs text-indigo-700 hover:underline"
-                            >
-                              {getFileLabel(answer.answer, t("common.openAttachment"))}
-                            </a>
-                          ) : (
-                            <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">{answer.answer}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {Array.isArray(booking.postBookingData) && booking.postBookingData.length > 0 && (
-                  <section className="space-y-2">
-                    <h2 className="text-sm font-semibold text-gray-900">
-                      {t("info.postBookingAnswers")}
-                    </h2>
-                    <div className="space-y-2">
-                      {booking.postBookingData.map((answer, index) => (
-                        <div key={`${answer.questionId}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                          <p className="text-xs font-medium text-gray-900">{answer.question}</p>
-                          {isHttpUrl(answer.answer) ? (
-                            <a
-                              href={answer.answer}
-                              target="_blank"
-                              rel="noreferrer noopener"
-                              className="mt-1 inline-flex text-xs text-indigo-700 hover:underline"
-                            >
-                              {getFileLabel(answer.answer, t("common.openAttachment"))}
-                            </a>
-                          ) : (
-                            <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">{answer.answer}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* Parties */}
-                <section className="grid md:grid-cols-2 gap-4">
-                  {booking.customer && (
-                    <Card className="bg-slate-50/60 border border-slate-100">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          <User className="h-4 w-4 text-slate-600" />
-                          {t("info.customer")}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-1 text-xs text-gray-700">
-                        {booking.customer.name && (
-                          <div className="flex items-center gap-2">
-                            <Shield className="h-3 w-3 text-gray-400" />
-                            <span>{booking.customer.name}</span>
-                          </div>
-                        )}
-                        {booking.customer.email && (
-                          <div className="flex items-center gap-2">
-                            <Mail className="h-3 w-3 text-gray-400" />
-                            <span>{booking.customer.email}</span>
-                          </div>
-                        )}
-                        {booking.customer.phone && (
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-3 w-3 text-gray-400" />
-                            <span>{booking.customer.phone}</span>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {(booking.professional || booking.project) && (
-                    <Card className="bg-slate-50/60 border border-slate-100">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          {booking.bookingType === "project" ? (
-                            <Package className="h-4 w-4 text-slate-600" />
-                          ) : (
-                            <Briefcase className="h-4 w-4 text-slate-600" />
-                          )}
-                          {t("info.serviceProvider")}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-1 text-xs text-gray-700">
-                        {booking.bookingType === "project" && booking.project && (
-                          <>
-                            {booking.project.title && (
-                              <div className="flex items-center gap-2">
-                                <Shield className="h-3 w-3 text-gray-400" />
-                                <span>{booking.project.title}</span>
-                              </div>
-                            )}
-                            {booking.project.service && (
-                              <div className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-indigo-400" />
-                                <span className="text-[11px] text-gray-600">
-                                  {booking.project.service}
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {booking.professional && (
-                          <>
-                            {booking.professional.username && (
-                              <div className="flex items-center gap-2">
-                                <Shield className="h-3 w-3 text-gray-400" />
-                                <span>{booking.professional.username}</span>
-                              </div>
-                            )}
-                            {viewerRole !== 'customer' && booking.professional.name && (
-                              <div className="flex items-center gap-2">
-                                <User className="h-3 w-3 text-gray-400" />
-                                <span>{booking.professional.name}</span>
-                              </div>
-                            )}
-                            {viewerRole !== 'customer' && booking.professional.businessInfo?.companyName && (
-                              <div className="flex items-center gap-2">
-                                <Briefcase className="h-3 w-3 text-gray-400" />
-                                <span>{booking.professional.businessInfo.companyName}</span>
-                              </div>
-                            )}
-                            {viewerRole === 'admin' && (
-                              <>
-                                {booking.professional.email && (
-                                  <div className="flex items-center gap-2">
-                                    <Mail className="h-3 w-3 text-gray-400" />
-                                    <span>{booking.professional.email}</span>
-                                  </div>
-                                )}
-                                {booking.professional.phone && (
-                                  <div className="flex items-center gap-2">
-                                    <Phone className="h-3 w-3 text-gray-400" />
-                                    <span>{booking.professional.phone}</span>
-                                  </div>
-                                )}
-                                {booking.professional.businessInfo?.kvkNumber && (
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-3 w-3 text-gray-400" />
-                                    <span>KVK: {booking.professional.businessInfo.kvkNumber}</span>
-                                  </div>
-                                )}
-                                {booking.professional.businessInfo?.vatNumber && (
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-3 w-3 text-gray-400" />
-                                    <span>{t("info.vat", { number: booking.professional.businessInfo.vatNumber })}</span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {viewerRole === 'admin' && booking.customer && (
-                    <Card className="bg-slate-50/60 border border-slate-100">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          <User className="h-4 w-4 text-slate-600" />
-                          {t("info.customer")}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-1 text-xs text-gray-700">
-                        {booking.customer.name && (
-                          <div className="flex items-center gap-2">
-                            <User className="h-3 w-3 text-gray-400" />
-                            <span>{booking.customer.name}</span>
-                          </div>
-                        )}
-                        {booking.customer.email && (
-                          <div className="flex items-center gap-2">
-                            <Mail className="h-3 w-3 text-gray-400" />
-                            <span>{booking.customer.email}</span>
-                          </div>
-                        )}
-                        {booking.customer.phone && (
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-3 w-3 text-gray-400" />
-                            <span>{booking.customer.phone}</span>
-                          </div>
-                        )}
-                        {booking.customer.customerType && (
-                          <div className="flex items-center gap-2">
-                            <Briefcase className="h-3 w-3 text-gray-400" />
-                            <span className="capitalize">{booking.customer.customerType}</span>
-                          </div>
-                        )}
-                        {booking.customer.vatNumber && (
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-3 w-3 text-gray-400" />
-                            <span>{t("info.vat", { number: booking.customer.vatNumber })}</span>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {viewerRole === 'admin' && booking.payment && (
-                    <Card className="bg-slate-50/60 border border-slate-100">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          <CreditCard className="h-4 w-4 text-slate-600" />
-                          {t("payment.breakdown")}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-1.5 text-xs text-gray-700">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">{t("payment.status")}</span>
-                          <Badge variant="outline" className="text-[10px] h-5">{enumLabel("paymentStatus", booking.payment.status)}</Badge>
-                        </div>
-                        {booking.payment.amount != null && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">{t("payment.netAmount")}</span>
-                            <span>{formatMoney(booking.payment.amount, booking.payment.currency || 'EUR')}</span>
-                          </div>
-                        )}
-                        {booking.payment.vatAmount != null && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">{t("payment.vat", { rate: booking.payment.vatRate || 0 })}</span>
-                            <span>{formatMoney(booking.payment.vatAmount, booking.payment.currency || 'EUR')}</span>
-                          </div>
-                        )}
-                        {booking.payment.reverseCharge && (
-                          <div className="rounded-md border border-blue-100 bg-blue-50 p-2 text-[11px] text-blue-800">
-                            {t("payment.reverseCharge")}
-                          </div>
-                        )}
-                        {booking.vatDecision?.explanation && (
-                          <div className="rounded-md border border-emerald-100 bg-emerald-50 p-2 text-[11px] text-emerald-800">
-                            {booking.vatDecision.explanation}
-                          </div>
-                        )}
-                        {booking.payment.totalWithVat != null && (
-                          <div className="flex justify-between font-medium">
-                            <span>{t("payment.totalInclVat")}</span>
-                            <span>{formatMoney(booking.payment.totalWithVat, booking.payment.currency || 'EUR')}</span>
-                          </div>
-                        )}
-                        {booking.payment.discount && booking.payment.discount.totalDiscount != null && booking.payment.discount.totalDiscount > 0 && (
-                          <div className="flex justify-between text-green-600">
-                            <span>{t("payment.discount")}</span>
-                            <span>-{formatMoney(booking.payment.discount.totalDiscount, booking.payment.currency || 'EUR')}</span>
-                          </div>
-                        )}
-                        <div className="border-t border-gray-200 pt-1.5 mt-1.5 space-y-1">
-                          {booking.payment.platformCommission != null && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">{t("payment.platformCommission")}</span>
-                              <span>{formatMoney(booking.payment.platformCommission, booking.payment.currency || 'EUR')}</span>
-                            </div>
-                          )}
-                          {booking.payment.stripeFeeAmount != null && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">{t("payment.stripeFee")}</span>
-                              <span>{formatMoney(booking.payment.stripeFeeAmount, booking.payment.currency || 'EUR')}</span>
-                            </div>
-                          )}
-                          {booking.payment.professionalPayout != null && (
-                            <div className="flex justify-between font-medium">
-                              <span>{t("payment.professionalPayout")}</span>
-                              <span>{formatMoney(booking.payment.professionalPayout, booking.payment.currency || 'EUR')}</span>
-                            </div>
-                          )}
-                        </div>
-                        {booking.extraCostTotal != null && booking.extraCostTotal !== 0 && (
-                          <div className="border-t border-gray-200 pt-1.5 mt-1.5">
-                            <div className="flex justify-between font-medium">
-                              <span>{t("extraCosts.titleShort")}</span>
-                              <span className={booking.extraCostTotal >= 0 ? 'text-red-600' : 'text-green-600'}>
-                                {booking.extraCostTotal >= 0 ? '+' : ''}{formatMoney(booking.extraCostTotal, booking.payment.currency || 'EUR')}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                        {booking.payment.stripePaymentIntentId && (
-                          <div className="border-t border-gray-200 pt-1.5 mt-1.5">
-                            <p className="text-[10px] text-gray-400 break-all">PI: {booking.payment.stripePaymentIntentId}</p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {(booking.payment?.invoiceUrl ||
-                    booking.payment?.invoiceUblUrl ||
-                    booking.payment?.supplierInvoiceUrl ||
-                    booking.payment?.supplierInvoiceUblUrl ||
-                    booking.payment?.creditNoteUrl ||
-                    booking.payment?.creditNoteUblUrl) && (
-                    <Card className="bg-slate-50/60 border border-slate-100">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          <FileText className="h-4 w-4 text-slate-600" />
-                          {t("invoice.title")}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2 text-xs text-gray-700">
-                        {viewerRole !== 'professional' && (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">{t("invoice.number")}</span>
-                              <span>{booking.payment.invoiceNumber || t("invoice.generated")}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {booking.payment.invoiceUrl && (
-                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.invoiceUrl} target="_blank" rel="noreferrer">{t("invoice.downloadPdf")}</a>
-                                </Button>
-                              )}
-                              {booking.payment.invoiceUblUrl && (
-                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.invoiceUblUrl} target="_blank" rel="noreferrer">{t("invoice.downloadUbl")}</a>
-                                </Button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                        {viewerRole !== 'customer' &&
-                          (booking.payment.supplierInvoiceUrl || booking.payment.supplierInvoiceUblUrl) && (
-                          <div className="border-t border-gray-200 pt-2 space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">{t("invoice.selfBillNumber")}</span>
-                              <span>{booking.payment.supplierInvoiceNumber || t("invoice.generated")}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {booking.payment.supplierInvoiceUrl && (
-                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.supplierInvoiceUrl} target="_blank" rel="noreferrer">{t("invoice.selfBillPdf")}</a>
-                                </Button>
-                              )}
-                              {booking.payment.supplierInvoiceUblUrl && (
-                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.supplierInvoiceUblUrl} target="_blank" rel="noreferrer">{t("invoice.selfBillUbl")}</a>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {viewerRole !== 'professional' && booking.payment.peppolDispatchStatus && booking.payment.peppolDispatchStatus !== 'skipped' && (
-                          <p className="text-[11px] text-gray-500">
-                            {t("invoice.peppolStatus", { status: booking.payment.peppolDispatchStatus })}
-                          </p>
-                        )}
-                        {viewerRole !== 'professional' && (booking.payment.creditNoteUrl || booking.payment.creditNoteUblUrl) && (
-                          <div className="border-t border-gray-200 pt-2 space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">{t("invoice.creditNoteNumber")}</span>
-                              <span>{booking.payment.creditNoteNumber}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {booking.payment.creditNoteUrl && (
-                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.creditNoteUrl} target="_blank" rel="noreferrer">{t("invoice.creditNotePdf")}</a>
-                                </Button>
-                              )}
-                              {booking.payment.creditNoteUblUrl && (
-                                <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                                  <a href={booking.payment.creditNoteUblUrl} target="_blank" rel="noreferrer">{t("invoice.creditNoteUbl")}</a>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-                </section>
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {!error && booking && (
+          <section id="booking-details" aria-label="Booking details" className="scroll-mt-24">
+            <BookingDetailsTabs booking={booking} details={details} viewerRole={viewerRole} />
+          </section>
         )}
 
         {/* RFQ Rejection Modal */}
@@ -5059,7 +4530,7 @@ function BookingDetailContent() {
                 placeholder={t("rfq.rejectPlaceholder")}
                 rows={3}
               />
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 <Button variant="outline" onClick={() => setShowRejectionModal(false)}>{t("common.cancel")}</Button>
                 <Button
                   onClick={() => handleRespondToRFQ('rejected')}
@@ -5088,7 +4559,7 @@ function BookingDetailContent() {
                 placeholder={t("quotation.rejectPlaceholder")}
                 rows={3}
               />
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 <Button variant="outline" onClick={() => setShowQuoteRejectionModal(false)}>{t("common.cancel")}</Button>
                 <Button
                   onClick={() => handleRespondToQuotation('rejected')}
@@ -5274,7 +4745,7 @@ function BookingDetailContent() {
                 )}
               </div>
 
-              <div className="flex gap-2 justify-end pt-2">
+              <div className="flex flex-wrap gap-2 justify-end pt-2">
                 <Button variant="outline" onClick={() => setShowCompletionModal(false)}>{t("common.cancel")}</Button>
                 <Button
                   onClick={handleProfessionalComplete}
@@ -5320,7 +4791,7 @@ function BookingDetailContent() {
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2 justify-end">
+                <div className="flex flex-wrap gap-2 justify-end">
                   <Button variant="outline" onClick={() => setShowDisputeModal(false)}>{t("common.cancel")}</Button>
                   <Button
                     className="bg-red-600 hover:bg-red-700 text-white"
@@ -5369,7 +4840,7 @@ function BookingDetailContent() {
                     <p className="text-[11px] text-gray-500">{t("common.filesSelected", { count: disputeAttachments.length })}</p>
                   )}
                 </div>
-                <div className="flex gap-2 justify-end">
+                <div className="flex flex-wrap gap-2 justify-end">
                   <Button variant="outline" onClick={() => setDisputeStep('warning')}>{t("common.back")}</Button>
                   <Button
                     onClick={handleCustomerDispute}
@@ -5448,7 +4919,7 @@ function BookingDetailContent() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 <Button variant="outline" onClick={() => { resetCancelForm(); setShowCancelModal(false) }} disabled={submittingCancel}>{t("common.back")}</Button>
                 <Button
                   className="bg-rose-600 hover:bg-rose-700 text-white"
@@ -5519,7 +4990,7 @@ function BookingDetailContent() {
                   placeholder={t("reschedule.descriptionPlaceholder")}
                 />
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 <Button variant="outline" onClick={() => setShowRescheduleModal(false)} disabled={submittingReschedule}>{t("common.back")}</Button>
                 <Button
                   onClick={handleCustomerReschedule}
@@ -5558,7 +5029,7 @@ function BookingDetailContent() {
                   placeholder={t("rescheduleRefund.notePlaceholder")}
                 />
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 <Button variant="outline" onClick={() => setShowRescheduleRefundModal(false)} disabled={respondingReschedule}>{t("common.back")}</Button>
                 <Button
                   className="bg-rose-600 hover:bg-rose-700 text-white"
