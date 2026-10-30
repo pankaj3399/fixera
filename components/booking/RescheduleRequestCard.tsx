@@ -21,6 +21,11 @@ interface RescheduleRequestCardProps {
   viewerRole?: 'customer' | 'professional' | 'admin' | string | null
   onResolved?: () => void
   onOpenDispute?: () => void
+  /**
+   * Wall times render only when positively hour mode. Omitted/unknown means
+   * date-only: showing a wrong time is worse than showing none.
+   */
+  hourMode?: boolean | null
   /** When provided, the decline/refund button delegates to the caller
    * (e.g. to collect an optional note first) instead of answering directly. */
   onDeclineWithNote?: () => void
@@ -46,6 +51,7 @@ export default function RescheduleRequestCard({
   viewerRole,
   onResolved,
   onOpenDispute,
+  hourMode,
   onDeclineWithNote,
 }: RescheduleRequestCardProps) {
   const t = useTranslations("bookings")
@@ -174,7 +180,7 @@ export default function RescheduleRequestCard({
               {t("rescheduleRequest.previousSchedule")}
             </dt>
             <dd className="mt-0.5">
-              <ScheduleSummary schedule={entry.previousSchedule} intl={intl} timeZone={entry.timeZone} />
+              <ScheduleSummary schedule={entry.previousSchedule} intl={intl} timeZone={entry.timeZone} hourMode={hourMode} />
             </dd>
           </div>
           <div>
@@ -182,7 +188,7 @@ export default function RescheduleRequestCard({
               {t("rescheduleRequest.proposedSchedule")}
             </dt>
             <dd className="mt-0.5">
-              <ScheduleSummary schedule={entry.proposedSchedule} intl={intl} timeZone={entry.timeZone} />
+              <ScheduleSummary schedule={entry.proposedSchedule} intl={intl} timeZone={entry.timeZone} hourMode={hourMode} />
             </dd>
           </div>
         </div>

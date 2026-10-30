@@ -17,6 +17,13 @@ import { useCurrency } from '@/contexts/CurrencyContext'
 import type { QuoteVersion, QuoteMaterial, QuotationMilestone, QuotationPricingLine, QuotationWizardFormData } from '@/types/quotation'
 import { calculateVatTotalsFromPricingLines } from '@/lib/vatPricing'
 import { parseFlexibleNumber } from '@/lib/numberInput'
+import VatDeterminationPanel from './VatDeterminationPanel'
+import {
+  applyReverseChargeToLines,
+  isReverseChargeDetermination,
+  parseQuotationVatOptionsResponse,
+  type QuotationVatDetermination,
+} from '@/lib/quotationVat'
 
 interface QuotationWizardProps {
   bookingId: string
@@ -34,9 +41,7 @@ interface VatRateOption {
   reverseCharge: boolean
   source: 'standard' | 'reduced' | 'b2b_exempt' | 'legacy'
   isCustom?: boolean
-}
-
-const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
+}const EMPTY_MATERIAL: QuoteMaterial = { name: '', quantity: undefined, unit: '', description: '' }
 const makePricingLineKey = () => `pricing-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 const CUSTOM_VAT_RATE_PLACEHOLDER = 'Custom VAT rate (enter below)'
 const isCustomVatRateLabel = (label?: string) =>
@@ -238,6 +243,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const formatAmount = (amount: number) => formatMoney(amount, form.currency || 'EUR')
   const [submitting, setSubmitting] = useState(false)
   const [vatRateOptions, setVatRateOptions] = useState<VatRateOption[]>([])
+  const [vatDetermination, setVatDetermination] = useState<QuotationVatDetermination | null>(null)
+  const [vatOptionsError, setVatOptionsError] = useState(false)
   const [vatRateDrafts, setVatRateDrafts] = useState<Record<string, string>>({})
 
   // Stored VAT labels are identifiers (they are persisted with the quote), so
@@ -255,6 +262,14 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   )
 
   const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
+
+  // Reverse charge determined by the flowchart: single 0% option, no
+  // professional rate choice. Forcing requires a real reverse-charge option
+  // from the response, never the "VAT unavailable" fallback.
+  const isReverseCharge = isReverseChargeDetermination(vatDetermination, vatRateOptions)
+  const reverseChargeOption = isReverseCharge
+    ? vatRateOptions.find((option) => option.reverseCharge) || null
+    : null
 
   // VAT country known -> Standard/Reduced only, no custom % (flowchart SSOT
   // resolves the country rate; eligibility rules are ignored for quotations).
@@ -311,14 +326,39 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
           },
         )
         const data = await response.json()
-        if (!response.ok || !data?.success || !Array.isArray(data.data?.options)) {
+        const parsed = parseQuotationVatOptionsResponse(data)
+        if (!response.ok || !parsed) {
+          if (!cancelled) {
+            // Legacy/loading/error: keep the fallback options so existing
+            // quotation creation/editing never breaks; the rate is validated
+            // again on submit.
+            setVatOptionsError(true)
+          }
           return
         }
 
         if (!cancelled) {
-          setVatRateOptions(data.data.options)
-          const firstOption = data.data.options[0] as VatRateOption | undefined
-          if (!existingVersion && firstOption) {
+          setVatOptionsError(false)
+          setVatRateOptions(parsed.options)
+          setVatDetermination(parsed.vatDetermination)
+          const firstOption = parsed.options[0] as VatRateOption | undefined
+          const reverseCharge = isReverseChargeDetermination(parsed.vatDetermination, parsed.options)
+          // Forcing requires the real reverse-charge option from the
+          // response, never the fallback: without it the form stays as-is
+          // and the backend validation rejects any non-RC rate on submit.
+          const reverseChargeForced =
+            reverseCharge
+              ? parsed.options.find((option) => option.reverseCharge) as VatRateOption | undefined
+              : undefined
+          if (reverseChargeForced) {
+            // Reverse charge is the determined VAT for every line: force it
+            // even onto already-entered or legacy lines so no other rate can
+            // be rendered or submitted.
+            setForm(prev => ({
+              ...prev,
+              pricingLines: applyReverseChargeToLines(prev.pricingLines, reverseChargeForced),
+            }))
+          } else if (!existingVersion && firstOption) {
             setForm(prev => {
               const isPristine = prev.pricingLines.every((line) =>
                 !line.description.trim() && Number(line.price) === 0 &&
@@ -341,6 +381,9 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         }
       } catch (error) {
         console.error('Failed to load quotation VAT options:', error)
+        if (!cancelled) {
+          setVatOptionsError(true)
+        }
       }
     }
 
@@ -365,13 +408,18 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   }
 
   const validPricingLinesForTotal = useMemo(
-    () => form.pricingLines.filter((line) => {
-      const price = Number(line.price)
-      const vatRate = Number(line.vatRate)
-      const hasEnteredCustomRate = line.vatRateMode !== 'custom' || line.vatRateExplicitlyEntered === true
-      return line.description.trim() && Number.isFinite(price) && price > 0 && hasEnteredCustomRate && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
-    }),
-    [form.pricingLines],
+    () => {
+      const lines = isReverseCharge && reverseChargeOption
+        ? applyReverseChargeToLines(form.pricingLines, reverseChargeOption)
+        : form.pricingLines
+      return lines.filter((line) => {
+        const price = Number(line.price)
+        const vatRate = Number(line.vatRate)
+        const hasEnteredCustomRate = line.vatRateMode !== 'custom' || line.vatRateExplicitlyEntered === true
+        return line.description.trim() && Number.isFinite(price) && price > 0 && hasEnteredCustomRate && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
+      })
+    },
+    [form.pricingLines, isReverseCharge, reverseChargeOption],
   )
   const pricingVatTotals = useMemo(
     () => calculateVatTotalsFromPricingLines(validPricingLinesForTotal),
@@ -381,7 +429,18 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
   const addPricingLine = () => updateForm('pricingLines', [
     ...form.pricingLines,
-    createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country, defaultVatOption.label, !!defaultVatOption.isCustom),
+    ...(isReverseCharge && reverseChargeOption
+      ? [{
+          clientKey: makePricingLineKey(),
+          description: '',
+          price: 0,
+          vatRate: reverseChargeOption.rate,
+          vatCountry: reverseChargeOption.country,
+          vatLabel: reverseChargeOption.label,
+          vatRateMode: 'preset' as const,
+          vatRateExplicitlyEntered: true,
+        }]
+      : [createEmptyPricingLine(defaultVatOption.rate, defaultVatOption.country, defaultVatOption.label, !!defaultVatOption.isCustom)]),
   ])
   const removePricingLine = (index: number) => updateForm('pricingLines', form.pricingLines.filter((_, i) => i !== index))
   const updatePricingLine = (index: number, field: keyof QuotationPricingLine, value: string | number) => {
@@ -475,7 +534,14 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       if (draft === undefined) return line
       return { ...line, vatRate: parseFlexibleNumber(draft) }
     })
-    const validPricingLines = pricingLinesWithDrafts.filter((line) => {
+    // Reverse charge: the determined 0% rate applies to every line, so any
+    // other rate still present in the form (legacy version, slow fetch) is
+    // replaced before validation and submit.
+    const rcOptionForSubmit = isReverseCharge ? reverseChargeOption : null
+    const pricingLinesForSubmit = rcOptionForSubmit
+      ? applyReverseChargeToLines(pricingLinesWithDrafts, rcOptionForSubmit)
+      : pricingLinesWithDrafts
+    const validPricingLines = pricingLinesForSubmit.filter((line) => {
       const price = Number(line.price)
       const vatRate = Number(line.vatRate)
       return line.description.trim() && Number.isFinite(price) && price > 0 && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100
@@ -734,8 +800,12 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             <CreditCard className="h-4 w-4" /> {t('wizard.pricingLinesLabel')}
           </Label>
           <div className="mt-2 space-y-3">
-            {!vatCountryKnown && (
-              <p className="text-sm text-amber-700">{t('wizard.vatCountryMissing')}</p>
+            {vatDetermination ? <VatDeterminationPanel determination={vatDetermination} /> : null}
+            {vatOptionsError ? (
+              <p role="alert" className="text-sm text-amber-700">{t('wizard.vatDetermination.loadError')}</p>
+            ) : null}
+            {!vatCountryKnown && !isReverseCharge && (
+              <p role="status" className="text-sm text-amber-700">{t('wizard.vatCountryMissing')}</p>
             )}
             {form.pricingLines.map((line, index) => (
               <div key={line.clientKey || `pricing-line-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_180px_40px] gap-2 items-start">
@@ -752,6 +822,15 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   onChange={e => updatePricingLine(index, 'price', parseFloat(e.target.value) || 0)}
                   placeholder={t('wizard.pricePlaceholder')}
                 />
+                {isReverseCharge ? (
+                  <div
+                    role="note"
+                    aria-label={t('wizard.vatDetermination.reverseChargeRate')}
+                    className="flex h-10 items-center rounded-md border border-indigo-200 bg-indigo-50/60 px-3 text-sm font-medium text-indigo-900"
+                  >
+                    {reverseChargeOption?.label || t('wizard.vatDetermination.reverseChargeRate')}
+                  </div>
+                ) : (
                 <Select
                   value={getVatOptionValue(findVatOptionForPricingLine(line))}
                   onValueChange={v => {
@@ -773,6 +852,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                     ))}
                   </SelectContent>
                 </Select>
+                )}
                 <Button type="button" variant="ghost" size="icon" onClick={() => removePricingLine(index)} disabled={form.pricingLines.length === 1} className="text-red-500 hover:text-red-700">
                   <Trash2 className="h-4 w-4" />
                 </Button>

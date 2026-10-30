@@ -1075,6 +1075,7 @@
       "descriptionSource": "Source: {source}",
       "previousSchedule": "Original schedule",
       "proposedSchedule": "New schedule",
+      "schedule": "Schedule",
       "amounts": "Recorded amounts",
       "attachments": "Attachments",
       "openQuotation": "Open quotation version",

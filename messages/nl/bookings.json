@@ -1075,6 +1075,7 @@
       "descriptionSource": "Bron: {source}",
       "previousSchedule": "Oorspronkelijke planning",
       "proposedSchedule": "Nieuwe planning",
+      "schedule": "Planning",
       "amounts": "Vastgelegde bedragen",
       "attachments": "Bijlagen",
       "openQuotation": "Offerteversie openen",

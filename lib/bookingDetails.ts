@@ -1598,3 +1598,97 @@ export function durationLabel(
   if (!duration || typeof duration.value !== "number" || !Number.isFinite(duration.value)) return null;
   return { value: duration.value, unit: duration.unit || "hours" };
 }
+
+/**
+ * Hour-mode detection (client task 23a). Hour-mode bookings show the start
+ * and end time alongside the date; day-mode bookings never show times.
+ * An explicit execution unit wins over the coarse project time mode, and
+ * recorded snapshot values win over live project data.
+ */
+export function resolveScheduleHourMode(
+  input: { timeMode?: string | null; executionUnit?: string | null } | null | undefined
+): boolean {
+  if (!input) return false;
+  const unit = (input.executionUnit || "").toLowerCase();
+  if (unit === "hours") return true;
+  if (unit === "days") return false;
+  return (input.timeMode || "").toLowerCase() === "hours";
+}
+
+export function resolveBookingHourMode(
+  input: {
+    snapshotExecutionUnit?: string | null;
+    snapshotTimeMode?: string | null;
+    bookingExecutionUnit?: string | null;
+    bookingTimeMode?: string | null;
+  } | null | undefined
+): boolean {
+  if (!input) return false;
+  const unit = input.snapshotExecutionUnit || input.bookingExecutionUnit || null;
+  if (unit) return resolveScheduleHourMode({ executionUnit: unit });
+  return resolveScheduleHourMode({
+    timeMode: input.snapshotTimeMode || input.bookingTimeMode || null,
+  });
+}
+
+/** "14:00–16:00" range; null unless both times are recorded. */
+export function formatScheduleTimeRange(
+  startTime?: string | null,
+  endTime?: string | null
+): string | null {
+  if (!startTime || !endTime) return null;
+  return `${startTime}–${endTime}`;
+}
+
+interface PanelHourModeBooking {
+  project?: {
+    timeMode?: string | null;
+    executionDuration?: { value?: number; unit?: string | null } | null;
+    subprojects?: Array<{
+      executionDuration?: { value?: number; unit?: string | null } | null;
+    } | null> | null;
+  } | null;
+  selectedSubprojectIndex?: number | null;
+}
+
+interface PanelHourModeDetails {
+  bookingSnapshot?: {
+    project?: { timeMode?: string | null } | null;
+    selectedSubproject?: {
+      executionDuration?: { value?: number; unit?: string | null } | null;
+    } | null;
+  } | null;
+}
+
+/**
+ * Single hour-mode rule for every booking-info surface (task 23a): a booking
+ * shows wall times only when positively hour mode. Execution unit beats the
+ * coarse project time mode, and the recorded booking snapshot beats live
+ * project data. Unknown mode means date-only (showing a wrong time is worse
+ * than showing none).
+ */
+export function resolvePanelHourMode(
+  booking?: PanelHourModeBooking | null,
+  details?: PanelHourModeDetails | null
+): boolean {
+  const subprojects = booking?.project?.subprojects;
+  const selectedIndex = booking?.selectedSubprojectIndex;
+  let bookingUnit: string | null = null;
+  if (Array.isArray(subprojects) && subprojects.length > 0) {
+    const sub =
+      typeof selectedIndex === "number"
+        ? subprojects[selectedIndex]
+        : subprojects.length === 1
+          ? subprojects[0]
+          : undefined;
+    bookingUnit = sub?.executionDuration?.unit ?? null;
+  }
+  if (!bookingUnit) bookingUnit = booking?.project?.executionDuration?.unit ?? null;
+  return resolveBookingHourMode({
+    snapshotExecutionUnit:
+      details?.bookingSnapshot?.selectedSubproject?.executionDuration?.unit ?? null,
+    snapshotTimeMode: details?.bookingSnapshot?.project?.timeMode ?? null,
+    bookingExecutionUnit: bookingUnit,
+    bookingTimeMode: booking?.project?.timeMode ?? null,
+  });
+}

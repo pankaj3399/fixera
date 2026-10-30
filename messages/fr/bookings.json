@@ -1075,6 +1075,7 @@
       "descriptionSource": "Source : {source}",
       "previousSchedule": "Planning d'origine",
       "proposedSchedule": "Nouveau planning",
+      "schedule": "Calendrier",
       "amounts": "Montants enregistrés",
       "attachments": "Pièces jointes",
       "openQuotation": "Ouvrir la version du devis",

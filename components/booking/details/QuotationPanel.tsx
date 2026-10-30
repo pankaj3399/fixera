@@ -13,6 +13,7 @@ import {
   formatInstant,
   quotationVersionLabel,
   quoteVersionStatus,
+  resolvePanelHourMode,
   resolveQuotationVersionFromUrl,
   sortActivity,
   recordedScheduleTimeZone,
@@ -158,6 +159,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
   const recordedSchedule = details?.bookingSnapshot?.schedule || details?.booking?.schedule || (scheduleSelection ? {
     scheduledStartDate: scheduleSelection.startDate,
     scheduledStartTime: scheduleSelection.startTime,
+    scheduledEndTime: scheduleSelection.endTime,
     scheduledExecutionEndDate: scheduleSelection.executionEndDate,
     scheduledBufferEndDate: scheduleSelection.bufferEndDate,
     timeZone: scheduleSelection.timeZone,
@@ -330,7 +332,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
         title={dt("quotation.scheduleTitle", "Recorded service schedule")}
         description={dt("quotation.scheduleNote", "Schedule stored with the booking or quotation. It is not recalculated from the current project.")}
       >
-        <ScheduleSummary schedule={recordedSchedule} intl={intl} timeZone={recordedScheduleZone} />
+        <ScheduleSummary schedule={recordedSchedule} intl={intl} timeZone={recordedScheduleZone} hourMode={resolvePanelHourMode(booking, details)} />
         {!recordedScheduleZone && (recordedSchedule?.scheduledStartDate || recordedSchedule?.scheduledStartTime) ? (
           <NoticeList notices={[{ code: "SCHEDULE_TIMEZONE_NOT_RECORDED", severity: "info", entity: "schedule" }]} />
         ) : null}
