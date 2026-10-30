@@ -56,7 +56,11 @@ function ScheduleValue({
   intl: string
 }) {
   if (!schedule) return <NotRecorded />
-  const start = formatCalendarDate(schedule.scheduledStartDate || schedule.preferredStartDate, intl) || schedule.scheduledStartDate
+  // Fall back to the preferred date too: a schedule may record only that.
+  const start =
+    formatCalendarDate(schedule.scheduledStartDate || schedule.preferredStartDate, intl) ||
+    schedule.scheduledStartDate ||
+    schedule.preferredStartDate
   const end = formatCalendarDate(schedule.scheduledExecutionEndDate, intl) || schedule.scheduledExecutionEndDate
   const parts = [
     start,

@@ -117,8 +117,12 @@ export function OverviewPanel({
     t("page.defaultTitle")
   const bookingNumber = overview?.bookingNumber || booking.bookingNumber
   const serviceType = overview?.serviceType || details?.wizard?.rfq?.serviceType || booking.rfqData?.serviceType
-  const category = overview?.category || snapshot?.project?.category || booking.project?.category
-  const service = overview?.service || snapshot?.project?.service || booking.project?.service
+  // A recorded snapshot describes the booking as it was made; do not top up
+  // its missing values from the live project, which is labelled differently.
+  const category =
+    overview?.category || snapshot?.project?.category || (snapshotRecorded ? undefined : booking.project?.category)
+  const service =
+    overview?.service || snapshot?.project?.service || (snapshotRecorded ? undefined : booking.project?.service)
   const createdAt = overview?.createdAt || booking.createdAt
   const updatedAt = overview?.updatedAt || booking.updatedAt
   const location = overview?.location || snapshot?.location || booking.location

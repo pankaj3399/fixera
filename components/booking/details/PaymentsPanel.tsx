@@ -509,7 +509,19 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
     const base = (payments?.base || null) as NewPaymentFields | null
     const raw = (booking.payment || null) as NewPaymentFields | null
     const merged = [...fromDetails]
-    if (base && !merged.some((record) => record.paymentId && record.paymentId === base.paymentId)) merged.unshift(base)
+    const baseIsDuplicate = base
+      ? merged.some((record) => {
+          if (record.paymentId && base.paymentId) return record.paymentId === base.paymentId
+          if (record.paymentId || base.paymentId) return false
+          // Legacy payloads omit paymentId on both sides: fall back to the
+          // charge identity so the same payment is not rendered twice.
+          return (
+            (record.kind || "booking") === (base.kind || "booking") &&
+            (record.totalWithVat ?? record.amount ?? null) === (base.totalWithVat ?? base.amount ?? null)
+          )
+        })
+      : false
+    if (base && !baseIsDuplicate) merged.unshift(base)
     if (merged.length === 0 && raw) {
       merged.push({
         ...raw,
@@ -600,7 +612,9 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
       return [
         {
           id: "payment:aggregate-refund",
-          amount: raw.refundAmount ?? raw.totalWithVat ?? null,
+          // A recorded refund time without an amount means the amount is
+          // unknown; the original charge is not the refund.
+          amount: raw.refundAmount ?? null,
           currency: rawCurrency,
           currencySource: rawCurrency ? "payment" : "not_recorded",
           refundedAt: raw.timestamps?.refundedAt || raw.refundedAt || null,
@@ -623,7 +637,9 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
       ) || null
     const finalCancellation = booking.cancellation
     const amount = legacyCancellation?.refundAmount ?? finalCancellation?.refundAmount
-    const refundedAt = legacyCancellation?.refundedAt ?? finalCancellation?.cancelledAt
+    // Only an actual refund amount proves money moved; a cancellation date is
+    // not a refund date.
+    const refundedAt = legacyCancellation?.refundedAt ?? null
     const justification = legacyCancellation?.reason ?? finalCancellation?.reason
     const legacyCurrency = legacyCancellation
       ? ownRecordedCurrency({
@@ -631,7 +647,7 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
           currencyRecorded: legacyCancellation.currencyRecorded,
         })
       : null
-    if (amount != null || refundedAt) {
+    if (amount != null) {
       return [
         {
           id: "cancellation:legacy-refund",

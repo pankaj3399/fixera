@@ -3,7 +3,7 @@
 import { apiErrorFromBody } from '@/lib/apiErrors'
 
 import { Suspense } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
@@ -577,6 +577,8 @@ function BookingDetailContent() {
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
+  /** Monotonic id so an older detail refresh cannot overwrite a newer one. */
+  const refreshGenerationRef = useRef(0)
   const disputeAutoOpenedRef = useRef(false)
   const bookingId = (params?.id || params?.bookingId) as string | undefined
 
@@ -821,6 +823,21 @@ function BookingDetailContent() {
     void fetchWarrantyClaim()
   }, [bookingId, isAuthenticated, booking?.status, booking?.updatedAt])
 
+  /**
+   * Closing the quote form must also drop `?action=quote`: the auto-open effect
+   * depends on searchParams, so a leftover flag reopens the form on the next
+   * tab change.
+   */
+  const closeQuoteForm = useCallback(() => {
+    setShowQuoteForm(false)
+    setShowQuotationWizard(false)
+    if (typeof window === "undefined") return
+    if (searchParams?.get("action") !== "quote") return
+    const url = new URL(window.location.href)
+    url.searchParams.delete("action")
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
+  }, [router, searchParams])
+
   // Auto-open quote form when navigated with ?action=quote
   useEffect(() => {
     if (booking?.status === "rfq" && searchParams?.get("action") === "quote" && user?.role === "professional") {
@@ -877,6 +894,9 @@ function BookingDetailContent() {
     (showPostBookingQuestions || paymentCompletedForPostBooking)
   const recordedBookingTitle =
     details?.bookingSnapshot?.project?.title ||
+    // A captured snapshot is a recorded value even when it is still mutable,
+    // so the recorded title stays available as the header fallback.
+    (details?.bookingSnapshot?.capturedAt ? details?.booking?.title : null) ||
     (details?.bookingSnapshot?.immutable ? details?.booking?.title : null) ||
     null
   const warrantyDurationValue = Number(booking?.warrantyCoverage?.duration?.value || 0)
@@ -1427,6 +1447,7 @@ function BookingDetailContent() {
         },
       })
     }
+    const generation = ++refreshGenerationRef.current
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
@@ -1440,6 +1461,9 @@ function BookingDetailContent() {
       if (result.ok) {
         const data = result.data as BookingApiResponse
         if (isBookingApiResponse(data) && data.success && data.booking) {
+          // Overlapping refreshes must not let an older response win: only the
+          // newest generation is allowed to replace booking/details.
+          if (refreshGenerationRef.current !== generation) return false
           setBooking(data.booking)
           setDetails(data.details ?? null)
           if (data.viewerRole) setViewerRole(data.viewerRole)
@@ -3044,7 +3068,7 @@ function BookingDetailContent() {
                             <Button onClick={handleSubmitQuote} disabled={submittingQuote} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">
                               {submittingQuote ? t("common.submitting") : t("quote.submit")}
                             </Button>
-                            <Button onClick={() => setShowQuoteForm(false)} variant="outline" size="sm" disabled={submittingQuote}>
+                            <Button onClick={closeQuoteForm} variant="outline" size="sm" disabled={submittingQuote}>
                               {t("common.cancel")}
                             </Button>
                           </div>
