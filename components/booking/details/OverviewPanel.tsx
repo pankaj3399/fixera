@@ -13,8 +13,10 @@ import {
   durationLabel,
   formatCalendarDate,
   formatInstant,
+  formatScheduleTimeRange,
   ownRecordedCurrency,
   recordedScheduleTimeZone,
+  resolvePanelHourMode,
 } from "@/lib/bookingDetails"
 import type { BookingDetailsDto, RawBookingRecord, DetailViewerRole } from "@/types/bookingDetails"
 import { AdminReferencesCard } from "./AdminReferencesCard"
@@ -85,6 +87,7 @@ export function OverviewPanel({
     preferredStartTime: overview?.schedule?.preferredStartTime ?? snapshot?.schedule?.preferredStartTime ?? null,
     scheduledStartDate: overview?.schedule?.scheduledStartDate ?? snapshot?.schedule?.scheduledStartDate ?? null,
     scheduledStartTime: overview?.schedule?.scheduledStartTime ?? snapshot?.schedule?.scheduledStartTime ?? null,
+    scheduledEndTime: overview?.schedule?.scheduledEndTime ?? snapshot?.schedule?.scheduledEndTime ?? null,
     scheduledExecutionEndDate:
       overview?.schedule?.scheduledExecutionEndDate ?? snapshot?.schedule?.scheduledExecutionEndDate ?? null,
     scheduledBufferStartDate:
@@ -99,6 +102,16 @@ export function OverviewPanel({
     reschedulePending: overview?.schedule?.reschedulePending ?? false,
   }
   const recordedScheduleZone = recordedScheduleTimeZone(details, booking.scheduleTimeZone)
+  // Hour mode (23a): show the recorded start AND end time only when the
+  // booking is positively hour mode; day mode and unknown mode stay date-only
+  // even if a stale/recorded start time is present.
+  const hourMode = resolvePanelHourMode(booking, details)
+  const scheduleTimeRange = hourMode
+    ? formatScheduleTimeRange(
+        schedule?.scheduledStartTime || booking.scheduledStartTime || null,
+        schedule?.scheduledEndTime || booking.scheduledEndTime || null
+      )
+    : null
   const quote = overview?.quote || details?.quotation
   const payment = overview?.payment
   const extraCosts = overview?.extraCosts || details?.extraCosts
@@ -290,8 +303,8 @@ export function OverviewPanel({
               {formatCalendarDate(schedule?.scheduledStartDate || booking.scheduledStartDate, intl) ||
                 schedule?.scheduledStartDate ||
                 booking.scheduledStartDate}
-              {schedule?.scheduledStartTime || booking.scheduledStartTime ? (
-                <span className="ml-1 text-xs text-gray-500">{schedule?.scheduledStartTime || booking.scheduledStartTime}</span>
+              {scheduleTimeRange ? (
+                <span className="ml-1 text-xs text-gray-500">{scheduleTimeRange}</span>
               ) : null}
             </DetailField>
             <DetailField
@@ -499,6 +512,8 @@ export function OverviewPanel({
           }
           party={parties?.customer || (booking.customer ? {
             id: booking.customer._id,
+            deletedAt: booking.customer.deletedAt,
+            isAnonymized: booking.customer.isAnonymized,
             name: booking.customer.name,
             username: booking.customer.username,
             customerType: booking.customer.customerType,
@@ -534,6 +549,8 @@ export function OverviewPanel({
           }
           party={parties?.professional || (booking.professional ? {
             id: booking.professional._id,
+            deletedAt: booking.professional.deletedAt,
+            isAnonymized: booking.professional.isAnonymized,
             name: viewerRole === "customer" ? null : booking.professional.name,
             username: booking.professional.username,
             companyName: booking.professional.businessInfo?.companyName,

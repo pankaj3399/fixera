@@ -1,0 +1,85 @@
+{
+  "_id": "665f1f77bcf86cd799439031",
+  "id": "665f1f77bcf86cd799439031",
+  "kind": "meeting",
+  "ticketNumber": "SUP-2026-000031",
+  "subject": "[deleted]",
+  "description": "[deleted]",
+  "reason": "other",
+  "reasonLabel": "Other",
+  "status": "scheduled",
+  "ticketStatus": "open",
+  "requester": {
+    "_id": "665f1f77bcf86cd799439021",
+    "id": "665f1f77bcf86cd799439021",
+    "name": "[deleted user]",
+    "isAnonymized": true,
+    "deletedAt": "2026-10-20T10:00:00.000Z"
+  },
+  "requesterRole": "professional",
+  "booking": null,
+  "attachments": [],
+  "attachment": null,
+  "replies": [],
+  "meeting": {
+    "status": "scheduled",
+    "scheduledAt": "2026-11-02T10:00:00.000Z",
+    "endAt": "2026-11-02T10:30:00.000Z",
+    "durationMinutes": 30,
+    "timeZone": "Europe/Brussels",
+    "meetingLink": null,
+    "linkActive": false,
+    "linkAddedAt": "2026-10-20T10:00:00.000Z",
+    "linkUpdatedAt": "2026-10-20T10:00:00.000Z",
+    "confirmationEmailSentAt": null,
+    "assignedAdminName": "Super Admin",
+    "cancellationReason": null,
+    "cancelledAt": null,
+    "cancelledBy": null,
+    "preferredTimes": null,
+    "adminResponse": null,
+    "legacy": false
+  },
+  "tags": {
+    "reason": "other",
+    "reasonLabel": "Other",
+    "booking": null,
+    "userType": "professional",
+    "meetingAt": "2026-11-02T10:00:00.000Z",
+    "kind": "meeting"
+  },
+  "createdAt": "2026-10-20T10:00:00.000Z",
+  "updatedAt": "2026-10-20T10:00:00.000Z",
+  "user": {
+    "_id": "665f1f77bcf86cd799439021",
+    "id": "665f1f77bcf86cd799439021",
+    "name": "[deleted user]",
+    "role": "professional",
+    "isAnonymized": true,
+    "deletedAt": "2026-10-20T10:00:00.000Z"
+  },
+  "userId": {
+    "_id": "665f1f77bcf86cd799439021",
+    "id": "665f1f77bcf86cd799439021",
+    "name": "[deleted user]",
+    "role": "professional",
+    "isAnonymized": true,
+    "deletedAt": "2026-10-20T10:00:00.000Z"
+  },
+  "meetingAdmin": {
+    "_id": "665f1f77bcf86cd799439000",
+    "id": "665f1f77bcf86cd799439000",
+    "name": "Super Admin",
+    "email": "super@example.com"
+  },
+  "assignedAdmin": {
+    "_id": "665f1f77bcf86cd799439000",
+    "id": "665f1f77bcf86cd799439000",
+    "name": "Super Admin",
+    "email": "super@example.com"
+  },
+  "replyCount": 0,
+  "lastReplyAt": null,
+  "legacy": false,
+  "internalNotes": []
+}

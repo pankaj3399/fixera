@@ -55,11 +55,12 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import type { PublicProjectDto as Project } from '@/types/project';
 import {
-  getLevelColor,
   getAdminTagStyle,
   formatAdminTagLabel,
   formatResponseTime,
 } from '@/lib/professionalLevel';
+import TierBadge from '@/components/dashboard/TierBadge';
+import { useTierColors } from '@/lib/tierColors';
 import { trackBeginRfq, trackEvent, trackProfessionalContact, trackProjectView } from '@/lib/analytics';
 
 interface ScheduleProposalsResponse {
@@ -169,6 +170,7 @@ type ProvidedByCardProps = {
 
 const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
   const t = useTranslations('projects');
+  const { levelColor } = useTierColors();
   const { intl } = useFormatLocale();
   const proName =
     pro.username || pro.name || pro.businessInfo?.companyName || t('providedBy.professionalFallback');
@@ -217,9 +219,7 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
 
           <div className='flex flex-wrap gap-1.5'>
             {pro.professionalLevel && (
-              <Badge variant='secondary' className={`text-xs ${getLevelColor(pro.professionalLevel)}`}>
-                {levelKey ? t(levelKey) : pro.professionalLevel}
-              </Badge>
+              <TierBadge level={levelKey ? t(levelKey) : pro.professionalLevel} color={levelColor(pro.professionalLevel)} className="text-xs" />
             )}
             {(pro.adminTags || []).map((tag) => {
               const adminTagKey = ADMIN_TAG_KEYS[tag.toLowerCase() as keyof typeof ADMIN_TAG_KEYS];

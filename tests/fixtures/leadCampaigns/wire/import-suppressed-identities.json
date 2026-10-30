@@ -1,0 +1,30 @@
+{
+  "status": 201,
+  "body": {
+    "success": true,
+    "data": {
+      "import": {
+        "_id": "6adfb0c53a75b668ca348f84",
+        "filename": "lead-campaign-suppressed-identities.xlsx",
+        "uploadedAt": "2026-10-26T19:57:57.721Z",
+        "uploadedBy": "66af00000000000000000101",
+        "status": "completed",
+        "totalRows": 4,
+        "importedRows": 3,
+        "duplicateRows": 1,
+        "failedRows": 0,
+        "suppressedRows": 3,
+        "fileError": null,
+        "errorCount": 0
+      },
+      "summary": {
+        "totalRows": 4,
+        "importedRows": 3,
+        "duplicateRows": 1,
+        "failedRows": 0,
+        "suppressedRows": 3
+      },
+      "errors": []
+    }
+  }
+}

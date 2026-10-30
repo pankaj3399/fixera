@@ -14,6 +14,7 @@ import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import FavoritesWidget from "@/components/dashboard/FavoritesWidget"
+import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems, type ProfessionalActionItemKey } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -217,6 +218,18 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
+  const [paymentSummary, setPaymentSummary] = useState<{
+    totalEarnings: number | null
+    pendingEarnings: number | null
+    completedBookings: number
+    pendingBookings: number
+    reviewCount: number
+    avgRating: number | null
+    currency: string
+    totalsByCurrency: Array<{ currency: string; totalEarnings: number; pendingEarnings: number; completedBookings: number; pendingBookings: number }>
+  } | null>(null)
+  const [paymentSummaryLoading, setPaymentSummaryLoading] = useState(false)
+  const [paymentSummaryError, setPaymentSummaryError] = useState<string | null>(null)
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
   const [warrantyClaimsLoading, setWarrantyClaimsLoading] = useState(false)
   const [warrantyClaimsError, setWarrantyClaimsError] = useState<string | null>(null)
@@ -339,6 +352,39 @@ export default function DashboardPage() {
     }
 
     fetchBookings()
+  }, [user, isAuthenticated, getErrorText, t])
+
+  useEffect(() => {
+    if (!user || !isAuthenticated || user.role !== "professional") return
+    const controller = new AbortController()
+    const loadSummary = async () => {
+      setPaymentSummaryLoading(true)
+      setPaymentSummaryError(null)
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers.Authorization = `Bearer ${token}`
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/professional/payment-stats`,
+          { credentials: "include", headers, signal: controller.signal },
+        )
+        const payload = await response.json()
+        if (controller.signal.aborted) return
+        if (response.ok && payload.success) {
+          setPaymentSummary(payload.data)
+        } else if (!controller.signal.aborted) {
+          setPaymentSummaryError(getErrorText(apiErrorFromBody(payload, t("professional.summary.loadFailed"), { status: response.status }), t("professional.summary.loadFailed")))
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        if (error instanceof DOMException && error.name === "AbortError") return
+        setPaymentSummaryError(getErrorText(error, t("professional.summary.loadFailed")))
+      } finally {
+        if (!controller.signal.aborted) setPaymentSummaryLoading(false)
+      }
+    }
+    void loadSummary()
+    return () => controller.abort()
   }, [user, isAuthenticated, getErrorText, t])
 
   useEffect(() => {
@@ -1751,6 +1797,86 @@ export default function DashboardPage() {
           </div>
 
           <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="bg-white/80 backdrop-blur border border-amber-100 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-amber-900 text-base">
+                  <Clock className="h-5 w-5 text-amber-500" />
+                  {t("professional.summary.pendingBookings")}
+                </CardTitle>
+                <CardDescription>{t("professional.summary.pendingBookingsHint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentSummaryLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <p className="text-3xl font-semibold text-amber-900">{paymentSummary?.pendingBookings ?? "—"}</p>
+                    <p className="mt-1 text-sm text-amber-700">
+                      {t("professional.summary.pendingEarnings")}:{" "}
+                      {paymentSummary && paymentSummary.pendingEarnings != null
+                        ? formatMoney(paymentSummary.pendingEarnings, paymentSummary.currency === "MULTI" ? undefined : paymentSummary.currency)
+                        : paymentSummary?.totalsByCurrency?.length
+                          ? paymentSummary.totalsByCurrency.map((bucket) => formatMoney(bucket.pendingEarnings, bucket.currency)).join(" + ")
+                          : "—"}
+                    </p>
+                  </>
+                )}
+                {paymentSummaryError && <p role="alert" className="mt-1 text-xs text-rose-600">{paymentSummaryError}</p>}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/80 backdrop-blur border border-emerald-100 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-emerald-900 text-base">
+                  <CheckCircle className="h-5 w-5 text-emerald-500" />
+                  {t("professional.summary.finishedBookings")}
+                </CardTitle>
+                <CardDescription>{t("professional.summary.finishedBookingsHint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentSummaryLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <p className="text-3xl font-semibold text-emerald-900">{paymentSummary?.completedBookings ?? "—"}</p>
+                    <p className="mt-1 text-sm text-emerald-700">
+                      {t("professional.summary.earnings")}:{" "}
+                      {paymentSummary && paymentSummary.totalEarnings != null
+                        ? formatMoney(paymentSummary.totalEarnings, paymentSummary.currency === "MULTI" ? undefined : paymentSummary.currency)
+                        : paymentSummary?.totalsByCurrency?.length
+                          ? paymentSummary.totalsByCurrency.map((bucket) => formatMoney(bucket.totalEarnings, bucket.currency)).join(" + ")
+                          : "—"}
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/80 backdrop-blur border border-yellow-100 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-yellow-900 text-base">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  {t("professional.summary.reviews")}
+                </CardTitle>
+                <CardDescription>{t("professional.summary.reviewsHint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentSummaryLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : paymentSummary?.avgRating != null ? (
+                  <>
+                    <p className="text-3xl font-semibold text-yellow-900">{paymentSummary.avgRating.toFixed(1)}</p>
+                    <p className="mt-1 text-sm text-yellow-700">
+                      {t("professional.summary.reviewsCount", { count: paymentSummary.reviewCount })}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500">{t("professional.summary.noReviews")}</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <BenefitsProgramCard />
             <FavoritesWidget />
           </div>
 

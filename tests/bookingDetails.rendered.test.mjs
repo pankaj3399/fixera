@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { register } from 'node:module'
+import { createRequire, register } from 'node:module'
 import { test } from 'node:test'
 
 register('./swc-loader.mjs', import.meta.url)
+
+const require = createRequire(import.meta.url)
 
 const React = await import('react')
 const { renderToStaticMarkup } = await import('react-dom/server')
@@ -11,7 +13,13 @@ const { NextIntlClientProvider } = await import('next-intl')
 const { CurrencyProvider } = await import('@/contexts/CurrencyContext')
 const { QuotationPanel } = await import('@/components/booking/details/QuotationPanel')
 const { PaymentsPanel } = await import('@/components/booking/details/PaymentsPanel')
+const { ActivityPanel } = await import('@/components/booking/details/ActivityPanel')
 const { BookingPanel } = await import('@/components/booking/details/BookingDataPanel')
+const { AuthProvider } = await import('@/contexts/AuthContext')
+// ActivityPanel reads the viewer session through AuthProvider, which needs the
+// real App Router contexts even for a standalone server render.
+const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
+const { PathnameContext } = require('next/dist/shared/lib/hooks-client-context.shared-runtime')
 const { PartyCard, AttachmentLinks, StatusText } = await import('@/components/booking/details/DetailPrimitives')
 const { AdminReferencesCard } = await import('@/components/booking/details/AdminReferencesCard')
 const { PostBookingQuestionField } = await import('@/components/booking/details/PostBookingQuestionField')
@@ -55,11 +63,90 @@ function paymentsHtml(details, booking, viewerRole = 'customer', locale = 'en') 
   return render(React.createElement(PaymentsPanel, { booking, details, viewerRole }), locale)
 }
 
+const activityMessages = Object.fromEntries(
+  ['en', 'nl', 'fr'].map((locale) => [
+    locale,
+    {
+      bookings: messagesByLocale[locale],
+      auth: JSON.parse(readFileSync(new URL(`../messages/${locale}/auth.json`, import.meta.url), 'utf8')),
+      common: JSON.parse(readFileSync(new URL(`../messages/${locale}/common.json`, import.meta.url), 'utf8')),
+    },
+  ])
+)
+
+const appRouterStub = {
+  push() {},
+  replace() {},
+  refresh() {},
+  back() {},
+  forward() {},
+  prefetch() {},
+}
+
+function activityHtml(details, booking, viewerRole = 'customer', locale = 'en') {
+  return renderToStaticMarkup(
+    React.createElement(
+      NextIntlClientProvider,
+      { locale, messages: activityMessages[locale], timeZone: 'UTC' },
+      React.createElement(
+        AppRouterContext.Provider,
+        { value: appRouterStub },
+        React.createElement(
+          PathnameContext.Provider,
+          { value: '/bookings/test' },
+          React.createElement(
+            CurrencyProvider,
+            { initialCurrency: 'EUR', initialRates: { EUR: 1 }, refreshRates: false },
+            React.createElement(
+              AuthProvider,
+              null,
+              React.createElement(ActivityPanel, {
+                booking,
+                details,
+                viewerRole,
+                pathname: '/bookings/test',
+                search: '',
+              })
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
 function cardSlice(html, id) {
   const start = html.indexOf(`id="${id}"`)
   if (start < 0) return ''
   const next = html.indexOf('data-slot="card"', start + 1)
   return html.slice(start, next < 0 ? undefined : next)
+}
+
+function rawRefundBooking(overrides = {}) {
+  const payload = fixture('completed-customer')
+  return {
+    ...structuredClone(payload.booking),
+    payment: {
+      status: 'partially_refunded',
+      currency: 'EUR',
+      totalWithVat: 100,
+      refundedAt: '2026-02-04T10:00:00.000Z',
+      refundReason: 'Partial goodwill',
+      ...overrides,
+    },
+  }
+}
+
+function refundItem(html, anchor = 'Aggregate amount only') {
+  const at = html.indexOf(anchor)
+  assert.ok(at >= 0, 'expected the aggregate refund item')
+  return html.slice(html.lastIndexOf('<li', at), html.indexOf('</li>', at) + 5)
+}
+
+function activityItem(html, anchor) {
+  const at = html.indexOf(anchor)
+  assert.ok(at >= 0, `expected the activity item containing "${anchor}"`)
+  return html.slice(html.lastIndexOf('<li', at), html.indexOf('</li>', at) + 5)
 }
 
 test('actual quoted DTO renders v2 as current and v1 as rejected', () => {
@@ -356,6 +443,204 @@ test('zero refund amounts remain recorded and missing amounts do not become zero
   assert.match(html, /\$0\.00/)
   assert.match(html, /Amount not recorded/)
   assert.match(html, /Not recorded/)
+})
+
+test('legacy raw partial refund without a stored amount does not display the original charge', () => {
+  const item = refundItem(paymentsHtml(null, rawRefundBooking()))
+  assert.doesNotMatch(item, /€100\.00/)
+  assert.match(item, /Aggregate amount only/)
+  assert.match(item, /<p class="text-sm font-semibold tabular-nums"><span[^>]*>Not recorded<\/span><\/p>/)
+  assert.match(item, /VAT and net amounts were not recorded for this refund/)
+
+  const fr = refundItem(paymentsHtml(null, rawRefundBooking(), 'customer', 'fr'), 'Montant global uniquement')
+  assert.match(fr, /Non enregistré/)
+  assert.doesNotMatch(fr, /100,00/)
+
+  const nl = refundItem(paymentsHtml(null, rawRefundBooking(), 'customer', 'nl'), 'Alleen totaalbedrag')
+  assert.match(nl, /Niet vastgelegd/)
+  assert.doesNotMatch(nl, /100,00/)
+})
+
+test('legacy raw full-refund status does not prove the refund amount', () => {
+  const item = refundItem(paymentsHtml(null, rawRefundBooking({ status: 'refunded' })))
+  assert.doesNotMatch(item, /€100\.00/)
+  assert.match(item, /Not recorded/)
+})
+
+test('legacy raw refund preserves stored partial and zero amounts', () => {
+  const partial = refundItem(paymentsHtml(null, rawRefundBooking({ refundAmount: 12 })))
+  assert.match(partial, /€12\.00/)
+  assert.doesNotMatch(partial, /€100\.00/)
+
+  const zero = refundItem(paymentsHtml(null, rawRefundBooking({ refundAmount: 0 })))
+  assert.match(zero, /€0\.00/)
+  assert.doesNotMatch(zero, /€100\.00/)
+})
+
+test('legacy raw refund currency is not inherited from the detailed base payment', () => {
+  const payload = fixture('completed-customer')
+  const details = structuredClone(payload.details)
+  details.payments.refunds = []
+  assert.equal(details.payments.base?.currency, 'EUR')
+  const item = refundItem(
+    paymentsHtml(details, rawRefundBooking({ currency: undefined, refundAmount: 12 }))
+  )
+  assert.match(item, /currency not recorded/)
+  assert.doesNotMatch(item, /€12\.00/)
+})
+
+test('stored detailed refunds remain authoritative over the raw fallback', () => {
+  const payload = fixture('completed-customer')
+  const html = paymentsHtml(
+    payload.details,
+    rawRefundBooking({ refundAmount: undefined, totalWithVat: 999 })
+  )
+  assert.match(html, /133\.10/)
+  assert.match(html, /25\.00/)
+  assert.match(html, /Cancelled before start/)
+  assert.doesNotMatch(html, /€999\.00/)
+})
+
+test('legacy activity refund shows no amount when only the original charge is stored', () => {
+  const booking = rawRefundBooking()
+  const refund = activityItem(activityHtml(null, booking), 'Refund issued')
+  assert.match(refund, /Partial goodwill/)
+  assert.match(refund, /4 Feb 2026/)
+  assert.doesNotMatch(refund, /€100\.00/)
+  assert.doesNotMatch(refund, /Recorded amounts/)
+
+  const payments = refundItem(paymentsHtml(null, booking))
+  assert.match(payments, /Not recorded/)
+  assert.doesNotMatch(payments, /€100\.00/)
+
+  const withCharge = rawRefundBooking({ capturedAt: '2026-02-03T10:00:00.000Z' })
+  const html = activityHtml(null, withCharge)
+  assert.doesNotMatch(activityItem(html, 'Refund issued'), /€100\.00/)
+  const charge = activityItem(html, 'Payment captured')
+  assert.match(charge, /Recorded amounts/)
+  assert.match(charge, /€100\.00/)
+})
+
+test('legacy activity full-refund status does not prove the refund amount', () => {
+  const refund = activityItem(
+    activityHtml(null, rawRefundBooking({ status: 'refunded', refundReason: 'Full refund' })),
+    'Refund issued'
+  )
+  assert.match(refund, /Full refund/)
+  assert.doesNotMatch(refund, /€100\.00/)
+  assert.doesNotMatch(refund, /Recorded amounts/)
+})
+
+test('legacy activity refund preserves stored partial and zero amounts consistently with Payments', () => {
+  const partialBooking = rawRefundBooking({ refundAmount: 12 })
+  assert.match(activityItem(activityHtml(null, partialBooking), 'Refund issued'), /€12\.00/)
+  assert.match(refundItem(paymentsHtml(null, partialBooking)), /€12\.00/)
+
+  const zeroBooking = rawRefundBooking({ refundAmount: 0 })
+  const zero = activityItem(activityHtml(null, zeroBooking), 'Refund issued')
+  assert.match(zero, /€0\.00/)
+  assert.doesNotMatch(zero, /€100\.00/)
+  assert.match(refundItem(paymentsHtml(null, zeroBooking)), /€0\.00/)
+})
+
+test('legacy activity refund currency is not inherited from the charge', () => {
+  const refund = activityItem(
+    activityHtml(null, rawRefundBooking({ currency: undefined, refundAmount: 12 })),
+    'Refund issued'
+  )
+  assert.match(refund, /12<\/span>/)
+  assert.match(refund, /currency not recorded/)
+  assert.doesNotMatch(refund, /€12\.00/)
+})
+
+test('legacy activity payment-record refunds use the stored amount, not the charge', () => {
+  const details = (record) => ({
+    payments: {
+      records: [
+        {
+          paymentId: 'pi_1',
+          currency: 'EUR',
+          totalWithVat: 100,
+          refundReason: 'Partial goodwill',
+          timestamps: { refundedAt: '2026-02-04T10:00:00.000Z' },
+          ...record,
+        },
+      ],
+    },
+  })
+
+  const stored = activityItem(activityHtml(details({ refundAmount: 12 }), { _id: 'b1' }), 'Refund issued')
+  assert.match(stored, /€12\.00/)
+  assert.doesNotMatch(stored, /€100\.00/)
+
+  const unknown = activityItem(activityHtml(details({}), { _id: 'b1' }), 'Refund issued')
+  assert.match(unknown, /Partial goodwill/)
+  assert.doesNotMatch(unknown, /€100\.00/)
+  assert.doesNotMatch(unknown, /Recorded amounts/)
+})
+
+test('legacy activity details-only base payment preserves its stored refund amount', () => {
+  const details = (base) => ({
+    payments: {
+      base: {
+        currency: 'EUR',
+        totalWithVat: 100,
+        refundReason: 'Partial goodwill',
+        timestamps: { refundedAt: '2026-02-04T10:00:00.000Z' },
+        ...base,
+      },
+    },
+  })
+
+  const stored = activityItem(activityHtml(details({ refundAmount: 12 }), { _id: 'b1' }), 'Refund issued')
+  assert.match(stored, /Partial goodwill/)
+  assert.match(stored, /€12\.00/)
+  assert.doesNotMatch(stored, /€100\.00/)
+
+  const unknown = activityItem(activityHtml(details({}), { _id: 'b1' }), 'Refund issued')
+  assert.match(unknown, /Partial goodwill/)
+  assert.doesNotMatch(unknown, /€100\.00/)
+  assert.doesNotMatch(unknown, /Recorded amounts/)
+})
+
+test('Activity and Payments agree when a refund currency is defaulted rather than recorded', () => {
+  const refundedAt = '2026-02-04T10:00:00.000Z'
+  const sources = [
+    (evidence) => [null, rawRefundBooking({ refundAmount: 12, ...evidence })],
+    (evidence) => [{ payments: { records: [{ paymentId: 'p1', refundAmount: 12, timestamps: { refundedAt }, ...evidence }] } }, { _id: 'b1' }],
+    (evidence) => [{ payments: { refunds: [{ id: 'r1', amount: 12, refundedAt, ...evidence }] } }, { _id: 'b1' }],
+    (evidence) => [{ payments: { base: { refundAmount: 12, timestamps: { refundedAt }, ...evidence } } }, { _id: 'b1' }],
+  ]
+  for (const source of sources) {
+    for (const evidence of [
+      { currency: 'EUR', currencySource: 'not_recorded' },
+      { currency: 'EUR', currencyRecorded: false },
+    ]) {
+      const [details, booking] = source(evidence)
+      const refund = activityItem(activityHtml(details, booking), 'Refund issued')
+      assert.match(refund, /12<\/span>/)
+      assert.match(refund, /currency not recorded/)
+      assert.doesNotMatch(refund, /€12\.00/)
+    }
+    const [details, booking] = source({ currency: 'EUR', currencySource: 'payment' })
+    assert.match(activityItem(activityHtml(details, booking), 'Refund issued'), /€12\.00/)
+  }
+  const [details, booking] = sources[2]({ currency: 'EUR', currencySource: 'not_recorded' })
+  const payments = paymentsHtml(details, booking)
+  assert.match(payments, /currency not recorded/)
+  assert.doesNotMatch(payments, /€12\.00/)
+})
+
+test('detailed activity remains authoritative over a legacy raw refund', () => {
+  const payload = fixture('completed-customer')
+  const html = activityHtml(
+    payload.details,
+    rawRefundBooking({ refundReason: 'Legacy raw reason', refundAmount: undefined })
+  )
+  assert.match(html, /33 events/)
+  assert.match(html, /Plans changed/)
+  assert.match(html, /€20\.00/)
+  assert.doesNotMatch(html, /Legacy raw reason/)
 })
 
 test('admin references and VAT decision values are localized in French', () => {

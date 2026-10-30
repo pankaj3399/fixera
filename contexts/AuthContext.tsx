@@ -9,6 +9,8 @@ import type { AdminPermission, AdminRole } from '@/lib/adminRbac'
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
 import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY } from '@/lib/constants/favorites'
 import { getMigratedItem, removeMigratedItem } from '@/lib/storageMigration'
+import { purgeAllAnonymizeRecoveryStorage } from '@/lib/anonymizeRecoveryStorage'
+import { resolvePostAuthRedirect } from '@/lib/auth/redirectResolver'
 
 interface User {
   _id: string
@@ -438,16 +440,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (mustCompleteProfessionalAccessFlow(data.user)) {
             router.push('/professional/onboarding')
           } else {
-            // Handle redirect after successful login
+            // Handle redirect after successful login: an explicit safe
+            // checkout/private-workflow target wins, then the role default
+            // (customers -> homepage, everyone else -> dashboard).
             const intendedPath = sessionStorage.getItem('redirectAfterAuth')
-            if (intendedPath && intendedPath !== pathname) {
+            if (intendedPath) {
               sessionStorage.removeItem('redirectAfterAuth')
-              router.push(intendedPath)
-            } else {
-              // Default redirect based on role
-              const dashboardPath = '/dashboard'
-              router.push(dashboardPath)
             }
+            router.push(resolvePostAuthRedirect({
+              role: data.user?.role,
+              explicitRedirect: intendedPath && intendedPath !== pathname ? intendedPath : null,
+            }))
           }
         }
 
@@ -528,6 +531,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         idExpiryToastRef.current = null
       }
       sessionStorage.removeItem('redirectAfterAuth')
+      purgeAllAnonymizeRecoveryStorage(sessionStorage)
       toast.success('Logged out successfully')
       router.push('/login')
     }

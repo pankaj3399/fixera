@@ -21,7 +21,8 @@ import {
   recordedNumber,
   viewerTimeZone,
 } from "@/lib/bookingDetails"
-import type { AttachmentDto, DetailsNotice, PartyDto } from "@/types/bookingDetails"
+import type { ActorDto, AttachmentDto, DetailsNotice, PartyDto } from "@/types/bookingDetails"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 /**
  * Safe translator for the additive `details.*` namespace: the localized key is
@@ -365,6 +366,15 @@ export function AnswerValue({ value, enumPrefix }: { value: unknown; enumPrefix?
   }
 }
 
+export function actorDisplayName(
+  actor: ActorDto | null | undefined,
+  deletedLabel: string,
+  fallback: string | null = null
+): string | null {
+  if (isAnonymizedIdentity(actor)) return deletedLabel
+  return actor?.name || fallback
+}
+
 export function PartyCard({
   title,
   party,
@@ -394,6 +404,16 @@ export function PartyCard({
     return (
       <DetailCard title={title}>
         <NotRecorded />
+      </DetailCard>
+    )
+  }
+  if (isAnonymizedIdentity(party)) {
+    return (
+      <DetailCard title={title}>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+          <p className="text-sm font-semibold text-gray-900">{t("details.partyAnonymized")}</p>
+          <p className="mt-1 text-xs text-gray-600">{t("details.partyAnonymizedNote")}</p>
+        </div>
       </DetailCard>
     )
   }
@@ -444,22 +464,36 @@ export function ScheduleSummary({
   schedule,
   intl,
   timeZone,
+  hourMode,
 }: {
   schedule?: {
     preferredStartDate?: string | null
     preferredStartTime?: string | null
     scheduledStartDate?: string | null
     scheduledStartTime?: string | null
+    scheduledEndTime?: string | null
     scheduledExecutionEndDate?: string | null
     scheduledBufferStartDate?: string | null
     scheduledBufferEndDate?: string | null
   } | null
   intl: string
   timeZone?: string | null
+  /**
+   * Wall times render only when positively hour mode. Unknown/omitted means
+   * date-only: showing a wrong time is worse than showing none.
+   */
+  hourMode?: boolean | null
 }) {
   const startValue = schedule?.scheduledStartDate || schedule?.preferredStartDate
   const startDate = formatCalendarDate(startValue, intl)
   const startTime = schedule?.scheduledStartTime || schedule?.preferredStartTime
+  // Wall times render only with an explicit hour-mode signal. Unknown or
+  // day mode stays date-only: showing a wrong time is worse than none.
+  const endTime = schedule?.scheduledEndTime
+  const timeRange =
+    hourMode === true
+      ? (startTime && endTime ? `${startTime}–${endTime}` : startTime)
+      : null
   const endDate = formatCalendarDate(schedule?.scheduledExecutionEndDate, intl)
   const bufferStart = formatCalendarDate(schedule?.scheduledBufferStartDate, intl)
   const bufferEnd = formatCalendarDate(schedule?.scheduledBufferEndDate, intl)
@@ -468,7 +502,7 @@ export function ScheduleSummary({
       <p>
         {startDate || startValue ? (
           <>
-            <span className="text-gray-500">{`${startTime || ""} ${startDate || startValue || ""}`.trim()}</span>
+            <span className="text-gray-500">{`${timeRange || ""} ${startDate || startValue || ""}`.trim()}</span>
             {endDate || schedule?.scheduledExecutionEndDate ? <> → {endDate || schedule?.scheduledExecutionEndDate}</> : null}
           </>
         ) : (

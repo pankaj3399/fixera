@@ -663,6 +663,13 @@ export default function ProjectBookingForm({
     setHasUserSelectedDate(false);
   }, [selectedPackageIndex]);
 
+  useEffect(() => {
+    if (isUnitPricing && typeof selectedPackageIndex === 'number') {
+      fetchTeamAvailability(selectedPackageIndex);
+      fetchScheduleProposals(selectedPackageIndex);
+    }
+  }, [estimatedUsage, isUnitPricing, selectedPackageIndex]);
+
   const getFormattedDate = (dateStr?: string | null) => {
     if (!dateStr) return null;
     const parsed = parseISO(dateStr);
@@ -814,6 +821,7 @@ export default function ProjectBookingForm({
         if (typeof selectedPackageIndex === 'number') {
           url += `&subprojectIndex=${selectedPackageIndex}`;
         }
+        if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
         const res = await fetch(url, { signal: controller.signal });
         if (!isCurrent()) return;
         if (!res.ok) {
@@ -843,7 +851,7 @@ export default function ProjectBookingForm({
     };
     run();
     return () => controller.abort();
-  }, [project._id, selectedDate, selectedPackageIndex, projectMode]);
+  }, [project._id, selectedDate, selectedPackageIndex, projectMode, estimatedUsage, isUnitPricing]);
 
   useEffect(() => {
     if (!serverSlotsForSelectedDate) return;
@@ -859,6 +867,7 @@ export default function ProjectBookingForm({
       if (typeof selectedPackageIndex === 'number') {
         url += `&subprojectIndex=${selectedPackageIndex}`;
       }
+      if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
       if (startTime) {
         url += `&startTime=${startTime}`;
       }
@@ -885,7 +894,7 @@ export default function ProjectBookingForm({
       setLoadingScheduleWindow(false);
       debugLog?.('[SCHEDULE WINDOW] Loading complete');
     }
-  }, [project._id, selectedPackageIndex]);
+  }, [project._id, selectedPackageIndex, estimatedUsage, isUnitPricing]);
 
   // Fetch schedule window from backend when date changes (for days mode)
   useEffect(() => {
@@ -915,6 +924,7 @@ export default function ProjectBookingForm({
       if (typeof packageIndex === 'number') {
         url += `?subprojectIndex=${packageIndex}`;
       }
+      if (isUnitPricing) url += `${url.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
       const response = await fetch(url);
       const data: AvailabilityResponse = await response.json();
 
@@ -994,6 +1004,7 @@ export default function ProjectBookingForm({
       if (typeof packageIndex === 'number') {
         endpoint += `?subprojectIndex=${packageIndex}`;
       }
+      if (isUnitPricing) endpoint += `${endpoint.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
 
       const response = await fetch(endpoint);
       const data: ScheduleProposalsResponse = await response.json();
@@ -2101,6 +2112,31 @@ export default function ProjectBookingForm({
     setVatAnswers(prev => ({ ...prev, [fieldName]: { fieldName, value } }));
   };
 
+  // Prune stale VAT answers when the fetched question list changes: answers
+  // for removed questions are never submitted, even if the project id (and
+  // any cached config) is unchanged.
+  const vatQuestionKeys = JSON.stringify(
+    (project.vatManagement?.reducedVatQuestions || []).map((question) => question.fieldName).sort(),
+  );
+  useEffect(() => {
+    const allowed = new Set(
+      (JSON.parse(vatQuestionKeys) as unknown[]).filter(
+        (fieldName): fieldName is string => typeof fieldName === 'string',
+      ),
+    );
+    setVatAnswers((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length === 0) return prev;
+      if (keys.every((key) => allowed.has(key))) return prev;
+      const pruned: Record<string, VatAnswer> = {};
+      for (const key of keys) {
+        if (allowed.has(key)) pruned[key] = prev[key];
+      }
+      return pruned;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vatQuestionKeys]);
+
   const handleRFQAttachmentUpload = async (index: number, file: File | null) => {
     if (!file) return;
 
@@ -2192,7 +2228,7 @@ export default function ProjectBookingForm({
 
       if (
         shouldCollectUsage(selectedPackage.pricing.type) &&
-        (!estimatedUsage || estimatedUsage < 1)
+        (!Number.isFinite(estimatedUsage) || estimatedUsage <= 0)
       ) {
         toast.error(t('toasts.estimatedUsageRequired'));
         return false;
@@ -3293,8 +3329,8 @@ export default function ProjectBookingForm({
                             <Input
                               id='estimated-usage'
                               type='number'
-                              min={minOrderQuantity ?? 1}
-                              step='1'
+                              min={minOrderQuantity ?? 0.01}
+                              step='any'
                               value={estimatedUsage}
                               onChange={(e) => {
                                 let value = Number(e.target.value);
@@ -3312,7 +3348,9 @@ export default function ProjectBookingForm({
                               className='text-lg'
                             />
 
-                            {project.priceModel && (
+                            {selectedPackage.pricing.unit?.toLowerCase().match(/^(h|hr|hrs|hour|hours|hur)$/) && !selectedPackage.executionDuration?.value ? (
+                              <span className='text-sm text-gray-500 whitespace-nowrap'>Hours (determined by customer)</span>
+                            ) : project.priceModel && (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>
                                 {project.priceModel}
                               </span>
@@ -3864,6 +3902,12 @@ export default function ProjectBookingForm({
                               onCheckedChange={() =>
                                 handleExtraOptionToggle(idx)
                               }
+                              // Stop the click from bubbling to the card's
+                              // onClick: without this the checkbox fires both
+                              // handlers (checked-change + bubbled click) and
+                              // toggles twice = net no-op. Keyboard
+                              // operation is unaffected (no click event).
+                              onClick={(e) => e.stopPropagation()}
                               className='mt-1'
                             />
                             <div className='flex-1'>

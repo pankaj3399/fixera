@@ -17,6 +17,7 @@ import {
   groupActivityByDay,
   quotationVersionLabel,
   resolveActivityItems,
+  resolvePanelHourMode,
   recordedScheduleTimeZone,
 } from "@/lib/bookingDetails"
 import type { ActivityItem, BookingDetailsDto, DetailViewerRole, RawBookingRecord } from "@/types/bookingDetails"
@@ -30,6 +31,7 @@ import {
   ProvenanceBadge,
   StatusText,
   TimeZoneNote,
+  actorDisplayName,
   useDetailDisplayTimeZone,
   useDetailT,
 } from "./DetailPrimitives"
@@ -45,22 +47,37 @@ interface ActivityPanelProps {
 function ScheduleValue({
   schedule,
   intl,
+  hourMode,
 }: {
   schedule?: {
     scheduledStartDate?: string | null
     scheduledStartTime?: string | null
+    scheduledEndTime?: string | null
     scheduledExecutionEndDate?: string | null
     scheduledBufferEndDate?: string | null
     preferredStartDate?: string | null
   } | null
   intl: string
+  /**
+   * Wall times render only when positively hour mode. Unknown/omitted means
+   * date-only: showing a wrong time is worse than showing none.
+   */
+  hourMode?: boolean | null
 }) {
   if (!schedule) return <NotRecorded />
   const start = formatCalendarDate(schedule.scheduledStartDate || schedule.preferredStartDate, intl) || schedule.scheduledStartDate
   const end = formatCalendarDate(schedule.scheduledExecutionEndDate, intl) || schedule.scheduledExecutionEndDate
+  const startTime = schedule.scheduledStartTime
+  // Presence alone is not enough: only an explicit hour-mode signal shows
+  // wall times, since day-mode records must stay date-only.
+  const timeRange = hourMode === true
+    ? (startTime && schedule.scheduledEndTime
+      ? `${startTime}–${schedule.scheduledEndTime}`
+      : startTime)
+    : null
   const parts = [
     start,
-    schedule.scheduledStartTime,
+    timeRange,
     end ? `→ ${end}` : null,
     schedule.scheduledBufferEndDate ? `buffer → ${formatCalendarDate(schedule.scheduledBufferEndDate, intl) || schedule.scheduledBufferEndDate}` : null,
   ].filter(Boolean)
@@ -76,6 +93,7 @@ function ActivityEvent({
   claimAdminHref,
   disputeAdminHref,
   timeZone,
+  hourMode,
 }: {
   item: ActivityItem
   viewerRole: DetailViewerRole | null
@@ -84,6 +102,7 @@ function ActivityEvent({
   claimAdminHref: string | null
   disputeAdminHref: string | null
   timeZone: string
+  hourMode?: boolean | null
 }) {
   const t = useTranslations("bookings")
   const dt = useDetailT()
@@ -104,15 +123,15 @@ function ActivityEvent({
     ? t(activityTitleKey(item.type) as never)
     : activityTypeFallback(item.type)
   const actor = item.actor
-  const actorLabel = actor?.name
-    ? actor.name
-    : item.actorRecorded === false
-    ? dt("fields.actorNotRecorded", "actor not recorded")
-    : actor?.role === "system"
-    ? dt("activity.systemActor", "System")
-    : actor?.id
-    ? dt("fields.actorNameUnknown", "recorded user (name unavailable)")
-    : dt("fields.actorNotRecorded", "actor not recorded")
+  const actorLabel =
+    actorDisplayName(actor, dt("activity.deletedActor", "Deleted user")) ||
+    (item.actorRecorded === false
+      ? dt("fields.actorNotRecorded", "actor not recorded")
+      : actor?.role === "system"
+        ? dt("activity.systemActor", "System")
+        : actor?.id
+          ? dt("fields.actorNameUnknown", "recorded user (name unavailable)")
+          : dt("fields.actorNotRecorded", "actor not recorded"))
   const actorRole = actor?.role && actor.role !== "unknown" && actor.role !== "system" ? actor.role : null
   const quotationNumber = item.metadata?.quotationNumber || item.references?.quotationNumber || null
   const quotationVersion = item.metadata?.version ?? item.references?.version ?? null
@@ -212,11 +231,31 @@ function ActivityEvent({
             <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div>
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.previousSchedule", "Original schedule")}</dt>
-                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.previousSchedule} intl={intl} /></dd>
+                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.previousSchedule} intl={intl} hourMode={hourMode} /></dd>
               </div>
               <div>
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.proposedSchedule", "New schedule")}</dt>
-                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.proposedSchedule} intl={intl} /></dd>
+                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.proposedSchedule} intl={intl} hourMode={hourMode} /></dd>
+              </div>
+            </dl>
+          ) : null}
+
+          {item.metadata?.schedule ? (
+            <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div>
+                <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.schedule", "Schedule")}</dt>
+                <dd className="mt-0.5 text-gray-800">
+                  <ScheduleValue
+                    schedule={{
+                      scheduledStartDate: item.metadata.schedule.startDate,
+                      scheduledStartTime: item.metadata.schedule.startTime,
+                      scheduledEndTime: item.metadata.schedule.endTime,
+                      scheduledExecutionEndDate: item.metadata.schedule.executionEndDate,
+                    }}
+                    intl={intl}
+                    hourMode={hourMode}
+                  />
+                </dd>
               </div>
             </dl>
           ) : null}
@@ -324,6 +363,8 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
     : adminLinks
   const claimAdminHref = visibleAdminLinks.find((link) => link.key === "warranty")?.href || null
   const disputeAdminHref = visibleAdminLinks.find((link) => link.key === "disputes")?.href || null
+  // Hour-mode wall times render only with a positive signal (task 23a).
+  const hourMode = resolvePanelHourMode(booking, details)
 
   return (
     <div className="space-y-4">
@@ -378,6 +419,7 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
                   claimAdminHref={claimAdminHref}
                   disputeAdminHref={disputeAdminHref}
                   timeZone={displayTimeZone.timeZone}
+                  hourMode={hourMode}
                 />
               ))}
             </ol>

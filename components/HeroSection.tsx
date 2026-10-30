@@ -34,7 +34,7 @@ const HeroSection = async ({
   const t = await getTranslations('home')
 
   return (
-    <section id="hero" className="pt-8 pb-16 bg-gradient-to-br from-blue-50 via-white to-purple-50 relative overflow-hidden">
+    <section id="hero" className="pt-4 sm:pt-6 pb-10 bg-gradient-to-br from-blue-50 via-white to-purple-50 relative overflow-hidden">
       <div className="absolute inset-0 opacity-5" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234F46E5' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
       }} />
@@ -63,7 +63,7 @@ const HeroSection = async ({
 
           <PopularProjectsCarousel projects={popularProjects} />
 
-          <div className="mt-10 pt-16 border-t border-gray-200">
+          <div className="mt-8 pt-10 border-t border-gray-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
               {heroBenefits.map((benefit) => {
                 const Icon = benefitIcons[benefit.icon]

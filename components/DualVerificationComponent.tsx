@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {   ArrowLeft, CheckCircle, Clock, Shield, Smartphone, AtSign } from "lucide-react"
 import { toast } from "sonner"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
+import { SIGNUP_OTP_RESEND_COOLDOWN_SECONDS } from "@/lib/auth/signupOtpCooldown"
 
 interface DualVerificationProps {
   email: string;
@@ -53,8 +54,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
     phoneResendLoading: false,
     emailResendDisabled: true,
     phoneResendDisabled: true,
-    emailResendTime: 60,
-    phoneResendTime: 60
+    emailResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS,
+    phoneResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS
   });
 
   // Countdown timers for resend buttons
@@ -114,7 +115,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
         setVerificationState(prev => ({ 
           ...prev, 
           emailResendDisabled: true, 
-          emailResendTime: 60 
+          emailResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS
         }));
       } else {
         toast.error(getErrorText(data, t("dualVerification.emailCodeSendFailed")));
@@ -145,7 +146,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
         setVerificationState(prev => ({ 
           ...prev, 
           phoneResendDisabled: true, 
-          phoneResendTime: 60 
+          phoneResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS
         }));
       } else {
         toast.error(getErrorText(data, t("dualVerification.phoneCodeSendFailed")));

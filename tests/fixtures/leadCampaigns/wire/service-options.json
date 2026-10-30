@@ -1,0 +1,45 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "services": [
+        {
+          "key": "electrical",
+          "label": "Electrical",
+          "countries": [
+            "BE",
+            "FR"
+          ]
+        },
+        {
+          "key": "painting",
+          "label": "Painting",
+          "countries": [
+            "BE",
+            "FR"
+          ]
+        },
+        {
+          "key": "plumbing",
+          "label": "Plumbing",
+          "countries": [
+            "BE",
+            "NL",
+            "FR",
+            "US",
+            "CA"
+          ]
+        },
+        {
+          "key": "solar-panels",
+          "label": "Solar Panels",
+          "countries": [
+            "US",
+            "CA"
+          ]
+        }
+      ]
+    }
+  }
+}

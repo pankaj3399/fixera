@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import enProjectWizard from '@/messages/en/projectWizard.json';
 import {
@@ -80,6 +80,7 @@ interface ISubproject {
     priceRange?: { min?: number; max?: number };
     minOrderQuantity?: number; // Unit pricing: minimum order quantity
     unit?: string; // Unit pricing: real service unit (m², hour, room...) persisted for invoices
+    durationBasis?: 'per_booking' | 'per_unit';
   };
   errors?: {
     priceRange?: string;
@@ -137,6 +138,12 @@ interface Step2Props {
   data: ProjectData;
   onChange: (data: ProjectData) => void;
   onValidate: (isValid: boolean) => void;
+}
+
+export interface Step2Ref {
+  getCurrentData: () => ProjectData
+  validateNow: () => boolean
+  getConfigurationStatus: () => 'loading' | 'failed' | null
 }
 
 interface IServiceConfigurationIncludedItem {
@@ -300,11 +307,11 @@ const parseNumericInput = (raw: string): number | undefined => {
   return parsed;
 };
 
-export default function Step2Subprojects({
+const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subprojects({
   data,
   onChange,
   onValidate,
-}: Step2Props) {
+}: Step2Props, ref) {
   const t = useTranslations('projectWizard');
   const { formatMoney } = useCurrency();
   // Determine if this is a total price model or unit-based model
@@ -387,6 +394,9 @@ export default function Step2Subprojects({
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);
   const [dynamicFieldsLoaded, setDynamicFieldsLoaded] = useState(false);
+  const [dynamicFieldsError, setDynamicFieldsError] = useState(false);
+  const dynamicFieldsRequestRef = useRef(0);
+  const includedItemsRequestRef = useRef(0);
   const [projectTypes, setProjectTypes] = useState<string[]>([]);
   const [configPricingOptions, setConfigPricingOptions] = useState<Array<{ name: string; pricingType: string; unit?: string }>>([]);
   const [configIncludedItems, setConfigIncludedItems] = useState<
@@ -408,7 +418,9 @@ export default function Step2Subprojects({
   );
 
   const fetchDynamicFields = async () => {
+    const requestId = ++dynamicFieldsRequestRef.current;
     setDynamicFieldsLoaded(false);
+    setDynamicFieldsError(false);
     try {
       const params = new URLSearchParams({
         category: data.category || '',
@@ -423,8 +435,9 @@ export default function Step2Subprojects({
         { credentials: 'include' }
       );
 
-      if (response.ok) {
-        const result = await response.json();
+      if (!response.ok) throw new Error('Dynamic field request failed');
+      const result = await response.json();
+      if (requestId === dynamicFieldsRequestRef.current) {
         const inputs = (result.data.professionalInputFields || []).map((f: IDynamicField) => ({
           ...f,
           isSingleNumber: f.isSingleNumber || false,
@@ -433,14 +446,20 @@ export default function Step2Subprojects({
         setProjectTypes(result.data.projectTypes || []);
       }
     } catch (error) {
-      console.error('Failed to fetch dynamic fields:', error);
-      toast.error(t('step2.toast.configFailed'));
+      if (requestId === dynamicFieldsRequestRef.current) {
+        console.error('Failed to fetch dynamic fields:', error);
+        setDynamicFieldsError(true);
+        toast.error(t('step2.toast.configFailed'));
+      }
     } finally {
-      setDynamicFieldsLoaded(true);
+      if (requestId === dynamicFieldsRequestRef.current) setDynamicFieldsLoaded(true);
     }
   };
 
   const fetchServiceIncludedItems = async () => {
+    const requestId = ++includedItemsRequestRef.current;
+    setConfigIncludedItems([]);
+    setConfigPricingOptions([]);
     try {
       const params = new URLSearchParams({
         category: data.category || '',
@@ -455,6 +474,7 @@ export default function Step2Subprojects({
 
       if (response.ok) {
         const result = await response.json();
+        if (requestId !== includedItemsRequestRef.current) return;
         const items = (result?.data?.includedItems || []).map(
           (it: IServiceConfigurationIncludedItem) => ({
             name: it?.name,
@@ -470,10 +490,12 @@ export default function Step2Subprojects({
         // Store pricing options from service config
         setConfigPricingOptions(result?.data?.pricingOptions || []);
       } else {
+        if (requestId !== includedItemsRequestRef.current) return;
         setConfigIncludedItems([]);
         setConfigPricingOptions([]);
       }
     } catch (error) {
+      if (requestId !== includedItemsRequestRef.current) return;
       console.error('Failed to fetch service configuration:', error);
       setConfigIncludedItems([]);
       setConfigPricingOptions([]);
@@ -487,6 +509,7 @@ export default function Step2Subprojects({
       fetchDynamicFields();
       fetchServiceIncludedItems();
     }
+    return () => { dynamicFieldsRequestRef.current += 1; includedItemsRequestRef.current += 1; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.category, data.service, data.areaOfWork]);
 
@@ -546,18 +569,25 @@ export default function Step2Subprojects({
     });
   }, [unitLabel, data.selectedPricingOption]);
 
-  const validateForm = (
+  const validateForm = useCallback((
     requiredFields: Array<{ fieldName: string; label?: string }> = dynamicFields
       .filter((field) => field.isRequired)
       .map((field) => ({ fieldName: field.fieldName, label: field.label })),
   ) => {
-    const awaitingConfiguration = Boolean(data.category && data.service && !dynamicFieldsLoaded);
+    const awaitingConfiguration = Boolean(data.category && data.service && (!dynamicFieldsLoaded || dynamicFieldsError));
     const isValid =
       !awaitingConfiguration &&
       subprojects.length > 0 &&
       subprojects.every((sub, index) => collectSubprojectErrors(sub, index, t, requiredFields).length === 0);
     onValidate(isValid);
-  };
+    return isValid;
+  }, [data.category, data.service, dynamicFieldsLoaded, dynamicFieldsError, subprojects, dynamicFields, onValidate, t]);
+
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => ({ ...data, subprojects, requiredProfessionalFields: dynamicFields.filter(field => field.isRequired).map(field => ({ fieldName: field.fieldName, label: field.label })) }),
+    validateNow: () => validateForm(),
+    getConfigurationStatus: () => dynamicFieldsError ? 'failed' : data.category && data.service && !dynamicFieldsLoaded ? 'loading' : null,
+  }), [data, subprojects, dynamicFields, dynamicFieldsLoaded, dynamicFieldsError, validateForm]);
 
   const addSubproject = () => {
     if (subprojects.length >= 5) {
@@ -778,6 +808,18 @@ export default function Step2Subprojects({
           </div>
         </CardContent>
       </Card>
+
+      {dynamicFieldsError && (
+        <Card role='alert' className='border-red-300'>
+          <CardContent className='flex items-center justify-between gap-3 py-4'>
+            <p className='text-sm text-red-700'>{t('step2.toast.configFailed')}</p>
+            <Button type='button' variant='outline' onClick={() => void fetchDynamicFields()}>{t('step2.toast.configRetry')}</Button>
+          </CardContent>
+        </Card>
+      )}
+      {data.category && data.service && !dynamicFieldsLoaded && !dynamicFieldsError && (
+        <p role='status' className='text-sm text-gray-600'>{t('step2.toast.configLoading')}</p>
+      )}
 
       {/* Subprojects List */}
       {subprojects.length === 0 ? (
@@ -1003,7 +1045,7 @@ export default function Step2Subprojects({
                         value={subproject.pricing.type}
                         onValueChange={(value: 'fixed' | 'unit' | 'rfq') => {
                           updateSubproject(subproject.id, {
-                            pricing: withPricingUnit({ ...subproject.pricing, type: value }, unitLabel),
+                            pricing: withPricingUnit({ ...subproject.pricing, type: value, durationBasis: value === 'unit' ? 'per_unit' : undefined }, unitLabel),
                           });
                         }}
                       >
@@ -2419,4 +2461,6 @@ export default function Step2Subprojects({
       )}
     </div>
   );
-}
+});
+
+export default Step2Subprojects;

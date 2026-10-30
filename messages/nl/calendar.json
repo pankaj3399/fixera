@@ -2,6 +2,9 @@
   "eventTitles": {
     "personalBlock": "Persoonlijke blokkade",
     "booking": "Boeking",
+    "bookingPending": "Openstaande boeking",
+    "bookingActive": "In uitvoering",
+    "bookingCompleted": "Afgeronde boeking",
     "buffer": "Buffer",
     "companyClosure": "Bedrijfssluiting",
     "holiday": "Feestdag",

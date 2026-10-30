@@ -2,6 +2,9 @@
   "eventTitles": {
     "personalBlock": "Personal Block",
     "booking": "Booking",
+    "bookingPending": "Pending booking",
+    "bookingActive": "In progress",
+    "bookingCompleted": "Completed booking",
     "buffer": "Buffer",
     "companyClosure": "Company Closure",
     "holiday": "Holiday",

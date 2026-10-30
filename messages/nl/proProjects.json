@@ -106,17 +106,20 @@
       "pending": "In afwachting",
       "published": "Gepubliceerd",
       "onHold": "Gepauzeerd",
-      "rejected": "Afgewezen"
+      "rejected": "Afgewezen",
+      "archived": "Gearchiveerd"
     },
     "statusLabels": {
       "draft": "Concept",
       "pending": "In afwachting van goedkeuring",
       "published": "Gepubliceerd",
       "onHold": "Gepauzeerd",
-      "rejected": "Afgewezen"
+      "rejected": "Afgewezen",
+      "archived": "Gearchiveerd"
     },
     "stats": {
-      "drafts": "Concepten"
+      "drafts": "Concepten",
+      "archived": "Gearchiveerd"
     },
     "tabs": {
       "all": "Alle ({count})",
@@ -124,7 +127,8 @@
       "pending": "In afwachting ({count})",
       "published": "Gepubliceerd ({count})",
       "onHold": "Gepauzeerd ({count})",
-      "rejected": "Afgewezen ({count})"
+      "rejected": "Afgewezen ({count})",
+      "archived": "Gearchiveerd ({count})"
     },
     "empty": {
       "noProjects": "Geen projecten gevonden",
@@ -139,7 +143,9 @@
       "noRejected": "Geen afgewezen projecten",
       "rejectedHint": "Projecten die aangepast moeten worden, verschijnen hier",
       "noOnHold": "Geen gepauzeerde projecten",
-      "onHoldHint": "Projecten die je hebt gepauzeerd, verschijnen hier"
+      "onHoldHint": "Projecten die je hebt gepauzeerd, verschijnen hier",
+      "noArchived": "Geen gearchiveerde projecten",
+      "archivedHint": "Gearchiveerde projecten zijn verborgen uit je overzicht, de openbare zoekfunctie en nieuwe boekingen. Herstel er een om er weer aan te werken."
     },
     "card": {
       "submitted": "Ingediend: {date}",
@@ -149,7 +155,21 @@
       "putOnHold": "Gepauzeerd: {date}",
       "pricingOptions": "{count, plural, one {# prijsoptie} other {# prijsopties}}",
       "category": "Categorie: {category}",
-      "adminFeedback": "Feedback van de beheerder:"
+      "adminFeedback": "Feedback van de beheerder:",
+      "service": "Service: {value}",
+      "areaOfWork": "Werkgebied: {value}",
+      "team": "Team: {value}",
+      "minMembers": "Min {count} leden (overlap {overlap})",
+      "priceModel": "Prijsmodel: {value}",
+      "startingFrom": "Vanaf {price} ({model}{unit})",
+      "noRecordedPrice": "Nog geen geregistreerde prijs",
+      "repeatDiscount": "Korting vaste klant: {percent}%",
+      "counts": "{subprojects} subprojecten · {options} opties · {conditions} voorwaarden",
+      "publishDate": "Gepubliceerd: {date}",
+      "onHoldDays": "Aantal dagen gepauzeerd: {days}",
+      "submittedOn": "Ingediend: {date}",
+      "archivedOn": "Gearchiveerd: {date}",
+      "updatedOn": "Bijgewerkt: {date}"
     },
     "actions": {
       "viewDetails": "Details bekijken",
@@ -157,14 +177,18 @@
       "submitForReview": "Indienen ter controle",
       "putOnHold": "Pauzeren",
       "resumePublishing": "Publicatie hervatten",
-      "deleteProject": "Project verwijderen"
+      "deleteProject": "Project verwijderen",
+      "archiveProject": "Archiveren",
+      "restoreProject": "Herstellen"
     },
     "errors": {
       "fetchFailed": "Projecten laden mislukt",
       "fetchFailedConnection": "Projecten laden mislukt. Controleer je verbinding.",
       "duplicateFailed": "Project dupliceren mislukt",
       "deleteFailed": "Project verwijderen mislukt",
-      "statusUpdateFailed": "Projectstatus bijwerken mislukt"
+      "statusUpdateFailed": "Projectstatus bijwerken mislukt",
+      "archiveFailed": "Project kon niet worden gearchiveerd.",
+      "restoreFailed": "Project kon niet worden hersteld."
     },
     "pagination": {
       "showing": "Weergave {from} tot {to} van {total, plural, one {# project} other {# projecten}}"
@@ -187,7 +211,13 @@
       "hiddenUntilApproved": "Het project blijft verborgen voor klanten tot het opnieuw is goedgekeurd",
       "approvalDataCleared": "Eerdere goedkeuringsgegevens worden gewist en submittedAt wordt bijgewerkt",
       "proceed": "Wil je doorgaan met het bewerken van dit project?",
-      "yesEdit": "Ja, project bewerken"
+      "yesEdit": "Ja, project bewerken",
+      "archiveTitle": "Project archiveren?",
+      "archiveDescription": "Het project wordt gedepubliceerd en verborgen uit je overzicht, de openbare zoekfunctie en nieuwe boekingen. Bestaande boekingen blijven toegankelijk. Je kunt het later herstellen.",
+      "archiveConfirm": "Archiveren",
+      "restoreTitle": "Project herstellen?",
+      "restoreDescription": "Het project keert terug naar concept, of naar de vorige status indien toegestaan. Een eerder gepubliceerd project moet opnieuw worden goedgekeurd.",
+      "restoreConfirm": "Herstellen"
     }
   },
   "detail": {

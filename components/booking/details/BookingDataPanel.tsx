@@ -8,11 +8,13 @@ import {
   durationLabel,
   formatCalendarDate,
   formatInstant,
+  formatScheduleTimeRange,
   isStandardVatQuestionLabel,
   mergeQuestionAnswers,
   vatAnswerFieldLabelKey,
   vatAnswerValueKey,
   recordedScheduleTimeZone,
+  resolvePanelHourMode,
 } from "@/lib/bookingDetails"
 import type {
   BookingDetailsDto,
@@ -33,6 +35,7 @@ import {
   ScheduleSummary,
   StatusText,
   TimeZoneNote,
+  actorDisplayName,
   useDetailDisplayTimeZone,
   useDetailT,
 } from "./DetailPrimitives"
@@ -154,11 +157,21 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
     ? {
         scheduledStartDate: scheduleSelection.startDate,
         scheduledStartTime: scheduleSelection.startTime,
+        scheduledEndTime: scheduleSelection.endTime,
         scheduledExecutionEndDate: scheduleSelection.executionEndDate,
         scheduledBufferEndDate: scheduleSelection.bufferEndDate,
         timeZone: scheduleSelection.timeZone,
         timeZoneRecorded: Boolean(scheduleSelection.timeZone),
       }
+    : null
+  // Hour mode (23a): recorded start AND end time only when positively hour
+  // mode; day mode and unknown mode stay date-only.
+  const hourMode = resolvePanelHourMode(booking, details)
+  const scheduleTimeRange = hourMode
+    ? formatScheduleTimeRange(
+        schedule?.scheduledStartTime || booking.scheduledStartTime || null,
+        schedule?.scheduledEndTime || booking.scheduledEndTime || null
+      )
     : null
   const recordedScheduleZone =
     schedule?.timeZoneRecorded === false
@@ -563,7 +576,7 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
             {formatCalendarDate(schedule?.scheduledStartDate || booking.scheduledStartDate, intl) ||
               schedule?.scheduledStartDate ||
               booking.scheduledStartDate}
-            {schedule?.scheduledStartTime || booking.scheduledStartTime ? ` ${schedule?.scheduledStartTime || booking.scheduledStartTime}` : ""}
+            {scheduleTimeRange ? ` ${scheduleTimeRange}` : ""}
           </DetailField>
           <DetailField label={dt("fields.scheduledExecutionEnd", "Scheduled execution end")} empty={!schedule?.scheduledExecutionEndDate && !booking.scheduledExecutionEndDate}>
             {formatCalendarDate(schedule?.scheduledExecutionEndDate || booking.scheduledExecutionEndDate, intl) ||
@@ -604,13 +617,14 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
                   </div>
                   <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <DetailField label={dt("booking.requestedBy", "Requested by")} empty={!entry.requestedBy?.name && entry.actorRecorded !== false}>
-                      {entry.requestedBy?.name || (entry.actorRecorded === false ? dt("fields.actorNotRecorded", "actor not recorded") : null)}
+                      {actorDisplayName(entry.requestedBy, dt("activity.deletedActor", "Deleted user")) ||
+                        (entry.actorRecorded === false ? dt("fields.actorNotRecorded", "actor not recorded") : null)}
                     </DetailField>
                     <DetailField label={dt("booking.rescheduleReason", "Reason")} empty={!entry.reason}>
                       {entry.reason}
                     </DetailField>
                     <DetailField label={dt("booking.respondedBy", "Responded by")} empty={!entry.respondedBy?.name && !entry.respondedAt}>
-                      {entry.respondedBy?.name || null}
+                      {actorDisplayName(entry.respondedBy, dt("activity.deletedActor", "Deleted user")) || null}
                     </DetailField>
                     <DetailField label={dt("booking.respondedAt", "Responded at")} empty={!entry.respondedAt}>
                       {formatInstant(entry.respondedAt, intl, displayTimeZone.timeZone)}
@@ -623,11 +637,11 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
                     <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div>
                         <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.previousSchedule", "Original schedule")}</dt>
-                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.previousSchedule} intl={intl} timeZone={entry.timeZone} /></dd>
+                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.previousSchedule} intl={intl} timeZone={entry.timeZone} hourMode={hourMode} /></dd>
                       </div>
                       <div>
                         <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.proposedSchedule", "New schedule")}</dt>
-                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.proposedSchedule} intl={intl} timeZone={entry.timeZone} /></dd>
+                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.proposedSchedule} intl={intl} timeZone={entry.timeZone} hourMode={hourMode} /></dd>
                       </div>
                     </dl>
                   ) : null}
@@ -851,7 +865,9 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
         {postBooking?.submittedBy ? (
           <p className="text-xs text-gray-600">
             {dt("booking.submittedBy", "Submitted by {name}", {
-              name: postBooking.submittedBy.name || dt("fields.actorNotRecorded", "actor not recorded"),
+              name:
+                actorDisplayName(postBooking.submittedBy, dt("activity.deletedActor", "Deleted user")) ||
+                dt("fields.actorNotRecorded", "actor not recorded"),
             })}
           </p>
         ) : null}

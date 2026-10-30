@@ -121,7 +121,8 @@
     "serviceCategories": "Catégories de services",
     "serviceCatalogError": "Impossible de charger les services",
     "noServices": "Aucun service disponible pour votre pays. Vérifiez que votre pays est correctement renseigné ci-dessus ; la liste se mettra à jour lorsque vous changerez de pays.",
-    "saveInfo": "Enregistrer les informations de l'entreprise"
+    "saveInfo": "Enregistrer les informations de l'entreprise",
+    "editUsername": "Modifier le nom d'utilisateur"
   },
   "documents": {
     "title": "Documents d'identité",

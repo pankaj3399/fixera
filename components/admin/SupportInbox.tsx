@@ -58,6 +58,7 @@ import {
 import AdminSupportSlotPicker from "@/components/admin/AdminSupportSlotPicker";
 import { SUPPORT_REASONS } from "@/lib/support/reasons";
 import { cn } from "@/lib/utils";
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers";
 
 const TICKET_STATUSES: SupportTicketStatus[] = [
   "open",
@@ -742,6 +743,7 @@ function AdminSupportCard({
   const legacy = Boolean(item.legacy || meeting?.legacy);
   const readOnlyLegacyMeeting = item.kind === "meeting" && legacy;
   const user = item.user || item.userId;
+  const recipientUnavailable = isAnonymizedIdentity(user);
   const ownerId = user?._id || user?.id || null;
   const reasonLabel =
     item.reasonLabel ||
@@ -987,16 +989,17 @@ function AdminSupportCard({
 
   const closed = (item.ticketStatus || item.status) === "closed";
   const fullDate = formatAdminDate(item.createdAt);
-  const meetingCanReschedule = canRescheduleSupportMeeting({
+  const meetingActionsAllowed = canWrite && !recipientUnavailable;
+  const meetingCanReschedule = meetingActionsAllowed && canRescheduleSupportMeeting({
     meeting,
     asAdmin: true,
   });
-  const meetingCanCancel = canCancelSupportMeeting({ meeting, asAdmin: true });
-  const meetingCanComplete = canCompleteSupportMeeting(meeting);
+  const meetingCanCancel = meetingActionsAllowed && canCancelSupportMeeting({ meeting, asAdmin: true });
+  const meetingCanComplete = meetingActionsAllowed && canCompleteSupportMeeting(meeting);
   const meetingCanSetLink = canAdminSetSupportMeetingLink({
     itemKind: item.kind,
     meeting,
-    canWrite,
+    canWrite: meetingActionsAllowed,
   });
   const meetingLinkPast =
     Boolean(meeting?.scheduledAt) &&
@@ -1041,8 +1044,8 @@ function AdminSupportCard({
               {item.subject || "(No subject)"}
             </h3>
             <p className="text-xs text-slate-500">
-              {user?.name || "Unknown user"}
-              {user?.email ? ` · ${user.email}` : ""}
+              {recipientUnavailable ? "Deleted user" : user?.name || "Unknown user"}
+              {!recipientUnavailable && user?.email ? ` · ${user.email}` : ""}
               {user?.role ? ` · ${user.role}` : ""} · {fullDate}
             </p>
           </div>
@@ -1193,7 +1196,13 @@ function AdminSupportCard({
                 meeting.assignedAdminName ||
                 "Not assigned"}
             </p>
-            {meeting.status === "pending" ? (
+            {recipientUnavailable ? (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-600">
+                Historical meeting. The recipient account is no longer available, so
+                the participant cannot join and meeting-link actions are disabled. The
+                scheduled time and status are retained for history.
+              </p>
+            ) : meeting.status === "pending" ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
                 Slot reserved. Waiting for a support admin to add the real meeting
                 link. The participant has not received a meeting link yet.
@@ -1210,26 +1219,48 @@ function AdminSupportCard({
               </p>
             ) : null}
             {meetingLink ? (
-              <>
-                <a
-                  href={meetingLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 font-semibold text-blue-700 underline-offset-2 hover:underline"
-                >
-                  <ExternalLink size={12} aria-hidden />
-                  Open meeting link
-                </a>
-                {meeting.linkUpdatedAt ? (
-                  <p className="text-slate-500">
-                    Link last updated: {formatAdminDate(meeting.linkUpdatedAt)}
+              recipientUnavailable ? (
+                <div className="space-y-1">
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-600">
+                    Meeting link hidden because the recipient account is no longer
+                    available. The historical meeting time and status remain visible.
                   </p>
-                ) : meeting.linkAddedAt ? (
-                  <p className="text-slate-500">
-                    Link added: {formatAdminDate(meeting.linkAddedAt)}
-                  </p>
-                ) : null}
-              </>
+                  {meeting.linkUpdatedAt ? (
+                    <p className="text-slate-500">
+                      Link last updated: {formatAdminDate(meeting.linkUpdatedAt)}
+                    </p>
+                  ) : meeting.linkAddedAt ? (
+                    <p className="text-slate-500">
+                      Link added: {formatAdminDate(meeting.linkAddedAt)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <a
+                    href={meetingLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 font-semibold text-blue-700 underline-offset-2 hover:underline"
+                  >
+                    <ExternalLink size={12} aria-hidden />
+                    Open meeting link
+                  </a>
+                  {meeting.linkUpdatedAt ? (
+                    <p className="text-slate-500">
+                      Link last updated: {formatAdminDate(meeting.linkUpdatedAt)}
+                    </p>
+                  ) : meeting.linkAddedAt ? (
+                    <p className="text-slate-500">
+                      Link added: {formatAdminDate(meeting.linkAddedAt)}
+                    </p>
+                  ) : null}
+                </>
+              )
+            ) : recipientUnavailable ? (
+              <p className="text-slate-500">
+                No meeting link was retained for this historical meeting.
+              </p>
             ) : meeting.status === "cancelled" ||
               meeting.status === "declined" ||
               meeting.status === "completed" ? (
@@ -1259,7 +1290,7 @@ function AdminSupportCard({
                 Cancellation reason: {meeting.cancellationReason}
               </p>
             )}
-            {canWrite && !readOnlyLegacyMeeting && meetingLinkPast && (
+            {meetingActionsAllowed && !readOnlyLegacyMeeting && meetingLinkPast && (
               <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
                 {meeting.status === "pending" && !meeting.meetingLink
                   ? "The reserved time has passed. Reschedule this pending meeting to request a new slot."
@@ -1611,7 +1642,13 @@ function AdminSupportCard({
           </p>
         ) : (
           <>
-            {canWrite && !closed && (
+            {canWrite && !closed && recipientUnavailable && (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                This account has been anonymized. Public replies and outbound
+                email are disabled because the recipient is no longer available.
+              </p>
+            )}
+            {canWrite && !closed && !recipientUnavailable && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <label
                   htmlFor={`admin-support-reply-${item.kind}-${item._id || item.id}`}

@@ -26,7 +26,9 @@
     "errorMessage": "Impossible de charger les professionnels. Veuillez réessayer plus tard.",
     "toastError": "Échec du chargement des professionnels",
     "emptyTitle": "Aucun professionnel trouvé",
-    "emptyDescription": "Nous n'avons actuellement aucun professionnel dans cette catégorie. Revenez bientôt ou explorez d'autres catégories."
+    "emptyDescription": "Nous n'avons actuellement aucun professionnel dans cette catégorie. Revenez bientôt ou explorez d'autres catégories.",
+    "servicesTitle": "Services en {category}",
+    "servicesDescription": "Parcourez tous les services {category} et choisissez celui dont vous avez besoin."
   },
   "servicesLayout": {
     "metaTitle": "Services",

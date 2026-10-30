@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Gift, Loader2, Sparkles, TrendingUp } from "lucide-react"
+import { Gift, Loader2, Sparkles, TrendingUp, Wallet } from "lucide-react"
 import { getAuthToken } from "@/lib/utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import ReferralCard from "@/components/dashboard/ReferralCard"
+import TierBadge from "@/components/dashboard/TierBadge"
 import BacklinkCard from "@/components/dashboard/BacklinkCard"
 
 type CustomerBenefitsResponse = {
@@ -35,6 +36,7 @@ type CustomerBenefitsResponse = {
     tierInfo?: {
       discountPercentage?: number
       maxDiscountAmount?: number | null
+      color?: string | null
     }
   }
   benefits?: string[]
@@ -44,6 +46,7 @@ type ProfessionalBenefitsResponse = {
   level?: {
     currentLevel?: string
     effectiveBookings?: number
+    color?: string | null
     nextLevel?: {
       name?: string
       progress?: number
@@ -62,8 +65,27 @@ type ProfessionalBenefitsResponse = {
   }
 }
 
-type ReferralData = {
-  referralCode?: string
+type SavingsSummaryResponse = {
+  groups?: Array<{
+    currency?: string;
+    byType?: { recurring?: number; loyalty?: number; discountCode?: number; points?: number };
+    referral?: number | null;
+    totalRecorded?: number;
+    bookingCount?: number;
+    coverage?: 'complete' | 'partial';
+    excludedUncertain?: number;
+    unrecorded?: number;
+  }>;
+  complete?: boolean;
+  settledBookingCount?: number;
+  unrecordedBookingCount?: number;
+  excludedUncertainCount?: number;
+  referral?: null;
+  referralStatus?: string;
+  totalLabel?: string;
+}
+
+type ReferralData = {  referralCode?: string
   points?: number
   pointsExpiry?: string | null
   totalReferrals?: number
@@ -105,6 +127,7 @@ export default function BenefitsPage() {
   const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(null)
   const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(null)
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
+  const [savingsData, setSavingsData] = useState<SavingsSummaryResponse | null>(null)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -173,6 +196,22 @@ export default function BenefitsPage() {
         }),
       ])
 
+      if (user.role === "customer") {
+        try {
+          const savingsResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/savings/summary`, {
+            credentials: "include",
+            headers,
+            signal: controller.signal,
+          })
+          const savingsPayload = await readJsonSafely(savingsResponse)
+          if (!controller.signal.aborted && savingsResponse.ok && savingsPayload?.success) {
+            setSavingsData(savingsPayload.data ?? null)
+          }
+        } catch (error) {
+          if ((error as Error)?.name !== 'AbortError') console.error("Failed to fetch savings data:", error)
+        }
+      }
+
       if (controller.signal.aborted) return
 
       if (benefitsResult.status === "fulfilled") {
@@ -212,6 +251,10 @@ export default function BenefitsPage() {
   const currentLevel = isCustomer
     ? customerData?.loyaltyStatus?.level || user?.loyaltyLevel || "Bronze"
     : professionalData?.level?.currentLevel || user?.professionalLevel || "New"
+  // Task 14b: the tag uses the colour from the level/tier configuration.
+  const currentLevelColor = isCustomer
+    ? customerData?.userStats?.tierInfo?.color || null
+    : professionalData?.level?.color || null
   const nextLevel = isCustomer
     ? customerData?.loyaltyStatus?.nextLevel || null
     : professionalData?.level?.nextLevel?.name || null
@@ -285,7 +328,7 @@ export default function BenefitsPage() {
             <h1 className="flex items-center gap-3 text-3xl font-bold text-slate-900">
               <Gift className="h-8 w-8 text-indigo-600" />
               {t("benefits.title")}
-              <Badge variant="outline">{currentLevel}</Badge>
+              <TierBadge level={currentLevel} color={currentLevelColor} />
             </h1>
             <p className="mt-2 text-sm text-slate-600">
               {isCustomer ? t("benefits.subtitleCustomer") : t("benefits.subtitleProfessional")}
@@ -306,7 +349,7 @@ export default function BenefitsPage() {
           <Card>
             <CardContent className="p-6">
               <p className="text-xs uppercase tracking-wide text-slate-500">{t("benefits.points")}</p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900">{new Intl.NumberFormat(intl).format(points)}</p>
+              <p id="wallet-balance" className="mt-2 scroll-mt-24 text-2xl font-semibold text-slate-900">{new Intl.NumberFormat(intl).format(points)}</p>
               <p className="mt-1 text-xs text-slate-500">{t("benefits.rewardValue", { amount: formatMoney(rewardValue) })}</p>
             </CardContent>
           </Card>
@@ -337,6 +380,99 @@ export default function BenefitsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Task 12: concise wallet explainer with links to the existing
+            balance, savings-history and benefits surfaces. */}
+        <Card className="border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-violet-600" />
+              {t("benefits.wallet.title")}
+            </CardTitle>
+            <CardDescription>
+              {isCustomer ? t("benefits.wallet.bodyCustomer") : t("benefits.wallet.bodyProfessional")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <a href="#wallet-balance">{t("benefits.wallet.balanceLink")}</a>
+              </Button>
+              {isCustomer && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href="#wallet-history">{t("benefits.wallet.historyLink")}</a>
+                </Button>
+              )}
+              <Button variant="outline" size="sm" asChild>
+                <a href="#wallet-benefits">{t("benefits.wallet.benefitsLink")}</a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {isCustomer && (
+          <Card id="wallet-history" className="scroll-mt-24 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gift className="h-5 w-5 text-emerald-600" />
+                {t("benefits.savings.title")}
+                <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+                  {t("benefits.savings.recordedSavings")}
+                </Badge>
+              </CardTitle>
+              <CardDescription>{t("benefits.savings.subtitle")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!savingsData || savingsData.settledBookingCount === 0 ? (
+                <p className="text-sm text-slate-600">{t("benefits.savings.noSavingsYet")}</p>
+              ) : (
+                <>
+                  {(savingsData.groups ?? []).map((group) => (
+                    <div key={group.currency ?? 'UNKNOWN'} className="rounded-lg border bg-white p-4">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-500">
+                          {t("benefits.savings.bookingsCount", { count: group.bookingCount ?? 0 })}
+                        </p>
+                        <p className="text-2xl font-bold text-emerald-700">
+                          {formatMoney(group.totalRecorded ?? 0, group.currency)}
+                        </p>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm">
+                        {(
+                          [
+                            ['recurring', group.byType?.recurring ?? 0],
+                            ['loyalty', group.byType?.loyalty ?? 0],
+                            ['discountCode', group.byType?.discountCode ?? 0],
+                            ['points', group.byType?.points ?? 0],
+                          ] as const
+                        ).map(([key, amount]) => (
+                          <div key={key} className="flex items-center justify-between gap-3">
+                            <span className="text-slate-600">{t(`benefits.savings.${key}`)}</span>
+                            <span className="font-medium text-slate-900">{formatMoney(amount, group.currency)}</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between gap-3 border-t pt-2">
+                          <span className="text-slate-600">{t("benefits.savings.referral")}</span>
+                          <Badge variant="secondary">{t("benefits.savings.referralUnknown")}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {(savingsData.unrecordedBookingCount ?? 0) > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {t("benefits.savings.unknownCoverage", { count: savingsData.unrecordedBookingCount ?? 0 })}
+                    </p>
+                  )}
+                  {(savingsData.excludedUncertainCount ?? 0) > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {t("benefits.savings.excludedUncertain", { count: savingsData.excludedUncertainCount ?? 0 })}
+                    </p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-indigo-100 bg-white/90">
           <CardHeader>
@@ -374,7 +510,7 @@ export default function BenefitsPage() {
             customerData={customerData}
             professionalData={professionalData}
           />
-          <Card>
+          <Card id="wallet-benefits" className="scroll-mt-24">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-indigo-600" />

@@ -22,7 +22,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import TierBadge from "@/components/dashboard/TierBadge";
+import { useTierColors } from "@/lib/tierColors";
 
 const otherLinks = [
   { key: "forProfessionals", href: "/professionals" },
@@ -39,11 +40,19 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
   const { user, isAuthenticated, logout, loading } = useAuth();
   const { unreadCount, enabled: showChatIcon } = useUnreadCount();
   const { unreadCount: adminUnreadCount, enabled: showAdminChatIcon } = useAdminUnreadCount();
+  const { tierColor, levelColor } = useTierColors();
   const levelLabel =
     user?.role === "customer"
       ? user.loyaltyLevel || "Bronze"
       : user?.role === "professional"
         ? user.professionalLevel || "New"
+        : null;
+  // Task 14b: the level/tier tag uses the configured colour.
+  const levelTagColor =
+    user?.role === "customer"
+      ? tierColor(levelLabel)
+      : user?.role === "professional"
+        ? levelColor(levelLabel)
         : null;
 
   useEffect(() => {
@@ -185,9 +194,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-medium leading-none">{user?.name}</p>
                                 {levelLabel && (
-                                  <Badge variant="outline" className="h-5 px-2 text-[10px]">
-                                    {levelLabel}
-                                  </Badge>
+                                  <TierBadge level={levelLabel} color={levelTagColor} className="h-5 px-2 text-[10px]" />
                                 )}
                               </div>
                               <p className="text-xs leading-none text-muted-foreground">
@@ -368,9 +375,7 @@ const Navbar = ({ stacked = false }: { stacked?: boolean }) => {
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
                         {levelLabel && (
-                          <Badge variant="outline" className="h-5 px-2 text-[10px]">
-                            {levelLabel}
-                          </Badge>
+                          <TierBadge level={levelLabel} color={levelTagColor} className="h-5 px-2 text-[10px]" />
                         )}
                       </div>
                       <p className="text-xs text-gray-500 truncate">{user?.email}</p>

@@ -10,6 +10,7 @@ import Image from "next/image"
 import { useTranslations } from "next-intl"
 import MeetingScheduler from "@/components/professional/meetings/MeetingScheduler"
 import WeeklyAvailabilityCalendar, { type CalendarEvent } from "@/components/calendar/WeeklyAvailabilityCalendar"
+import { bookingCalendarEventType } from "@/lib/calendar/bookingEvents"
 import { getAuthToken } from "@/lib/utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
@@ -309,9 +310,14 @@ export default function ProjectDetailPage() {
               : undefined
             const loc = booking.location
 
+            // Status-derived colour: pending renders blue, in-progress indigo,
+            // completed emerald; cancelled/refunded bookings are hidden.
+            const bookingEventType = bookingCalendarEventType(booking.status)
+            if (!bookingEventType) continue
+
             events.push({
               id: booking._id,
-              type: 'booking',
+              type: bookingEventType,
               title: booking.project?.title || project.title || t('detail.meetings.bookingFallback'),
               start,
               end,

@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner"
 import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
 import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
+import { bookingCalendarEventType } from "@/lib/calendar/bookingEvents"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 type Day =
@@ -76,6 +77,7 @@ interface Employee {
     startDate: string;
     endDate: string;
     reason?: string;
+    status?: string;
     bookingId?: string;
     bookingNumber?: string;
     customerName?: string;
@@ -517,11 +519,30 @@ export default function EmployeeManagement() {
       const start = new Date(range.startDate)
       const end = new Date(range.endDate)
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
-      const type = range.reason === 'booking-buffer' ? 'booking-buffer' : 'booking'
+      if (range.reason === 'booking-buffer') {
+        events.push({
+          id: `booking-${range.bookingId || index}`,
+          type: 'booking-buffer',
+          title: tCalendar('eventTitles.buffer'),
+          start,
+          end,
+          meta: {
+            bookingId: range.bookingId,
+            bookingNumber: range.bookingNumber,
+            customerName: range.customerName,
+            location: range.location
+          }
+        })
+        return
+      }
+      // Status-derived colour: pending renders blue, in-progress indigo,
+      // completed emerald. Ranges without a status fall back to pending blue.
+      const bookingType = bookingCalendarEventType(range.status)
+      if (!bookingType) return
       events.push({
         id: `booking-${range.bookingId || index}`,
-        type,
-        title: type === 'booking-buffer' ? tCalendar('eventTitles.buffer') : tCalendar('eventTitles.booking'),
+        type: bookingType,
+        title: tCalendar('eventTitles.booking'),
         start,
         end,
         meta: {

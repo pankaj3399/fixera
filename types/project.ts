@@ -10,6 +10,8 @@ export interface ProjectSubprojectPricing {
   amount?: number
   priceRange?: { min: number; max: number }
   minOrderQuantity?: number
+  unit?: string
+  durationBasis?: 'per_booking' | 'per_unit'
   minProjectValue?: number
 }
 

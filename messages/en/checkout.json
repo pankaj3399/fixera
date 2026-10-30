@@ -93,8 +93,6 @@
       "unableToRemove": "Unable to remove discount code."
     },
     "memberBenefitsApplied": "{tier} member benefits applied",
-    "originalServiceAmount": "Original Service Amount:",
-    "selectedOptions": "Selected Options:",
     "loyaltyDiscountLine": "Loyalty Discount ({percent}%):",
     "returningCustomerLine": "Returning Customer Discount ({percent}%):",
     "pointsRedeemedLine": "Points Redeemed ({points} pts):",
@@ -130,7 +128,13 @@
     "preparationValue": "Preparation: {duration}",
     "executionValue": "Execution: {duration}",
     "bufferValue": "Buffer: {duration}",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "backToDetails": "Back to booking details",
+    "previousToSchedule": "Previous: booking info",
+    "fullPrice": "Full price",
+    "milestoneIncludesOptions": "Includes selected options in full",
+    "optionsFirstMilestoneNote": "Selected options are charged in full with the first milestone, not split across milestones.",
+    "selectedOptionsInfo": "Selected options (included)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Payment successful",

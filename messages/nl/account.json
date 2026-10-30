@@ -121,7 +121,8 @@
     "serviceCategories": "Dienstencategorieën",
     "serviceCatalogError": "Diensten laden mislukt",
     "noServices": "Geen diensten beschikbaar voor je land. Controleer of je land hierboven correct is ingesteld; de lijst wordt bijgewerkt wanneer je het land wijzigt.",
-    "saveInfo": "Bedrijfsgegevens opslaan"
+    "saveInfo": "Bedrijfsgegevens opslaan",
+    "editUsername": "Gebruikersnaam bewerken"
   },
   "documents": {
     "title": "Identiteitsdocumenten",

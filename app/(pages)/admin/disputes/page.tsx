@@ -1,6 +1,7 @@
 'use client'
 
 import { messageFromApiBody } from '@/lib/apiErrors';
+import { filterDisputeOverviewRows } from '@/lib/admin/disputeFilters';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -217,6 +218,11 @@ export default function AdminDisputesPage() {
   const [externalResolveDate, setExternalResolveDate] = useState('')
   const [externalWarrantyStatus, setExternalWarrantyStatus] = useState<WarrantyClaimStatus>('closed')
   const [externalResolving, setExternalResolving] = useState(false)
+
+  const visibleDisputes = useMemo(
+    () => filterDisputeOverviewRows(disputes),
+    [disputes],
+  )
 
   const selectedDisputeType: DisputeType = useMemo(() => {
     return (selectedDispute?.dispute?.type as DisputeType | undefined) ?? 'extra_costs'
@@ -634,24 +640,31 @@ export default function AdminDisputesPage() {
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Select value={statusFilter} onValueChange={(value: DisputeFilter) => { setStatusFilter(value); setPage(1) }}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-2">
+            <Select value={statusFilter} onValueChange={(value: DisputeFilter) => { setStatusFilter(value); setPage(1) }}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {!isLoading && (
+            <p className="text-sm text-gray-500">
+              Showing {visibleDisputes.length} {visibleDisputes.length === 1 ? 'dispute' : 'disputes'}
+            </p>
+          )}
         </div>
 
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
           </div>
-        ) : disputes.length === 0 ? (
+        ) : visibleDisputes.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Shield className="h-12 w-12 mx-auto text-gray-300 mb-3" />
@@ -660,7 +673,7 @@ export default function AdminDisputesPage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {disputes.map((d) => {
+            {visibleDisputes.map((d) => {
               const dType: DisputeType = (d.dispute?.type as DisputeType | undefined) ?? 'extra_costs'
               const startingCustomer = startingChatFor === `${d._id}:customer`
               const startingPro = startingChatFor === `${d._id}:professional`

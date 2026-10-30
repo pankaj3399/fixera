@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -136,6 +137,10 @@ function WarrantyClaimsContent() {
 
   const [claims, setClaims] = useState<ClaimRecord[]>([])
   const [statusFilter, setStatusFilter] = useState<"all" | WarrantyClaimStatus>("all")
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [serviceFilter, setServiceFilter] = useState("all")
+  const [services, setServices] = useState<string[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalClaims, setTotalClaims] = useState(0)
@@ -231,6 +236,8 @@ function WarrantyClaimsContent() {
       params.set("page", String(page))
       params.set("limit", "20")
       if (statusFilter !== "all") params.set("status", statusFilter)
+      if (debouncedSearch.trim()) params.set("q", debouncedSearch.trim())
+      if (serviceFilter !== "all") params.set("service", serviceFilter)
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/my?${params.toString()}`,
@@ -265,7 +272,35 @@ function WarrantyClaimsContent() {
     } finally {
       setIsLoadingClaims(false)
     }
-  }, [highlightedClaim, isAuthenticated, page, statusFilter, user?.role, getErrorText, t])
+  }, [highlightedClaim, isAuthenticated, page, statusFilter, debouncedSearch, serviceFilter, user?.role, getErrorText, t])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Service options resolve from the viewer's own bookings facet.
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const loadServices = async () => {
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers.Authorization = `Bearer ${token}`
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=1&limit=1`,
+          { credentials: "include", headers },
+        )
+        const payload = await response.json()
+        if (response.ok && payload.success && Array.isArray(payload.distinctServices)) {
+          setServices(payload.distinctServices)
+        }
+      } catch {
+        // non-blocking
+      }
+    }
+    void loadServices()
+  }, [isAuthenticated])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -341,24 +376,47 @@ function WarrantyClaimsContent() {
                 <CardTitle>{t("warranty.queueTitle")}</CardTitle>
                 <CardDescription>{t("warranty.totalClaims", { count: totalClaims })}</CardDescription>
               </div>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  setPage(1)
-                  setStatusFilter(value as "all" | WarrantyClaimStatus)
-                }}
-              >
-                <SelectTrigger className="w-full md:w-[220px]">
-                  <SelectValue placeholder={t("common.filterStatus")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(WARRANTY_STATUS_KEYS[option.value] ?? "warranty.status.all")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  aria-label={t("warranty.search")}
+                  placeholder={t("warranty.search")}
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                  className="w-full sm:w-64"
+                />
+                <Select
+                  value={serviceFilter}
+                  onValueChange={(value) => { setPage(1); setServiceFilter(value) }}
+                >
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder={t("warranty.filterService")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("warranty.allServices")}</SelectItem>
+                    {services.map((svc) => (
+                      <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => {
+                    setPage(1)
+                    setStatusFilter(value as "all" | WarrantyClaimStatus)
+                  }}
+                >
+                  <SelectTrigger className="w-full md:w-[220px]">
+                    <SelectValue placeholder={t("common.filterStatus")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(WARRANTY_STATUS_KEYS[option.value] ?? "warranty.status.all")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             {error && <p role="alert" className="text-sm text-rose-600 mt-2">{error}</p>}
           </CardHeader>

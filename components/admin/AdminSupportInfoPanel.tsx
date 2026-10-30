@@ -3,11 +3,13 @@
 import { messageFromApiBody } from "@/lib/apiErrors";
 
 import { useEffect, useState } from "react"
-import { Award, Mail, Phone, Star, UserRound } from "lucide-react"
+import { Mail, Phone, Star, UserRound } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { authFetch } from "@/lib/utils"
-import { getLevelColor } from "@/lib/professionalLevel"
+import TierBadge from "@/components/dashboard/TierBadge"
+import { useTierColors } from "@/lib/tierColors"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 interface ParticipantUser {
   _id: string
@@ -16,6 +18,8 @@ interface ParticipantUser {
   phone: string | null
   username: string | null
   role: string
+  deletedAt?: string | null
+  isAnonymized?: boolean
 }
 
 interface ParticipantKpis {
@@ -27,16 +31,28 @@ interface ParticipantKpis {
   completedCount: number
   quotedCount: number
   disputeCount: number
-  grossEur: number
+  grossEur: number | null
   refundPercent: number | null
+  financialAccess?: boolean
+  grossByCurrency?: Array<{ currency: string; gross: number }>
 }
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL
 
-const formatMoney = (value: number) =>
-  value.toLocaleString("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+const formatMoney = (value: number, currency = "EUR") =>
+  value.toLocaleString("en-GB", { style: "currency", currency, maximumFractionDigits: 0 })
 
-const formatPct = (value: number | null) => (value == null ? "—" : `${value}%`)
+const formatGross = (kpis: ParticipantKpis): string => {
+  if (kpis.financialAccess === false) return "Restricted"
+  if (kpis.grossEur != null) return formatMoney(kpis.grossEur)
+  if (Array.isArray(kpis.grossByCurrency) && kpis.grossByCurrency.length > 0) {
+    return kpis.grossByCurrency.map((bucket) => formatMoney(bucket.gross, bucket.currency)).join(" + ")
+  }
+  return "—"
+}
+
+const formatPct = (value: number | null, restricted: boolean) =>
+  restricted ? "Restricted" : value == null ? "—" : `${value}%`
 
 function KpiRow({ label, value }: { label: string; value: string | number }) {
   return (
@@ -48,6 +64,7 @@ function KpiRow({ label, value }: { label: string; value: string | number }) {
 }
 
 export default function AdminSupportInfoPanel({ conversationId }: { conversationId: string }) {
+  const { levelColor } = useTierColors()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<ParticipantUser | null>(null)
@@ -125,32 +142,38 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
         ) : (
           <div className="p-4 space-y-5">
             <div>
-              <p className="text-base font-semibold text-gray-900">{user.name || user.username || "User"}</p>
+              <p className="text-base font-semibold text-gray-900">
+                {isAnonymizedIdentity(user) ? "Deleted user" : user.name || user.username || "User"}
+              </p>
+              {isAnonymizedIdentity(user) && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Personal details are no longer available. Financial KPIs are retained.
+                </p>
+              )}
               {user.role === "professional" && kpis.level && (
-                <Badge className={`mt-2 text-[10px] ${getLevelColor(kpis.level)}`}>
-                  <Award className="mr-1 h-3 w-3" />
-                  {kpis.level}
-                </Badge>
+                <TierBadge level={kpis.level} color={levelColor(kpis.level)} className="mt-2 text-[10px]" />
               )}
               {user.role !== "professional" && (
                 <Badge variant="secondary" className="mt-2 text-[10px] capitalize">{user.role}</Badge>
               )}
             </div>
 
-            <div className="space-y-2 text-sm">
-              <div className="flex items-start gap-2 text-gray-700">
-                <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-                <span className="break-all">{user.email || "—"}</span>
+            {!isAnonymizedIdentity(user) && (
+              <div className="space-y-2 text-sm">
+                <div className="flex items-start gap-2 text-gray-700">
+                  <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span className="break-all">{user.email || "—"}</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-700">
+                  <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span>{user.phone || "—"}</span>
+                </div>
+                <div className="flex items-start gap-2 text-gray-700">
+                  <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span>{user.username || "—"}</span>
+                </div>
               </div>
-              <div className="flex items-start gap-2 text-gray-700">
-                <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-                <span>{user.phone || "—"}</span>
-              </div>
-              <div className="flex items-start gap-2 text-gray-700">
-                <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-                <span>{user.username || "—"}</span>
-              </div>
-            </div>
+            )}
 
             <div className="border-t border-gray-100 pt-4 space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">KPIs</h3>
@@ -167,8 +190,8 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
               <KpiRow label="Completed" value={kpis.completedCount} />
               <KpiRow label="Quoted" value={kpis.quotedCount} />
               <KpiRow label="Disputes" value={kpis.disputeCount} />
-              <KpiRow label="Gross €" value={formatMoney(kpis.grossEur)} />
-              <KpiRow label="Refund %" value={formatPct(kpis.refundPercent)} />
+              <KpiRow label="Gross €" value={formatGross(kpis)} />
+              <KpiRow label="Refund %" value={formatPct(kpis.refundPercent, kpis.financialAccess === false)} />
             </div>
           </div>
         )}

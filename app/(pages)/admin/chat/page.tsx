@@ -15,21 +15,22 @@ import { Input } from "@/components/ui/input"
 import { Loader2, RefreshCw, Send, Lock, MessageSquare, Search } from "lucide-react"
 import { toast } from "sonner"
 import AdminSupportInfoPanel from "@/components/admin/AdminSupportInfoPanel"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 interface AdminConversation {
   _id: string
   type: string
   status: string
-  supportTargetUserId?: { _id: string; name?: string; email?: string }
-  supportAdminId?: { _id: string; name?: string; email?: string }
-  customerId?: { _id: string; name?: string; email?: string }
-  professionalId?: { _id: string; name?: string; email?: string }
+  supportTargetUserId?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
+  supportAdminId?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
+  customerId?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
+  professionalId?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
 }
 
 interface AdminConversationListItem {
   _id: string
-  supportTargetUserId?: { _id: string; name?: string; email?: string }
-  supportAdminId?: { _id: string; name?: string; email?: string } | null
+  supportTargetUserId?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
+  supportAdminId?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean } | null
   lastMessagePreview?: string
   lastMessageAt?: string | null
   awaitingReply?: boolean
@@ -39,7 +40,7 @@ interface AdminMessage {
   _id: string
   text: string
   senderRole: string
-  senderId?: { _id: string; name?: string; email?: string } | string
+  senderId?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean } | string
   createdAt: string
 }
 
@@ -66,6 +67,7 @@ function AdminChatInner() {
   const [conversation, setConversation] = useState<AdminConversation | null>(null)
   const [messages, setMessages] = useState<AdminMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -171,7 +173,7 @@ function AdminChatInner() {
     } finally {
       if (!silent) setIsLoading(false)
     }
-  }, [conversationId])
+  }, [conversationId, reloadKey])
 
   useEffect(() => {
     if (user?.role === 'admin' && conversationId) {
@@ -211,11 +213,17 @@ function AdminChatInner() {
   }, [messages])
 
   const selectConversation = (id: string) => {
-    if (id === selectedId) return
-    setSelectedId(id)
+    if (id !== selectedId) {
+      setSelectedId(id)
+      router.replace(`/admin/chat?conversationId=${id}`)
+    }
+    // Always reset the thread and force a reload: clicking the active
+    // conversation (or landing on it from a launcher) must still fetch and
+    // display its messages, even if a previous load failed or stalled.
     setConversation(null)
     setMessages([])
-    router.replace(`/admin/chat?conversationId=${id}`)
+    setLoadError(null)
+    setReloadKey((key) => key + 1)
   }
 
   const send = async () => {
@@ -275,6 +283,7 @@ function AdminChatInner() {
   const target = conversation?.supportTargetUserId
   const customer = conversation?.customerId
   const professional = conversation?.professionalId
+  const targetUnavailable = isAnonymizedIdentity(target)
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -351,7 +360,9 @@ function AdminChatInner() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-sm font-medium text-gray-900 truncate">
-                              {u?.name || u?.email || "User"}
+                              {isAnonymizedIdentity(u)
+                                ? "Deleted user"
+                                : u?.name || u?.email || "User"}
                             </span>
                             <div className="flex items-center gap-2 shrink-0">
                               {c.lastMessageAt && (
@@ -416,11 +427,15 @@ function AdminChatInner() {
             {isDirect ? (
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm text-gray-500">
-                  Customer: {customer?.name || customer?.email || "—"}
-                  {customer?.email && customer?.name ? ` (${customer.email})` : ""}
+                  Customer: {isAnonymizedIdentity(customer)
+                    ? "Deleted user"
+                    : customer?.name || customer?.email || "—"}
+                  {!isAnonymizedIdentity(customer) && customer?.email && customer?.name ? ` (${customer.email})` : ""}
                   {" · "}
-                  Professional: {professional?.name || professional?.email || "—"}
-                  {professional?.email && professional?.name ? ` (${professional.email})` : ""}
+                  Professional: {isAnonymizedIdentity(professional)
+                    ? "Deleted user"
+                    : professional?.name || professional?.email || "—"}
+                  {!isAnonymizedIdentity(professional) && professional?.email && professional?.name ? ` (${professional.email})` : ""}
                 </p>
                 <Badge variant="secondary" className="text-xs">
                   Read-only — customer↔professional thread
@@ -428,7 +443,9 @@ function AdminChatInner() {
               </div>
             ) : target ? (
               <p className="text-sm text-gray-500">
-                With {target.name || target.email || "user"} {target.email ? `(${target.email})` : ""}
+                {targetUnavailable
+                  ? "With deleted user"
+                  : `With ${target.name || target.email || "user"} ${target.email ? `(${target.email})` : ""}`}
               </p>
             ) : null}
 
@@ -500,6 +517,10 @@ function AdminChatInner() {
                     ) : isClosed ? (
                       <p className="text-center text-sm text-gray-400 flex items-center justify-center gap-1">
                         <Lock className="h-4 w-4" /> This support chat is closed.
+                      </p>
+                    ) : targetUnavailable ? (
+                      <p className="text-center text-sm text-gray-400 flex items-center justify-center gap-1">
+                        <Lock className="h-4 w-4" /> This account has been anonymized. Outbound messages are disabled.
                       </p>
                     ) : (
                       <div className="flex gap-2">

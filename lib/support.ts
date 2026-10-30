@@ -35,6 +35,8 @@ export interface SupportRequester {
   name?: string;
   email?: string;
   role?: string;
+  deletedAt?: string | null;
+  isAnonymized?: boolean;
 }
 
 export interface SupportBookingRef {
@@ -130,6 +132,8 @@ export interface SupportAdminUser {
   name?: string;
   email?: string;
   role?: string;
+  deletedAt?: string | null;
+  isAnonymized?: boolean;
 }
 
 export interface SupportAdminItem extends SupportItem {

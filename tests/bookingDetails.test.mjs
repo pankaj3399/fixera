@@ -186,6 +186,156 @@ test('activity events without an actor are marked, never attributed to the viewe
   assert.equal(item.actorRecorded, false)
 })
 
+const rawPartialRefundBooking = (payment = {}) => ({
+  _id: 'b1',
+  payment: {
+    status: 'partially_refunded',
+    currency: 'EUR',
+    totalWithVat: 100,
+    refundedAt: '2026-02-04T10:00:00.000Z',
+    refundReason: 'Partial goodwill',
+    ...payment,
+  },
+})
+
+test('legacy activity refund uses only the stored refund amount and keeps a no-amount event', () => {
+  const missing = buildLegacyActivity(rawPartialRefundBooking())
+  const missingRefund = missing.find((item) => item.type === 'refund_issued')
+  assert.ok(missingRefund, 'a recorded refund event without an amount must stay visible')
+  assert.deepEqual(missingRefund.amounts, [])
+  assert.equal(missingRefund.occurredAt, '2026-02-04T10:00:00.000Z')
+  assert.equal(missingRefund.description, 'Partial goodwill')
+
+  const full = buildLegacyActivity(
+    rawPartialRefundBooking({ status: 'refunded', refundReason: 'Full refund' })
+  )
+  const fullRefund = full.find((item) => item.type === 'refund_issued')
+  assert.ok(fullRefund)
+  assert.deepEqual(fullRefund.amounts, [])
+  assert.equal(fullRefund.description, 'Full refund')
+
+  const partial = buildLegacyActivity(rawPartialRefundBooking({ refundAmount: 12 }))
+  assert.deepEqual(partial.find((item) => item.type === 'refund_issued').amounts, [
+    { kind: 'total', amount: 12, currency: 'EUR', recorded: true },
+  ])
+
+  const zero = buildLegacyActivity(rawPartialRefundBooking({ refundAmount: 0 }))
+  assert.deepEqual(zero.find((item) => item.type === 'refund_issued').amounts, [
+    { kind: 'total', amount: 0, currency: 'EUR', recorded: true },
+  ])
+
+  const noCurrency = buildLegacyActivity(
+    rawPartialRefundBooking({ currency: undefined, refundAmount: 12 })
+  )
+  assert.deepEqual(noCurrency.find((item) => item.type === 'refund_issued').amounts, [
+    { kind: 'total', amount: 12, currency: null, recorded: true },
+  ])
+})
+
+test('legacy activity payment-record refunds use the stored amount, not the original charge', () => {
+  const booking = (record = {}) => ({
+    _id: 'b1',
+    paymentRecords: [
+      {
+        paymentId: 'p1',
+        currency: 'EUR',
+        totalWithVat: 100,
+        refundReason: 'Partial goodwill',
+        timestamps: { refundedAt: '2026-02-04T10:00:00.000Z' },
+        ...record,
+      },
+    ],
+  })
+
+  const stored = buildLegacyActivity(booking({ refundAmount: 12 })).find(
+    (item) => item.id === 'payment:p1:refunded'
+  )
+  assert.ok(stored)
+  assert.deepEqual(stored.amounts, [{ kind: 'refund', amount: 12, currency: 'EUR', recorded: true }])
+  assert.equal(stored.description, 'Partial goodwill')
+  assert.equal(stored.occurredAt, '2026-02-04T10:00:00.000Z')
+
+  const zero = buildLegacyActivity(booking({ refundAmount: 0 })).find(
+    (item) => item.id === 'payment:p1:refunded'
+  )
+  assert.deepEqual(zero.amounts, [{ kind: 'refund', amount: 0, currency: 'EUR', recorded: true }])
+
+  const unknown = buildLegacyActivity(booking()).find((item) => item.id === 'payment:p1:refunded')
+  assert.ok(unknown, 'a recorded payment refund without an amount must stay visible')
+  assert.deepEqual(unknown.amounts, [])
+  assert.equal(unknown.description, 'Partial goodwill')
+})
+
+test('details-less and details-only refund fallbacks never substitute the original charge', () => {
+  const raw = resolveActivityItems(null, rawPartialRefundBooking(), 'customer')
+  const rawRefund = raw.find((item) => item.type === 'refund_issued')
+  assert.ok(rawRefund)
+  assert.deepEqual(rawRefund.amounts, [])
+
+  const details = (record) => ({
+    payments: {
+      records: [
+        {
+          paymentId: 'p1',
+          currency: 'EUR',
+          totalWithVat: 100,
+          refundReason: 'Partial goodwill',
+          timestamps: { refundedAt: '2026-02-04T10:00:00.000Z' },
+          ...record,
+        },
+      ],
+    },
+  })
+  const stored = resolveActivityItems(details({ refundAmount: 12 }), { _id: 'b1' }, 'customer')
+  assert.deepEqual(stored.find((item) => item.id === 'payment:p1:refunded').amounts, [
+    { kind: 'refund', amount: 12, currency: 'EUR', recorded: true },
+  ])
+  const unknown = resolveActivityItems(details({}), { _id: 'b1' }, 'customer')
+  assert.deepEqual(unknown.find((item) => item.id === 'payment:p1:refunded').amounts, [])
+
+  const baseDetails = (base) => ({
+    payments: {
+      base: {
+        currency: 'EUR',
+        totalWithVat: 100,
+        refundReason: 'Partial goodwill',
+        timestamps: { refundedAt: '2026-02-04T10:00:00.000Z' },
+        ...base,
+      },
+    },
+  })
+  const baseStored = resolveActivityItems(baseDetails({ refundAmount: 12 }), { _id: 'b1' }, 'customer')
+  assert.deepEqual(baseStored.find((item) => item.id === 'payment:refunded').amounts, [
+    { kind: 'total', amount: 12, currency: 'EUR', recorded: true },
+  ])
+  assert.equal(baseStored.find((item) => item.id === 'payment:refunded').description, 'Partial goodwill')
+  const baseUnknown = resolveActivityItems(baseDetails({}), { _id: 'b1' }, 'customer')
+  assert.deepEqual(baseUnknown.find((item) => item.id === 'payment:refunded').amounts, [])
+})
+
+test('legacy refund activity respects currency provenance on each record and base merge', () => {
+  const refundedAt = '2026-02-04T10:00:00.000Z'
+  const sources = [
+    (evidence) => [null, rawPartialRefundBooking({ refundAmount: 12, ...evidence })],
+    (evidence) => [{ payments: { records: [{ paymentId: 'p1', refundAmount: 12, timestamps: { refundedAt }, ...evidence }] } }, { _id: 'b1' }],
+    (evidence) => [{ payments: { refunds: [{ id: 'r1', amount: 12, refundedAt, ...evidence }] } }, { _id: 'b1' }],
+    (evidence) => [{ payments: { base: { refundAmount: 12, timestamps: { refundedAt }, ...evidence } } }, { _id: 'b1' }],
+  ]
+  for (const source of sources) {
+    for (const evidence of [
+      { currency: 'EUR', currencySource: 'not_recorded' },
+      { currency: 'EUR', currencyRecorded: false },
+      { currency: 'EUR', currencySource: 'payment' },
+    ]) {
+      const [details, booking] = source(evidence)
+      const refund = resolveActivityItems(details, booking, 'customer').find((item) => item.type === 'refund_issued')
+      assert.ok(refund)
+      assert.equal(refund.amounts[0].amount, 12)
+      assert.equal(refund.amounts[0].currency, ownRecordedCurrency(evidence))
+    }
+  }
+})
+
 test('backend activity wins over fallback and is sorted', () => {
   const details = {
     activity: {

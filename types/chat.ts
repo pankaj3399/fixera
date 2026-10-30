@@ -2,6 +2,8 @@ import type { ProfessionalLevel } from "@/lib/professionalLevel";
 
 export interface ChatUserSummary {
   _id: string;
+  deletedAt?: string | null;
+  isAnonymized?: boolean;
   name?: string;
   username?: string;
   email?: string;

@@ -1,0 +1,40 @@
+{
+  "customer": {
+    "id": "665f1f77bcf86cd799439016",
+    "name": "[deleted user]",
+    "username": null,
+    "customerType": null,
+    "businessName": null,
+    "email": null,
+    "phone": null,
+    "vatNumber": null,
+    "address": null,
+    "timeZone": null,
+    "isAnonymized": true
+  },
+  "professional": {
+    "id": "665f1f77bcf86cd799439022",
+    "name": "Nora Normal",
+    "username": "nora",
+    "companyName": "Live Company",
+    "email": "nora@example.com",
+    "phone": "+32 470 00 00 00",
+    "vatNumber": "BE0123456789",
+    "website": "https://live.example.com",
+    "address": {
+      "city": "Brussels",
+      "country": "BE",
+      "postalCode": "1000"
+    },
+    "timeZone": "Europe/Brussels"
+  },
+  "recordedAt": null,
+  "source": "current_profile",
+  "notices": [
+    {
+      "code": "PARTY_PROFILE_IS_CURRENT",
+      "severity": "info",
+      "entity": "party"
+    }
+  ]
+}

@@ -26,7 +26,9 @@
     "errorMessage": "Kan vakmensen niet laden. Probeer het later opnieuw.",
     "toastError": "Laden van vakmensen mislukt",
     "emptyTitle": "Geen vakmensen gevonden",
-    "emptyDescription": "We hebben momenteel geen vakmensen in deze categorie. Kom snel terug of bekijk andere categorieën."
+    "emptyDescription": "We hebben momenteel geen vakmensen in deze categorie. Kom snel terug of bekijk andere categorieën.",
+    "servicesTitle": "Diensten in {category}",
+    "servicesDescription": "Bekijk alle diensten voor {category} en kies wat je nodig hebt."
   },
   "servicesLayout": {
     "metaTitle": "Diensten",

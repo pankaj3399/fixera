@@ -32,6 +32,7 @@ import {
   ProvenanceBadge,
   StatusText,
   TimeZoneNote,
+  actorDisplayName,
   useDetailDisplayTimeZone,
   useDetailT,
 } from "./DetailPrimitives"
@@ -596,11 +597,14 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
     if (provided.length > 0) return provided
     const raw = booking.payment
     const rawCurrency = ownRecordedCurrency(raw as NewPaymentFields | null)
-    if (raw && (recordedNumber(raw.refundAmount) != null || raw.timestamps?.refundedAt || raw.refundedAt)) {
+    const rawRefundAmount = raw ? recordedNumber(raw.refundAmount) : null
+    if (raw && (rawRefundAmount != null || raw.timestamps?.refundedAt || raw.refundedAt)) {
       return [
         {
           id: "payment:aggregate-refund",
-          amount: raw.refundAmount ?? raw.totalWithVat ?? null,
+          // A refund timestamp or payment status does not prove how much was
+          // refunded; only the stored refund amount is evidence.
+          amount: rawRefundAmount,
           currency: rawCurrency,
           currencySource: rawCurrency ? "payment" : "not_recorded",
           refundedAt: raw.timestamps?.refundedAt || raw.refundedAt || null,
@@ -1074,7 +1078,9 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
                     {request.reason || (index === 0 ? finalCancellation?.reason : null)}
                   </DetailField>
                   <DetailField label={dt("payments.requestedBy", "Requested by")} empty={!request.requestedBy?.name && !request.requestedRole}>
-                    {request.requestedBy?.name || request.requestedRole || null}
+                    {actorDisplayName(request.requestedBy, dt("activity.deletedActor", "Deleted user")) ||
+                      request.requestedRole ||
+                      null}
                   </DetailField>
                   <DetailField label={dt("payments.professionalDecision", "Professional decision")} empty={!request.professionalDecision}>
                     {request.professionalDecision ? <StatusText value={request.professionalDecision} /> : null}

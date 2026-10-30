@@ -15,7 +15,10 @@
     "allServices": "Alle diensten",
     "professional": "Vakman",
     "field": "Veld",
-    "bookingFallback": "Boeking"
+    "bookingFallback": "Boeking",
+    "pageOf": "Pagina {page} van {total}",
+    "previous": "Vorige",
+    "next": "Volgende"
   },
   "unit": {
     "hours": "uur",
@@ -259,7 +262,8 @@
       "address": "Adres: {value}",
       "price": "Prijs: {value}",
       "start": "Start: {value}",
-      "end": "Einde: {value}"
+      "end": "Einde: {value}",
+      "bufferEnd": "Einde buffer: {value}"
     },
     "actions": {
       "cancel": "Annuleren",
@@ -382,7 +386,10 @@
       "acceptOrDeclineRescheduling": "Nieuwe planning accepteren of weigeren",
       "reviewCompletion": "Voltooiing beoordelen en bevestigen",
       "reviewDispute": "Geschil bekijken"
-    }
+    },
+    "invoice": "Factuur",
+    "download": "Downloaden",
+    "acceptPay": "Accepteren en betalen"
   },
   "professionalManager": {
     "page": {
@@ -444,5 +451,37 @@
     },
     "filterByStatus": "Filter op status",
     "filterByService": "Filter op dienst"
+  },
+  "tables": {
+    "colProject": "Project / subproject",
+    "colBooking": "Boeking",
+    "colQuotation": "Offerte",
+    "colAddress": "Uitvoeradres",
+    "colProfessional": "Professional",
+    "colCustomer": "Klant",
+    "colOrderDate": "Besteldatum",
+    "colRequested": "Aangevraagd",
+    "colPlanned": "Geplande start / einde",
+    "colReal": "Werkelijke start / einde",
+    "colPriceModel": "Prijsmodel",
+    "colPaidPrice": "Betaalde prijs",
+    "colQuoteDate": "Offerte / vervaldatum",
+    "colFirstStart": "Eerst mogelijke start",
+    "colDuration": "Duur",
+    "colPrice": "Prijs",
+    "colStatus": "Status",
+    "colInvoice": "Factuur",
+    "colPayoutDate": "Uitbetalingsdatum",
+    "colPayoutRefund": "Uitbetaling / terugbetaling",
+    "colActions": "Snelle acties",
+    "colDetails": "Details"
+  },
+  "levelUp": {
+    "customerTitle": "Niveau omhoog!",
+    "professionalTitle": "Niveau omhoog!",
+    "customerBody": "Gefeliciteerd — je hebt een nieuw loyaliteitsniveau bereikt.",
+    "professionalBody": "Gefeliciteerd — je hebt een nieuw professioneel niveau bereikt.",
+    "viewBenefits": "Bekijk mijn voordelen",
+    "dismiss": "Later"
   }
 }

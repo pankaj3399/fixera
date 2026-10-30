@@ -121,7 +121,8 @@
     "serviceCategories": "Service Categories",
     "serviceCatalogError": "Failed to load service categories",
     "noServices": "No services available for your country. Please make sure your country is set correctly above; the list will update when you change the country.",
-    "saveInfo": "Save Business Information"
+    "saveInfo": "Save Business Information",
+    "editUsername": "Edit username"
   },
   "documents": {
     "title": "Identity Documents",

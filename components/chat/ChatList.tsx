@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Star, Archive, Tag, MoreVertical, X } from "lucide-react";
+import { Star, Archive, Tag, MoreVertical, X, UserX } from "lucide-react";
+import { isAnonymizedIdentity, isRedactedPlaceholderText } from "@/lib/anonymizedUsers";
 import type { ChatConversation, ChatFilter } from "@/types/chat";
 
 interface ChatListProps {
@@ -29,23 +30,36 @@ type ParticipantDisplay = {
     | "common.supportThread"
     | "common.fixtractSupport"
     | "common.customer"
-    | "common.professional";
+    | "common.professional"
+    | "common.deletedUser";
   subtitle?: string;
   subtitleFallback?: "common.officialSupportTeam";
   profileImage?: string;
   isSupport: boolean;
+  isDeleted: boolean;
 };
 
 const getParticipantDisplay = (conversation: ChatConversation, role: string | undefined): ParticipantDisplay => {
   if (conversation.type === "support") {
     if (role === "admin") {
       const target = conversation.supportTargetUserId;
+      if (isAnonymizedIdentity(target)) {
+        return {
+          name: undefined,
+          nameFallback: "common.deletedUser" as const,
+          subtitle: "",
+          profileImage: undefined,
+          isSupport: false as const,
+          isDeleted: true,
+        };
+      }
       return {
         name: target?.name || target?.username,
         nameFallback: "common.supportThread" as const,
         subtitle: target?.email || target?.role || "",
         profileImage: target?.profileImage,
         isSupport: false as const,
+        isDeleted: false,
       };
     }
     return {
@@ -55,27 +69,50 @@ const getParticipantDisplay = (conversation: ChatConversation, role: string | un
       subtitleFallback: "common.officialSupportTeam" as const,
       profileImage: undefined,
       isSupport: true as const,
+      isDeleted: false,
     };
   }
 
   if (role === "professional") {
     const customer = conversation.customerId;
+    if (isAnonymizedIdentity(customer)) {
+      return {
+        name: undefined,
+        nameFallback: "common.deletedUser" as const,
+        subtitle: "",
+        profileImage: undefined,
+        isSupport: false as const,
+        isDeleted: true,
+      };
+    }
     return {
       name: customer?.name,
       nameFallback: "common.customer" as const,
       subtitle: customer?.email || "",
       profileImage: customer?.profileImage,
       isSupport: false as const,
+      isDeleted: false,
     };
   }
 
   const professional = conversation.professionalId;
+  if (isAnonymizedIdentity(professional)) {
+    return {
+      name: undefined,
+      nameFallback: "common.deletedUser" as const,
+      subtitle: "",
+      profileImage: undefined,
+      isSupport: false as const,
+      isDeleted: true,
+    };
+  }
   return {
     name: professional?.username || professional?.name,
     nameFallback: "common.professional" as const,
     subtitle: professional?.businessInfo?.city || professional?.email || "",
     profileImage: professional?.profileImage,
     isSupport: false as const,
+    isDeleted: false,
   };
 };
 
@@ -198,9 +235,10 @@ export default function ChatList({
           {conversations.map((conversation) => {
             const participant = getParticipantDisplay(conversation, currentUserRole);
             const participantName = participant.name || t(participant.nameFallback);
-            const participantSubtitle =
-              participant.subtitle ||
-              (participant.subtitleFallback ? t(participant.subtitleFallback) : "");
+            const participantSubtitle = participant.isDeleted
+              ? t("common.accountUnavailable")
+              : participant.subtitle ||
+                (participant.subtitleFallback ? t(participant.subtitleFallback) : "");
             const unread = getUnreadCount(conversation, currentUserRole);
             const isSelected = selectedConversationId === conversation._id;
             const isStarred = currentUserId ? conversation.starredBy?.includes(currentUserId) : false;
@@ -228,7 +266,9 @@ export default function ChatList({
                           ? "bg-gradient-to-br from-indigo-500 to-purple-600"
                           : "bg-indigo-100"
                       )}>
-                        {participant.profileImage ? (
+                        {participant.isDeleted ? (
+                          <UserX className="h-4 w-4 text-slate-500" aria-hidden />
+                        ) : participant.profileImage ? (
                           <img
                             src={participant.profileImage}
                             alt=""
@@ -259,7 +299,11 @@ export default function ChatList({
                           <p className="truncate text-xs text-gray-500">{participantSubtitle}</p>
                         )}
                         {conversation.lastMessagePreview && (
-                          <p className="mt-0.5 truncate text-xs text-gray-600">{conversation.lastMessagePreview}</p>
+                          <p className="mt-0.5 truncate text-xs text-gray-600">
+                            {isRedactedPlaceholderText(conversation.lastMessagePreview)
+                              ? t("common.messageDeleted")
+                              : conversation.lastMessagePreview}
+                          </p>
                         )}
                         {myLabels.length > 0 && (
                           <div className="flex gap-1 mt-1 flex-wrap">

@@ -106,17 +106,20 @@
       "pending": "Pending",
       "published": "Published",
       "onHold": "On Hold",
-      "rejected": "Rejected"
+      "rejected": "Rejected",
+      "archived": "Archived"
     },
     "statusLabels": {
       "draft": "Draft",
       "pending": "Pending Approval",
       "published": "Published",
       "onHold": "On Hold",
-      "rejected": "Rejected"
+      "rejected": "Rejected",
+      "archived": "Archived"
     },
     "stats": {
-      "drafts": "Drafts"
+      "drafts": "Drafts",
+      "archived": "Archived"
     },
     "tabs": {
       "all": "All ({count})",
@@ -124,7 +127,8 @@
       "pending": "Pending ({count})",
       "published": "Published ({count})",
       "onHold": "On Hold ({count})",
-      "rejected": "Rejected ({count})"
+      "rejected": "Rejected ({count})",
+      "archived": "Archived ({count})"
     },
     "empty": {
       "noProjects": "No projects found",
@@ -139,7 +143,9 @@
       "noRejected": "No rejected projects",
       "rejectedHint": "Projects that need revisions will appear here",
       "noOnHold": "No projects on hold",
-      "onHoldHint": "Projects you've put on hold will appear here"
+      "onHoldHint": "Projects you've put on hold will appear here",
+      "noArchived": "No archived projects",
+      "archivedHint": "Archived projects are hidden from your overview, public search, and new bookings. Restore one to work on it again."
     },
     "card": {
       "submitted": "Submitted: {date}",
@@ -149,7 +155,21 @@
       "putOnHold": "Put on hold: {date}",
       "pricingOptions": "{count, plural, one {# pricing option} other {# pricing options}}",
       "category": "Category: {category}",
-      "adminFeedback": "Admin Feedback:"
+      "adminFeedback": "Admin Feedback:",
+      "service": "Service: {value}",
+      "areaOfWork": "Area: {value}",
+      "team": "Team: {value}",
+      "minMembers": "Min {count} members (overlap {overlap})",
+      "priceModel": "Price model: {value}",
+      "startingFrom": "From {price} ({model}{unit})",
+      "noRecordedPrice": "No recorded price yet",
+      "repeatDiscount": "Returning-customer discount: {percent}%",
+      "counts": "{subprojects} subprojects · {options} options · {conditions} conditions",
+      "publishDate": "Published: {date}",
+      "onHoldDays": "Days on hold: {days}",
+      "submittedOn": "Submitted: {date}",
+      "archivedOn": "Archived: {date}",
+      "updatedOn": "Updated: {date}"
     },
     "actions": {
       "viewDetails": "View Details",
@@ -157,14 +177,18 @@
       "submitForReview": "Submit for Review",
       "putOnHold": "Put On Hold",
       "resumePublishing": "Resume Publishing",
-      "deleteProject": "Delete Project"
+      "deleteProject": "Delete Project",
+      "archiveProject": "Archive",
+      "restoreProject": "Restore"
     },
     "errors": {
       "fetchFailed": "Failed to fetch projects",
       "fetchFailedConnection": "Failed to fetch projects. Please check your connection.",
       "duplicateFailed": "Failed to duplicate project",
       "deleteFailed": "Failed to delete project",
-      "statusUpdateFailed": "Failed to update project status"
+      "statusUpdateFailed": "Failed to update project status",
+      "archiveFailed": "Could not archive the project.",
+      "restoreFailed": "Could not restore the project."
     },
     "pagination": {
       "showing": "Showing {from} to {to} of {total, plural, one {# project} other {# projects}}"
@@ -187,7 +211,13 @@
       "hiddenUntilApproved": "The project stays hidden from customers until re-approved",
       "approvalDataCleared": "Previous approval data is cleared and submittedAt is updated",
       "proceed": "Do you want to proceed with editing this project?",
-      "yesEdit": "Yes, Edit Project"
+      "yesEdit": "Yes, Edit Project",
+      "archiveTitle": "Archive project?",
+      "archiveDescription": "The project will be unpublished and hidden from your overview, public search, and new bookings. Existing bookings stay accessible. You can restore it later.",
+      "archiveConfirm": "Archive",
+      "restoreTitle": "Restore project?",
+      "restoreDescription": "The project returns to draft, or to its previous status when allowed. A previously published project needs re-approval before going live again.",
+      "restoreConfirm": "Restore"
     }
   },
   "detail": {

@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-export type CalendarEventType = 'booking' | 'booking-buffer' | 'personal' | 'company' | 'support'
+export type CalendarEventType = 'booking' | 'booking-active' | 'booking-completed' | 'booking-buffer' | 'personal' | 'company' | 'support'
 
 export interface CalendarEventMeta {
   bookingId?: string
@@ -123,6 +123,16 @@ const EVENT_STYLES: Record<
     gradient: 'from-sky-200 via-blue-200 to-indigo-200',
     badge: 'bg-sky-50 text-sky-800',
     text: 'text-sky-900',
+  },
+  'booking-active': {
+    gradient: 'from-indigo-200 via-indigo-300 to-blue-300',
+    badge: 'bg-indigo-50 text-indigo-800',
+    text: 'text-indigo-900',
+  },
+  'booking-completed': {
+    gradient: 'from-emerald-200 via-teal-200 to-green-200',
+    badge: 'bg-emerald-50 text-emerald-800',
+    text: 'text-emerald-900',
   },
   'booking-buffer': {
     gradient: 'from-violet-200 via-fuchsia-200 to-pink-200',
@@ -460,7 +470,10 @@ export default function WeeklyAvailabilityCalendar({
                   const bookingNumber = segment.meta?.bookingNumber
                   const customerName = segment.meta?.customerName
                   const isBookingSegment =
-                    segment.type === 'booking' || segment.type === 'booking-buffer'
+                    segment.type === 'booking' ||
+                    segment.type === 'booking-active' ||
+                    segment.type === 'booking-completed' ||
+                    segment.type === 'booking-buffer'
                   const tooltipText = isBookingSegment
                     ? undefined
                     : (segment.meta?.note || segment.title)
@@ -525,7 +538,9 @@ export default function WeeklyAvailabilityCalendar({
           {(
             [
               { label: t('eventTitles.personalBlock'), type: 'personal' },
-              { label: t('eventTitles.booking'), type: 'booking' },
+              { label: t('eventTitles.bookingPending'), type: 'booking' },
+              { label: t('eventTitles.bookingActive'), type: 'booking-active' },
+              { label: t('eventTitles.bookingCompleted'), type: 'booking-completed' },
               { label: t('eventTitles.buffer'), type: 'booking-buffer' },
               { label: t('eventTitles.companyClosure'), type: 'company' },
               { label: t('eventTitles.supportMeeting'), type: 'support' },

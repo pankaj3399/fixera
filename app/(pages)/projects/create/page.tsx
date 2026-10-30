@@ -9,7 +9,7 @@ import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import WizardLayout from '@/components/professional/project-wizard/WizardLayout'
 import Step1BasicInfo, { type Step1Ref } from '@/components/professional/project-wizard/Step1BasicInfo'
-import Step2Subprojects, { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME } from '@/components/professional/project-wizard/Step2Subprojects'
+import Step2Subprojects, { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME, type Step2Ref } from '@/components/professional/project-wizard/Step2Subprojects'
 import Step3ExtraOptions from '@/components/professional/project-wizard/Step3ExtraOptions'
 import Step4FAQ from '@/components/professional/project-wizard/Step4FAQ'
 import Step5RFQQuestions from '@/components/professional/project-wizard/Step5RFQQuestions'
@@ -237,6 +237,7 @@ function ProjectCreateContent() {
   const projectId = searchParams.get('id')
   const [currentStep, setCurrentStep] = useState(1)
   const step1Ref = useRef<Step1Ref>(null)
+  const step2Ref = useRef<Step2Ref>(null)
   const [stepErrors, setStepErrors] = useState<string[]>([])
   const [projectData, setProjectData] = useState<ProjectData>({
     currentStep: 1,
@@ -264,8 +265,8 @@ function ProjectCreateContent() {
     postBookingQuestions: []
   })
   const [isLoading, setIsLoading] = useState(false)
-  const [canProceed, setCanProceed] = useState(false)
   const [stepValidation, setStepValidation] = useState<boolean[]>(new Array(8).fill(false))
+  const [visitedSteps, setVisitedSteps] = useState<boolean[]>([true, false, false, false, false, false, false, false])
   const [step1ValidationContext, setStep1ValidationContext] = useState<Step1ValidationContext | null>(null)
   const canCreateProjects = user?.professionalStatus === 'approved'
 
@@ -379,7 +380,7 @@ function ProjectCreateContent() {
               maxKmRange: undefined,
               noBorders: false
             },
-            media: project.media || { images: [] },
+            media: { images: project.media?.images || [], videos: project.media?.videos || (project.media?.video ? [project.media.video] : []) },
             keywords: project.keywords || [],
             projectType: project.projectType || [],
             subprojects: project.subprojects || [],
@@ -404,9 +405,7 @@ function ProjectCreateContent() {
             vatProfessionalAnswers: project.vatProfessionalAnswers || [],
           })
           setCurrentStep(project.currentStep || 1)
-          // Enable all steps for existing projects
-          setStepValidation(new Array(8).fill(true))
-          setCanProceed(true)
+          setVisitedSteps(prev => prev.map((visited, index) => visited || index === (project.currentStep || 1) - 1))
         } catch (error) {
           console.error('Failed to load project:', error)
           toast.error(getErrorText(error, t('create.loadFailed')))
@@ -439,9 +438,16 @@ function ProjectCreateContent() {
         return 'fixed'
       })()
 
-      const { requiredProfessionalFields: _requiredProfessionalFields, ...projectFields } = projectData
+      const projectFields = { ...projectData }
+      delete projectFields.requiredProfessionalFields
       const dataToSave = {
         ...projectFields,
+        media: {
+          ...projectData.media,
+          images: projectData.media?.images || [],
+          videos: projectData.media?.videos || [],
+          video: projectData.media?.videos?.[0],
+        },
         subprojects: normalizePreparationDuration(projectData.subprojects),
         priceModel: computedPriceModel,
         currentStep
@@ -504,19 +510,12 @@ function ProjectCreateContent() {
   const handleStepChange = (step: number) => {
     setStepErrors([])
     setCurrentStep(step)
+    setVisitedSteps(prev => prev.map((visited, index) => visited || index === step - 1))
     setProjectData(prev => ({ ...prev, currentStep: step }))
-    // If editing existing project, always allow navigation
-    if (projectId) {
-      setCanProceed(true)
-    } else {
-      // Set canProceed based on target step validation for new projects
-      const targetStepValid = stepValidation[step - 1] || false
-      setCanProceed(targetStepValid)
-    }
   }
 
-  const handleNext = () => {
-    const errors = collectStepErrors(currentStep, projectData, tWizard)
+  const handleNext = (dataToValidate = projectData) => {
+    const errors = collectStepErrors(currentStep, dataToValidate, tWizard)
     if (errors.length > 0) {
       setStepErrors(errors)
       if (currentStep === 1) {
@@ -530,12 +529,7 @@ function ProjectCreateContent() {
     setStepErrors([])
     if (currentStep < 8) {
       setCurrentStep(currentStep + 1)
-      if (projectId) {
-        setCanProceed(true)
-      } else {
-        const nextStepValid = stepValidation[currentStep] || false
-        setCanProceed(nextStepValid)
-      }
+      setVisitedSteps(prev => prev.map((visited, index) => visited || index === currentStep))
     }
   }
 
@@ -543,9 +537,7 @@ function ProjectCreateContent() {
     if (currentStep > 1) {
       setStepErrors([])
       setCurrentStep(currentStep - 1)
-      // Set canProceed based on previous step validation
-      const prevStepValid = stepValidation[currentStep - 2] || false
-      setCanProceed(prevStepValid)
+      setVisitedSteps(prev => prev.map((visited, index) => visited || index === currentStep - 2))
     }
   }
 
@@ -561,12 +553,7 @@ function ProjectCreateContent() {
       return newValidation
     })
 
-    // Update canProceed based on current step validation
-    setCanProceed(prevCanProceed => {
-      // Only update if this is the current step
-      return step === currentStep ? isValid : prevCanProceed
-    })
-  }, [currentStep])
+  }, [])
 
   const getStep1SubmitErrors = useCallback(() => {
     if (!step1ValidationContext || step1ValidationContext.dataSignature !== getStep1DataSignature(projectData)) {
@@ -755,7 +742,23 @@ function ProjectCreateContent() {
       }
     }
 
-    const errors = collectStepErrors(currentStep, projectData, tWizard)
+    let validationData = projectData
+    if (currentStep === 2 && step2Ref.current) {
+      const latestStepData = step2Ref.current.getCurrentData()
+      validationData = { ...projectData, ...latestStepData }
+      handleDataChange(latestStepData)
+      step2Ref.current.validateNow()
+      const configurationStatus = step2Ref.current.getConfigurationStatus()
+      if (configurationStatus) {
+        const message = configurationStatus === 'failed'
+          ? tWizard('step2.toast.configFailed')
+          : tWizard('step2.toast.configLoading')
+        setStepErrors([message])
+        toast.error(message)
+        return
+      }
+    }
+    const errors = collectStepErrors(currentStep, validationData, tWizard)
     setStepErrors(errors)
     if (currentStep === 1) {
       step1Ref.current?.showValidationErrors()
@@ -769,7 +772,7 @@ function ProjectCreateContent() {
       void handleSubmit()
       return
     }
-    handleNext()
+    handleNext(validationData)
   }
 
   const priceModelLabel = (value?: string | null) => {
@@ -816,6 +819,7 @@ function ProjectCreateContent() {
       case 2:
         return (
           <Step2Subprojects
+            ref={step2Ref}
             data={projectData}
             onChange={handleDataChange}
             onValidate={(isValid) => handleStepValidation(2, isValid)}
@@ -1116,9 +1120,10 @@ function ProjectCreateContent() {
       onShowValidationErrors={handleShowValidationErrors}
       validationMessages={stepErrors}
       isLoading={isLoading}
-      canProceed={canProceed}
       isEditing={!!projectId}
       projectStatus={projectData.status}
+      stepValidation={stepValidation}
+      visitedSteps={visitedSteps}
     >
       {renderCurrentStep()}
     </WizardLayout>

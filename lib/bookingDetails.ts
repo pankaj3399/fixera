@@ -912,6 +912,10 @@ export function buildLegacyActivity(booking: LegacyBookingLike | null | undefine
 
   const payment = booking.payment;
   if (payment) {
+    // A refund timestamp or refunded payment status does not prove how much was
+    // refunded. Only the stored refund amount is evidence; the original charge
+    // (totalWithVat) stays on the payment events and is never reused here.
+    const refundedAmount = recordedNumber(payment.refundAmount);
     const paymentEvents: Array<[string, string, string | null | undefined, number | null | undefined]> = [
       ["payment:authorized", "payment_authorized", payment.authorizedAt, null],
       ["payment:captured", "payment_captured", payment.capturedAt, payment.totalWithVat],
@@ -919,13 +923,13 @@ export function buildLegacyActivity(booking: LegacyBookingLike | null | undefine
       ["payment:transferred", "payment_released", payment.transferredAt, payment.professionalPayout],
       ["payment:failed", "payment_failed", payment.failedAt, null],
       ["payment:canceled", "payment_canceled", payment.canceledAt, null],
-      ["payment:refunded", "refund_issued", payment.refundedAt, payment.refundAmount ?? payment.totalWithVat],
+      ["payment:refunded", "refund_issued", payment.refundedAt, refundedAmount],
       ["extra:paid", "extra_costs_paid", payment.extraCostPaidAt, payment.extraCostAmount],
     ];
     paymentEvents.forEach(([id, type, occurredAt, amount]) => {
       // Legacy extra-cost fields live on booking.payment but are a separate
       // charge; the base payment currency is not evidence for that record.
-      const currency = type === "extra_costs_paid" ? null : payment.currency || null;
+      const currency = type === "extra_costs_paid" ? null : ownRecordedCurrency(payment);
       const added = event(id, type, occurredAt, {
         description: type === "refund_issued" ? payment.refundReason || null : null,
         amounts:
@@ -940,7 +944,7 @@ export function buildLegacyActivity(booking: LegacyBookingLike | null | undefine
   const paymentRows: PaymentRecordDto[] = Array.isArray(booking.paymentRecords) ? booking.paymentRecords : []
   for (const [index, record] of paymentRows.entries()) {
     const recordId = record.paymentId || `record-${index}`
-    const currency = record.currency || null
+    const currency = ownRecordedCurrency(record)
     const stamp = record.timestamps
     const addAmount = (kind: string, amount: number | null | undefined) =>
       typeof amount === "number" ? [{ kind, amount, currency, recorded: true as const }] : []
@@ -959,7 +963,9 @@ export function buildLegacyActivity(booking: LegacyBookingLike | null | undefine
     })
     if (!(Array.isArray(booking.refunds) && booking.refunds.length > 0) && stamp?.refundedAt) {
       const added = event(`payment:${recordId}:refunded`, "refund_issued", stamp.refundedAt, {
-        amounts: addAmount("refund", record.totalWithVat),
+        // The payment record's totalWithVat is the original charge. Only a
+        // stored refundAmount can prove the refunded amount.
+        amounts: addAmount("refund", recordedNumber(record.refundAmount)),
         description: record.refundReason || null,
       })
       if (added) items.push(added)
@@ -972,7 +978,7 @@ export function buildLegacyActivity(booking: LegacyBookingLike | null | undefine
       description: refund.justification || null,
       amounts:
         typeof refund.amount === "number"
-          ? [{ kind: "refund", amount: refund.amount, currency: refund.currency || null, recorded: true }]
+          ? [{ kind: "refund", amount: refund.amount, currency: ownRecordedCurrency(refund), recorded: true }]
           : [],
     })
     if (added) items.push(added)
@@ -1207,7 +1213,7 @@ export function resolveActivityItems(
       booking?.payment ||
       (details?.payments?.base
         ? {
-            currency: details.payments.base.currency,
+            currency: ownRecordedCurrency(details.payments.base),
             totalWithVat: details.payments.base.totalWithVat,
             professionalPayout: details.payments.base.professionalPayout,
             authorizedAt: details.payments.base.timestamps?.authorizedAt,
@@ -1215,6 +1221,10 @@ export function resolveActivityItems(
             paidAt: details.payments.base.timestamps?.paidAt,
             transferredAt: details.payments.base.timestamps?.transferredAt,
             refundedAt: details.payments.base.timestamps?.refundedAt,
+            // Carry the recorded refund evidence into the legacy fallback; the
+            // base totalWithVat is the original charge and is never a refund.
+            refundAmount: details.payments.base.refundAmount,
+            refundReason: details.payments.base.refundReason,
             failedAt: details.payments.base.timestamps?.failedAt,
             canceledAt: details.payments.base.timestamps?.canceledAt,
           }
@@ -1584,4 +1594,98 @@ export function durationLabel(
 ): { value: number; unit: string } | null {
   if (!duration || typeof duration.value !== "number" || !Number.isFinite(duration.value)) return null;
   return { value: duration.value, unit: duration.unit || "hours" };
+}
+
+/**
+ * Hour-mode detection (client task 23a). Hour-mode bookings show the start
+ * and end time alongside the date; day-mode bookings never show times.
+ * An explicit execution unit wins over the coarse project time mode, and
+ * recorded snapshot values win over live project data.
+ */
+export function resolveScheduleHourMode(
+  input: { timeMode?: string | null; executionUnit?: string | null } | null | undefined
+): boolean {
+  if (!input) return false;
+  const unit = (input.executionUnit || "").toLowerCase();
+  if (unit === "hours") return true;
+  if (unit === "days") return false;
+  return (input.timeMode || "").toLowerCase() === "hours";
+}
+
+export function resolveBookingHourMode(
+  input: {
+    snapshotExecutionUnit?: string | null;
+    snapshotTimeMode?: string | null;
+    bookingExecutionUnit?: string | null;
+    bookingTimeMode?: string | null;
+  } | null | undefined
+): boolean {
+  if (!input) return false;
+  const unit = input.snapshotExecutionUnit || input.bookingExecutionUnit || null;
+  if (unit) return resolveScheduleHourMode({ executionUnit: unit });
+  return resolveScheduleHourMode({
+    timeMode: input.snapshotTimeMode || input.bookingTimeMode || null,
+  });
+}
+
+/** "14:00–16:00" range; null unless both times are recorded. */
+export function formatScheduleTimeRange(
+  startTime?: string | null,
+  endTime?: string | null
+): string | null {
+  if (!startTime || !endTime) return null;
+  return `${startTime}–${endTime}`;
+}
+
+interface PanelHourModeBooking {
+  project?: {
+    timeMode?: string | null;
+    executionDuration?: { value?: number; unit?: string | null } | null;
+    subprojects?: Array<{
+      executionDuration?: { value?: number; unit?: string | null } | null;
+    } | null> | null;
+  } | null;
+  selectedSubprojectIndex?: number | null;
+}
+
+interface PanelHourModeDetails {
+  bookingSnapshot?: {
+    project?: { timeMode?: string | null } | null;
+    selectedSubproject?: {
+      executionDuration?: { value?: number; unit?: string | null } | null;
+    } | null;
+  } | null;
+}
+
+/**
+ * Single hour-mode rule for every booking-info surface (task 23a): a booking
+ * shows wall times only when positively hour mode. Execution unit beats the
+ * coarse project time mode, and the recorded booking snapshot beats live
+ * project data. Unknown mode means date-only (showing a wrong time is worse
+ * than showing none).
+ */
+export function resolvePanelHourMode(
+  booking?: PanelHourModeBooking | null,
+  details?: PanelHourModeDetails | null
+): boolean {
+  const subprojects = booking?.project?.subprojects;
+  const selectedIndex = booking?.selectedSubprojectIndex;
+  let bookingUnit: string | null = null;
+  if (Array.isArray(subprojects) && subprojects.length > 0) {
+    const sub =
+      typeof selectedIndex === "number"
+        ? subprojects[selectedIndex]
+        : subprojects.length === 1
+          ? subprojects[0]
+          : undefined;
+    bookingUnit = sub?.executionDuration?.unit ?? null;
+  }
+  if (!bookingUnit) bookingUnit = booking?.project?.executionDuration?.unit ?? null;
+  return resolveBookingHourMode({
+    snapshotExecutionUnit:
+      details?.bookingSnapshot?.selectedSubproject?.executionDuration?.unit ?? null,
+    snapshotTimeMode: details?.bookingSnapshot?.project?.timeMode ?? null,
+    bookingExecutionUnit: bookingUnit,
+    bookingTimeMode: booking?.project?.timeMode ?? null,
+  });
 }

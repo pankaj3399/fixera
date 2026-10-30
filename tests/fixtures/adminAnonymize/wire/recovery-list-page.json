@@ -1,0 +1,52 @@
+{
+  "success": true,
+  "data": {
+    "accounts": [
+      {
+        "targetId": "665f1f77bcf86cd799439017",
+        "role": "professional",
+        "state": "recovery_required",
+        "isAnonymized": false,
+        "accessDisabled": true,
+        "identityRemoved": true,
+        "legacyAnonymized": true,
+        "needsRedaction": false,
+        "deletedAt": "2025-01-01T00:00:00.000Z",
+        "anonymizedAt": null,
+        "startedAt": "2025-01-01T00:00:00.000Z",
+        "completedAt": null,
+        "pendingFiles": 0,
+        "pendingCalendarReleases": 0,
+        "lastError": null,
+        "previewPath": "/api/admin/users/665f1f77bcf86cd799439017/anonymize/preview"
+      },
+      {
+        "targetId": "665f1f77bcf86cd799439016",
+        "role": "customer",
+        "state": "recovery_required",
+        "isAnonymized": false,
+        "accessDisabled": true,
+        "identityRemoved": false,
+        "legacyAnonymized": false,
+        "needsRedaction": true,
+        "deletedAt": "2026-10-25T12:00:00.000Z",
+        "anonymizedAt": null,
+        "startedAt": "2026-10-25T12:00:00.000Z",
+        "completedAt": null,
+        "pendingFiles": 0,
+        "pendingCalendarReleases": 0,
+        "lastError": null,
+        "previewPath": "/api/admin/users/665f1f77bcf86cd799439016/anonymize/preview"
+      }
+    ],
+    "total": 3,
+    "page": 1,
+    "limit": 2,
+    "totalPages": 2,
+    "counts": {
+      "partialCleanup": 1,
+      "recoveryInProgress": 0,
+      "recoveryRequired": 2
+    }
+  }
+}

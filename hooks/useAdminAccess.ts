@@ -3,9 +3,12 @@
 import { useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  canAccessAdminPage,
+  canReadAdminArea,
+  canWriteAdminArea,
   hasAdminPermission,
-  permissionForAdminPage,
   resolveAdminAreaLevel,
+  type AdminAccessArea,
   type AdminPermission,
 } from '@/lib/adminRbac';
 
@@ -16,8 +19,8 @@ export function useAdminAccess() {
   const adminRole = user?.adminRole;
   const permissions = user?.adminPermissions;
   const supportAccess = useMemo(
-    () => resolveAdminAreaLevel(user, 'support'),
-    [user],
+    () => (isAdmin ? resolveAdminAreaLevel(user, 'support') : 'none'),
+    [isAdmin, user],
   );
 
   const can = useMemo(() => {
@@ -26,7 +29,7 @@ export function useAdminAccess() {
       // Support reads are area-level (`support: read`) and therefore absent
       // from the write-only `support.tickets` permission pack.
       if (permission === 'support.tickets') {
-        return supportAccess !== 'none';
+        return canReadAdminArea(user, 'support');
       }
       // Fail closed: missing permissions payload must not grant all access.
       // Explicit super may keep a legacy fallback until /me refreshes the pack.
@@ -35,13 +38,19 @@ export function useAdminAccess() {
       }
       return hasAdminPermission(permissions, permission);
     };
-  }, [isAdmin, permissions, supportAccess, user?.adminRole]);
+  }, [isAdmin, permissions, user]);
 
-  const canAccessPath = (pathname: string) => {
+  const canAccessPath = (pathname: string) => canAccessAdminPage(user, pathname);
+  const canReadArea = (area: AdminAccessArea) => isAdmin && canReadAdminArea(user, area);
+  const canWriteArea = (area: AdminAccessArea) => {
     if (!isAdmin) return false;
-    const required = permissionForAdminPage(pathname);
-    if (!required) return true;
-    return can(required);
+    if (canWriteAdminArea(user, area)) return true;
+    const hasEffectiveLevels =
+      (user?.adminAccessLevels && Object.keys(user.adminAccessLevels).length > 0) ||
+      (user?.adminPermissionLevels && Object.keys(user.adminPermissionLevels).length > 0);
+    // Legacy accounts without a levels matrix keep the permission-pack behavior.
+    if (!hasEffectiveLevels && area === 'campaigns') return can('campaigns.manage');
+    return false;
   };
 
   return {
@@ -50,6 +59,8 @@ export function useAdminAccess() {
     permissions: permissions || [],
     supportAccess,
     canWriteSupport: isAdmin && supportAccess === 'write',
+    canReadArea,
+    canWriteArea,
     can,
     canAccessPath,
   };

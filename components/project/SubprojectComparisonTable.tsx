@@ -252,15 +252,16 @@ export default function SubprojectComparisonTable({
         <CardContent className="p-0">
           {/* Tab Navigation */}
           <div className="border-b border-gray-200">
-            <div className="flex">
+            <div className="flex overflow-x-auto">
               {subprojects.map((subproject, index) => (
                 <button
                   key={index}
                   onClick={() => onSelectIndex(index)}
-                  className={`flex-1 px-6 py-4 text-center font-semibold text-base transition-all relative ${selectedIndex === index
+                  className={`flex-1 min-w-[120px] truncate px-3 sm:px-6 py-4 text-center font-semibold text-base transition-all relative ${selectedIndex === index
                     ? 'text-gray-900 border-b-2 border-gray-900'
                     : 'text-gray-500 hover:text-gray-700'
                     }`}
+                  title={subproject.name}
                 >
                   {subproject.name}
                   {index === 1 && subprojects.length === 3 && (
@@ -274,7 +275,7 @@ export default function SubprojectComparisonTable({
           </div>
 
           {/* Package Content */}
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             {/* Package Header */}
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">{currentSubproject.name}</h3>

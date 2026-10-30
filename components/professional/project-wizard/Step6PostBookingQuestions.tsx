@@ -46,7 +46,7 @@ interface Step6Props {
 }
 
 // Common post-booking questions by service category
-const POST_BOOKING_QUESTION_TEMPLATES = {
+const POST_BOOKING_QUESTION_TEMPLATES: Record<string, Array<Omit<IPostBookingQuestion, 'id'>>> = {
   'plumber': [
     {
       question: 'What is the best time to contact you to schedule the work?',
@@ -67,12 +67,6 @@ const POST_BOOKING_QUESTION_TEMPLATES = {
   ],
   'electrician': [
     {
-      question: 'When would you prefer us to start the electrical work?',
-      type: 'multiple_choice' as const,
-      options: ['ASAP', 'Within 1 week', 'Within 2 weeks', 'Specific date (will discuss)'],
-      isRequired: true
-    },
-    {
       question: 'Are there any safety concerns or hazards we should be aware of?',
       type: 'text' as const,
       isRequired: false
@@ -84,12 +78,6 @@ const POST_BOOKING_QUESTION_TEMPLATES = {
     }
   ],
   'painter': [
-    {
-      question: 'When would you like us to start the painting work?',
-      type: 'multiple_choice' as const,
-      options: ['This week', 'Next week', 'Within 2 weeks', 'Flexible timing'],
-      isRequired: true
-    },
     {
       question: 'Do you have paint colors selected or need color consultation?',
       type: 'multiple_choice' as const,
@@ -122,20 +110,8 @@ const POST_BOOKING_QUESTION_TEMPLATES = {
   ],
   'default': [
     {
-      question: 'What is your preferred start date for the work?',
-      type: 'multiple_choice' as const,
-      options: ['ASAP', 'Within 1 week', 'Within 2 weeks', 'Within 1 month', 'Flexible'],
-      isRequired: true
-    },
-    {
       question: 'Are there any special requirements or considerations for this project?',
       type: 'text' as const,
-      isRequired: false
-    },
-    {
-      question: 'What is the best way to contact you for updates?',
-      type: 'multiple_choice' as const,
-      options: ['Phone call', 'Text message', 'Email', 'WhatsApp'],
       isRequired: false
     }
   ]

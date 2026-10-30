@@ -10,24 +10,24 @@ import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Briefcase, Calendar, Clock, FileText, GitCompareArrows, Loader2, Package, Plus, RefreshCw, Search } from "lucide-react"
+import { ArrowLeft, FileText, GitCompareArrows, Loader2, Plus, RefreshCw, Search } from "lucide-react"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import BookingTimelineBoard from "@/components/dashboard/BookingTimelineBoard"
 import RefundRequestsPanel from "@/components/dashboard/RefundRequestsPanel"
+import SharedBookingsTable from "@/components/dashboard/SharedBookingsTable"
+import SharedQuotesTable from "@/components/dashboard/SharedQuotesTable"
+import { useCurrency } from "@/contexts/CurrencyContext"
+import { facetCount, sumStatusCounts } from "@/lib/dashboardOverview"
 import {
   type BookingStatus,
   QUOTE_STATUSES,
   QUOTE_FINISHED_STATUSES,
   BOOKING_FINISHED_STATUSES,
   PROFESSIONAL_BOOKING_MODE_STATUSES,
-  getBookingStatusMeta,
-  getBookingTitle,
-  isProjectBooking,
 } from "@/lib/dashboardBookingHelpers"
 
 type ManagerMode = "bookings" | "quotes"
@@ -55,16 +55,58 @@ interface Booking {
   scheduledBufferEndDate?: string
   scheduledStartTime?: string
   scheduledEndTime?: string
+  actualStartDate?: string
+  actualEndDate?: string
+  priceModel?: string
   payment?: {
     status?: string
     currency?: string
     amount?: number
+    totalWithVat?: number | null
+    professionalPayout?: number | null
+    refundedTotal?: number | null
+    transferredAt?: string | null
+    invoiceNumber?: string | null
+    invoiceUrl?: string | null
+    supplierInvoiceNumber?: string | null
+    supplierInvoiceUrl?: string | null
   }
+  extraCosts?: Array<{ status?: string; total?: number; amount?: number }> | null
   location?: {
     address?: string
     city?: string
     country?: string
+    postalCode?: string
   }
+  bookingSnapshot?: {
+    project?: { id?: string; title?: string }
+    selectedSubproject?: Record<string, unknown> | null
+  } | null
+  quotationNumber?: string | null
+  currentQuoteVersion?: number | null
+  acceptedQuoteVersion?: number | null
+  quoteVersions?: Array<{
+    version: number
+    totalAmount?: number | null
+    totalWithVat?: number | null
+    amount?: number | null
+    currency?: string | null
+    submittedAt?: string | null
+    createdAt?: string | null
+    validUntil?: string | null
+    firstPossibleStart?: string | null
+    executionDuration?: { value?: number; unit?: string } | string | null
+  }> | null
+  quote?: {
+    quotationNumber?: string | null
+    currentVersion?: number | null
+    acceptedVersion?: number | null
+    submittedAt?: string | null
+    validUntil?: string | null
+    totalAmount?: number | null
+    amount?: number | null
+    currency?: string | null
+  } | null
   rescheduleRequest?: {
     status?: "pending" | "accepted" | "declined"
     reason?: string
@@ -87,6 +129,7 @@ interface Booking {
   professional?: {
     _id: string
     username?: string
+    professionalLevel?: string | null
     businessInfo?: {
       companyName?: string
     }
@@ -134,6 +177,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const t = useTranslations("dashboardWidgets")
   const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
+  const { formatMoney } = useCurrency()
 
   const statusLabel = (status: string) => {
     const key = STATUS_KEYS[status as StatusKeyValue]
@@ -148,6 +192,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalBookings, setTotalBookings] = useState(0)
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
+  const [serviceCounts, setServiceCounts] = useState<Record<string, number>>({})
   const [hasMore, setHasMore] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -321,26 +367,34 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     }
   }, [showCreateQuoteModal])
 
+  const withCount = (id: string, label: string) => {
+    if (id === "all") return label
+    if (mode === "bookings" && id === "awaiting_payment") {
+      return `${label} (${facetCount(statusCounts, "quote_accepted") + facetCount(statusCounts, "payment_pending")})`
+    }
+    return `${label} (${facetCount(statusCounts, id)})`
+  }
+
   const statusOptions = mode === "quotes"
     ? [
         { id: "all", label: t("common.allStatuses") },
-        { id: "rfq", label: t("status.rfq") },
-        { id: "rfq_accepted", label: t("status.rfq_accepted") },
-        { id: "draft_quote", label: t("status.draft_quote") },
-        { id: "quoted", label: t("status.quoted") },
-        { id: "quote_accepted", label: t("status.quote_accepted") },
-        { id: "quote_rejected", label: t("status.quote_rejected") },
+        { id: "rfq", label: withCount("rfq", t("status.rfq")) },
+        { id: "rfq_accepted", label: withCount("rfq_accepted", t("status.rfq_accepted")) },
+        { id: "draft_quote", label: withCount("draft_quote", t("status.draft_quote")) },
+        { id: "quoted", label: withCount("quoted", t("status.quoted")) },
+        { id: "quote_accepted", label: withCount("quote_accepted", t("status.quote_accepted")) },
+        { id: "quote_rejected", label: withCount("quote_rejected", t("status.quote_rejected")) },
       ]
     : [
         { id: "all", label: t("common.allStatuses") },
-        { id: "awaiting_payment", label: t("status.payment_pending") },
-        { id: "booked", label: t("status.booked") },
-        { id: "rescheduling_requested", label: t("status.rescheduling_requested") },
-        { id: "in_progress", label: t("status.in_progress") },
-        { id: "completed", label: t("status.completed") },
-        { id: "cancelled", label: t("status.cancelled") },
-        { id: "dispute", label: t("status.dispute") },
-        { id: "refunded", label: t("status.refunded") },
+        { id: "awaiting_payment", label: withCount("awaiting_payment", t("status.payment_pending")) },
+        { id: "booked", label: withCount("booked", t("status.booked")) },
+        { id: "rescheduling_requested", label: withCount("rescheduling_requested", t("status.rescheduling_requested")) },
+        { id: "in_progress", label: withCount("in_progress", t("status.in_progress")) },
+        { id: "completed", label: withCount("completed", t("status.completed")) },
+        { id: "cancelled", label: withCount("cancelled", t("status.cancelled")) },
+        { id: "dispute", label: withCount("dispute", t("status.dispute")) },
+        { id: "refunded", label: withCount("refunded", t("status.refunded")) },
       ]
 
   const pageCopy = mode === "bookings"
@@ -421,6 +475,12 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
       if (response.ok && data.success) {
         if (Array.isArray(data.distinctServices)) {
           setAllServices(data.distinctServices)
+        }
+        if (data.statusCounts && typeof data.statusCounts === "object") {
+          setStatusCounts(data.statusCounts)
+        }
+        if (data.serviceCounts && typeof data.serviceCounts === "object") {
+          setServiceCounts(data.serviceCounts)
         }
         const incomingBookings = Array.isArray(data.bookings) ? data.bookings : []
         const pagination = data.pagination || {}
@@ -571,27 +631,30 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const filteredBookings = relevantBookings
 
   const comparisonBookings = useMemo(
-    () => filteredBookings.filter(b => selectedQuoteIds.has(b._id)),
+    () => filteredBookings
+      .filter(b => selectedQuoteIds.has(b._id))
+      .map((b) => ({
+        _id: b._id,
+        professional: b.professional ?? undefined,
+        rfqData: b.rfqData,
+        quotationNumber: b.quotationNumber ?? undefined,
+        status: b.status,
+      })),
     [filteredBookings, selectedQuoteIds]
   )
 
-  const pendingBookings = useMemo(() => {
-    return filteredBookings.filter((booking) => {
-      if (mode === "quotes") {
-        return !QUOTE_FINISHED_STATUSES.has(booking.status)
-      }
-      return !BOOKING_FINISHED_STATUSES.has(booking.status)
-    })
-  }, [mode, filteredBookings])
+  // Server facet counts drive the pending/finished cards (never page-derived).
+  const finishedModeStatuses = useMemo(
+    () => Array.from(mode === "quotes" ? QUOTE_FINISHED_STATUSES : BOOKING_FINISHED_STATUSES),
+    [mode],
+  )
+  const pendingModeStatuses = useMemo(() => {
+    const modeSet = mode === "quotes" ? QUOTE_STATUSES : PROFESSIONAL_BOOKING_MODE_STATUSES
+    const finished = mode === "quotes" ? QUOTE_FINISHED_STATUSES : BOOKING_FINISHED_STATUSES
+    return Array.from(modeSet).filter((status) => !finished.has(status))
+  }, [mode])
 
-  const finishedBookings = useMemo(() => {
-    return filteredBookings.filter((booking) => {
-      if (mode === "quotes") {
-        return QUOTE_FINISHED_STATUSES.has(booking.status)
-      }
-      return BOOKING_FINISHED_STATUSES.has(booking.status)
-    })
-  }, [mode, filteredBookings])
+
 
   if (authLoading) {
     return (
@@ -606,83 +669,6 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
 
   if (!isAuthenticated || user?.role !== "professional") {
     return null
-  }
-
-  const renderBookingList = (items: Booking[], emptyLabel: string) => {
-    if (items.length === 0) {
-      return <p className="text-sm text-gray-500 py-6 text-center">{emptyLabel}</p>
-    }
-
-    return (
-      <div className="space-y-3">
-        {items.map((booking) => {
-          const isProject = isProjectBooking(booking)
-          const { className } = getBookingStatusMeta(booking.status)
-          const createdAt = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString(intl) : null
-
-          return (
-            <div
-              key={booking._id}
-              className="border rounded-lg p-4 bg-white hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                {mode === "quotes" && (
-                  <Checkbox
-                    checked={selectedQuoteIds.has(booking._id)}
-                    onCheckedChange={() => toggleQuoteSelection(booking._id)}
-                    className="mt-1 shrink-0"
-                    aria-label={t("professionalManager.selectForComparison")}
-                  />
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {isProject ? (
-                      <Package className="h-4 w-4 text-indigo-500 shrink-0" />
-                    ) : (
-                      <Briefcase className="h-4 w-4 text-indigo-500 shrink-0" />
-                    )}
-                    <h3 className="font-semibold text-sm text-gray-900 truncate">
-                      {getBookingTitle(booking, t("common.bookingFallback"))}
-                    </h3>
-                  </div>
-                  <div className="text-xs text-gray-600 flex flex-wrap gap-3">
-                    <span>{t("professionalManager.customerLabel", { name: booking.customer?.name || t("common.unknown") })}</span>
-                    {createdAt && <span>{t("professionalManager.created", { date: createdAt })}</span>}
-                  </div>
-                  <div className="mt-2">
-                    <Badge variant="outline" className={`text-xs capitalize ${className}`}>
-                      {statusLabel(booking.status)}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/bookings/${booking._id}`)}
-                    className="text-xs"
-                  >
-                    {t("common.view")}
-                  </Button>
-                  {mode === "quotes" && booking.status === "rfq" && (
-                    <Button
-                      size="sm"
-                      onClick={() => router.push(`/bookings/${booking._id}?action=quote`)}
-                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                      title={t("professionalManager.quickQuoteTitle")}
-                    >
-                      <FileText className="h-3 w-3 mr-1" />
-                      {t("professionalManager.quickQuote")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
   }
 
   return (
@@ -740,13 +726,13 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>{t("professionalManager.stats.pending")}</CardDescription>
-              <CardTitle>{pendingBookings.length}</CardTitle>
+              <CardTitle>{sumStatusCounts(statusCounts, pendingModeStatuses)}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>{t("professionalManager.stats.finished")}</CardDescription>
-              <CardTitle>{finishedBookings.length}</CardTitle>
+              <CardTitle>{sumStatusCounts(statusCounts, finishedModeStatuses)}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -784,7 +770,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <SelectContent>
                 <SelectItem value="all">{t("common.allServices")}</SelectItem>
                 {uniqueServices.map(svc => (
-                  <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                  <SelectItem key={svc} value={svc}>{svc} ({facetCount(serviceCounts, svc)})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -835,38 +821,47 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         )}
 
         {!isLoading && !error && filteredBookings.length > 0 && (
-          <div className="space-y-6">
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Clock className="h-5 w-5 text-amber-600" />
-                    {pageCopy.pendingTitle}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {renderBookingList(
-                    pendingBookings,
-                    mode === "quotes" ? t("professionalManager.noPendingQuotes") : t("professionalManager.noPendingBookings")
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Calendar className="h-5 w-5 text-emerald-600" />
-                    {pageCopy.finishedTitle}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {renderBookingList(
-                    finishedBookings,
-                    mode === "quotes" ? t("professionalManager.noFinishedQuotes") : t("professionalManager.noFinishedBookings")
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+          <div className="space-y-4">
+            {mode === "quotes" && (
+              <div className="flex flex-wrap gap-2">
+                {filteredBookings.map((booking) => (
+                  <label key={booking._id} className="flex items-center gap-1.5 text-xs text-gray-600">
+                    <Checkbox
+                      checked={selectedQuoteIds.has(booking._id)}
+                      onCheckedChange={() => toggleQuoteSelection(booking._id)}
+                      aria-label={t("professionalManager.selectForComparison")}
+                    />
+                    {booking.bookingNumber || booking._id}
+                  </label>
+                ))}
+              </div>
+            )}
+            {mode === "quotes" ? (
+              <SharedQuotesTable
+                bookings={filteredBookings}
+                viewerRole="professional"
+                formatMoney={formatMoney}
+                intl={intl}
+                statusLabel={statusLabel}
+                chatLabel={t("customerDashboard.chat")}
+                acceptPayLabel={t("customerDashboard.acceptPay")}
+                viewLabel={t("common.view")}
+              />
+            ) : (
+              <SharedBookingsTable
+                bookings={filteredBookings}
+                viewerRole="professional"
+                formatMoney={formatMoney}
+                intl={intl}
+                statusLabel={statusLabel}
+                invoiceLabel={t("customerDashboard.invoice")}
+                downloadLabel={t("customerDashboard.download")}
+                chatLabel={t("customerDashboard.chat")}
+                warrantyLabel={t("customerDashboard.openWarrantyClaim")}
+                payNowLabel={t("customerDashboard.payNow")}
+                viewLabel={t("common.view")}
+              />
+            )}
           </div>
         )}
 

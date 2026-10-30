@@ -13,6 +13,7 @@ import {
   formatInstant,
   quotationVersionLabel,
   quoteVersionStatus,
+  resolvePanelHourMode,
   resolveQuotationVersionFromUrl,
   sortActivity,
   recordedScheduleTimeZone,
@@ -37,6 +38,7 @@ import {
   ScheduleSummary,
   StatusText,
   TimeZoneNote,
+  actorDisplayName,
   useDetailDisplayTimeZone,
   useDetailT,
 } from "./DetailPrimitives"
@@ -73,13 +75,14 @@ function ActivityHistory({ items, timeZone }: { items: ActivityItem[]; timeZone:
           </div>
           <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
             <span>
-              {item.actor?.name || (item.actorRecorded === false ? (
-                dt("fields.actorNotRecorded", "actor not recorded")
-              ) : item.actor?.role ? (
-                <EnumText prefix="details.enums.actorRole" value={item.actor.role} />
-              ) : (
-                dt("activity.systemActor", "system")
-              ))}
+              {actorDisplayName(item.actor, dt("activity.deletedActor", "Deleted user")) ||
+                (item.actorRecorded === false ? (
+                  dt("fields.actorNotRecorded", "actor not recorded")
+                ) : item.actor?.role ? (
+                  <EnumText prefix="details.enums.actorRole" value={item.actor.role} />
+                ) : (
+                  dt("activity.systemActor", "system")
+                ))}
             </span>
             {item.statusTo ? <StatusText value={item.statusTo} /> : null}
           </p>
@@ -156,6 +159,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
   const recordedSchedule = details?.bookingSnapshot?.schedule || details?.booking?.schedule || (scheduleSelection ? {
     scheduledStartDate: scheduleSelection.startDate,
     scheduledStartTime: scheduleSelection.startTime,
+    scheduledEndTime: scheduleSelection.endTime,
     scheduledExecutionEndDate: scheduleSelection.executionEndDate,
     scheduledBufferEndDate: scheduleSelection.bufferEndDate,
     timeZone: scheduleSelection.timeZone,
@@ -328,7 +332,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
         title={dt("quotation.scheduleTitle", "Recorded service schedule")}
         description={dt("quotation.scheduleNote", "Schedule stored with the booking or quotation. It is not recalculated from the current project.")}
       >
-        <ScheduleSummary schedule={recordedSchedule} intl={intl} timeZone={recordedScheduleZone} />
+        <ScheduleSummary schedule={recordedSchedule} intl={intl} timeZone={recordedScheduleZone} hourMode={resolvePanelHourMode(booking, details)} />
         {!recordedScheduleZone && (recordedSchedule?.scheduledStartDate || recordedSchedule?.scheduledStartTime) ? (
           <NoticeList notices={[{ code: "SCHEDULE_TIMEZONE_NOT_RECORDED", severity: "info", entity: "schedule" }]} />
         ) : null}
@@ -414,7 +418,8 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
             <DetailField label={dt("fields.createdBy", "Created by")} empty={!selected.createdBy && selected.actorRecorded !== false}>
               {selected.createdBy ? (
                 <span>
-                  {selected.createdBy.name || dt("fields.actorNameUnknown", "recorded user (name unavailable)")}
+                  {actorDisplayName(selected.createdBy, dt("activity.deletedActor", "Deleted user")) ||
+                    dt("fields.actorNameUnknown", "recorded user (name unavailable)")}
                   {selected.createdBy.role ? (
                     <span className="ml-1 text-[11px] text-gray-500">
                       · <EnumText prefix="details.enums.actorRole" value={selected.createdBy.role} />

@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "data": {
+    "accounts": [
+      {
+        "targetId": "665f1f77bcf86cd799439014",
+        "role": "professional",
+        "state": "partial_cleanup",
+        "isAnonymized": true,
+        "accessDisabled": true,
+        "identityRemoved": true,
+        "legacyAnonymized": false,
+        "needsRedaction": false,
+        "deletedAt": "2026-10-26T12:00:00.000Z",
+        "anonymizedAt": "2026-10-26T12:00:00.000Z",
+        "startedAt": "2026-10-26T12:00:00.000Z",
+        "completedAt": null,
+        "pendingFiles": 2,
+        "pendingCalendarReleases": 1,
+        "lastError": "Could not delete 2 stored files. A repeated request will retry them.",
+        "previewPath": "/api/admin/users/665f1f77bcf86cd799439014/anonymize/preview"
+      }
+    ],
+    "total": 3,
+    "page": 2,
+    "limit": 2,
+    "totalPages": 2,
+    "counts": {
+      "partialCleanup": 1,
+      "recoveryInProgress": 0,
+      "recoveryRequired": 2
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FCMProvider } from '@/contexts/FCMProvider';
 import { NotificationInboxProvider } from '@/contexts/NotificationInboxProvider';
 import NotificationPermissionPrompt from '@/components/notifications/NotificationPermissionPrompt';
+import LevelUpPopup from '@/components/dashboard/LevelUpPopup';
 import dynamic from 'next/dynamic';
 
 const ChatWidget = dynamic(() => import('@/components/chat/ChatWidget'), {
@@ -32,6 +33,7 @@ const FCMLayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children })
         {children}
         {isAuthenticated && <ChatWidget />}
         {isAuthenticated && <NotificationPermissionPrompt />}
+        {isAuthenticated && <LevelUpPopup />}
       </NotificationInboxProvider>
     </FCMProvider>
   );
