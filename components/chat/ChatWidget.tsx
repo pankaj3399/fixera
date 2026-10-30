@@ -407,6 +407,9 @@ export default function ChatWidget() {
             // Unresolved: the composer stays disabled until the list loads it.
           }
         }
+        // Refresh so the selected conversation resolves to an object
+        // (header/actions) while the message effect fetches its thread.
+        void loadConversationList(false);
         return;
       }
 
