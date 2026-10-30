@@ -879,7 +879,12 @@ export function buildLegacyActivity(booking: LegacyBookingLike | null | undefine
     if (added) items.push(added);
   }
 
-  if (booking.rfqResponse?.respondedAt) {
+  // Only a recorded action becomes an event: a response timestamp without an
+  // action must not be shown as an acceptance the data never recorded.
+  if (
+    booking.rfqResponse?.respondedAt &&
+    (booking.rfqResponse.action === "accepted" || booking.rfqResponse.action === "rejected")
+  ) {
     const type = booking.rfqResponse.action === "rejected" ? "rfq_rejected" : "rfq_accepted";
     const added = event(`rfq:response`, type, booking.rfqResponse.respondedAt, {
       description: booking.rfqResponse.rejectionReason || null,
@@ -940,7 +945,9 @@ export function buildLegacyActivity(booking: LegacyBookingLike | null | undefine
   const paymentRows: PaymentRecordDto[] = Array.isArray(booking.paymentRecords) ? booking.paymentRecords : []
   for (const [index, record] of paymentRows.entries()) {
     const recordId = record.paymentId || `record-${index}`
-    const currency = record.currency || null
+    // Synthesized amount rows must never surface a default currency on a
+    // record whose currency was not actually recorded.
+    const currency = ownRecordedCurrency(record)
     const stamp = record.timestamps
     const addAmount = (kind: string, amount: number | null | undefined) =>
       typeof amount === "number" ? [{ kind, amount, currency, recorded: true as const }] : []

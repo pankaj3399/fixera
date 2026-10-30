@@ -34,6 +34,14 @@ test('an invalid refresh body is a reported failure', async () => {
   assert.deepEqual(result, { ok: false, reason: 'invalid' })
 })
 
+test('a malformed refresh body is invalid, not a network failure', async () => {
+  const result = await requestBookingDetailsRefresh({
+    url: '/api/bookings/b1',
+    fetchImpl: async () => new Response('not json', { status: 200 }),
+  })
+  assert.deepEqual(result, { ok: false, reason: 'invalid' })
+})
+
 test('a network refresh failure is reported for retry', async () => {
   const result = await requestBookingDetailsRefresh({
     url: '/api/bookings/b1',

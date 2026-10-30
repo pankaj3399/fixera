@@ -20,7 +20,14 @@ export async function requestBookingDetailsRefresh(input: {
       headers: input.headers || {},
     })
     if (!response.ok) return { ok: false, reason: "http" }
-    const data = (await response.json()) as { success?: boolean; booking?: unknown } | null
+    // Parse inside its own guard: a malformed body is an invalid response, not
+    // a network failure, so it must not be reported as retryable-offline.
+    let data: { success?: boolean; booking?: unknown } | null = null
+    try {
+      data = (await response.json()) as { success?: boolean; booking?: unknown } | null
+    } catch {
+      return { ok: false, reason: "invalid" }
+    }
     if (!data || data.success !== true || !data.booking) {
       return { ok: false, reason: "invalid" }
     }
