@@ -464,22 +464,36 @@ export function ScheduleSummary({
   schedule,
   intl,
   timeZone,
+  hourMode,
 }: {
   schedule?: {
     preferredStartDate?: string | null
     preferredStartTime?: string | null
     scheduledStartDate?: string | null
     scheduledStartTime?: string | null
+    scheduledEndTime?: string | null
     scheduledExecutionEndDate?: string | null
     scheduledBufferStartDate?: string | null
     scheduledBufferEndDate?: string | null
   } | null
   intl: string
   timeZone?: string | null
+  /**
+   * Wall times render only when positively hour mode. Unknown/omitted means
+   * date-only: showing a wrong time is worse than showing none.
+   */
+  hourMode?: boolean | null
 }) {
   const startValue = schedule?.scheduledStartDate || schedule?.preferredStartDate
   const startDate = formatCalendarDate(startValue, intl)
   const startTime = schedule?.scheduledStartTime || schedule?.preferredStartTime
+  // Wall times render only with an explicit hour-mode signal. Unknown or
+  // day mode stays date-only: showing a wrong time is worse than none.
+  const endTime = schedule?.scheduledEndTime
+  const timeRange =
+    hourMode === true
+      ? (startTime && endTime ? `${startTime}–${endTime}` : startTime)
+      : null
   const endDate = formatCalendarDate(schedule?.scheduledExecutionEndDate, intl)
   const bufferStart = formatCalendarDate(schedule?.scheduledBufferStartDate, intl)
   const bufferEnd = formatCalendarDate(schedule?.scheduledBufferEndDate, intl)
@@ -488,7 +502,7 @@ export function ScheduleSummary({
       <p>
         {startDate || startValue ? (
           <>
-            <span className="text-gray-500">{`${startTime || ""} ${startDate || startValue || ""}`.trim()}</span>
+            <span className="text-gray-500">{`${timeRange || ""} ${startDate || startValue || ""}`.trim()}</span>
             {endDate || schedule?.scheduledExecutionEndDate ? <> → {endDate || schedule?.scheduledExecutionEndDate}</> : null}
           </>
         ) : (

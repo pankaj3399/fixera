@@ -190,6 +190,7 @@ export interface BookingSnapshotDto {
     service?: string | null;
     areaOfWork?: string | null;
     description?: string | null;
+    timeMode?: string | null;
     termsConditions?: Array<{
       name?: string;
       description?: string | null;
@@ -326,6 +327,7 @@ export interface BookingWizardDto {
   scheduleSelection?: {
     startDate?: string | null;
     startTime?: string | null;
+    endTime?: string | null;
     executionEndDate?: string | null;
     bufferEndDate?: string | null;
     timeZone?: string | null;
@@ -814,6 +816,13 @@ export interface ActivityItem {
     timeZone?: string | null;
     stage?: string | null;
     legacyQuote?: boolean;
+    schedule?: {
+      startDate?: string | null;
+      startTime?: string | null;
+      endTime?: string | null;
+      executionEndDate?: string | null;
+      timeZone?: string | null;
+    } | null;
     answerCount?: number | null;
     resolveByDate?: string | null;
     items?: unknown;

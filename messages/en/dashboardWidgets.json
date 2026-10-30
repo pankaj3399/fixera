@@ -262,7 +262,8 @@
       "address": "Address: {value}",
       "price": "Price: {value}",
       "start": "Start: {value}",
-      "end": "End: {value}"
+      "end": "End: {value}",
+      "bufferEnd": "Buffer end: {value}"
     },
     "actions": {
       "cancel": "Cancel",

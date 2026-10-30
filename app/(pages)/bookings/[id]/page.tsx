@@ -44,7 +44,7 @@ import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
-import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
 import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
@@ -1752,6 +1752,18 @@ function BookingDetailContent() {
     ),
     [currentVersion, customerPricingReady, originalPrice]
   )
+  // Task 19a: the "you save" amount on the booking page must equal the
+  // quotation's recorded saving, not a live re-computation against the
+  // customer's current loyalty tier (which may have changed since the quote).
+  const recordedQuotationSaving = useMemo(() => {
+    const recorded = details?.quotation?.versions?.find(
+      (v) => v.version === currentVersion?.version
+    )?.customerTotals?.discount?.totalDiscount
+    const amount = typeof recorded === 'number' ? recorded : Number(recorded)
+    return Number.isFinite(amount) ? amount : null
+  }, [details?.quotation?.versions, currentVersion?.version])
+  const quotationSavingAmount = recordedQuotationSaving
+    ?? (currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total)
   const bookingMilestoneGrossAmounts = useMemo(() => {
     if (!booking?.milestonePayments?.length || !authoritativeVersion) return []
     return calculateMilestoneGrossAmounts(
@@ -2718,6 +2730,7 @@ function BookingDetailContent() {
             reschedules={rescheduleEntries}
             viewerUserId={user?._id}
             viewerRole={user?.role}
+            hourMode={resolvePanelHourMode(booking, details)}
             onResolved={refreshBooking}
             onOpenDispute={user?.role === 'customer' ? () => openDisputeModal('reschedule') : undefined}
             onDeclineWithNote={
@@ -3403,7 +3416,7 @@ function BookingDetailContent() {
                             <span className="font-semibold">{t("loyalty.member", { level: loyalty.level })}</span> · {t("loyalty.discountApplied", { percentage: loyalty.percentage })}
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            {t("quotation.youSave", { amount: formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') })}
+                            {t("quotation.youSave", { amount: formatMoney(Math.max(0, quotationSavingAmount), currentVersion.currency || 'EUR') })}
                           </div>
                         </div>
                       )}

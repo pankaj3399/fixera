@@ -262,7 +262,8 @@
       "address": "Adres: {value}",
       "price": "Prijs: {value}",
       "start": "Start: {value}",
-      "end": "Einde: {value}"
+      "end": "Einde: {value}",
+      "bufferEnd": "Einde buffer: {value}"
     },
     "actions": {
       "cancel": "Annuleren",

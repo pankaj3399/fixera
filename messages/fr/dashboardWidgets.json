@@ -262,7 +262,8 @@
       "address": "Adresse : {value}",
       "price": "Prix : {value}",
       "start": "Début : {value}",
-      "end": "Fin : {value}"
+      "end": "Fin : {value}",
+      "bufferEnd": "Fin du tampon : {value}"
     },
     "actions": {
       "cancel": "Annuler",

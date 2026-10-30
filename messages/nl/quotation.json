@@ -38,6 +38,32 @@
       "legacy": "0% btw (oude offerte)",
       "unavailable": "Btw niet beschikbaar — vul een boekingsadres in"
     },
+    "vatDetermination": {
+      "title": "Btw-vaststelling",
+      "customerType": "Klanttype",
+      "customerTypes": {
+        "b2c": "Consument (B2C)",
+        "b2b": "Zakelijk (B2B)"
+      },
+      "article47": "Artikel 47-classificatie",
+      "article47Classes": {
+        "movable": "Roerend",
+        "immovable": "Onroerend",
+        "immovableExempt": "Onroerend, maar vrijgesteld van Belgische verleggingsregeling"
+      },
+      "addressType": "Btw-adres",
+      "addressTypes": {
+        "booking": "Boekingsadres",
+        "business": "Zakelijk adres van de klant"
+      },
+      "country": "Btw-land",
+      "reverseCharge": "Verleggingsregeling",
+      "yes": "Ja",
+      "no": "Nee",
+      "reverseChargeNote": "Verleggingsregeling is van toepassing: 0% btw op alle regels. Er kan geen tarief worden gekozen.",
+      "reverseChargeRate": "0% verleggingsregeling (vastgesteld)",
+      "loadError": "Btw-opties konden niet worden geladen. Je kunt de offerte toch afronden; het tarief wordt bij het indienen gevalideerd."
+    },
     "netTotal": "Nettototaal:",
     "vatTotal": "Btw:",
     "totalInclVat": "Totaal (incl. btw):",
