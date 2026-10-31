@@ -1,0 +1,48 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "_id": "6adfb0c53a75b668ca348ff6",
+      "name": "Wire invitation editable",
+      "type": "invitation",
+      "status": "draft",
+      "audienceType": "leads",
+      "content": {
+        "nl": {
+          "subject": "Uitnodiging voor professionals",
+          "htmlContent": "<p>Werk samen met Fixtract.</p>"
+        }
+      },
+      "audience": {
+        "countries": [
+          "BE"
+        ],
+        "interestedServices": [
+          "Electrical"
+        ],
+        "serviceKeys": [
+          "electrical"
+        ],
+        "locales": [
+          "nl"
+        ],
+        "roles": [
+          "professional"
+        ]
+      },
+      "autoSend": false,
+      "scheduledAt": null,
+      "sentAt": null,
+      "createdBy": "66af00000000000000000101",
+      "deliveries": [],
+      "sendStartedAt": null,
+      "sendAttempts": 0,
+      "nextRetryAt": null,
+      "lastPreviewAt": null,
+      "createdAt": "2026-10-26T19:57:57.918Z",
+      "updatedAt": "2026-10-26T19:57:57.934Z",
+      "__v": 0
+    }
+  }
+}

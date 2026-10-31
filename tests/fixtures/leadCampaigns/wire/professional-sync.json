@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "upserted": 2,
+      "unsubscribed": 0,
+      "eligibleByRole": {
+        "customer": 1,
+        "professional": 1
+      },
+      "syncedByRole": {
+        "customer": 1,
+        "professional": 1
+      },
+      "skippedByRole": {
+        "customer": 0,
+        "professional": 0
+      }
+    }
+  }
+}

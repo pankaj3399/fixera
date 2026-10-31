@@ -17,6 +17,16 @@ const candidates = (base) => [
 const resolveFile = (base) => candidates(base).find((candidate) => existsSync(candidate) && !candidate.endsWith(path.sep))
 
 export async function resolve(specifier, context, nextResolve) {
+  // Next package subpaths are not exported with Node's extensionless ESM
+  // resolution, but the actual files exist as .js. Keep tests able to import
+  // components that use usePathname even when the rendered subtree does not.
+  if (specifier === 'next/navigation') {
+    try {
+      return await nextResolve(`${specifier}.js`, context)
+    } catch {
+      // Fall through to the original error.
+    }
+  }
   if (specifier.startsWith('@/')) {
     const resolved = resolveFile(path.join(root, specifier.slice(2)))
     if (resolved) return { url: pathToFileURL(resolved).href, shortCircuit: true }

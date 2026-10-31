@@ -1,0 +1,7 @@
+{
+  "status": 400,
+  "body": {
+    "success": false,
+    "msg": "Lead audiences require the professional role"
+  }
+}

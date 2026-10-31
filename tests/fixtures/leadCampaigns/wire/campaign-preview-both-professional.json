@@ -1,0 +1,53 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "audienceType": "both",
+      "includesLeads": true,
+      "exactTotal": 2,
+      "exactTotalIsEstimate": false,
+      "bySource": {
+        "subscribers": 1,
+        "leads": 1
+      },
+      "byLocale": {
+        "nl": 2
+      },
+      "byRole": {
+        "customer": 0,
+        "professional": 2
+      },
+      "deduplicated": 2,
+      "excluded": {
+        "suppressed": 2,
+        "invalidEmail": 0,
+        "missingLocale": 0,
+        "roleMismatch": 0,
+        "localeMismatch": 0
+      },
+      "fallbackLocaleCount": 0,
+      "overLimit": false,
+      "criteriaHash": "00fc1291",
+      "count": 2,
+      "truncated": false,
+      "audience": {
+        "countries": [
+          "BE"
+        ],
+        "interestedServices": [
+          "Electrical"
+        ],
+        "serviceKeys": [
+          "electrical"
+        ],
+        "locales": [
+          "nl"
+        ],
+        "roles": [
+          "professional"
+        ]
+      }
+    }
+  }
+}

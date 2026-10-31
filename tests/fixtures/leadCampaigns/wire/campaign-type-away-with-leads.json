@@ -1,0 +1,7 @@
+{
+  "status": 400,
+  "body": {
+    "success": false,
+    "msg": "Select Subscribers before changing this campaign type"
+  }
+}
