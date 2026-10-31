@@ -110,7 +110,7 @@
       "Counterparty-authored, admin-authored, and unknown-authorship free text inside retained records is preserved by policy and is not rewritten.",
       "Legacy notifications and email logs without recorded actor provenance are only redacted when their entity relationship identifies a target-owned booking, conversation, project, or request. Records with no such provenance are retained and are not matched by name or email text.",
       "2 stored files still need deletion. A repeated request will retry them.",
-      "1 calendar cleanup task still need a retry."
+      "1 calendar cleanup task still needs a retry."
     ]
   }
 }

@@ -1,7 +1,7 @@
 {
   "generator": "tests/fixtures/adminAnonymize/wire/generate-wire-fixtures.mjs",
   "command": "FIXERA_TEST_MONGODB_URI=mongodb://127.0.0.1:27147/fixera_admin_wire_fixtures_test ../fixera-server/node_modules/.bin/tsx tests/fixtures/adminAnonymize/wire/generate-wire-fixtures.mjs",
-  "backendRoot": "/home/abstergo/Programming/Projects/fixera/fixera-server",
+  "backendRoot": "../fixera-server",
   "backendRevision": {
     "head": "5fbe0761afd48bb262b9073cf12112765c5b5e61",
     "branch": "feat/admin-anonymize",

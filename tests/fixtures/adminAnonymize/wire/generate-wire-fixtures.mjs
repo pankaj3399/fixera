@@ -678,7 +678,9 @@ const main = async () => {
   const provenance = {
     generator: 'tests/fixtures/adminAnonymize/wire/generate-wire-fixtures.mjs',
     command: `FIXERA_TEST_MONGODB_URI=${testUri.replace(/\/\/[^@/]+@/, '//')} ../fixera-server/node_modules/.bin/tsx tests/fixtures/adminAnonymize/wire/generate-wire-fixtures.mjs`,
-    backendRoot: SERVER_ROOT,
+    // Relative so a committed fixture does not embed a developer's absolute
+    // path (and so regeneration is reproducible across machines).
+    backendRoot: path.relative(FRONTEND_ROOT, SERVER_ROOT) || '.',
     backendRevision: revision(SERVER_ROOT),
     frontendRevision: revision(FRONTEND_ROOT),
     database: EXPECTED_DB,

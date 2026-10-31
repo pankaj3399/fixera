@@ -826,6 +826,7 @@ export function AnonymizeAccountDialog({
   const previewAbortRef = useRef<AbortController | null>(null)
   const previewRequestIdRef = useRef(0)
   const targetIdRef = useRef<string | null>(null)
+  const wasOpenRef = useRef(false)
   const mountedRef = useRef(true)
   const executingRef = useRef(false)
   const titleRef = useRef<HTMLHeadingElement | null>(null)
@@ -850,10 +851,15 @@ export function AnonymizeAccountDialog({
   useEffect(() => {
     if (typeof document === "undefined") return
     if (open) {
+      wasOpenRef.current = true
       const active = document.activeElement
       triggerRef.current = active instanceof HTMLElement ? active : null
       return
     }
+    // The dialog is mounted with open=false on every admin list page; without
+    // this guard the first mount would move focus to the fallback heading.
+    if (!wasOpenRef.current) return
+    wasOpenRef.current = false
     const trigger = triggerRef.current
     const timer = window.setTimeout(() => {
       if (trigger?.isConnected) {

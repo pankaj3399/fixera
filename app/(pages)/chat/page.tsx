@@ -195,6 +195,10 @@ function ChatContent() {
     const q = searchQuery.toLowerCase();
     return conversations.filter((c) => {
       const other = conversationCounterparty(c, userRole);
+      // A tombstoned counterparty may still carry its old name or email. A
+      // name/email hit would confirm which conversation belonged to that
+      // identity even though the row renders "Deleted user".
+      if (isAnonymizedIdentity(other)) return false;
       const name = other?.username || other?.name || "";
       const email = other?.email || "";
       return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
