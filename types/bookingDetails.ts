@@ -29,6 +29,9 @@ export interface ActorDto {
   name?: string | null;
   email?: string | null;
   source?: string;
+  /** Present when the actor account has been anonymized by an admin or self-service. */
+  deletedAt?: string | null;
+  isAnonymized?: boolean;
 }
 
 export interface AttachmentDto {
@@ -135,6 +138,9 @@ export interface BookingOverviewDto {
 
 export interface PartyDto {
   id?: string | null;
+  /** Present when the party account has been anonymized. */
+  deletedAt?: string | null;
+  isAnonymized?: boolean;
   name?: string | null;
   username?: string | null;
   customerType?: string | null;
@@ -963,6 +969,8 @@ export interface RawBookingRecord {
   } | null;
   professional?: {
     _id?: string;
+    deletedAt?: string | null;
+    isAnonymized?: boolean;
     name?: string;
     email?: string;
     phone?: string;
@@ -981,6 +989,8 @@ export interface RawBookingRecord {
   } | null;
   customer?: {
     _id?: string;
+    deletedAt?: string | null;
+    isAnonymized?: boolean;
     name?: string;
     username?: string;
     email?: string;

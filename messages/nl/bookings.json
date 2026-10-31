@@ -664,6 +664,8 @@
     "answerEmpty": "Geen antwoord vastgelegd",
     "answerEmptyList": "Geen opties geselecteerd",
     "partyContactNote": "Contactgegevens zijn de huidige profielwaarden, geen momentopname van de boeking.",
+    "partyAnonymized": "Verwijderde gebruiker",
+    "partyAnonymizedNote": "Dit account is geanonimiseerd. Persoonlijke gegevens en contactgegevens zijn niet meer beschikbaar.",
     "tabs": {
       "overview": "Overzicht",
       "booking": "Boeking",
@@ -1040,6 +1042,7 @@
       "peppolStatusLabel": "Peppolstatus:"
     },
     "activity": {
+      "deletedActor": "Verwijderde gebruiker",
       "title": "Activiteitengeschiedenis",
       "descriptionLong": "Chronologische, per dag gegroepeerde gebeurtenissen uit vastgelegde boekingsgegevens. Open een gebeurtenis voor details.",
       "complete": "Vastgelegde geschiedenis",

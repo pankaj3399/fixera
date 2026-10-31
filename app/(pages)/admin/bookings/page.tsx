@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { CalendarDays, RefreshCw, Search } from "lucide-react"
 import { toast } from "sonner"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 interface BookingRow {
   _id: string
@@ -22,8 +23,8 @@ interface BookingRow {
   scheduledStartDate?: string
   createdAt?: string
   payment?: { totalWithVat?: number; amount?: number; currency?: string; status?: string }
-  customer?: { _id: string; name?: string; email?: string }
-  professional?: { _id: string; name?: string; email?: string; username?: string }
+  customer?: { _id: string; name?: string; email?: string; deletedAt?: string | null; isAnonymized?: boolean }
+  professional?: { _id: string; name?: string; email?: string; username?: string; deletedAt?: string | null; isAnonymized?: boolean }
   project?: { _id: string; title?: string; category?: string; service?: string }
 }
 
@@ -199,9 +200,13 @@ export default function AdminBookingsPage() {
                           )}
                         </div>
                         <p className="text-xs text-gray-600">
-                          Customer: {item.customer?.name || item.customer?.email || '—'}
+                          Customer: {isAnonymizedIdentity(item.customer)
+                            ? 'Deleted user'
+                            : item.customer?.name || item.customer?.email || '—'}
                           {' | '}
-                          Professional: {item.professional?.username || item.professional?.name || item.professional?.email || '—'}
+                          Professional: {isAnonymizedIdentity(item.professional)
+                            ? 'Deleted user'
+                            : item.professional?.username || item.professional?.name || item.professional?.email || '—'}
                         </p>
                         {item.project?.title && (
                           <p className="text-xs text-gray-500">Project: {item.project.title}</p>

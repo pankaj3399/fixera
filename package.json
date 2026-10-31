@@ -8,7 +8,8 @@
     "start": "next start",
     "test": "node --test tests/apiErrors.test.mjs",
     "lint": "next lint",
-    "i18n:check": "node scripts/check-i18n.mjs"
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "test:browser:anonymize": "node tests/browser/adminAnonymize.browser.mjs"
   },
   "engines": {
     "node": ">=22.18.0"

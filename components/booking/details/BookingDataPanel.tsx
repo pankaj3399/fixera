@@ -33,6 +33,7 @@ import {
   ScheduleSummary,
   StatusText,
   TimeZoneNote,
+  actorDisplayName,
   useDetailDisplayTimeZone,
   useDetailT,
 } from "./DetailPrimitives"
@@ -603,14 +604,16 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
                     <StatusText value={entry.status} />
                   </div>
                   <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <DetailField label={dt("booking.requestedBy", "Requested by")} empty={!entry.requestedBy?.name && entry.actorRecorded !== false}>
-                      {entry.requestedBy?.name || (entry.actorRecorded === false ? dt("fields.actorNotRecorded", "actor not recorded") : null)}
+                    {/* The anonymized label is a resolved value even when the stored name is null. */}
+                    <DetailField label={dt("booking.requestedBy", "Requested by")} empty={!actorDisplayName(entry.requestedBy, dt("activity.deletedActor", "Deleted user")) && entry.actorRecorded !== false}>
+                      {actorDisplayName(entry.requestedBy, dt("activity.deletedActor", "Deleted user")) ||
+                        (entry.actorRecorded === false ? dt("fields.actorNotRecorded", "actor not recorded") : null)}
                     </DetailField>
                     <DetailField label={dt("booking.rescheduleReason", "Reason")} empty={!entry.reason}>
                       {entry.reason}
                     </DetailField>
-                    <DetailField label={dt("booking.respondedBy", "Responded by")} empty={!entry.respondedBy?.name && !entry.respondedAt}>
-                      {entry.respondedBy?.name || null}
+                    <DetailField label={dt("booking.respondedBy", "Responded by")} empty={!actorDisplayName(entry.respondedBy, dt("activity.deletedActor", "Deleted user")) && !entry.respondedAt}>
+                      {actorDisplayName(entry.respondedBy, dt("activity.deletedActor", "Deleted user")) || null}
                     </DetailField>
                     <DetailField label={dt("booking.respondedAt", "Responded at")} empty={!entry.respondedAt}>
                       {formatInstant(entry.respondedAt, intl, displayTimeZone.timeZone)}
@@ -851,7 +854,9 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
         {postBooking?.submittedBy ? (
           <p className="text-xs text-gray-600">
             {dt("booking.submittedBy", "Submitted by {name}", {
-              name: postBooking.submittedBy.name || dt("fields.actorNotRecorded", "actor not recorded"),
+              name:
+                actorDisplayName(postBooking.submittedBy, dt("activity.deletedActor", "Deleted user")) ||
+                dt("fields.actorNotRecorded", "actor not recorded"),
             })}
           </p>
         ) : null}

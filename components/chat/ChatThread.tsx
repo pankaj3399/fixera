@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 import { cn, getAuthToken } from "@/lib/utils";
-import { FileText, Download, Star, MessageSquare, Loader2, Reply, Flag, ShieldCheck, ArrowRight } from "lucide-react";
+import { FileText, Download, Star, MessageSquare, Loader2, Reply, Flag, ShieldCheck, ArrowRight, UserX } from "lucide-react";
+import { isAnonymizedIdentity, isRedactedPlaceholderText } from "@/lib/anonymizedUsers";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -347,8 +348,12 @@ function WarrantyNotificationCard({ message }: { message: ChatMessage }) {
 function ReplyToPreview({ replyTo, isMine }: { replyTo: ChatMessage["replyTo"]; isMine: boolean }) {
   const t = useTranslations("chat");
   if (!replyTo) return null;
-  const name = resolveSenderName(replyTo.senderId) || t("common.user");
-  const previewText = replyTo.text?.slice(0, 100) || (replyTo.images?.length ? t("common.image") : "");
+  const name = isAnonymizedIdentity(replyTo.senderId)
+    ? t("common.deletedUser")
+    : resolveSenderName(replyTo.senderId) || t("common.user");
+  const previewText = isRedactedPlaceholderText(replyTo.text)
+    ? t("common.messageDeleted")
+    : replyTo.text?.slice(0, 100) || (replyTo.images?.length ? t("common.image") : "");
 
   const scrollToOriginal = () => {
     const el = document.getElementById(`msg-${replyTo._id}`);
@@ -502,8 +507,13 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
 
         const isMine = getSenderId(message) === currentUserId;
         const isAdminSender = message.senderRole === "admin";
-        const senderName = isAdminSender ? t("common.fixtractSupport") : getSenderName(message) || t("common.user");
-        const senderImage = isAdminSender ? null : getSenderImage(message);
+        const isDeletedSender = !isAdminSender && isAnonymizedIdentity(message.senderId);
+        const senderName = isAdminSender
+          ? t("common.fixtractSupport")
+          : isDeletedSender
+            ? t("common.deletedUser")
+            : getSenderName(message) || t("common.user");
+        const senderImage = isAdminSender || isDeletedSender ? null : getSenderImage(message);
         const prevMessage = index > 0 ? messages[index - 1] : null;
         const showAvatar = !prevMessage || getSenderId(prevMessage) !== getSenderId(message) || prevMessage.messageType === "review_notification" || prevMessage.messageType === "quotation_notification" || prevMessage.messageType === "warranty_notification";
 
@@ -525,6 +535,8 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                       <img src={senderImage} alt="" className="h-full w-full object-cover" />
                     ) : isAdminSender ? (
                       <ShieldCheck className="h-4 w-4 text-white" />
+                    ) : isDeletedSender ? (
+                      <UserX className="h-4 w-4 text-slate-500" aria-hidden />
                     ) : (
                       <span className="text-[10px] font-semibold text-indigo-600">
                         {senderName.charAt(0).toUpperCase()}
@@ -559,7 +571,13 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                     {isAdminSender && <ShieldCheck className="h-3 w-3" />}
                   </p>
                 )}
-                {message.text && <p className="text-sm whitespace-pre-wrap">{message.text}</p>}
+                {message.text && (
+                  <p className="text-sm whitespace-pre-wrap">
+                    {isRedactedPlaceholderText(message.text)
+                      ? t("common.messageDeleted")
+                      : message.text}
+                  </p>
+                )}
 
                 {Array.isArray(message.images) && message.images.length > 0 && (
                   <div className={cn("mt-2 grid gap-2", message.images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>

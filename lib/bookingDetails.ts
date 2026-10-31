@@ -782,6 +782,8 @@ export interface LegacyActorLike {
   name?: string;
   email?: string;
   role?: string;
+  deletedAt?: string | null;
+  isAnonymized?: boolean;
 }
 
 function actorFromValue(value: unknown, role?: string): { actor: ActivityItem["actor"]; recorded: boolean } {
@@ -802,6 +804,10 @@ function actorFromValue(value: unknown, role?: string): { actor: ActivityItem["a
         role: record.role || role || "unknown",
         name: record.name || null,
         email: record.email || null,
+        // Deletion flags travel with the actor so history never re-exposes an
+        // anonymized identity that kept a non-placeholder name.
+        ...(record.isAnonymized === true ? { isAnonymized: true } : {}),
+        ...(record.deletedAt ? { deletedAt: record.deletedAt } : {}),
         source: "recorded",
       },
       recorded: true,

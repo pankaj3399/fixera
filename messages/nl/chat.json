@@ -16,7 +16,10 @@
     "chat": "Chatten",
     "retry": "Opnieuw proberen",
     "image": "[Afbeelding]",
-    "attachment": "[Bijlage]"
+    "attachment": "[Bijlage]",
+    "deletedUser": "Verwijderde gebruiker",
+    "accountUnavailable": "Account niet meer beschikbaar",
+    "messageDeleted": "Bericht verwijderd"
   },
   "page": {
     "title": "Berichten",
@@ -42,7 +45,8 @@
     "supportReadOnlyBlocked": "Supportchat is niet meer beschikbaar voor dit gesprek. Je kunt eerdere berichten nog lezen.",
     "supportReadOnlyRetry": "Opnieuw controleren",
     "selectConversation": "Selecteer een gesprek om berichten te bekijken",
-    "absence": "De vakman is afwezig van <date>{from}</date> tot <date>{to}</date>"
+    "absence": "De vakman is afwezig van <date>{from}</date> tot <date>{to}</date>",
+    "recipientUnavailable": "Je kunt geen berichten sturen omdat dit account niet meer beschikbaar is."
   },
   "quotationDialog": {
     "title": "Directe offerte aanmaken",
@@ -190,7 +194,8 @@
     "adminTags": {
       "verified": "Geverifieerd",
       "ourChoice": "Onze keuze"
-    }
+    },
+    "deletedUserDescription": "Dit account is geanonimiseerd. Profielgegevens en contactmogelijkheden zijn niet meer beschikbaar."
   },
   "widget": {
     "button": "Chatten",
@@ -204,6 +209,7 @@
   },
   "startChatButton": {
     "label": "Chat starten",
-    "onlyCustomers": "Alleen klanten kunnen gesprekken starten"
+    "onlyCustomers": "Alleen klanten kunnen gesprekken starten",
+    "recipientUnavailable": "Deze vakman is niet meer beschikbaar voor chat."
   }
 }

@@ -664,6 +664,8 @@
     "answerEmpty": "No answer recorded",
     "answerEmptyList": "No items selected",
     "partyContactNote": "Contact details are the current profile values, not a booking-time snapshot.",
+    "partyAnonymized": "Deleted user",
+    "partyAnonymizedNote": "This account has been anonymized. Personal and contact details are no longer available.",
     "tabs": {
       "overview": "Overview",
       "booking": "Booking",
@@ -1040,6 +1042,7 @@
       "peppolStatusLabel": "Peppol status:"
     },
     "activity": {
+      "deletedActor": "Deleted user",
       "title": "Activity history",
       "descriptionLong": "Chronological, day-grouped events from recorded booking data. Expand an event for its details.",
       "complete": "Recorded history",

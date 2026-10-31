@@ -21,7 +21,8 @@ import {
   recordedNumber,
   viewerTimeZone,
 } from "@/lib/bookingDetails"
-import type { AttachmentDto, DetailsNotice, PartyDto } from "@/types/bookingDetails"
+import type { ActorDto, AttachmentDto, DetailsNotice, PartyDto } from "@/types/bookingDetails"
+import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
 /**
  * Safe translator for the additive `details.*` namespace: the localized key is
@@ -365,6 +366,15 @@ export function AnswerValue({ value, enumPrefix }: { value: unknown; enumPrefix?
   }
 }
 
+export function actorDisplayName(
+  actor: ActorDto | null | undefined,
+  deletedLabel: string,
+  fallback: string | null = null
+): string | null {
+  if (isAnonymizedIdentity(actor)) return deletedLabel
+  return actor?.name || fallback
+}
+
 export function PartyCard({
   title,
   party,
@@ -394,6 +404,16 @@ export function PartyCard({
     return (
       <DetailCard title={title}>
         <NotRecorded />
+      </DetailCard>
+    )
+  }
+  if (isAnonymizedIdentity(party)) {
+    return (
+      <DetailCard title={title}>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+          <p className="text-sm font-semibold text-gray-900">{t("details.partyAnonymized")}</p>
+          <p className="mt-1 text-xs text-gray-600">{t("details.partyAnonymizedNote")}</p>
+        </div>
       </DetailCard>
     )
   }
