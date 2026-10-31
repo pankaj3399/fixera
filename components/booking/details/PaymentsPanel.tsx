@@ -1090,7 +1090,7 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
                   <DetailField label={dt("fields.reason", "Reason")} empty={!request.reason && !finalCancellation?.reason}>
                     {request.reason || (index === 0 ? finalCancellation?.reason : null)}
                   </DetailField>
-                  <DetailField label={dt("payments.requestedBy", "Requested by")} empty={!request.requestedBy?.name && !request.requestedRole}>
+                  <DetailField label={dt("payments.requestedBy", "Requested by")} empty={!actorDisplayName(request.requestedBy, dt("activity.deletedActor", "Deleted user")) && !request.requestedRole}>
                     {actorDisplayName(request.requestedBy, dt("activity.deletedActor", "Deleted user")) ||
                       request.requestedRole ||
                       null}
