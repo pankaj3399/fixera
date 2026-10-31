@@ -1,0 +1,1321 @@
+{
+  "success": true,
+  "viewerRole": "customer",
+  "booking": {
+    "_id": "507f1f77bcf86cd799439032",
+    "bookingNumber": "BK-2026-000001",
+    "quotationNumber": null,
+    "acceptedQuotationNumber": null,
+    "bookingType": "professional",
+    "status": "cancelled",
+    "customer": {
+      "_id": "507f1f77bcf86cd799439011",
+      "name": "Carla Customer",
+      "username": "carla",
+      "email": "carla@example.com",
+      "phone": "+3212345678",
+      "customerType": "business",
+      "businessName": "Carla BV",
+      "vatNumber": "BE0123456789",
+      "timeZone": "Europe/Brussels",
+      "location": {
+        "address": "Main street 1",
+        "city": "Brussels",
+        "country": "BE",
+        "postalCode": "1000",
+        "coordinates": [
+          4.35,
+          50.85
+        ]
+      },
+      "role": "customer"
+    },
+    "professional": {
+      "_id": "507f1f77bcf86cd799439012",
+      "name": "Piet Professional",
+      "username": "piet",
+      "email": "piet@example.com",
+      "phone": "+3298765432",
+      "vatNumber": "BE0987654321",
+      "timeZone": "Europe/Brussels",
+      "role": "professional",
+      "businessInfo": {
+        "companyName": "Piet Works",
+        "website": "https://piet.example",
+        "city": "Ghent",
+        "country": "BE",
+        "postalCode": "9000",
+        "timezone": "Europe/Brussels"
+      }
+    },
+    "project": null,
+    "selectedSubprojectIndex": 0,
+    "selectedExtraOptions": [],
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        4.35,
+        50.85
+      ],
+      "address": "Recorded street 9",
+      "city": "Brussels",
+      "country": "BE",
+      "postalCode": "1000"
+    },
+    "rfqData": {
+      "serviceType": "Bathroom",
+      "description": "Direct draft",
+      "answers": []
+    },
+    "vatDecision": {
+      "action": "standard_rate",
+      "country": "BE",
+      "standardRate": 21,
+      "appliedRate": 21,
+      "reverseCharge": false,
+      "vatLabel": "BE standard",
+      "propertyNature": "immovable",
+      "explanation": "Recorded VAT explanation",
+      "answers": [
+        {
+          "fieldName": "propertyNature",
+          "value": "immovable"
+        }
+      ]
+    },
+    "checkoutSnapshot": null,
+    "scheduledStartDate": "2026-06-25T00:00:00.000Z",
+    "scheduledStartTime": "09:00",
+    "scheduledEndTime": "17:00",
+    "scheduledExecutionEndDate": "2026-06-27T00:00:00.000Z",
+    "scheduledBufferStartDate": "2026-06-27T00:00:00.000Z",
+    "scheduledBufferEndDate": "2026-06-28T00:00:00.000Z",
+    "scheduleTimeZone": "Europe/Brussels",
+    "quoteVersions": [],
+    "currentQuoteVersion": null,
+    "rfqResponse": {
+      "action": "rejected",
+      "respondedAt": "2026-01-21T09:00:00.000Z",
+      "respondedBy": "507f1f77bcf86cd799439012",
+      "rejectionReason": "No availability"
+    },
+    "customerRejectionReason": null,
+    "statusHistory": [
+      {
+        "status": "draft_quote",
+        "timestamp": "2026-01-20T09:00:00.000Z",
+        "updatedBy": "507f1f77bcf86cd799439012",
+        "note": "Professional initiated direct quotation"
+      }
+    ],
+    "rescheduleHistory": [
+      {
+        "requestedAt": "2026-06-20T10:00:00.000Z",
+        "requestedBy": "507f1f77bcf86cd799439011",
+        "reason": "Weather",
+        "description": "Rain forecast",
+        "status": "accepted",
+        "respondedAt": "2026-06-20T12:00:00.000Z",
+        "respondedBy": "507f1f77bcf86cd799439012",
+        "responseNote": "Moved by one day",
+        "previousSchedule": {
+          "scheduledStartDate": "2026-06-24T00:00:00.000Z",
+          "scheduledExecutionEndDate": "2026-06-26T00:00:00.000Z",
+          "scheduledStartTime": "09:00",
+          "scheduledEndTime": "17:00"
+        },
+        "proposedSchedule": {
+          "scheduledStartDate": "2026-06-25T00:00:00.000Z",
+          "scheduledExecutionEndDate": "2026-06-27T00:00:00.000Z",
+          "scheduledStartTime": "09:00",
+          "scheduledEndTime": "17:00"
+        }
+      }
+    ],
+    "completionAttestation": {
+      "confirmedAt": "2026-06-27T16:00:00.000Z",
+      "confirmedBy": "507f1f77bcf86cd799439012",
+      "notes": "All work complete",
+      "attachments": [
+        "https://fixera-uploads.s3.us-east-1.amazonaws.com/completion-attachments/507f1f77bcf86cd799439012/completion.pdf"
+      ]
+    },
+    "extraCosts": [],
+    "extraCostStatus": "confirmed",
+    "extraCostTotal": null,
+    "postBookingData": [
+      {
+        "questionId": "pq-1",
+        "question": "Parking available?",
+        "answer": "0",
+        "fieldType": "text"
+      },
+      {
+        "questionId": "pq-2",
+        "question": "Pets present?",
+        "answer": "false",
+        "fieldType": "text"
+      }
+    ],
+    "postBookingSubmittedAt": "2026-02-04T10:00:00.000Z",
+    "postBookingSubmittedBy": "507f1f77bcf86cd799439011",
+    "warrantyCoverage": {
+      "duration": {
+        "value": 2,
+        "unit": "years"
+      },
+      "startsAt": "2026-06-28T00:00:00.000Z",
+      "endsAt": "2028-06-28T00:00:00.000Z",
+      "source": "quote"
+    },
+    "dispute": {
+      "raisedAt": "2026-06-28T11:00:00.000Z",
+      "raisedBy": "507f1f77bcf86cd799439011",
+      "reason": "Extra cost disagreement",
+      "description": "I dispute the extra tiling charge",
+      "type": "extra_costs",
+      "resolvedAt": "2026-06-29T11:00:00.000Z"
+    },
+    "customerReview": {
+      "reviewedAt": "2026-06-30T10:00:00.000Z",
+      "comment": "Good work"
+    },
+    "createdAt": "2026-02-01T09:00:00.000Z",
+    "updatedAt": "2026-06-30T10:00:00.000Z",
+    "payment": null,
+    "quote": null
+  },
+  "details": {
+    "viewerRole": "customer",
+    "booking": {
+      "id": "507f1f77bcf86cd799439032",
+      "bookingNumber": "BK-2026-000001",
+      "bookingType": "professional",
+      "status": "cancelled",
+      "statusBeforeDispute": null,
+      "title": "Bathroom",
+      "projectTitle": null,
+      "serviceType": "Bathroom",
+      "category": null,
+      "service": null,
+      "createdAt": "2026-02-01T09:00:00.000Z",
+      "updatedAt": "2026-06-30T10:00:00.000Z",
+      "schedule": {
+        "preferredStartDate": null,
+        "preferredStartTime": null,
+        "scheduledStartDate": "2026-06-25",
+        "scheduledExecutionEndDate": "2026-06-27",
+        "scheduledBufferStartDate": "2026-06-27",
+        "scheduledBufferEndDate": "2026-06-28",
+        "scheduledStartTime": "09:00",
+        "scheduledEndTime": "17:00",
+        "actualStartDate": null,
+        "actualEndDate": null,
+        "timeZone": "Europe/Brussels",
+        "timeZoneRecorded": true,
+        "reschedulePending": false
+      },
+      "location": {
+        "address": "Recorded street 9",
+        "city": "Brussels",
+        "country": "BE",
+        "postalCode": "1000",
+        "coordinates": [
+          4.35,
+          50.85
+        ]
+      },
+      "counterpart": {
+        "role": "professional",
+        "name": "Piet Professional",
+        "companyName": "Piet Works"
+      },
+      "quote": {
+        "quotationNumber": null,
+        "currentVersion": null,
+        "acceptedVersion": null,
+        "acceptedVersionSource": "not_recorded",
+        "status": "rejected",
+        "totalAmount": null,
+        "currency": null,
+        "validUntil": null
+      },
+      "payment": null,
+      "extraCosts": null,
+      "warranty": {
+        "duration": {
+          "value": 2,
+          "unit": "years"
+        },
+        "startsAt": "2026-06-28T00:00:00.000Z",
+        "endsAt": "2028-06-28T00:00:00.000Z",
+        "source": "quote"
+      },
+      "flags": {
+        "bookingSnapshotRecorded": false,
+        "legacy": true,
+        "quoteVersionsPresent": false
+      }
+    },
+    "parties": {
+      "customer": {
+        "id": "507f1f77bcf86cd799439011",
+        "name": "Carla Customer",
+        "username": "carla",
+        "customerType": "business",
+        "businessName": "Carla BV",
+        "email": "carla@example.com",
+        "phone": "+3212345678",
+        "vatNumber": null,
+        "address": {
+          "city": "Brussels",
+          "country": "BE",
+          "postalCode": "1000"
+        },
+        "timeZone": "Europe/Brussels"
+      },
+      "professional": {
+        "id": "507f1f77bcf86cd799439012",
+        "name": "Piet Professional",
+        "username": "piet",
+        "companyName": "Piet Works",
+        "email": null,
+        "phone": null,
+        "vatNumber": null,
+        "website": "https://piet.example",
+        "address": {
+          "city": "Ghent",
+          "country": "BE",
+          "postalCode": "9000"
+        },
+        "timeZone": "Europe/Brussels"
+      },
+      "recordedAt": null,
+      "source": "current_profile",
+      "notices": [
+        {
+          "code": "PARTY_PROFILE_IS_CURRENT",
+          "severity": "info",
+          "entity": "party"
+        }
+      ]
+    },
+    "bookingSnapshot": {
+      "authority": "none",
+      "capturedAt": null,
+      "capturedBySource": null,
+      "immutable": false,
+      "project": null,
+      "questions": {
+        "rfq": [],
+        "postBooking": [],
+        "vat": []
+      },
+      "schedule": {
+        "preferredStartDate": null,
+        "preferredStartTime": null,
+        "scheduledStartDate": null,
+        "scheduledStartTime": null,
+        "scheduledExecutionEndDate": null,
+        "scheduledBufferStartDate": null,
+        "scheduledBufferEndDate": null,
+        "timeZone": null,
+        "timeZoneRecorded": false
+      },
+      "location": null,
+      "selectedSubprojectIndex": 0,
+      "selectedSubproject": null,
+      "selectedExtraOptions": [],
+      "checkoutSnapshot": null,
+      "currentProjectReference": null,
+      "notices": [
+        {
+          "code": "BOOKING_SNAPSHOT_NOT_RECORDED",
+          "severity": "warning",
+          "entity": "booking_snapshot"
+        }
+      ]
+    },
+    "wizard": {
+      "rfq": {
+        "serviceType": "Bathroom",
+        "description": "Direct draft",
+        "answers": [],
+        "preferredStartDate": null,
+        "preferredStartTime": null,
+        "urgency": null,
+        "budget": null,
+        "attachments": [],
+        "additionalNotes": null
+      },
+      "rfqQuestions": [],
+      "selectedSubprojectIndex": 0,
+      "selectedExtraOptions": [],
+      "estimatedUsage": {
+        "quantity": null,
+        "unit": null,
+        "source": "not_recorded"
+      },
+      "customerBlocks": {
+        "dates": [],
+        "windows": []
+      },
+      "vatDecision": {
+        "action": "standard_rate",
+        "country": "BE",
+        "standardRate": 21,
+        "appliedRate": 21,
+        "reducedRate": null,
+        "reverseCharge": false,
+        "vatLabel": "BE standard",
+        "propertyNature": "immovable",
+        "explanation": "Recorded VAT explanation",
+        "answers": [
+          {
+            "fieldName": "propertyNature",
+            "value": "immovable",
+            "question": null,
+            "type": null
+          }
+        ]
+      },
+      "serviceLocation": {
+        "address": "Recorded street 9",
+        "city": "Brussels",
+        "country": "BE",
+        "postalCode": "1000"
+      },
+      "paymentAtCheckout": false,
+      "scheduleSelection": {
+        "startDate": "2026-06-25",
+        "startTime": "09:00",
+        "executionEndDate": "2026-06-27",
+        "bufferEndDate": "2026-06-28",
+        "timeZone": "Europe/Brussels"
+      }
+    },
+    "quotation": {
+      "quotationNumber": null,
+      "status": "rejected",
+      "currentVersion": null,
+      "acceptedVersion": null,
+      "currency": null,
+      "totalAmountProfessional": null,
+      "versions": [],
+      "history": [
+        {
+          "id": "rfq:response",
+          "type": "rfq_rejected",
+          "category": "rfq",
+          "occurredAt": "2026-01-21T09:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "No availability",
+          "statusFrom": "rfq",
+          "statusTo": "cancelled",
+          "attachments": [],
+          "metadata": {},
+          "source": "quotation",
+          "visibility": "participants",
+          "legacyDerived": false,
+          "titleKey": "activity.rfq_rejected",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        }
+      ],
+      "rfqHistory": [
+        {
+          "id": "rfq:response",
+          "type": "rfq_rejected",
+          "category": "rfq",
+          "occurredAt": "2026-01-21T09:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "No availability",
+          "statusFrom": "rfq",
+          "statusTo": "cancelled",
+          "attachments": [],
+          "metadata": {},
+          "source": "quotation",
+          "visibility": "participants",
+          "legacyDerived": false,
+          "titleKey": "activity.rfq_rejected",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        }
+      ],
+      "notices": []
+    },
+    "payments": {
+      "records": [],
+      "base": null,
+      "milestones": [],
+      "extraCost": null,
+      "refunds": [
+        {
+          "id": "cancellation:507f1f77bcf86cd799439017:refund",
+          "amount": 25,
+          "currency": "EUR",
+          "currencySource": "cancellation_request",
+          "refundedAt": "2026-06-11T09:05:00.000Z",
+          "source": "platform",
+          "status": "approved",
+          "justification": "Plans changed",
+          "justificationRecorded": true,
+          "vatAmount": null,
+          "netAmount": null,
+          "vatRate": null,
+          "vatSplitRecorded": false,
+          "kind": "booking",
+          "cancellationRequestId": "507f1f77bcf86cd799439017",
+          "noticeCodes": [
+            "REFUND_VAT_SPLIT_NOT_RECORDED"
+          ]
+        }
+      ],
+      "checkout": null,
+      "byCurrency": [
+        {
+          "currency": "EUR",
+          "recordedCharged": 0,
+          "recordedRefunded": 25,
+          "recordedNet": -25,
+          "derivedFromRecords": true,
+          "complete": true
+        }
+      ],
+      "notices": [
+        {
+          "code": "REFUND_VAT_SPLIT_NOT_RECORDED",
+          "severity": "info",
+          "entity": "refund"
+        },
+        {
+          "code": "PAYMENT_ROW_MISSING",
+          "severity": "warning",
+          "entity": "payment"
+        }
+      ]
+    },
+    "extraCosts": {
+      "status": "confirmed",
+      "totalProfessionalAmount": null,
+      "currency": null,
+      "currencySource": "not_recorded",
+      "items": [],
+      "payment": null,
+      "confirmation": {
+        "confirmedAt": "2026-06-27T16:00:00.000Z",
+        "confirmedBy": {
+          "id": "507f1f77bcf86cd799439012",
+          "role": "professional",
+          "name": "Piet Professional",
+          "source": "recorded"
+        },
+        "notes": "All work complete",
+        "attachments": [
+          {
+            "url": "https://fixera-uploads.s3.us-east-1.amazonaws.com/completion-attachments/507f1f77bcf86cd799439012/completion.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=test-key%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T224947Z&X-Amz-Expires=3600&X-Amz-Signature=2cb56b0a84863435fd986e7091bfa5b1938a68f7bc4d53af61c0402951ae869a&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+            "fileName": "completion.pdf",
+            "source": "completion",
+            "signed": true
+          }
+        ]
+      },
+      "dispute": {
+        "raisedAt": "2026-06-28T11:00:00.000Z",
+        "raisedBy": {
+          "id": "507f1f77bcf86cd799439011",
+          "role": "customer",
+          "name": "Carla Customer",
+          "source": "recorded"
+        },
+        "type": "extra_costs",
+        "status": "resolved",
+        "reason": "Extra cost disagreement",
+        "description": "I dispute the extra tiling charge"
+      },
+      "notices": []
+    },
+    "postBooking": {
+      "questions": [
+        {
+          "questionId": "pq-1",
+          "question": "Parking available?",
+          "type": "text",
+          "options": [],
+          "isRequired": false,
+          "professionalAttachments": [],
+          "answer": "0",
+          "answered": true,
+          "source": "recorded_answer"
+        },
+        {
+          "questionId": "pq-2",
+          "question": "Pets present?",
+          "type": "text",
+          "options": [],
+          "isRequired": false,
+          "professionalAttachments": [],
+          "answer": "false",
+          "answered": true,
+          "source": "recorded_answer"
+        }
+      ],
+      "answers": [
+        {
+          "questionId": "pq-1",
+          "question": "Parking available?",
+          "answer": "0",
+          "answerType": "text",
+          "fieldType": "text"
+        },
+        {
+          "questionId": "pq-2",
+          "question": "Pets present?",
+          "answer": "false",
+          "answerType": "text",
+          "fieldType": "text"
+        }
+      ],
+      "submittedAt": "2026-02-04T10:00:00.000Z",
+      "submittedBy": {
+        "id": "507f1f77bcf86cd799439011",
+        "role": "customer",
+        "name": "Carla Customer",
+        "source": "recorded"
+      },
+      "timestampRecorded": true,
+      "complete": true,
+      "notices": []
+    },
+    "reschedules": [
+      {
+        "id": "reschedule:0:2026-06-20T10:00:00.000Z",
+        "requestedAt": "2026-06-20T10:00:00.000Z",
+        "requestedBy": {
+          "id": "507f1f77bcf86cd799439011",
+          "role": "customer",
+          "name": "Carla Customer",
+          "source": "recorded"
+        },
+        "actorRecorded": true,
+        "reason": "Weather",
+        "description": "Rain forecast",
+        "note": null,
+        "status": "accepted",
+        "respondedAt": "2026-06-20T12:00:00.000Z",
+        "respondedBy": {
+          "id": "507f1f77bcf86cd799439012",
+          "role": "professional",
+          "name": "Piet Professional",
+          "source": "recorded"
+        },
+        "responseNote": "Moved by one day",
+        "previousSchedule": {
+          "scheduledStartDate": "2026-06-24",
+          "scheduledExecutionEndDate": "2026-06-26",
+          "scheduledBufferStartDate": null,
+          "scheduledBufferEndDate": null,
+          "scheduledBufferUnit": null,
+          "scheduledStartTime": "09:00",
+          "scheduledEndTime": "17:00"
+        },
+        "proposedSchedule": {
+          "scheduledStartDate": "2026-06-25",
+          "scheduledExecutionEndDate": "2026-06-27",
+          "scheduledBufferStartDate": null,
+          "scheduledBufferEndDate": null,
+          "scheduledBufferUnit": null,
+          "scheduledStartTime": "09:00",
+          "scheduledEndTime": "17:00"
+        },
+        "timeZone": "Europe/Brussels",
+        "timeZoneRecorded": true
+      }
+    ],
+    "cancellations": [
+      {
+        "id": "507f1f77bcf86cd799439017",
+        "status": "approved",
+        "reasonCategory": "scheduling_conflict",
+        "reason": "Plans changed",
+        "evidence": [],
+        "requestedBy": {
+          "id": "507f1f77bcf86cd799439011",
+          "role": "customer",
+          "name": "Carla Customer",
+          "source": "recorded"
+        },
+        "requestedRole": "customer",
+        "createdAt": "2026-06-10T10:00:00.000Z",
+        "responseDeadline": "2026-06-11T10:00:00.000Z",
+        "professionalDecision": "approved",
+        "professionalNote": "Approved",
+        "counterOfferAmount": null,
+        "professionalRespondedAt": "2026-06-10T12:00:00.000Z",
+        "customerDecision": "accepted",
+        "customerRespondedAt": "2026-06-10T13:00:00.000Z",
+        "escalatedAt": null,
+        "escalationReason": null,
+        "resolvedAt": "2026-06-11T09:00:00.000Z",
+        "resolvedBy": {
+          "id": null,
+          "role": "admin",
+          "name": "Ada Admin",
+          "source": "recorded"
+        },
+        "denyReason": null,
+        "refundAmount": 25,
+        "refundedAt": "2026-06-11T09:05:00.000Z",
+        "currency": null,
+        "currencyRecorded": false
+      }
+    ],
+    "warrantyClaims": [
+      {
+        "id": "507f1f77bcf86cd799439018",
+        "claimNumber": "WC-2026-000001",
+        "status": "resolved",
+        "reason": "defect",
+        "openedAt": "2026-07-01T10:00:00.000Z",
+        "proposal": {
+          "proposedAt": "2026-07-02T10:00:00.000Z",
+          "customerDecision": "accepted",
+          "decidedAt": "2026-07-03T10:00:00.000Z"
+        },
+        "escalatedAt": null,
+        "resolvedAt": "2026-07-04T10:00:00.000Z",
+        "closedAt": "2026-07-05T10:00:00.000Z",
+        "linkHint": "participant_warranty"
+      }
+    ],
+    "activity": {
+      "generatedAt": "2026-10-25T22:49:47.293Z",
+      "complete": true,
+      "order": "asc",
+      "items": [
+        {
+          "id": "status:0",
+          "type": "status_changed",
+          "category": "system",
+          "occurredAt": "2026-01-20T09:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Professional initiated direct quotation",
+          "statusFrom": null,
+          "statusTo": "draft_quote",
+          "attachments": [],
+          "metadata": {
+            "statusHistoryIndex": 0
+          },
+          "source": "status_history",
+          "visibility": "participants",
+          "legacyDerived": false,
+          "titleKey": "activity.status_changed",
+          "descriptionSource": "system",
+          "descriptionLocale": "en"
+        },
+        {
+          "id": "rfq:response",
+          "type": "rfq_rejected",
+          "category": "rfq",
+          "occurredAt": "2026-01-21T09:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "No availability",
+          "statusFrom": "rfq",
+          "statusTo": "cancelled",
+          "attachments": [],
+          "metadata": {},
+          "source": "quotation",
+          "visibility": "participants",
+          "legacyDerived": false,
+          "titleKey": "activity.rfq_rejected",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "post-booking:submitted",
+          "type": "post_booking_answers_submitted",
+          "category": "lifecycle",
+          "occurredAt": "2026-02-04T10:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "answerCount": 2
+          },
+          "source": "post_booking",
+          "visibility": "participants",
+          "titleKey": "activity.post_booking_answers_submitted",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "cancellation:507f1f77bcf86cd799439017:requested",
+          "type": "cancellation_requested",
+          "category": "cancellation",
+          "occurredAt": "2026-06-10T10:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Plans changed",
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "cancellationRequestId": "507f1f77bcf86cd799439017",
+            "reasonCategory": "scheduling_conflict"
+          },
+          "source": "cancellation",
+          "visibility": "participants",
+          "titleKey": "activity.cancellation_requested",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "cancellation:507f1f77bcf86cd799439017:professional-response",
+          "type": "cancellation_approved",
+          "category": "cancellation",
+          "occurredAt": "2026-06-10T12:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Approved",
+          "titleParams": {
+            "stage": "professional_response"
+          },
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "cancellationRequestId": "507f1f77bcf86cd799439017",
+            "stage": "professional_response"
+          },
+          "source": "cancellation",
+          "visibility": "participants",
+          "titleKey": "activity.cancellation_approved",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "cancellation:507f1f77bcf86cd799439017:customer-response",
+          "type": "cancellation_approved",
+          "category": "cancellation",
+          "occurredAt": "2026-06-10T13:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "titleParams": {
+            "stage": "customer_response"
+          },
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "cancellationRequestId": "507f1f77bcf86cd799439017",
+            "stage": "customer_response"
+          },
+          "source": "cancellation",
+          "visibility": "participants",
+          "titleKey": "activity.cancellation_approved",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "cancellation:507f1f77bcf86cd799439017:resolved",
+          "type": "cancellation_approved",
+          "category": "cancellation",
+          "occurredAt": "2026-06-11T09:00:00.000Z",
+          "actor": {
+            "id": null,
+            "role": "admin",
+            "name": "Ada Admin",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "titleParams": {
+            "stage": "final"
+          },
+          "statusFrom": null,
+          "statusTo": "cancelled",
+          "attachments": [],
+          "metadata": {
+            "cancellationRequestId": "507f1f77bcf86cd799439017",
+            "stage": "final"
+          },
+          "source": "cancellation",
+          "visibility": "participants",
+          "titleKey": "activity.cancellation_approved",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "refund:booking:e628df672c0cf529",
+          "type": "refund_issued",
+          "category": "refund",
+          "occurredAt": "2026-06-11T09:05:00.000Z",
+          "actor": {
+            "id": null,
+            "role": "admin",
+            "name": "Ada Admin",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Plans changed",
+          "statusFrom": null,
+          "statusTo": null,
+          "amounts": {
+            "amount": 25
+          },
+          "attachments": [],
+          "metadata": {
+            "refundRef": "e628df672c0cf529",
+            "refundSource": "platform",
+            "refundKind": "booking",
+            "cancellationRequestId": "507f1f77bcf86cd799439017"
+          },
+          "source": "refund",
+          "visibility": "participants",
+          "noteCodes": [
+            "REFUND_VAT_SPLIT_NOT_RECORDED"
+          ],
+          "titleKey": "activity.refund_issued",
+          "descriptionSource": "admin",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "reschedule:0:requested",
+          "type": "reschedule_requested",
+          "category": "schedule",
+          "occurredAt": "2026-06-20T10:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Weather",
+          "statusFrom": null,
+          "statusTo": "rescheduling_requested",
+          "attachments": [],
+          "metadata": {
+            "previousSchedule": {
+              "scheduledStartDate": "2026-06-24T00:00:00.000Z",
+              "scheduledExecutionEndDate": "2026-06-26T00:00:00.000Z",
+              "scheduledStartTime": "09:00",
+              "scheduledEndTime": "17:00"
+            },
+            "proposedSchedule": {
+              "scheduledStartDate": "2026-06-25T00:00:00.000Z",
+              "scheduledExecutionEndDate": "2026-06-27T00:00:00.000Z",
+              "scheduledStartTime": "09:00",
+              "scheduledEndTime": "17:00"
+            },
+            "timeZone": "Europe/Brussels"
+          },
+          "source": "reschedule",
+          "visibility": "participants",
+          "titleKey": "activity.reschedule_requested",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "reschedule:0:accepted",
+          "type": "reschedule_accepted",
+          "category": "schedule",
+          "occurredAt": "2026-06-20T12:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Moved by one day",
+          "statusFrom": "rescheduling_requested",
+          "statusTo": "booked",
+          "attachments": [],
+          "metadata": {
+            "previousSchedule": {
+              "scheduledStartDate": "2026-06-24T00:00:00.000Z",
+              "scheduledExecutionEndDate": "2026-06-26T00:00:00.000Z",
+              "scheduledStartTime": "09:00",
+              "scheduledEndTime": "17:00"
+            },
+            "proposedSchedule": {
+              "scheduledStartDate": "2026-06-25T00:00:00.000Z",
+              "scheduledExecutionEndDate": "2026-06-27T00:00:00.000Z",
+              "scheduledStartTime": "09:00",
+              "scheduledEndTime": "17:00"
+            },
+            "timeZone": "Europe/Brussels"
+          },
+          "source": "reschedule",
+          "visibility": "participants",
+          "titleKey": "activity.reschedule_accepted",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "completion:requested",
+          "type": "completion_requested",
+          "category": "completion",
+          "occurredAt": "2026-06-27T16:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "All work complete",
+          "statusFrom": null,
+          "statusTo": "professional_completed",
+          "attachments": [
+            {
+              "url": "https://fixera-uploads.s3.us-east-1.amazonaws.com/completion-attachments/507f1f77bcf86cd799439012/completion.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=test-key%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T224947Z&X-Amz-Expires=3600&X-Amz-Signature=2cb56b0a84863435fd986e7091bfa5b1938a68f7bc4d53af61c0402951ae869a&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+              "fileName": "completion.pdf",
+              "source": "completion",
+              "signed": true
+            }
+          ],
+          "metadata": {},
+          "source": "status_history",
+          "visibility": "participants",
+          "titleKey": "activity.completion_requested",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "dispute:opened",
+          "type": "extra_costs_disputed",
+          "category": "extra_cost",
+          "occurredAt": "2026-06-28T11:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Extra cost disagreement",
+          "statusFrom": null,
+          "statusTo": "dispute",
+          "attachments": [],
+          "metadata": {
+            "disputeType": "extra_costs"
+          },
+          "source": "dispute",
+          "visibility": "participants",
+          "titleKey": "activity.extra_costs_disputed",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "dispute:resolved",
+          "type": "dispute_resolved",
+          "category": "dispute",
+          "occurredAt": "2026-06-29T11:00:00.000Z",
+          "actor": {
+            "id": null,
+            "role": "admin",
+            "name": "Ada Admin",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "statusFrom": "dispute",
+          "statusTo": null,
+          "amounts": {
+            "amount": 20
+          },
+          "attachments": [],
+          "metadata": {
+            "disputeType": "extra_costs"
+          },
+          "source": "dispute",
+          "visibility": "participants",
+          "noteCodes": [
+            "DISPUTE_RESOLUTION_ADMIN_ONLY"
+          ],
+          "titleKey": "activity.dispute_resolved",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "review:customer",
+          "type": "review_submitted",
+          "category": "review",
+          "occurredAt": "2026-06-30T10:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": "Good work",
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {},
+          "source": "review",
+          "visibility": "participants",
+          "titleKey": "activity.review_submitted",
+          "descriptionSource": "user",
+          "descriptionLocale": "unknown"
+        },
+        {
+          "id": "warranty:507f1f77bcf86cd799439018:opened:0",
+          "type": "warranty_claim_opened",
+          "category": "warranty",
+          "occurredAt": "2026-07-01T10:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "claimId": "507f1f77bcf86cd799439018",
+            "claimNumber": "WC-2026-000001",
+            "reason": "defect"
+          },
+          "source": "warranty",
+          "visibility": "participants",
+          "titleKey": "activity.warranty_claim_opened",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "warranty:507f1f77bcf86cd799439018:proposal",
+          "type": "warranty_proposal_sent",
+          "category": "warranty",
+          "occurredAt": "2026-07-02T10:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439012",
+            "role": "professional",
+            "name": "Piet Professional",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "claimId": "507f1f77bcf86cd799439018",
+            "claimNumber": "WC-2026-000001",
+            "reason": "defect",
+            "resolveByDate": null
+          },
+          "source": "warranty",
+          "visibility": "participants",
+          "titleKey": "activity.warranty_proposal_sent",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "warranty:507f1f77bcf86cd799439018:decision",
+          "type": "warranty_proposal_accepted",
+          "category": "warranty",
+          "occurredAt": "2026-07-03T10:00:00.000Z",
+          "actor": {
+            "id": "507f1f77bcf86cd799439011",
+            "role": "customer",
+            "name": "Carla Customer",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "claimId": "507f1f77bcf86cd799439018",
+            "claimNumber": "WC-2026-000001",
+            "reason": "defect"
+          },
+          "source": "warranty",
+          "visibility": "participants",
+          "titleKey": "activity.warranty_proposal_accepted",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "warranty:507f1f77bcf86cd799439018:resolved",
+          "type": "warranty_resolved",
+          "category": "warranty",
+          "occurredAt": "2026-07-04T10:00:00.000Z",
+          "actor": {
+            "id": null,
+            "role": "admin",
+            "name": "Ada Admin",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "claimId": "507f1f77bcf86cd799439018",
+            "claimNumber": "WC-2026-000001",
+            "reason": "defect"
+          },
+          "source": "warranty",
+          "visibility": "participants",
+          "noteCodes": [
+            "WARRANTY_RESOLUTION_DETAILS_ADMIN_ONLY"
+          ],
+          "titleKey": "activity.warranty_resolved",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        },
+        {
+          "id": "warranty:507f1f77bcf86cd799439018:closed",
+          "type": "warranty_closed",
+          "category": "warranty",
+          "occurredAt": "2026-07-05T10:00:00.000Z",
+          "actor": {
+            "id": null,
+            "role": "admin",
+            "name": "Ada Admin",
+            "source": "recorded"
+          },
+          "actorRecorded": true,
+          "description": null,
+          "statusFrom": null,
+          "statusTo": null,
+          "attachments": [],
+          "metadata": {
+            "claimId": "507f1f77bcf86cd799439018",
+            "claimNumber": "WC-2026-000001",
+            "reason": "defect"
+          },
+          "source": "warranty",
+          "visibility": "participants",
+          "titleKey": "activity.warranty_closed",
+          "descriptionSource": "not_recorded",
+          "descriptionLocale": null
+        }
+      ],
+      "dataQuality": {
+        "undatedEvents": 0,
+        "actorMissingEvents": 0,
+        "legacyDerivedEvents": 0,
+        "notes": [
+          "REFUND_VAT_SPLIT_NOT_RECORDED"
+        ]
+      }
+    },
+    "links": {
+      "self": "/api/bookings/507f1f77bcf86cd799439032",
+      "details": "/api/bookings/507f1f77bcf86cd799439032/details",
+      "activity": "/api/bookings/507f1f77bcf86cd799439032/activity",
+      "booking": "/bookings/507f1f77bcf86cd799439032",
+      "quotationNumber": null,
+      "claimNumbers": [
+        "WC-2026-000001"
+      ],
+      "cancellationRequestIds": [
+        "507f1f77bcf86cd799439017"
+      ]
+    },
+    "meta": {
+      "generatedAt": "2026-10-25T22:49:47.293Z",
+      "currencyPolicy": "record_currency_only_no_conversion",
+      "timeZonePolicy": "iso_utc_read_only_no_server_localization",
+      "legacy": true,
+      "notices": [
+        {
+          "code": "BOOKING_SNAPSHOT_NOT_RECORDED",
+          "severity": "warning",
+          "entity": "booking_snapshot"
+        },
+        {
+          "code": "PARTY_PROFILE_IS_CURRENT",
+          "severity": "info",
+          "entity": "party"
+        },
+        {
+          "code": "REFUND_VAT_SPLIT_NOT_RECORDED",
+          "severity": "info",
+          "entity": "refund"
+        },
+        {
+          "code": "PAYMENT_ROW_MISSING",
+          "severity": "warning",
+          "entity": "payment"
+        }
+      ],
+      "counts": {
+        "versions": 0,
+        "activity": 19,
+        "refunds": 1,
+        "warrantyClaims": 1
+      },
+      "dataQuality": {
+        "bookingSnapshotRecorded": false,
+        "bookingSnapshotCapturedAt": null,
+        "quoteCustomerTotalsRecorded": true,
+        "quoteActorRecorded": true,
+        "quoteServiceLocationRecorded": true,
+        "extraCostCustomerChargeRecorded": true,
+        "refundVatRecorded": false,
+        "activityActorRecorded": true,
+        "activityComplete": true
+      }
+    }
+  }
+}

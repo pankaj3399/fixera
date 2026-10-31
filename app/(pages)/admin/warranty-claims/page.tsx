@@ -103,6 +103,15 @@ export default function AdminWarrantyClaimsPage() {
   const [closingClaimId, setClosingClaimId] = useState<string | null>(null)
   const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
 
+  // Deep link from booking details: /admin/warranty-claims?search=WC-...
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const initialSearch = new URLSearchParams(window.location.search).get("search")?.trim()
+    if (!initialSearch) return
+    setSearchInput(initialSearch)
+    setSearchQuery(initialSearch)
+  }, [])
+
   useEffect(() => {
     if (loading) return
     if (!isAuthenticated) {
