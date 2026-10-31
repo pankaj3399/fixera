@@ -1,7 +1,7 @@
 {
   "generator": "tests/fixtures/leadCampaigns/wire/generate-wire-fixtures.mjs",
   "command": "tests/fixtures/leadCampaigns/wire/run-wire-fixtures.sh",
-  "backendRoot": "/home/abstergo/Programming/Projects/fixera/fixera-server",
+  "backendRoot": "../fixera-server",
   "backendRevision": {
     "head": "82f1abdd32d3f5a344f5e930971a9df3b873ba42",
     "branch": "feat/professional-lead-campaigns",

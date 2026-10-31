@@ -89,9 +89,10 @@ export function audienceTypeLabel(value: unknown): string {
   if (value === undefined || value === null || String(value).trim() === "") {
     return MARKETING_AUDIENCE_TYPE_LABELS.subscribers;
   }
-  return audienceTypeOrNull(value)
-    ? MARKETING_AUDIENCE_TYPE_LABELS[value as MarketingAudienceType]
-    : "Invalid audience type";
+  // The lookup must use the normalized value: " leads " is accepted above but
+  // would miss the label map and render an empty badge.
+  const normalized = audienceTypeOrNull(value);
+  return normalized ? MARKETING_AUDIENCE_TYPE_LABELS[normalized] : "Invalid audience type";
 }
 
 export function isKnownAudienceType(value: unknown): boolean {

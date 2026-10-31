@@ -591,6 +591,8 @@ test('fixture provenance shows loopback-only generation and no outbound attempts
   assert.deepEqual(provenance.deniedNetwork, [])
   assert.match(provenance.routes.import, /POST \/api\/admin\/marketing-leads\/import/)
   assert.match(provenance.routes.footer, /renderMarketingFooter/)
-  assert.equal(provenance.backendRevision.branch, 'feat/professional-lead-campaigns')
-  assert.equal(provenance.frontendRevision.branch, 'feat/professional-lead-campaigns')
+  // Branch names change on every regeneration (and after merge); require the
+  // revision identity instead, not the branch the fixtures happened to use.
+  assert.match(provenance.backendRevision?.head ?? '', /^[0-9a-f]{40}$/)
+  assert.match(provenance.frontendRevision?.head ?? '', /^[0-9a-f]{40}$/)
 })

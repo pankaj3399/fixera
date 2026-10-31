@@ -33,7 +33,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 NAME="fixera-lead-campaign-wire-$$-$(date +%s)"
-SCRATCH="$(mktemp -d /tmp/opencode/fixera-lead-wire.XXXXXX)"
+SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/fixera-lead-wire.XXXXXX")"
 STAGING="$SCRATCH/fixtures"
 PORT=""
 
