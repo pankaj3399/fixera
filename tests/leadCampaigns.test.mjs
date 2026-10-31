@@ -998,6 +998,15 @@ test('effective marketing read/write gates allow read-only campaign and lead pag
   assert.equal(canAccessAdminPage(supportRead, '/admin/support'), true)
 
   assert.equal(canAccessAdminPage({ role: 'customer' }, '/admin/campaigns/leads'), false)
+
+  // Legacy super sessions may omit the permission pack entirely; unmapped
+  // admin pages must still open for them.
+  const legacySuper = { role: 'admin', adminRole: 'super' }
+  assert.equal(canAccessAdminPage(legacySuper, '/admin/settings'), true)
+  assert.equal(
+    canAccessAdminPage({ role: 'admin', adminRole: 'marketing' }, '/admin/settings'),
+    false,
+  )
 })
 
 test('subscribers page uses the shared sync summary and never turns opt-in on', () => {

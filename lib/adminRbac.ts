@@ -352,6 +352,10 @@ export function canAccessAdminPage(
     // An explicit effective matrix is authoritative, including `none`.
     if (hasEffectiveLevels) return false;
   }
+  // Legacy fallback for a super-admin session without a permission pack;
+  // `can()` has the same rule, and dropping it redirected super admins away
+  // from every unmapped admin page.
+  if (!user.adminPermissions) return user.adminRole === 'super';
   return hasAdminPermission(user.adminPermissions, required);
 }
 
