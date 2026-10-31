@@ -1185,7 +1185,9 @@ const main = async () => {
   const provenance = {
     generator: 'tests/fixtures/leadCampaigns/wire/generate-wire-fixtures.mjs',
     command: 'tests/fixtures/leadCampaigns/wire/run-wire-fixtures.sh',
-    backendRoot: SERVER_ROOT,
+    // Relative so the committed fixture does not embed a developer's absolute
+    // checkout path and regeneration is reproducible across machines.
+    backendRoot: path.relative(FRONTEND_ROOT, SERVER_ROOT) || '.',
     backendRevision: revision(SERVER_ROOT),
     frontendRevision: revision(FRONTEND_ROOT),
     database: EXPECTED_DB,
