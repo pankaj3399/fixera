@@ -592,6 +592,9 @@ export default function ProjectBookingForm({
     : [];
   const debugSignatureRef = useRef('');
   const latestSlotsRequestRef = useRef(0);
+  const availabilityRequestRef = useRef(0);
+  const proposalsRequestRef = useRef(0);
+  const lastQuantityFetchKeyRef = useRef('');
   const isDebugProject =
     Boolean(debugProjectId) && String(project._id) === debugProjectId;
   const debugLog = useMemo(
@@ -654,6 +657,7 @@ export default function ProjectBookingForm({
     setSelectedDate('');
     setSelectedTime('');
     if (pkg?.pricing?.type !== 'rfq') {
+      lastQuantityFetchKeyRef.current = `${packageIndex}:${estimatedUsage}`;
       fetchTeamAvailability(packageIndex);
       fetchScheduleProposals(packageIndex);
     } else {
@@ -664,10 +668,19 @@ export default function ProjectBookingForm({
   }, [selectedPackageIndex]);
 
   useEffect(() => {
-    if (isUnitPricing && typeof selectedPackageIndex === 'number') {
-      fetchTeamAvailability(selectedPackageIndex);
-      fetchScheduleProposals(selectedPackageIndex);
-    }
+    if (!isUnitPricing || typeof selectedPackageIndex !== 'number') return;
+    // The package effect already fetched this exact pair; skip the duplicate.
+    const key = `${selectedPackageIndex}:${estimatedUsage}`;
+    if (lastQuantityFetchKeyRef.current === key) return;
+    // `step="any"` fires on every keystroke ("12.5" is four events); debounce
+    // and let the request-id guards drop any older in-flight response.
+    const timer = window.setTimeout(() => {
+      if (lastQuantityFetchKeyRef.current === key) return;
+      lastQuantityFetchKeyRef.current = key;
+      void fetchTeamAvailability(selectedPackageIndex);
+      void fetchScheduleProposals(selectedPackageIndex);
+    }, 300);
+    return () => window.clearTimeout(timer);
   }, [estimatedUsage, isUnitPricing, selectedPackageIndex]);
 
   const getFormattedDate = (dateStr?: string | null) => {
@@ -913,6 +926,7 @@ export default function ProjectBookingForm({
   }, [selectedDate, projectMode, loadingAvailability, fetchScheduleWindow]);
 
   const fetchTeamAvailability = async (packageIndex?: number) => {
+    const requestId = ++availabilityRequestRef.current;
     try {
       debugLog?.(
         '[BOOKING] Fetching team availability for project:',
@@ -965,6 +979,9 @@ export default function ProjectBookingForm({
         );
       }
 
+      // A slower response for an older quantity/package must not overwrite the
+      // latest selection.
+      if (requestId !== availabilityRequestRef.current) return;
       if (data.success) {
         const availabilityTz = normalizeTimezone(
           data.timezone || professionalTimezone || professionalTz
@@ -994,11 +1011,12 @@ export default function ProjectBookingForm({
       debugError?.('Error fetching availability:', error);
       toast.error(t('toasts.availabilityFailed'));
     } finally {
-      setLoadingAvailability(false);
+      if (requestId === availabilityRequestRef.current) setLoadingAvailability(false);
     }
   };
 
   const fetchScheduleProposals = async (packageIndex?: number) => {
+    const requestId = ++proposalsRequestRef.current;
     try {
       let endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/schedule-proposals`;
       if (typeof packageIndex === 'number') {
@@ -1024,6 +1042,8 @@ export default function ProjectBookingForm({
           );
         }
       }
+      // Stale proposals (older quantity/package) must not replace the latest.
+      if (requestId !== proposalsRequestRef.current) return;
       if (data.success && data.proposals) {
         setProposals(data.proposals);
       }
@@ -3324,7 +3344,7 @@ export default function ProjectBookingForm({
                             />
 
                             {selectedPackage.pricing.unit?.toLowerCase().match(/^(h|hr|hrs|hour|hours|hur)$/) && !selectedPackage.executionDuration?.value ? (
-                              <span className='text-sm text-gray-500 whitespace-nowrap'>Hours (determined by customer)</span>
+                              <span className='text-sm text-gray-500 whitespace-nowrap'>{t('package.hoursDeterminedByCustomer')}</span>
                             ) : project.priceModel && (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>
                                 {project.priceModel}

@@ -763,7 +763,7 @@ function ProjectCreateContent() {
     }
     const errors = collectStepErrors(currentStep, validationData, tWizard)
     setStepErrors(errors)
-    if (currentStep === 1) {
+    if (currentStep === 1 && errors.length > 0) {
       step1Ref.current?.showValidationErrors()
       return
     }

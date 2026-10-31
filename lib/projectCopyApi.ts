@@ -39,8 +39,11 @@ export const generateProjectCopy = async <T extends { titles?: string[]; faqs?: 
   } catch {
     throw new ProjectCopyApiError('AI_UNAVAILABLE')
   }
-  if (!response.ok || !result.success || !result.data) {
+  const data = result.data
+  const requiredList = input.kind === 'title' ? data?.titles : data?.faqs
+  // Never hand back a partial payload: callers read `.length`/`.map` directly.
+  if (!response.ok || !result.success || !data || !Array.isArray(requiredList)) {
     throw new ProjectCopyApiError(result.code || 'AI_UNAVAILABLE')
   }
-  return result.data
+  return data
 }
