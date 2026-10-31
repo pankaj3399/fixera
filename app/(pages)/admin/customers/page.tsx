@@ -367,7 +367,11 @@ export default function AdminCustomersPage() {
         }}
         onRecoveryResolved={resolveRecovery}
         onRecoveryRequired={(recovery) => {
-          setRows((prev) => prev.filter((row) => row._id !== recovery.targetId))
+          // An unknown outcome does not prove the account changed; keep the row
+          // visible until the authoritative status check resolves it.
+          if (recovery.state !== "status_unknown") {
+            setRows((prev) => prev.filter((row) => row._id !== recovery.targetId))
+          }
           setListAnnouncement(
             recovery.state === "status_unknown"
               ? "The anonymization outcome is unknown. Check the recovery card before retrying."

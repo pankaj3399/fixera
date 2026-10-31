@@ -174,7 +174,7 @@ export default function ProfessionalsAdminPage() {
     }
   }, [isAuthenticated, loading, user, router])
 
-  const fetchProfessionals = useCallback(async (): Promise<boolean> => {
+  const fetchProfessionals = useCallback(async (): Promise<"ok" | "failed" | "superseded"> => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true)
     setLoadError(null)
@@ -186,14 +186,15 @@ export default function ProfessionalsAdminPage() {
       if (!response.ok || data?.success === false) {
         throw apiErrorFromBody(data, 'Failed to load professionals', { status: response.status })
       }
-      if (requestId !== requestIdRef.current) return false;
+      if (requestId !== requestIdRef.current) return "superseded";
       setProfessionals(data.data.professionals)
-      return true
+      return "ok"
     } catch (error) {
-      if (requestId !== requestIdRef.current) return false;
+      // A superseded request is not a refresh failure.
+      if (requestId !== requestIdRef.current) return "superseded";
       console.error('Failed to fetch professionals:', error)
       setLoadError(getErrorMessage(error, 'Failed to load professionals'))
-      return false
+      return "failed"
     } finally {
       // A superseded request must not clear the newest request's loading state.
       if (requestId === requestIdRef.current) setIsLoading(false)
@@ -231,8 +232,8 @@ export default function ProfessionalsAdminPage() {
         source: "session",
       }))
     }
-    void fetchProfessionals().then((ok) => {
-      if (!ok) {
+    void fetchProfessionals().then((outcome) => {
+      if (outcome === "failed") {
         toast.error(anonymizeRefreshFailureMessage(result))
       }
     })
@@ -1399,7 +1400,11 @@ export default function ProfessionalsAdminPage() {
         }}
         onRecoveryResolved={resolveRecovery}
         onRecoveryRequired={(recovery) => {
-          setProfessionals((prev) => prev.filter((professional) => professional._id !== recovery.targetId))
+          // An unknown outcome does not prove the account changed; keep the row
+          // visible until the authoritative status check resolves it.
+          if (recovery.state !== "status_unknown") {
+            setProfessionals((prev) => prev.filter((professional) => professional._id !== recovery.targetId))
+          }
           setListAnnouncement(
             recovery.state === "status_unknown"
               ? "The anonymization outcome is unknown. Check the recovery card before retrying."

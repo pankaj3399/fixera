@@ -9,7 +9,7 @@ import type { AdminPermission, AdminRole } from '@/lib/adminRbac'
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
 import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY } from '@/lib/constants/favorites'
 import { getMigratedItem, removeMigratedItem } from '@/lib/storageMigration'
-import { purgeAllAnonymizeRecoveryStorage } from '@/lib/anonymizeRecoveryStorage'
+import { pruneAnonymizeRecoveryStorageForLogout } from '@/lib/anonymizeRecoveryStorage'
 
 interface User {
   _id: string
@@ -529,7 +529,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         idExpiryToastRef.current = null
       }
       sessionStorage.removeItem('redirectAfterAuth')
-      purgeAllAnonymizeRecoveryStorage(sessionStorage)
+      // Unknown-outcome recovery records survive logout: the server list may
+      // never contain a target whose request did not land, and they are the
+      // only way back to its status check.
+      pruneAnonymizeRecoveryStorageForLogout(sessionStorage)
       toast.success('Logged out successfully')
       router.push('/login')
     }

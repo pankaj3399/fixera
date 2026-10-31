@@ -180,6 +180,8 @@ interface RequestOptions {
   signal?: AbortSignal
   fetchImpl?: typeof fetch
   token?: string | null
+  /** Test/override hook for the bounded preview request. */
+  timeoutMs?: number
 }
 
 interface ExecuteOptions extends RequestOptions {
@@ -200,6 +202,12 @@ export const ANONYMIZE_EXECUTE_TIMEOUT_MS = 45_000
  * discoverability surface looking like a successful empty result.
  */
 export const ANONYMIZE_RECOVERY_TIMEOUT_MS = 10_000
+
+/**
+ * The preview gates the whole confirmation dialog: a stalled connection or
+ * body would leave `loading`/`checking` true forever, with no retry path.
+ */
+export const ANONYMIZE_PREVIEW_TIMEOUT_MS = 15_000
 
 /** The recovery route is page-based and caps this limit at 100. */
 export const ANONYMIZE_RECOVERY_LIST_LIMIT = 100
@@ -752,13 +760,17 @@ export async function requestAnonymizePreview(
 ): Promise<AnonymizeResult<AnonymizePreviewData>> {
   const fetchImpl = input.fetchImpl || fetch
   const token = input.token !== undefined ? input.token : getAuthToken()
+  const timeout = signalWithTimeout(
+    input.signal,
+    input.timeoutMs ?? ANONYMIZE_PREVIEW_TIMEOUT_MS,
+  )
   try {
     const response = await fetchImpl(anonymizePreviewUrl(input.userId), {
       method: "GET",
       credentials: "include",
       cache: "no-store",
       headers: requestHeaders(token, false),
-      signal: input.signal,
+      signal: timeout.signal,
     })
     const body = await readBody(response)
     if (!response.ok) {
@@ -800,6 +812,8 @@ export async function requestAnonymizePreview(
     return { ok: true, data }
   } catch (error) {
     return { ok: false, error: transportError(error, "Could not load the anonymization preview.") }
+  } finally {
+    timeout.clear()
   }
 }
 
@@ -808,16 +822,19 @@ export async function executeAnonymizeAccount(
 ): Promise<AnonymizeResult<AnonymizeExecutionData>> {
   const fetchImpl = input.fetchImpl || fetch
   const token = input.token !== undefined ? input.token : getAuthToken()
-  const timeout = input.signal
-    ? null
-    : boundedTimeoutSignal(input.timeoutMs ?? ANONYMIZE_EXECUTE_TIMEOUT_MS)
+  // A caller-supplied signal is combined with the deadline: a signal that never
+  // aborts must not leave the execute pending indefinitely.
+  const timeout = signalWithTimeout(
+    input.signal,
+    input.timeoutMs ?? ANONYMIZE_EXECUTE_TIMEOUT_MS,
+  )
   try {
     const response = await fetchImpl(anonymizeExecuteUrl(input.userId), {
       method: "PUT",
       credentials: "include",
       headers: requestHeaders(token, true),
       body: JSON.stringify({ confirm: input.confirmation }),
-      signal: input.signal ?? timeout?.signal,
+      signal: timeout.signal,
     })
     const body = await readBody(response)
     if (!response.ok) {
@@ -875,7 +892,7 @@ export async function executeAnonymizeAccount(
       error: transportError(error, "Could not anonymize this account.", true),
     }
   } finally {
-    timeout?.clear()
+    timeout.clear()
   }
 }
 
@@ -981,15 +998,19 @@ export function reconcileAnonymizePreview(
   preview: AnonymizePreviewData,
 ): AnonymizeRecoveryReconciliation {
   const target = preview.target
-  const identityRemoved =
-    target.identityRemoved === true ||
-    target.legacyAnonymized === true ||
-    preview.alreadyAnonymized === true
+  // An explicit false is authoritative: `alreadyAnonymized` proves the flow
+  // ran, not that identity redaction finished.
+  const identityRemoved = target.identityRemoved === false
+    ? false
+    : target.identityRemoved === true ||
+      target.legacyAnonymized === true ||
+      preview.alreadyAnonymized === true
   const anonymizationStarted =
     target.isAnonymized === true ||
     Boolean(target.deletedAt) ||
     target.accessDisabled === true ||
-    identityRemoved
+    identityRemoved ||
+    preview.alreadyAnonymized === true
 
   if (preview.status === "eligible") return { kind: "clear" }
   if (preview.status === "blocked" && !anonymizationStarted) {

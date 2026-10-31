@@ -74,7 +74,7 @@ export default function AdminProfessionalManagementPage() {
   const abortRef = useRef<AbortController | null>(null)
   const loadRequestIdRef = useRef(0)
 
-  const load = useCallback(async (): Promise<boolean> => {
+  const load = useCallback(async (): Promise<"ok" | "failed" | "superseded"> => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -101,18 +101,20 @@ export default function AdminProfessionalManagementPage() {
         }
       }
       const isLatestRequest = requestId === loadRequestIdRef.current
-      if (!controller.signal.aborted && isLatestRequest && response.ok && payload?.success) {
+      // A newer request aborted this one; that is not a refresh failure.
+      const superseded = controller.signal.aborted || !isLatestRequest
+      if (!superseded && response.ok && payload?.success) {
         setRows(payload.data?.professionals || [])
-        return true
+        return "ok"
       }
-      if (!controller.signal.aborted && isLatestRequest && !response.ok) {
+      if (!superseded && !response.ok) {
         console.error("Failed to load professionals:", messageFromApiBody(payload, `Request failed with status ${response.status}`))
       }
-      return false
+      return superseded ? "superseded" : "failed"
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return false
+      if (error instanceof DOMException && error.name === "AbortError") return "superseded"
       console.error("Failed to load professionals:", error)
-      return false
+      return "failed"
     }
   }, [country, customerName, level, search, tag])
 
@@ -141,8 +143,8 @@ export default function AdminProfessionalManagementPage() {
         source: "session",
       }))
     }
-    void load().then((ok) => {
-      if (!ok) {
+    void load().then((outcome) => {
+      if (outcome === "failed") {
         toast.error(anonymizeRefreshFailureMessage(result))
       }
     })
@@ -455,7 +457,11 @@ export default function AdminProfessionalManagementPage() {
         }}
         onRecoveryResolved={resolveRecovery}
         onRecoveryRequired={(recovery) => {
-          setRows((prev) => prev.filter((row) => row._id !== recovery.targetId))
+          // An unknown outcome does not prove the account changed; keep the row
+          // visible until the authoritative status check resolves it.
+          if (recovery.state !== "status_unknown") {
+            setRows((prev) => prev.filter((row) => row._id !== recovery.targetId))
+          }
           setListAnnouncement(
             recovery.state === "status_unknown"
               ? "The anonymization outcome is unknown. Check the recovery card before retrying."

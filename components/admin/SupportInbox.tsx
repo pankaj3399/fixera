@@ -994,7 +994,10 @@ function AdminSupportCard({
     meeting,
     asAdmin: true,
   });
-  const meetingCanCancel = meetingActionsAllowed && canCancelSupportMeeting({ meeting, asAdmin: true });
+  // Cancelling only releases the reserved slot. It stays available for an
+  // anonymized recipient, whose held time would otherwise stay blocked until it
+  // passes; the server suppresses the recipient email (no deliverable address).
+  const meetingCanCancel = canWrite && canCancelSupportMeeting({ meeting, asAdmin: true });
   const meetingCanComplete = meetingActionsAllowed && canCompleteSupportMeeting(meeting);
   const meetingCanSetLink = canAdminSetSupportMeetingLink({
     itemKind: item.kind,
@@ -1550,8 +1553,9 @@ function AdminSupportCard({
                   {meetingEditor === "cancel" && (
                     <div className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5">
                       <p className="text-[11px] text-rose-800">
-                        Cancel this meeting? The reserved time will be released and the
-                        requester will receive a cancellation email.
+                        {recipientUnavailable
+                          ? "Cancel this meeting? The reserved time will be released. The requester is deleted, so no cancellation email is sent."
+                          : "Cancel this meeting? The reserved time will be released and the requester will receive a cancellation email."}
                       </p>
                       <label
                         htmlFor={`admin-meeting-cancel-reason-${item._id || item.id}`}

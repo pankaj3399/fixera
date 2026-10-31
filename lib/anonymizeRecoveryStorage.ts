@@ -32,7 +32,28 @@ function cleanupFrom(value: unknown): AnonymizeCleanup {
     deletedFiles: numberOrZero(record.deletedFiles),
     failedFiles: numberOrZero(record.failedFiles),
     completedAt: stringOrNull(record.completedAt),
-    lastError: stringOrNull(record.lastError),
+    // Never persisted: a server error message can carry identifying text. The
+    // pending signal is preserved by the counts, which is what the card reads.
+    lastError: null,
+  }
+}
+
+/** The exact field set that may be written to browser storage. */
+function storedRecord(record: AnonymizeRecoveryRecord) {
+  return {
+    targetId: record.targetId,
+    role: record.role,
+    state: record.state,
+    identityRemoved: record.identityRemoved,
+    ...(record.legacyAnonymized ? { legacyAnonymized: true } : {}),
+    ...(typeof record.accessDisabled === "boolean"
+      ? { accessDisabled: record.accessDisabled }
+      : {}),
+    ...(typeof record.needsRedaction === "boolean"
+      ? { needsRedaction: record.needsRedaction }
+      : {}),
+    cleanup: { ...record.cleanup, lastError: null },
+    source: record.source,
   }
 }
 
@@ -140,24 +161,7 @@ export function writeAnonymizeRecoveryRecords(
       storage.removeItem(key)
       return
     }
-    storage.setItem(
-      key,
-      JSON.stringify(records.map((record) => ({
-        targetId: record.targetId,
-        role: record.role,
-        state: record.state,
-        identityRemoved: record.identityRemoved,
-        ...(record.legacyAnonymized ? { legacyAnonymized: true } : {}),
-        ...(typeof record.accessDisabled === "boolean"
-          ? { accessDisabled: record.accessDisabled }
-          : {}),
-        ...(typeof record.needsRedaction === "boolean"
-          ? { needsRedaction: record.needsRedaction }
-          : {}),
-        cleanup: record.cleanup,
-        source: record.source,
-      }))),
-    )
+    storage.setItem(key, JSON.stringify(records.map(storedRecord)))
   } catch {
     // Session storage can be unavailable in private/restricted contexts. The
     // in-memory recovery card still works for this page view.
@@ -189,6 +193,44 @@ export function purgeLegacyAnonymizeRecoveryStorage(storage: StorageLike): void 
       storage.removeItem(key)
     } catch {
       // Ignore restricted storage.
+    }
+  }
+}
+
+/**
+ * Logout clears the operator's recovery records except unknown-outcome ones.
+ *
+ * A `status_unknown` record is the only local pointer to a request whose
+ * server-side outcome was never confirmed; the authoritative list may not
+ * contain that target at all. The record carries no identity data (target id,
+ * role, state and counts only) and its storage key is scoped to the admin id,
+ * so it is safe to keep until the next sign-in reconciles it.
+ */
+export function pruneAnonymizeRecoveryStorageForLogout(storage: StorageLike): void {
+  for (const key of keysWithPrefix(storage, V2_PREFIX)) {
+    try {
+      const raw = storage.getItem(key)
+      if (!raw) continue
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) {
+        storage.removeItem(key)
+        continue
+      }
+      const kept = parsed
+        .map((entry) => sanitizeRecord(entry))
+        .filter((record): record is AnonymizeRecoveryRecord =>
+          Boolean(record) && record!.state === "status_unknown")
+      if (kept.length === 0) {
+        storage.removeItem(key)
+      } else {
+        storage.setItem(key, JSON.stringify(kept.map(storedRecord)))
+      }
+    } catch {
+      try {
+        storage.removeItem(key)
+      } catch {
+        // Ignore restricted storage.
+      }
     }
   }
 }

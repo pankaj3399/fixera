@@ -511,7 +511,13 @@ const main = async () => {
   console.log(`database       ${testUri}`)
   console.log(`output         ${OUT_DIR}`)
 
-  await mongoose.connect(testUri, { serverSelectionTimeoutMS: 10000 })
+  // Pin the connection to the local seed: without directConnection a localhost
+  // replica-set seed can discover and use an advertised remote member, and
+  // dropDatabase() would then target that member's database.
+  await mongoose.connect(testUri, {
+    serverSelectionTimeoutMS: 10000,
+    directConnection: true,
+  })
   const models = await load()
   if (mongoose.connection.readyState !== 1) fail('Mongoose is not connected')
   await mongoose.connection.dropDatabase()

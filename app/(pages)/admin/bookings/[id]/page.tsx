@@ -17,6 +17,13 @@ import { FORCEABLE_BOOKING_STATUSES } from "@/lib/constants/adminBookingStatus"
 import { useAdminAccess } from "@/hooks/useAdminAccess"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
 
+interface HistoryActor {
+  name?: string
+  email?: string
+  deletedAt?: string | null
+  isAnonymized?: boolean
+}
+
 interface Refund {
   amount: number
   reason?: string
@@ -32,8 +39,8 @@ interface RescheduleHistoryEntry {
   status: 'accepted' | 'declined' | 'auto_cancelled'
   respondedAt?: string
   responseNote?: string
-  requestedBy?: { name?: string; email?: string }
-  respondedBy?: { name?: string; email?: string }
+  requestedBy?: HistoryActor
+  respondedBy?: HistoryActor
   previousSchedule?: { scheduledStartDate?: string }
   proposedSchedule?: { scheduledStartDate?: string }
 }
@@ -47,8 +54,8 @@ interface Dispute {
   adminAdjustedAmount?: number
   slaDeadline?: string
   slaBreachNotifiedAt?: string
-  raisedBy?: { name?: string; email?: string }
-  resolvedBy?: { name?: string; email?: string }
+  raisedBy?: HistoryActor
+  resolvedBy?: HistoryActor
 }
 
 interface BookingDoc {
@@ -76,14 +83,25 @@ interface CancellationRequestDoc {
   resolvedAt?: string
   createdAt: string
   requestedRole: string
-  requestedBy?: { name?: string; email?: string }
-  resolvedBy?: { name?: string; email?: string }
+  requestedBy?: HistoryActor
+  resolvedBy?: HistoryActor
 }
 
 interface BookingDetailPayload {
   booking: BookingDoc
   payment: { refunds?: Refund[]; status?: string; totalWithVat?: number; currency?: string } | null
   cancellationRequests: CancellationRequestDoc[]
+}
+
+/**
+ * History actors carry the same anonymization flags as live parties. Never
+ * render a stored name or email without checking them: an anonymized account can
+ * still hold a non-placeholder name in the embedded actor.
+ */
+const actorLabel = (actor?: HistoryActor | null) => {
+  if (!actor) return '-'
+  if (isAnonymizedIdentity(actor)) return 'Deleted user'
+  return actor.name || actor.email || '-'
 }
 
 const formatDateTime = (value?: string) => value ? new Date(value).toLocaleString() : '-'
@@ -349,10 +367,10 @@ export default function AdminBookingDetailPage() {
                           <Badge variant={r.status === 'accepted' ? 'default' : 'secondary'} className="text-xs">{r.status}</Badge>
                           <span className="text-gray-500">{formatDateTime(r.requestedAt)}</span>
                         </div>
-                        <p>By: {r.requestedBy?.name || r.requestedBy?.email || '-'}</p>
+                        <p>By: {actorLabel(r.requestedBy)}</p>
                         <p>Reason: {r.reason || '-'}</p>
                         <p>Previous: {formatDate(r.previousSchedule?.scheduledStartDate)} → Proposed: {formatDate(r.proposedSchedule?.scheduledStartDate)}</p>
-                        {r.respondedAt && <p>Responded: {formatDateTime(r.respondedAt)} by {r.respondedBy?.name || r.respondedBy?.email || '-'}</p>}
+                        {r.respondedAt && <p>Responded: {formatDateTime(r.respondedAt)} by {actorLabel(r.respondedBy)}</p>}
                         {r.responseNote && <p>Note: {r.responseNote}</p>}
                       </div>
                     ))}
@@ -382,7 +400,7 @@ export default function AdminBookingDetailPage() {
                           <Badge variant="outline" className="text-xs">{cr.requestedRole}</Badge>
                           <span className="text-gray-500">{formatDateTime(cr.createdAt)}</span>
                         </div>
-                        <p>By: {cr.requestedBy?.name || cr.requestedBy?.email || '-'}</p>
+                        <p>By: {actorLabel(cr.requestedBy)}</p>
                         <p>Reason: {cr.reason}</p>
                         {cr.denyReason && <p>Deny reason: {cr.denyReason}</p>}
                         {cr.refundAmount != null && (
@@ -390,7 +408,7 @@ export default function AdminBookingDetailPage() {
                             Refunded: {formatMoney(cr.refundAmount, data.booking.payment?.currency)} on {formatDate(cr.refundedAt)}
                           </p>
                         )}
-                        {cr.resolvedBy && <p>Resolved by: {cr.resolvedBy.name || cr.resolvedBy.email}</p>}
+                        {cr.resolvedBy && <p>Resolved by: {actorLabel(cr.resolvedBy)}</p>}
                       </div>
                     ))}
                   </div>
@@ -437,13 +455,13 @@ export default function AdminBookingDetailPage() {
                         <Badge variant="destructive" className="text-xs bg-red-700">SLA breached</Badge>
                       )}
                     </div>
-                    <p>Raised: {formatDateTime(data.booking.dispute.raisedAt)} by {data.booking.dispute.raisedBy?.name || data.booking.dispute.raisedBy?.email}</p>
+                    <p>Raised: {formatDateTime(data.booking.dispute.raisedAt)} by {actorLabel(data.booking.dispute.raisedBy)}</p>
                     <p>Reason: {data.booking.dispute.reason}</p>
                     <p>Description: {data.booking.dispute.description}</p>
                     {data.booking.dispute.slaDeadline && <p>SLA deadline: {formatDateTime(data.booking.dispute.slaDeadline)}</p>}
                     {data.booking.dispute.resolvedAt && (
                       <>
-                        <p>Resolved: {formatDateTime(data.booking.dispute.resolvedAt)} by {data.booking.dispute.resolvedBy?.name || data.booking.dispute.resolvedBy?.email}</p>
+                        <p>Resolved: {formatDateTime(data.booking.dispute.resolvedAt)} by {actorLabel(data.booking.dispute.resolvedBy)}</p>
                         <p>Resolution: {data.booking.dispute.resolution}</p>
                         {data.booking.dispute.adminAdjustedAmount != null && (
                           <p>Admin-adjusted amount: {formatMoney(data.booking.dispute.adminAdjustedAmount, data.booking.payment?.currency)}</p>

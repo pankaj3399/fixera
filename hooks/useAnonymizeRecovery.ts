@@ -63,6 +63,8 @@ export function useAnonymizeRecovery(
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [reloadVersion, setReloadVersion] = useState(0)
   const mutationVersionRef = useRef(0)
+  /** Version captured when page one loaded; the whole traversal is compared against it. */
+  const traversalStartVersionRef = useRef(0)
   const generationRef = useRef(0)
   const loadMoreControllerRef = useRef<AbortController | null>(null)
   const loadingMoreRef = useRef(false)
@@ -91,6 +93,7 @@ export function useAnonymizeRecovery(
     setSync("loading")
     const controller = new AbortController()
     const startedAtVersion = mutationVersionRef.current
+    traversalStartVersionRef.current = startedAtVersion
 
     void requestAnonymizeRecoveryList({
       signal: controller.signal,
@@ -105,7 +108,11 @@ export function useAnonymizeRecovery(
       const server = response.data.accounts
       const totalPages = response.data.totalPages
       const paged = totalPages !== null
-      const complete = !paged || totalPages <= 1
+      // An unpaged response that reports more rows than it returned is also
+      // incomplete; treating it as complete would drop local recovery records.
+      const complete = paged
+        ? totalPages <= 1
+        : response.data.total <= server.length
       loadedServerIdsRef.current = new Set(server.map((entry) => entry.targetId))
       setListMeta({
         page: response.data.page,
@@ -173,7 +180,9 @@ export function useAnonymizeRecovery(
     }
     const nextPage = listMeta.page + 1
     const generation = generationRef.current
-    const startedAtVersion = mutationVersionRef.current
+    // Compare with the version from the first page: a record created between
+    // page one and the final page is still "current" and must survive.
+    const startedAtVersion = traversalStartVersionRef.current
     loadMoreControllerRef.current?.abort()
     const controller = new AbortController()
     loadMoreControllerRef.current = controller

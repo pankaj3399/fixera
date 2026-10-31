@@ -49,6 +49,31 @@ function check(name, condition, detail = "") {
   console.log(`${condition ? "PASS" : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`)
 }
 
+/**
+ * Every backend call must hit the fixtures. If the app is configured for a
+ * different backend origin than BROWSER_BACKEND_URL (for example https vs
+ * http), the `${BACKEND}/**` routes never match and the request would reach a
+ * real server. Fail the run instead of silently passing.
+ *
+ * Registered before the per-run routes, so those keep precedence: this handler
+ * only sees requests nothing else claimed.
+ */
+async function guardUninterceptedBackend(page) {
+  const appOrigin = new URL(BASE).origin
+  const backendOrigin = new URL(BACKEND).origin
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url())
+    if (url.protocol !== "http:" && url.protocol !== "https:") return route.fallback()
+    if (url.origin === appOrigin || url.origin === backendOrigin) return route.fallback()
+    check(
+      `no request to an unintercepted origin (${url.origin})`,
+      false,
+      `${url.href} — set BROWSER_BACKEND_URL to the app's NEXT_PUBLIC_BACKEND_URL origin`,
+    )
+    return route.abort()
+  })
+}
+
 function json(route, status, body) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) })
 }
@@ -231,6 +256,7 @@ async function newPage({ role = "super", viewport = { width: 1280, height: 900 }
     return context
   })
   const page = await context.newPage()
+  await guardUninterceptedBackend(page)
   await page.route(`${BACKEND}/**`, async (route) => {
     const url = new URL(route.request().url())
     const path = url.pathname
@@ -1028,7 +1054,12 @@ async function runChatChecks() {
   check("normal chat does not show the unavailable notice", !normalText.includes("You cannot send messages because this account is no longer available."))
   const textarea = page.locator("textarea").first()
   await textarea.fill("Normal message")
-  check("normal chat send stays enabled", await page.getByRole("button", { name: "Send message" }).isEnabled().catch(() => true))
+  const sendMessageButton = page.getByRole("button", { name: "Send message" })
+  check(
+    "normal chat send stays enabled",
+    (await sendMessageButton.count()) === 1 && (await sendMessageButton.isEnabled()),
+    "the send control must exist and be enabled",
+  )
 
   await page.getByRole("button", { name: "Search in chat" }).click()
   const searchInput = page.getByPlaceholder("Search messages...")

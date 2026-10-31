@@ -14,9 +14,11 @@ function roleLabel(role: string | null | undefined): string {
 }
 
 function accessSentence(record: AnonymizeRecoveryRecord): string {
-  return record.accessDisabled === false
-    ? " The server has not confirmed that account access is disabled; check the preview before acting."
-    : " Account access is disabled."
+  // Only an explicit true proves access is disabled. An omitted or unknown
+  // value must never be rendered as a confirmation.
+  return record.accessDisabled === true
+    ? " Account access is disabled."
+    : " The server has not confirmed that account access is disabled; check the preview before acting."
 }
 
 function cleanupSummary(record: AnonymizeRecoveryRecord): string {

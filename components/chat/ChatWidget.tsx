@@ -683,8 +683,10 @@ export default function ChatWidget() {
                   {selectedConversation
                     ? recipientUnavailable
                       ? t("common.deletedUser")
-                      : getOtherParticipantLabel(selectedConversation, userRole) ||
-                        (userRole === "professional" ? t("common.customer") : t("common.professional"))
+                      : selectedConversation.type === "support"
+                        ? t("common.fixtractSupport")
+                        : getOtherParticipantLabel(selectedConversation, userRole) ||
+                          (userRole === "professional" ? t("common.customer") : t("common.professional"))
                     : shouldShowNewChatPanel
                     ? t("widget.newChat")
                     : t("page.title")}
