@@ -78,7 +78,9 @@ export function isCanonicalDeletedIdentity(value: unknown): boolean {
 export function isRedactedPlaceholderText(value: unknown): boolean {
   if (typeof value !== "string") return false
   const normalized = value.trim().toLowerCase()
-  return normalized === "[deleted message]" || normalized === "[deleted]"
+  // Only the explicit redaction marker: a user may legitimately type
+  // "[deleted]" in a message, and treating that as redacted hides real text.
+  return normalized === "[deleted message]"
 }
 
 export function isAnonymizedIdentity(value: unknown): boolean {
@@ -86,5 +88,7 @@ export function isAnonymizedIdentity(value: unknown): boolean {
   const identity = value as AnonymizableIdentity
   if (identity.isAnonymized === true) return true
   if (nonEmptyString(identity.deletedAt)) return true
+  // Legacy rows predate the flags. Only the exact canonical marker counts
+  // ("Deleted user"), never a business name that merely contains the words.
   return isCanonicalDeletedIdentity(identity)
 }
