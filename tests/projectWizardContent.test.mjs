@@ -26,6 +26,37 @@ test('title suggestions use supplied project facts and stay within the configure
   assert.ok(shortTitle.length >= 30 && shortTitle.length <= 90)
 })
 
+test('project copy API rejects a success response without the requested list', async () => {
+  const originalFetch = globalThis.fetch
+  const originalWindow = globalThis.window
+  const originalStorage = globalThis.localStorage
+  const originalBackend = process.env.NEXT_PUBLIC_BACKEND_URL
+  const values = new Map([['authToken', 'test-session-token']])
+  globalThis.window = {}
+  globalThis.localStorage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  }
+  process.env.NEXT_PUBLIC_BACKEND_URL = 'https://backend.example.test'
+  globalThis.fetch = async () => new Response(JSON.stringify({ success: true, data: {} }), { status: 200 })
+  try {
+    const { generateProjectCopy, ProjectCopyApiError } = await import('../lib/projectCopyApi.ts')
+    await assert.rejects(
+      generateProjectCopy({ kind: 'title', locale: 'en', context: { service: 'Plumbing', description: 'Replace the shower.' } }),
+      (error) => error instanceof ProjectCopyApiError && error.code === 'AI_UNAVAILABLE',
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalStorage === undefined) delete globalThis.localStorage
+    else globalThis.localStorage = originalStorage
+    if (originalBackend === undefined) delete process.env.NEXT_PUBLIC_BACKEND_URL
+    else process.env.NEXT_PUBLIC_BACKEND_URL = originalBackend
+  }
+})
+
 test('FAQ regeneration preserves authored entries and merges only new questions', () => {
   const authored = { id: 'manual', question: 'What is included?', answer: 'My edited answer', isGenerated: false }
   const merged = mergeFAQSuggestions([authored], [

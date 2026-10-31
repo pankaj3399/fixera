@@ -130,6 +130,13 @@ function SearchPageContent() {
     minProjectRating: 0,
   });
 
+  // Price bounds are converted to EUR once, when typed. Re-converting on every
+  // render would silently change an already-entered bound when rates load.
+  const [priceBoundsEur, setPriceBoundsEur] = useState<{ min?: number; max?: number }>(() => ({
+    min: filters.priceMin === '' ? undefined : convertToEur(Number(filters.priceMin)),
+    max: filters.priceMax === '' ? undefined : convertToEur(Number(filters.priceMax)),
+  }));
+
   // Store location coordinates separately
   const [locationCoordinates, setLocationCoordinates] = useState<{
     lat: number;
@@ -234,7 +241,8 @@ function SearchPageContent() {
     user?._id,
     pagination.page,
     locationCoordinates,
-    convertToEur
+    priceBoundsEur.min,
+    priceBoundsEur.max
   ]);
 
   const performSearch = async () => {
@@ -245,6 +253,8 @@ function SearchPageContent() {
       setIsLoading(false);
       setError(null);
       setResults([]);
+      // The sidebar must not keep counts for a query that was never run.
+      setProjectFacets(null);
       setPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 1 }));
       return;
     }
@@ -262,9 +272,13 @@ function SearchPageContent() {
 
       if (filters.query) params.append('q', filters.query);
       if (filters.location) params.append('loc', filters.location);
-      const toBasePrice = (value: string) => searchType === 'projects' ? convertToEur(Number(value)) : value;
-      if (filters.priceMin !== '') params.append('priceMin', String(toBasePrice(filters.priceMin)));
-      if (filters.priceMax !== '') params.append('priceMax', String(toBasePrice(filters.priceMax)));
+      if (searchType === 'projects') {
+        if (priceBoundsEur.min !== undefined) params.append('priceMin', String(priceBoundsEur.min));
+        if (priceBoundsEur.max !== undefined) params.append('priceMax', String(priceBoundsEur.max));
+      } else {
+        if (filters.priceMin !== '') params.append('priceMin', filters.priceMin);
+        if (filters.priceMax !== '') params.append('priceMax', filters.priceMax);
+      }
       if (filters.category) params.append('category', filters.category);
       if (filters.availability) params.append('availability', 'true');
       if (filters.sortBy) params.append('sortBy', filters.sortBy);
@@ -384,13 +398,23 @@ function SearchPageContent() {
   };
 
   const handleFilterChange = <K extends keyof SearchFiltersState>(key: K, value: SearchFiltersState[K]) => {
-    shouldScrollAfterFilterRef.current = true;
+    // Typing in a text field must not scroll the results over the filter form.
+    shouldScrollAfterFilterRef.current = !['query', 'location', 'priceMin', 'priceMax'].includes(key as string);
+    if (searchType === 'projects' && (key === 'priceMin' || key === 'priceMax')) {
+      const raw = value as string;
+      const numeric = raw === '' ? undefined : Number(raw);
+      const eur = numeric !== undefined && Number.isFinite(numeric) && numeric >= 0
+        ? convertToEur(numeric)
+        : undefined;
+      setPriceBoundsEur((prev) => ({ ...prev, [key === 'priceMin' ? 'min' : 'max']: eur }));
+    }
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPagination((prev) => ({ ...prev, page: 1 })); // Reset to page 1 on filter change
   };
 
   const handleClearFilters = () => {
     setFilterResetVersion(version => version + 1);
+    setPriceBoundsEur({});
     shouldScrollAfterFilterRef.current = true;
     setFilters({
       query: initialQuery,

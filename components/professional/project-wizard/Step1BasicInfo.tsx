@@ -540,7 +540,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
           packageName: formData.selectedPricingOption?.name,
           keyword: formData.keywords?.[0],
           description: formData.description,
-        })])
+        }, t('step1.projectTitle.fallbackSuffix'))])
         setSelectedTitleIndex(0)
         toast.info(t('step1.projectTitle.localFallback'))
       } else {

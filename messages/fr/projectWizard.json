@@ -146,7 +146,8 @@
       "suggested": "Titre suggéré :",
       "label": "Titre du projet *",
       "placeholder": "Saisissez le titre du projet...",
-      "counter": "{count}/90 caractères (minimum 30)"
+      "counter": "{count}/90 caractères (minimum 30)",
+      "fallbackSuffix": "étendue du projet et détails du service"
     },
     "images": {
       "title": "Images du projet (facultatif)",

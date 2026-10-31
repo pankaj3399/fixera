@@ -12,13 +12,13 @@ export const buildProjectTitleSuggestion = (input: {
   packageName?: string
   keyword?: string
   description: string
-}) => {
+}, fallbackSuffix = 'project scope and service details') => {
   const facts = [input.area, input.packageName, input.keyword, input.description]
     .map((value) => value?.replace(/\s+/g, ' ').trim())
     .filter((value): value is string => Boolean(value))
   const prefix = `${input.service.trim()}: `
   const title = `${prefix}${facts.join(' · ')}`.slice(0, 90).trim().replace(/[·\s]+$/u, '')
-  return title.length >= 30 ? title : `${title} — ${input.service.trim()} project scope and service details`.slice(0, 90)
+  return title.length >= 30 ? title : `${title} — ${input.service.trim()} ${fallbackSuffix}`.slice(0, 90)
 }
 
 export const mergeFAQSuggestions = <T extends { question: string }>(existing: T[], suggestions: T[]) => {

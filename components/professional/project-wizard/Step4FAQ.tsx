@@ -123,12 +123,20 @@ export default function Step4FAQ<T extends ProjectData>({ data, onChange, onVali
         : locale === 'nl'
           ? { included: (name: string) => `Wat is inbegrepen bij het pakket ${name}?`, about: (fact: string) => `Wat moeten klanten weten over “${fact.slice(0, 50)}”?`, states: 'De projectgegevens vermelden:', confirm: ' Bevestig ontbrekende details met de vakprofessional.' }
           : { included: (name: string) => `What is included in the ${name} package?`, about: (fact: string) => `What should customers know about “${fact.slice(0, 50)}”?`, states: 'The project details state:', confirm: ' Confirm details not specified here with the professional.' }
+      const answerFor = (fact: string) => {
+        // Step 1 allows 1,300-character descriptions while FAQ answers are
+        // capped at 1,000; truncate the quoted fact so the full answer fits.
+        const prefix = `${copy.states} “`
+        const suffix = `”.${copy.confirm}`
+        const room = Math.max(0, 1000 - prefix.length - suffix.length)
+        return `${prefix}${fact.slice(0, room)}${suffix}`
+      }
       const suggestions = uniqueFacts.map((fact, index) => ({
         id: `grounded-${Date.now()}-${index}`,
         question: index === 0 && context.subprojects?.[0]?.name
           ? copy.included(context.subprojects[0].name)
           : copy.about(fact),
-        answer: `${copy.states} “${fact}”.${copy.confirm}`,
+        answer: answerFor(fact),
         isGenerated: false,
       }))
       setFaqs(current => mergeFAQSuggestions(current, suggestions))

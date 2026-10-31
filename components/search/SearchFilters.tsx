@@ -219,7 +219,10 @@ const SearchFilters = ({
   // Helper to build dynamic option lists with counts
   const buildOptions = (counts?: Record<string, number>, fallback?: string[]): FacetOption[] => {
     const values = new Set([...(fallback || []), ...Object.keys(counts || {})]);
-    return [...values].sort((a, b) => (counts?.[b] || 0) - (counts?.[a] || 0)).map(value => ({ value, count: counts?.[value] || 0 }));
+    return [...values]
+      .sort((a, b) => (counts?.[b] || 0) - (counts?.[a] || 0))
+      // No facet data means no truthworthy count: omit it instead of showing 0.
+      .map(value => (counts ? { value, count: counts[value] || 0 } : { value }));
   };
 
   const dynamicServices = buildOptions(searchType === 'projects' ? facets?.services : undefined, servicesList);
