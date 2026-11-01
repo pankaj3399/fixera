@@ -1,0 +1,8 @@
+{
+  "status": 404,
+  "body": {
+    "success": false,
+    "msg": "This lead was removed. Refresh the list.",
+    "code": "NOT_FOUND"
+  }
+}

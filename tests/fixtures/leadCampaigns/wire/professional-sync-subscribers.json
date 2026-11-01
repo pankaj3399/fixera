@@ -1,0 +1,44 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "subscribers": [
+        {
+          "_id": "6adfb0c6210d91f37feff91c",
+          "email": "sync.pro@example.com",
+          "__v": 0,
+          "brevoUnsubscribedAt": null,
+          "consentVerifiedAt": "2026-02-01T00:00:00.000Z",
+          "createdAt": "2026-10-26T19:57:58.038Z",
+          "emailNormalized": "sync.pro@example.com",
+          "firstName": "Wire",
+          "interestedServices": [
+            "Plumbing"
+          ],
+          "lastCampaignSentAt": null,
+          "locale": "nl",
+          "localeSource": "explicit",
+          "name": "Wire Sync Professional",
+          "region": "BE",
+          "role": "professional",
+          "serviceKeys": [
+            "plumbing"
+          ],
+          "source": "user_sync",
+          "subscribedAt": "2026-10-26T19:57:58.038Z",
+          "unsubscribedAt": null,
+          "updatedAt": "2026-10-26T19:57:58.038Z",
+          "userId": "66af00000000000000000501",
+          "suppressed": false
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "limit": 8,
+        "total": 1,
+        "totalPages": 1
+      }
+    }
+  }
+}

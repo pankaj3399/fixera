@@ -1,0 +1,7 @@
+{
+  "status": 400,
+  "body": {
+    "success": false,
+    "msg": "Audience type must be one of: subscribers, both, leads"
+  }
+}

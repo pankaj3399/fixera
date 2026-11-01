@@ -1,0 +1,28 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "data": {
+      "lead": {
+        "_id": "6adfb0c5210d91f37feff855",
+        "email": "person@example.com",
+        "country": "BE",
+        "locale": "de",
+        "serviceKeys": [
+          "plumbing"
+        ],
+        "interestedServices": [
+          "Plumbing"
+        ],
+        "status": "active",
+        "unsubscribedAt": null,
+        "lastCampaignSentAt": null,
+        "suppressed": false,
+        "suppressionReason": null,
+        "sourceImportId": "6adfb0c53a75b668ca348f69",
+        "createdAt": "2026-10-26T19:57:57.659Z",
+        "updatedAt": "2026-10-26T19:57:57.867Z"
+      }
+    }
+  }
+}
