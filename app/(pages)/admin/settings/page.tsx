@@ -625,7 +625,8 @@ export default function AdminSettingsPage() {
           </Card>
         )}
 
-        {!isLoading && <AutoConversionSettingsCard initial={autoConversion} />}
+        {/* The backend accepts auto-conversion changes from super admins only. */}
+        {!isLoading && user?.adminRole === 'super' && <AutoConversionSettingsCard initial={autoConversion} />}
 
         {!isLoading && user?.adminRole === 'super' && (
           <Card className="mt-6">
