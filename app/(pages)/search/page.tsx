@@ -448,6 +448,16 @@ function SearchPageContent() {
 
   const handleSearchTypeChange = (newType: 'professionals' | 'projects') => {
     setProjectFacets(null);
+    if (newType === 'projects') {
+      // A price typed on the professionals tab is still shown after switching;
+      // derive the EUR bounds so the request applies it.
+      const toEur = (raw: string) => {
+        if (raw === '') return undefined;
+        const numeric = Number(raw);
+        return Number.isFinite(numeric) && numeric >= 0 ? convertToEur(numeric) : undefined;
+      };
+      setPriceBoundsEur({ min: toEur(filters.priceMin), max: toEur(filters.priceMax) });
+    }
     setSearchType(newType);
     setPagination((prev) => ({ ...prev, page: 1 }));
     setResults([]);

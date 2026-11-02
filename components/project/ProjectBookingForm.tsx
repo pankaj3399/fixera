@@ -594,6 +594,7 @@ export default function ProjectBookingForm({
   const latestSlotsRequestRef = useRef(0);
   const availabilityRequestRef = useRef(0);
   const proposalsRequestRef = useRef(0);
+  const scheduleWindowRequestRef = useRef(0);
   const lastQuantityFetchKeyRef = useRef('');
   const isDebugProject =
     Boolean(debugProjectId) && String(project._id) === debugProjectId;
@@ -874,6 +875,7 @@ export default function ProjectBookingForm({
   }, [serverSlotsForSelectedDate, selectedTime]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
+    const requestId = ++scheduleWindowRequestRef.current;
     try {
       setLoadingScheduleWindow(true);
       let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/schedule-window?startDate=${startDate}`;
@@ -892,6 +894,9 @@ export default function ProjectBookingForm({
       });
       const response = await fetch(url);
       const data = await response.json();
+      // A slower response for an older quantity must not overwrite the window
+      // that step-2 validation reads.
+      if (requestId !== scheduleWindowRequestRef.current) return;
       debugLog?.('%c[SCHEDULE WINDOW] Response:', 'color: #ff6600; font-weight: bold', data);
       if (data.success && data.window) {
         debugLog?.('%c[SCHEDULE WINDOW] Setting scheduleWindow state:', 'color: #00cc00; font-weight: bold', data.window);
@@ -901,11 +906,14 @@ export default function ProjectBookingForm({
         setScheduleWindow(null);
       }
     } catch (error) {
+      if (requestId !== scheduleWindowRequestRef.current) return;
       debugError?.('%c[SCHEDULE WINDOW] Error:', 'color: #cc0000', error);
       setScheduleWindow(null);
     } finally {
-      setLoadingScheduleWindow(false);
-      debugLog?.('[SCHEDULE WINDOW] Loading complete');
+      if (requestId === scheduleWindowRequestRef.current) {
+        setLoadingScheduleWindow(false);
+        debugLog?.('[SCHEDULE WINDOW] Loading complete');
+      }
     }
   }, [project._id, selectedPackageIndex, estimatedUsage, isUnitPricing]);
 
