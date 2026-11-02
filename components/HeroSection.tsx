@@ -41,11 +41,11 @@ const HeroSection = async ({
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <Badge className="mb-4 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 border-blue-200 px-6 py-2 text-base font-medium">
+          <Badge className="mb-3 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 border-blue-200 px-6 py-1.5 text-base font-medium">
             {t('hero.badge')}
           </Badge>
 
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold mb-4 leading-[1.1] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 leading-[1.1] tracking-tight">
             <span className="bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent">
               {t('hero.titleTop')}
             </span>
@@ -55,7 +55,7 @@ const HeroSection = async ({
             </span>
           </h1>
 
-          <p className="text-xl sm:text-2xl text-gray-600 mb-8 max-w-4xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-gray-600 mb-6 max-w-4xl mx-auto leading-relaxed">
             {t('hero.description')}
           </p>
 
