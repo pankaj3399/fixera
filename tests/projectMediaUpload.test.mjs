@@ -61,8 +61,8 @@ test('accepted image formats match the backend validator', () => {
 test('wizard step 1 no longer inlines media as data URLs', () => {
   const step = readFileSync(new URL('../components/professional/project-wizard/Step1BasicInfo.tsx', import.meta.url), 'utf8')
   assert.doesNotMatch(step, /readAsDataURL/)
-  assert.match(step, /uploadMediaFile\('image'\)/)
-  assert.match(step, /uploadMediaFile\('video'\)/)
+  assert.match(step, /onEnqueueMedia\('image'/)
+  assert.match(step, /onEnqueueMedia\('video'/)
   for (const locale of ['en', 'nl', 'fr']) {
     const guide = JSON.parse(readFileSync(new URL(`../messages/${locale}/projectWizard.json`, import.meta.url), 'utf8')).step1.images.guide
     assert.doesNotMatch(guide, /GIF|SVG/, `${locale} guide must not promise formats the upload rejects`)

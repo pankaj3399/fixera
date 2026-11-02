@@ -183,7 +183,8 @@
       "videoTooLarge": "Het videobestand is te groot. De maximale grootte is 50 MB",
       "imageFormat": "Bestand {file} is geen JPEG-, PNG- of WebP-afbeelding",
       "mediaUploadFailed": "{file} kon niet worden geüpload. Probeer het opnieuw.",
-      "mediaUploadTooLarge": "{file} is te groot om te uploaden. Kies een kleiner bestand."
+      "mediaUploadTooLarge": "{file} is te groot om te uploaden. Kies een kleiner bestand.",
+      "waitForUploads": "Wacht tot je afbeeldingen en video volledig zijn geüpload."
     },
     "media": {
       "uploading": "{count, plural, one {# bestand wordt geüpload…} other {# bestanden worden geüpload…}}"

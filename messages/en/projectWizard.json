@@ -183,7 +183,8 @@
       "videoTooLarge": "Video file is too large. Maximum size is 50MB",
       "imageFormat": "File {file} is not a JPEG, PNG or WebP image",
       "mediaUploadFailed": "{file} could not be uploaded. Please try again.",
-      "mediaUploadTooLarge": "{file} is too large to upload. Please choose a smaller file."
+      "mediaUploadTooLarge": "{file} is too large to upload. Please choose a smaller file.",
+      "waitForUploads": "Please wait until your images and video have finished uploading."
     },
     "media": {
       "uploading": "{count, plural, one {Uploading # file…} other {Uploading # files…}}"

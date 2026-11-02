@@ -183,7 +183,8 @@
       "videoTooLarge": "La vidéo est trop volumineuse. La taille maximale est de 50 Mo",
       "imageFormat": "Le fichier {file} n'est pas une image JPEG, PNG ou WebP",
       "mediaUploadFailed": "{file} n'a pas pu être téléversé. Veuillez réessayer.",
-      "mediaUploadTooLarge": "{file} est trop volumineux pour être téléversé. Choisissez un fichier plus petit."
+      "mediaUploadTooLarge": "{file} est trop volumineux pour être téléversé. Choisissez un fichier plus petit.",
+      "waitForUploads": "Veuillez attendre la fin du téléversement de vos images et de votre vidéo."
     },
     "media": {
       "uploading": "{count, plural, one {Téléversement de # fichier…} other {Téléversement de # fichiers…}}"

@@ -1,7 +1,7 @@
 'use client'
 
-import { createProjectMediaQueue } from '@/lib/projectMediaQueue'
-import { PROJECT_IMAGE_TYPES, isAllowedProjectImageType, uploadProjectMedia, type ProjectMediaKind } from '@/lib/projectMediaUpload'
+import { PROJECT_IMAGE_TYPES, isAllowedProjectImageType, type ProjectMediaKind } from '@/lib/projectMediaUpload'
+import { PROJECT_MEDIA_LIMITS, normalizeProjectMedia, resolveWizardProjectId, type ProjectMediaLists, type ProjectMediaPending } from '@/lib/projectMediaUploads'
 import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,7 +27,6 @@ import {
 } from "@/lib/projectWizardValidation"
 import { buildProjectTitleSuggestion, normalizeProjectKeywords } from '@/lib/projectWizardContent'
 import { generateProjectCopy, ProjectCopyApiError } from '@/lib/projectCopyApi'
-import { authFetch } from '@/lib/utils'
 
 interface IServiceSelection {
   category: string
@@ -107,7 +106,13 @@ interface TeamMember {
 
 interface Step1Props {
   data: ProjectData
-  onChange: (data: ProjectData) => void
+  /** Media is owned by the wizard page (uploads outlive this component). */
+  media?: Partial<ProjectMediaLists>
+  mediaPending: ProjectMediaPending
+  onEnqueueMedia: (kind: ProjectMediaKind, files: readonly File[]) => Promise<boolean>
+  onMediaChange: (update: (media: ProjectMediaLists) => ProjectMediaLists) => void
+  /** Everything except `media`, which only flows through onMediaChange. */
+  onChange: (data: Omit<ProjectData, 'media'>) => void
   onValidate: (isValid: boolean, context: Step1ValidationContext) => void
 }
 
@@ -117,7 +122,7 @@ export interface Step1Ref {
 
 const DEFAULT_MIN_OVERLAP = 90
 
-const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onValidate }, ref) => {
+const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, media: mediaProp, mediaPending, onEnqueueMedia, onMediaChange, onChange, onValidate }, ref) => {
   const t = useTranslations('projectWizard')
   const locale = useLocale() as 'en' | 'nl' | 'fr'
   const [formData, setFormData] = useState<ProjectData>(data)
@@ -390,7 +395,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   }
 
   useEffect(() => {
-    onChange(formData)
+    // Never echo media back: the page owns it, and this copy is only the
+    // mount-time snapshot, so emitting it would overwrite finished uploads.
+    const fields: Omit<ProjectData, 'media'> & { media?: unknown } = { ...formData }
+    delete fields.media
+    onChange(fields)
     validateForm()
   }, [formData, serviceConfig, serviceConfigLoaded, addressValid])
 
@@ -487,43 +496,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     }))
   }
 
-  const mediaRef = useRef(formData.media || { images: [], videos: [] })
-  mediaRef.current = formData.media || { images: [], videos: [] }
-  const updateMedia = (updates: Partial<{ images: string[]; videos: string[] }> | ((media: { images: string[]; videos: string[] }) => Partial<{ images: string[]; videos: string[] }>)) => {
-    const media = { images: mediaRef.current.images || [], videos: mediaRef.current.videos || [] }
-    const next = { ...media, ...(typeof updates === 'function' ? updates(media) : updates) }
-    mediaRef.current = next
-    setFormData(prev => ({ ...prev, media: next }))
-  }
-  // Queues are created once, so read the current project id through a ref.
-  const projectIdRef = useRef<string | undefined>(undefined)
-  projectIdRef.current = formData._id || data._id
-  const [pendingUploads, setPendingUploads] = useState(0)
-  const uploadMediaFile = (kind: ProjectMediaKind) => async (file: File): Promise<string | null> => {
-    setPendingUploads(count => count + 1)
-    try {
-      const result = await uploadProjectMedia({
-        apiBase: process.env.NEXT_PUBLIC_BACKEND_URL || '',
-        kind,
-        file,
-        projectId: projectIdRef.current,
-        fetchImpl: authFetch,
-      })
-      if (result.ok) return result.url
-      toast.error(
-        result.status === 413
-          ? t('step1.toast.mediaUploadTooLarge', { file: file.name })
-          : result.message || t('step1.toast.mediaUploadFailed', { file: file.name })
-      )
-      return null
-    } finally {
-      setPendingUploads(count => Math.max(0, count - 1))
-    }
-  }
-  const imageQueueRef = useRef<ReturnType<typeof createProjectMediaQueue<File>> | null>(null)
-  if (!imageQueueRef.current) imageQueueRef.current = createProjectMediaQueue(4, () => mediaRef.current.images?.length || 0, uploadMediaFile('image'), values => updateMedia(media => ({ images: [...media.images, ...values] })))
-  const videoQueueRef = useRef<ReturnType<typeof createProjectMediaQueue<File>> | null>(null)
-  if (!videoQueueRef.current) videoQueueRef.current = createProjectMediaQueue(1, () => mediaRef.current.videos?.length || 0, uploadMediaFile('video'), values => updateMedia(media => ({ videos: [...media.videos, ...values] })))
+  const media = normalizeProjectMedia(mediaProp)
+  const pendingImages = mediaPending.image
+  const pendingVideos = mediaPending.video
+  const updateMedia = (update: (current: ProjectMediaLists) => Partial<ProjectMediaLists>) =>
+    onMediaChange(current => ({ ...current, ...update(current) }))
 
   const addKeyword = () => {
     const existing = formData.keywords || []
@@ -609,7 +586,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
   const handleImageUpload = (files: FileList | File[] | null) => {
     if (!files) return
 
-    const maxFiles = 4
+    const maxFiles = PROJECT_MEDIA_LIMITS.image
     const maxSize = 5 * 1024 * 1024 // 5MB
 
     const validFiles = Array.from(files).filter(file => {
@@ -630,8 +607,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
       return true
     })
-    imageQueueRef.current!(validFiles).then(accepted => {
-      if (!accepted) toast.error(t('step1.toast.tooManyImages', { max: maxFiles, current: mediaRef.current.images?.length || 0, remaining: Math.max(0, maxFiles - (mediaRef.current.images?.length || 0)) }))
+    onEnqueueMedia('image', validFiles).then(accepted => {
+      if (!accepted) toast.error(t('step1.toast.tooManyImages', { max: maxFiles, current: media.images.length, remaining: Math.max(0, maxFiles - media.images.length - pendingImages) }))
     })
   }
 
@@ -639,9 +616,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     if (!files || files.length === 0) return
 
     const maxSize = 50 * 1024 * 1024 // 50MB
-    const currentVideos = formData.media?.videos || []
-
-    if (currentVideos.length >= 1) {
+    if (media.videos.length + pendingVideos >= PROJECT_MEDIA_LIMITS.video) {
       toast.error(t('step1.toast.oneVideoOnly'))
       return
     }
@@ -659,7 +634,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
       return
     }
 
-    videoQueueRef.current!([file]).then(accepted => {
+    onEnqueueMedia('video', [file]).then(accepted => {
       if (!accepted) toast.error(t('step1.toast.oneVideoOnly'))
     })
   }
@@ -879,7 +854,7 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
         onChange={(certs) => updateFormData({ certifications: certs })}
         required={!!(serviceConfig?.requiredCertifications && serviceConfig.requiredCertifications.length > 0) || !!serviceConfig?.certificationRequired}
         requiredTypes={serviceConfig?.requiredCertifications || []}
-        projectId={formData._id}
+        projectId={resolveWizardProjectId(formData) ?? resolveWizardProjectId(data)}
       />
 
       {professionalVatQuestions.length > 0 && (
@@ -1399,8 +1374,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <p className="text-gray-600">{t('step1.images.dropzone')}</p>
             <p className="text-sm text-gray-500 mt-2">{t('step1.images.hint')}</p>
             <p className="text-xs text-gray-500 mt-1">{t('step1.images.guide')}</p>
-            {pendingUploads > 0 && (
-              <p role="status" className="text-sm text-blue-700 mt-2">{t('step1.media.uploading', { count: pendingUploads })}</p>
+            {pendingImages > 0 && (
+              <p role="status" className="text-sm text-blue-700 mt-2">{t('step1.media.uploading', { count: pendingImages })}</p>
             )}
             <input
               type="file"
@@ -1419,25 +1394,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             </Button>
           </div>
 
-          {formData.media?.images && formData.media.images.length > 0 && (
+          {media.images.length > 0 && (
             <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-              {formData.media.images.map((image, index) => (
+              {media.images.map((image, index) => (
                 <div key={index} className="relative">
                   <img src={image} alt={t('step1.images.alt', { index: index + 1 })} className="w-full h-24 object-cover rounded" />
                   {index === 0 && <span className="absolute bottom-1 left-1 rounded bg-white px-2 py-1 text-xs">{t('step1.images.mainImage')}</span>}
                   <div className="absolute top-1 left-1 flex gap-1">
-                    {index > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => { const images = [...(formData.media?.images || [])]; [images[index - 1], images[index]] = [images[index], images[index - 1]]; updateMedia({ images }) }} aria-label={t('step1.images.moveEarlier', { index: index + 1 })}>←</Button>}
-                    {index < (formData.media?.images.length || 0) - 1 && <Button type="button" size="sm" variant="secondary" onClick={() => { const images = [...(formData.media?.images || [])]; [images[index], images[index + 1]] = [images[index + 1], images[index]]; updateMedia({ images }) }} aria-label={t('step1.images.moveLater', { index: index + 1 })}>→</Button>}
-                    {index > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => { const images = [...(formData.media?.images || [])]; images.unshift(...images.splice(index, 1)); updateMedia({ images }) }}>{t('step1.images.setMain')}</Button>}
+                    {index > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => updateMedia(current => { const images = [...current.images]; [images[index - 1], images[index]] = [images[index], images[index - 1]]; return { images } })} aria-label={t('step1.images.moveEarlier', { index: index + 1 })}>←</Button>}
+                    {index < media.images.length - 1 && <Button type="button" size="sm" variant="secondary" onClick={() => updateMedia(current => { const images = [...current.images]; [images[index], images[index + 1]] = [images[index + 1], images[index]]; return { images } })} aria-label={t('step1.images.moveLater', { index: index + 1 })}>→</Button>}
+                    {index > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => updateMedia(current => { const images = [...current.images]; images.unshift(...images.splice(index, 1)); return { images } })}>{t('step1.images.setMain')}</Button>}
                   </div>
                   <Button
                     variant="destructive"
                     size="sm"
                     className="absolute top-1 right-1 w-6 h-6 p-0"
-                    type="button" onClick={() => {
-                      const newImages = formData.media?.images?.filter((_, i) => i !== index) || []
-                      updateMedia({ images: newImages })
-                    }}
+                    type="button" onClick={() => updateMedia(current => ({ images: current.images.filter((_, i) => i !== index) }))}
                   >
                     <X className="w-3 h-3" />
                   </Button>
@@ -1465,8 +1437,8 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <p className="text-gray-600">{t('step1.video.dropzone')}</p>
             <p className="text-sm text-gray-500 mt-2">{t('step1.video.hint')}</p>
             <p className="text-xs text-gray-500 mt-1">{t('step1.video.guide')}</p>
-            {pendingUploads > 0 && (
-              <p role="status" className="text-sm text-blue-700 mt-2">{t('step1.media.uploading', { count: pendingUploads })}</p>
+            {pendingVideos > 0 && (
+              <p role="status" className="text-sm text-blue-700 mt-2">{t('step1.media.uploading', { count: pendingVideos })}</p>
             )}
             <input
               type="file"
@@ -1479,24 +1451,22 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
               variant="outline"
               className="mt-4"
               type="button" onClick={() => document.getElementById('video-upload')?.click()}
-              disabled={formData.media?.videos && formData.media.videos.length >= 1}
+              disabled={media.videos.length + pendingVideos >= PROJECT_MEDIA_LIMITS.video}
             >
               {t('step1.video.choose')}
             </Button>
           </div>
 
-          {formData.media?.videos && formData.media.videos.length > 0 && (
+          {media.videos.length > 0 && (
             <div className="mt-4">
-              {formData.media.videos.map((video, index) => (
+              {media.videos.map((video, index) => (
                 <div key={index} className="relative">
                   <video src={video} controls className="w-full max-h-64 rounded" />
                   <Button
                     variant="destructive"
                     size="sm"
                     className="absolute top-1 right-1"
-                    type="button" onClick={() => {
-                      updateMedia({ videos: [] })
-                    }}
+                    type="button" onClick={() => updateMedia(() => ({ videos: [] }))}
                   >
                     <X className="w-4 h-4 mr-1" />
                     {t('step1.video.remove')}

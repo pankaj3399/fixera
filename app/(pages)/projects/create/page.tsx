@@ -19,7 +19,17 @@ import Step5RFQQuestions from '@/components/professional/project-wizard/Step5RFQ
 import Step6PostBookingQuestions from '@/components/professional/project-wizard/Step6PostBookingQuestions'
 import Step7CustomMessage from '@/components/professional/project-wizard/Step7CustomMessage'
 import { toast } from 'sonner'
-import { getAuthToken } from '@/lib/utils'
+import { authFetch, getAuthToken } from '@/lib/utils'
+import { uploadProjectMedia, type ProjectMediaKind } from '@/lib/projectMediaUpload'
+import {
+  appendProjectMedia,
+  createProjectMediaUploader,
+  normalizeProjectMedia,
+  resolveWizardProjectId,
+  type ProjectMediaLists,
+  type ProjectMediaPending,
+  type ProjectMediaUploader,
+} from '@/lib/projectMediaUploads'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatPriceModelLabel } from '@/lib/projectHighlights'
@@ -268,6 +278,78 @@ function ProjectCreateContent() {
     postBookingQuestions: []
   })
   const [isLoading, setIsLoading] = useState(false)
+  // Step 1 holds its own form copy hydrated on mount; bump this only when a
+  // server load replaces projectData, so assigning the id on the first draft
+  // save does not remount Step 1.
+  const [step1HydrationKey, setStep1HydrationKey] = useState(0)
+  // Id assigned by our own first draft save; the URL switch to ?id=… must not
+  // reload (and overwrite) the in-memory wizard state.
+  const selfAssignedProjectIdRef = useRef<string | null>(null)
+
+  // Media uploads are owned here, not by Step 1, so they survive Step 1
+  // unmounting/remounting and commit onto the latest projectData.
+  const projectDataRef = useRef(projectData)
+  projectDataRef.current = projectData
+  const tWizardRef = useRef(tWizard)
+  tWizardRef.current = tWizard
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  const [mediaPending, setMediaPending] = useState<ProjectMediaPending>({ image: 0, video: 0 })
+  const mediaUploaderRef = useRef<ProjectMediaUploader | null>(null)
+  if (!mediaUploaderRef.current) {
+    mediaUploaderRef.current = createProjectMediaUploader({
+      getMedia: () => projectDataRef.current.media,
+      getProjectId: () => resolveWizardProjectId(projectDataRef.current),
+      isActive: () => mountedRef.current,
+      onPendingChange: setMediaPending,
+      upload: async (kind: ProjectMediaKind, file: File, uploadProjectId: string | undefined) => {
+        const result = await uploadProjectMedia({
+          apiBase: process.env.NEXT_PUBLIC_BACKEND_URL || '',
+          kind,
+          file,
+          projectId: uploadProjectId,
+          fetchImpl: authFetch,
+        })
+        if (result.ok) return result.url
+        const tw = tWizardRef.current
+        toast.error(
+          result.status === 413
+            ? tw('step1.toast.mediaUploadTooLarge', { file: file.name })
+            : result.message || tw('step1.toast.mediaUploadFailed', { file: file.name })
+        )
+        return null
+      },
+      commit: (kind: ProjectMediaKind, urls: string[]) => {
+        // Keep the ref current for slot counting before the next render.
+        projectDataRef.current = { ...projectDataRef.current, media: appendProjectMedia(projectDataRef.current.media, kind, urls) }
+        setProjectData(prev => ({ ...prev, media: appendProjectMedia(prev.media, kind, urls) }))
+      },
+    })
+  }
+  const hasPendingMediaUploads = mediaPending.image + mediaPending.video > 0
+  const handleMediaChange = useCallback((update: (media: ProjectMediaLists) => ProjectMediaLists) => {
+    setProjectData(prev => ({ ...prev, media: update(normalizeProjectMedia(prev.media)) }))
+  }, [])
+  const enqueueMediaUpload = useCallback(
+    (kind: ProjectMediaKind, files: readonly File[]) => mediaUploaderRef.current!.enqueue(kind, files),
+    []
+  )
+  /** True (and tells the user) while uploads would be lost or missing from a save. */
+  const blockWhileUploading = () => {
+    if (!mediaUploaderRef.current?.hasPending()) return false
+    toast.error(tWizard('step1.toast.waitForUploads'))
+    return true
+  }
+  useEffect(() => {
+    if (!hasPendingMediaUploads) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasPendingMediaUploads])
+
   const [stepValidation, setStepValidation] = useState<boolean[]>(new Array(8).fill(false))
   const [visitedSteps, setVisitedSteps] = useState<boolean[]>([true, false, false, false, false, false, false, false])
   const [step1ValidationContext, setStep1ValidationContext] = useState<Step1ValidationContext | null>(null)
@@ -314,7 +396,7 @@ function ProjectCreateContent() {
 
   // Load existing project data if editing
   useEffect(() => {
-    if (projectId && canCreateProjects) {
+    if (projectId && canCreateProjects && projectId !== selfAssignedProjectIdRef.current) {
       const loadProject = async () => {
         setIsLoading(true)
         try {
@@ -407,6 +489,7 @@ function ProjectCreateContent() {
             serviceConfigurationId: project.serviceConfigurationId,
             vatProfessionalAnswers: project.vatProfessionalAnswers || [],
           })
+          setStep1HydrationKey(key => key + 1)
           setCurrentStep(project.currentStep || 1)
           setVisitedSteps(prev => prev.map((visited, index) => visited || index === (project.currentStep || 1) - 1))
         } catch (error) {
@@ -425,6 +508,8 @@ function ProjectCreateContent() {
 
   // Manual save function for draft
   const saveProjectDraft = async (options?: { silent?: boolean }) => {
+    // A save while uploads are in flight would persist the draft without them.
+    if (blockWhileUploading()) return null
     try {
       // Ensure priceModel is always provided for backend requirements
       const computedPriceModel = (() => {
@@ -483,6 +568,7 @@ function ProjectCreateContent() {
 
         // If this was a new project (no existing projectData.id) and we got a new ID, update the URL
         if (!projectData.id && savedProjectId) {
+          selfAssignedProjectIdRef.current = savedProjectId
           router.replace(`/projects/create?id=${savedProjectId}`, { scroll: false })
         }
 
@@ -511,6 +597,7 @@ function ProjectCreateContent() {
   }
 
   const handleStepChange = (step: number) => {
+    if (step !== currentStep && blockWhileUploading()) return
     setStepErrors([])
     setCurrentStep(step)
     setVisitedSteps(prev => prev.map((visited, index) => visited || index === step - 1))
@@ -518,6 +605,7 @@ function ProjectCreateContent() {
   }
 
   const handleNext = (dataToValidate = projectData) => {
+    if (blockWhileUploading()) return
     const errors = collectStepErrors(currentStep, dataToValidate, tWizard)
     if (errors.length > 0) {
       setStepErrors(errors)
@@ -537,6 +625,7 @@ function ProjectCreateContent() {
   }
 
   const handlePrevious = () => {
+    if (blockWhileUploading()) return
     if (currentStep > 1) {
       setStepErrors([])
       setCurrentStep(currentStep - 1)
@@ -609,6 +698,7 @@ function ProjectCreateContent() {
 
   const handleSubmit = async () => {
     if (isLoading) return // Prevent multiple submissions
+    if (blockWhileUploading()) return
 
     const blocking = buildBlockingWizardStepErrors()
     if (blocking.length > 0) {
@@ -737,6 +827,7 @@ function ProjectCreateContent() {
   }
 
   const handleShowValidationErrors = () => {
+    if (blockWhileUploading()) return
     if (currentStep === 8) {
       const blocking = buildBlockingWizardStepErrors()
       if (blocking.length > 0) {
@@ -812,9 +903,13 @@ function ProjectCreateContent() {
       case 1:
         return (
           <Step1BasicInfo
-            key={projectData.id ?? 'new'}
+            key={step1HydrationKey}
             ref={step1Ref}
             data={projectData}
+            media={projectData.media}
+            mediaPending={mediaPending}
+            onEnqueueMedia={enqueueMediaUpload}
+            onMediaChange={handleMediaChange}
             onChange={handleDataChange}
             onValidate={(isValid, validationContext) => handleStepValidation(1, isValid, validationContext)}
           />
