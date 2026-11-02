@@ -438,22 +438,21 @@
     "label": "Meerkosten",
     "total": "Totaal meerkosten",
     "totalLabel": "Totaal meerkosten:",
-    "unitAdjustmentName": "Aanpassing op basis van eenheden",
-    "unitDetail": "(geschat: {estimated}, werkelijk: {actual})",
+    "unitAdjustmentName": "Aanpassing aantal ({unit})",
+    "unitDetail": "(geschat: {estimated} {unit}, werkelijk: {actual} {unit})",
     "subtotal": "Subtotaal (incl. {percent}% platformvergoeding)",
     "loyaltyLine": "{level}-loyaliteit ({percentage}%)",
     "vat": "Btw",
     "payBeforeConfirmTitle": "Betaal de meerkosten vóór de definitieve bevestiging",
     "payBeforeConfirmDescription": "Zodra deze betaling is gelukt, wordt de boeking automatisch afgerond.",
     "paymentSucceeded": "Betaling van de meerkosten is gelukt. De boeking wordt nu afgerond. Als de pagina niet vernieuwt, gebruik dan opnieuw de bevestigknop.",
-    "addUnit": "+ Eenheid",
+    "addUnit": "+ Aanp. {unit}",
     "addCondition": "+ Voorwaarde",
     "addOption": "+ Optie",
     "addOther": "+ Overige",
-    "unitsFallback": "eenheden",
     "estimatedUnits": "Geschat aantal {unit}",
     "actualUnits": "Werkelijk aantal {unit}",
-    "unitPrice": "Prijs per eenheid",
+    "unitPrice": "Prijs per {unit}",
     "conditionLabel": "Voorwaarde (kies uit project)",
     "selectCondition": "Selecteer een voorwaarde",
     "noConditions": "Geen projectvoorwaarden beschikbaar",
@@ -477,6 +476,28 @@
       "noSubproject": "Kan geen eenheidsaanpassing toevoegen: er is geen subproject geselecteerd voor deze boeking.",
       "notUnitPriced": "Kan geen eenheidsaanpassing toevoegen: dit subproject heeft geen prijs per eenheid.",
       "unitPriceMissing": "Kan geen eenheidsaanpassing toevoegen: de prijs per eenheid is niet ingesteld."
+    },
+    "unitNames": {
+      "one": {
+        "hour": "uur",
+        "day": "dag",
+        "meter": "meter",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "kamer",
+        "piece": "stuk",
+        "unit": "eenheid"
+      },
+      "other": {
+        "hour": "uren",
+        "day": "dagen",
+        "meter": "meter",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "kamers",
+        "piece": "stuks",
+        "unit": "eenheden"
+      }
     }
   },
   "review": {

@@ -438,22 +438,21 @@
     "label": "Extra Costs",
     "total": "Total Extra Costs",
     "totalLabel": "Total Extra Costs:",
-    "unitAdjustmentName": "Unit-based adjustment",
-    "unitDetail": "(estimated: {estimated}, actual: {actual})",
+    "unitAdjustmentName": "Quantity adjustment ({unit})",
+    "unitDetail": "(estimated: {estimated} {unit}, actual: {actual} {unit})",
     "subtotal": "Subtotal (incl. {percent}% platform fee)",
     "loyaltyLine": "{level} loyalty ({percentage}%)",
     "vat": "VAT",
     "payBeforeConfirmTitle": "Pay extra costs before final confirmation",
     "payBeforeConfirmDescription": "Once this payment succeeds, the booking will be finalized automatically.",
     "paymentSucceeded": "Extra cost payment succeeded. Finalizing the booking now. If the page does not refresh, use the confirm button again.",
-    "addUnit": "+ Unit Adj.",
+    "addUnit": "+ {unit} adj.",
     "addCondition": "+ Condition",
     "addOption": "+ Option",
     "addOther": "+ Other",
-    "unitsFallback": "Units",
     "estimatedUnits": "Estimated {unit}",
     "actualUnits": "Actual {unit}",
-    "unitPrice": "Unit Price",
+    "unitPrice": "Price per {unit}",
     "conditionLabel": "Condition (select from project)",
     "selectCondition": "Select a condition",
     "noConditions": "No project conditions available",
@@ -477,6 +476,28 @@
       "noSubproject": "Cannot add a unit adjustment: no subproject is selected for this booking.",
       "notUnitPriced": "Cannot add a unit adjustment: this subproject is not priced per unit.",
       "unitPriceMissing": "Cannot add a unit adjustment: the unit price is not set."
+    },
+    "unitNames": {
+      "one": {
+        "hour": "hour",
+        "day": "day",
+        "meter": "metre",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "room",
+        "piece": "piece",
+        "unit": "unit"
+      },
+      "other": {
+        "hour": "hours",
+        "day": "days",
+        "meter": "metres",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "rooms",
+        "piece": "pieces",
+        "unit": "units"
+      }
     }
   },
   "review": {
