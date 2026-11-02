@@ -23,6 +23,16 @@ test('unit resolution prefers the most authoritative configured source', () => {
   assert.equal(resolveBookingUnit({ subprojectUnit: 'window' }), 'window', 'custom service units are shown as configured')
 })
 
+test('F7: the immutable booking snapshot unit wins over the live, editable project', () => {
+  // Professional changed the booked package from m² to hours after booking.
+  assert.equal(resolveBookingUnit({ snapshotSubprojectUnit: 'm2', subprojectUnit: 'hour', priceModel: 'hour' }), 'm2')
+  // Quotation/legacy bookings have no checkout snapshot unit (or a generic one).
+  assert.equal(resolveBookingUnit({ checkoutSnapshotUnit: 'unit', snapshotSubprojectUnit: 'm3', subprojectUnit: 'room' }), 'm3')
+  assert.equal(resolveBookingUnit({ checkoutSnapshotUnit: 'day', snapshotSubprojectUnit: 'm3' }), 'day', 'checkout snapshot stays first')
+  assert.equal(resolveBookingUnit({ snapshotSubprojectUnit: null, subprojectUnit: 'hour' }), 'hour', 'live project only as fallback')
+  assert.match(PAGE, /snapshotSubprojectUnit: details\?\.bookingSnapshot\?\.selectedSubproject\?\.pricing\?\.unit/)
+})
+
 test('booked subproject index: explicit index, else the only package', () => {
   assert.equal(bookedSubprojectIndex(1, 3), 1)
   assert.equal(bookedSubprojectIndex(5, 3), null)

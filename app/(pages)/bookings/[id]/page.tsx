@@ -2301,6 +2301,7 @@ function BookingDetailContent() {
   const bookedSubIdx = bookedSubprojectIndex(booking?.selectedSubprojectIndex, bookingSubprojects.length)
   const configuredUnit = resolveBookingUnit({
     checkoutSnapshotUnit: booking?.checkoutSnapshot?.unit,
+    snapshotSubprojectUnit: details?.bookingSnapshot?.selectedSubproject?.pricing?.unit,
     subprojectUnit: bookedSubIdx != null ? bookingSubprojects[bookedSubIdx]?.pricing?.unit : undefined,
     priceModel: (booking?.project as { priceModel?: string } | undefined)?.priceModel,
   })

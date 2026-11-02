@@ -41,7 +41,13 @@ export interface BookingUnitSources {
   costUnit?: unknown
   /** Unit recorded at checkout (server-authoritative for new adjustments). */
   checkoutSnapshotUnit?: unknown
-  /** `pricing.unit` of the booked subproject. */
+  /**
+   * `selectedSubproject.pricing.unit` from the immutable booking-time snapshot
+   * (`details.bookingSnapshot`). Survives later project edits, reorders and
+   * deleted subprojects, and is set for quotation/legacy bookings too.
+   */
+  snapshotSubprojectUnit?: unknown
+  /** `pricing.unit` of the booked subproject on the live, editable project (fallback). */
   subprojectUnit?: unknown
   /** Legacy project price model (e.g. "m2", "hour"). */
   priceModel?: unknown
@@ -52,6 +58,7 @@ export function resolveBookingUnit(sources: BookingUnitSources): string | null {
   return (
     meaningful(sources.costUnit) ??
     meaningful(sources.checkoutSnapshotUnit) ??
+    meaningful(sources.snapshotSubprojectUnit) ??
     meaningful(sources.subprojectUnit) ??
     meaningful(sources.priceModel)
   )
