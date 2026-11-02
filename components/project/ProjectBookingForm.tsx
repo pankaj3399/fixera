@@ -592,6 +592,10 @@ export default function ProjectBookingForm({
     : [];
   const debugSignatureRef = useRef('');
   const latestSlotsRequestRef = useRef(0);
+  const availabilityRequestRef = useRef(0);
+  const proposalsRequestRef = useRef(0);
+  const scheduleWindowRequestRef = useRef(0);
+  const lastQuantityFetchKeyRef = useRef('');
   const isDebugProject =
     Boolean(debugProjectId) && String(project._id) === debugProjectId;
   const debugLog = useMemo(
@@ -654,6 +658,7 @@ export default function ProjectBookingForm({
     setSelectedDate('');
     setSelectedTime('');
     if (pkg?.pricing?.type !== 'rfq') {
+      lastQuantityFetchKeyRef.current = `${packageIndex}:${estimatedUsage}`;
       fetchTeamAvailability(packageIndex);
       fetchScheduleProposals(packageIndex);
     } else {
@@ -662,6 +667,22 @@ export default function ProjectBookingForm({
     }
     setHasUserSelectedDate(false);
   }, [selectedPackageIndex]);
+
+  useEffect(() => {
+    if (!isUnitPricing || typeof selectedPackageIndex !== 'number') return;
+    // The package effect already fetched this exact pair; skip the duplicate.
+    const key = `${selectedPackageIndex}:${estimatedUsage}`;
+    if (lastQuantityFetchKeyRef.current === key) return;
+    // `step="any"` fires on every keystroke ("12.5" is four events); debounce
+    // and let the request-id guards drop any older in-flight response.
+    const timer = window.setTimeout(() => {
+      if (lastQuantityFetchKeyRef.current === key) return;
+      lastQuantityFetchKeyRef.current = key;
+      void fetchTeamAvailability(selectedPackageIndex);
+      void fetchScheduleProposals(selectedPackageIndex);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [estimatedUsage, isUnitPricing, selectedPackageIndex]);
 
   const getFormattedDate = (dateStr?: string | null) => {
     if (!dateStr) return null;
@@ -814,6 +835,7 @@ export default function ProjectBookingForm({
         if (typeof selectedPackageIndex === 'number') {
           url += `&subprojectIndex=${selectedPackageIndex}`;
         }
+        if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
         const res = await fetch(url, { signal: controller.signal });
         if (!isCurrent()) return;
         if (!res.ok) {
@@ -843,7 +865,7 @@ export default function ProjectBookingForm({
     };
     run();
     return () => controller.abort();
-  }, [project._id, selectedDate, selectedPackageIndex, projectMode]);
+  }, [project._id, selectedDate, selectedPackageIndex, projectMode, estimatedUsage, isUnitPricing]);
 
   useEffect(() => {
     if (!serverSlotsForSelectedDate) return;
@@ -853,12 +875,14 @@ export default function ProjectBookingForm({
   }, [serverSlotsForSelectedDate, selectedTime]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
+    const requestId = ++scheduleWindowRequestRef.current;
     try {
       setLoadingScheduleWindow(true);
       let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/schedule-window?startDate=${startDate}`;
       if (typeof selectedPackageIndex === 'number') {
         url += `&subprojectIndex=${selectedPackageIndex}`;
       }
+      if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
       if (startTime) {
         url += `&startTime=${startTime}`;
       }
@@ -870,6 +894,9 @@ export default function ProjectBookingForm({
       });
       const response = await fetch(url);
       const data = await response.json();
+      // A slower response for an older quantity must not overwrite the window
+      // that step-2 validation reads.
+      if (requestId !== scheduleWindowRequestRef.current) return;
       debugLog?.('%c[SCHEDULE WINDOW] Response:', 'color: #ff6600; font-weight: bold', data);
       if (data.success && data.window) {
         debugLog?.('%c[SCHEDULE WINDOW] Setting scheduleWindow state:', 'color: #00cc00; font-weight: bold', data.window);
@@ -879,13 +906,16 @@ export default function ProjectBookingForm({
         setScheduleWindow(null);
       }
     } catch (error) {
+      if (requestId !== scheduleWindowRequestRef.current) return;
       debugError?.('%c[SCHEDULE WINDOW] Error:', 'color: #cc0000', error);
       setScheduleWindow(null);
     } finally {
-      setLoadingScheduleWindow(false);
-      debugLog?.('[SCHEDULE WINDOW] Loading complete');
+      if (requestId === scheduleWindowRequestRef.current) {
+        setLoadingScheduleWindow(false);
+        debugLog?.('[SCHEDULE WINDOW] Loading complete');
+      }
     }
-  }, [project._id, selectedPackageIndex]);
+  }, [project._id, selectedPackageIndex, estimatedUsage, isUnitPricing]);
 
   // Fetch schedule window from backend when date changes (for days mode)
   useEffect(() => {
@@ -904,6 +934,7 @@ export default function ProjectBookingForm({
   }, [selectedDate, projectMode, loadingAvailability, fetchScheduleWindow]);
 
   const fetchTeamAvailability = async (packageIndex?: number) => {
+    const requestId = ++availabilityRequestRef.current;
     try {
       debugLog?.(
         '[BOOKING] Fetching team availability for project:',
@@ -915,6 +946,7 @@ export default function ProjectBookingForm({
       if (typeof packageIndex === 'number') {
         url += `?subprojectIndex=${packageIndex}`;
       }
+      if (isUnitPricing) url += `${url.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
       const response = await fetch(url);
       const data: AvailabilityResponse = await response.json();
 
@@ -955,6 +987,9 @@ export default function ProjectBookingForm({
         );
       }
 
+      // A slower response for an older quantity/package must not overwrite the
+      // latest selection.
+      if (requestId !== availabilityRequestRef.current) return;
       if (data.success) {
         const availabilityTz = normalizeTimezone(
           data.timezone || professionalTimezone || professionalTz
@@ -984,16 +1019,18 @@ export default function ProjectBookingForm({
       debugError?.('Error fetching availability:', error);
       toast.error(t('toasts.availabilityFailed'));
     } finally {
-      setLoadingAvailability(false);
+      if (requestId === availabilityRequestRef.current) setLoadingAvailability(false);
     }
   };
 
   const fetchScheduleProposals = async (packageIndex?: number) => {
+    const requestId = ++proposalsRequestRef.current;
     try {
       let endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/schedule-proposals`;
       if (typeof packageIndex === 'number') {
         endpoint += `?subprojectIndex=${packageIndex}`;
       }
+      if (isUnitPricing) endpoint += `${endpoint.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
 
       const response = await fetch(endpoint);
       const data: ScheduleProposalsResponse = await response.json();
@@ -1013,6 +1050,8 @@ export default function ProjectBookingForm({
           );
         }
       }
+      // Stale proposals (older quantity/package) must not replace the latest.
+      if (requestId !== proposalsRequestRef.current) return;
       if (data.success && data.proposals) {
         setProposals(data.proposals);
       }
@@ -2192,7 +2231,7 @@ export default function ProjectBookingForm({
 
       if (
         shouldCollectUsage(selectedPackage.pricing.type) &&
-        (!estimatedUsage || estimatedUsage < 1)
+        (!Number.isFinite(estimatedUsage) || estimatedUsage <= 0)
       ) {
         toast.error(t('toasts.estimatedUsageRequired'));
         return false;
@@ -3293,8 +3332,8 @@ export default function ProjectBookingForm({
                             <Input
                               id='estimated-usage'
                               type='number'
-                              min={minOrderQuantity ?? 1}
-                              step='1'
+                              min={minOrderQuantity ?? 0.01}
+                              step='any'
                               value={estimatedUsage}
                               onChange={(e) => {
                                 let value = Number(e.target.value);
@@ -3312,7 +3351,9 @@ export default function ProjectBookingForm({
                               className='text-lg'
                             />
 
-                            {project.priceModel && (
+                            {selectedPackage.pricing.unit?.toLowerCase().match(/^(h|hr|hrs|hour|hours|hur)$/) && !selectedPackage.executionDuration?.value ? (
+                              <span className='text-sm text-gray-500 whitespace-nowrap'>{t('package.hoursDeterminedByCustomer')}</span>
+                            ) : project.priceModel && (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>
                                 {project.priceModel}
                               </span>

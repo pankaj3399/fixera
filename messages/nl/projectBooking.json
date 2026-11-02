@@ -63,7 +63,8 @@
     "usageHint": "Geef je beste schatting zodat we een indicatieve prijs kunnen berekenen.",
     "usageHintWithUnit": "Geef je beste schatting in {unit} zodat we een indicatieve prijs kunnen berekenen.",
     "estimatedPrice": "Geschatte prijs:",
-    "continueHint": "Goede keuze! Klik op <strong>Volgende</strong> om je gewenste startdatum te kiezen."
+    "continueHint": "Goede keuze! Klik op <strong>Volgende</strong> om je gewenste startdatum te kiezen.",
+    "hoursDeterminedByCustomer": "Uren (bepaald door de klant)"
   },
   "schedule": {
     "rfqTitle": "Voor je boekt",

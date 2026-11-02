@@ -63,7 +63,8 @@
     "usageHint": "Indiquez votre meilleure estimation pour que nous puissions calculer un prix indicatif.",
     "usageHintWithUnit": "Indiquez votre meilleure estimation en {unit} pour que nous puissions calculer un prix indicatif.",
     "estimatedPrice": "Prix estimé :",
-    "continueHint": "Bon choix ! Cliquez sur <strong>Suivant</strong> pour choisir votre date de début souhaitée."
+    "continueHint": "Bon choix ! Cliquez sur <strong>Suivant</strong> pour choisir votre date de début souhaitée.",
+    "hoursDeterminedByCustomer": "Heures (déterminées par le client)"
   },
   "schedule": {
     "rfqTitle": "Avant de réserver",
