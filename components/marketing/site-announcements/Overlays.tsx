@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
 import { markAnnouncementShown } from "@/lib/marketing/siteAnnouncements/dismissStorage";
+import { recordAnnouncementEvent } from "@/lib/marketing/siteAnnouncements/events";
 import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
 import { PromoOverlay } from "./PromoOverlay";
 import { useAnalyticsConsentFlag } from "./useAnalyticsConsentFlag";
@@ -28,15 +29,22 @@ export function SiteAnnouncementOverlays() {
     exitIntent?.frequency === "once_pageview" ? pathname : null,
   );
 
+  // One impression per reveal: a `once_pageview` campaign re-reveals (and
+  // counts) on every page; other frequencies reveal once per page load.
+  const modalOccurrence = modal?.frequency === "once_pageview" ? pathname ?? "" : "campaign";
+  const exitOccurrence = exitIntent?.frequency === "once_pageview" ? pathname ?? "" : "campaign";
+
   useEffect(() => {
     if (skip || !showModal || !modal) return;
     markAnnouncementShown(modal);
-  }, [skip, showModal, modal]);
+    recordAnnouncementEvent(modal, "impression", modalOccurrence);
+  }, [skip, showModal, modal, modalOccurrence]);
 
   useEffect(() => {
     if (skip || showModal || !showExit || !exitIntent) return;
     markAnnouncementShown(exitIntent);
-  }, [skip, showModal, showExit, exitIntent]);
+    recordAnnouncementEvent(exitIntent, "impression", exitOccurrence);
+  }, [skip, showModal, showExit, exitIntent, exitOccurrence]);
 
   useEffect(() => {
     if (!analyticsOk || !showModal || !modal) return;
