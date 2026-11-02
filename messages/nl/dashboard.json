@@ -369,7 +369,7 @@
       "pendingEarnings": "Openstaande inkomsten",
       "reviews": "Beoordelingen",
       "reviewsHint": "Gemiddelde klantbeoordeling",
-      "reviewsCount": "{count} beoordelingen",
+      "reviewsCount": "{count, plural, one {# beoordeling} other {# beoordelingen}}",
       "noReviews": "Nog geen beoordelingen",
       "loadFailed": "Samenvatting kon niet worden geladen."
     }
@@ -452,9 +452,9 @@
       "referral": "Verwijzingskorting",
       "referralUnknown": "Niet afzonderlijk geregistreerd",
       "noSavingsYet": "Nog geen geregistreerde besparingen — gebruikte kortingen verschijnen hier.",
-      "unknownCoverage": "{count} afgeronde boekingen zijn van vóór de kortingsregistratie, dus het totaal is een ondergrens.",
-      "excludedUncertain": "{count} boekingen zijn uitgesloten (gedeeltelijke terugbetaling of geschil: geen exacte kortingstoewijzing geregistreerd).",
-      "bookingsCount": "{count} afgeronde boekingen"
+      "unknownCoverage": "{count, plural, one {# afgeronde boeking is} other {# afgeronde boekingen zijn}} van vóór de kortingsregistratie, dus het totaal is een ondergrens.",
+      "excludedUncertain": "{count, plural, one {# boeking is} other {# boekingen zijn}} uitgesloten (gedeeltelijke terugbetaling of geschil: geen exacte kortingstoewijzing geregistreerd).",
+      "bookingsCount": "{count, plural, one {# afgeronde boeking} other {# afgeronde boekingen}}"
     }
   },
   "disputes": {

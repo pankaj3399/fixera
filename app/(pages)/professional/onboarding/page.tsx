@@ -1328,20 +1328,25 @@ function ProfessionalOnboardingContent() {
   // keep the URL in sync so refresh/back restore the current step. The Stripe
   // step itself still gates on server-side account status.
   const resumeInitializedRef = useRef(false)
+  const [resumeResolved, setResumeResolved] = useState(false)
   useEffect(() => {
     if (loading || !user) return
-    if (searchParams.get('step')) return
-    if (resumeInitializedRef.current) return
-    resumeInitializedRef.current = true
-    setCurrentStep((prev) => (prev === 1 ? deriveOnboardingResumeStep(user) : prev))
+    if (!searchParams.get('step') && !resumeInitializedRef.current) {
+      resumeInitializedRef.current = true
+      setCurrentStep((prev) => (prev === 1 ? deriveOnboardingResumeStep(user) : prev))
+    }
+    // The URL may not be written until the resume decision is committed;
+    // otherwise ?step=1 makes the resume effect bail out on the next run.
+    setResumeResolved(true)
   }, [loading, user, searchParams])
 
   useEffect(() => {
+    if (!resumeResolved) return
     const params = new URLSearchParams(searchParams.toString())
     if (params.get('step') === String(currentStep)) return
     params.set('step', String(currentStep))
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }, [currentStep, router, pathname, searchParams])
+  }, [currentStep, router, pathname, searchParams, resumeResolved])
 
   useEffect(() => {
     if (!loading && user?.role && user.role !== 'professional') {

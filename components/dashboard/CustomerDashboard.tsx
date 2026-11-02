@@ -568,12 +568,12 @@ export default function CustomerDashboard() {
             </div>
 
             {bookings.loading && renderLoadingSkeleton()}
-            {!bookings.loading && bookings.error && (
+            {bookings.error && (
               <Card className="bg-rose-50 border border-rose-100">
                 <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookings.error}</CardContent>
               </Card>
             )}
-            {!bookings.loading && !bookings.error && (
+            {!bookings.error && (
               <>
                 {renderSearchFilters(
                   bookingSearch, setBookingSearch, debouncedBookingSearch,
@@ -607,8 +607,8 @@ export default function CustomerDashboard() {
                     />
                   </div>
                 </div>
-                {bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
-                {bookings.items.length > 0 && (
+                {!bookings.loading && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
+                {!bookings.loading && bookings.items.length > 0 && (
                   <>
                     <SharedBookingsTable
                       bookings={bookings.items}
@@ -637,7 +637,7 @@ export default function CustomerDashboard() {
                 <CardContent role="alert" className="py-4 text-sm text-rose-700">{quotes.error}</CardContent>
               </Card>
             )}
-            {!quotes.loading && !quotes.error && (
+            {!quotes.error && (
               <>
                 {renderSearchFilters(
                   quoteSearch, setQuoteSearch, debouncedQuoteSearch,
@@ -647,7 +647,7 @@ export default function CustomerDashboard() {
                   quotes.distinctServices,
                   quotes.statusCounts,
                 )}
-                {visibleSelectedCount >= 2 && (
+                {!quotes.loading && visibleSelectedCount >= 2 && (
                   <div className="flex items-center gap-3">
                     <Button
                       size="sm"
@@ -659,8 +659,8 @@ export default function CustomerDashboard() {
                     </Button>
                   </div>
                 )}
-                {quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
-                {quotes.items.length > 0 && (
+                {!quotes.loading && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
+                {!quotes.loading && quotes.items.length > 0 && (
                   <>
                     <div className="mb-2 flex flex-wrap gap-2">
                       {quotes.items.map((booking) => (

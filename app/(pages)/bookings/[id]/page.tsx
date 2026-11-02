@@ -1701,6 +1701,11 @@ function BookingDetailContent() {
       ?? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
       ?? null)
     : null
+  // A pinned hash version is display-only; professional edit flows and
+  // milestone arithmetic must use the authoritative current version.
+  const authoritativeVersion = hasQuotationVersions
+    ? (booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion) ?? currentVersion)
+    : null
   const viewingPinnedVersion = hasQuotationVersions
     && pinnedQuoteVersion != null
     && pinnedQuoteVersion !== booking?.currentQuoteVersion
@@ -1727,15 +1732,15 @@ function BookingDetailContent() {
     [currentVersion, customerPricingReady, originalPrice]
   )
   const bookingMilestoneGrossAmounts = useMemo(() => {
-    if (!booking?.milestonePayments?.length || !currentVersion) return []
+    if (!booking?.milestonePayments?.length || !authoritativeVersion) return []
     return calculateMilestoneGrossAmounts(
       {
-        ...currentVersion,
+        ...authoritativeVersion,
         milestones: booking.milestonePayments,
       },
       user?.role === 'customer' && customerPricingReady ? customerPrice : undefined
     )
-  }, [booking?.milestonePayments, currentVersion, user?.role, customerPricingReady, customerPrice])
+  }, [booking?.milestonePayments, authoritativeVersion, user?.role, customerPricingReady, customerPrice])
   const rfqDeadlineDate = booking?.rfqDeadline ? new Date(booking.rfqDeadline) : null
   const rfqDeadlineRemaining = rfqDeadlineDate
     ? Math.max(0, Math.ceil((rfqDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60)))
@@ -3403,7 +3408,7 @@ function BookingDetailContent() {
                 {user?.role === "professional" && booking.status === "quoted" && hasQuotationVersions && currentVersion && !showQuotationWizard && (
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-blue-900">{t("quotation.yourQuotation", { version: currentVersion.version })}</h3>
+                      <h3 className="text-sm font-semibold text-blue-900">{t("quotation.yourQuotation", { version: authoritativeVersion?.version ?? currentVersion.version })}</h3>
                       <Button onClick={() => setShowQuotationWizard(true)} variant="outline" size="sm">
                         <FileText className="h-4 w-4 mr-2" />
                         {t("quotation.edit")}
@@ -3429,7 +3434,7 @@ function BookingDetailContent() {
                 {user?.role === "professional" && booking.status === "quoted" && showQuotationWizard && (
                   <QuotationWizard
                     bookingId={bookingId!}
-                    existingVersion={currentVersion || undefined}
+                    existingVersion={authoritativeVersion || undefined}
                     isEditing
                     commissionPercent={commissionPercent ?? undefined}
                     onSuccess={async () => { setShowQuotationWizard(false); await refreshBooking() }}
@@ -3458,7 +3463,7 @@ function BookingDetailContent() {
                     {showQuotationWizard && (
                       <QuotationWizard
                         bookingId={bookingId!}
-                        existingVersion={currentVersion || undefined}
+                        existingVersion={authoritativeVersion || undefined}
                         isEditing
                         commissionPercent={commissionPercent ?? undefined}
                         onSuccess={async () => { setShowQuotationWizard(false); await refreshBooking() }}

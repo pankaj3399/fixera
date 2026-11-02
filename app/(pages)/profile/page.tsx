@@ -1893,7 +1893,12 @@ function ProfileContent() {
                                   try {
                                     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(val)}`, { credentials: 'include', signal: controller.signal })
                                     const data = await res.json()
-                                    setUsernameCheck({ available: data.available, reason: data.reason })
+                                    setUsernameCheck({
+                                      available: data.available,
+                                      reason: data.available
+                                        ? data.reason
+                                        : getErrorText({ msg: data.reason }, t('toasts.usernameCheckFailed')),
+                                    })
                                   } catch (err: unknown) {
                                     if (err instanceof Error && err.name === 'AbortError') return
                                     setUsernameCheck({ reason: t('toasts.usernameCheckFailed') })

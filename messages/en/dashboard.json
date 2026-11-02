@@ -369,7 +369,7 @@
       "pendingEarnings": "Pending earnings",
       "reviews": "Reviews",
       "reviewsHint": "Average customer rating",
-      "reviewsCount": "{count} reviews",
+      "reviewsCount": "{count, plural, one {# review} other {# reviews}}",
       "noReviews": "No reviews yet",
       "loadFailed": "Could not load the summary."
     }
@@ -452,9 +452,9 @@
       "referral": "Referral discount",
       "referralUnknown": "Not separately recorded",
       "noSavingsYet": "No recorded savings yet — discounts you use will show up here.",
-      "unknownCoverage": "{count} settled bookings predate discount records, so the total is a lower bound.",
-      "excludedUncertain": "{count} bookings are excluded (partial refund or dispute: no exact discount allocation on record).",
-      "bookingsCount": "{count} settled bookings"
+      "unknownCoverage": "{count, plural, one {# settled booking predates} other {# settled bookings predate}} discount records, so the total is a lower bound.",
+      "excludedUncertain": "{count, plural, one {# booking is} other {# bookings are}} excluded (partial refund or dispute: no exact discount allocation on record).",
+      "bookingsCount": "{count, plural, one {# settled booking} other {# settled bookings}}"
     }
   },
   "disputes": {

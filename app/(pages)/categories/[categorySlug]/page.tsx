@@ -49,6 +49,7 @@ export default function CategoryPage() {
   const [category, setCategory] = useState<CatalogCategoryItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (!rawSlug) return;
@@ -89,7 +90,7 @@ export default function CategoryPage() {
     };
     void load();
     return () => controller.abort();
-  }, [rawSlug, router, t]);
+  }, [rawSlug, router, t, reloadToken]);
 
   const displayCategoryName = category
     ? isTranslatedCategorySlug(category.slug)
@@ -117,7 +118,7 @@ export default function CategoryPage() {
             <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('servicesPage.errorTitle')}</h2>
             <p role="alert" className="text-gray-600 mb-6">{error}</p>
-            <Button onClick={() => router.refresh()}>
+            <Button onClick={() => setReloadToken((n) => n + 1)}>
               {t('tryAgain')}
             </Button>
           </div>

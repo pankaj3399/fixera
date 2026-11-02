@@ -369,7 +369,7 @@
       "pendingEarnings": "Gains en attente",
       "reviews": "Avis",
       "reviewsHint": "Note moyenne des clients",
-      "reviewsCount": "{count} avis",
+      "reviewsCount": "{count, plural, one {# avis} other {# avis}}",
       "noReviews": "Aucun avis pour le moment",
       "loadFailed": "Impossible de charger le résumé."
     }
@@ -452,9 +452,9 @@
       "referral": "Remise de parrainage",
       "referralUnknown": "Non enregistré séparément",
       "noSavingsYet": "Aucune économie enregistrée pour le moment — vos remises apparaîtront ici.",
-      "unknownCoverage": "{count} réservations réglées sont antérieures aux relevés de remises : le total est donc une borne basse.",
-      "excludedUncertain": "{count} réservations sont exclues (remboursement partiel ou litige : aucune répartition exacte enregistrée).",
-      "bookingsCount": "{count} réservations réglées"
+      "unknownCoverage": "{count, plural, one {# réservation réglée est} other {# réservations réglées sont}} antérieure(s) aux relevés de remises : le total est donc une borne basse.",
+      "excludedUncertain": "{count, plural, one {# réservation est} other {# réservations sont}} exclue(s) (remboursement partiel ou litige : aucune répartition exacte enregistrée).",
+      "bookingsCount": "{count, plural, one {# réservation réglée} other {# réservations réglées}}"
     }
   },
   "disputes": {

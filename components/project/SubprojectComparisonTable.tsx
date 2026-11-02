@@ -257,15 +257,15 @@ export default function SubprojectComparisonTable({
                 <button
                   key={index}
                   onClick={() => onSelectIndex(index)}
-                  className={`flex-1 min-w-[120px] truncate px-3 sm:px-6 py-4 text-center font-semibold text-base transition-all relative ${selectedIndex === index
+                  className={`flex-1 min-w-[120px] px-3 sm:px-6 py-4 text-center font-semibold text-base transition-all relative ${selectedIndex === index
                     ? 'text-gray-900 border-b-2 border-gray-900'
                     : 'text-gray-500 hover:text-gray-700'
                     }`}
                   title={subproject.name}
                 >
-                  {subproject.name}
+                  <span className="block truncate">{subproject.name}</span>
                   {index === 1 && subprojects.length === 3 && (
-                    <span className="absolute -top-2 right-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
+                    <span className="absolute top-0.5 right-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
                       {t('comparison.popular')}
                     </span>
                   )}
