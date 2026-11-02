@@ -1,6 +1,7 @@
 'use client'
 
 import { createProjectMediaQueue } from '@/lib/projectMediaQueue'
+import { PROJECT_IMAGE_TYPES, isAllowedProjectImageType, uploadProjectMedia, type ProjectMediaKind } from '@/lib/projectMediaUpload'
 import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +27,7 @@ import {
 } from "@/lib/projectWizardValidation"
 import { buildProjectTitleSuggestion, normalizeProjectKeywords } from '@/lib/projectWizardContent'
 import { generateProjectCopy, ProjectCopyApiError } from '@/lib/projectCopyApi'
+import { authFetch } from '@/lib/utils'
 
 interface IServiceSelection {
   category: string
@@ -493,16 +495,35 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
     mediaRef.current = next
     setFormData(prev => ({ ...prev, media: next }))
   }
-  const readMediaFile = (file: File) => new Promise<string | null>(resolve => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null)
-    reader.onerror = reader.onabort = () => { toast.error(t('step1.toast.mediaReadFailed')); resolve(null) }
-    try { reader.readAsDataURL(file) } catch { toast.error(t('step1.toast.mediaReadFailed')); resolve(null) }
-  })
+  // Queues are created once, so read the current project id through a ref.
+  const projectIdRef = useRef<string | undefined>(undefined)
+  projectIdRef.current = formData._id || data._id
+  const [pendingUploads, setPendingUploads] = useState(0)
+  const uploadMediaFile = (kind: ProjectMediaKind) => async (file: File): Promise<string | null> => {
+    setPendingUploads(count => count + 1)
+    try {
+      const result = await uploadProjectMedia({
+        apiBase: process.env.NEXT_PUBLIC_BACKEND_URL || '',
+        kind,
+        file,
+        projectId: projectIdRef.current,
+        fetchImpl: authFetch,
+      })
+      if (result.ok) return result.url
+      toast.error(
+        result.status === 413
+          ? t('step1.toast.mediaUploadTooLarge', { file: file.name })
+          : result.message || t('step1.toast.mediaUploadFailed', { file: file.name })
+      )
+      return null
+    } finally {
+      setPendingUploads(count => Math.max(0, count - 1))
+    }
+  }
   const imageQueueRef = useRef<ReturnType<typeof createProjectMediaQueue<File>> | null>(null)
-  if (!imageQueueRef.current) imageQueueRef.current = createProjectMediaQueue(4, () => mediaRef.current.images?.length || 0, readMediaFile, values => updateMedia(media => ({ images: [...media.images, ...values] })))
+  if (!imageQueueRef.current) imageQueueRef.current = createProjectMediaQueue(4, () => mediaRef.current.images?.length || 0, uploadMediaFile('image'), values => updateMedia(media => ({ images: [...media.images, ...values] })))
   const videoQueueRef = useRef<ReturnType<typeof createProjectMediaQueue<File>> | null>(null)
-  if (!videoQueueRef.current) videoQueueRef.current = createProjectMediaQueue(1, () => mediaRef.current.videos?.length || 0, readMediaFile, values => updateMedia(media => ({ videos: [...media.videos, ...values] })))
+  if (!videoQueueRef.current) videoQueueRef.current = createProjectMediaQueue(1, () => mediaRef.current.videos?.length || 0, uploadMediaFile('video'), values => updateMedia(media => ({ videos: [...media.videos, ...values] })))
 
   const addKeyword = () => {
     const existing = formData.keywords || []
@@ -599,6 +620,11 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
 
       if (!file.type.startsWith('image/')) {
         toast.error(t('step1.toast.notAnImage', { file: file.name }))
+        return false
+      }
+
+      if (!isAllowedProjectImageType(file.type)) {
+        toast.error(t('step1.toast.imageFormat', { file: file.name }))
         return false
       }
 
@@ -1373,10 +1399,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <p className="text-gray-600">{t('step1.images.dropzone')}</p>
             <p className="text-sm text-gray-500 mt-2">{t('step1.images.hint')}</p>
             <p className="text-xs text-gray-500 mt-1">{t('step1.images.guide')}</p>
+            {pendingUploads > 0 && (
+              <p role="status" className="text-sm text-blue-700 mt-2">{t('step1.media.uploading', { count: pendingUploads })}</p>
+            )}
             <input
               type="file"
               multiple
-              accept="image/*"
+              accept={PROJECT_IMAGE_TYPES.join(',')}
               className="hidden"
               id="image-upload"
               onChange={(e) => handleImageUpload(e.target.files)}
@@ -1436,6 +1465,9 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, onChange, onVal
             <p className="text-gray-600">{t('step1.video.dropzone')}</p>
             <p className="text-sm text-gray-500 mt-2">{t('step1.video.hint')}</p>
             <p className="text-xs text-gray-500 mt-1">{t('step1.video.guide')}</p>
+            {pendingUploads > 0 && (
+              <p role="status" className="text-sm text-blue-700 mt-2">{t('step1.media.uploading', { count: pendingUploads })}</p>
+            )}
             <input
               type="file"
               accept="video/mp4,video/quicktime,video/x-msvideo"

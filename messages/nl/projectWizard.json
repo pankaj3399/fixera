@@ -154,7 +154,7 @@
       "description": "Upload maximaal 4 afbeeldingen om je werk te tonen (optioneel)",
       "dropzone": "Klik om afbeeldingen te uploaden of sleep ze hierheen",
       "hint": "PNG, JPG, WebP tot 5 MB per bestand (max. 4 afbeeldingen)",
-      "guide": "Maximaal 4 afbeeldingen van 5 MiB per stuk. JPEG, PNG, WebP, GIF of SVG. Liggend 4:3 rond 1200 × 900 px wordt aanbevolen; miniaturen worden bijgesneden. Geen minimale afmetingen.",
+      "guide": "Maximaal 4 afbeeldingen van 5 MiB per stuk. JPEG, PNG of WebP. Liggend 4:3 rond 1200 × 900 px wordt aanbevolen; miniaturen worden bijgesneden. Geen minimale afmetingen.",
       "choose": "Bestanden kiezen",
       "alt": "Project {index}",
       "mainImage": "Hoofdafbeelding",
@@ -181,7 +181,12 @@
       "oneVideoOnly": "Maximaal 1 video toegestaan",
       "videoFormat": "Alleen MP4-, MOV- en AVI-video's zijn toegestaan",
       "videoTooLarge": "Het videobestand is te groot. De maximale grootte is 50 MB",
-      "mediaReadFailed": "Dit bestand kon niet worden gelezen. Selecteer het opnieuw."
+      "imageFormat": "Bestand {file} is geen JPEG-, PNG- of WebP-afbeelding",
+      "mediaUploadFailed": "{file} kon niet worden geüpload. Probeer het opnieuw.",
+      "mediaUploadTooLarge": "{file} is te groot om te uploaden. Kies een kleiner bestand."
+    },
+    "media": {
+      "uploading": "{count, plural, one {# bestand wordt geüpload…} other {# bestanden worden geüpload…}}"
     }
   },
   "step2": {

@@ -154,7 +154,7 @@
       "description": "Téléversez jusqu'à 4 images pour mettre votre travail en valeur (facultatif)",
       "dropzone": "Cliquez pour téléverser ou glissez vos images ici",
       "hint": "PNG, JPG, WebP jusqu'à 5 Mo chacune (max. 4 images)",
-      "guide": "Jusqu'à 4 images, 5 Mio chacune. JPEG, PNG, WebP, GIF ou SVG. Le format paysage 4:3 autour de 1 200 × 900 px est recommandé ; les vignettes sont recadrées. Aucune dimension minimale.",
+      "guide": "Jusqu'à 4 images, 5 Mio chacune. JPEG, PNG ou WebP. Le format paysage 4:3 autour de 1 200 × 900 px est recommandé ; les vignettes sont recadrées. Aucune dimension minimale.",
       "choose": "Choisir des fichiers",
       "alt": "Projet {index}",
       "mainImage": "Image principale",
@@ -181,7 +181,12 @@
       "oneVideoOnly": "Maximum 1 vidéo autorisée",
       "videoFormat": "Seuls les formats vidéo MP4, MOV et AVI sont autorisés",
       "videoTooLarge": "La vidéo est trop volumineuse. La taille maximale est de 50 Mo",
-      "mediaReadFailed": "Ce fichier n’a pas pu être lu. Veuillez le sélectionner à nouveau."
+      "imageFormat": "Le fichier {file} n'est pas une image JPEG, PNG ou WebP",
+      "mediaUploadFailed": "{file} n'a pas pu être téléversé. Veuillez réessayer.",
+      "mediaUploadTooLarge": "{file} est trop volumineux pour être téléversé. Choisissez un fichier plus petit."
+    },
+    "media": {
+      "uploading": "{count, plural, one {Téléversement de # fichier…} other {Téléversement de # fichiers…}}"
     }
   },
   "step2": {
