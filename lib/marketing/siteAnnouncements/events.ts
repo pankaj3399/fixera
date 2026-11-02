@@ -11,6 +11,14 @@ import type { SiteAnnouncement } from "./types";
  * version and occurrence: one impression per reveal (a `once_pageview` modal
  * re-reveals on every page and counts each time), one click and one
  * dismissal. Admin previews are never recorded.
+ *
+ * Transport: the backend is another origin, so the body is sent as
+ * `application/x-www-form-urlencoded` (`event=impression`), a CORS-safelisted
+ * type. The POST is a "simple" request with no OPTIONS preflight, which keeps
+ * `keepalive` (needed for clicks that navigate away) clear of browsers that
+ * reject or drop preflighted keepalive requests. The backend's global
+ * `express.urlencoded` parser already yields `req.body.event` for this body,
+ * exactly as `express.json` does for the JSON form.
  */
 export type AnnouncementEvent = "impression" | "click" | "dismissal";
 
@@ -42,8 +50,9 @@ export function createAnnouncementEventRecorder({
     try {
       send(`${apiBase}/api/public/site-announcements/${encodeURIComponent(announcement._id)}/event`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event }),
+        // URLSearchParams sets the safelisted urlencoded Content-Type itself;
+        // a JSON Content-Type would force a preflight.
+        body: new URLSearchParams({ event }),
         credentials: "omit",
         // Lets a click survive a full-page navigation away from the CTA.
         keepalive: true,
@@ -56,5 +65,7 @@ export function createAnnouncementEventRecorder({
 }
 
 export const recordAnnouncementEvent = createAnnouncementEventRecorder({
-  apiBase: process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000",
+  // Same convention as the other backend callers: the env var, no localhost
+  // fallback baked into production builds.
+  apiBase: process.env.NEXT_PUBLIC_BACKEND_URL ?? "",
 });

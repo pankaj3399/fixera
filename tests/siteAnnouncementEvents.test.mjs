@@ -34,14 +34,16 @@ test('recorder posts the backend event contract without credentials', () => {
   assert.equal(calls.length, 1)
   assert.equal(calls[0].url, 'https://api.test/api/public/site-announcements/a1/event')
   assert.equal(calls[0].init.method, 'POST')
-  assert.deepEqual(JSON.parse(calls[0].init.body), { event: 'impression' })
+  assert.ok(calls[0].init.body instanceof URLSearchParams, 'urlencoded body (CORS-safelisted, no preflight)')
+  assert.equal(calls[0].init.body.toString(), 'event=impression')
+  assert.equal(calls[0].init.headers, undefined, 'no explicit Content-Type: a JSON type would force a preflight')
   assert.equal(calls[0].init.credentials, 'omit')
   assert.equal(calls[0].init.keepalive, true)
 })
 
 test('each event counts once per reveal; new reveals and new versions count again', () => {
   const events = []
-  const record = createAnnouncementEventRecorder({ apiBase: '', send: (_url, init) => events.push(JSON.parse(init.body).event) })
+  const record = createAnnouncementEventRecorder({ apiBase: '', send: (_url, init) => events.push(init.body.get('event')) })
   record(announcement(), 'impression', '/')
   record(announcement(), 'impression', '/') // re-render of the same reveal
   record(announcement(), 'impression', '/services') // once_pageview: next page reveals again
@@ -62,7 +64,7 @@ test('provider records dismissals and clicks from real visitor actions', async (
   const realFetch = globalThis.fetch
   const sent = []
   globalThis.fetch = async (url, init) => {
-    sent.push({ url: String(url), event: JSON.parse(init.body).event })
+    sent.push({ url: String(url), event: init.body.get('event') })
     return new Response(null, { status: 204 })
   }
   try {

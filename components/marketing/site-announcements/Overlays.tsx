@@ -22,17 +22,18 @@ export function SiteAnnouncementOverlays() {
       : null,
     (modal?.delaySeconds ?? 3) * 1000,
   );
-  // Do not arm exit while a timed modal campaign is still present.
-  const showExit = useExitIntent(
-    Boolean(exitIntent) && !modal,
-    Math.max(1500, (exitIntent?.delaySeconds ?? 3) * 1000),
-    exitIntent?.frequency === "once_pageview" ? pathname : null,
-  );
-
   // One impression per reveal: a `once_pageview` campaign re-reveals (and
   // counts) on every page; other frequencies reveal once per page load.
   const modalOccurrence = modal?.frequency === "once_pageview" ? pathname ?? "" : "campaign";
   const exitOccurrence = exitIntent?.frequency === "once_pageview" ? pathname ?? "" : "campaign";
+
+  // Do not arm exit while a timed modal campaign is still present. The
+  // trigger is scoped to this announcement and page occurrence.
+  const showExit = useExitIntent(
+    Boolean(exitIntent) && !modal,
+    Math.max(1500, (exitIntent?.delaySeconds ?? 3) * 1000),
+    exitIntent ? `${exitIntent._id}:${exitOccurrence}` : null,
+  );
 
   useEffect(() => {
     if (skip || !showModal || !modal) return;
