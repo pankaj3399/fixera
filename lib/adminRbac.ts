@@ -104,6 +104,7 @@ export const ADMIN_PAGE_PERMISSIONS: AdminPagePermission[] = [
   { prefix: '/admin/payments', permission: 'payments.manage' },
   { prefix: '/admin/kpi', permission: 'kpi.read' },
   { prefix: '/admin/audit-logs', permission: 'audit.read' },
+  { prefix: '/admin/email-logs', permission: 'email_logs.read', area: 'email_logs' },
   { prefix: '/admin/cms', permission: 'cms.manage' },
   { prefix: '/admin/campaigns', permission: 'campaigns.manage', area: 'campaigns' },
   { prefix: '/admin/discount-codes', permission: 'discounts.manage' },

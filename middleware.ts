@@ -22,6 +22,8 @@ import {
   isSupportedCurrency,
   type CurrencyCode,
 } from "@/lib/currency";
+import { resolveEffectiveCountry } from "@/lib/i18n/autoConversion";
+import { loadAutoConversionConfig } from "@/lib/i18n/autoConversionLoader";
 
 /**
  * Locale/currency resolution (Booking.com style, no i18n routing).
@@ -30,6 +32,12 @@ import {
  *           Accept-Language then x-vercel-ip-country-region, CH via
  *           Accept-Language)  >  Accept-Language  >  en.
  * Currency: NEXT_CURRENCY cookie  >  geo country  >  EUR.
+ *
+ * Auto-conversion roll-out (admin Platform settings): when configured, only
+ * visitors from an enabled country get their own geo country; everyone else
+ * is treated as the admin's default country for content, language and
+ * currency. Manual language/currency choices still win. Unconfigured or
+ * unreachable config keeps the behaviour above for every country.
  *
  * The resolved values are forwarded as request headers because cookies set on
  * this response are not visible to the server render of the same request.
@@ -50,7 +58,7 @@ function setCookieIfChanged(
   response.cookies.set(name, value, { path: "/", sameSite: "lax", maxAge });
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // --- Geo country (unchanged consumers: site announcements + CMS filtering) ---
   // Vercel injects x-vercel-ip-country on deployed requests; locally it is absent.
   const vercelCountry = (request.headers.get("x-vercel-ip-country") || "")
@@ -70,14 +78,21 @@ export function middleware(request: NextRequest) {
     .get(GEO_COUNTRY_COOKIE)
     ?.value?.toUpperCase();
 
-  const country =
+  // Fresh geo (dev override or platform header) beats the cookie, which may
+  // already hold an admin default country from an earlier request.
+  const detectedCountry =
     (queryGeo && /^[A-Z]{2}$/.test(queryGeo) && queryGeo) ||
     (vercelCountry && /^[A-Z]{2}$/.test(vercelCountry) && vercelCountry) ||
     (existingCountry && /^[A-Z]{2}$/.test(existingCountry) && existingCountry) ||
     (allowGeoOverride ? "BE" : undefined);
 
+  const autoConversion = await loadAutoConversionConfig();
+  const { country } = resolveEffectiveCountry(detectedCountry || undefined, autoConversion);
+  const usesDetectedCountry = country === detectedCountry;
+
   const acceptLanguage = request.headers.get("accept-language");
-  const region = request.headers.get("x-vercel-ip-country-region");
+  // The region header describes the detected country only.
+  const region = usesDetectedCountry ? request.headers.get("x-vercel-ip-country-region") : null;
 
   // Geo-derived locale. Without a country we still honour Accept-Language.
   const geoLocale: Locale = country
@@ -101,6 +116,11 @@ export function middleware(request: NextRequest) {
     : geoCurrency;
 
   const requestHeaders = new Headers(request.headers);
+  // Server-side CMS reads filter by this header; outside the roll-out they
+  // must receive the default country's content.
+  if (country && country !== vercelCountry) {
+    requestHeaders.set("x-vercel-ip-country", country);
+  }
   requestHeaders.set(LOCALE_REQUEST_HEADER, locale);
   requestHeaders.set(CURRENCY_REQUEST_HEADER, currency);
   // Admin UI is English-only; `lang` on <html> must say so for accessibility

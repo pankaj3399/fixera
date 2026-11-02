@@ -18,6 +18,7 @@ import { EU_COUNTRIES } from "@/lib/countries"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { invalidateClientRequest } from "@/lib/clientRequestCache"
 import { adminSetSupportChatEnabled } from "@/lib/support"
+import AutoConversionSettingsCard from "@/components/admin/AutoConversionSettingsCard"
 
 const normalizeCountryCode = (value?: string): string => {
   const trimmed = (value || '').trim()
@@ -146,6 +147,8 @@ export default function AdminSettingsPage() {
   const [odooCompaniesError, setOdooCompaniesError] = useState<string | null>(null)
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [version, setVersion] = useState<number>(0)
+  // Raw `autoConversion` from the API; the card owns its own draft and save.
+  const [autoConversion, setAutoConversion] = useState<unknown>(undefined)
 
   useEffect(() => {
     if (!loading && (!isAuthenticated || user?.role !== 'admin')) {
@@ -163,6 +166,7 @@ export default function AdminSettingsPage() {
           toast.error('We could not read the server response. Please try again.')
           return
         }
+        setAutoConversion(data.data.autoConversion)
         applySettingsState(hydrateSettingsResponse(data.data), {
           setCommissionPercent,
           setCompanyVatNumber,
@@ -301,6 +305,7 @@ export default function AdminSettingsPage() {
           toast.error('We could not read the server response. Please try again.')
           return
         }
+        setAutoConversion(data.data.autoConversion)
         applySettingsState(hydrateSettingsResponse(data.data), {
           setCommissionPercent,
           setCompanyVatNumber,
@@ -619,6 +624,8 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
         )}
+
+        {!isLoading && <AutoConversionSettingsCard initial={autoConversion} />}
 
         {!isLoading && user?.adminRole === 'super' && (
           <Card className="mt-6">
