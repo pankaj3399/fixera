@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminAccess } from '@/hooks/useAdminAccess';
+import { AdminShell } from '@/components/admin/navigation/AdminShell';
 
 const PUBLIC_ADMIN_PATHS = ['/admin/accept-invite'];
 
@@ -41,5 +42,7 @@ export default function AdminAccessGate({ children }: { children: React.ReactNod
     );
   }
 
-  return <>{children}</>;
+  // Admitted: only now is the admin menu rendered, so it never shows links
+  // before access is known. Onboarding (accept-invite) stays outside it.
+  return <AdminShell>{children}</AdminShell>;
 }

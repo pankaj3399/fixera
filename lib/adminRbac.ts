@@ -118,6 +118,7 @@ export const ADMIN_PAGE_PERMISSIONS: AdminPagePermission[] = [
   { prefix: '/admin/projects', permission: 'projects.approve' },
   { prefix: '/admin/warranty-claims', permission: 'warranty.manage' },
   { prefix: '/admin/settings', permission: 'settings.platform' },
+  { prefix: '/admin/background-checks', permission: 'maintenance.run' },
   { prefix: '/admin/site-announcements', permission: 'cms.manage' },
 ];
 
