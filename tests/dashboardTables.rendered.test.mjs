@@ -58,3 +58,81 @@ test('both dashboard tables have an accessible name', () => {
   assert.match(render(SharedBookingsTable, { _id: 'b1', status: 'completed' }, 'customer'), /<table[^>]*aria-label="Bookings"/)
   assert.match(render(SharedQuotesTable, { _id: 'b1', status: 'quoted' }, 'professional'), /<table[^>]*aria-label="Quotations"/)
 })
+// Paid price and completion addition mirror the backend overview row
+// (fixera-server src/utils/bookingDetails/overviewRows.ts): VAT-inclusive
+// recorded totals and settled extra-cost facts only.
+const paidCell = html => {
+  // Column 9 (Paid price) of the single body row.
+  const row = html.split('<tbody')[1]
+  const cells = row.match(/<td[^>]*>[\s\S]*?<\/td>/g)
+  return cells[8]
+}
+const stripTags = cell => cell.replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'")
+test('booking table never presents the pre-VAT payment.amount as the paid price', () => {
+  // createPaymentIntent stores the pre-VAT net in payment.amount.
+  const legacy = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { amount: 1000, currency: 'EUR', status: 'completed' } }, 'customer')
+  assert.equal(stripTags(paidCell(legacy)), '—')
+  assert.doesNotMatch(legacy, /EUR 1000.00/)
+  const recorded = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { amount: 1000, totalWithVat: 1210, currency: 'EUR', status: 'completed' } }, 'customer')
+  assert.equal(stripTags(paidCell(recorded)), 'EUR 1210.00')
+  // No payment at all, or a non-finite total, stays unknown, never 0.
+  assert.equal(stripTags(paidCell(render(SharedBookingsTable, { _id: 'b1', status: 'completed' }, 'customer'))), '—')
+  assert.equal(stripTags(paidCell(render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { totalWithVat: null, currency: 'EUR' } }, 'professional'))), '—')
+})
+test('booking table adds only a succeeded VAT-inclusive extra-cost charge, never declared extraCosts entries', () => {
+  const base = { _id: 'b1', status: 'completed', payment: { totalWithVat: 1210, currency: 'EUR', status: 'completed' } }
+  // Declared IExtraCost entries carry no status and are pre-VAT pro amounts.
+  const declared = render(SharedBookingsTable, { ...base, extraCosts: [{ type: 'other', name: 'Extra tiles', amount: 100 }] }, 'customer')
+  assert.equal(stripTags(paidCell(declared)), 'EUR 1210.00')
+  for (const extraCostStatus of ['pending', 'failed', 'refunded']) {
+    const html = render(SharedBookingsTable, { ...base, payment: { ...base.payment, extraCostAmount: 121, extraCostStatus } }, 'customer')
+    assert.equal(stripTags(paidCell(html)), 'EUR 1210.00', extraCostStatus)
+  }
+  const succeeded = render(SharedBookingsTable, { ...base, extraCosts: [{ type: 'other', name: 'Extra tiles', amount: 100 }], payment: { ...base.payment, extraCostAmount: 121, extraCostStatus: 'succeeded' } }, 'customer')
+  assert.equal(stripTags(paidCell(succeeded)), 'EUR 1210.00+ EUR 121.00')
+  assert.doesNotMatch(succeeded, /EUR 100.00/)
+  // Succeeded without a recorded amount is unknown, not + 0.
+  const noAmount = render(SharedBookingsTable, { ...base, payment: { ...base.payment, extraCostStatus: 'succeeded' } }, 'customer')
+  assert.equal(stripTags(paidCell(noAmount)), 'EUR 1210.00')
+})
+test('booking table subtracts only actually returned extra-cost refunds, once', () => {
+  const payment = { totalWithVat: 1210, currency: 'EUR', status: 'completed', refundAmount: 50 }
+  const refunds = [
+    { amount: 30, kind: 'extra_cost', status: 'succeeded' },
+    { amount: 5, kind: 'extra_cost' }, // legacy row without status: an actual refund
+    { amount: 40, kind: 'extra_cost', status: 'failed' },
+    { amount: 41, kind: 'extra_cost', status: 'canceled' },
+    { amount: 42, kind: 'extra_cost', status: 'pending' },
+    { amount: 43, kind: 'extra_cost', status: 'requires_action' },
+    { amount: 50, kind: 'booking', status: 'succeeded' }, // booking-price refund, not the addition
+  ]
+  const html = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { ...payment, refunds } }, 'professional')
+  assert.equal(stripTags(paidCell(html)), 'EUR 1210.00− EUR 35.00')
+  // The booking-price refund stays in its own column from refundAmount, not doubled.
+  assert.equal((html.match(/EUR 50.00/g) || []).length, 1)
+  // Charge and returned refund net out per the recorded facts.
+  const both = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { ...payment, extraCostAmount: 121, extraCostStatus: 'succeeded', refunds: [{ amount: 21, kind: 'extra_cost', status: 'succeeded' }] } }, 'customer')
+  assert.equal(stripTags(paidCell(both)), 'EUR 1210.00+ EUR 100.00')
+  // Only failed rows: nothing returned, nothing recorded.
+  const failedOnly = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { ...payment, refunds: [{ amount: 30, kind: 'extra_cost', status: 'failed' }] } }, 'customer')
+  assert.equal(stripTags(paidCell(failedOnly)), 'EUR 1210.00')
+})
+test('booking table prefers the authoritative overview money, including an intentional unknown', () => {
+  const payment = { totalWithVat: 1210, currency: 'EUR', status: 'completed', extraCostAmount: 121, extraCostStatus: 'succeeded' }
+  const authoritative = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment, overview: {
+    paidPrice: { amount: 999, currency: 'USD', source: 'recorded' },
+    completionAddition: { amount: -12.5, currency: 'USD', source: 'recorded' },
+  } }, 'customer')
+  assert.equal(stripTags(paidCell(authoritative)), 'USD 999.00− USD 12.50')
+  const unknown = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment, overview: {
+    paidPrice: { amount: null, currency: null, source: 'not_recorded' },
+    completionAddition: null,
+  } }, 'customer')
+  assert.equal(stripTags(paidCell(unknown)), '—')
+  // A malformed recorded value is unknown, never a client-side fallback.
+  const malformed = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment, overview: { paidPrice: { amount: '1210', source: 'recorded' } } }, 'customer')
+  assert.equal(stripTags(paidCell(malformed)), '—+ EUR 121.00')
+  // Overview present for one field only: the other is derived from the booking.
+  const partial = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment, overview: { completionAddition: { amount: null, currency: null, source: 'not_recorded' } } }, 'customer')
+  assert.equal(stripTags(paidCell(partial)), 'EUR 1210.00')
+})

@@ -71,7 +71,7 @@ interface Booking {
     supplierInvoiceNumber?: string | null
     supplierInvoiceUrl?: string | null
   }
-  extraCosts?: Array<{ status?: string; total?: number; amount?: number }> | null
+  extraCosts?: Array<{ type?: string; name?: string; amount?: number }> | null
   location?: {
     address?: string
     city?: string
