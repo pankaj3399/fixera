@@ -32,6 +32,7 @@ import {
   type ProjectMediaUploader,
 } from '@/lib/projectMediaUploads'
 import { useAuth } from '@/contexts/AuthContext'
+import { packageDurationMode } from '@/lib/packageDuration'
 import {
   PROJECT_MANAGE_PATH,
   createLatestLoadGuard,
@@ -86,6 +87,7 @@ interface ISubproject {
     minProjectValue?: number
     minOrderQuantity?: number
     unit?: string
+    durationBasis?: 'per_booking' | 'per_unit'
   }
   errors?: {
     priceRange?: string
@@ -1070,7 +1072,15 @@ function ProjectCreateContent() {
                                 }
                                 return formatDurationValue(sub.executionDuration?.value, unit);
                               })()
-                              : formatDurationValue(sub.executionDuration?.value, sub.executionDuration?.unit)}
+                              : packageDurationMode(sub.pricing) === 'customer_hours'
+                                ? tWizard('step2.timing.determinedByCustomer')
+                                : packageDurationMode(sub.pricing) === 'per_unit' && sub.executionDuration?.value != null
+                                  ? tWizard('step2.summary.durationPerUnit', {
+                                    value: sub.executionDuration.value,
+                                    unit: t(sub.executionDuration.unit === 'days' ? 'unitWords.days' : 'unitWords.hours'),
+                                    pricingUnit: sub.pricing.unit || '',
+                                  })
+                                  : formatDurationValue(sub.executionDuration?.value, sub.executionDuration?.unit)}
                           </span>
                         </div>
                         {sub.buffer?.value != null && sub.buffer.value > 0 && (

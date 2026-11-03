@@ -275,7 +275,11 @@
       "executionLabel": "Uitvoeringsduur *",
       "intakeTitle": "Duur van het intakegesprek",
       "durationLabel": "Duur *",
-      "intakeBufferLabel": "Buffer (optioneel)"
+      "intakeBufferLabel": "Buffer (optioneel)",
+      "determinedByCustomer": "Bepaald door de klant",
+      "determinedByCustomerHint": "De klant kiest het aantal uren bij het boeken. Die uren zijn de uitvoeringsduur en blokkeren de agenda.",
+      "executionPerUnitLabel": "Uitvoeringsduur per {unit} *",
+      "executionPerUnitHint": "Benodigde tijd voor één {unit}. De hoeveelheid die de klant boekt, vermenigvuldigt deze tijd om de uitvoeringsduur te berekenen en de agenda te blokkeren."
     },
     "summary": {
       "title": "Overzicht van de pakketten",
@@ -300,7 +304,8 @@
       "durationTo": "- {max} {unit}",
       "durationValue": "{value} {unit}",
       "totalFixed": "Totaal van de vaste prijspakketten: {total}",
-      "customerSeesTotal": "(Klant ziet: {price})"
+      "customerSeesTotal": "(Klant ziet: {price})",
+      "durationPerUnit": "{value} {unit} per {pricingUnit}"
     },
     "toast": {
       "maxSubprojects": "Maximaal 5 subprojecten toegestaan",

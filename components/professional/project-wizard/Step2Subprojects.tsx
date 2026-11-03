@@ -37,6 +37,7 @@ import {
 import { toast } from 'sonner';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { packageDurationMode, withChosenDurationBasis } from '@/lib/packageDuration';
 import {
   collectSubprojectErrors,
   isQuickAddItemIncluded,
@@ -540,7 +541,7 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
         if (!validTypes.includes(sub.pricing.type)) {
           return {
             ...sub,
-            pricing: withPricingUnit({ ...sub.pricing, type: defaultType }, unitLabel),
+            pricing: withPricingUnit(withChosenDurationBasis({ ...sub.pricing, type: defaultType }), unitLabel),
           };
         }
         return sub;
@@ -568,6 +569,23 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
       return changed ? next : prev;
     });
   }, [unitLabel, data.selectedPricingOption]);
+
+  // Hourly unit packages store no professional execution duration: the hours
+  // the customer books become the duration and calendar occupancy (6.A).
+  const durationModesKey = subprojects
+    .map((sub) => `${packageDurationMode(sub.pricing)}:${sub.executionDuration?.value ?? ''}:${sub.executionDuration?.unit ?? ''}`)
+    .join('|');
+  useEffect(() => {
+    setSubprojects((prev) => {
+      const next = prev.map((sub) =>
+        packageDurationMode(sub.pricing) === 'customer_hours' &&
+        (sub.executionDuration?.value !== undefined || sub.executionDuration?.unit !== 'hours')
+          ? { ...sub, executionDuration: { ...sub.executionDuration, value: undefined, unit: 'hours' as const } }
+          : sub
+      );
+      return next.some((sub, index) => sub !== prev[index]) ? next : prev;
+    });
+  }, [durationModesKey]);
 
   const validateForm = useCallback((
     requiredFields: Array<{ fieldName: string; label?: string }> = dynamicFields
@@ -609,11 +627,13 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
       description: '',
       projectType: [], // NEW: Empty types array
       professionalInputs: [], // NEW: Empty inputs array
+      // A new unit package is priced and timed per unit (6.B); an hourly one
+      // takes its duration from the hours the customer books (6.A).
       pricing: withPricingUnit(
-        {
+        withChosenDurationBasis({
           type: defaultPricingType,
           amount: 0,
-        },
+        }),
         unitLabel
       ),
       included: [],
@@ -1045,7 +1065,7 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
                         value={subproject.pricing.type}
                         onValueChange={(value: 'fixed' | 'unit' | 'rfq') => {
                           updateSubproject(subproject.id, {
-                            pricing: withPricingUnit({ ...subproject.pricing, type: value, durationBasis: value === 'unit' ? 'per_unit' : undefined }, unitLabel),
+                            pricing: withPricingUnit(withChosenDurationBasis({ ...subproject.pricing, type: value }), unitLabel),
                           });
                         }}
                       >
@@ -2156,8 +2176,26 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
                       </>
                     ) : (
                       <>
+                        {packageDurationMode(subproject.pricing) === 'customer_hours' ? (
                         <div>
-                          <Label>{t('step2.timing.executionLabel')}</Label>
+                          <Label htmlFor={`execution-${subproject.id}`}>{t('step2.timing.executionLabel')}</Label>
+                          <Input
+                            id={`execution-${subproject.id}`}
+                            value={t('step2.timing.determinedByCustomer')}
+                            readOnly
+                            disabled
+                          />
+                          <p className='text-xs text-gray-500 mt-1'>
+                            {t('step2.timing.determinedByCustomerHint')}
+                          </p>
+                        </div>
+                        ) : (
+                        <div>
+                          <Label>
+                            {packageDurationMode(subproject.pricing) === 'per_unit'
+                              ? t('step2.timing.executionPerUnitLabel', { unit: unitDisplay(subproject.pricing.unit || unitLabel) })
+                              : t('step2.timing.executionLabel')}
+                          </Label>
                           <div className='flex space-x-2'>
                             <Input
                               type='number'
@@ -2193,7 +2231,13 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
                               </SelectContent>
                             </Select>
                           </div>
+                          {packageDurationMode(subproject.pricing) === 'per_unit' && (
+                            <p className='text-xs text-gray-500 mt-1'>
+                              {t('step2.timing.executionPerUnitHint', { unit: unitDisplay(subproject.pricing.unit || unitLabel) })}
+                            </p>
+                          )}
                         </div>
+                        )}
 
                         <div>
                           <Label>{t('step2.timing.bufferLabel')}</Label>
@@ -2418,11 +2462,19 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
                               ? t('step2.summary.durationValue', { value: sub.executionDuration.value, unit })
                               : <span className='text-gray-400 italic'>{t('step2.summary.notSet')}</span>;
                           })()
+                        ) : packageDurationMode(sub.pricing) === 'customer_hours' ? (
+                          t('step2.timing.determinedByCustomer')
                         ) : sub.executionDuration.value != null ? (
-                          t('step2.summary.durationValue', {
-                            value: sub.executionDuration.value,
-                            unit: durationUnitLabel(sub.executionDuration.unit),
-                          })
+                          packageDurationMode(sub.pricing) === 'per_unit'
+                            ? t('step2.summary.durationPerUnit', {
+                              value: sub.executionDuration.value,
+                              unit: durationUnitLabel(sub.executionDuration.unit),
+                              pricingUnit: unitDisplay(sub.pricing.unit || unitLabel),
+                            })
+                            : t('step2.summary.durationValue', {
+                              value: sub.executionDuration.value,
+                              unit: durationUnitLabel(sub.executionDuration.unit),
+                            })
                         ) : (
                           <span className='text-gray-400 italic'>{t('step2.summary.notSet')}</span>
                         )}

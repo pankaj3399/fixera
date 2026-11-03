@@ -275,7 +275,11 @@
       "executionLabel": "Durée d'exécution *",
       "intakeTitle": "Durée de la visite sur place",
       "durationLabel": "Durée *",
-      "intakeBufferLabel": "Tampon (facultatif)"
+      "intakeBufferLabel": "Tampon (facultatif)",
+      "determinedByCustomer": "Déterminée par le client",
+      "determinedByCustomerHint": "Le client choisit le nombre d’heures lors de la réservation. Ces heures constituent la durée d’exécution et bloquent le calendrier.",
+      "executionPerUnitLabel": "Durée d’exécution par {unit} *",
+      "executionPerUnitHint": "Temps nécessaire pour un(e) {unit}. La quantité réservée par le client le multiplie pour calculer la durée d’exécution et bloquer le calendrier."
     },
     "summary": {
       "title": "Récapitulatif des forfaits",
@@ -300,7 +304,8 @@
       "durationTo": "- {max} {unit}",
       "durationValue": "{value} {unit}",
       "totalFixed": "Total des forfaits à prix fixe : {total}",
-      "customerSeesTotal": "(Le client voit : {price})"
+      "customerSeesTotal": "(Le client voit : {price})",
+      "durationPerUnit": "{value} {unit} par {pricingUnit}"
     },
     "toast": {
       "maxSubprojects": "Maximum 5 sous-projets autorisés",

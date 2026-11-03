@@ -275,7 +275,11 @@
       "executionLabel": "Execution Duration *",
       "intakeTitle": "Intake Meeting Duration",
       "durationLabel": "Duration *",
-      "intakeBufferLabel": "Buffer (optional)"
+      "intakeBufferLabel": "Buffer (optional)",
+      "determinedByCustomer": "Determined by customer",
+      "determinedByCustomerHint": "The customer chooses the number of hours when booking. Those hours are the execution duration and block the calendar.",
+      "executionPerUnitLabel": "Execution Duration per {unit} *",
+      "executionPerUnitHint": "Time needed for one {unit}. The quantity the customer books multiplies it to calculate the execution duration and block the calendar."
     },
     "summary": {
       "title": "Package Summary",
@@ -300,7 +304,8 @@
       "durationTo": "- {max} {unit}",
       "durationValue": "{value} {unit}",
       "totalFixed": "Total fixed price packages: {total}",
-      "customerSeesTotal": "(Customer sees: {price})"
+      "customerSeesTotal": "(Customer sees: {price})",
+      "durationPerUnit": "{value} {unit} per {pricingUnit}"
     },
     "toast": {
       "maxSubprojects": "Maximum 5 subprojects allowed",

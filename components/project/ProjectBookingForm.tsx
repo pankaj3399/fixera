@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
+import { effectiveExecutionDuration, isHourUnit, packageDurationMode } from '@/lib/packageDuration';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -561,10 +562,21 @@ export default function ProjectBookingForm({
         ? 1
         : undefined;
 
+  // Execution the booking occupies, as the backend schedules it: an hourly
+  // unit package lasts the booked hours, a per-unit package scales its unit
+  // duration by the booked quantity, anything else keeps its stored duration.
+  const bookedExecution = useMemo(
+    () => effectiveExecutionDuration<AnyExecutionDuration>(
+      selectedPackage,
+      project.executionDuration,
+      isUnitPricing ? estimatedUsage : 1,
+    ),
+    [selectedPackage, project.executionDuration, isUnitPricing, estimatedUsage],
+  );
+
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
-    selectedPackage?.executionDuration?.unit ||
-    project.executionDuration?.unit ||
+    bookedExecution?.unit ||
     'days';
   const professionalTz = normalizeTimezone(professionalTimezone);
   // Formats DayPicker/local Date objects in local timezone (date-only value from the picker).
@@ -811,6 +823,7 @@ export default function ProjectBookingForm({
     blockedDates,
     professionalAvailability,
     selectedPackage,
+    bookedExecution,
     selectedTime,
   ]);
 
@@ -1274,8 +1287,7 @@ export default function ProjectBookingForm({
   }, [professionalAvailability, professionalTz, toLocalDateKey]);
 
   const getExecutionDurationHours = (): number => {
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     if (!executionSource) {
       return 0;
@@ -1736,8 +1748,7 @@ export default function ProjectBookingForm({
     if (!startTime) return '';
 
     // Get execution duration in hours
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     let executionHours = 0;
     if (executionSource) {
@@ -1772,8 +1783,7 @@ export default function ProjectBookingForm({
     const endTime = calculateEndTime(startTime);
 
     // Get execution duration
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     const durationLabel =
       executionSource && typeof executionSource.value === 'number'
@@ -1824,11 +1834,11 @@ export default function ProjectBookingForm({
 
   const executionDaysForBlocking = useMemo(() => {
     if (projectMode !== 'days') return 0;
-    const executionSource = selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource = bookedExecution;
     const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const days = Math.ceil(convertDurationToDays(executionSource, preferRange));
     return Number.isFinite(days) && days > 0 ? days : 0;
-  }, [projectMode, selectedPackage, project.executionDuration]);
+  }, [projectMode, selectedPackage, bookedExecution]);
 
   const isExecutionWindowBlockedForStart = (startDate: Date): boolean => {
     if (executionDaysForBlocking <= 1) return false;
@@ -2050,8 +2060,7 @@ export default function ProjectBookingForm({
   const calculateCompletionDate = (includeBuffer = false): Date | null => {
     if (!selectedDate) return null;
 
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
     const preferRange =
       selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const executionDays = Math.ceil(
@@ -2903,8 +2912,7 @@ export default function ProjectBookingForm({
       return null;
     }
 
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
     const preferRange =
       selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const executionDays = Math.ceil(
@@ -2941,8 +2949,7 @@ export default function ProjectBookingForm({
     projectMode,
     selectedDate,
     professionalAvailability,
-    selectedPackage?.executionDuration,
-    project.executionDuration,
+    bookedExecution,
     selectedPackage?.pricing.type,
     scheduleWindowCompletionDate,
     professionalTz,
@@ -3351,7 +3358,7 @@ export default function ProjectBookingForm({
                               className='text-lg'
                             />
 
-                            {selectedPackage.pricing.unit?.toLowerCase().match(/^(h|hr|hrs|hour|hours|hur)$/) && !selectedPackage.executionDuration?.value ? (
+                            {packageDurationMode(selectedPackage.pricing) === 'customer_hours' || (isHourUnit(selectedPackage.pricing.unit) && !selectedPackage.executionDuration?.value) ? (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>{t('package.hoursDeterminedByCustomer')}</span>
                             ) : project.priceModel && (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>
