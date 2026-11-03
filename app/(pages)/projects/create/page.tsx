@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import WizardLayout from '@/components/professional/project-wizard/WizardLayout'
+import { Button } from '@/components/ui/button'
 import Step1BasicInfo, { type Step1Ref } from '@/components/professional/project-wizard/Step1BasicInfo'
 import Step2Subprojects, {
   PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME,
@@ -31,6 +32,13 @@ import {
   type ProjectMediaUploader,
 } from '@/lib/projectMediaUploads'
 import { useAuth } from '@/contexts/AuthContext'
+import {
+  PROJECT_MANAGE_PATH,
+  createLatestLoadGuard,
+  fetchProjectForEditor,
+  resolveProjectEditorView,
+  type ProjectLoadState,
+} from '@/lib/projectEditorAccess'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatPriceModelLabel } from '@/lib/projectHighlights'
 import {
@@ -394,117 +402,113 @@ function ProjectCreateContent() {
     })
   }
 
-  // Load existing project data if editing
+  // Load existing project data if editing. The wizard form stays hidden until
+  // this settles (see resolveProjectEditorView), so a blank Step 1 can never
+  // echo empty fields over the loaded project or save a duplicate.
+  const [projectLoad, setProjectLoad] = useState<ProjectLoadState>({ status: 'idle' })
+  const [projectLoadAttempt, setProjectLoadAttempt] = useState(0)
+  const projectLoadGuardRef = useRef(createLatestLoadGuard())
   useEffect(() => {
     if (projectId && canCreateProjects && projectId !== selfAssignedProjectIdRef.current) {
+      const guard = projectLoadGuardRef.current
+      const isCurrent = guard.begin()
       const loadProject = async () => {
-        setIsLoading(true)
-        try {
-          console.log('[loading] Loading project:', projectId)
-          const token = getAuthToken()
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json'
+        setProjectLoad({ status: 'loading', projectId })
+        const result = await fetchProjectForEditor({
+          apiBase: process.env.NEXT_PUBLIC_BACKEND_URL || '',
+          projectId,
+          token: getAuthToken(),
+        })
+        // Superseded (StrictMode remount, id change, retry) or unmounted.
+        if (!isCurrent() || !mountedRef.current) return
+
+        if (!result.ok) {
+          console.error('Failed to load project:', { status: result.status, kind: result.kind })
+          if (result.kind === 'unauthorized') {
+            setProjectLoad({ status: 'error', projectId, kind: result.kind, message: t('create.pleaseLogIn') })
+            toast.error(t('create.pleaseLogIn'))
+            router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+            return
           }
-          if (token) {
-            headers['Authorization'] = `Bearer ${token}`
+          if (result.kind === 'not_found' || result.kind === 'forbidden') {
+            const message = result.kind === 'not_found' ? t('page.notFound') : t('create.noPermission')
+            setProjectLoad({ status: 'error', projectId, kind: result.kind, message })
+            toast.error(message)
+            router.replace(PROJECT_MANAGE_PATH)
+            return
           }
-          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}`, {
-            credentials: 'include',
-            headers
-          })
-
-          console.log('[loading] Project fetch response:', response.status, response.statusText)
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            console.error('? Failed to load project:', {
-              status: response.status,
-              statusText: response.statusText,
-              error: errorData
-            })
-
-            if (response.status === 401) {
-              toast.error(t('create.pleaseLogIn'))
-              router.replace(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
-              return
-            } else if (response.status === 404) {
-              toast.error(t('page.notFound'))
-              router.replace('/professional/projects/manage')
-              return
-            } else if (response.status === 403) {
-              toast.error(t('create.noPermission'))
-              router.replace('/professional/projects/manage')
-              return
-            }
-
-            throw apiErrorFromBody(errorData, t('create.loadFailed'), { status: response.status })
-          }
-
-          const project = await response.json()
-          console.log('? Loaded project data:', project)
-          console.log('[ok] Project status:', project.status)
-
-          setProjectData({
-            id: project._id,
-            status: project.status,
-            currentStep: project.currentStep || 1,
-            timeMode: project.timeMode || 'days',
-            category: project.category,
-            service: project.service,
-            areaOfWork: project.areaOfWork,
-            intakeMeeting: project.intakeMeeting || { enabled: false, resources: [] },
-            renovationPlanning: project.renovationPlanning
-              ? {
-                  fixeraManaged: project.renovationPlanning.fixeraManaged ?? false,
-                  resources: project.renovationPlanning.resources || [],
-                }
-              : { fixeraManaged: false, resources: [] },
-            distance: project.distance || {
-              address: '',
-              useCompanyAddress: false,
-              maxKmRange: undefined,
-              noBorders: false
-            },
-            media: { images: project.media?.images || [], videos: project.media?.videos || (project.media?.video ? [project.media.video] : []) },
-            keywords: project.keywords || [],
-            projectType: project.projectType || [],
-            subprojects: project.subprojects || [],
-            extraOptions: project.extraOptions || [],
-            termsConditions: project.termsConditions || [],
-            repeatBuyerDiscount: project.repeatBuyerDiscount || { enabled: false, percentage: 5, minPreviousBookings: 1 },
-            faq: project.faq || [],
-            rfqQuestions: project.rfqQuestions || [],
-            postBookingQuestions: project.postBookingQuestions || [],
-            resources: project.resources,
-            minResources: project.minResources,
-            minOverlapPercentage: project.minOverlapPercentage,
-            preparationDuration: project.preparationDuration,
-            executionDuration: project.executionDuration,
-            bufferDuration: project.bufferDuration,
-            description: project.description,
-            priceModel: project.priceModel,
-            title: project.title,
-            customConfirmationMessage: project.customConfirmationMessage,
-            customerPresence: project.customerPresence,
-            serviceConfigurationId: project.serviceConfigurationId,
-            vatProfessionalAnswers: project.vatProfessionalAnswers || [],
-          })
-          setStep1HydrationKey(key => key + 1)
-          setCurrentStep(project.currentStep || 1)
-          setVisitedSteps(prev => prev.map((visited, index) => visited || index === (project.currentStep || 1) - 1))
-        } catch (error) {
-          console.error('Failed to load project:', error)
-          toast.error(getErrorText(error, t('create.loadFailed')))
-        } finally {
-          setIsLoading(false)
+          const error = result.error ?? apiErrorFromBody(result.body, t('create.loadFailed'), { status: result.status })
+          const message = getErrorText(error, t('create.loadFailed'))
+          setProjectLoad({ status: 'error', projectId, kind: result.kind, message })
+          toast.error(message)
+          return
         }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server project shape, mapped field by field below
+        const project = result.project as any
+        setProjectData({
+          id: project._id,
+          status: project.status,
+          currentStep: project.currentStep || 1,
+          timeMode: project.timeMode || 'days',
+          category: project.category,
+          service: project.service,
+          areaOfWork: project.areaOfWork,
+          intakeMeeting: project.intakeMeeting || { enabled: false, resources: [] },
+          renovationPlanning: project.renovationPlanning
+            ? {
+                fixeraManaged: project.renovationPlanning.fixeraManaged ?? false,
+                resources: project.renovationPlanning.resources || [],
+              }
+            : { fixeraManaged: false, resources: [] },
+          distance: project.distance || {
+            address: '',
+            useCompanyAddress: false,
+            maxKmRange: undefined,
+            noBorders: false
+          },
+          media: { images: project.media?.images || [], videos: project.media?.videos || (project.media?.video ? [project.media.video] : []) },
+          keywords: project.keywords || [],
+          projectType: project.projectType || [],
+          subprojects: project.subprojects || [],
+          extraOptions: project.extraOptions || [],
+          termsConditions: project.termsConditions || [],
+          repeatBuyerDiscount: project.repeatBuyerDiscount || { enabled: false, percentage: 5, minPreviousBookings: 1 },
+          faq: project.faq || [],
+          rfqQuestions: project.rfqQuestions || [],
+          postBookingQuestions: project.postBookingQuestions || [],
+          resources: project.resources,
+          minResources: project.minResources,
+          minOverlapPercentage: project.minOverlapPercentage,
+          preparationDuration: project.preparationDuration,
+          executionDuration: project.executionDuration,
+          bufferDuration: project.bufferDuration,
+          description: project.description,
+          priceModel: project.priceModel,
+          title: project.title,
+          customConfirmationMessage: project.customConfirmationMessage,
+          customerPresence: project.customerPresence,
+          serviceConfigurationId: project.serviceConfigurationId,
+          vatProfessionalAnswers: project.vatProfessionalAnswers || [],
+        })
+        setStep1HydrationKey(key => key + 1)
+        setCurrentStep(project.currentStep || 1)
+        setVisitedSteps(prev => prev.map((visited, index) => visited || index === (project.currentStep || 1) - 1))
+        setProjectLoad({ status: 'loaded', projectId })
       }
 
-      loadProject()
+      void loadProject()
+      return () => guard.invalidate()
     }
     // Next.js router is stable and we only want to run this effect when projectId changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, canCreateProjects])
+  }, [projectId, canCreateProjects, projectLoadAttempt])
+  const editorView = resolveProjectEditorView({
+    authLoading: loading,
+    user,
+    projectId,
+    load: projectLoad,
+  })
 
   // Manual save function for draft
   const saveProjectDraft = async (options?: { silent?: boolean }) => {
@@ -569,6 +573,7 @@ function ProjectCreateContent() {
         // If this was a new project (no existing projectData.id) and we got a new ID, update the URL
         if (!projectData.id && savedProjectId) {
           selfAssignedProjectIdRef.current = savedProjectId
+          setProjectLoad({ status: 'loaded', projectId: savedProjectId })
           router.replace(`/projects/create?id=${savedProjectId}`, { scroll: false })
         }
 
@@ -1205,6 +1210,31 @@ function ProjectCreateContent() {
       default:
         return null
     }
+  }
+
+  if (editorView !== 'ready') {
+    const loadError = editorView === 'load-error' && projectLoad.status === 'error' ? projectLoad : null
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        {loadError ? (
+          <div role="alert" className="w-full max-w-md rounded-lg border border-red-200 bg-white p-6 text-center shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900">{t('create.loadErrorTitle')}</h2>
+            <p className="mt-2 text-sm text-gray-600">{loadError.message || t('create.loadFailed')}</p>
+            <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+              {loadError.kind === 'failed' && (
+                <Button onClick={() => setProjectLoadAttempt(attempt => attempt + 1)}>{t('create.retryLoad')}</Button>
+              )}
+              <Button variant="outline" onClick={() => router.push(PROJECT_MANAGE_PATH)}>{t('create.backToProjects')}</Button>
+            </div>
+          </div>
+        ) : (
+          <div role="status" className="flex flex-col items-center gap-3 text-sm text-gray-600">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600" />
+            <span>{editorView === 'loading-project' ? t('create.loadingProject') : t('create.checkingAccess')}</span>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (

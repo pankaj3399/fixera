@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import type { AdminPermission, AdminRole } from '@/lib/adminRbac'
-import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
+import { projectWizardStripeRedirect } from '@/lib/projectEditorAccess'
 import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY } from '@/lib/constants/favorites'
 import { getMigratedItem, removeMigratedItem } from '@/lib/storageMigration'
 import { pruneAnonymizeRecoveryStorageForLogout } from '@/lib/anonymizeRecoveryStorage'
@@ -553,13 +553,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return
     }
 
-    if (
-      isUserAuthenticated &&
-      currentUser?.role === 'professional' &&
-      pathname.startsWith('/projects/create') &&
-      (!currentUser.stripe?.accountId || !currentUser.stripe?.onboardingCompleted)
-    ) {
-      router.replace(`/professional/onboarding?step=${ONBOARDING_STEPS.STRIPE}`)
+    // New projects need Stripe set up; editing an existing one (?id=) does not.
+    const stripeRedirect = isUserAuthenticated
+      ? projectWizardStripeRedirect(currentUser, pathname, typeof window !== 'undefined' ? window.location.search : '')
+      : null
+    if (stripeRedirect) {
+      router.replace(stripeRedirect)
       return
     }
 
