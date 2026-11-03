@@ -10,6 +10,7 @@ const {
   packageDurationMode,
   pricingTypeChangeUpdates,
   withChosenDurationBasis,
+  withOptionPricingUnit,
   withSyncedPricingUnit,
   withoutRetainedDurations,
 } = await import('../lib/packageDuration.ts')
@@ -180,7 +181,60 @@ test('wizard wiring: type select, auto-repair, option sync and saving use the du
   const step2 = source('components/professional/project-wizard/Step2Subprojects.tsx')
   assert.match(step2, /\.\.\.pricingTypeChangeUpdates\(sub, withPricingUnit\(withChosenDurationBasis\(\{ \.\.\.sub\.pricing, type: defaultType \}\), unitLabel\)\)/, 'auto-repair')
   assert.match(step2, /updateSubproject\(\s*subproject\.id,\s*pricingTypeChangeUpdates\(subproject, withPricingUnit\(withChosenDurationBasis\(\{ \.\.\.subproject\.pricing, type: value \}\), unitLabel\)\),/, 'type select')
-  assert.match(step2, /return withSyncedPricingUnit\(sub, resolvedUnit\);/, 'option sync')
+  assert.match(step2, /\.\.\.withOptionPricingUnit\(sub, data\.selectedPricingOption\?\.unit, unitLabel\),\n\s*preparationDuration:/, 'mount initializer')
+  assert.match(step2, /prev\.map\(\(sub\) => withOptionPricingUnit\(sub, data\.selectedPricingOption\?\.unit, unitLabel\)\)/, 'option sync')
+  assert.doesNotMatch(step2, /pricing: withPricingUnit\(sub\.pricing, unitLabel\)/, 'mount must not overwrite the unit before the transition')
   const page = source('app/(pages)/projects/create/page.tsx')
   assert.match(page, /subprojects: normalizePreparationDuration\(withoutRetainedDurations\(projectData\.subprojects\)\)/)
+})
+
+// Step 2 is unmounted while Step 1 changes the option. Each mount runs the
+// useState initializer over the parent's stored packages, then the hourly
+// clearing effect; onChange writes the result back to the parent store.
+const mountStep2 = (store, optionUnit) => {
+  const mounted = store.map((sub) => withOptionPricingUnit(sub, optionUnit, 'unit'))
+  return mounted.map((sub) =>
+    packageDurationMode(sub.pricing) === 'customer_hours' &&
+    (sub.executionDuration?.value !== undefined || sub.executionDuration?.unit !== 'hours')
+      ? { ...sub, executionDuration: { ...sub.executionDuration, value: undefined, unit: 'hours' } }
+      : sub,
+  )
+}
+
+test('remount: per m² 0.5 days → Step 1 hourly → Step 1 back to per m² restores 0.5 days', () => {
+  let store = [{ id: 'a', pricing: { type: 'unit', unit: 'm²', durationBasis: 'per_unit', amount: 12 }, executionDuration: { value: 0.5, unit: 'days' } }]
+  store = mountStep2(store, 'm²')
+  assert.deepEqual(store[0].executionDuration, { value: 0.5, unit: 'days' })
+  // Unmount; Step 1 picks the hourly option; Step 2 mounts again.
+  store = mountStep2(store, 'hour')
+  assert.equal(store[0].pricing.unit, 'hour')
+  assert.equal(packageDurationMode(store[0].pricing), 'customer_hours')
+  assert.deepEqual(store[0].executionDuration, { value: undefined, unit: 'hours' })
+  const [savedHourly] = JSON.parse(JSON.stringify(withoutRetainedDurations(store)))
+  assert.equal(savedHourly.executionDuration.value, undefined)
+  assert.equal('retainedPerUnitDuration' in savedHourly, false)
+  // Unmount; Step 1 picks per m² again; Step 2 mounts again.
+  store = mountStep2(store, 'm²')
+  assert.equal(store[0].pricing.unit, 'm²')
+  assert.deepEqual(store[0].executionDuration, { value: 0.5, unit: 'days' })
+  assert.equal(store[0].retainedPerUnitDuration, undefined)
+  assert.deepEqual(collectSubprojectErrors({ ...validBase, ...store[0] }, 0, t), [])
+})
+
+test('remount: legacy and fixed packages keep their behaviour; fixed → unit still clears', () => {
+  const legacy = { pricing: { type: 'unit', unit: 'm²', amount: 5 }, executionDuration: { value: 4, unit: 'days' } }
+  const [mountedLegacy] = mountStep2([legacy], 'hour')
+  assert.equal(packageDurationMode(mountedLegacy.pricing), 'per_booking')
+  assert.deepEqual(mountedLegacy.executionDuration, { value: 4, unit: 'days' })
+  const fixed = { pricing: { type: 'fixed', unit: 'm²', amount: 900 }, executionDuration: { value: 3, unit: 'days' } }
+  const [mountedFixed] = mountStep2([fixed], 'm²')
+  assert.equal(mountedFixed.pricing.unit, undefined)
+  assert.equal(mountedFixed.executionDuration.value, 3)
+  const [unit] = mountStep2([typeChange(mountedFixed, 'unit', 'm²')], 'm²')
+  assert.equal(unit.executionDuration.value, undefined)
+  // An unchanged package keeps its identity, so the sync effect does not loop.
+  const stable = { pricing: { type: 'unit', unit: 'm²', durationBasis: 'per_unit' }, executionDuration: { value: 1, unit: 'days' } }
+  assert.equal(withOptionPricingUnit(stable, 'm²', 'unit'), stable)
+  assert.equal(withOptionPricingUnit(fixed, undefined, 'unit').pricing.unit, undefined)
+  assert.equal(withOptionPricingUnit(mountedFixed, undefined, 'unit'), mountedFixed)
 })

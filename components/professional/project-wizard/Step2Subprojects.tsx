@@ -41,7 +41,7 @@ import {
   packageDurationMode,
   pricingTypeChangeUpdates,
   withChosenDurationBasis,
-  withSyncedPricingUnit,
+  withOptionPricingUnit,
   type RetainedPerUnitDuration,
 } from '@/lib/packageDuration';
 import {
@@ -392,8 +392,7 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
     normalizePreparationDuration(subproject).unit;
   const [subprojects, setSubprojects] = useState<ISubproject[]>(() =>
     (data.subprojects || []).map((sub) => ({
-      ...sub,
-      pricing: withPricingUnit(sub.pricing, unitLabel),
+      ...withOptionPricingUnit(sub, data.selectedPricingOption?.unit, unitLabel),
       preparationDuration: normalizePreparationDuration(sub),
     }))
   );
@@ -562,15 +561,7 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
   // pricing option in Step 1 (unit label may change).
   useEffect(() => {
     setSubprojects((prev) => {
-      const next = prev.map((sub) => {
-        if (sub.pricing.type === 'unit') {
-          const resolvedUnit = data.selectedPricingOption?.unit || sub.pricing.unit || unitLabel;
-          return withSyncedPricingUnit(sub, resolvedUnit);
-        }
-        return sub.pricing.unit === undefined
-          ? sub
-          : { ...sub, pricing: { ...sub.pricing, unit: undefined } };
-      });
+      const next = prev.map((sub) => withOptionPricingUnit(sub, data.selectedPricingOption?.unit, unitLabel));
       const changed = next.some((sub, index) => sub !== prev[index]);
       return changed ? next : prev;
     });

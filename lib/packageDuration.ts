@@ -139,6 +139,25 @@ export function withSyncedPricingUnit<P extends WizardPackage>(pkg: P, unit: str
   return next
 }
 
+/**
+ * A wizard package aligned with the Step 1 pricing option: on Step 2 mount and
+ * when the option changes while Step 2 is mounted. Step 2 is unmounted while
+ * Step 1 is edited, so on mount the stored package still has the previous unit.
+ * The transition runs from that unit; overwriting it first would make
+ * per-unit → hourly look like hourly → hourly and lose the per-unit value.
+ * Fixed/RFQ pricing carries no unit.
+ */
+export function withOptionPricingUnit<P extends WizardPackage>(
+  pkg: P,
+  optionUnit: string | undefined,
+  fallbackUnit: string,
+): P {
+  if (pkg.pricing.type !== 'unit') {
+    return pkg.pricing.unit === undefined ? pkg : { ...pkg, pricing: { ...pkg.pricing, unit: undefined } }
+  }
+  return withSyncedPricingUnit(pkg, optionUnit || pkg.pricing.unit || fallbackUnit)
+}
+
 /** Packages as saved: the wizard-only retained duration never reaches the API. */
 export function withoutRetainedDurations<P extends object>(packages: P[] | undefined): P[] | undefined {
   if (!Array.isArray(packages)) return packages
