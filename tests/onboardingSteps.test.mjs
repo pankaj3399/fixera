@@ -20,6 +20,8 @@ test('legacy removed step 5 maps to the next real step, others clamp', () => {
   assert.equal(normalizeOnboardingStep(99), 7)
   assert.equal(normalizeOnboardingStep(0), 1)
   assert.equal(normalizeOnboardingStep(NaN), 1)
+  assert.equal(normalizeOnboardingStep(-Infinity), 1)
+  assert.equal(normalizeOnboardingStep(Infinity), 7)
 })
 
 const completeId = { idProofUrl: 'x', idCountryOfIssue: 'BE', idExpirationDate: '2030-01-01' }
@@ -171,4 +173,16 @@ test('an all-digit ?step= is a deep link and is clamped to a real step', () => {
     assert.equal(result.step, step, initialSearch)
     assert.equal(result.search, `step=${step}`, initialSearch)
   }
+})
+
+test('an all-digit ?step= too long for a finite number clamps to the last step, not step 1', () => {
+  const { parseOnboardingStepParam } = resumeStep
+  const huge = '9'.repeat(400)
+  assert.equal(parseOnboardingStepParam(huge), Infinity)
+  const result = mountStepSync({ initialSearch: `step=${huge}`, user: { ...completeId, ...completeBusiness }, loadingFirst: true })
+  assert.equal(result.step, 7)
+  assert.equal(result.search, 'step=7')
+  // A malformed long value is still absent: the saved profile resumes at 3.
+  const malformed = mountStepSync({ initialSearch: `step=${huge}x`, user: { ...completeId, ...completeBusiness }, loadingFirst: true })
+  assert.equal(malformed.step, 3)
 })

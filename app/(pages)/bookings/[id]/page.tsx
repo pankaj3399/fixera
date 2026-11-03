@@ -42,7 +42,8 @@ import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostCharg
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
-import { isViewingPinnedQuoteVersion, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
+import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
+import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
@@ -1687,22 +1688,18 @@ function BookingDetailContent() {
   // Back/Forward between version entries, and version picks inside the
   // Quotation tab (announced as hashchange), keep the pinned version in sync.
   const [pinnedQuoteVersion, setPinnedQuoteVersion] = usePinnedQuoteVersion(bookingId)
-  const effectiveQuoteVersion = pinnedQuoteVersion ?? booking?.currentQuoteVersion
-  const currentVersion = hasQuotationVersions
-    ? (booking?.quoteVersions?.find(v => v.version === effectiveQuoteVersion)
-      ?? booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion)
-      ?? null)
-    : null
-  // A pinned hash version is display-only; professional edit flows and
-  // milestone arithmetic must use the authoritative current version.
-  const authoritativeVersion = hasQuotationVersions
-    ? (booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion) ?? currentVersion)
-    : null
-  const viewingPinnedVersion = isViewingPinnedQuoteVersion({
-    hasQuotationVersions,
-    pinnedVersion: pinnedQuoteVersion,
+  // `currentVersion` is the displayed (possibly pinned) version. A pinned hash
+  // version is display-only; professional edit flows and milestone arithmetic
+  // use the authoritative current version, which never falls back to the
+  // pinned one (missing/unmatched currentQuoteVersion -> latest by number).
+  const {
+    displayedVersion: currentVersion,
+    authoritativeVersion,
+    viewingPinnedVersion,
+  } = resolveQuoteVersionView({
+    quoteVersions: booking?.quoteVersions,
     currentQuoteVersion: booking?.currentQuoteVersion,
-    displayedVersion: currentVersion?.version,
+    pinnedVersion: pinnedQuoteVersion,
   })
   const currentVersionQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(
@@ -3374,27 +3371,14 @@ function BookingDetailContent() {
                       </p>
                     )}
 
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button
-                        onClick={() => handleRespondToQuotation('accepted')}
-                        disabled={respondingToQuotation || viewingPinnedVersion}
-                        className="h-auto min-w-0 w-full whitespace-normal bg-green-600 py-2 text-center hover:bg-green-700 sm:flex-1 text-white"
-                        size="sm"
-                      >
-                        {respondingToQuotation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                        {t("quotation.acceptAndPay")}
-                      </Button>
-                      <Button
-                        onClick={() => setShowQuoteRejectionModal(true)}
-                        disabled={respondingToQuotation || viewingPinnedVersion}
-                        variant="outline"
-                        className="h-auto min-w-0 w-full whitespace-normal border-red-300 py-2 text-center text-red-600 hover:bg-red-50 sm:flex-1"
-                        size="sm"
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        {t("quotation.rejectWithReason")}
-                      </Button>
-                    </div>
+                    <QuoteResponseActions
+                      responding={respondingToQuotation}
+                      viewingPinnedVersion={viewingPinnedVersion}
+                      onAccept={() => handleRespondToQuotation('accepted')}
+                      onReject={() => setShowQuoteRejectionModal(true)}
+                      acceptLabel={t("quotation.acceptAndPay")}
+                      rejectLabel={t("quotation.rejectWithReason")}
+                    />
                   </div>
                 )}
 

@@ -173,10 +173,21 @@ export function paidPriceOf(booking: SharedBookingRow): OverviewMoney {
 
 /**
  * Settled completion addition, VAT-inclusive as the customer was charged or
- * refunded (mirrors the backend overview row):
- * - plus the separate extra-cost charge `payment.extraCostAmount`, only once
- *   `payment.extraCostStatus` is `succeeded`;
- * - minus `kind: "extra_cost"` refund rows that actually returned money.
+ * refunded. The authoritative server overview wins (an intentional unknown
+ * included); this fallback derives it from the booking's recorded payment
+ * facts for payloads without that overview:
+ * - The separate extra-cost charge `payment.extraCostAmount` counts once it
+ *   was actually charged: `extraCostStatus` `succeeded`, or `refunded` (a
+ *   charge that succeeded and was then returned). Pending, failed or missing
+ *   charges, or a charge without a recorded amount, add nothing.
+ * - `kind: "extra_cost"` refund rows that actually returned money are
+ *   subtracted: refunds of that charge (a partial refund leaves the rest),
+ *   or, without a charge, credits against the base charge (negative).
+ * - A `refunded` charge whose returned rows do not cover it is not
+ *   recorded: the refund that returned it is not in this payload (the
+ *   ledger rows live on the payment records), so a net figure would be
+ *   invented. A fully refunded charge nets to 0 (shown as no addition);
+ *   returned rows beyond it remain a credit.
  * `extraCosts[]` entries are never summed. Not recorded when nothing settled
  * is recorded.
  */
@@ -185,20 +196,20 @@ export function completionAdditionOf(booking: SharedBookingRow): OverviewMoney {
   if (authoritative) return authoritative
   const payment = booking.payment
   if (!payment || typeof payment !== "object") return NOT_RECORDED
-  let recorded = false
-  let total = 0
-  if (payment.extraCostStatus === "succeeded" && isFiniteNumber(payment.extraCostAmount)) {
-    recorded = true
-    total += payment.extraCostAmount
+  const returned = Array.isArray(payment.refunds)
+    ? payment.refunds
+      .filter((refund) => isReturnedRefund(refund) && refund.kind === "extra_cost")
+      .reduce((sum, refund) => sum + (refund.amount as number), 0)
+    : 0
+  const charged = (payment.extraCostStatus === "succeeded" || payment.extraCostStatus === "refunded")
+    && isFiniteNumber(payment.extraCostAmount)
+    ? payment.extraCostAmount
+    : null
+  if (charged == null) {
+    return returned > 0 ? recordedMoney(roundMoney(-returned), payment.currency) : NOT_RECORDED
   }
-  const returnedExtraCostRefunds = Array.isArray(payment.refunds)
-    ? payment.refunds.filter((refund) => isReturnedRefund(refund) && refund.kind === "extra_cost")
-    : []
-  if (returnedExtraCostRefunds.length > 0) {
-    recorded = true
-    total -= returnedExtraCostRefunds.reduce((sum, refund) => sum + (refund.amount as number), 0)
-  }
-  return recorded ? recordedMoney(roundMoney(total), payment.currency) : NOT_RECORDED
+  if (payment.extraCostStatus === "refunded" && roundMoney(returned) < roundMoney(charged)) return NOT_RECORDED
+  return recordedMoney(roundMoney(charged - returned), payment.currency)
 }
 
 function isSafeHttpUrl(url: string | null | undefined): boolean {

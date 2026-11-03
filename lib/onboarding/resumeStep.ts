@@ -13,11 +13,15 @@ export const VISIBLE_ONBOARDING_STEP_IDS: readonly number[] = [
   ONBOARDING_STEPS.RULES,
 ];
 
-/** Legacy/removed steps map to the next real step (5 -> employees). */
+/**
+ * Legacy/removed steps map to the next real step (5 -> employees). NaN and
+ * values below 1 become step 1; anything above the last step, including the
+ * `Infinity` an oversized all-digit `?step=` parses to, clamps to the last.
+ */
 export const normalizeOnboardingStep = (step: number): number => {
   if (step === ONBOARDING_STEPS.PERSONAL_HOURS) return ONBOARDING_STEPS.EMPLOYEES;
   if ((VISIBLE_ONBOARDING_STEP_IDS as readonly number[]).includes(step)) return step;
-  if (!Number.isFinite(step) || step < 1) return 1;
+  if (Number.isNaN(step) || step < 1) return 1;
   const sorted = [...VISIBLE_ONBOARDING_STEP_IDS].sort((a, b) => a - b);
   if (step <= sorted[0]) return sorted[0];
   for (let i = sorted.length - 1; i >= 0; i--) {
@@ -30,7 +34,8 @@ export const normalizeOnboardingStep = (step: number): number => {
  * Reads a `?step=` value. Only a plain non-negative integer (`3`, `03`) is a
  * step; anything else (`7junk`, `3.5`, `-1`, `1e2`, ` 3`, empty) counts as
  * absent, so it never suppresses the saved-profile resume. A valid number is
- * returned as written; normalizeOnboardingStep clamps it (0 -> 1, 99 -> 7).
+ * returned as written; normalizeOnboardingStep clamps it (0 -> 1, 99 -> 7,
+ * and a digit string too long for a finite number -> Infinity -> 7).
  */
 export const parseOnboardingStepParam = (value: string | null | undefined): number | null =>
   typeof value === 'string' && /^\d+$/.test(value) ? Number.parseInt(value, 10) : null;

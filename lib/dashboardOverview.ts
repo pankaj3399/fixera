@@ -164,6 +164,35 @@ export function describeEarningsBuckets(
 }
 
 /** Look up a server facet count, defaulting to 0 for unseen keys. */
+const isServerCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0
+
+/**
+ * A count from a successful server response (e.g. `pagination.total`): an
+ * explicit finite, non-negative number. Absent or malformed is unknown
+ * (null), never 0 — a partial response does not mean "none".
+ */
+export function readServerCount(value: unknown): number | null {
+  return isServerCount(value) ? value : null
+}
+
+/**
+ * Facet counts (`statusCounts` / `serviceCounts`) from a successful server
+ * response. The server's facet aggregation emits only groups that exist, so
+ * inside a present object a missing key is a real 0. An absent facet object,
+ * or a malformed one (not a plain object, or any value that is not a count),
+ * is unknown (null), never an empty "all zero" facet.
+ */
+export function readFacetCounts(value: unknown): Record<string, number> | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null
+  const counts: Record<string, number> = {}
+  for (const [key, count] of Object.entries(value as Record<string, unknown>)) {
+    if (!isServerCount(count)) return null
+    counts[key] = count
+  }
+  return counts
+}
+
 export function facetCount(counts: Record<string, number> | null | undefined, key: string): number {
   if (!counts || typeof counts !== "object") return 0
   const value = counts[key]

@@ -9,7 +9,7 @@ const { renderToStaticMarkup } = await import('react-dom/server')
 const { NextIntlClientProvider } = await import('next-intl')
 const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
 const { AuthProvider } = await import('@/contexts/AuthContext')
-const { default: SharedBookingsTable } = await import('@/components/dashboard/SharedBookingsTable')
+const { default: SharedBookingsTable, completionAdditionOf } = await import('@/components/dashboard/SharedBookingsTable')
 const { default: SharedQuotesTable } = await import('@/components/dashboard/SharedQuotesTable')
 const messages = Object.fromEntries(['auth', 'dashboardWidgets', 'search'].map(name => [name, JSON.parse(readFileSync(new URL(`../messages/en/${name}.json`, import.meta.url), 'utf8'))]))
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }
@@ -136,3 +136,34 @@ test('booking table prefers the authoritative overview money, including an inten
   const partial = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment, overview: { completionAddition: { amount: null, currency: null, source: 'not_recorded' } } }, 'customer')
   assert.equal(stripTags(paidCell(partial)), 'EUR 1210.00')
 })
+test('a fully refunded extra-cost charge nets to 0, never a negative credit; real credits and partial refunds stay', () => {
+  const base = { totalWithVat: 1210, currency: 'EUR', status: 'completed' }
+  const addition = payment => completionAdditionOf({ _id: 'b1', status: 'completed', payment: { ...base, ...payment } })
+  const money = amount => ({ amount, currency: 'EUR', source: 'recorded' })
+  const unknown = { amount: null, currency: null, source: 'not_recorded' }
+  const refund = (amount, status = 'succeeded') => ({ amount, kind: 'extra_cost', status })
+  // The reviewed case: charged 121, then refunded 121.
+  const fullyRefunded = { extraCostAmount: 121, extraCostStatus: 'refunded', refunds: [refund(121)] }
+  assert.deepEqual(addition(fullyRefunded), money(0))
+  const html = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { ...base, ...fullyRefunded } }, 'customer')
+  assert.equal(stripTags(paidCell(html)), 'EUR 1210.00', 'no "− EUR 121.00"')
+  // Refunded, but the returning refund is not in this payload: unknown, not +121 or 0 invented.
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'refunded' }), unknown)
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'refunded', refunds: [refund(121, 'failed'), refund(121, 'pending')] }), unknown)
+  // Returned rows beyond the refunded charge remain a credit.
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'refunded', refunds: [refund(121), refund(10)] }), money(-10))
+  // Partial refund of a succeeded charge leaves the remainder.
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'succeeded', refunds: [refund(21)] }), money(100))
+  // Negative-only credit against the base charge, with no extra charge.
+  assert.deepEqual(addition({ refunds: [refund(30), refund(5, undefined)] }), money(-35))
+  for (const extraCostStatus of ['pending', 'failed', undefined]) {
+    // An unsettled charge adds nothing; a real credit still shows.
+    assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus, refunds: [refund(30)] }), money(-30), String(extraCostStatus))
+    assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus }), unknown, String(extraCostStatus))
+  }
+  // No charge and no returned refund: nothing invented.
+  assert.deepEqual(addition({ refunds: [refund(30, 'canceled')] }), unknown)
+  // The authoritative overview still wins, unknown included.
+  assert.deepEqual(completionAdditionOf({ _id: 'b1', status: 'completed', payment: { ...base, ...fullyRefunded }, overview: { completionAddition: null } }), unknown)
+})
+

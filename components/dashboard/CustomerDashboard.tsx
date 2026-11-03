@@ -27,8 +27,10 @@ import {
   CUSTOMER_BOOKING_STATUSES,
   CUSTOMER_QUOTE_STATUS_FILTERS,
   CUSTOMER_BOOKING_STATUS_FILTERS,
+  customerBookingSummaryCounts,
+  statusFilterScope,
 } from "@/lib/dashboardBookingHelpers"
-import { facetCount, statusOptionCount } from "@/lib/dashboardOverview"
+import { readFacetCounts, readServerCount, statusOptionCount } from "@/lib/dashboardOverview"
 import { getCustomerActionItems, type ActionItem, type ActionNeededBooking, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import SharedBookingsTable, { type SharedBookingRow } from "@/components/dashboard/SharedBookingsTable"
@@ -97,17 +99,15 @@ const CUSTOMER_ACTION_ITEM_KEYS = {
 
 const PAGE_SIZE = 20
 
-const QUOTE_MODE_STATUSES = Array.from(CUSTOMER_QUOTE_STATUSES).join(",")
-const BOOKING_MODE_STATUSES = Array.from(CUSTOMER_BOOKING_STATUSES).join(",")
-
 interface ListState {
   items: Booking[]
   page: number
   totalPages: number
   /**
-   * Server totals and facets. null = unknown: not loaded yet, or the last
-   * request failed. Unknown is shown as "—" (or no count), never as 0, and
-   * never as the previous query's numbers.
+   * Server totals and facets. null = unknown: not loaded yet, the last
+   * request failed, or a successful response did not include (or sent a
+   * malformed) total or facet. Unknown is shown as "—" (or no count), never
+   * as 0, and never as the previous query's numbers.
    */
   total: number | null
   statusCounts: Record<string, number> | null
@@ -116,6 +116,8 @@ interface ListState {
   distinctServices: string[]
   /** Filters (not the page) of the query the totals and counts belong to. */
   queryKey: string | null
+  /** Status filter of that query: the scope the summary figures are summed over. */
+  queryStatus: string | null
   loading: boolean
   error: string | null
 }
@@ -146,6 +148,7 @@ const initialListState: ListState = {
   serviceCounts: null,
   distinctServices: [],
   queryKey: null,
+  queryStatus: null,
   loading: false,
   error: null,
 }
@@ -223,7 +226,7 @@ export default function CustomerDashboard() {
     // filter makes them unknown until its own response arrives.
     setState((prev) => (prev.queryKey === queryKey
       ? { ...prev, loading: true, error: null }
-      : { ...prev, total: null, statusCounts: null, serviceCounts: null, queryKey, loading: true, error: null }))
+      : { ...prev, total: null, statusCounts: null, serviceCounts: null, queryKey, queryStatus: opts.status, loading: true, error: null }))
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
@@ -233,13 +236,10 @@ export default function CustomerDashboard() {
         page: String(opts.page),
         limit: String(PAGE_SIZE),
       })
-      const modeStatuses = kind === "quotes" ? QUOTE_MODE_STATUSES : BOOKING_MODE_STATUSES
-      if (opts.status !== "all") {
-        // The awaiting-payment alias covers both accepted states server-side.
-        params.append("status", opts.status === "payment_pending" ? "quote_accepted,payment_pending" : opts.status)
-      } else {
-        params.append("status", modeStatuses)
-      }
+      // "all" queries the tab's mode set; the awaiting-payment alias covers
+      // both accepted states server-side.
+      const modeStatuses = kind === "quotes" ? CUSTOMER_QUOTE_STATUSES : CUSTOMER_BOOKING_STATUSES
+      params.append("status", statusFilterScope(opts.status, modeStatuses).join(","))
       if (opts.service !== "all") params.append("service", opts.service)
       if (opts.search.trim()) params.append("search", opts.search.trim())
       if (kind === "bookings" && opts.address.trim().length >= 2) params.append("addressFilter", opts.address.trim())
@@ -259,11 +259,14 @@ export default function CustomerDashboard() {
         items: Array.isArray(data.bookings) ? data.bookings : [],
         page: data.pagination?.page ?? opts.page,
         totalPages: data.pagination?.totalPages ?? 1,
-        total: data.pagination?.total ?? 0,
-        statusCounts: data.statusCounts || {},
-        serviceCounts: data.serviceCounts || {},
+        // A successful but partial response keeps what it lacks unknown:
+        // only an explicit finite count is a count (0 included).
+        total: readServerCount(data.pagination?.total),
+        statusCounts: readFacetCounts(data.statusCounts),
+        serviceCounts: readFacetCounts(data.serviceCounts),
         distinctServices: Array.isArray(data.distinctServices) ? data.distinctServices : [],
         queryKey,
+        queryStatus: opts.status,
         loading: false,
         error: null,
       })
@@ -373,16 +376,12 @@ export default function CustomerDashboard() {
   const visibleSelectedCount = comparisonBookings.length
 
   // Summary stats from server totals (never page-derived). A figure whose
-  // inputs are unknown (first load, or a failed list) shows "—", not 0.
+  // inputs are unknown (first load, a failed list, or a response without
+  // them) shows "—", not 0. Active and completed are summed over the same
+  // status scope as the filtered total.
   const UNKNOWN = "—"
-  const totalCompleted = bookings.statusCounts ? facetCount(bookings.statusCounts, "completed") : null
-  const totalClosed = bookings.statusCounts
-    ? facetCount(bookings.statusCounts, "completed")
-      + facetCount(bookings.statusCounts, "cancelled")
-      + facetCount(bookings.statusCounts, "refunded")
-    : null
+  const { active: summaryActive, completed: totalCompleted } = customerBookingSummaryCounts(bookings.statusCounts, bookings.queryStatus)
   const summaryTotal = bookings.total != null && quotes.total != null ? bookings.total + quotes.total : null
-  const summaryActive = bookings.total != null && totalClosed != null ? bookings.total - totalClosed : null
 
   const gotoQuotesPage = (page: number) => {
     void fetchList("quotes", { page, status: quoteStatusFilter, service: quoteServiceFilter, search: debouncedQuoteSearch, address: "" })

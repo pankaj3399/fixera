@@ -910,6 +910,93 @@ test('quotation tab: picking a historical version announces the hash change the 
   } finally { globalThis.window = previousWindow; globalThis.document = previousDocument }
 })
 
+function loadPinnedVersionModule(reactApi, bookingDetails) {
+  const file = '../lib/booking/usePinnedQuoteVersion.ts'
+  const exports = {}
+  new Function('require', 'exports', transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+    filename: file, jsc: { parser: { syntax: 'typescript' } }, module: { type: 'commonjs' },
+  }).code)(name => (name === 'react' ? reactApi : name === '@/lib/bookingDetails' ? bookingDetails : require(name)), exports)
+  return exports
+}
+
+// The booking page's Accept & Pay / Reject buttons (QuoteResponseActions).
+function loadQuoteResponseActions() {
+  const Button = function Button() { return null }
+  const file = '../components/booking/details/QuoteResponseActions.tsx'
+  const exports = {}
+  new Function('require', 'exports', transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+    filename: file, jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
+  }).code)(name => {
+    if (name === '@/components/ui/button') return { Button }
+    if (name === 'lucide-react') return stubModule()
+    if (name.startsWith('@/')) throw new Error(`unmocked import ${name}`)
+    return require(name)
+  }, exports)
+  const clicks = []
+  return {
+    clicks,
+    disabled(props) {
+      const tree = exports.QuoteResponseActions({ onAccept: () => clicks.push('accept'), onReject: () => clicks.push('reject'), acceptLabel: 'quotation.acceptAndPay', rejectLabel: 'quotation.rejectWithReason', ...props })
+      const buttons = findAll(tree, node => node.type === Button)
+      const byLabel = label => buttons.find(button => textOf(button).includes(label))
+      const accept = byLabel('quotation.acceptAndPay')
+      const reject = byLabel('quotation.rejectWithReason')
+      assert.ok(accept && reject, 'both response buttons render')
+      return { accept: accept.props.disabled === true, reject: reject.props.disabled === true, acceptButton: accept, rejectButton: reject }
+    },
+  }
+}
+
+test('booking page: the authoritative quote version is the canonical current one, never the hash-pinned version', async () => {
+  const bookingDetails = await import('../lib/bookingDetails.ts')
+  const { resolveAuthoritativeQuoteVersion, resolveQuoteVersionView } = loadPinnedVersionModule(hooks().api, bookingDetails)
+  const v = (version) => ({ version, scope: `scope v${version}` })
+  // Serialized out of order on purpose: never pick by array position.
+  const versions = [v(3), v(1), v(2)]
+  // A valid currentQuoteVersion is preserved, even when it is not the highest.
+  assert.equal(resolveAuthoritativeQuoteVersion(versions, 2).version, 2)
+  // Missing or unmatched: the latest by version number.
+  assert.equal(resolveAuthoritativeQuoteVersion(versions, undefined).version, 3)
+  assert.equal(resolveAuthoritativeQuoteVersion(versions, null).version, 3)
+  assert.equal(resolveAuthoritativeQuoteVersion(versions, 9).version, 3)
+  assert.equal(resolveAuthoritativeQuoteVersion([{ version: Number.NaN }, v(1)], undefined).version, 1)
+  assert.equal(resolveAuthoritativeQuoteVersion([], 1), null)
+  assert.equal(resolveAuthoritativeQuoteVersion(undefined, 1), null)
+
+  // The page's view: a hash pin on v1 with currentQuoteVersion missing shows
+  // v1 to the customer (Accept & Pay/Reject locked) while the pro summary and
+  // edit wizard basis stay on v3.
+  for (const currentQuoteVersion of [undefined, 9]) {
+    const view = resolveQuoteVersionView({ quoteVersions: versions, currentQuoteVersion, pinnedVersion: 1 })
+    assert.equal(view.displayedVersion.version, 1)
+    assert.equal(view.authoritativeVersion.version, 3, `current ${currentQuoteVersion}`)
+    assert.equal(view.viewingPinnedVersion, true)
+  }
+  // A valid current with a historical pin: current stays authoritative.
+  const pinnedOld = resolveQuoteVersionView({ quoteVersions: versions, currentQuoteVersion: 2, pinnedVersion: 1 })
+  assert.deepEqual([pinnedOld.displayedVersion.version, pinnedOld.authoritativeVersion.version, pinnedOld.viewingPinnedVersion], [1, 2, true])
+  // No pin: displayed and authoritative are the same current version.
+  const unpinned = resolveQuoteVersionView({ quoteVersions: versions, currentQuoteVersion: 2, pinnedVersion: null })
+  assert.deepEqual([unpinned.displayedVersion.version, unpinned.authoritativeVersion.version, unpinned.viewingPinnedVersion], [2, 2, false])
+  // A pin to a version that does not exist falls back to current, unlocked.
+  const missingPin = resolveQuoteVersionView({ quoteVersions: versions, currentQuoteVersion: 2, pinnedVersion: 7 })
+  assert.deepEqual([missingPin.displayedVersion.version, missingPin.viewingPinnedVersion], [2, false])
+  const none = resolveQuoteVersionView({ quoteVersions: [], currentQuoteVersion: 2, pinnedVersion: 1 })
+  assert.deepEqual(none, { hasQuotationVersions: false, displayedVersion: null, authoritativeVersion: null, viewingPinnedVersion: false })
+})
+
+test('booking page: Accept & Pay and Reject are both disabled for a historical version or while responding', () => {
+  const actions = loadQuoteResponseActions()
+  assert.deepEqual(pick(actions.disabled({ responding: false, viewingPinnedVersion: true })), { accept: true, reject: true })
+  assert.deepEqual(pick(actions.disabled({ responding: true, viewingPinnedVersion: false })), { accept: true, reject: true })
+  const enabled = actions.disabled({ responding: false, viewingPinnedVersion: false })
+  assert.deepEqual(pick(enabled), { accept: false, reject: false })
+  enabled.acceptButton.props.onClick()
+  enabled.rejectButton.props.onClick()
+  assert.deepEqual(actions.clicks, ['accept', 'reject'])
+  function pick({ accept, reject }) { return { accept, reject } }
+})
+
 test('booking page: the real pinned-version hook and Accept & Pay gate follow Overview links, version history and Back/Forward', async () => {
   const previousWindow = globalThis.window
   try {
@@ -933,23 +1020,23 @@ test('booking page: the real pinned-version hook and Accept & Pay gate follow Ov
     const payload = JSON.parse(readFileSync(new URL('./fixtures/bookingDetails/quoted-customer.json', import.meta.url), 'utf8'))
     const CURRENT = payload.booking.currentQuoteVersion
     assert.equal(CURRENT, 2)
-    // The booking page's own pinned-version hook and gate
-    // (lib/booking/usePinnedQuoteVersion.ts, used by bookings/[id]/page.tsx),
-    // mounted on the hook stand-in; Accept & Pay is
-    // `disabled={respondingToQuotation || viewingPinnedVersion}`.
+    // The booking page's own pinned-version hook, version view and response
+    // buttons: bookings/[id]/page.tsx calls usePinnedQuoteVersion, takes
+    // `viewingPinnedVersion` from resolveQuoteVersionView
+    // (lib/booking/usePinnedQuoteVersion.ts) and passes it to
+    // QuoteResponseActions, which renders Accept & Pay and Reject.
     const pinState = hooks()
-    const pinFile = '../lib/booking/usePinnedQuoteVersion.ts'
-    const pinExports = {}
-    new Function('require', 'exports', transformSync(readFileSync(new URL(pinFile, import.meta.url), 'utf8'), {
-      filename: pinFile, jsc: { parser: { syntax: 'typescript' } }, module: { type: 'commonjs' },
-    }).code)(name => (name === 'react' ? pinState.api : name === '@/lib/bookingDetails' ? bookingDetails : require(name)), pinExports)
-    const { usePinnedQuoteVersion, isViewingPinnedQuoteVersion } = pinExports
+    const pinExports = loadPinnedVersionModule(pinState.api, bookingDetails)
+    const { usePinnedQuoteVersion, isViewingPinnedQuoteVersion, resolveQuoteVersionView } = pinExports
+    const actions = loadQuoteResponseActions()
     const versions = payload.booking.quoteVersions
-    // Mirrors the page: the displayed version is the pinned one when it exists.
+    // Accept & Pay / Reject `disabled` as the real component renders them.
     const pagePin = () => {
       const [pinnedVersion] = pinState.render(() => usePinnedQuoteVersion('booking-1'))
-      const displayed = versions.find(v => v.version === (pinnedVersion ?? CURRENT)) ?? versions.find(v => v.version === CURRENT)
-      return { pinnedVersion, viewing: isViewingPinnedQuoteVersion({ hasQuotationVersions: versions.length > 0, pinnedVersion, currentQuoteVersion: CURRENT, displayedVersion: displayed?.version }) }
+      const view = resolveQuoteVersionView({ quoteVersions: versions, currentQuoteVersion: CURRENT, pinnedVersion })
+      const disabled = actions.disabled({ responding: false, viewingPinnedVersion: view.viewingPinnedVersion })
+      assert.equal(disabled.accept, disabled.reject, 'Accept & Pay and Reject share the gate')
+      return { pinnedVersion, viewing: disabled.accept }
     }
     pagePin()
     pinState.flush()
@@ -1575,8 +1662,97 @@ test('customer dashboard: unknown or failed totals and facet counts show "—" o
     bookings().resolve({ ok: true, json: async () => ({ ...loaded, statusCounts: { completed: 3, cancelled: 1, booked: 6 }, pagination: { page: 1, totalPages: 1, total: 6 } }) })
     await settle()
     tree = render()
-    assert.deepEqual(cards(tree), ['8', '2', '3'])
+    // The status facet ignores the status filter (the server counts every
+    // status under the other filters), so the six booked rows are 6 active
+    // and 0 completed in the filtered scope — not 6 − (3 + 1) = 2 active.
+    assert.deepEqual(cards(tree), ['8', '6', '0'])
     assert.equal(optionText(tree, 'booked'), 'status.booked (6)')
+    assert.equal(optionText(tree, 'completed'), 'status.completed (3)', 'filter options keep the facet counts')
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('customer dashboard: summary Active/Completed follow the filtered status scope, including the awaiting-payment alias', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const listRequests = []
+    const m = mountCustomerDashboard(state, listRequests)
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    const cards = tree => findAll(tree, node => node.type === 'p' && typeof node.props?.className === 'string' && node.props.className.includes('text-3xl')).map(textOf)
+    const bookingStatus = tree => findAll(tree, node => node.type === m.Select && findAll(node, child => child.type === m.SelectItem && child.props.value === 'completed').length > 0)[0]
+    const bookings = () => listRequests.filter(r => !r.url.includes('rfq')).at(-1)
+    render()
+    state.flush()
+    listRequests.find(r => r.url.includes('status=rfq')).resolve({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts: {}, serviceCounts: {}, pagination: { page: 1, totalPages: 1, total: 0 } }) })
+    // Facets across every status (quote-phase ones included) under the other filters.
+    const statusCounts = { rfq: 4, quote_accepted: 1, payment_pending: 2, booked: 6, in_progress: 2, completed: 3, cancelled: 1, refunded: 1 }
+    bookings().resolve({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts, serviceCounts: {}, pagination: { page: 1, totalPages: 1, total: 16 } }) })
+    await settle()
+    // "all" is the booking mode set: active = 1 + 2 + 6 + 2, never the rfq facet.
+    assert.deepEqual(cards(render()), ['16', '11', '3'])
+    const select = async (status, total) => {
+      bookingStatus(render()).props.onValueChange(status)
+      render()
+      state.flush()
+      bookings().resolve({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts, serviceCounts: {}, pagination: { page: 1, totalPages: 1, total } }) })
+      await settle()
+      return cards(render())
+    }
+    assert.deepEqual(await select('payment_pending', 3), ['3', '3', '0'])
+    assert.match(bookings().url, /status=quote_accepted%2Cpayment_pending/)
+    assert.deepEqual(await select('completed', 3), ['3', '0', '3'])
+    assert.deepEqual(await select('refunded', 1), ['1', '0', '0'])
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('customer dashboard: a successful response without totals or facets keeps them unknown; an explicit 0 stays 0', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const listRequests = []
+    const m = mountCustomerDashboard(state, listRequests)
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    const cards = tree => findAll(tree, node => node.type === 'p' && typeof node.props?.className === 'string' && node.props.className.includes('text-3xl')).map(textOf)
+    const tabLabels = tree => findAll(tree, node => node.type === m.TabsTrigger).map(textOf).slice(0, 2)
+    const bookingStatus = tree => findAll(tree, node => node.type === m.Select && findAll(node, child => child.type === m.SelectItem && child.props.value === 'completed').length > 0)[0]
+    const optionText = (tree, value) => textOf(findAll(bookingStatus(tree), node => node.type === m.SelectItem && node.props.value === value)[0])
+    const quotes = () => listRequests.filter(r => r.url.includes('status=rfq')).at(-1)
+    const bookings = () => listRequests.filter(r => !r.url.includes('rfq')).at(-1)
+    render()
+    state.flush()
+    // Partial (older/partial API) success: rows, but no total and no facets.
+    quotes().resolve({ ok: true, json: async () => ({ success: true, bookings: [], pagination: { page: 1, totalPages: 1 } }) })
+    bookings().resolve({ ok: true, json: async () => ({ success: true, bookings: [{ _id: 'b1', status: 'booked' }], pagination: { page: 1, totalPages: 1 } }) })
+    await settle()
+    let tree = render()
+    assert.deepEqual(cards(tree), ['—', '—', '—'], 'not 0 completed, not "active = total"')
+    assert.deepEqual(tabLabels(tree), ['customerDashboard.tabs.myBookings ', 'customerDashboard.tabs.myQuotes '])
+    assert.equal(optionText(tree, 'completed'), 'status.completed', 'no "(0)" for an unknown facet')
+    assert.equal(findAll(tree, node => node.props?.role === 'alert').length, 0, 'a partial success is not presented as an error')
+
+    // Malformed facets / totals are unknown too.
+    bookingStatus(render()).props.onValueChange('booked')
+    render()
+    state.flush()
+    bookings().resolve({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts: { booked: '6' }, pagination: { page: 1, totalPages: 1, total: Number.NaN } }) })
+    await settle()
+    tree = render()
+    assert.deepEqual(cards(tree), ['—', '—', '—'])
+    assert.equal(optionText(tree, 'booked'), 'status.booked')
+
+    // Explicit zeros are real zeros: an empty facet object and total 0.
+    bookingStatus(render()).props.onValueChange('all')
+    render()
+    state.flush()
+    bookings().resolve({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts: {}, serviceCounts: {}, pagination: { page: 1, totalPages: 0, total: 0 } }) })
+    await settle()
+    tree = render()
+    assert.deepEqual(cards(tree), ['—', '0', '0'], 'total still waits for the unknown quote total')
+    assert.equal(optionText(tree, 'completed'), 'status.completed (0)')
     state.unmount()
   } finally { globalThis.fetch = previousFetch }
 })
