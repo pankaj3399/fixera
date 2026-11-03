@@ -6,8 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   type CancellationStatusFilter,
+  cancellationRequestsSearch,
+  cancellationStatusFilterStateFromQuery,
   isAdminActionableCancellation,
-  parseCancellationStatusFilter,
+  selectCancellationStatusFilter,
+  syncCancellationStatusFilterState,
 } from "@/lib/admin/cancellationRequestFilters"
 import { useAuth } from "@/contexts/AuthContext"
 import { authFetch } from "@/lib/utils"
@@ -58,9 +61,27 @@ export default function AdminCancellationRequestsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const searchParams = useSearchParams()
   // `?status=escalated` is the dispute page's link to this queue; without a
-  // valid value the default view stays `pending`.
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseCancellationStatusFilter(searchParams.get('status')))
+  // valid value the default view stays `pending`. Client navigation keeps this
+  // page mounted, so the filter follows later query changes too (e.g. the plain
+  // menu link after the dispute link resets to `pending`).
+  const statusQuery = searchParams.get('status')
+  const [filterState, setFilterState] = useState(() => cancellationStatusFilterStateFromQuery(statusQuery))
   const [page, setPage] = useState(1)
+  const syncedFilterState = syncCancellationStatusFilterState(filterState, statusQuery)
+  if (syncedFilterState !== filterState) {
+    // Adjust state during render (React's pattern for state derived from a changing input).
+    setFilterState(syncedFilterState)
+    if (syncedFilterState.filter !== filterState.filter) setPage(1)
+  }
+  const statusFilter = syncedFilterState.filter
+  const selectStatusFilter = (value: StatusFilter) => {
+    setFilterState((state) => selectCancellationStatusFilter(state, value))
+    setPage(1)
+    // Keep the selection in the URL (no new history entry, no refetch of the route),
+    // so a reload keeps it and the plain menu link still resets to `pending`.
+    const { pathname, search, hash } = window.location
+    window.history.replaceState(null, '', `${pathname}${cancellationRequestsSearch(search, value)}${hash}`)
+  }
   const limit = 20
 
   const [denyTarget, setDenyTarget] = useState<CancellationRequestItem | null>(null)
@@ -182,7 +203,7 @@ export default function AdminCancellationRequestsPage() {
         </div>
 
         <div className="flex gap-2">
-          <Select value={statusFilter} onValueChange={(value: StatusFilter) => { setStatusFilter(value); setPage(1) }}>
+          <Select value={statusFilter} onValueChange={selectStatusFilter}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>

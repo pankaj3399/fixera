@@ -132,7 +132,8 @@ test('pages keep the lists apart and wire the own-queue links', () => {
   assert.match(page, /setStatusFilter\(value\); setPage\(1\)/)
 
   const refunds = readFileSync(new URL('../app/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
-  assert.match(refunds, /parseCancellationStatusFilter\(searchParams\.get\('status'\)\)/)
+  assert.match(refunds, /syncCancellationStatusFilterState\(filterState, statusQuery\)/)
+  assert.match(refunds, /const statusQuery = searchParams\.get\('status'\)/)
   assert.match(refunds, /<SelectItem value="escalated">Escalated<\/SelectItem>/)
   assert.match(refunds, /\{isAdminActionableCancellation\(item\.status\) && \(/)
 })
