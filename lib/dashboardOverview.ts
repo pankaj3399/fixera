@@ -163,14 +163,17 @@ export function describeEarningsBuckets(
   return buckets.map((bucket) => formatAmount(bucket[kind] as number, bucket.currency)).join(" + ")
 }
 
-/** Look up a server facet count, defaulting to 0 for unseen keys. */
+/**
+ * The single validator for server counts: a non-negative safe integer.
+ * Fractional, negative, non-finite or unsafe values are malformed.
+ */
 const isServerCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0
 
 /**
  * A count from a successful server response (e.g. `pagination.total`): an
- * explicit finite, non-negative number. Absent or malformed is unknown
- * (null), never 0 — a partial response does not mean "none".
+ * explicit non-negative integer. Absent or malformed (fractional included) is
+ * unknown (null), never 0 — a partial response does not mean "none".
  */
 export function readServerCount(value: unknown): number | null {
   return isServerCount(value) ? value : null
@@ -185,6 +188,10 @@ export function readServerCount(value: unknown): number | null {
  */
 export function readFacetCounts(value: unknown): Record<string, number> | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null
+  // Plain (JSON) or null-prototype objects only: a Date, RegExp or class
+  // instance has no own count entries and would read as an all-zero facet.
+  const proto = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return null
   const counts: Record<string, number> = {}
   for (const [key, count] of Object.entries(value as Record<string, unknown>)) {
     if (!isServerCount(count)) return null

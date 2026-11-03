@@ -88,7 +88,8 @@ test('booking table adds only a succeeded VAT-inclusive extra-cost charge, never
     const html = render(SharedBookingsTable, { ...base, payment: { ...base.payment, extraCostAmount: 121, extraCostStatus } }, 'customer')
     assert.equal(stripTags(paidCell(html)), 'EUR 1210.00', extraCostStatus)
   }
-  const succeeded = render(SharedBookingsTable, { ...base, extraCosts: [{ type: 'other', name: 'Extra tiles', amount: 100 }], payment: { ...base.payment, extraCostAmount: 121, extraCostStatus: 'succeeded' } }, 'customer')
+  // An explicitly loaded, empty refund ledger: no refunds, so the charge stands.
+  const succeeded = render(SharedBookingsTable, { ...base, extraCosts: [{ type: 'other', name: 'Extra tiles', amount: 100 }], payment: { ...base.payment, extraCostAmount: 121, extraCostStatus: 'succeeded', refunds: [] } }, 'customer')
   assert.equal(stripTags(paidCell(succeeded)), 'EUR 1210.00+ EUR 121.00')
   assert.doesNotMatch(succeeded, /EUR 100.00/)
   // Succeeded without a recorded amount is unknown, not + 0.
@@ -118,7 +119,7 @@ test('booking table subtracts only actually returned extra-cost refunds, once', 
   assert.equal(stripTags(paidCell(failedOnly)), 'EUR 1210.00')
 })
 test('booking table prefers the authoritative overview money, including an intentional unknown', () => {
-  const payment = { totalWithVat: 1210, currency: 'EUR', status: 'completed', extraCostAmount: 121, extraCostStatus: 'succeeded' }
+  const payment = { totalWithVat: 1210, currency: 'EUR', status: 'completed', extraCostAmount: 121, extraCostStatus: 'succeeded', refunds: [] }
   const authoritative = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment, overview: {
     paidPrice: { amount: 999, currency: 'USD', source: 'recorded' },
     completionAddition: { amount: -12.5, currency: 'USD', source: 'recorded' },
@@ -150,10 +151,27 @@ test('a fully refunded extra-cost charge nets to 0, never a negative credit; rea
   // Refunded, but the returning refund is not in this payload: unknown, not +121 or 0 invented.
   assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'refunded' }), unknown)
   assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'refunded', refunds: [refund(121, 'failed'), refund(121, 'pending')] }), unknown)
+  // A partial returned ledger does not cover the refunded charge: unknown, never + 100.
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'refunded', refunds: [refund(21)] }), unknown)
   // Returned rows beyond the refunded charge remain a credit.
   assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'refunded', refunds: [refund(121), refund(10)] }), money(-10))
   // Partial refund of a succeeded charge leaves the remainder.
   assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'succeeded', refunds: [refund(21)] }), money(100))
+  // Succeeded charge with an explicitly empty ledger: no refunds, the charge stands.
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'succeeded', refunds: [] }), money(121))
+  // Succeeded charge without the refund ledger (legacy payload, no overview):
+  // a partial refund may be missing, so unknown, never the full + 121.
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'succeeded' }), unknown)
+  assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus: 'succeeded', refunds: null }), unknown)
+  // A negative "charge" is malformed: returned money is a refund row, not a negative charge.
+  for (const extraCostStatus of ['succeeded', 'refunded']) {
+    assert.deepEqual(addition({ extraCostAmount: -121, extraCostStatus, refunds: [] }), unknown, extraCostStatus)
+    assert.deepEqual(addition({ extraCostAmount: -121, extraCostStatus }), unknown, extraCostStatus)
+    // A real credit row still shows when the charge field is malformed.
+    assert.deepEqual(addition({ extraCostAmount: -121, extraCostStatus, refunds: [refund(30)] }), money(-30), extraCostStatus)
+  }
+  // A zero charge with a loaded ledger is a recorded zero addition.
+  assert.deepEqual(addition({ extraCostAmount: 0, extraCostStatus: 'succeeded', refunds: [] }), money(0))
   // Negative-only credit against the base charge, with no extra charge.
   assert.deepEqual(addition({ refunds: [refund(30), refund(5, undefined)] }), money(-35))
   for (const extraCostStatus of ['pending', 'failed', undefined]) {

@@ -76,11 +76,14 @@ export function resolveAuthoritativeQuoteVersion<V extends { version: number }>(
 /**
  * How the booking page shows quotation versions:
  * - `displayedVersion`: the pinned (`#quotation-v{N}`) version when it exists,
- *   else the one matching `currentQuoteVersion`; shown in the customer card.
+ *   else `authoritativeVersion`; shown in the customer card.
+ *   A pin that matches no version is ignored (the authoritative version is
+ *   shown, unlocked); a historical pin is shown locked.
  * - `authoritativeVersion`: see resolveAuthoritativeQuoteVersion; the
  *   professional summary, edit wizard and milestone arithmetic use it.
  * - `viewingPinnedVersion`: the Accept & Pay / Reject gate
- *   (isViewingPinnedQuoteVersion).
+ *   (isViewingPinnedQuoteVersion), comparing the pin with
+ *   `authoritativeVersion` (not the raw, possibly missing, pointer).
  */
 export function resolveQuoteVersionView<V extends { version: number }>({
   quoteVersions,
@@ -98,18 +101,20 @@ export function resolveQuoteVersionView<V extends { version: number }>({
 } {
   const versions = Array.isArray(quoteVersions) ? quoteVersions : []
   const hasQuotationVersions = versions.length > 0
-  const effective = pinnedVersion ?? currentQuoteVersion
-  const displayedVersion = hasQuotationVersions
-    ? (versions.find(v => v.version === effective) ?? versions.find(v => v.version === currentQuoteVersion) ?? null)
-    : null
+  // One authority for both the display fallback and the gate, so a missing
+  // or unmatched currentQuoteVersion resolves to the same latest version in
+  // the customer card and in the Accept & Pay / Reject comparison.
+  const authoritativeVersion = resolveAuthoritativeQuoteVersion(versions, currentQuoteVersion)
+  const pinned = pinnedVersion != null ? versions.find(v => v.version === pinnedVersion) : undefined
+  const displayedVersion = pinned ?? authoritativeVersion
   return {
     hasQuotationVersions,
     displayedVersion,
-    authoritativeVersion: resolveAuthoritativeQuoteVersion(versions, currentQuoteVersion),
+    authoritativeVersion,
     viewingPinnedVersion: isViewingPinnedQuoteVersion({
       hasQuotationVersions,
       pinnedVersion,
-      currentQuoteVersion,
+      currentQuoteVersion: authoritativeVersion?.version,
       displayedVersion: displayedVersion?.version,
     }),
   }

@@ -985,6 +985,49 @@ test('booking page: the authoritative quote version is the canonical current one
   assert.deepEqual(none, { hasQuotationVersions: false, displayedVersion: null, authoritativeVersion: null, viewingPinnedVersion: false })
 })
 
+test('booking page: a missing or unmatched currentQuoteVersion shows and gates on the same latest version', async () => {
+  const bookingDetails = await import('../lib/bookingDetails.ts')
+  const { resolveQuoteVersionView } = loadPinnedVersionModule(hooks().api, bookingDetails)
+  const actions = loadQuoteResponseActions()
+  const v = (version) => ({ version, scope: `scope v${version}` })
+  const versions = [v(3), v(1), v(2)] // out of order: never by array position
+  const view = (currentQuoteVersion, pinnedVersion) => {
+    const result = resolveQuoteVersionView({ quoteVersions: versions, currentQuoteVersion, pinnedVersion })
+    const disabled = actions.disabled({ responding: false, viewingPinnedVersion: result.viewingPinnedVersion })
+    return [result.displayedVersion?.version, result.authoritativeVersion?.version, result.viewingPinnedVersion, disabled.accept, disabled.reject]
+  }
+  for (const current of [undefined, null, 9]) {
+    // No hash pin: the customer card shows the latest version, buttons enabled.
+    assert.deepEqual(view(current, null), [3, 3, false, false, false], `no pin, current ${current}`)
+    // A #quotation-v3 pin on the version the page treats as current: not historical.
+    assert.deepEqual(view(current, 3), [3, 3, false, false, false], `pin latest, current ${current}`)
+    // A historical pin stays locked.
+    assert.deepEqual(view(current, 1), [1, 3, true, true, true], `pin v1, current ${current}`)
+    // A pin to a version that does not exist shows the latest, unlocked.
+    assert.deepEqual(view(current, 7), [3, 3, false, false, false], `pin missing, current ${current}`)
+  }
+  // A valid current pointer is unchanged, even when it is not the highest.
+  assert.deepEqual(view(2, null), [2, 2, false, false, false])
+  assert.deepEqual(view(2, 2), [2, 2, false, false, false])
+  assert.deepEqual(view(2, 3), [3, 2, true, true, true])
+  assert.deepEqual(view(2, 1), [1, 2, true, true, true])
+})
+
+test('booking page: the responding spinner stops rotating for reduced-motion users and stays visible', () => {
+  const actions = loadQuoteResponseActions()
+  const spinners = (responding) => {
+    const { acceptButton } = actions.disabled({ responding, viewingPinnedVersion: false })
+    return findAll(acceptButton, node => typeof node.props?.className === 'string' && node.props.className.includes('animate-spin'))
+  }
+  const [spinner] = spinners(true)
+  assert.ok(spinner, 'spinner renders while responding')
+  const classes = spinner.props.className.split(/\s+/)
+  assert.ok(classes.includes('animate-spin'), 'normal spinner still rotates')
+  assert.ok(classes.includes('motion-reduce:animate-none'), 'reduced motion: no rotation')
+  assert.ok(classes.includes('h-4') && classes.includes('w-4'), 'still visible')
+  assert.equal(spinners(false).length, 0)
+})
+
 test('booking page: Accept & Pay and Reject are both disabled for a historical version or while responding', () => {
   const actions = loadQuoteResponseActions()
   assert.deepEqual(pick(actions.disabled({ responding: false, viewingPinnedVersion: true })), { accept: true, reject: true })

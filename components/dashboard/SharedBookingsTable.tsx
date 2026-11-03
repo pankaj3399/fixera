@@ -179,7 +179,12 @@ export function paidPriceOf(booking: SharedBookingRow): OverviewMoney {
  * - The separate extra-cost charge `payment.extraCostAmount` counts once it
  *   was actually charged: `extraCostStatus` `succeeded`, or `refunded` (a
  *   charge that succeeded and was then returned). Pending, failed or missing
- *   charges, or a charge without a recorded amount, add nothing.
+ *   charges, or a charge without a recorded non-negative amount, add nothing
+ *   (returned money is a refund row, never a negative charge).
+ * - A charged amount is net only against a loaded refund ledger
+ *   (`payment.refunds` an array; an empty array means no refunds). Without
+ *   the ledger it is not recorded, as on the server when the ledger was not
+ *   loaded: a partial refund absent from the payload would be hidden.
  * - `kind: "extra_cost"` refund rows that actually returned money are
  *   subtracted: refunds of that charge (a partial refund leaves the rest),
  *   or, without a charge, credits against the base charge (negative).
@@ -196,18 +201,22 @@ export function completionAdditionOf(booking: SharedBookingRow): OverviewMoney {
   if (authoritative) return authoritative
   const payment = booking.payment
   if (!payment || typeof payment !== "object") return NOT_RECORDED
-  const returned = Array.isArray(payment.refunds)
-    ? payment.refunds
+  const refunds = Array.isArray(payment.refunds) ? payment.refunds : null
+  const returned = refunds
+    ? refunds
       .filter((refund) => isReturnedRefund(refund) && refund.kind === "extra_cost")
       .reduce((sum, refund) => sum + (refund.amount as number), 0)
     : 0
   const charged = (payment.extraCostStatus === "succeeded" || payment.extraCostStatus === "refunded")
-    && isFiniteNumber(payment.extraCostAmount)
+    && isFiniteNumber(payment.extraCostAmount) && payment.extraCostAmount >= 0
     ? payment.extraCostAmount
     : null
   if (charged == null) {
     return returned > 0 ? recordedMoney(roundMoney(-returned), payment.currency) : NOT_RECORDED
   }
+  // A settled charge needs the refund ledger to be net: without it a refund of
+  // that charge may simply be absent from this payload.
+  if (!refunds) return NOT_RECORDED
   if (payment.extraCostStatus === "refunded" && roundMoney(returned) < roundMoney(charged)) return NOT_RECORDED
   return recordedMoney(roundMoney(charged - returned), payment.currency)
 }

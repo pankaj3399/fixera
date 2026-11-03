@@ -9,6 +9,8 @@ import {
   isPayNowEligible,
   isWarrantyActionEligible,
   quoteVersionHref,
+  readFacetCounts,
+  readServerCount,
   resolvePinnedQuoteVersion,
   resolveSnapshotTitles,
   sumStatusCounts,
@@ -129,4 +131,29 @@ test('hold days come only from the recorded hold transition', () => {
   assert.equal(recordedHoldDays(null, now), null)
   assert.equal(recordedHoldDays('bad', now), null)
   assert.equal(recordedHoldDays('2026-10-28T00:00:00Z', now), null)
+})
+
+test('server counts are non-negative integers; unknown or malformed is null, 0 stays 0', () => {
+  for (const value of [0, 1, 42, Number.MAX_SAFE_INTEGER]) assert.equal(readServerCount(value), value)
+  for (const value of [undefined, null, '3', 1.5, 0.1, -1, -0.5, Number.NaN, Infinity, Number.MAX_SAFE_INTEGER + 2, {}, []]) {
+    assert.equal(readServerCount(value), null, String(value))
+  }
+})
+
+test('facet counts: plain or null-prototype objects of integer counts only', () => {
+  assert.deepEqual(readFacetCounts({ booked: 2, completed: 0 }), { booked: 2, completed: 0 })
+  assert.deepEqual(readFacetCounts(JSON.parse('{"booked":3}')), { booked: 3 })
+  // An explicit empty facet is real zeros, not unknown.
+  assert.deepEqual(readFacetCounts({}), {})
+  const bare = Object.assign(Object.create(null), { booked: 1 })
+  assert.deepEqual({ ...readFacetCounts(bare) }, { booked: 1 })
+  // A fractional, negative or non-number count makes the whole facet unknown.
+  for (const count of [1.5, -1, '2', Number.NaN, null]) {
+    assert.equal(readFacetCounts({ booked: 1, completed: count }), null, String(count))
+  }
+  // Not a plain object: unknown, never an all-zero facet.
+  class Counts { constructor() { this.booked = 1 } }
+  for (const value of [new Date(0), /booked/, new Counts(), new Map([['booked', 1]]), [], null, undefined, 3, 'x']) {
+    assert.equal(readFacetCounts(value), null, Object.prototype.toString.call(value))
+  }
 })

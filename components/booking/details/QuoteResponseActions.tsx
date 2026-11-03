@@ -33,7 +33,7 @@ export function QuoteResponseActions({
         className="h-auto min-w-0 w-full whitespace-normal bg-green-600 py-2 text-center hover:bg-green-700 sm:flex-1 text-white"
         size="sm"
       >
-        {responding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+        {responding ? <Loader2 className="h-4 w-4 mr-2 animate-spin motion-reduce:animate-none" /> : <CheckCircle className="h-4 w-4 mr-2" />}
         {acceptLabel}
       </Button>
       <Button
