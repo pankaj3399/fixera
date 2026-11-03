@@ -6,7 +6,7 @@
     "dev": "node scripts/generate-fcm-sw-config.mjs && next dev",
     "build": "node scripts/generate-fcm-sw-config.mjs && next build",
     "start": "next start",
-    "test": "node --test tests/apiErrors.test.mjs",
+    "test": "node --test --import ./tests/swc-loader.mjs tests/*.test.mjs",
     "lint": "next lint",
     "i18n:check": "node scripts/check-i18n.mjs",
     "test:browser:anonymize": "node tests/browser/adminAnonymize.browser.mjs"

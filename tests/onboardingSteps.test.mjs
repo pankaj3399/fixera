@@ -148,10 +148,27 @@ test('a legacy ?step=5 deep link normalizes to the employees step in the URL', (
 })
 
 test('a malformed ?step= value is treated as absent, so the saved profile still resumes', () => {
-  for (const initialSearch of ['step=abc', 'step=']) {
+  // A numeric prefix (`7junk`) or any other non-integer is not a step either.
+  for (const initialSearch of ['step=abc', 'step=', 'step=7junk', 'step=3.5', 'step=-1', 'step=1e2', 'step=+3', 'step=0x3']) {
     const result = mountStepSync({ initialSearch, user: { ...completeId, ...completeBusiness }, loadingFirst: true })
     assert.deepEqual(result.beforeAuth.replaces, [])
     assert.equal(result.step, 3)
-    assert.deepEqual(result.replaces, ['/professional/onboarding?step=3'])
+    assert.deepEqual(result.replaces, ['/professional/onboarding?step=3'], initialSearch)
+  }
+})
+
+test('an all-digit ?step= is a deep link and is clamped to a real step', () => {
+  const { parseOnboardingStepParam } = resumeStep
+  assert.equal(parseOnboardingStepParam('7'), 7)
+  assert.equal(parseOnboardingStepParam('03'), 3)
+  assert.equal(parseOnboardingStepParam('7junk'), null)
+  assert.equal(parseOnboardingStepParam(' 3'), null)
+  assert.equal(parseOnboardingStepParam(''), null)
+  assert.equal(parseOnboardingStepParam(null), null)
+  for (const [initialSearch, step] of [['step=7', 7], ['step=03', 3], ['step=99', 7], ['step=0', 1]]) {
+    // Profile alone would resume at 3: a valid deep link wins instead.
+    const result = mountStepSync({ initialSearch, user: { ...completeId, ...completeBusiness }, loadingFirst: true })
+    assert.equal(result.step, step, initialSearch)
+    assert.equal(result.search, `step=${step}`, initialSearch)
   }
 })

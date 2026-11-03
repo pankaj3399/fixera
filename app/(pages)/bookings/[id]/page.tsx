@@ -41,7 +41,8 @@ import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
-import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, resolveQuotationVersionFromUrl, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { isViewingPinnedQuoteVersion, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
@@ -1683,24 +1684,9 @@ function BookingDetailContent() {
   // Pinned quotation version from shared-table links (`#quotation-v{N}`).
   // The pinned version is display-only; accept/pay authority stays on the
   // current valid version below.
-  const [pinnedQuoteVersion, setPinnedQuoteVersion] = useState<number | null>(null)
-  useEffect(() => {
-    const readHash = () => {
-      if (typeof window === "undefined") return
-      setPinnedQuoteVersion(
-        resolveQuotationVersionFromUrl(window.location.hash, null, null),
-      )
-    }
-    readHash()
-    // Back/Forward between version entries, and version picks inside the
-    // Quotation tab (announced as hashchange), keep the pinned version in sync.
-    window.addEventListener("hashchange", readHash)
-    window.addEventListener("popstate", readHash)
-    return () => {
-      window.removeEventListener("hashchange", readHash)
-      window.removeEventListener("popstate", readHash)
-    }
-  }, [bookingId])
+  // Back/Forward between version entries, and version picks inside the
+  // Quotation tab (announced as hashchange), keep the pinned version in sync.
+  const [pinnedQuoteVersion, setPinnedQuoteVersion] = usePinnedQuoteVersion(bookingId)
   const effectiveQuoteVersion = pinnedQuoteVersion ?? booking?.currentQuoteVersion
   const currentVersion = hasQuotationVersions
     ? (booking?.quoteVersions?.find(v => v.version === effectiveQuoteVersion)
@@ -1712,10 +1698,12 @@ function BookingDetailContent() {
   const authoritativeVersion = hasQuotationVersions
     ? (booking?.quoteVersions?.find(v => v.version === booking?.currentQuoteVersion) ?? currentVersion)
     : null
-  const viewingPinnedVersion = hasQuotationVersions
-    && pinnedQuoteVersion != null
-    && pinnedQuoteVersion !== booking?.currentQuoteVersion
-    && currentVersion?.version === pinnedQuoteVersion
+  const viewingPinnedVersion = isViewingPinnedQuoteVersion({
+    hasQuotationVersions,
+    pinnedVersion: pinnedQuoteVersion,
+    currentQuoteVersion: booking?.currentQuoteVersion,
+    displayedVersion: currentVersion?.version,
+  })
   const currentVersionQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(
       currentVersion,
@@ -3376,7 +3364,7 @@ function BookingDetailContent() {
                         )}
                       </div>
                     )}
-                    {viewingPinnedVersion && (
+                    {viewingPinnedVersion && pinnedQuoteVersion != null && (
                       <p className="text-xs text-indigo-700">
                         {t("quotation.viewingPinnedVersion", { version: pinnedQuoteVersion })}
                         {" · "}

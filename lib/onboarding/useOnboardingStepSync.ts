@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import {
   deriveOnboardingResumeStep,
   normalizeOnboardingStep,
+  parseOnboardingStepParam,
   type OnboardingResumeProfile,
 } from './resumeStep';
 
@@ -26,7 +27,7 @@ export interface OnboardingStepSyncOptions {
 /**
  * Owns the onboarding `currentStep` and keeps it in sync with `?step=`.
  *
- * Initial step resolution order: a valid (numeric) `?step=` from the URL
+ * Initial step resolution order: a valid (all-digit) `?step=` from the URL
  * wins; otherwise, including a malformed value, the step is derived from the
  * saved profile once it loads. The
  * URL is only written after that initial step is resolved, so the first
@@ -42,10 +43,9 @@ export function useOnboardingStepSync({
 }: OnboardingStepSyncOptions): [number, Dispatch<SetStateAction<number>>] {
   const [currentStep, setCurrentStep] = useState(1);
   const stepParam = searchParams.get('step');
-  // A non-numeric `?step=` (e.g. `?step=abc`) counts as absent, so it never
-  // suppresses the profile-based resume.
-  const parsedStepParam = stepParam ? Number.parseInt(stepParam, 10) : Number.NaN;
-  const validStepParam = Number.isNaN(parsedStepParam) ? null : parsedStepParam;
+  // A non-numeric `?step=` (`abc`, or a numeric prefix like `7junk`) counts
+  // as absent, so it never suppresses the profile-based resume.
+  const validStepParam = parseOnboardingStepParam(stepParam);
   const hasValidStepParam = validStepParam !== null;
 
   useEffect(() => {

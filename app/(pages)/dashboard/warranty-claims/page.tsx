@@ -3,7 +3,7 @@
 import { apiErrorFromBody } from '@/lib/apiErrors'
 
 import { Suspense } from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
@@ -143,7 +143,8 @@ function WarrantyClaimsContent() {
   const [services, setServices] = useState<string[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [totalClaims, setTotalClaims] = useState(0)
+  // null = unknown (not loaded yet, or the last request failed); never shown as 0.
+  const [totalClaims, setTotalClaims] = useState<number | null>(null)
   const [isLoadingClaims, setIsLoadingClaims] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [highlightedClaim, setHighlightedClaim] = useState<ClaimRecord | null>(null)
@@ -223,7 +224,15 @@ function WarrantyClaimsContent() {
     return () => controller.abort()
   }, [claimIdFromQuery, fetchClaimById, getErrorText, normalizedStatusFromQuery, t])
 
-  const fetchClaims = useCallback(async (signal?: AbortSignal) => {
+  // The one in-flight list request. Every entry point (filter effect, Refresh)
+  // goes through fetchClaims, which aborts the previous request first, so a
+  // slower superseded response can never write rows, totals or the spinner.
+  const claimsRequestRef = useRef<AbortController | null>(null)
+  const fetchClaims = useCallback(async () => {
+    claimsRequestRef.current?.abort()
+    const controller = new AbortController()
+    claimsRequestRef.current = controller
+    const { signal } = controller
     if (!isAuthenticated || (user?.role !== "professional" && user?.role !== "customer")) return
     setIsLoadingClaims(true)
     setError(null)
@@ -244,7 +253,7 @@ function WarrantyClaimsContent() {
         { credentials: "include", headers, signal }
       )
       const payload = await response.json()
-      if (signal?.aborted) return
+      if (signal.aborted) return
       if (!response.ok || !payload.success) {
         throw apiErrorFromBody(payload, t("warranty.loadClaimsFailed"), { status: response.status })
       }
@@ -268,14 +277,15 @@ function WarrantyClaimsContent() {
       setTotalPages(data.pagination?.totalPages || 1)
       setTotalClaims(data.pagination?.total || 0)
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return
+      if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) return
       setClaims([])
       setTotalPages(1)
-      setTotalClaims(0)
+      setTotalClaims(null)
       setError(getErrorText(err, t("warranty.loadClaimsFailed")))
     } finally {
       // An aborted request was superseded; its replacement owns the flag.
-      if (!signal?.aborted) setIsLoadingClaims(false)
+      if (!signal.aborted) setIsLoadingClaims(false)
+      if (claimsRequestRef.current === controller) claimsRequestRef.current = null
     }
   }, [highlightedClaim, isAuthenticated, page, statusFilter, debouncedSearch, serviceFilter, user?.role, getErrorText, t])
 
@@ -308,9 +318,10 @@ function WarrantyClaimsContent() {
   }, [isAuthenticated])
 
   useEffect(() => {
-    const controller = new AbortController()
-    fetchClaims(controller.signal)
-    return () => controller.abort()
+    void fetchClaims()
+    // A filter change or unmount supersedes whichever request is in flight,
+    // including one started by Refresh.
+    return () => claimsRequestRef.current?.abort()
   }, [fetchClaims])
 
   useEffect(() => {
@@ -363,7 +374,7 @@ function WarrantyClaimsContent() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               {t("common.back")}
             </Button>
-            <Button onClick={() => fetchClaims()} disabled={isLoadingClaims}>
+            <Button onClick={() => void fetchClaims()} disabled={isLoadingClaims}>
               {isLoadingClaims ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
@@ -379,7 +390,9 @@ function WarrantyClaimsContent() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
                 <CardTitle>{t("warranty.queueTitle")}</CardTitle>
-                <CardDescription>{t("warranty.totalClaims", { count: totalClaims })}</CardDescription>
+                {totalClaims != null && !isLoadingClaims && (
+                  <CardDescription>{t("warranty.totalClaims", { count: totalClaims })}</CardDescription>
+                )}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
@@ -560,7 +573,7 @@ function WarrantyClaimsContent() {
               </div>
             )}
 
-            {totalPages > 1 && (
+            {!isLoadingClaims && totalPages > 1 && (
               <div className="flex items-center justify-between pt-2">
                 <Button
                   variant="outline"

@@ -186,6 +186,9 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [timelineBookings, setTimelineBookings] = useState<Booking[]>([])
+  // "loading" only while a different filter set is fetched; a refresh of the
+  // same query keeps the board mounted with its current rows.
+  const [timelineState, setTimelineState] = useState<"loading" | "ready" | "error">("loading")
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -559,12 +562,26 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const TIMELINE_STATUSES = ["booked", "rescheduling_requested", "in_progress", "professional_completed", "payment_pending", "quote_accepted", "dispute"]
   const FINISHED_ONLY_STATUSES = new Set(["completed", "cancelled", "refunded"])
 
+  // Every entry point (filter effect, Refresh, board updates) takes a new
+  // request id; only the newest request may write the board, so an older,
+  // slower response never shows rows of a previous filter.
+  const latestTimelineRequestRef = useRef({ id: 0, key: "" })
   const fetchTimelineBookings = useCallback(async () => {
+    const queryKey = JSON.stringify([statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim() ?? ""])
+    const requestId = ++latestTimelineRequestRef.current.id
+    const sameQuery = latestTimelineRequestRef.current.key === queryKey
+    latestTimelineRequestRef.current.key = queryKey
+    const isCurrent = () => requestId === latestTimelineRequestRef.current.id
     if (!isAuthenticated || user?.role !== "professional") return
 
     if (statusFilter !== "all" && FINISHED_ONLY_STATUSES.has(statusFilter)) {
       setTimelineBookings([])
+      setTimelineState("ready")
       return
+    }
+    if (!sameQuery) {
+      setTimelineBookings([])
+      setTimelineState("loading")
     }
 
     try {
@@ -593,9 +610,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           { credentials: "include", headers }
         )
         const data = await response.json()
-        if (!response.ok || !data.success) {
-          break
-        }
+        if (!isCurrent()) return
+        // A failed page is a failed timeline: partial rows are not shown as
+        // the complete set.
+        if (!response.ok || !data.success) throw new Error("Timeline request failed")
 
         const incoming = Array.isArray(data.bookings) ? data.bookings : []
         allTimelineBookings.push(...incoming)
@@ -604,9 +622,14 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         page++
       }
 
+      if (!isCurrent()) return
       setTimelineBookings(allTimelineBookings)
+      setTimelineState("ready")
     } catch (error) {
+      if (!isCurrent()) return
       console.error("Failed to fetch timeline bookings:", error)
+      setTimelineBookings([])
+      setTimelineState("error")
     }
   }, [isAuthenticated, user?.role, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim()])
 
@@ -822,14 +845,29 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         )}
 
         {!isLoading && !error && mode === "bookings" && (
-          <BookingTimelineBoard
-            bookings={timelineBookings}
-            viewerRole="professional"
-            onBookingUpdated={async () => {
-              await Promise.all([refreshBookings(), fetchTimelineBookings()])
-            }}
-            emptyLabel={t("professionalManager.timelineEmpty")}
-          />
+          timelineState === "loading" ? (
+            <Card>
+              <CardContent className="py-8 text-center text-gray-500">
+                {t("common.loading")}
+              </CardContent>
+            </Card>
+          ) : timelineState === "error" ? (
+            <Card className="border border-rose-100 bg-rose-50">
+              <CardContent role="alert" className="flex flex-col gap-3 py-4 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
+                <span>{t("professionalManager.errors.loadBookings")}</span>
+                <Button variant="outline" size="sm" onClick={() => void fetchTimelineBookings()}>{t("common.retry")}</Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <BookingTimelineBoard
+              bookings={timelineBookings}
+              viewerRole="professional"
+              onBookingUpdated={async () => {
+                await Promise.all([refreshBookings(), fetchTimelineBookings()])
+              }}
+              emptyLabel={t("professionalManager.timelineEmpty")}
+            />
+          )
         )}
 
         {!isLoading && !error && filteredBookings.length > 0 && (

@@ -830,12 +830,14 @@ test('quotation tab: picking a historical version announces the hash change the 
   try {
     const listeners = new Map()
     const dispatched = []
+    const pushed = []
     const location = { href: 'http://localhost/bookings/test?tab=quotation', hash: '', pathname: '/bookings/test', search: '?tab=quotation' }
     globalThis.document = { getElementById: () => null }
     globalThis.window = {
       location,
       history: {
         pushState(_state, _title, url) {
+          pushed.push(url)
           const next = new URL(url, location.href)
           Object.assign(location, { href: next.href, hash: next.hash, pathname: next.pathname, search: next.search })
         },
@@ -894,17 +896,21 @@ test('quotation tab: picking a historical version announces the hash change the 
     // The panel itself follows the same URL.
     render()
     state.flush()
-    // Re-selecting the version already in the URL pushes and announces nothing.
+    assert.equal(pushed.length, 1)
+    // Re-selecting the version already in the URL pushes and announces nothing:
+    // no extra history entry, so one Back still leaves the version.
     versionLink(render(), 1).props.onClick(event)
     assert.equal(dispatched.length, 1)
+    assert.equal(pushed.length, 1, 'no duplicate history entry for the same URL')
     versionLink(render(), 2).props.onClick(event)
     assert.deepEqual(dispatched.at(-1), ['hashchange', '#quotation-v2'])
+    assert.equal(pushed.length, 2)
     assert.equal(pinned, 2)
     state.unmount()
   } finally { globalThis.window = previousWindow; globalThis.document = previousDocument }
 })
 
-test('booking page: the Accept & Pay gate follows Overview links and version history, current → old → current', async () => {
+test('booking page: the real pinned-version hook and Accept & Pay gate follow Overview links, version history and Back/Forward', async () => {
   const previousWindow = globalThis.window
   try {
     const listeners = new Map()
@@ -924,15 +930,35 @@ test('booking page: the Accept & Pay gate follows Overview links and version his
       scrollTo() {},
     }
     const bookingDetails = await import('../lib/bookingDetails.ts')
-    const CURRENT = 2
-    // Stand-in for the booking page's pinned-version effect and its gate
-    // (app/(pages)/bookings/[id]/page.tsx): read on mount, hashchange, popstate.
+    const payload = JSON.parse(readFileSync(new URL('./fixtures/bookingDetails/quoted-customer.json', import.meta.url), 'utf8'))
+    const CURRENT = payload.booking.currentQuoteVersion
+    assert.equal(CURRENT, 2)
+    // The booking page's own pinned-version hook and gate
+    // (lib/booking/usePinnedQuoteVersion.ts, used by bookings/[id]/page.tsx),
+    // mounted on the hook stand-in; Accept & Pay is
+    // `disabled={respondingToQuotation || viewingPinnedVersion}`.
+    const pinState = hooks()
+    const pinFile = '../lib/booking/usePinnedQuoteVersion.ts'
+    const pinExports = {}
+    new Function('require', 'exports', transformSync(readFileSync(new URL(pinFile, import.meta.url), 'utf8'), {
+      filename: pinFile, jsc: { parser: { syntax: 'typescript' } }, module: { type: 'commonjs' },
+    }).code)(name => (name === 'react' ? pinState.api : name === '@/lib/bookingDetails' ? bookingDetails : require(name)), pinExports)
+    const { usePinnedQuoteVersion, isViewingPinnedQuoteVersion } = pinExports
+    const versions = payload.booking.quoteVersions
+    // Mirrors the page: the displayed version is the pinned one when it exists.
+    const pagePin = () => {
+      const [pinnedVersion] = pinState.render(() => usePinnedQuoteVersion('booking-1'))
+      const displayed = versions.find(v => v.version === (pinnedVersion ?? CURRENT)) ?? versions.find(v => v.version === CURRENT)
+      return { pinnedVersion, viewing: isViewingPinnedQuoteVersion({ hasQuotationVersions: versions.length > 0, pinnedVersion, currentQuoteVersion: CURRENT, displayedVersion: displayed?.version }) }
+    }
+    pagePin()
+    pinState.flush()
+    assert.equal(listeners.get('hashchange').length, 1)
+    assert.equal(listeners.get('popstate').length, 1)
     let pinned = null
-    const readHash = () => { pinned = bookingDetails.resolveQuotationVersionFromUrl(window.location.hash, null, null) }
-    readHash()
-    window.addEventListener('hashchange', readHash)
-    window.addEventListener('popstate', readHash)
-    const acceptDisabled = () => pinned != null && pinned !== CURRENT
+    const acceptDisabled = () => { const r = pagePin(); pinned = r.pinnedVersion; return r.viewing }
+    // A version that does not exist is not "viewing a pinned version".
+    assert.equal(isViewingPinnedQuoteVersion({ hasQuotationVersions: true, pinnedVersion: 9, currentQuoteVersion: 2, displayedVersion: 2 }), false)
     // A native same-document `<a href="#quotation-vN">` click: the browser
     // updates the fragment and fires hashchange (version-history accordion).
     const nativeFragmentClick = (hash) => {
@@ -974,7 +1000,6 @@ test('booking page: the Accept & Pay gate follows Overview links and version his
       if (name.startsWith('@/') || name.startsWith('./')) throw new Error(`unmocked import ${name}`)
       return require(name)
     }, exports)
-    const payload = JSON.parse(readFileSync(new URL('./fixtures/bookingDetails/quoted-customer.json', import.meta.url), 'utf8'))
     const render = () => state.render(() => exports.BookingDetailsTabs({ booking: payload.booking, details: payload.details, viewerRole: 'customer' }))
     const tabs = () => findAll(render(), node => typeof node.props?.onValueChange === 'function')[0]
     const overviewLink = () => findAll(render(), node => typeof node.props?.onSelectTab === 'function')[0]
@@ -987,27 +1012,34 @@ test('booking page: the Accept & Pay gate follows Overview links and version his
 
     // 1. Version history (native anchors): current → old → current.
     nativeFragmentClick('#quotation-v2')
-    assert.equal(pinned, 2); assert.equal(acceptDisabled(), false)
+    assert.equal(acceptDisabled(), false); assert.equal(pinned, 2)
     nativeFragmentClick('#quotation-v1')
-    assert.equal(pinned, 1); assert.equal(acceptDisabled(), true)
+    assert.equal(acceptDisabled(), true); assert.equal(pinned, 1)
     nativeFragmentClick('#quotation-v2')
-    assert.equal(pinned, 2); assert.equal(acceptDisabled(), false)
+    assert.equal(acceptDisabled(), false); assert.equal(pinned, 2)
 
     // 2. Quotation tab picks an old version, then the Overview tab and its
     // current-version link bring the viewer back to the current version.
     bookingDetails.pushQuotationVersionUrl('/bookings/test?tab=quotation#quotation-v1')
-    assert.equal(pinned, 1); assert.equal(acceptDisabled(), true)
+    assert.equal(acceptDisabled(), true); assert.equal(pinned, 1)
     tabs().props.onValueChange('overview')
     assert.equal(location.hash, '')
-    assert.equal(pinned, null, 'the URL no longer pins a version, so neither does the page')
     assert.equal(acceptDisabled(), false)
+    assert.equal(pinned, null, 'the URL no longer pins a version, so neither does the page')
     bookingDetails.pushQuotationVersionUrl('/bookings/test?tab=quotation#quotation-v1')
     assert.equal(acceptDisabled(), true)
     overviewLink().props.onSelectTab('quotation', overviewVersionHash())
     assert.equal(location.hash, '#quotation-v2')
     assert.equal(location.search, '?tab=quotation')
-    assert.equal(pinned, 2, 'the Overview link to the current version re-enables Accept & Pay')
     assert.equal(acceptDisabled(), false)
+    assert.equal(pinned, 2, 'the Overview link to the current version re-enables Accept & Pay')
+
+    // Back/Forward: the browser restores the URL and fires popstate only.
+    const back = (url) => { setUrl(url); fire({ type: 'popstate' }) }
+    back('/bookings/test?tab=quotation#quotation-v1')
+    assert.equal(acceptDisabled(), true); assert.equal(pinned, 1)
+    back('/bookings/test?tab=quotation#quotation-v2')
+    assert.equal(acceptDisabled(), false); assert.equal(pinned, 2)
 
     // Same-URL tab selection pushes and announces nothing.
     const before = pushes.length
@@ -1022,5 +1054,638 @@ test('booking page: the Accept & Pay gate follows Overview links and version his
     assert.equal(location.search, '?tab=activity')
     assert.equal(announced, 1, 'only leaving #quotation-v2 announced a hash change')
     state.unmount()
+    // Unmounting the page removes its listeners.
+    pinState.unmount()
+    assert.equal(listeners.get('popstate').length, 0)
+    assert.equal(listeners.get('hashchange').length, 1, 'only the test counter is left')
   } finally { globalThis.window = previousWindow }
+})
+
+// ---------------------------------------------------------------------------
+// CodeRabbit incremental review of 0769ef0 (round 2): request lifecycle
+// regressions through the real components, with deferred responses.
+// ---------------------------------------------------------------------------
+
+function paymentsMocks(state, extra = {}) {
+  const ui = stubModule()
+  const t = key => key
+  const auth = { user: { role: 'professional' }, isAuthenticated: true, loading: false }
+  return {
+    react: state.api,
+    'next/link': { __esModule: true, default: () => null },
+    'next/navigation': { useRouter: () => ({ push() {}, replace() {} }) },
+    'next-intl': { useTranslations: () => t },
+    '@/lib/apiErrors': apiErrors,
+    '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_e, fallback) => fallback },
+    '@/contexts/AuthContext': { useAuth: () => auth },
+    '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
+    '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+    '@/components/ui/card': ui, '@/components/ui/input': ui, '@/components/ui/badge': ui,
+    'lucide-react': ui,
+    ...extra,
+  }
+}
+
+test('professional payments: a pending or failed query never shows the previous rows or page count; Refresh repeats the failed page', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const txRequests = []
+    globalThis.fetch = (url, { signal } = {}) => {
+      url = String(url)
+      if (url.includes('/api/professional/transactions')) {
+        const d = deferred()
+        signal?.addEventListener('abort', () => d.reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+        txRequests.push({ url, signal, ...d })
+        return d.promise
+      }
+      if (url.includes('/account-status')) return Promise.resolve({ ok: true, json: async () => ({ success: true, data: { onboardingCompleted: true, chargesEnabled: true } }) })
+      return Promise.resolve({ ok: true, json: async () => ({ success: true, data: { totalEarnings: 0, pendingEarnings: 0, completedBookings: 0, pendingBookings: 0, currency: 'EUR' } }) })
+    }
+    const Select = function Select() { return null }
+    const Button = function Button() { return null }
+    const Skeleton = function Skeleton() { return null }
+    const state = hooks()
+    const Dashboard = loadComponent('../app/(pages)/dashboard/payments/page.tsx', paymentsMocks(state, {
+      '@/components/ui/button': { Button },
+      '@/components/ui/skeleton': { Skeleton },
+      '@/components/ui/select': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'Select' ? Select : function Stub() { return null }) }),
+    }))
+    const ViewComponent = state.render(() => Dashboard()).type
+    state.reset()
+    const render = () => state.render(() => ViewComponent())
+    const button = (tree, label) => findAll(tree, node => node.type === Button && textOf(node).includes(label))[0]
+    const pager = tree => button(tree, 'common.next')
+    const rows = (bookingNumber, page, totalPages) => ({ ok: true, json: async () => ({ success: true, data: [{ _id: bookingNumber, bookingNumber, status: 'completed', amount: 10, currency: 'EUR', date: null }], pagination: { page, totalPages } }) })
+    const step = async () => { render(); state.flush(); await settle() }
+
+    // Before the first answer nothing is known: no "no transactions yet".
+    await step()
+    let tree = render()
+    assert.ok(!textOf(tree).includes('payments.professional.noTransactions'))
+    assert.ok(findAll(tree, node => node.type === Skeleton).length > 0)
+    txRequests[0].resolve(rows('BK-P1', 1, 3))
+    await step()
+    tree = render()
+    assert.ok(textOf(tree).includes('BK-P1'))
+    pager(tree).props.onClick()
+    await step()
+    assert.match(txRequests.at(-1).url, /page=2/)
+    // Pending: the page-1 rows are hidden, not shown as page 2.
+    tree = render()
+    assert.ok(!textOf(tree).includes('BK-P1'))
+    assert.equal(pager(tree), undefined)
+    txRequests.at(-1).resolve(rows('BK-P2', 2, 3))
+    await step()
+    pager(render()).props.onClick()
+    await step()
+    const failedPage = txRequests.at(-1)
+    assert.match(failedPage.url, /page=3/)
+    failedPage.resolve({ ok: false, json: async () => ({ success: false }) })
+    await step()
+    tree = render()
+    assert.ok(textOf(tree).includes('payments.loadFailed'))
+    assert.ok(!textOf(tree).includes('BK-P2'), 'no stale rows under the error')
+    assert.equal(pager(tree), undefined, 'no stale "page x of 3" pager under the error')
+    // Refresh repeats exactly the failed request (page 3).
+    button(tree, 'common.refresh').props.onClick()
+    await step()
+    assert.equal(txRequests.at(-1).url, failedPage.url)
+    txRequests.at(-1).resolve(rows('BK-P3', 3, 3))
+    await step()
+    assert.ok(textOf(render()).includes('BK-P3'))
+
+    // A status change while the old query is shown: the old rows and its
+    // 3-page pager disappear until the filtered query answers.
+    findAll(render(), node => node.type === Select && node.props.value === 'all')[0].props.onValueChange('refunded')
+    await step()
+    const filtered = txRequests.at(-1)
+    assert.match(filtered.url, /page=1&limit=20&status=refunded/)
+    tree = render()
+    assert.ok(!textOf(tree).includes('BK-P3'))
+    assert.equal(pager(tree), undefined)
+    filtered.resolve({ ok: true, json: async () => ({ success: false }) })
+    await step()
+    tree = render()
+    assert.ok(textOf(tree).includes('payments.loadFailed'))
+    assert.equal(pager(tree), undefined)
+    button(tree, 'common.refresh').props.onClick()
+    await step()
+    assert.equal(txRequests.at(-1).url, filtered.url, 'the selected filter is kept')
+    txRequests.at(-1).resolve(rows('BK-R1', 1, 1))
+    await step()
+    tree = render()
+    assert.ok(textOf(tree).includes('BK-R1'))
+    assert.ok(!textOf(tree).includes('payments.loadFailed'))
+    assert.equal(pager(tree), undefined, 'one page: no pager')
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('warranty claims: a slower Refresh response never overwrites a newer filtered list; a failed list shows no total', async () => {
+  const previousFetch = globalThis.fetch
+  const previousWindow = globalThis.window
+  try {
+    globalThis.window = { requestAnimationFrame: () => 0, cancelAnimationFrame() {}, setTimeout, clearTimeout }
+    const listRequests = []
+    globalThis.fetch = (url, { signal } = {}) => {
+      url = String(url)
+      if (url.includes('/api/warranty-claims/my')) {
+        const d = deferred()
+        listRequests.push({ url, signal, ...d })
+        return d.promise
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ success: true, distinctServices: [] }) })
+    }
+    const ui = stubModule()
+    const Select = function Select() { return null }
+    const SelectItem = function SelectItem() { return null }
+    const Button = function Button() { return null }
+    const CardDescription = function CardDescription() { return null }
+    const t = (key, values) => (values && 'count' in values ? `${key}:${values.count}` : key)
+    const getErrorText = (_e, fallback) => fallback
+    const auth = { user: { role: 'customer' }, isAuthenticated: true, loading: false }
+    const searchParams = new URLSearchParams('')
+    const state = hooks()
+    const Page = loadComponent('../app/(pages)/dashboard/warranty-claims/page.tsx', {
+      react: state.api,
+      'next/navigation': { useRouter: () => ({ push() {}, replace() {} }), useSearchParams: () => searchParams },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/apiErrors': apiErrors,
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      '@/lib/utils': { getAuthToken: () => null },
+      '@/components/ui/card': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'CardDescription' ? CardDescription : function Stub() { return null }) }),
+      '@/components/ui/input': ui, '@/components/ui/button': { Button }, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
+      '@/components/ui/select': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'Select' ? Select : key === 'SelectItem' ? SelectItem : function Stub() { return null }) }),
+      'lucide-react': ui,
+      '@/lib/warrantyClaim': await import('../lib/warrantyClaim.ts'),
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      // Stable, as the app's hook is: fetchClaims only changes with its inputs.
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+    })
+    const Content = state.render(() => Page()).props.children.type
+    state.reset()
+    const render = () => state.render(() => Content())
+    const step = async () => { render(); state.flush(); await settle() }
+    const claimsReply = (claimNumber, total) => ({ ok: true, json: async () => ({ success: true, data: { claims: [{ _id: claimNumber, claimNumber, status: 'open', evidence: [] }], pagination: { total, totalPages: 1 } } }) })
+    const totalLabel = tree => findAll(tree, node => node.type === CardDescription).map(textOf)
+    for (let i = 0; i < 3; i++) await step()
+    listRequests.at(-1).resolve(claimsReply('WC-ALL', 4))
+    await step()
+    assert.deepEqual(totalLabel(render()), ['warranty.totalClaims:4'])
+
+    // Refresh, then a filter change before Refresh answers.
+    const refreshButton = findAll(render(), node => node.type === Button && textOf(node).includes('common.refresh'))[0]
+    refreshButton.props.onClick()
+    await step()
+    const refresh = listRequests.at(-1)
+    assert.doesNotMatch(refresh.url, /status=/)
+    const statusSelect = findAll(render(), node => node.type === Select && node.props.value === 'all' && findAll(node, child => child.type === SelectItem && child.props.value === 'resolved').length > 0)[0]
+    statusSelect.props.onValueChange('resolved')
+    await step()
+    const filtered = listRequests.at(-1)
+    assert.match(filtered.url, /status=resolved/)
+    assert.equal(refresh.signal.aborted, true, 'the filter change supersedes the Refresh request')
+    filtered.resolve(claimsReply('WC-RESOLVED', 1))
+    await step()
+    // The superseded Refresh answers last (a fetch that ignores abort).
+    refresh.resolve(claimsReply('WC-STALE', 9))
+    await step()
+    let tree = render()
+    assert.ok(textOf(tree).includes('WC-RESOLVED'))
+    assert.ok(!textOf(tree).includes('WC-STALE'))
+    assert.deepEqual(totalLabel(tree), ['warranty.totalClaims:1'])
+
+    // Two Refresh clicks: only the newer one may write.
+    findAll(render(), node => node.type === Button && textOf(node).includes('common.refresh'))[0].props.onClick()
+    const first = listRequests.at(-1)
+    findAll(render(), node => node.type === Button && textOf(node).includes('common.refresh'))[0].props.onClick()
+    const second = listRequests.at(-1)
+    assert.notEqual(first, second)
+    assert.equal(first.signal.aborted, true)
+    // While a list is pending its old total is not presented as current.
+    assert.deepEqual(totalLabel(render()), [])
+    second.resolve({ ok: false, status: 500, json: async () => ({ success: false }) })
+    await step()
+    first.resolve(claimsReply('WC-STALE', 9))
+    await step()
+    tree = render()
+    assert.ok(findAll(tree, node => node.props?.role === 'alert' && textOf(node) === 'warranty.loadClaimsFailed').length === 1)
+    assert.ok(!textOf(tree).includes('WC-STALE'))
+    assert.deepEqual(totalLabel(tree), [], 'a failed list has no known total (never "0 claims")')
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch; globalThis.window = previousWindow }
+})
+
+async function mountProfile() {
+  const suggestRequests = []
+  const checkRequests = []
+  globalThis.fetch = (url, opts = {}) => {
+    url = String(url)
+    const queue = url.includes('/generate-username') ? suggestRequests : url.includes('/check-username/') ? checkRequests : null
+    if (queue) {
+      const d = deferred()
+      queue.push({ url, signal: opts.signal, ...d })
+      return d.promise
+    }
+    return Promise.resolve({ ok: true, json: async () => ({ success: true, data: {} }) })
+  }
+  const state = hooks()
+  const ui = stubModule()
+  const Button = function Button() { return null }
+  const Input = function Input() { return null }
+  const toasts = []
+  const auth = { user: { _id: 'u1', role: 'professional', username: 'saved-name', name: 'Pro', email: 'p@example.com', businessInfo: { companyName: 'Acme', city: 'Gent' } }, isAuthenticated: true, loading: false, checkAuth: async () => {} }
+  const router = { push() {}, replace() {} }
+  const searchParams = new URLSearchParams('')
+  const t = Object.assign(key => key, { rich: key => key, raw: key => key, has: () => true })
+  const Page = loadComponent('../app/(pages)/profile/page.tsx', {
+    react: state.api,
+    'next-intl': { useTranslations: () => t },
+    '@/contexts/AuthContext': { useAuth: () => auth },
+    '@/components/ui/card': ui, '@/components/ui/button': { Button }, '@/components/ui/input': { Input }, '@/components/ui/label': ui,
+    '@/components/ui/checkbox': ui, '@/components/ui/dialog': ui, 'lucide-react': ui,
+    '@/components/TeamManagement': ui, '@/components/PasswordChange': ui, '@/components/PrivacyAndData': ui,
+    '@/components/EmployeeAvailability': ui, '@/components/notifications/NotificationPreferences': ui, '@/components/AdminAvailability': ui,
+    '@/components/calendar/WeeklyAvailabilityCalendar': ui,
+    '@/lib/adminRbac': await import('../lib/adminRbac.ts'),
+    'next/navigation': { useRouter: () => router, useSearchParams: () => searchParams },
+    sonner: { toast: { success: m => toasts.push(['success', m]), error: m => toasts.push(['error', m]) } },
+    '@/components/ui/skeleton': ui, '@/components/ui/tabs': ui, '@/components/ui/textarea': ui, '@/components/ui/select': ui,
+    '@/lib/utils': { ...(await import('../lib/utils.ts')), getAuthToken: () => null },
+    '@/lib/countries': await import('../lib/countries.ts'),
+    '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+    '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_e, fallback) => fallback },
+    '@/lib/defaults/companyAvailability': await import('../lib/defaults/companyAvailability.ts'),
+    '@/lib/vatValidation': await import('../lib/vatValidation.ts'),
+    '@/lib/dateUtils': await import('../lib/dateUtils.ts'),
+    '@/lib/support': { listSupportAvailability: async () => [] },
+    '@/lib/support/calendar': await import('../lib/support/calendar.ts'),
+    '@/lib/support/dates': await import('../lib/support/dates.ts'),
+    '@/lib/scheduleUtils': await import('../lib/scheduleUtils.ts'),
+  })
+  const Content = state.render(() => Page()).props.children.type
+  state.reset()
+  const render = () => state.render(() => Content())
+  for (let i = 0; i < 4; i++) { render(); state.flush(); await settle() }
+  const button = label => findAll(render(), node => node.type === Button && (node.props['aria-label'] === label || textOf(node) === label))[0]
+  // The username block: the closed card's text, or the open editor's field.
+  const usernameBlock = () => findAll(render(), node => node.type === 'div' && node.props?.className === 'space-y-2' && findAll(node, child => child.props?.children === 'business.usernameLabel').length > 0)[0]
+  const usernameField = () => findAll(usernameBlock(), node => node.type === Input)[0]
+  const closedName = () => {
+    const block = usernameBlock()
+    return findAll(block, node => node.type === 'span' && typeof node.props?.className === 'string' && node.props.className.includes('flex-1'))[0]?.props.children
+  }
+  const suggestionChips = () => findAll(usernameBlock(), node => node.type === 'button').map(textOf)
+  const statusBox = () => findAll(usernameBlock(), node => node.type === 'div' && typeof node.props?.className === 'string' && node.props.className.includes('rounded-lg') && node.props.className.includes('text-xs')).map(textOf)
+  return { state, render, button, usernameField, closedName, suggestionChips, statusBox, suggestRequests, checkRequests, toasts }
+}
+
+test('profile username: a Suggest response after Cancel never changes the shown name, chips or availability', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const p = await mountProfile()
+    assert.equal(p.closedName(), 'saved-name')
+    p.button('business.editUsername').props.onClick()
+    p.render()
+    p.button('business.suggest').props.onClick()
+    const suggest = p.suggestRequests.at(-1)
+    assert.match(suggest.url, /generate-username/)
+    assert.ok(suggest.signal, 'the Suggest request is cancellable')
+    // Cancel closes the editor while Suggest is in flight.
+    p.button('common.cancel').props.onClick()
+    assert.equal(suggest.signal.aborted, true)
+    suggest.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['acme-gent', 'acme-gent-2'] }) })
+    await settle()
+    assert.equal(p.closedName(), 'saved-name', 'the closed card shows the saved name, not an unsaved suggestion')
+    // Reopening starts clean: no chips, no unchecked "available" status.
+    p.button('business.editUsername').props.onClick()
+    p.render()
+    assert.equal(p.usernameField().props.value, 'saved-name')
+    assert.deepEqual(p.suggestionChips(), [])
+    assert.deepEqual(p.statusBox(), [''])
+    const saveButton = p.button('business.saveUsername')
+    assert.equal(saveButton.props.disabled, true, 'no availability without a new check')
+    assert.deepEqual(p.toasts, [])
+    p.state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('profile username: typing supersedes a pending Suggest; a newer Suggest wins; a failed Suggest keeps the typed name and its check', async () => {
+  const previousFetch = globalThis.fetch
+  const realSetTimeout = globalThis.setTimeout
+  const realClearTimeout = globalThis.clearTimeout
+  // Manual timers: the 500 ms availability debounce runs when the test says.
+  const timers = new Map()
+  let nextTimer = 1
+  globalThis.setTimeout = (fn) => { const id = nextTimer++; timers.set(id, fn); return id }
+  globalThis.clearTimeout = (id) => { timers.delete(id) }
+  const runTimers = () => { const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn()) }
+  try {
+    const p = await mountProfile()
+    runTimers()
+    p.button('business.editUsername').props.onClick()
+    p.render()
+    // 1. Suggest, then the user types their own name before it answers.
+    p.button('business.suggest').props.onClick()
+    const suggest = p.suggestRequests.at(-1)
+    p.usernameField().props.onChange({ target: { value: 'My-Own' } })
+    assert.equal(suggest.signal.aborted, true)
+    runTimers()
+    assert.match(p.checkRequests.at(-1).url, /check-username\/my-own$/)
+    suggest.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['acme-gent'] }) })
+    await settle()
+    p.render()
+    assert.equal(p.usernameField().props.value, 'my-own', 'the typed (normalized) name is kept')
+    assert.deepEqual(p.suggestionChips(), [])
+
+    // 2. Two Suggest clicks: the older, slower answer is ignored.
+    p.button('business.suggest').props.onClick()
+    const older = p.suggestRequests.at(-1)
+    p.button('business.suggest').props.onClick()
+    const newer = p.suggestRequests.at(-1)
+    assert.notEqual(older, newer)
+    assert.equal(older.signal.aborted, true)
+    newer.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['acme-new'] }) })
+    await settle()
+    older.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['acme-old'] }) })
+    await settle()
+    p.render()
+    assert.equal(p.usernameField().props.value, 'acme-new')
+    assert.deepEqual(p.suggestionChips(), ['acme-new'])
+    assert.equal(p.button('business.saveUsername').props.disabled, false)
+
+    // 3. A failed Suggest (here success:false) is reported and changes
+    // nothing: the typed name keeps its own pending availability check.
+    p.usernameField().props.onChange({ target: { value: 'typed-name' } })
+    p.render()
+    assert.deepEqual(p.statusBox(), ['business.checking'])
+    p.button('business.suggest').props.onClick()
+    p.suggestRequests.at(-1).resolve({ ok: false, json: async () => ({ success: false, msg: 'Only professionals can generate username suggestions' }) })
+    await settle()
+    assert.deepEqual(p.toasts, [['error', 'toasts.suggestionsFailed']])
+    runTimers()
+    const check = p.checkRequests.at(-1)
+    assert.match(check.url, /check-username\/typed-name$/, 'the debounced check still runs')
+    check.resolve({ ok: true, json: async () => ({ available: true }) })
+    await settle()
+    p.render()
+    assert.equal(p.usernameField().props.value, 'typed-name')
+    assert.deepEqual(p.statusBox(), ['business.usernameAvailable'])
+    assert.equal(p.button('business.saveUsername').props.disabled, false)
+    p.state.unmount()
+  } finally { globalThis.fetch = previousFetch; globalThis.setTimeout = realSetTimeout; globalThis.clearTimeout = realClearTimeout }
+})
+
+test('admin support panel: an invalid recorded currency never throws; valid buckets keep currency formatting', async () => {
+  const cases = [
+    [{ grossEur: 1200, grossByCurrency: [{ currency: 'EUR', gross: 1200 }] }, '€1,200'],
+    [{ grossEur: null, grossByCurrency: [{ currency: 'EUR', gross: 120 }, { currency: 'USD', gross: 30 }] }, '€120 + US$30'],
+    [{ grossEur: null, grossByCurrency: [{ currency: 'EUR', gross: 120 }, { currency: null, gross: 30 }, { currency: '€', gross: 5 }, { currency: 'EURO', gross: 7 }] }, '€120 + 30 + 5 € + 7 EURO'],
+    [{ grossEur: null, grossByCurrency: [{ currency: 'eur', gross: 10 }, { currency: 'GBP', gross: Number.NaN }] }, '€10 + —'],
+    [{ grossEur: null, grossByCurrency: [], financialAccess: false }, 'Restricted'],
+  ]
+  for (const [kpiPatch, expected] of cases) {
+    const state = hooks()
+    const authFetch = async () => ({ ok: true, json: async () => ({ success: true, data: { user: { _id: 'u1', name: 'Pro', role: 'professional', email: null, phone: null, username: null }, kpis: { level: null, reviewCount: 0, avgRating: null, projectCount: 0, bookingCount: 1, completedCount: 1, quotedCount: 0, disputeCount: 0, refundPercent: 0, ...kpiPatch } } }) })
+    const Panel = loadComponent('../components/admin/AdminSupportInfoPanel.tsx', {
+      react: state.api,
+      '@/lib/apiErrors': apiErrors,
+      'lucide-react': stubModule(),
+      '@/components/ui/badge': stubModule(),
+      '@/components/ui/card': stubModule(),
+      '@/lib/utils': { authFetch },
+      '@/lib/professionalLevel': { getLevelColor: () => '' },
+      '@/lib/anonymizedUsers': { isAnonymizedIdentity: () => false },
+    })
+    state.render(() => Panel({ conversationId: 'c1' }))
+    state.flush()
+    await settle()
+    const tree = state.render(() => Panel({ conversationId: 'c1' }))
+    const gross = findAll(tree, node => node.props?.label === 'Gross')[0]
+    assert.ok(gross, `panel rendered for ${JSON.stringify(kpiPatch)}`)
+    assert.equal(gross.props.value, expected)
+    state.unmount()
+  }
+})
+
+function mountCustomerDashboard(state, listRequests) {
+  globalThis.fetch = url => {
+    url = String(url)
+    if (url.includes('/api/bookings/my-bookings') && url.includes('limit=20')) {
+      const d = deferred()
+      listRequests.push({ url, ...d })
+      return d.promise
+    }
+    return Promise.resolve({ ok: true, json: async () => ({ success: true, bookings: [], data: { claims: [] } }) })
+  }
+  const ui = stubModule()
+  const Select = function Select() { return null }
+  const SelectItem = function SelectItem() { return null }
+  const Button = function Button() { return null }
+  const TabsTrigger = function TabsTrigger() { return null }
+  const t = key => key
+  const getErrorText = (err, fallback) => (err && typeof err.msg === 'string' ? err.msg : fallback)
+  return {
+    Select, SelectItem, Button, TabsTrigger,
+    load: async () => loadComponent('../components/dashboard/CustomerDashboard.tsx', {
+      react: state.api,
+      'next/navigation': { useRouter: () => ({ push() {}, replace() {} }) },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+      '@/components/ui/card': ui, '@/components/ui/button': { Button }, '@/components/ui/badge': ui,
+      '@/components/ui/input': ui, '@/components/ui/skeleton': ui, '@/components/ui/checkbox': ui,
+      '@/components/ui/tabs': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'TabsTrigger' ? TabsTrigger : function Stub() { return null }) }),
+      '@/components/ui/select': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'Select' ? Select : key === 'SelectItem' ? SelectItem : function Stub() { return null }) }),
+      'lucide-react': ui,
+      '@/contexts/AuthContext': { useAuth: () => ({ user: { role: 'customer' } }) },
+      '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/utils': { getAuthToken: () => null },
+      '@/lib/dashboardBookingHelpers': dashboardBookingHelpers,
+      '@/lib/dashboardOverview': dashboardOverview,
+      '@/lib/actionNeededHelpers': await import('../lib/actionNeededHelpers.ts'),
+      '@/components/dashboard/QuoteComparisonModal': ui,
+      '@/components/dashboard/SharedBookingsTable': ui,
+      '@/components/dashboard/SharedQuotesTable': ui,
+    }),
+  }
+}
+
+test('customer dashboard: unknown or failed totals and facet counts show "—" or no count, never 0 or the previous query', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const listRequests = []
+    const m = mountCustomerDashboard(state, listRequests)
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    const cards = tree => findAll(tree, node => node.type === 'p' && typeof node.props?.className === 'string' && node.props.className.includes('text-3xl')).map(textOf)
+    const tabLabels = tree => findAll(tree, node => node.type === m.TabsTrigger).map(textOf).slice(0, 2)
+    const bookingStatus = tree => findAll(tree, node => node.type === m.Select && findAll(node, child => child.type === m.SelectItem && child.props.value === 'completed').length > 0)[0]
+    const optionText = (tree, value) => textOf(findAll(bookingStatus(tree), node => node.type === m.SelectItem && node.props.value === value)[0])
+    const serviceOptions = tree => findAll(tree, node => node.type === m.SelectItem && node.props.value === 'Plumbing')
+
+    render()
+    state.flush()
+    // First load pending: unknown, not zero.
+    let tree = render()
+    assert.deepEqual(cards(tree), ['—', '—', '—'])
+    assert.equal(optionText(tree, 'completed'), 'status.completed')
+    const bookings = () => listRequests.filter(r => r.url.includes('quote_accepted') || !r.url.includes('rfq')).at(-1)
+    const quotes = listRequests.find(r => r.url.includes('status=rfq'))
+    quotes.resolve({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts: {}, pagination: { page: 1, totalPages: 1, total: 2 } }) })
+    const loaded = { success: true, bookings: [{ _id: 'b1', status: 'completed' }], statusCounts: { completed: 3, cancelled: 1, booked: 6 }, serviceCounts: { Plumbing: 10 }, distinctServices: ['Plumbing'], pagination: { page: 1, totalPages: 2, total: 10 } }
+    bookings().resolve({ ok: true, json: async () => loaded })
+    await settle()
+    tree = render()
+    assert.deepEqual(cards(tree), ['12', '6', '3'])
+    assert.deepEqual(tabLabels(tree), ['customerDashboard.tabs.myBookings (10)', 'customerDashboard.tabs.myQuotes (2)'])
+    assert.equal(optionText(tree, 'completed'), 'status.completed (3)')
+
+    // Another page of the same query keeps its totals while it loads.
+    findAll(tree, node => node.type === m.Button && node.props.children === 'common.next')[0].props.onClick()
+    tree = render()
+    assert.match(bookings().url, /page=2/)
+    assert.deepEqual(cards(tree), ['12', '6', '3'])
+    bookings().resolve({ ok: true, json: async () => ({ ...loaded, pagination: { page: 2, totalPages: 2, total: 10 } }) })
+    await settle()
+
+    // A new filter: the previous query's numbers are not presented as its own.
+    bookingStatus(render()).props.onValueChange('booked')
+    render()
+    state.flush()
+    tree = render()
+    assert.match(bookings().url, /page=1&limit=20&status=booked/)
+    assert.deepEqual(cards(tree), ['—', '—', '—'])
+    assert.equal(optionText(tree, 'completed'), 'status.completed')
+    // The failure keeps that state, the selected filter and the service options.
+    bookings().resolve({ ok: false, json: async () => ({ success: false, msg: 'Bookings unavailable' }) })
+    await settle()
+    tree = render()
+    assert.deepEqual(cards(tree), ['—', '—', '—'])
+    assert.deepEqual(tabLabels(tree), ['customerDashboard.tabs.myBookings ', 'customerDashboard.tabs.myQuotes (2)'])
+    assert.equal(optionText(tree, 'completed'), 'status.completed')
+    assert.equal(bookingStatus(tree).props.value, 'booked')
+    assert.equal(serviceOptions(tree).length, 1, 'service filter options stay usable')
+    assert.equal(findAll(tree, node => node.type === m.Button && node.props.children === 'common.next').length, 0, 'no stale pager')
+    // Retry repeats the failed query; its answer restores real numbers.
+    const alert = findAll(tree, node => node.props?.role === 'alert' && textOf(node).includes('Bookings unavailable'))[0]
+    findAll(alert, node => node.type === m.Button && node.props.children === 'common.retry')[0].props.onClick()
+    assert.match(bookings().url, /page=1&limit=20&status=booked/)
+    bookings().resolve({ ok: true, json: async () => ({ ...loaded, statusCounts: { completed: 3, cancelled: 1, booked: 6 }, pagination: { page: 1, totalPages: 1, total: 6 } }) })
+    await settle()
+    tree = render()
+    assert.deepEqual(cards(tree), ['8', '2', '3'])
+    assert.equal(optionText(tree, 'booked'), 'status.booked (6)')
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('quotation version URL: the same target (also written relatively) pushes no history entry; a new one pushes once and announces it', async () => {
+  const { pushQuotationVersionUrl } = await import('../lib/bookingDetails.ts')
+  const location = { href: 'http://localhost/bookings/test?tab=quotation#quotation-v1' }
+  const pushes = []
+  const dispatched = []
+  const win = {
+    location,
+    history: { pushState(_s, _t, url) { pushes.push(url); location.href = new URL(url, location.href).href } },
+    dispatchEvent(event) { dispatched.push(event.type) },
+  }
+  pushQuotationVersionUrl('/bookings/test?tab=quotation#quotation-v1', win)
+  pushQuotationVersionUrl('http://localhost/bookings/test?tab=quotation#quotation-v1', win)
+  pushQuotationVersionUrl('?tab=quotation#quotation-v1', win)
+  assert.deepEqual(pushes, [])
+  assert.deepEqual(dispatched, [])
+  pushQuotationVersionUrl('/bookings/test?tab=quotation#quotation-v2', win)
+  assert.deepEqual(pushes, ['/bookings/test?tab=quotation#quotation-v2'])
+  assert.deepEqual(dispatched, ['hashchange'])
+  pushQuotationVersionUrl('#quotation-v2', win)
+  assert.equal(pushes.length, 1)
+})
+
+test('professional timeline: an older response never overwrites a newer filter; a failure shows an error with retry, not an empty board', async () => {
+  const previousFetch = globalThis.fetch
+  const previousConsoleError = console.error
+  const logged = []
+  console.error = (...args) => { logged.push(args) }
+  try {
+    const state = hooks()
+    const timelineRequests = []
+    globalThis.fetch = url => {
+      url = String(url)
+      if (url.includes('/api/bookings/my-bookings') && url.includes('limit=50')) {
+        const d = deferred()
+        timelineRequests.push({ url, ...d })
+        return d.promise
+      }
+      if (url.includes('/api/bookings/my-bookings')) return Promise.resolve({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts: {}, serviceCounts: {}, pagination: { page: 1, totalPages: 1, total: 0 } }) })
+      return Promise.resolve({ ok: true, json: async () => ({ success: true, data: [] }) })
+    }
+    const ui = stubModule()
+    const Select = function Select() { return null }
+    const Button = function Button() { return null }
+    const Board = function Board() { return null }
+    const t = key => key
+    const getErrorText = (_err, fallback) => fallback
+    const router = { push() {}, replace() {} }
+    const auth = { user: { role: 'professional' }, isAuthenticated: true, loading: false }
+    const Component = loadComponent('../components/dashboard/ProfessionalBookingsQuotesManager.tsx', {
+      react: state.api,
+      'next/navigation': { useRouter: () => router },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+      sonner: { toast: { success() {}, error() {} } },
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/utils': { getAuthToken: () => null },
+      '@/components/ui/card': ui, '@/components/ui/button': { Button }, '@/components/ui/input': ui,
+      '@/components/ui/select': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'Select' ? Select : function Stub() { return null }) }),
+      '@/components/ui/dialog': ui, '@/components/ui/checkbox': ui, 'lucide-react': ui,
+      '@/components/dashboard/QuoteComparisonModal': ui,
+      '@/components/dashboard/BookingTimelineBoard': { __esModule: true, default: Board },
+      '@/components/dashboard/RefundRequestsPanel': ui,
+      '@/components/dashboard/SharedBookingsTable': ui,
+      '@/components/dashboard/SharedQuotesTable': ui,
+      '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
+      '@/lib/dashboardOverview': dashboardOverview,
+      '@/lib/dashboardBookingHelpers': dashboardBookingHelpers,
+    })
+    const render = () => state.render(() => Component({ mode: 'bookings' }))
+    const step = async () => { render(); state.flush(); await settle() }
+    const board = () => findAll(render(), node => node.type === Board)[0]
+    const page = ids => ({ ok: true, json: async () => ({ success: true, bookings: ids.map(id => ({ _id: id, status: 'booked' })), pagination: { page: 1, totalPages: 1 } }) })
+    await step(); await step()
+    assert.equal(timelineRequests.length, 1)
+    // While the first timeline loads, no empty board claims "no bookings".
+    assert.equal(board(), undefined)
+    const unfiltered = timelineRequests[0]
+    findAll(render(), node => node.type === Select && node.props.value === 'all')[0].props.onValueChange('in_progress')
+    await step(); await step()
+    const filtered = timelineRequests.at(-1)
+    assert.match(filtered.url, /status=in_progress/)
+    filtered.resolve(page(['new']))
+    await settle()
+    unfiltered.resolve(page(['old-1', 'old-2']))
+    await settle()
+    assert.deepEqual(board().props.bookings.map(b => b._id), ['new'])
+
+    // Refresh of the same query keeps the board mounted while it loads ...
+    board().props.onBookingUpdated()
+    await settle()
+    assert.ok(board(), 'same-query refresh keeps the board')
+    // ... and its failure replaces the board with an error and a retry.
+    timelineRequests.at(-1).resolve({ ok: true, json: async () => ({ success: false }) })
+    await settle()
+    let tree = render()
+    assert.equal(board(), undefined)
+    const alert = findAll(tree, node => node.props?.role === 'alert' && textOf(node).includes('professionalManager.errors.loadBookings'))[0]
+    assert.ok(alert)
+    findAll(alert, node => node.type === Button && node.props.children === 'common.retry')[0].props.onClick()
+    assert.match(timelineRequests.at(-1).url, /status=in_progress/, 'retry keeps the selected filter')
+    timelineRequests.at(-1).resolve(page(['new', 'new-2']))
+    await settle()
+    assert.deepEqual(board().props.bookings.map(b => b._id), ['new', 'new-2'])
+    assert.equal(logged.length, 1, 'only the one real failure is logged')
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch; console.error = previousConsoleError }
 })

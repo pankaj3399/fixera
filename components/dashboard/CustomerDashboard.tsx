@@ -104,22 +104,48 @@ interface ListState {
   items: Booking[]
   page: number
   totalPages: number
-  total: number
-  statusCounts: Record<string, number>
-  serviceCounts: Record<string, number>
+  /**
+   * Server totals and facets. null = unknown: not loaded yet, or the last
+   * request failed. Unknown is shown as "—" (or no count), never as 0, and
+   * never as the previous query's numbers.
+   */
+  total: number | null
+  statusCounts: Record<string, number> | null
+  serviceCounts: Record<string, number> | null
+  /** Service filter options; kept on failure so the filter stays usable. */
   distinctServices: string[]
+  /** Filters (not the page) of the query the totals and counts belong to. */
+  queryKey: string | null
   loading: boolean
   error: string | null
 }
+
+/**
+ * A failed list keeps its requested page (Retry repeats it) and its service
+ * options, but its rows, pager, total and facet counts become unknown: they
+ * described an earlier query, not the one that failed.
+ */
+const failedListState = (prev: ListState, page: number, error: string): ListState => ({
+  ...prev,
+  items: [],
+  page,
+  totalPages: 1,
+  total: null,
+  statusCounts: null,
+  serviceCounts: null,
+  loading: false,
+  error,
+})
 
 const initialListState: ListState = {
   items: [],
   page: 1,
   totalPages: 1,
-  total: 0,
-  statusCounts: {},
-  serviceCounts: {},
+  total: null,
+  statusCounts: null,
+  serviceCounts: null,
   distinctServices: [],
+  queryKey: null,
   loading: false,
   error: null,
 }
@@ -192,7 +218,12 @@ export default function CustomerDashboard() {
   ) => {
     const setState = kind === "quotes" ? setQuotes : setBookings
     const requestId = ++latestListRequest.current[kind]
-    setState((prev) => ({ ...prev, loading: true, error: null }))
+    const queryKey = JSON.stringify([opts.status, opts.service, opts.search.trim(), kind === "bookings" ? opts.address.trim() : ""])
+    // Another page of the same query keeps its totals while loading; a new
+    // filter makes them unknown until its own response arrives.
+    setState((prev) => (prev.queryKey === queryKey
+      ? { ...prev, loading: true, error: null }
+      : { ...prev, total: null, statusCounts: null, serviceCounts: null, queryKey, loading: true, error: null }))
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
@@ -221,7 +252,7 @@ export default function CustomerDashboard() {
       if (requestId !== latestListRequest.current[kind]) return
       if (!response.ok || !data.success) {
         // Remember the page that failed, so Retry repeats that request.
-        setState((prev) => ({ ...prev, page: opts.page, loading: false, error: getErrorText(data, t("customerDashboard.loadFailed")) }))
+        setState((prev) => failedListState(prev, opts.page, getErrorText(data, t("customerDashboard.loadFailed"))))
         return
       }
       setState({
@@ -232,12 +263,13 @@ export default function CustomerDashboard() {
         statusCounts: data.statusCounts || {},
         serviceCounts: data.serviceCounts || {},
         distinctServices: Array.isArray(data.distinctServices) ? data.distinctServices : [],
+        queryKey,
         loading: false,
         error: null,
       })
     } catch (err) {
       if (requestId !== latestListRequest.current[kind]) return
-      setState((prev) => ({ ...prev, page: opts.page, loading: false, error: getErrorText(err, t("customerDashboard.loadFailed")) }))
+      setState((prev) => failedListState(prev, opts.page, getErrorText(err, t("customerDashboard.loadFailed"))))
     }
   }, [getErrorText, t])
 
@@ -340,11 +372,17 @@ export default function CustomerDashboard() {
   )
   const visibleSelectedCount = comparisonBookings.length
 
-  // Summary stats from server totals (never page-derived).
-  const totalCompleted = facetCount(bookings.statusCounts, "completed")
-  const totalClosed = totalCompleted
-    + facetCount(bookings.statusCounts, "cancelled")
-    + facetCount(bookings.statusCounts, "refunded")
+  // Summary stats from server totals (never page-derived). A figure whose
+  // inputs are unknown (first load, or a failed list) shows "—", not 0.
+  const UNKNOWN = "—"
+  const totalCompleted = bookings.statusCounts ? facetCount(bookings.statusCounts, "completed") : null
+  const totalClosed = bookings.statusCounts
+    ? facetCount(bookings.statusCounts, "completed")
+      + facetCount(bookings.statusCounts, "cancelled")
+      + facetCount(bookings.statusCounts, "refunded")
+    : null
+  const summaryTotal = bookings.total != null && quotes.total != null ? bookings.total + quotes.total : null
+  const summaryActive = bookings.total != null && totalClosed != null ? bookings.total - totalClosed : null
 
   const gotoQuotesPage = (page: number) => {
     void fetchList("quotes", { page, status: quoteStatusFilter, service: quoteServiceFilter, search: debouncedQuoteSearch, address: "" })
@@ -364,7 +402,7 @@ export default function CustomerDashboard() {
     setServiceFilter: (v: string) => void,
     placeholder: string,
     services: string[],
-    counts: Record<string, number>,
+    counts: Record<string, number> | null,
   ) => (
     <div className="flex flex-col sm:flex-row gap-4 mb-4">
       <div className="relative flex-1">
@@ -389,7 +427,9 @@ export default function CustomerDashboard() {
               <SelectItem key={opt.id} value={opt.id}>
                 {opt.id === "all"
                   ? t("common.all")
-                  : `${statusLabel(opt.id)} (${statusOptionCount(counts, opt.id)})`}
+                  : counts
+                    ? `${statusLabel(opt.id)} (${statusOptionCount(counts, opt.id)})`
+                    : statusLabel(opt.id)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -539,10 +579,10 @@ export default function CustomerDashboard() {
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="my_bookings" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                {t("customerDashboard.tabs.myBookings")} {bookings.total > 0 && `(${bookings.total})`}
+                {t("customerDashboard.tabs.myBookings")} {bookings.total != null && bookings.total > 0 && `(${bookings.total})`}
               </TabsTrigger>
               <TabsTrigger value="my_quotes" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                {t("customerDashboard.tabs.myQuotes")} {quotes.total > 0 && `(${quotes.total})`}
+                {t("customerDashboard.tabs.myQuotes")} {quotes.total != null && quotes.total > 0 && `(${quotes.total})`}
               </TabsTrigger>
               <TabsTrigger value="action_needed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 {t("customerDashboard.tabs.actionNeeded")} {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
@@ -561,7 +601,7 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.totalHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-indigo-900">{bookings.total + quotes.total}</p>
+                  <p className="text-3xl font-semibold text-indigo-900">{summaryTotal ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
 
@@ -574,7 +614,7 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.activeHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-emerald-900">{bookings.total - totalClosed}</p>
+                  <p className="text-3xl font-semibold text-emerald-900">{summaryActive ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
 
@@ -587,7 +627,7 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.completedHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-teal-900">{totalCompleted}</p>
+                  <p className="text-3xl font-semibold text-teal-900">{totalCompleted ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
             </div>

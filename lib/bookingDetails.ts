@@ -61,6 +61,15 @@ export function buildQuoteAnchors(pathname: string, search: string | URLSearchPa
  */
 export function pushQuotationVersionUrl(href: string, win: Window = window): void {
   const oldURL = win.location.href;
+  // Compare the resolved target first: re-selecting the URL already shown
+  // must not add a history entry (Back would then need an extra click).
+  let target: string;
+  try {
+    target = new URL(href, oldURL).href;
+  } catch {
+    return;
+  }
+  if (target === oldURL) return;
   win.history.pushState(null, "", href);
   const newURL = win.location.href;
   if (oldURL === newURL) return;

@@ -198,13 +198,18 @@ function ProfileContent() {
   const [usernameSaving, setUsernameSaving] = useState(false)
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const usernameAbortRef = useRef<AbortController | null>(null)
-  // Cancels a debounced or in-flight availability check so an older response
-  // can never overwrite the state of the name now in the field.
+  const usernameSuggestAbortRef = useRef<AbortController | null>(null)
+  // Cancels a debounced or in-flight availability check and an in-flight
+  // Suggest request, so an older response can never overwrite the name now in
+  // the field or reach a closed editor (typing, a picked suggestion, Cancel
+  // and Save all go through here).
   const cancelPendingUsernameCheck = () => {
     if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
     usernameTimerRef.current = null
     if (usernameAbortRef.current) usernameAbortRef.current.abort()
     usernameAbortRef.current = null
+    if (usernameSuggestAbortRef.current) usernameSuggestAbortRef.current.abort()
+    usernameSuggestAbortRef.current = null
   }
   // Leaving the editor (Cancel or a successful save) drops any pending check
   // and its results, so reopening never shows a stale status or suggestions.
@@ -1925,17 +1930,30 @@ function ProfileContent() {
                               variant="outline"
                               size="sm"
                               onClick={async () => {
+                                // Supersedes an earlier Suggest. A pending availability check
+                                // of the typed name stays until suggestions actually replace it.
+                                usernameSuggestAbortRef.current?.abort()
+                                const controller = new AbortController()
+                                usernameSuggestAbortRef.current = controller
+                                const isCurrent = () => !controller.signal.aborted && usernameSuggestAbortRef.current === controller
                                 try {
                                   const qs = buildUsernameSuggestionParams(businessInfo)
-                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include' })
+                                  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include', signal: controller.signal })
                                   const data = await res.json()
-                                  if (data.suggestions?.length) {
+                                  if (!isCurrent()) return
+                                  usernameSuggestAbortRef.current = null
+                                  if (!res.ok || !data?.success) { toast.error(t('toasts.suggestionsFailed')); return }
+                                  if (Array.isArray(data.suggestions) && data.suggestions.length) {
                                     cancelPendingUsernameCheck()
                                     setUsernameSuggestions(data.suggestions)
                                     setUsername(data.suggestions[0])
                                     setUsernameCheck({ available: true })
                                   }
-                                } catch { toast.error(t('toasts.suggestionsFailed')) }
+                                } catch {
+                                  if (!isCurrent()) return
+                                  usernameSuggestAbortRef.current = null
+                                  toast.error(t('toasts.suggestionsFailed'))
+                                }
                               }}
                             >
                               {t('business.suggest')}
@@ -1968,6 +1986,8 @@ function ProfileContent() {
                               size="sm"
                               disabled={usernameSaving || !username || username.length < 3 || usernameCheck.available !== true}
                               onClick={async () => {
+                                // A late Suggest must not swap the name being saved.
+                                cancelPendingUsernameCheck()
                                 setUsernameSaving(true)
                                 try {
                                   const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/username`, {

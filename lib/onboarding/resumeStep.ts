@@ -26,6 +26,15 @@ export const normalizeOnboardingStep = (step: number): number => {
   return sorted[sorted.length - 1];
 };
 
+/**
+ * Reads a `?step=` value. Only a plain non-negative integer (`3`, `03`) is a
+ * step; anything else (`7junk`, `3.5`, `-1`, `1e2`, ` 3`, empty) counts as
+ * absent, so it never suppresses the saved-profile resume. A valid number is
+ * returned as written; normalizeOnboardingStep clamps it (0 -> 1, 99 -> 7).
+ */
+export const parseOnboardingStepParam = (value: string | null | undefined): number | null =>
+  typeof value === 'string' && /^\d+$/.test(value) ? Number.parseInt(value, 10) : null;
+
 export interface OnboardingResumeProfile {
   idProofUrl?: string;
   idCountryOfIssue?: string;
