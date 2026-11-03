@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { useGoogleMaps } from "@/hooks/useGoogleMaps";
-import { shouldSkipBlurCommit } from "@/lib/address/blurCommitGuard";
+import { DROPDOWN_SELECTION_GRACE_MS, shouldSkipBlurCommit } from "@/lib/address/blurCommitGuard";
 
 export interface PlaceData {
   formatted_address: string;
@@ -142,15 +142,20 @@ export default function AddressAutocomplete({
   // Validate on blur - only for manually typed addresses
   const handleBlur = async () => {
     // A pointer-down inside the Google suggestion dropdown precedes both the
-    // input blur and place_changed: the blur belongs to a selection in
-    // flight, so skip it — place_changed commits once with full placeData.
-    // A selection committed mid-validation (version drift) or already
-    // committed for this input wins the same way.
+    // input blur and place_changed: the blur may belong to a selection in
+    // flight, so give place_changed a short window to commit first. A
+    // pointer-down that commits nothing (scrollbar, footer) then falls
+    // through to normal validation of the typed text. A selection committed
+    // mid-validation (version drift) or already committed for this input
+    // wins the same way.
     const inputVersionAtBlur = inputVersionRef.current;
     const dropdownPointerArmed = dropdownPointerDownRef.current;
     dropdownPointerDownRef.current = false;
+    if (dropdownPointerArmed) {
+      await new Promise((resolve) => setTimeout(resolve, DROPDOWN_SELECTION_GRACE_MS));
+    }
     if (shouldSkipBlurCommit({
-      dropdownPointerArmed,
+      dropdownPointerArmed: false,
       inputVersionAtBlur,
       currentInputVersion: inputVersionRef.current,
       selectionCommitted: selectedFromDropdownRef.current,

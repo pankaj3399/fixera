@@ -198,6 +198,14 @@ function ProfileContent() {
   const [usernameSaving, setUsernameSaving] = useState(false)
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const usernameAbortRef = useRef<AbortController | null>(null)
+  // Cancels a debounced or in-flight availability check so an older response
+  // can never overwrite the state of the name now in the field.
+  const cancelPendingUsernameCheck = () => {
+    if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
+    usernameTimerRef.current = null
+    if (usernameAbortRef.current) usernameAbortRef.current.abort()
+    usernameAbortRef.current = null
+  }
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
@@ -1883,8 +1891,7 @@ function ProfileContent() {
                               onChange={(e) => {
                                 const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
                                 setUsername(val)
-                                if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
-                                if (usernameAbortRef.current) usernameAbortRef.current.abort()
+                                cancelPendingUsernameCheck()
                                 if (!val || val.length < 3) { setUsernameCheck({}); return }
                                 setUsernameCheck({ checking: true })
                                 usernameTimerRef.current = setTimeout(async () => {
@@ -1893,6 +1900,8 @@ function ProfileContent() {
                                   try {
                                     const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/check-username/${encodeURIComponent(val)}`, { credentials: 'include', signal: controller.signal })
                                     const data = await res.json()
+                                    // Superseded by a newer edit or a chosen suggestion.
+                                    if (controller.signal.aborted || usernameAbortRef.current !== controller) return
                                     setUsernameCheck({
                                       available: data.available,
                                       reason: data.available
@@ -1900,7 +1909,7 @@ function ProfileContent() {
                                         : getErrorText({ msg: data.reason }, t('toasts.usernameCheckFailed')),
                                     })
                                   } catch (err: unknown) {
-                                    if (err instanceof Error && err.name === 'AbortError') return
+                                    if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return
                                     setUsernameCheck({ reason: t('toasts.usernameCheckFailed') })
                                   }
                                 }, 500)
@@ -1917,6 +1926,7 @@ function ProfileContent() {
                                   const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/generate-username${qs}`, { credentials: 'include' })
                                   const data = await res.json()
                                   if (data.suggestions?.length) {
+                                    cancelPendingUsernameCheck()
                                     setUsernameSuggestions(data.suggestions)
                                     setUsername(data.suggestions[0])
                                     setUsernameCheck({ available: true })
@@ -1942,7 +1952,7 @@ function ProfileContent() {
                           {usernameSuggestions.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {usernameSuggestions.map((s) => (
-                                <button key={s} type="button" onClick={() => { setUsername(s); setUsernameCheck({ available: true }) }}
+                                <button key={s} type="button" onClick={() => { cancelPendingUsernameCheck(); setUsername(s); setUsernameCheck({ available: true }) }}
                                   className={`text-xs px-3 py-1 rounded-full border ${username === s ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
                                   {s}
                                 </button>

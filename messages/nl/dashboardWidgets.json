@@ -473,6 +473,8 @@
     "colPayoutDate": "Uitbetalingsdatum",
     "colPayoutRefund": "Uitbetaling / terugbetaling",
     "colActions": "Snelle acties",
-    "colDetails": "Details"
+    "colDetails": "Details",
+    "bookingsTableLabel": "Boekingen",
+    "quotesTableLabel": "Offertes"
   }
 }

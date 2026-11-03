@@ -37,3 +37,24 @@ test('quote table displays the pinned customer total including VAT, with tags', 
   assert.doesNotMatch(html, /EUR 300.00/)
   assert.match(html, /Verified/)
 })
+test('booking table never shows an amount due as the paid price', () => {
+  const due = { totalWithVat: 1210, currency: 'EUR', status: 'pending' }
+  for (const status of ['quote_accepted', 'payment_pending']) {
+    assert.doesNotMatch(render(SharedBookingsTable, { _id: 'b1', status, payment: { ...due, status: 'authorized' } }, 'customer'), /EUR 1210.00/)
+  }
+  // A later milestone's open checkout replaced booking.payment.
+  assert.doesNotMatch(render(SharedBookingsTable, { _id: 'b1', status: 'in_progress', payment: due }, 'customer'), /EUR 1210.00/)
+  assert.match(render(SharedBookingsTable, { _id: 'b1', status: 'booked', payment: { ...due, status: 'authorized' } }, 'customer'), /EUR 1210.00/)
+})
+test('quote table shows a dash, not the pre-VAT net, for a priced version without a recorded total', () => {
+  const priced = { version: 2, totalAmount: 300, currency: 'EUR', pricingLines: [{ description: 'Work', price: 300, vatRate: 21 }] }
+  const html = render(SharedQuotesTable, { _id: 'b1', status: 'quoted', currentQuoteVersion: 2, quoteVersions: [priced] }, 'customer')
+  assert.doesNotMatch(html, /EUR 300.00/)
+  // Legacy versions without pricingLines keep the totalAmount fallback (0% VAT).
+  const legacy = render(SharedQuotesTable, { _id: 'b1', status: 'quoted', currentQuoteVersion: 2, quoteVersions: [{ version: 2, totalAmount: 300, currency: 'EUR' }] }, 'customer')
+  assert.match(legacy, /EUR 300.00/)
+})
+test('both dashboard tables have an accessible name', () => {
+  assert.match(render(SharedBookingsTable, { _id: 'b1', status: 'completed' }, 'customer'), /<table[^>]*aria-label="Bookings"/)
+  assert.match(render(SharedQuotesTable, { _id: 'b1', status: 'quoted' }, 'professional'), /<table[^>]*aria-label="Quotations"/)
+})

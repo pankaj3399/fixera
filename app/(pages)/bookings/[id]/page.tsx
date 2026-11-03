@@ -3405,26 +3405,29 @@ function BookingDetailContent() {
                 )}
 
                 {/* Professional: View submitted quotation (read-only) + Edit button */}
-                {user?.role === "professional" && booking.status === "quoted" && hasQuotationVersions && currentVersion && !showQuotationWizard && (
+                {user?.role === "professional" && booking.status === "quoted" && hasQuotationVersions && authoritativeVersion && !showQuotationWizard && (
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-blue-900">{t("quotation.yourQuotation", { version: authoritativeVersion?.version ?? currentVersion.version })}</h3>
+                      {/* Summary and Edit share the authoritative version, so a
+                          pinned #quotation-vN hash never mixes another version's
+                          terms under this heading. */}
+                      <h3 className="text-sm font-semibold text-blue-900">{t("quotation.yourQuotation", { version: authoritativeVersion.version })}</h3>
                       <Button onClick={() => setShowQuotationWizard(true)} variant="outline" size="sm">
                         <FileText className="h-4 w-4 mr-2" />
                         {t("quotation.edit")}
                       </Button>
                     </div>
                     <div className="bg-white rounded-lg p-3 space-y-2 text-sm">
-                      <p><span className="text-gray-500">{t("quotation.scopeLabel")}</span> {currentVersion.scope}</p>
+                      <p><span className="text-gray-500">{t("quotation.scopeLabel")}</span> {authoritativeVersion.scope}</p>
                       <p>
                         <span className="text-gray-500">{t("quotation.netTotal")}</span>{' '}
-                        <strong>{formatMoney(currentVersion.totalAmount, currentVersion.currency || 'EUR')}</strong>
+                        <strong>{formatMoney(authoritativeVersion.totalAmount, authoritativeVersion.currency || 'EUR')}</strong>
                       </p>
                       <p>
                         <span className="text-gray-500">{t("quotation.totalInclVatLabel")}</span>{' '}
-                        <strong>{formatMoney(calculateQuoteVersionVatTotals(currentVersion).total, currentVersion.currency || 'EUR')}</strong>
+                        <strong>{formatMoney(calculateQuoteVersionVatTotals(authoritativeVersion).total, authoritativeVersion.currency || 'EUR')}</strong>
                       </p>
-                      <p><span className="text-gray-500">{t("quotation.validUntilLabel")}</span> {formatValidUntilLabel(currentVersion?.validUntil, intl, t("common.notAvailable"))}</p>
+                      <p><span className="text-gray-500">{t("quotation.validUntilLabel")}</span> {formatValidUntilLabel(authoritativeVersion.validUntil, intl, t("common.notAvailable"))}</p>
                       <p className="text-xs text-gray-500">{t("quotation.waitingForCustomer")}</p>
                     </div>
                   </div>

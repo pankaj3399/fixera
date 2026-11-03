@@ -39,3 +39,17 @@ test('resend restarts the full window and formats mm:ss', () => {
   assert.equal(formatOtpCooldown(61), '1:01')
   assert.equal(formatOtpCooldown(0), '0:00')
 })
+
+test('deadline-based countdown follows wall-clock time, not interval ticks', async () => {
+  const { otpResendDeadline, otpResendStateAt } = await import('../lib/auth/signupOtpCooldown.ts')
+  const start = 1_000_000
+  const deadline = otpResendDeadline(start)
+  assert.equal(deadline, start + 120_000)
+  assert.deepEqual(otpResendStateAt(deadline, start), { disabled: true, remainingSeconds: 120 })
+  assert.deepEqual(otpResendStateAt(deadline, start + 500), { disabled: true, remainingSeconds: 120 })
+  assert.deepEqual(otpResendStateAt(deadline, start + 119_001), { disabled: true, remainingSeconds: 1 })
+  // A hidden tab that ticked rarely still unlocks exactly when the window ends.
+  assert.deepEqual(otpResendStateAt(deadline, start + 120_000), { disabled: false, remainingSeconds: 0 })
+  assert.deepEqual(otpResendStateAt(deadline, start + 600_000), { disabled: false, remainingSeconds: 0 })
+  assert.deepEqual(otpResendStateAt(null, start), { disabled: false, remainingSeconds: 0 })
+})

@@ -473,6 +473,8 @@
     "colPayoutDate": "Date de versement",
     "colPayoutRefund": "Versement / remboursement",
     "colActions": "Actions rapides",
-    "colDetails": "Détails"
+    "colDetails": "Détails",
+    "bookingsTableLabel": "Réservations",
+    "quotesTableLabel": "Devis"
   }
 }

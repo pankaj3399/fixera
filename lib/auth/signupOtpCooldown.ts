@@ -34,6 +34,26 @@ export function restartOtpResend(): OtpResendState {
   return initialOtpResendState();
 }
 
+/**
+ * Deadline (epoch ms) for a cooldown started at `now`. Countdowns derive the
+ * remaining time from this deadline rather than counting interval ticks, so
+ * throttled timers in a hidden tab cannot stretch the wait past the window.
+ */
+export function otpResendDeadline(now: number = Date.now()): number {
+  return now + SIGNUP_OTP_RESEND_COOLDOWN_SECONDS * 1000;
+}
+
+/** Resend state at `now` for a deadline; `null` means no cooldown running. */
+export function otpResendStateAt(deadline: number | null, now: number = Date.now()): OtpResendState {
+  if (deadline == null || !Number.isFinite(deadline)) {
+    return { disabled: false, remainingSeconds: 0 };
+  }
+  const remainingSeconds = Math.max(0, Math.ceil((deadline - now) / 1000));
+  return remainingSeconds > 0
+    ? { disabled: true, remainingSeconds }
+    : { disabled: false, remainingSeconds: 0 };
+}
+
 /** mm:ss label for the resend countdown. */
 export function formatOtpCooldown(totalSeconds: number): string {
   const clamped = Math.max(0, Math.floor(totalSeconds));

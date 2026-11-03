@@ -9,10 +9,9 @@ import { Mail, Phone, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 import {
-  restartOtpResend,
-  tickOtpResend,
   formatOtpCooldown,
-  type OtpResendState,
+  otpResendDeadline,
+  otpResendStateAt,
 } from "@/lib/auth/signupOtpCooldown"
 
 interface VerificationComponentProps {
@@ -29,16 +28,23 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   const [phoneVerified, setPhoneVerified] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   // Resend cooldown (120s, UX only — OTP validity is server-side). Both
-  // channels share the DualVerificationComponent cooldown semantics.
-  const [emailResend, setEmailResend] = useState<OtpResendState>({ disabled: false, remainingSeconds: 0 })
-  const [phoneResend, setPhoneResend] = useState<OtpResendState>({ disabled: false, remainingSeconds: 0 })
+  // channels share the DualVerificationComponent cooldown semantics. The
+  // remaining time derives from a wall-clock deadline, so throttled timers
+  // in a hidden tab never extend the wait.
+  const [emailResendDeadline, setEmailResendDeadline] = useState<number | null>(null)
+  const [phoneResendDeadline, setPhoneResendDeadline] = useState<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const emailResend = otpResendStateAt(emailResendDeadline, now)
+  const phoneResend = otpResendStateAt(phoneResendDeadline, now)
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setEmailResend((prev) => tickOtpResend(prev))
-      setPhoneResend((prev) => tickOtpResend(prev))
-    }, 1000)
-    return () => clearInterval(timer)
+    const tick = () => setNow(Date.now())
+    const timer = setInterval(tick, 1000)
+    document.addEventListener("visibilitychange", tick)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener("visibilitychange", tick)
+    }
   }, [])
 
   const handleEmailVerification = async () => {
@@ -98,7 +104,8 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   const resendEmailOtp = async () => {
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-email-otp`, { email })
-      setEmailResend(restartOtpResend())
+      setEmailResendDeadline(otpResendDeadline())
+      setNow(Date.now())
       toast.success(t("verification.emailResent"))
     } catch {
       toast.error(t("verification.emailResendFailed"))
@@ -108,7 +115,8 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   const resendPhoneOtp = async () => {
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-phone-otp`, { phone })
-      setPhoneResend(restartOtpResend())
+      setPhoneResendDeadline(otpResendDeadline())
+      setNow(Date.now())
       toast.success(t("verification.phoneResent"))
     } catch {
       toast.error(t("verification.phoneResendFailed"))

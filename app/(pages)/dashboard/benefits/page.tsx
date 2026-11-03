@@ -17,6 +17,9 @@ import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import ReferralCard from "@/components/dashboard/ReferralCard"
 import BacklinkCard from "@/components/dashboard/BacklinkCard"
 
+/** Upper bound for the savings summary request; it must never hang the card. */
+const SAVINGS_TIMEOUT_MS = 10_000
+
 type CustomerBenefitsResponse = {
   loyaltyStatus?: {
     level?: string
@@ -125,6 +128,9 @@ export default function BenefitsPage() {
   const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(null)
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
   const [savingsData, setSavingsData] = useState<SavingsSummaryResponse | null>(null)
+  // Savings load independently of the page skeleton: a failed load shows its
+  // own error instead of the "no savings yet" message.
+  const [savingsStatus, setSavingsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -166,6 +172,42 @@ export default function BenefitsPage() {
 
     const controller = new AbortController()
 
+    const loadSavings = async (headers: HeadersInit) => {
+      setSavingsStatus("loading")
+      const timeoutController = new AbortController()
+      const abortOnUnmount = () => timeoutController.abort()
+      controller.signal.addEventListener("abort", abortOnUnmount)
+      const timeout = setTimeout(() => timeoutController.abort(), SAVINGS_TIMEOUT_MS)
+      try {
+        const savingsResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/savings/summary`, {
+          credentials: "include",
+          headers,
+          signal: timeoutController.signal,
+        })
+        let savingsPayload: { success?: boolean; data?: SavingsSummaryResponse } | null = null
+        try {
+          savingsPayload = await savingsResponse.json()
+        } catch (error) {
+          console.error("Failed to parse savings summary response:", error)
+        }
+        if (controller.signal.aborted) return
+        if (savingsResponse.ok && savingsPayload?.success) {
+          setSavingsData(savingsPayload.data ?? null)
+          setSavingsStatus("ready")
+        } else {
+          console.error("Savings summary request failed:", savingsResponse.status)
+          setSavingsStatus("error")
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        console.error("Failed to fetch savings data:", error)
+        setSavingsStatus("error")
+      } finally {
+        clearTimeout(timeout)
+        controller.signal.removeEventListener("abort", abortOnUnmount)
+      }
+    }
+
     const load = async () => {
       setPageLoading(true)
       const headers = benefitsAuthHeaders()
@@ -180,6 +222,10 @@ export default function BenefitsPage() {
         }
       }
 
+      // Savings never hold the page skeleton; they settle on their own with a
+      // bounded timeout and an explicit error state.
+      if (user.role === "customer") void loadSavings(headers)
+
       const [benefitsResult, referralResult] = await Promise.allSettled([
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${benefitsEndpoint}`, {
           credentials: "include",
@@ -192,22 +238,6 @@ export default function BenefitsPage() {
           signal: controller.signal,
         }),
       ])
-
-      if (user.role === "customer") {
-        try {
-          const savingsResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/savings/summary`, {
-            credentials: "include",
-            headers,
-            signal: controller.signal,
-          })
-          const savingsPayload = await readJsonSafely(savingsResponse)
-          if (!controller.signal.aborted && savingsResponse.ok && savingsPayload?.success) {
-            setSavingsData(savingsPayload.data ?? null)
-          }
-        } catch (error) {
-          if ((error as Error)?.name !== 'AbortError') console.error("Failed to fetch savings data:", error)
-        }
-      }
 
       if (controller.signal.aborted) return
 
@@ -387,7 +417,14 @@ export default function BenefitsPage() {
               <CardDescription>{t("benefits.savings.subtitle")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!savingsData || savingsData.settledBookingCount === 0 ? (
+              {savingsStatus === "loading" || savingsStatus === "idle" ? (
+                <div className="space-y-2" aria-busy="true">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : savingsStatus === "error" ? (
+                <p role="alert" className="text-sm text-rose-700">{t("benefits.savings.loadFailed")}</p>
+              ) : !savingsData || savingsData.settledBookingCount === 0 ? (
                 <p className="text-sm text-slate-600">{t("benefits.savings.noSavingsYet")}</p>
               ) : (
                 <>

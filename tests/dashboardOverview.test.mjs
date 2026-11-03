@@ -20,11 +20,13 @@ test('snapshot titles prefer the booking-time snapshot over the live project', (
   const titles = resolveSnapshotTitles({
     project: { _id: 'p1', title: 'Live mutated title' },
     bookingSnapshot: {
-      project: { id: 'p1', title: 'Snapshot title' },
+      project: { id: 'snap-p1', title: 'Snapshot title' },
       selectedSubproject: { title: 'Snapshot subproject' },
     },
   })
   assert.equal(titles.titleSource, 'booking_snapshot')
+  // The snapshot id wins; a fallback to the live _id would read 'p1'.
+  assert.equal(titles.projectId, 'snap-p1')
   assert.equal(titles.projectTitle, 'Snapshot title')
   assert.equal(titles.subprojectTitle, 'Snapshot subproject')
 })

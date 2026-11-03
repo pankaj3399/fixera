@@ -142,6 +142,7 @@ export default function CustomerDashboard() {
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
   const [actionBookings, setActionBookings] = useState<ActionNeededBooking[]>([])
   const [actionsLoading, setActionsLoading] = useState(false)
+  const [actionsError, setActionsError] = useState<string | null>(null)
 
   // Filter state
   const [quoteSearch, setQuoteSearch] = useState("")
@@ -156,7 +157,9 @@ export default function CustomerDashboard() {
   const [addressFilter, setAddressFilter] = useState("")
   const [debouncedAddressFilter, setDebouncedAddressFilter] = useState("")
 
-  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set())
+  // Selected quotes keep their row data, so a comparison can span pages even
+  // though each page load replaces quotes.items.
+  const [selectedQuotes, setSelectedQuotes] = useState<Map<string, Booking>>(new Map())
   const [showComparison, setShowComparison] = useState(false)
   const comparisonCleanupRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -180,11 +183,15 @@ export default function CustomerDashboard() {
     return () => clearTimeout(timer)
   }, [addressFilter])
 
+  // Per-list request counters: only the newest request for a list may write
+  // its rows, counts and pager (older, slower responses are discarded).
+  const latestListRequest = useRef({ quotes: 0, bookings: 0 })
   const fetchList = useCallback(async (
     kind: "quotes" | "bookings",
     opts: { page: number; status: string; service: string; search: string; address: string },
   ) => {
     const setState = kind === "quotes" ? setQuotes : setBookings
+    const requestId = ++latestListRequest.current[kind]
     setState((prev) => ({ ...prev, loading: true, error: null }))
     try {
       const token = getAuthToken()
@@ -211,6 +218,7 @@ export default function CustomerDashboard() {
         { credentials: "include", headers }
       )
       const data = await response.json()
+      if (requestId !== latestListRequest.current[kind]) return
       if (!response.ok || !data.success) {
         setState((prev) => ({ ...prev, loading: false, error: getErrorText(data, t("customerDashboard.loadFailed")) }))
         return
@@ -227,6 +235,7 @@ export default function CustomerDashboard() {
         error: null,
       })
     } catch (err) {
+      if (requestId !== latestListRequest.current[kind]) return
       setState((prev) => ({ ...prev, loading: false, error: getErrorText(err, t("customerDashboard.loadFailed")) }))
     }
   }, [getErrorText, t])
@@ -246,6 +255,7 @@ export default function CustomerDashboard() {
   useEffect(() => {
     const loadActions = async () => {
       setActionsLoading(true)
+      setActionsError(null)
       try {
         const token = getAuthToken()
         const headers: Record<string, string> = {}
@@ -261,13 +271,17 @@ export default function CustomerDashboard() {
         )
         const payload = await response.json()
         if (response.ok && payload.success) setActionBookings(payload.bookings || [])
-      } catch {
-        // non-blocking
+        else setActionsError(getErrorText(payload, t("customerDashboard.loadFailed")))
+      } catch (err) {
+        // A failed load must not masquerade as "no actions".
+        setActionsError(getErrorText(err, t("customerDashboard.loadFailed")))
       } finally {
         setActionsLoading(false)
       }
     }
     void loadActions()
+    // Mount-only load; the message helpers only format a failure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -304,25 +318,24 @@ export default function CustomerDashboard() {
     }, [])
   }, [warrantyClaims, t])
 
-  const toggleQuoteSelection = useCallback((bookingId: string) => {
-    setSelectedQuoteIds(prev => {
-      const next = new Set(prev)
-      if (next.has(bookingId)) next.delete(bookingId)
-      else next.add(bookingId)
+  const toggleQuoteSelection = useCallback((booking: Booking) => {
+    setSelectedQuotes(prev => {
+      const next = new Map(prev)
+      if (next.has(booking._id)) next.delete(booking._id)
+      else next.set(booking._id, booking)
       return next
     })
   }, [])
 
   const comparisonBookings = useMemo(
-    () => quotes.items
-      .filter(b => selectedQuoteIds.has(b._id))
+    () => Array.from(selectedQuotes.values())
       .map((b) => ({
         _id: b._id,
         professional: b.professional ?? undefined,
         rfqData: b.rfqData,
         status: b.status,
       })),
-    [quotes.items, selectedQuoteIds]
+    [selectedQuotes]
   )
   const visibleSelectedCount = comparisonBookings.length
 
@@ -666,8 +679,8 @@ export default function CustomerDashboard() {
                       {quotes.items.map((booking) => (
                         <label key={booking._id} className="flex items-center gap-1.5 text-xs text-gray-600">
                           <Checkbox
-                            checked={selectedQuoteIds.has(booking._id)}
-                            onCheckedChange={() => toggleQuoteSelection(booking._id)}
+                            checked={selectedQuotes.has(booking._id)}
+                            onCheckedChange={() => toggleQuoteSelection(booking)}
                             aria-label={t("customerDashboard.selectForComparison", { title: booking.bookingNumber || booking._id })}
                           />
                           {booking.bookingNumber || booking._id}
@@ -694,7 +707,12 @@ export default function CustomerDashboard() {
           {/* Action Needed Tab */}
           <TabsContent value="action_needed" className="space-y-4">
             {actionsLoading && renderLoadingSkeleton()}
-            {!actionsLoading && actionItems.length === 0 && warrantyActionItems.length === 0 && (
+            {!actionsLoading && actionsError && (
+              <Card className="border-rose-200 bg-rose-50">
+                <CardContent role="alert" className="py-4 text-sm text-rose-700">{actionsError}</CardContent>
+              </Card>
+            )}
+            {!actionsLoading && !actionsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
               renderEmptyState(t("customerDashboard.emptyActions"))
             )}
             {!actionsLoading && (actionItems.length > 0 || warrantyActionItems.length > 0) && (
@@ -723,7 +741,7 @@ export default function CustomerDashboard() {
               setShowComparison(open)
               if (!open) {
                 if (comparisonCleanupRef.current) clearTimeout(comparisonCleanupRef.current)
-                comparisonCleanupRef.current = setTimeout(() => setSelectedQuoteIds(new Set()), 300)
+                comparisonCleanupRef.current = setTimeout(() => setSelectedQuotes(new Map()), 300)
               }
             }}
             bookings={comparisonBookings}

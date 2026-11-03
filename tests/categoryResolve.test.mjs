@@ -37,5 +37,10 @@ test('catalog country prefers geo cookie, then browser region, then home', () =>
   assert.equal(resolveCatalogCountry(null, 'nl-NL'), 'NL')
   assert.equal(resolveCatalogCountry(undefined, 'fr-BE'), 'BE')
   assert.equal(resolveCatalogCountry(null, 'en'), CATALOG_HOME_COUNTRY)
+  // Extension subtags are not regions: "-ca" is the calendar key here.
+  assert.equal(resolveCatalogCountry(null, 'en-u-ca-gregory'), CATALOG_HOME_COUNTRY)
+  assert.equal(resolveCatalogCountry(null, 'nl-BE-u-ca-gregory'), 'BE')
+  assert.equal(resolveCatalogCountry(null, 'zh-Hant-TW'), 'TW')
+  assert.equal(resolveCatalogCountry(null, 'en-x-ca'), CATALOG_HOME_COUNTRY)
   assert.equal(resolveCatalogCountry('xx!', 'yy'), CATALOG_HOME_COUNTRY)
 })

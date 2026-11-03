@@ -1518,13 +1518,19 @@ export default function BookingPaymentPage() {
           >
             <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
           </Link>
-          <button
-            type="button"
-            onClick={() => setScheduleStep(true)}
-            className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
-          >
-            <span aria-hidden="true">←</span> {t('paymentPage.previousToSchedule')}
-          </button>
+          {/* Once a start date is saved, checkout moves the booking to
+              payment_pending (where the schedule endpoint rejects changes) and
+              a fresh visit never loads schedule proposals: only offer the way
+              back while scheduling is still open. */}
+          {!booking?.scheduledStartDate && (
+            <button
+              type="button"
+              onClick={() => setScheduleStep(true)}
+              className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+            >
+              <span aria-hidden="true">←</span> {t('paymentPage.previousToSchedule')}
+            </button>
+          )}
         </div>
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Header */}

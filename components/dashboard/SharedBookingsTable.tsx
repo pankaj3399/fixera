@@ -86,7 +86,18 @@ interface Props {
   viewLabel: string
 }
 
+const UNPAID_BOOKING_STATUSES = new Set(["quote_accepted", "payment_pending"])
+const UNPAID_PAYMENT_STATUSES = new Set(["pending", "failed"])
+
+/**
+ * Paid price of a booking row. Awaiting-payment bookings and pending/failed
+ * payments (including a later milestone's open checkout) only carry the
+ * amount due, so they render as not recorded — never as paid.
+ */
 function paidPriceOf(booking: SharedBookingRow): { amount: number | null; currency: string | null; source: "recorded" | "not_recorded" } {
+  if (UNPAID_BOOKING_STATUSES.has(booking.status) || UNPAID_PAYMENT_STATUSES.has(String(booking.payment?.status))) {
+    return { amount: null, currency: null, source: "not_recorded" }
+  }
   const payment = booking.payment
   const amount = payment?.totalWithVat ?? payment?.amount ?? null
   if (typeof amount !== "number" || !Number.isFinite(amount)) {
@@ -95,6 +106,7 @@ function paidPriceOf(booking: SharedBookingRow): { amount: number | null; curren
   return { amount, currency: payment?.currency || "EUR", source: "recorded" }
 }
 
+/** Sum of approved/settled extra costs, or not recorded when none exist. */
 function completionAdditionOf(booking: SharedBookingRow): { amount: number | null; currency: string | null; source: "recorded" | "not_recorded" } {
   const entries = Array.isArray(booking.extraCosts) ? booking.extraCosts : []
   const completed = entries.filter((entry) =>
@@ -118,6 +130,10 @@ function isSafeHttpUrl(url: string | null | undefined): boolean {
   }
 }
 
+/**
+ * Shared bookings table for the customer and professional dashboards. Every
+ * value comes from recorded booking data; unknown values render as a dash.
+ */
 export default function SharedBookingsTable({
   bookings,
   viewerRole,
@@ -137,7 +153,7 @@ export default function SharedBookingsTable({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white/90">
-      <table className="min-w-full text-xs">
+      <table className="min-w-full text-xs" aria-label={th.bookingsTableLabel}>
         <thead className="bg-slate-50 text-gray-600 text-[11px] uppercase tracking-wide">
           <tr>
             <th className="px-3 py-2.5 text-left">{th.project}</th>

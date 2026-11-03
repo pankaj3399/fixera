@@ -554,7 +554,7 @@ function ChatContent() {
 
   if (loading || loadingConversations) {
     return (
-      <div className="h-[calc(100dvh-var(--header-offset,4rem))] lg:h-[calc(100dvh-var(--header-offset,4rem)-3rem)] flex bg-white">
+      <div className="h-[calc(100dvh-var(--header-offset,4rem))] lg:h-[calc(100dvh-var(--header-offset,4rem)-3rem-2px)] flex bg-white">
         {/* Left Panel - Conversation List Skeleton */}
         <div className="w-full md:w-80 md:min-w-[320px] border-r border-slate-200 flex flex-col p-4 space-y-4">
           <Skeleton className="h-10 w-full rounded-lg" />
@@ -605,7 +605,7 @@ function ChatContent() {
   }
 
   return (
-    <div className="h-[calc(100dvh-var(--header-offset,4rem))] lg:h-[calc(100dvh-var(--header-offset,4rem)-3rem)] flex bg-white">
+    <div className="h-[calc(100dvh-var(--header-offset,4rem))] lg:h-[calc(100dvh-var(--header-offset,4rem)-3rem-2px)] flex bg-white">
       {/* Left Panel - Conversation List */}
       <div
         className={cn(

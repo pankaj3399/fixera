@@ -26,3 +26,12 @@ export function shouldSkipBlurCommit(snapshot: BlurCommitSnapshot): boolean {
   if (snapshot.selectionCommitted) return true;
   return false;
 }
+
+/**
+ * How long a blur that followed a dropdown pointer-down waits for
+ * `place_changed`. A pointer-down that commits a place (suggestion click)
+ * bumps the input version within this window; one that does not (dropdown
+ * scrollbar, footer) falls through to normal blur validation of the typed
+ * text, so the parent's validity can never stay stale.
+ */
+export const DROPDOWN_SELECTION_GRACE_MS = 300;

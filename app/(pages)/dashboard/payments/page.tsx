@@ -2,7 +2,7 @@
 
 import { apiErrorFromBody } from '@/lib/apiErrors';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -197,7 +197,11 @@ function CustomerPaymentsView() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Only the latest request may write rows/summary/pages: a slower response
+  // for an older filter must never overwrite the current query's results.
+  const latestPaymentsRequest = useRef(0);
   const fetchPayments = useCallback(async () => {
+    const requestId = ++latestPaymentsRequest.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -216,14 +220,16 @@ function CustomerPaymentsView() {
       if (!response.ok || !payload.success) {
         throw apiErrorFromBody(payload, t('payments.loadFailed'), { status: response.status });
       }
+      if (requestId !== latestPaymentsRequest.current) return;
 
       setPayments(payload.data.payments);
       setSummary(payload.data.summary);
       setTotalPages(payload.data.pagination.totalPages || 1);
     } catch (err) {
+      if (requestId !== latestPaymentsRequest.current) return;
       setError(getErrorText(err, t('payments.loadFailed')));
     } finally {
-      setIsLoading(false);
+      if (requestId === latestPaymentsRequest.current) setIsLoading(false);
     }
   }, [API_URL, getErrorText, page, statusFilter, debouncedSearch, serviceFilter, t]);
 

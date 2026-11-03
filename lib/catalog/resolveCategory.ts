@@ -52,12 +52,25 @@ export function resolveCatalogCountry(
 ): string {
   const geo = typeof geoCountry === "string" ? geoCountry.trim().toUpperCase() : "";
   if (geo && /^[A-Z]{2}$/.test(geo)) return geo;
-  const match =
-    typeof language === "string"
-      ? language.match(/[-_]([A-Za-z]{2})(?:[-_;]|$)/)
-      : null;
-  const region = match?.[1]?.toUpperCase();
-  return region && /^[A-Z]{2}$/.test(region) ? region : fallback;
+  const region = languageTagRegion(language);
+  return region ?? fallback;
+}
+
+/**
+ * Region subtag of a BCP 47 language tag ("nl-NL" -> "NL", "zh-Hant-TW" ->
+ * "TW"). Only subtags before the first singleton are considered, so
+ * extension/private-use subtags such as the calendar key in
+ * "en-u-ca-gregory" are never mistaken for a region.
+ */
+function languageTagRegion(language: unknown): string | undefined {
+  if (typeof language !== "string") return undefined;
+  const subtags = language.split(";")[0].trim().split(/[-_]/);
+  for (let i = 1; i < subtags.length; i++) {
+    const subtag = subtags[i];
+    if (subtag.length === 1) break; // extension (u, t, ...) or private use (x)
+    if (/^[A-Za-z]{2}$/.test(subtag)) return subtag.toUpperCase();
+  }
+  return undefined;
 }
 
 export const CATALOG_HOME_COUNTRY = "BE";

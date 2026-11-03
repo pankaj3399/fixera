@@ -30,22 +30,53 @@ export interface OnboardingResumeProfile {
   idProofUrl?: string;
   idCountryOfIssue?: string;
   idExpirationDate?: string;
-  businessInfo?: { companyName?: string };
+  businessInfo?: {
+    companyName?: string;
+    address?: string;
+    city?: string;
+    country?: string;
+    postalCode?: string;
+  };
   vatNumber?: string;
   username?: string;
 }
 
+const filled = (value: unknown): boolean => typeof value === 'string' && value.trim().length > 0;
+
+/** Mirrors the ID step's continue gate: proof, issuing country and expiry. */
+export const hasCompleteIdStep = (user: OnboardingResumeProfile): boolean =>
+  filled(user.idProofUrl) && filled(user.idCountryOfIssue) && filled(user.idExpirationDate);
+
 /**
- * Conservative resume point from saved profile data — never past step 3
- * without server-side Stripe verification (the Stripe step gates on it).
+ * Mirrors the business step's continue gate: company name, a 3–30 character
+ * username, VAT number and the full business address.
+ */
+export const hasCompleteBusinessStep = (user: OnboardingResumeProfile): boolean => {
+  const username = typeof user.username === 'string' ? user.username.trim() : '';
+  const info = user.businessInfo;
+  return (
+    filled(info?.companyName) &&
+    username.length >= 3 &&
+    username.length <= 30 &&
+    filled(user.vatNumber) &&
+    filled(info?.address) &&
+    filled(info?.city) &&
+    filled(info?.country) &&
+    filled(info?.postalCode)
+  );
+};
+
+/**
+ * Conservative resume point from saved profile data. A step counts as done
+ * only when the saved profile satisfies that step's own required fields, and
+ * the resume point is never past step 3 without server-side Stripe
+ * verification (the Stripe step gates on it).
  */
 export const deriveOnboardingResumeStep = (
   user: OnboardingResumeProfile | null | undefined,
 ): number => {
-  if (!user) return 1;
-  const hasId = Boolean(user.idProofUrl || user.idCountryOfIssue || user.idExpirationDate);
-  if (!hasId) return 1;
-  const hasBusiness = Boolean(user.businessInfo?.companyName || user.vatNumber || user.username);
-  if (!hasBusiness) return 2;
+  if (!user) return ONBOARDING_STEPS.ID_UPLOAD;
+  if (!hasCompleteIdStep(user)) return ONBOARDING_STEPS.ID_UPLOAD;
+  if (!hasCompleteBusinessStep(user)) return ONBOARDING_STEPS.BUSINESS_INFO;
   return ONBOARDING_STEPS.STRIPE;
 };

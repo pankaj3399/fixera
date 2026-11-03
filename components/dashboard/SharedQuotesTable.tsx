@@ -34,6 +34,7 @@ interface QuoteVersionEntry {
   validUntil?: string | null
   firstPossibleStart?: string | null
   executionDuration?: { value?: number; unit?: string } | string | null
+  pricingLines?: Array<{ price?: number | null; vatRate?: number | null }> | null
 }
 
 interface QuoteRowBooking extends SharedBookingRow {
@@ -74,10 +75,18 @@ function pinnedVersionDoc(booking: QuoteRowBooking): QuoteVersionEntry | null {
   return booking.quoteVersions.find((entry) => entry?.version === pinnedVersion) ?? null
 }
 
+/**
+ * VAT-inclusive price of the pinned quote version. `totalAmount` is the
+ * pre-VAT net, so it only stands in for legacy versions without pricingLines
+ * (treated as 0% VAT); a priced version without a recorded VAT-inclusive
+ * total renders as not recorded.
+ */
 function quotePriceOf(booking: QuoteRowBooking) {
   const pinned = pinnedVersionDoc(booking)
   if (pinned) {
-    const amount = pinned.customerTotals?.totalWithVat ?? pinned.totalWithVat ?? pinned.totalAmount ?? pinned.amount ?? null
+    const recordedGross = pinned.customerTotals?.totalWithVat ?? pinned.totalWithVat ?? null
+    const isLegacyUnpriced = !Array.isArray(pinned.pricingLines) || pinned.pricingLines.length === 0
+    const amount = recordedGross ?? (isLegacyUnpriced ? pinned.totalAmount ?? pinned.amount ?? null : null)
     if (typeof amount === "number" && Number.isFinite(amount)) {
       return { amount, currency: pinned.currency || booking.quote?.currency || "EUR", source: "recorded" as const }
     }
@@ -99,6 +108,10 @@ function durationLabel(value: { value?: number; unit?: string } | string | null 
   return DASH
 }
 
+/**
+ * Shared quotations table for the customer and professional dashboards,
+ * priced from the pinned (accepted or current) quote version only.
+ */
 export default function SharedQuotesTable({
   bookings,
   viewerRole,
@@ -115,7 +128,7 @@ export default function SharedQuotesTable({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white/90">
-      <table className="min-w-full text-xs">
+      <table className="min-w-full text-xs" aria-label={th.quotesTableLabel}>
         <thead className="bg-slate-50 text-gray-600 text-[11px] uppercase tracking-wide">
           <tr>
             <th className="px-3 py-2.5 text-left">{th.project}</th>

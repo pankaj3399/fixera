@@ -452,6 +452,7 @@
       "referral": "Verwijzingskorting",
       "referralUnknown": "Niet afzonderlijk geregistreerd",
       "noSavingsYet": "Nog geen geregistreerde besparingen — gebruikte kortingen verschijnen hier.",
+      "loadFailed": "We konden je besparingen nu niet laden. Probeer het later opnieuw.",
       "unknownCoverage": "{count, plural, one {# afgeronde boeking is} other {# afgeronde boekingen zijn}} van vóór de kortingsregistratie, dus het totaal is een ondergrens.",
       "excludedUncertain": "{count, plural, one {# boeking is} other {# boekingen zijn}} uitgesloten (gedeeltelijke terugbetaling of geschil: geen exacte kortingstoewijzing geregistreerd).",
       "bookingsCount": "{count, plural, one {# afgeronde boeking} other {# afgeronde boekingen}}"

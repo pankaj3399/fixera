@@ -40,5 +40,7 @@ export function useSharedTableText() {
     payoutRefund: pick("tables.colPayoutRefund", "Payout / refund"),
     actions: pick("tables.colActions", "Quick actions"),
     details: pick("tables.colDetails", "Details"),
+    bookingsTableLabel: pick("tables.bookingsTableLabel", "Bookings"),
+    quotesTableLabel: pick("tables.quotesTableLabel", "Quotations"),
   }
 }

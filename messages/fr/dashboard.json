@@ -452,6 +452,7 @@
       "referral": "Remise de parrainage",
       "referralUnknown": "Non enregistré séparément",
       "noSavingsYet": "Aucune économie enregistrée pour le moment — vos remises apparaîtront ici.",
+      "loadFailed": "Impossible de charger vos économies pour le moment. Veuillez réessayer plus tard.",
       "unknownCoverage": "{count, plural, one {# réservation réglée est} other {# réservations réglées sont}} antérieure(s) aux relevés de remises : le total est donc une borne basse.",
       "excludedUncertain": "{count, plural, one {# réservation est} other {# réservations sont}} exclue(s) (remboursement partiel ou litige : aucune répartition exacte enregistrée).",
       "bookingsCount": "{count, plural, one {# réservation réglée} other {# réservations réglées}}"

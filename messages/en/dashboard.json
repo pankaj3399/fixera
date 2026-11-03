@@ -452,6 +452,7 @@
       "referral": "Referral discount",
       "referralUnknown": "Not separately recorded",
       "noSavingsYet": "No recorded savings yet — discounts you use will show up here.",
+      "loadFailed": "We couldn't load your savings right now. Please try again later.",
       "unknownCoverage": "{count, plural, one {# settled booking predates} other {# settled bookings predate}} discount records, so the total is a lower bound.",
       "excludedUncertain": "{count, plural, one {# booking is} other {# bookings are}} excluded (partial refund or dispute: no exact discount allocation on record).",
       "bookingsCount": "{count, plural, one {# settled booking} other {# settled bookings}}"

@@ -244,6 +244,7 @@ function WarrantyClaimsContent() {
         { credentials: "include", headers, signal }
       )
       const payload = await response.json()
+      if (signal?.aborted) return
       if (!response.ok || !payload.success) {
         throw apiErrorFromBody(payload, t("warranty.loadClaimsFailed"), { status: response.status })
       }
@@ -270,7 +271,8 @@ function WarrantyClaimsContent() {
       setTotalClaims(0)
       setError(getErrorText(err, t("warranty.loadClaimsFailed")))
     } finally {
-      setIsLoadingClaims(false)
+      // An aborted request was superseded; its replacement owns the flag.
+      if (!signal?.aborted) setIsLoadingClaims(false)
     }
   }, [highlightedClaim, isAuthenticated, page, statusFilter, debouncedSearch, serviceFilter, user?.role, getErrorText, t])
 

@@ -22,7 +22,8 @@ import { getAuthToken, buildUsernameSuggestionParams } from '@/lib/utils'
 import { formatVATNumber, getVATCountryName, isEUVatNumber, validateVATFormat, validateVATWithAPI, updateProfessionalBusinessProfile, submitForVerification, COUNTRY_NAMES } from '@/lib/vatValidation'
 import { CompanyAvailability, DayAvailability, DEFAULT_COMPANY_AVAILABILITY } from '@/lib/defaults/companyAvailability'
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps'
-import { normalizeOnboardingStep, deriveOnboardingResumeStep } from '@/lib/onboarding/resumeStep'
+import { normalizeOnboardingStep } from '@/lib/onboarding/resumeStep'
+import { useOnboardingStepSync } from '@/lib/onboarding/useOnboardingStepSync'
 import Link from 'next/link'
 import { publicListPolicyLinks, PolicyLink } from '@/lib/cms'
 
@@ -1256,7 +1257,8 @@ function ProfessionalOnboardingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
-  const [currentStep, setCurrentStep] = useState(1)
+  // Step state + ?step= sync (URL deep link, then saved-profile resume).
+  const [currentStep, setCurrentStep] = useOnboardingStepSync({ loading, user, searchParams, pathname, router })
   const [stripeStatus, setStripeStatus] = useState<StripeAccountStatus | null>(null)
   const [stripeLoading, setStripeLoading] = useState(false)
   const [stripeError, setStripeError] = useState('')
@@ -1315,38 +1317,6 @@ function ProfessionalOnboardingContent() {
       router.push('/login')
     }
   }, [loading, isAuthenticated, router])
-
-  useEffect(() => {
-    const stepParam = searchParams.get('step')
-    if (!stepParam) return
-    const parsed = Number.parseInt(stepParam, 10)
-    if (Number.isNaN(parsed)) return
-    setCurrentStep(normalizeOnboardingStep(parsed))
-  }, [searchParams])
-
-  // Resume from saved profile data when no explicit ?step= is present, and
-  // keep the URL in sync so refresh/back restore the current step. The Stripe
-  // step itself still gates on server-side account status.
-  const resumeInitializedRef = useRef(false)
-  const [resumeResolved, setResumeResolved] = useState(false)
-  useEffect(() => {
-    if (loading || !user) return
-    if (!searchParams.get('step') && !resumeInitializedRef.current) {
-      resumeInitializedRef.current = true
-      setCurrentStep((prev) => (prev === 1 ? deriveOnboardingResumeStep(user) : prev))
-    }
-    // The URL may not be written until the resume decision is committed;
-    // otherwise ?step=1 makes the resume effect bail out on the next run.
-    setResumeResolved(true)
-  }, [loading, user, searchParams])
-
-  useEffect(() => {
-    if (!resumeResolved) return
-    const params = new URLSearchParams(searchParams.toString())
-    if (params.get('step') === String(currentStep)) return
-    params.set('step', String(currentStep))
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }, [currentStep, router, pathname, searchParams, resumeResolved])
 
   useEffect(() => {
     if (!loading && user?.role && user.role !== 'professional') {
