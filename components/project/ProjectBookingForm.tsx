@@ -1947,10 +1947,12 @@ export default function ProjectBookingForm({
       Date | { from: Date; to: Date } | ((date: Date) => boolean)
     > = [];
 
-    // For days mode, use a function matcher that applies the 4-hour threshold
-    // instead of disabling entire ranges
+    // For days mode, use a function matcher that applies the 3-free-hour day
+    // rule (lib/calendar/dayAvailability) instead of disabling entire ranges
     if (projectMode !== 'hours') {
-      // Create a function matcher that checks each day using the 4-hour threshold
+      // Server blockedDates already apply the same rule (backend
+      // MIN_FREE_HOURS_FOR_DAY_AVAILABILITY); the interval check covers the
+      // blocked ranges the client knows about.
       const rangeBlockMatcher = (date: Date) => {
         const dateKey = toLocalDateKey(date);
         if (blockedDates.blockedDates.includes(dateKey)) {

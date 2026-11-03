@@ -6,7 +6,9 @@
  *
  * This replaces the former "4 or more blocked hours ⇒ unavailable" rule,
  * which kept a 6-hour day with 2 free hours bookable (the reported 23/10
- * case). Must match the backend availability engine.
+ * case). Must match the backend availability engine
+ * (MIN_FREE_HOURS_FOR_DAY_AVAILABILITY = 3, fixera-server
+ * feat/final-touches-4), which also applies it to the blockedDates it sends.
  */
 export const MIN_FREE_WORKING_HOURS = 3;
 
