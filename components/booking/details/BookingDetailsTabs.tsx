@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl"
 import { ClipboardList, FileText, Gauge, History, Wallet } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { buildDetailHref, detailTabFromHash, resolveTabFromUrl, resolveDetailTab, type DetailTab } from "@/lib/bookingDetails"
+import { buildDetailHref, detailTabFromHash, pushQuotationVersionUrl, resolveTabFromUrl, resolveDetailTab, type DetailTab } from "@/lib/bookingDetails"
 import type { BookingDetailsDto, DetailViewerRole, RawBookingRecord } from "@/types/bookingDetails"
 import { OverviewPanel } from "./OverviewPanel"
 import { BookingPanel } from "./BookingDataPanel"
@@ -95,8 +95,16 @@ export function BookingDetailsTabs({
       const href = buildDetailHref(pathname, window.location.search, tab, keepHash)
       const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
       // Push (not replace) so browser back/forward walks real tab states while
-      // every existing query action flag stays in the URL.
-      if (current !== href) router.push(href, { scroll: false })
+      // every existing query action flag stays in the URL. A push that changes
+      // the hash (e.g. Overview's `#quotation-vN` link, or leaving a pinned
+      // version) must be announced like a fragment navigation: the booking
+      // page derives its pinned version (the Accept & Pay gate) from it, and
+      // router.push fires no hashchange.
+      if (current !== href) {
+        const nextHash = new URL(href, window.location.href).hash
+        if (nextHash !== currentHash) pushQuotationVersionUrl(href)
+        else router.push(href, { scroll: false })
+      }
       if (tab === "overview") window.scrollTo({ top: 0, behavior: "smooth" })
     },
     [pathname, router]

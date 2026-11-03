@@ -903,3 +903,124 @@ test('quotation tab: picking a historical version announces the hash change the 
     state.unmount()
   } finally { globalThis.window = previousWindow; globalThis.document = previousDocument }
 })
+
+test('booking page: the Accept & Pay gate follows Overview links and version history, current → old → current', async () => {
+  const previousWindow = globalThis.window
+  try {
+    const listeners = new Map()
+    const location = { href: 'http://localhost/bookings/test?tab=overview', hash: '', pathname: '/bookings/test', search: '?tab=overview' }
+    const setUrl = (url) => {
+      const next = new URL(url, location.href)
+      Object.assign(location, { href: next.href, hash: next.hash, pathname: next.pathname, search: next.search })
+    }
+    const fire = (event) => { for (const fn of listeners.get(event.type) || []) fn(event) }
+    globalThis.window = {
+      location,
+      // Like the browser: pushState changes the URL and fires no event.
+      history: { pushState(_state, _title, url) { setUrl(url) } },
+      addEventListener(type, fn) { listeners.set(type, [...(listeners.get(type) || []), fn]) },
+      removeEventListener(type, fn) { listeners.set(type, (listeners.get(type) || []).filter(f => f !== fn)) },
+      dispatchEvent(event) { fire(event) },
+      scrollTo() {},
+    }
+    const bookingDetails = await import('../lib/bookingDetails.ts')
+    const CURRENT = 2
+    // Stand-in for the booking page's pinned-version effect and its gate
+    // (app/(pages)/bookings/[id]/page.tsx): read on mount, hashchange, popstate.
+    let pinned = null
+    const readHash = () => { pinned = bookingDetails.resolveQuotationVersionFromUrl(window.location.hash, null, null) }
+    readHash()
+    window.addEventListener('hashchange', readHash)
+    window.addEventListener('popstate', readHash)
+    const acceptDisabled = () => pinned != null && pinned !== CURRENT
+    // A native same-document `<a href="#quotation-vN">` click: the browser
+    // updates the fragment and fires hashchange (version-history accordion).
+    const nativeFragmentClick = (hash) => {
+      const oldURL = location.href
+      setUrl(hash)
+      if (oldURL !== location.href) fire({ type: 'hashchange', oldURL, newURL: location.href })
+    }
+
+    // Next's router.push updates history with pushState: no hashchange/popstate.
+    const pushes = []
+    const router = { push(href) { pushes.push(href); window.history.pushState(null, '', href) } }
+    const state = hooks()
+    const file = '../components/booking/details/BookingDetailsTabs.tsx'
+    const { code } = transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+      filename: file, jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
+    })
+    const mocks = {
+      react: state.api,
+      'next/navigation': {
+        useRouter: () => router,
+        usePathname: () => location.pathname,
+        useSearchParams: () => new URLSearchParams(location.search),
+      },
+      'next-intl': { useTranslations: () => key => key },
+      'lucide-react': stubModule(),
+      '@/components/ui/tabs': stubModule(),
+      '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') },
+      '@/lib/bookingDetails': bookingDetails,
+      './OverviewPanel': stubModule(),
+      './BookingDataPanel': stubModule(),
+      './QuotationPanel': stubModule(),
+      './PaymentsPanel': stubModule(),
+      './ActivityPanel': stubModule(),
+      './DetailPrimitives': { useDetailT: () => (_key, fallback) => fallback },
+    }
+    const exports = {}
+    new Function('require', 'exports', code)(name => {
+      if (name in mocks) return mocks[name]
+      if (name.startsWith('@/') || name.startsWith('./')) throw new Error(`unmocked import ${name}`)
+      return require(name)
+    }, exports)
+    const payload = JSON.parse(readFileSync(new URL('./fixtures/bookingDetails/quoted-customer.json', import.meta.url), 'utf8'))
+    const render = () => state.render(() => exports.BookingDetailsTabs({ booking: payload.booking, details: payload.details, viewerRole: 'customer' }))
+    const tabs = () => findAll(render(), node => typeof node.props?.onValueChange === 'function')[0]
+    const overviewLink = () => findAll(render(), node => typeof node.props?.onSelectTab === 'function')[0]
+    // Exactly what OverviewPanel's quotation-number / "Open quotation
+    // details" links pass: the current version's anchor hash.
+    const overviewVersionHash = () => `#${bookingDetails.buildQuoteAnchors(location.pathname, location.search, CURRENT).version.split('#')[1]}`
+    render()
+    state.flush()
+    assert.equal(acceptDisabled(), false)
+
+    // 1. Version history (native anchors): current → old → current.
+    nativeFragmentClick('#quotation-v2')
+    assert.equal(pinned, 2); assert.equal(acceptDisabled(), false)
+    nativeFragmentClick('#quotation-v1')
+    assert.equal(pinned, 1); assert.equal(acceptDisabled(), true)
+    nativeFragmentClick('#quotation-v2')
+    assert.equal(pinned, 2); assert.equal(acceptDisabled(), false)
+
+    // 2. Quotation tab picks an old version, then the Overview tab and its
+    // current-version link bring the viewer back to the current version.
+    bookingDetails.pushQuotationVersionUrl('/bookings/test?tab=quotation#quotation-v1')
+    assert.equal(pinned, 1); assert.equal(acceptDisabled(), true)
+    tabs().props.onValueChange('overview')
+    assert.equal(location.hash, '')
+    assert.equal(pinned, null, 'the URL no longer pins a version, so neither does the page')
+    assert.equal(acceptDisabled(), false)
+    bookingDetails.pushQuotationVersionUrl('/bookings/test?tab=quotation#quotation-v1')
+    assert.equal(acceptDisabled(), true)
+    overviewLink().props.onSelectTab('quotation', overviewVersionHash())
+    assert.equal(location.hash, '#quotation-v2')
+    assert.equal(location.search, '?tab=quotation')
+    assert.equal(pinned, 2, 'the Overview link to the current version re-enables Accept & Pay')
+    assert.equal(acceptDisabled(), false)
+
+    // Same-URL tab selection pushes and announces nothing.
+    const before = pushes.length
+    let announced = 0
+    window.addEventListener('hashchange', () => { announced += 1 })
+    overviewLink().props.onSelectTab('quotation', '#quotation-v2')
+    assert.equal(announced, 0)
+    assert.equal(pushes.length, before)
+    // Switching between tabs that carry no hash still uses the router only.
+    tabs().props.onValueChange('payments')
+    tabs().props.onValueChange('activity')
+    assert.equal(location.search, '?tab=activity')
+    assert.equal(announced, 1, 'only leaving #quotation-v2 announced a hash change')
+    state.unmount()
+  } finally { globalThis.window = previousWindow }
+})
