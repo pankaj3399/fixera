@@ -1452,6 +1452,7 @@ async function mountProfile() {
     '@/lib/support/calendar': await import('../lib/support/calendar.ts'),
     '@/lib/support/dates': await import('../lib/support/dates.ts'),
     '@/lib/scheduleUtils': await import('../lib/scheduleUtils.ts'),
+    '@/lib/calendar/bookingEvents': await import('../lib/calendar/bookingEvents.ts'),
   })
   const Content = state.render(() => Page()).props.children.type
   state.reset()
@@ -1584,7 +1585,8 @@ test('admin support panel: an invalid recorded currency never throws; valid buck
       '@/components/ui/badge': stubModule(),
       '@/components/ui/card': stubModule(),
       '@/lib/utils': { authFetch },
-      '@/lib/professionalLevel': { getLevelColor: () => '' },
+      '@/components/dashboard/TierBadge': stubModule(),
+      '@/lib/tierColors': { useTierColors: () => ({ tierColor: () => '#6B7280', levelColor: () => '#6B7280' }) },
       '@/lib/anonymizedUsers': { isAnonymizedIdentity: () => false },
     })
     state.render(() => Panel({ conversationId: 'c1' }))

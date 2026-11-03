@@ -212,7 +212,8 @@ test('LevelUpPopup stays hidden without a level-up notification', () => {
 test('booking page wires cancellation/reschedule cards, warranty clarification and RFQ titles', () => {
   const page = readSource('../app/(pages)/bookings/[id]/page.tsx')
   assert.match(page, /<CancellationRequestCard/)
-  assert.match(page, /details\?\.cancellations\?\.\[0\]/)
+  // The DTO lists requests oldest first: the page selects the live/newest one.
+  assert.match(page, /selectCancellationRequest\(details\?\.cancellations\)/)
   assert.match(page, /<RescheduleRequestCard/)
   assert.match(page, /RESCHEDULE_DISPUTED/)
   assert.match(page, /proposalDeclineClarification/)
