@@ -77,3 +77,39 @@ export function buildAutoConversionPayload(draft: AutoConversionConfig): AutoCon
     defaultCountry: normalizeCountryCode(draft.defaultCountry) ?? AUTO_CONVERSION_FALLBACK_DEFAULT_COUNTRY,
   };
 }
+
+/**
+ * Card state: the admin's draft plus whether it has unsaved edits. The parent
+ * page hands the card a new `initial` object after every general settings
+ * save (the PATCH response re-serializes autoConversion), so a prop change
+ * alone must not wipe a dirty draft.
+ */
+export interface AutoConversionCardState {
+  draft: AutoConversionDraft;
+  dirty: boolean;
+  /** The `initial` prop the state was last synced with. */
+  source: unknown;
+}
+
+export function initAutoConversionCard(initial: unknown): AutoConversionCardState {
+  return { draft: hydrateAutoConversion(initial), dirty: false, source: initial };
+}
+
+/** Same object when `initial` is unchanged; a dirty draft survives a new `initial`. */
+export function syncAutoConversionCard(state: AutoConversionCardState, initial: unknown): AutoConversionCardState {
+  if (state.source === initial) return state;
+  if (state.dirty) return { ...state, source: initial };
+  return initAutoConversionCard(initial);
+}
+
+export function editAutoConversionCard(
+  state: AutoConversionCardState,
+  update: (draft: AutoConversionDraft) => AutoConversionDraft,
+): AutoConversionCardState {
+  return { ...state, draft: update(state.draft), dirty: true };
+}
+
+/** After a successful auto-conversion save: the stored value, clean. */
+export function savedAutoConversionCard(state: AutoConversionCardState, saved: unknown): AutoConversionCardState {
+  return { draft: hydrateAutoConversion(saved), dirty: false, source: state.source };
+}

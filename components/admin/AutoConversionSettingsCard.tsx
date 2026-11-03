@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Globe2, Loader2, Save } from "lucide-react"
 import { toast } from "sonner"
 import { messageFromApiBody } from "@/lib/apiErrors"
@@ -8,9 +8,13 @@ import { authFetch } from "@/lib/utils"
 import {
   ROLLOUT_COUNTRY_OPTIONS,
   buildAutoConversionPayload,
-  hydrateAutoConversion,
+  editAutoConversionCard,
+  initAutoConversionCard,
+  savedAutoConversionCard,
+  syncAutoConversionCard,
   toggleRolloutCountry,
   validateAutoConversionDraft,
+  type AutoConversionCardState,
   type AutoConversionDraft,
 } from "@/lib/admin/autoConversionSettings"
 import { Button } from "@/components/ui/button"
@@ -25,13 +29,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
  * country every other visitor is served as.
  */
 export default function AutoConversionSettingsCard({ initial }: { initial: unknown }) {
-  const [draft, setDraft] = useState<AutoConversionDraft>(() => hydrateAutoConversion(initial))
+  const [cardState, setCardState] = useState<AutoConversionCardState>(() => initAutoConversionCard(initial))
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState("")
 
-  useEffect(() => {
-    setDraft(hydrateAutoConversion(initial))
-  }, [initial])
+  // Re-hydrate from a new `initial` (adjusted during render) unless the admin
+  // has unsaved edits: saving the main settings form must not wipe them.
+  const synced = syncAutoConversionCard(cardState, initial)
+  if (synced !== cardState) setCardState(synced)
+  const draft = synced.draft
+  const setDraft = (update: (prev: AutoConversionDraft) => AutoConversionDraft) =>
+    setCardState((prev) => editAutoConversionCard(prev, update))
 
   const visibleCountries = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -65,7 +73,8 @@ export default function AutoConversionSettingsCard({ initial }: { initial: unkno
         toast.error(messageFromApiBody(json, "Failed to save auto-conversion settings"))
         return
       }
-      setDraft(hydrateAutoConversion(json?.data ?? buildAutoConversionPayload(draft)))
+      const saved = json?.data ?? buildAutoConversionPayload(draft)
+      setCardState((prev) => savedAutoConversionCard(prev, saved))
       toast.success("Auto-conversion settings saved. Visitors pick them up within a few minutes.")
     } catch {
       toast.error("Failed to save auto-conversion settings")
@@ -157,6 +166,11 @@ export default function AutoConversionSettingsCard({ initial }: { initial: unkno
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
           Save auto-conversion
         </Button>
+        {synced.dirty && (
+          <p role="status" className="text-sm text-amber-700">
+            Unsaved auto-conversion changes. They are saved only with “Save auto-conversion”.
+          </p>
+        )}
       </CardContent>
     </Card>
   )

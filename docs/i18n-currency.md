@@ -18,17 +18,54 @@ visitor's chosen language.
 (`x-fixera-locale`, `x-fixera-currency`) because cookies set on a response are
 not visible to the server render of that same request.
 
+First the middleware picks the **effective country** for the request (see
+"Auto-conversion roll-out" below). It is the geo country (`?geo=XX` on
+localhost/dev, else `x-vercel-ip-country`, else the `fixera_geo_country`
+cookie) for roll-out countries, and the admin's default country for everyone
+else.
+
 Locale order:
 
 1. `?lang=xx` (validated, also persists `NEXT_LOCALE` for 1 year)
 2. `NEXT_LOCALE` cookie (manual choice, 1 year)
-3. geo country: `NL→nl`, `FR/LU/MC→fr`, `BE→` top `Accept-Language` if it is
-   nl/fr, else Wallonia/Brussels region header → fr, else nl; `CH→` top
-   `Accept-Language` fr, else en; everything else → `en`
-4. `Accept-Language` (when there is no geo country)
+3. effective country: `NL→nl`, `FR/LU/MC→fr`, `BE→` top `Accept-Language` if
+   it is nl/fr, else Wallonia/Brussels region header (only when the effective
+   country is the detected one) → fr, else nl; `CH→` top `Accept-Language` fr,
+   else en; everything else → `en`
+4. `Accept-Language` (when there is no effective country)
 5. `en`
 
-Currency order: `NEXT_CURRENCY` → geo country (`lib/currency/countries.ts`) → `EUR`.
+Currency order: `NEXT_CURRENCY` → effective country (`lib/currency/countries.ts`) → `EUR`.
+
+Manual choices (`?lang=`, `NEXT_LOCALE`, `NEXT_CURRENCY`) always win over the
+roll-out.
+
+### Auto-conversion roll-out
+
+Super admin → Platform settings → Auto-conversion stores the roll-out
+countries and a default country (`GET /api/public/auto-conversion` →
+`{ success, data: { configured, enabledCountries, defaultCountry } }`).
+`lib/i18n/autoConversionLoader.ts` caches it per edge isolate and
+`resolveRequestCountry` (`lib/i18n/autoConversion.ts`) applies it:
+
+| Config state | Effective country | Geo cookies |
+| --- | --- | --- |
+| `configured` (fresh, or last good answer during an outage) | geo country if it is a roll-out country, else the default country | written |
+| `unconfigured` (`configured: false`, HTTP 404 = endpoint not deployed, or no `NEXT_PUBLIC_BACKEND_URL`) | geo country (auto-conversion everywhere) | written |
+| `unknown` (cold isolate with timeout/5xx/network error/unusable body, and no earlier answer) | the previous decision from the `fixera_geo_country` cookie, else the platform fallback `BE`; the geo country is never granted on its own | **not** written |
+
+Cache policy: a good answer is reused for 5 minutes; after a failure the last
+answer (or `unknown`) is kept and retried after 60 seconds; fetch timeout 1.5 s,
+3 s for an isolate's first fetch. An admin change therefore reaches visitors
+within about 5 minutes.
+
+The effective country reaches server renders on the first-party
+`x-fixera-content-country` request header. The middleware deletes any
+client-supplied value and then sets it; `lib/geo/contentCountryHeader.ts`
+(`readContentCountry`) reads it first and falls back to `x-vercel-ip-country`.
+The middleware still also overrides `x-vercel-ip-country` for older readers, but
+no reader relies on the host forwarding that override. CMS reads send both
+headers to the backend, which currently filters by `x-vercel-ip-country`.
 
 `Accept-Language` parsing (`i18n/localeResolution.ts`) ignores `q=0` entries,
 clamps numeric out-of-range weights into `0…1`, ignores malformed qvalues and
@@ -43,8 +80,13 @@ root layout's language). When the geo country is Belgium, the picker shows the
 Belgian flag for Dutch and French; geo cookies are read after mount so SSR and
 hydration markup cannot disagree.
 
-Middleware also keeps the legacy geo cookies for their existing consumers:
-`fixera_geo_country`, `fixera_geo_locale` (always `en|nl|fr`) and `geo_currency`.
+Middleware also keeps the legacy geo cookies for their existing consumers
+(site announcements, the category page, the switcher's suggestions):
+`fixera_geo_country` (the **effective** country — the admin default for
+visitors outside the roll-out, not necessarily their geo country),
+`fixera_geo_locale` (always `en|nl|fr`, derived from the effective country)
+and `geo_currency`. They are rewritten only from an authoritative config state
+(see the table above).
 
 Server code reads the resolved values with `getLocale()` (next-intl) or
 `getActiveCurrency()` (`lib/currency/server.ts`).

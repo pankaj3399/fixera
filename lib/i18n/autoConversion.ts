@@ -38,21 +38,43 @@ export function normalizeCountryList(value: unknown): string[] {
 }
 
 /**
- * Parse the public endpoint body. Returns null when the roll-out is not
- * configured (or the body is unusable): callers then keep today's behaviour of
- * auto-converting in every country.
+ * What the middleware knows about the roll-out:
+ * - `configured`: the backend returned the admin's roll-out (authoritative);
+ * - `unconfigured`: the backend says nothing is configured (authoritative):
+ *   today's behaviour, auto-conversion in every country;
+ * - `unknown`: no answer yet (cold isolate, timeout, outage, unusable body)
+ *   and no earlier answer to fall back on. This is NOT "unconfigured".
  */
-export function parseAutoConversionResponse(json: unknown): AutoConversionConfig | null {
+export type AutoConversionState =
+  | { status: "configured"; config: AutoConversionConfig }
+  | { status: "unconfigured" }
+  | { status: "unknown" };
+
+export const AUTO_CONVERSION_UNKNOWN: AutoConversionState = { status: "unknown" };
+export const AUTO_CONVERSION_UNCONFIGURED: AutoConversionState = { status: "unconfigured" };
+
+/** Parse the public endpoint body; null when it is not a usable answer. */
+export function parseAutoConversionState(json: unknown): AutoConversionState | null {
   if (!json || typeof json !== "object") return null;
   const body = json as { success?: unknown; data?: unknown };
   if (body.success !== true || !body.data || typeof body.data !== "object") return null;
   const data = body.data as { configured?: unknown; enabledCountries?: unknown; defaultCountry?: unknown };
+  if (data.configured === false) return AUTO_CONVERSION_UNCONFIGURED;
   if (data.configured !== true) return null;
   return {
-    enabledCountries: normalizeCountryList(data.enabledCountries),
-    defaultCountry:
-      normalizeCountryCode(data.defaultCountry) ?? AUTO_CONVERSION_FALLBACK_DEFAULT_COUNTRY,
+    status: "configured",
+    config: {
+      enabledCountries: normalizeCountryList(data.enabledCountries),
+      defaultCountry:
+        normalizeCountryCode(data.defaultCountry) ?? AUTO_CONVERSION_FALLBACK_DEFAULT_COUNTRY,
+    },
   };
+}
+
+/** The roll-out config from a body, or null when not configured/unusable. */
+export function parseAutoConversionResponse(json: unknown): AutoConversionConfig | null {
+  const state = parseAutoConversionState(json);
+  return state?.status === "configured" ? state.config : null;
 }
 
 export interface EffectiveCountry {
@@ -72,4 +94,40 @@ export function resolveEffectiveCountry(
     return { country: geo, autoConverted: true };
   }
   return { country: config.defaultCountry, autoConverted: false };
+}
+
+export interface RequestCountryDecision extends EffectiveCountry {
+  /**
+   * True when the decision follows an authoritative answer; only then may the
+   * middleware rewrite the geo cookies. While the config is unknown the
+   * previous decision is kept and nothing is persisted.
+   */
+  authoritative: boolean;
+}
+
+/**
+ * Country for one request. With an authoritative state this is
+ * resolveEffectiveCountry (roll-out countries keep their geo country, others
+ * get the default; unconfigured = everyone keeps their geo country). With an
+ * unknown state the visitor's geo country is never granted on its own:
+ * - the previous decision (the `fixera_geo_country` cookie the middleware
+ *   wrote from an authoritative answer) is kept, so a cold or slow isolate
+ *   does not flip a visitor between behaviours;
+ * - without one, the platform fallback default country is used for this
+ *   request only.
+ */
+export function resolveRequestCountry(
+  geoCountry: string | undefined,
+  previousCountry: string | undefined,
+  state: AutoConversionState,
+): RequestCountryDecision {
+  if (state.status === "configured") {
+    return { ...resolveEffectiveCountry(geoCountry, state.config), authoritative: true };
+  }
+  if (state.status === "unconfigured") {
+    return { ...resolveEffectiveCountry(geoCountry, null), authoritative: true };
+  }
+  const previous = normalizeCountryCode(previousCountry);
+  const country = previous ?? AUTO_CONVERSION_FALLBACK_DEFAULT_COUNTRY;
+  return { country, autoConverted: country === normalizeCountryCode(geoCountry), authoritative: false };
 }

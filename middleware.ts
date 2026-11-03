@@ -22,8 +22,12 @@ import {
   isSupportedCurrency,
   type CurrencyCode,
 } from "@/lib/currency";
-import { resolveEffectiveCountry } from "@/lib/i18n/autoConversion";
-import { loadAutoConversionConfig } from "@/lib/i18n/autoConversionLoader";
+import { resolveRequestCountry } from "@/lib/i18n/autoConversion";
+import { loadAutoConversionState } from "@/lib/i18n/autoConversionLoader";
+import {
+  CONTENT_COUNTRY_REQUEST_HEADER,
+  PLATFORM_COUNTRY_REQUEST_HEADER,
+} from "@/lib/geo/contentCountryHeader";
 
 /**
  * Locale/currency resolution (Booking.com style, no i18n routing).
@@ -33,11 +37,18 @@ import { loadAutoConversionConfig } from "@/lib/i18n/autoConversionLoader";
  *           Accept-Language)  >  Accept-Language  >  en.
  * Currency: NEXT_CURRENCY cookie  >  geo country  >  EUR.
  *
- * Auto-conversion roll-out (admin Platform settings): when configured, only
- * visitors from an enabled country get their own geo country; everyone else
- * is treated as the admin's default country for content, language and
- * currency. Manual language/currency choices still win. Unconfigured or
- * unreachable config keeps the behaviour above for every country.
+ * Auto-conversion roll-out (admin Platform settings, see
+ * docs/i18n-currency.md): when configured, only visitors from an enabled
+ * country get their own geo country; everyone else is treated as the admin's
+ * default country for content, language and currency. Manual language/currency
+ * choices still win. An authoritative "not configured" keeps the behaviour
+ * above for every country. While the config is unknown (cold isolate, backend
+ * outage) the previous decision (geo-country cookie) is kept, else the
+ * platform default country is used, and no geo cookie is rewritten.
+ *
+ * The effective country reaches server renders through the first-party
+ * `x-fixera-content-country` request header: any client-supplied value is
+ * deleted first, then the middleware sets it.
  *
  * The resolved values are forwarded as request headers because cookies set on
  * this response are not visible to the server render of the same request.
@@ -61,7 +72,7 @@ function setCookieIfChanged(
 export async function middleware(request: NextRequest) {
   // --- Geo country (unchanged consumers: site announcements + CMS filtering) ---
   // Vercel injects x-vercel-ip-country on deployed requests; locally it is absent.
-  const vercelCountry = (request.headers.get("x-vercel-ip-country") || "")
+  const vercelCountry = (request.headers.get(PLATFORM_COUNTRY_REQUEST_HEADER) || "")
     .trim()
     .toUpperCase()
     .slice(0, 2);
@@ -86,8 +97,12 @@ export async function middleware(request: NextRequest) {
     (existingCountry && /^[A-Z]{2}$/.test(existingCountry) && existingCountry) ||
     (allowGeoOverride ? "BE" : undefined);
 
-  const autoConversion = await loadAutoConversionConfig();
-  const { country } = resolveEffectiveCountry(detectedCountry || undefined, autoConversion);
+  const autoConversion = await loadAutoConversionState();
+  const { country, authoritative } = resolveRequestCountry(
+    detectedCountry || undefined,
+    existingCountry,
+    autoConversion,
+  );
   const usesDetectedCountry = country === detectedCountry;
 
   const acceptLanguage = request.headers.get("accept-language");
@@ -116,10 +131,16 @@ export async function middleware(request: NextRequest) {
     : geoCurrency;
 
   const requestHeaders = new Headers(request.headers);
-  // Server-side CMS reads filter by this header; outside the roll-out they
-  // must receive the default country's content.
-  if (country && country !== vercelCountry) {
-    requestHeaders.set("x-vercel-ip-country", country);
+  // Server-side CMS/catalog reads use the content country; outside the
+  // roll-out they must receive the default country's content. Never trust a
+  // client-supplied value of our own header.
+  requestHeaders.delete(CONTENT_COUNTRY_REQUEST_HEADER);
+  if (country) {
+    requestHeaders.set(CONTENT_COUNTRY_REQUEST_HEADER, country);
+    // Kept for readers that still use the platform header. Whether the host
+    // forwards a middleware override of its own x-vercel-* header unchanged
+    // is not relied upon by our readers.
+    if (country !== vercelCountry) requestHeaders.set(PLATFORM_COUNTRY_REQUEST_HEADER, country);
   }
   requestHeaders.set(LOCALE_REQUEST_HEADER, locale);
   requestHeaders.set(CURRENCY_REQUEST_HEADER, currency);
@@ -132,12 +153,16 @@ export async function middleware(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  if (country) {
-    setCookieIfChanged(response, request, GEO_COUNTRY_COOKIE, country, GEO_COOKIE_MAX_AGE);
+  // Geo cookies persist only decisions taken from an authoritative config, so
+  // an isolate that cannot reach the backend never overwrites them.
+  if (authoritative) {
+    if (country) {
+      setCookieIfChanged(response, request, GEO_COUNTRY_COOKIE, country, GEO_COOKIE_MAX_AGE);
+    }
+    // geo_locale is only ever en|nl|fr (consumers assume a supported locale).
+    setCookieIfChanged(response, request, GEO_LOCALE_COOKIE, geoLocale, GEO_COOKIE_MAX_AGE);
+    setCookieIfChanged(response, request, GEO_CURRENCY_COOKIE, geoCurrency, GEO_COOKIE_MAX_AGE);
   }
-  // geo_locale is only ever en|nl|fr (consumers assume a supported locale).
-  setCookieIfChanged(response, request, GEO_LOCALE_COOKIE, geoLocale, GEO_COOKIE_MAX_AGE);
-  setCookieIfChanged(response, request, GEO_CURRENCY_COOKIE, geoCurrency, GEO_COOKIE_MAX_AGE);
 
   if (manualLang) {
     setCookieIfChanged(response, request, LOCALE_COOKIE, manualLang, PREFERENCE_COOKIE_MAX_AGE);
