@@ -40,6 +40,7 @@
   },
   "priceModels": {
     "fixed": "Vast",
+    "unit": "Eenheid",
     "meter": "Meter",
     "m2": "m²",
     "hour": "Uur",
@@ -156,7 +157,7 @@
       "pricingOptions": "{count, plural, one {# prijsoptie} other {# prijsopties}}",
       "category": "Categorie: {category}",
       "adminFeedback": "Feedback van de beheerder:",
-      "service": "Service: {value}",
+      "service": "Dienst: {value}",
       "areaOfWork": "Werkgebied: {value}",
       "team": "Team: {value}",
       "minMembers": "Min {count} leden (overlap {overlap})",

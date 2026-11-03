@@ -170,6 +170,17 @@ export function facetCount(counts: Record<string, number> | null | undefined, ke
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
+/**
+ * Count shown next to a customer status-filter option. The payment-pending
+ * option queries the server alias `quote_accepted,payment_pending`, so its
+ * count is the sum of both facets: the number of rows the filter returns.
+ */
+export function statusOptionCount(counts: Record<string, number> | null | undefined, id: string): number {
+  return id === "payment_pending"
+    ? facetCount(counts, "payment_pending") + facetCount(counts, "quote_accepted")
+    : facetCount(counts, id)
+}
+
 /** Sum server status counts over a mode set (pending/finished cards). */
 export function sumStatusCounts(
   counts: Record<string, number> | null | undefined,
@@ -227,6 +238,32 @@ export function cheapestPriceByModelUnit(
   return Array.from(groups.values()).sort((a, b) =>
     a.model.localeCompare(b.model) || (a.unit || "").localeCompare(b.unit || ""),
   )
+}
+
+/**
+ * Translation key (proProjects namespace) for a recorded pricing-model or
+ * unit identifier such as `fixed`, `unit` or `m2`. Free-text values (an
+ * admin-configured pricing option name, or a unit already written for
+ * display like `m²`) return null so the caller shows them as recorded.
+ */
+export const PRICE_TOKEN_KEYS = {
+  fixed: "priceModels.fixed",
+  unit: "priceModels.unit",
+  meter: "priceModels.meter",
+  m2: "priceModels.m2",
+  hour: "priceModels.hour",
+  day: "priceModels.day",
+  room: "priceModels.room",
+} as const
+
+export type PriceTokenKey = (typeof PRICE_TOKEN_KEYS)[keyof typeof PRICE_TOKEN_KEYS]
+
+export function priceTokenKey(value: string | null | undefined): PriceTokenKey | null {
+  if (typeof value !== "string") return null
+  const normalized = value.trim().toLowerCase()
+  return Object.prototype.hasOwnProperty.call(PRICE_TOKEN_KEYS, normalized)
+    ? PRICE_TOKEN_KEYS[normalized as keyof typeof PRICE_TOKEN_KEYS]
+    : null
 }
 
 /** Elapsed hold days require a recorded hold transition, never updatedAt. */

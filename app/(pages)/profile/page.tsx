@@ -25,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAuthToken, buildUsernameSuggestionParams } from "@/lib/utils"
+import { getAuthToken, buildUsernameSuggestionParams, usernameCheckResult } from "@/lib/utils"
 import { EU_COUNTRIES } from "@/lib/countries"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
@@ -1902,15 +1902,11 @@ function ProfileContent() {
                                     const data = await res.json()
                                     // Superseded by a newer edit or a chosen suggestion.
                                     if (controller.signal.aborted || usernameAbortRef.current !== controller) return
-                                    setUsernameCheck({
-                                      available: data.available,
-                                      reason: data.available
-                                        ? data.reason
-                                        : getErrorText({ msg: data.reason }, t('toasts.usernameCheckFailed')),
-                                    })
+                                    setUsernameCheck(usernameCheckResult(data, (reason) =>
+                                      getErrorText({ msg: reason }, t('toasts.usernameCheckFailed'))))
                                   } catch (err: unknown) {
                                     if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return
-                                    setUsernameCheck({ reason: t('toasts.usernameCheckFailed') })
+                                    setUsernameCheck({ available: false, reason: t('toasts.usernameCheckFailed') })
                                   }
                                 }, 500)
                               }}

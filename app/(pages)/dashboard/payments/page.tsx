@@ -761,7 +761,10 @@ function ProfessionalPaymentsView() {
             </div>
 
             {txError && <p role="alert" className="text-sm text-red-600">{t('payments.loadFailed')}</p>}
-            {recentTransactions.length === 0 ? (
+            {txError ? null : recentTransactions.length === 0 && (txStatusFilter !== 'all' || txDebouncedSearch.trim()) ? (
+              // A filter or search matched nothing; the professional may still have transactions.
+              <p className="py-8 text-center text-sm text-gray-500">{t('payments.table.empty')}</p>
+            ) : recentTransactions.length === 0 ? (
               <div className="text-center py-8">
                 <svg className="mx-auto h-12 w-12 text-gray-400" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />

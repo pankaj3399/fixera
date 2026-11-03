@@ -511,9 +511,9 @@
       "amount": "Bedrag",
       "status": "Status",
       "date": "Datum",
-      "search": "Zoeken op boekingsnr., professional…",
-      "filterService": "Filteren op service",
-      "allServices": "Alle services",
+      "search": "Zoeken op boekingsnr., vakman…",
+      "filterService": "Filteren op dienst",
+      "allServices": "Alle diensten",
       "unknownDate": "—"
     },
     "status": {
@@ -552,7 +552,7 @@
       "recentTransactions": "Recente transacties",
       "noTransactions": "Nog geen transacties",
       "noTransactionsDescription": "Transacties verschijnen hier zodra je boekingen afrondt",
-      "pendingBookingsCount": "{count} openstaande uitbetalingen",
+      "pendingBookingsCount": "{count, plural, one {# openstaande uitbetaling} other {# openstaande uitbetalingen}}",
       "transferPending": "Overboeking in behandeling",
       "transferFailed": "Overboeking mislukt"
     }
@@ -614,7 +614,7 @@
       "customer2": "Gebruik de boekingspagina om voorstellen te accepteren of af te wijzen, oplossingen te bevestigen of te escaleren als het probleem blijft bestaan."
     },
     "search": "Zoeken op claim- of boekingsnr.…",
-    "filterService": "Filteren op service",
-    "allServices": "Alle services"
+    "filterService": "Filteren op dienst",
+    "allServices": "Alle diensten"
   }
 }

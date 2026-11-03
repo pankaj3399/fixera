@@ -3,44 +3,37 @@
 import { useTranslations } from "next-intl"
 
 /**
- * Shared bookings/quotations table headers. Reads dashboardWidgets keys when
- * present and falls back to English so the tables render before/without
- * translations. New keys must be mirrored in messages/{en,fr,nl} per i18n:check.
+ * Shared bookings/quotations table headers from the dashboardWidgets
+ * namespace (loaded for every request). Keys are typed from the English
+ * messages, so a misspelled key fails `tsc` instead of silently rendering an
+ * English fallback; new keys must be mirrored in messages/{en,fr,nl}.
  */
 export function useSharedTableText() {
   const t = useTranslations("dashboardWidgets")
-  const has = t.has as unknown as (key: string) => boolean
-  const pick = (key: string, fallback: string): string => {
-    try {
-      return has(key) ? (t as unknown as (k: string) => string)(key) : fallback
-    } catch {
-      return fallback
-    }
-  }
   return {
-    project: pick("tables.colProject", "Project / subproject"),
-    booking: pick("tables.colBooking", "Booking"),
-    quotation: pick("tables.colQuotation", "Quotation"),
-    address: pick("tables.colAddress", "Service address"),
-    professional: pick("tables.colProfessional", "Professional"),
-    customer: pick("tables.colCustomer", "Customer"),
-    orderDate: pick("tables.colOrderDate", "Order date"),
-    requested: pick("tables.colRequested", "Requested"),
-    planned: pick("tables.colPlanned", "Planned start / end"),
-    real: pick("tables.colReal", "Real start / end"),
-    priceModel: pick("tables.colPriceModel", "Price model"),
-    paidPrice: pick("tables.colPaidPrice", "Paid price"),
-    quoteDate: pick("tables.colQuoteDate", "Quote / expiry"),
-    firstStart: pick("tables.colFirstStart", "First start"),
-    duration: pick("tables.colDuration", "Duration"),
-    price: pick("tables.colPrice", "Price"),
-    status: pick("tables.colStatus", "Status"),
-    invoice: pick("tables.colInvoice", "Invoice"),
-    payoutDate: pick("tables.colPayoutDate", "Payout date"),
-    payoutRefund: pick("tables.colPayoutRefund", "Payout / refund"),
-    actions: pick("tables.colActions", "Quick actions"),
-    details: pick("tables.colDetails", "Details"),
-    bookingsTableLabel: pick("tables.bookingsTableLabel", "Bookings"),
-    quotesTableLabel: pick("tables.quotesTableLabel", "Quotations"),
+    project: t("tables.colProject"),
+    booking: t("tables.colBooking"),
+    quotation: t("tables.colQuotation"),
+    address: t("tables.colAddress"),
+    professional: t("tables.colProfessional"),
+    customer: t("tables.colCustomer"),
+    orderDate: t("tables.colOrderDate"),
+    requested: t("tables.colRequested"),
+    planned: t("tables.colPlanned"),
+    real: t("tables.colReal"),
+    priceModel: t("tables.colPriceModel"),
+    paidPrice: t("tables.colPaidPrice"),
+    quoteDate: t("tables.colQuoteDate"),
+    firstStart: t("tables.colFirstStart"),
+    duration: t("tables.colDuration"),
+    price: t("tables.colPrice"),
+    status: t("tables.colStatus"),
+    invoice: t("tables.colInvoice"),
+    payoutDate: t("tables.colPayoutDate"),
+    payoutRefund: t("tables.colPayoutRefund"),
+    actions: t("tables.colActions"),
+    details: t("tables.colDetails"),
+    bookingsTableLabel: t("tables.bookingsTableLabel"),
+    quotesTableLabel: t("tables.quotesTableLabel"),
   }
 }

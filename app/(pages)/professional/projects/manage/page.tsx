@@ -39,6 +39,7 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import ProjectCard from "@/components/dashboard/ProjectCard"
+import { priceTokenKey } from "@/lib/dashboardOverview"
 
 interface Project {
   _id: string
@@ -215,14 +216,21 @@ export default function ManageProjectsPage() {
   const formatProjectStatusLabel = (status: Project['status']) =>
     t(`manage.statusLabels.${formatProjectStatusKey(status)}`)
 
+  // Recorded identifiers (fixed, unit, m2, hour…) render translated; free-text
+  // option names and display-ready units stay as recorded.
+  const localizePriceToken = (value: string) => {
+    const key = priceTokenKey(value)
+    return key ? t(key) : value
+  }
+
   const cardLabels = {
     service: (value: string) => t('manage.card.service', { value }),
     areaOfWork: (value: string) => t('manage.card.areaOfWork', { value }),
     team: (value: string) => t('manage.card.team', { value }),
     minMembers: (count: number, overlap: string) => t('manage.card.minMembers', { count, overlap }),
-    priceModel: (value: string) => t('manage.card.priceModel', { value }),
+    priceModel: (value: string) => t('manage.card.priceModel', { value: localizePriceToken(value) }),
     startingFrom: (model: string, unit: string | null, price: string) =>
-      t('manage.card.startingFrom', { model, unit: unit ? `/${unit}` : '', price }),
+      t('manage.card.startingFrom', { model: localizePriceToken(model), unit: unit ? `/${localizePriceToken(unit)}` : '', price }),
     noRecordedPrice: t('manage.card.noRecordedPrice'),
     repeatDiscount: (percent: number) => t('manage.card.repeatDiscount', { percent }),
     counts: (subprojects: number, options: number, conditions: number) =>

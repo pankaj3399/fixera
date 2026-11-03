@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { stripeReturnPath } from '@/lib/constants/onboardingSteps';
 
 interface AccountStatus {
   onboardingCompleted?: boolean;
@@ -70,7 +71,7 @@ function StripeCompleteContent() {
   };
 
   const handleGoToDashboard = () => {
-    router.push(isFromOnboarding ? '/professional/onboarding?step=3' : '/dashboard');
+    router.push(stripeReturnPath(isFromOnboarding));
   };
 
   if (status === 'checking') {

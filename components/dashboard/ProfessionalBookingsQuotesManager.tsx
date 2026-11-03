@@ -426,8 +426,15 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     }
   }, [authLoading, isAuthenticated, router, user?.role])
 
+  // Only the newest list query may write rows, facets and the pager. A fresh
+  // (non-append) request supersedes every earlier one; a load-more request
+  // belongs to the query that was current when it started.
+  const latestBookingsRequestRef = useRef(0)
   const fetchBookings = useCallback(async (pageToLoad = 1, append = false) => {
     if (!isAuthenticated || user?.role !== "professional") return
+
+    const requestId = append ? latestBookingsRequestRef.current : ++latestBookingsRequestRef.current
+    const isCurrent = () => requestId === latestBookingsRequestRef.current
 
     if (append) {
       setIsLoadingMore(true)
@@ -435,6 +442,9 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     } else {
       setIsLoading(true)
       setError(null)
+      // Any in-flight load-more belongs to the superseded query.
+      setIsLoadingMore(false)
+      setLoadMoreError(null)
     }
 
     try {
@@ -471,6 +481,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         { credentials: "include", headers }
       )
       const data = await response.json()
+      if (!isCurrent()) return
 
       if (response.ok && data.success) {
         if (Array.isArray(data.distinctServices)) {
@@ -525,6 +536,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         }
       }
     } catch (fetchError) {
+      if (!isCurrent()) return
       console.error("Failed to fetch bookings:", fetchError)
       if (append) {
         setLoadMoreError(getErrorText(fetchError, t("professionalManager.errors.loadBookings")))
@@ -532,10 +544,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         setError(getErrorText(fetchError, t("professionalManager.errors.loadBookings")))
       }
     } finally {
-      if (append) {
-        setIsLoadingMore(false)
-      } else {
-        setIsLoading(false)
+      // A superseded request leaves its spinner to the request that replaced it.
+      if (isCurrent()) {
+        if (append) setIsLoadingMore(false)
+        else setIsLoading(false)
       }
     }
   }, [isAuthenticated, user?.role, mode, statusFilter, serviceFilter, debouncedSearch, debouncedCustomerNameFilter?.trim(), getErrorText, t])

@@ -228,7 +228,9 @@ export default function DashboardPage() {
     currency: string
     totalsByCurrency: Array<{ currency: string; totalEarnings: number; pendingEarnings: number; completedBookings: number; pendingBookings: number }>
   } | null>(null)
-  const [paymentSummaryLoading, setPaymentSummaryLoading] = useState(false)
+  // Starts loading: the professional cards render a skeleton, not "—"/"No
+  // reviews yet", before the summary effect runs. Other roles never render them.
+  const [paymentSummaryLoading, setPaymentSummaryLoading] = useState(true)
   const [paymentSummaryError, setPaymentSummaryError] = useState<string | null>(null)
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
   const [warrantyClaimsLoading, setWarrantyClaimsLoading] = useState(false)
@@ -1863,7 +1865,10 @@ export default function DashboardPage() {
               <CardContent>
                 {paymentSummaryLoading ? (
                   <Skeleton className="h-8 w-16" />
-                ) : paymentSummary?.avgRating != null ? (
+                ) : !paymentSummary ? (
+                  // The summary failed to load: unknown, not "no reviews".
+                  <p className="text-3xl font-semibold text-yellow-900">—</p>
+                ) : paymentSummary.avgRating != null ? (
                   <>
                     <p className="text-3xl font-semibold text-yellow-900">{paymentSummary.avgRating.toFixed(1)}</p>
                     <p className="mt-1 text-sm text-yellow-700">

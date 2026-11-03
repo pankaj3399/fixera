@@ -552,7 +552,7 @@
       "recentTransactions": "Transactions récentes",
       "noTransactions": "Aucune transaction pour l'instant",
       "noTransactionsDescription": "Les transactions apparaîtront ici dès que vous aurez terminé des réservations",
-      "pendingBookingsCount": "{count} versements en attente",
+      "pendingBookingsCount": "{count, plural, one {# versement en attente} other {# versements en attente}}",
       "transferPending": "Virement en attente",
       "transferFailed": "Virement échoué"
     }

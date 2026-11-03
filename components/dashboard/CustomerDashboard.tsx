@@ -28,7 +28,7 @@ import {
   CUSTOMER_QUOTE_STATUS_FILTERS,
   CUSTOMER_BOOKING_STATUS_FILTERS,
 } from "@/lib/dashboardBookingHelpers"
-import { facetCount } from "@/lib/dashboardOverview"
+import { facetCount, statusOptionCount } from "@/lib/dashboardOverview"
 import { getCustomerActionItems, type ActionItem, type ActionNeededBooking, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import SharedBookingsTable, { type SharedBookingRow } from "@/components/dashboard/SharedBookingsTable"
@@ -388,7 +388,7 @@ export default function CustomerDashboard() {
               <SelectItem key={opt.id} value={opt.id}>
                 {opt.id === "all"
                   ? t("common.all")
-                  : `${opt.id === "payment_pending" ? statusLabel("payment_pending") : statusLabel(opt.id)} (${facetCount(counts, opt.id)}${opt.id === "payment_pending" ? `+${facetCount(counts, "quote_accepted")}` : ""})`}
+                  : `${statusLabel(opt.id)} (${statusOptionCount(counts, opt.id)})`}
               </SelectItem>
             ))}
           </SelectContent>
@@ -406,6 +406,17 @@ export default function CustomerDashboard() {
         </Select>
       </div>
     </div>
+  )
+
+  // A failed list keeps its filters mounted (rendered by the caller) and offers
+  // a retry of the same page; stale rows from the previous query stay hidden.
+  const renderListError = (message: string, retry: () => void) => (
+    <Card className="bg-rose-50 border border-rose-100">
+      <CardContent role="alert" className="flex flex-col gap-3 py-4 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
+        <span>{message}</span>
+        <Button variant="outline" size="sm" onClick={retry}>{t("common.retry")}</Button>
+      </CardContent>
+    </Card>
   )
 
   const renderPager = (state: ListState, gotoPage: (page: number) => void) => (
@@ -581,13 +592,7 @@ export default function CustomerDashboard() {
             </div>
 
             {bookings.loading && renderLoadingSkeleton()}
-            {bookings.error && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookings.error}</CardContent>
-              </Card>
-            )}
-            {!bookings.error && (
-              <>
+            <>
                 {renderSearchFilters(
                   bookingSearch, setBookingSearch, debouncedBookingSearch,
                   bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
@@ -620,8 +625,9 @@ export default function CustomerDashboard() {
                     />
                   </div>
                 </div>
-                {!bookings.loading && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
-                {!bookings.loading && bookings.items.length > 0 && (
+                {!bookings.loading && bookings.error && renderListError(bookings.error, () => gotoBookingsPage(bookings.page))}
+                {!bookings.loading && !bookings.error && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
+                {!bookings.loading && !bookings.error && bookings.items.length > 0 && (
                   <>
                     <SharedBookingsTable
                       bookings={bookings.items}
@@ -639,19 +645,12 @@ export default function CustomerDashboard() {
                     {renderPager(bookings, gotoBookingsPage)}
                   </>
                 )}
-              </>
-            )}
+            </>
           </TabsContent>
 
           <TabsContent value="my_quotes" className="space-y-6">
             {quotes.loading && renderLoadingSkeleton()}
-            {!quotes.loading && quotes.error && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{quotes.error}</CardContent>
-              </Card>
-            )}
-            {!quotes.error && (
-              <>
+            <>
                 {renderSearchFilters(
                   quoteSearch, setQuoteSearch, debouncedQuoteSearch,
                   quoteStatusFilter, setQuoteStatusFilter, CUSTOMER_QUOTE_STATUS_FILTERS,
@@ -660,7 +659,8 @@ export default function CustomerDashboard() {
                   quotes.distinctServices,
                   quotes.statusCounts,
                 )}
-                {!quotes.loading && visibleSelectedCount >= 2 && (
+                {!quotes.loading && quotes.error && renderListError(quotes.error, () => gotoQuotesPage(quotes.page))}
+                {!quotes.loading && !quotes.error && visibleSelectedCount >= 2 && (
                   <div className="flex items-center gap-3">
                     <Button
                       size="sm"
@@ -672,8 +672,8 @@ export default function CustomerDashboard() {
                     </Button>
                   </div>
                 )}
-                {!quotes.loading && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
-                {!quotes.loading && quotes.items.length > 0 && (
+                {!quotes.loading && !quotes.error && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
+                {!quotes.loading && !quotes.error && quotes.items.length > 0 && (
                   <>
                     <div className="mb-2 flex flex-wrap gap-2">
                       {quotes.items.map((booking) => (
@@ -700,8 +700,7 @@ export default function CustomerDashboard() {
                     {renderPager(quotes, gotoQuotesPage)}
                   </>
                 )}
-              </>
-            )}
+            </>
           </TabsContent>
 
           {/* Action Needed Tab */}

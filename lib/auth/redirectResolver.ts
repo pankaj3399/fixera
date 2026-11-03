@@ -19,7 +19,9 @@ const SAFE_REDIRECT_BASE = 'http://fixera.local';
  */
 export function isSafeRedirectPath(value: unknown): value is string {
   if (typeof value !== 'string') return false;
-  const candidate = value.trim();
+  // Validate the exact string the caller will navigate to (never a trimmed
+  // copy): leading whitespace then fails the `startsWith('/')` check.
+  const candidate = value;
   if (candidate.length === 0 || candidate.length > 2048) return false;
   if (/[\0-\x1f\x7f]/.test(candidate)) return false;
   if (!candidate.startsWith('/')) return false;

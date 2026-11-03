@@ -85,7 +85,9 @@ export default function CategoryPage() {
         setError(t('servicesPage.errorMessage'));
         toast.error(t('servicesPage.toastError'));
       } finally {
-        setIsLoading(false);
+        // A superseded (aborted) run must not end the loading state of the
+        // request that replaced it.
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
     void load();

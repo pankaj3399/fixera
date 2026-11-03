@@ -552,7 +552,7 @@
       "recentTransactions": "Recent Transactions",
       "noTransactions": "No transactions yet",
       "noTransactionsDescription": "Transactions will appear here once you complete bookings",
-      "pendingBookingsCount": "{count} pending payouts",
+      "pendingBookingsCount": "{count, plural, one {# pending payout} other {# pending payouts}}",
       "transferPending": "Transfer pending",
       "transferFailed": "Transfer failed"
     }

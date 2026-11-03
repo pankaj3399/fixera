@@ -40,6 +40,7 @@
   },
   "priceModels": {
     "fixed": "Fixe",
+    "unit": "Unité",
     "meter": "Mètre",
     "m2": "m²",
     "hour": "Heure",
