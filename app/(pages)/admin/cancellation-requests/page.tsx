@@ -3,7 +3,12 @@
 import { messageFromApiBody } from '@/lib/apiErrors';
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import {
+  type CancellationStatusFilter,
+  isAdminActionableCancellation,
+  parseCancellationStatusFilter,
+} from "@/lib/admin/cancellationRequestFilters"
 import { useAuth } from "@/contexts/AuthContext"
 import { authFetch } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,7 +25,7 @@ import { CANCEL_REASONS } from "@/lib/constants/cancelReasons"
 
 interface CancellationRequestItem {
   _id: string
-  status: 'pending' | 'approved' | 'denied'
+  status: 'pending' | 'processing' | 'negotiating' | 'escalated' | 'approved' | 'denied'
   reasonCategory?: string
   reason?: string
   evidence?: string[]
@@ -42,7 +47,7 @@ interface CancellationRequestItem {
   }
 }
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'denied'
+type StatusFilter = CancellationStatusFilter
 
 export default function AdminCancellationRequestsPage() {
   const { user, loading } = useAuth()
@@ -51,7 +56,10 @@ export default function AdminCancellationRequestsPage() {
   const [items, setItems] = useState<CancellationRequestItem[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
+  const searchParams = useSearchParams()
+  // `?status=escalated` is the dispute page's link to this queue; without a
+  // valid value the default view stays `pending`.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseCancellationStatusFilter(searchParams.get('status')))
   const [page, setPage] = useState(1)
   const limit = 20
 
@@ -181,6 +189,7 @@ export default function AdminCancellationRequestsPage() {
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="escalated">Escalated</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
               <SelectItem value="denied">Denied</SelectItem>
             </SelectContent>
@@ -222,7 +231,7 @@ export default function AdminCancellationRequestsPage() {
                           <span className="font-semibold text-sm">{item.booking?.bookingNumber || item.booking?._id}</span>
                           <Badge
                             variant={
-                              item.status === 'pending' ? 'destructive' : item.status === 'approved' ? 'default' : 'secondary'
+                              isAdminActionableCancellation(item.status) ? 'destructive' : item.status === 'approved' ? 'default' : 'secondary'
                             }
                             className="text-xs"
                           >
@@ -274,7 +283,7 @@ export default function AdminCancellationRequestsPage() {
                         <p className="text-xs text-gray-400">
                           {new Date(item.createdAt).toLocaleDateString()}
                         </p>
-                        {item.status === 'pending' && (
+                        {isAdminActionableCancellation(item.status) && (
                           <>
                             <Button
                               size="sm"

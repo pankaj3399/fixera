@@ -1,9 +1,17 @@
 'use client'
 
 import { messageFromApiBody } from '@/lib/apiErrors';
-import { filterDisputeOverviewRows } from '@/lib/admin/disputeFilters';
+import { buildDisputeOverview } from '@/lib/admin/disputeFilters';
+import {
+  BookingDisputeCards,
+  type DisputeAnalytics,
+  REFUND_QUEUE_HREF,
+  SeparateQueueCounts,
+  WARRANTY_QUEUE_HREF,
+} from '@/components/admin/disputes/DisputeOverviewSummary';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { authFetch, getAuthToken } from "@/lib/utils"
@@ -113,10 +121,9 @@ interface DisputeBooking {
   claimNumber?: string
 }
 
-interface DisputeAnalytics {
-  totalOpen: number
-  totalResolved: number
-  totalDisputes: number
+const SEPARATE_QUEUE_LABEL: Record<'warranty' | 'refund', string> = {
+  warranty: 'Warranty claim',
+  refund: 'Escalated refund request',
 }
 
 type DisputeFilter = 'all' | 'open' | 'resolved'
@@ -190,6 +197,9 @@ export default function AdminDisputesPage() {
   const router = useRouter()
 
   const [disputes, setDisputes] = useState<DisputeBooking[]>([])
+  // Separate warranty/refund queue preview (backend sends it on page 1 only).
+  const [externalRows, setExternalRows] = useState<DisputeBooking[]>([])
+  const [totalBookingDisputes, setTotalBookingDisputes] = useState(0)
   const [analytics, setAnalytics] = useState<DisputeAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<DisputeFilter>('all')
@@ -219,10 +229,14 @@ export default function AdminDisputesPage() {
   const [externalWarrantyStatus, setExternalWarrantyStatus] = useState<WarrantyClaimStatus>('closed')
   const [externalResolving, setExternalResolving] = useState(false)
 
-  const visibleDisputes = useMemo(
-    () => filterDisputeOverviewRows(disputes),
-    [disputes],
+  // Booking disputes (what the cards and pagination count) and the separate
+  // warranty/refund preview are kept apart.
+  const overview = useMemo(
+    () => buildDisputeOverview({ disputes, externalDisputes: externalRows, view: statusFilter, page }),
+    [disputes, externalRows, statusFilter, page],
   )
+  const visibleDisputes = overview.bookingRows
+  const visibleExternalRows = overview.separateRows
 
   const selectedDisputeType: DisputeType = useMemo(() => {
     return (selectedDispute?.dispute?.type as DisputeType | undefined) ?? 'extra_costs'
@@ -267,7 +281,11 @@ export default function AdminDisputesPage() {
       if (json.success) {
         const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
         const external = Array.isArray(json.data?.externalDisputes) ? json.data.externalDisputes : []
-        setDisputes([...external, ...paginated])
+        // Booking disputes and the separate warranty/refund queues are kept
+        // apart so the list, its count and pagination match the cards.
+        setDisputes(paginated)
+        setExternalRows(external)
+        setTotalBookingDisputes(Number(json.data?.pagination?.total) || 0)
         setTotalPages(Number(json.data?.pagination?.pages) || 1)
       }
     } catch {
@@ -598,6 +616,159 @@ export default function AdminDisputesPage() {
     }
   }
 
+  const renderDisputeCard = (d: DisputeBooking) => {
+    const dType: DisputeType = (d.dispute?.type as DisputeType | undefined) ?? 'extra_costs'
+    const startingCustomer = startingChatFor === `${d._id}:customer`
+    const startingPro = startingChatFor === `${d._id}:professional`
+    return (
+      <Card key={d._id} className="hover:shadow-md transition-shadow">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1 flex-1 min-w-0">
+              <div className="flex items-center flex-wrap gap-2">
+                <span className="font-semibold text-sm">{d.bookingNumber}</span>
+                {d.source && (
+                  <Badge variant="secondary" className="text-xs" data-testid="separate-queue-label">
+                    {SEPARATE_QUEUE_LABEL[d.source]}{d.claimNumber ? ` ${d.claimNumber}` : ''}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-xs">
+                  Type: {DISPUTE_TYPE_LABEL[dType] || 'Extra costs'}
+                </Badge>
+                {d.source ? (
+                  <Badge variant="destructive" className="text-xs">
+                    {d.source === 'warranty'
+                      ? `Claim: ${WARRANTY_STATUS_LABELS[d.claimStatus as WarrantyClaimStatus] ?? d.claimStatus ?? 'Active'}`
+                      : 'Escalated'}
+                  </Badge>
+                ) : (
+                  <Badge variant={d.dispute?.resolvedAt ? "default" : "destructive"} className="text-xs">
+                    {d.dispute?.resolvedAt ? 'Resolved' : 'Open'}
+                  </Badge>
+                )}
+                {!d.dispute?.resolvedAt && d.dispute?.slaDeadline && new Date(d.dispute.slaDeadline) < new Date() && (
+                  <Badge variant="destructive" className="text-xs bg-red-700">
+                    SLA breached
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                Customer: {d.customer?.name || d.customer?.email || 'Unknown'}
+                {' | '}
+                Professional: {d.professional?.name || d.professional?.username || 'Unknown'}
+              </p>
+              {d.project?.title && (
+                <p className="text-xs text-gray-400">{d.project.title}</p>
+              )}
+              <p className="text-xs text-red-600 font-medium mt-1">
+                <AlertTriangle className="h-3 w-3 inline mr-1" />
+                {d.dispute?.reason}
+              </p>
+              {d.extraCostTotal != null && (
+                <p className="text-xs text-gray-600">
+                  Extra costs claimed: {d.payment?.currency || 'EUR'} {d.extraCostTotal.toFixed(2)}
+                  {' | '}
+                  Original: {d.payment?.currency || 'EUR'} {(d.payment?.amount || 0).toFixed(2)}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  onClick={() => viewCustomerProChat(d)}
+                >
+                  <MessageSquare className="h-3 w-3 mr-1" />
+                  View customer↔pro chat
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  disabled={startingCustomer || !d.customer?._id}
+                  onClick={() => startSupportChat(d, 'customer')}
+                >
+                  {startingCustomer ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                  Open dispute chat with customer
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  disabled={startingPro || !d.professional?._id}
+                  onClick={() => startSupportChat(d, 'professional')}
+                >
+                  {startingPro ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+                  Open dispute chat with professional
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1 items-end shrink-0">
+              <p className="text-xs text-gray-400">
+                {d.dispute?.raisedAt ? new Date(d.dispute.raisedAt).toLocaleDateString() : ''}
+              </p>
+              {d.readOnly ? (
+                <>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => openExternalDialog(d)}
+                  >
+                    Resolve
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                    <Link href={d.resolveHref || (d.source === 'warranty' ? WARRANTY_QUEUE_HREF : REFUND_QUEUE_HREF)}>
+                      {d.source === 'warranty' ? 'Open in warranty claims' : 'Open in refund requests'}
+                    </Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={!d.bookingId}
+                    onClick={() => d.bookingId && router.push(`/bookings/${d.bookingId}`)}
+                  >
+                    View Booking
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {!d.dispute?.resolvedAt && (
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => openResolveDialog(d)}
+                    >
+                      Resolve
+                    </Button>
+                  )}
+                  {d.dispute?.resolvedAt && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setResolveInfoDispute(d)}
+                    >
+                      View resolve
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => router.push(`/bookings/${d._id}`)}
+                  >
+                    View Booking
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (loading || !user) return null
 
   return (
@@ -617,28 +788,7 @@ export default function AdminDisputesPage() {
           </Button>
         </div>
 
-        {analytics && (
-          <div className="grid grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-red-600">{analytics.totalOpen}</div>
-                <p className="text-sm text-gray-500">Open Disputes</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-green-600">{analytics.totalResolved}</div>
-                <p className="text-sm text-gray-500">Resolved</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-gray-800">{analytics.totalDisputes}</div>
-                <p className="text-sm text-gray-500">Total Disputes</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {analytics && <BookingDisputeCards analytics={analytics} />}
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-2">
@@ -655,7 +805,7 @@ export default function AdminDisputesPage() {
           </div>
           {!isLoading && (
             <p className="text-sm text-gray-500">
-              Showing {visibleDisputes.length} {visibleDisputes.length === 1 ? 'dispute' : 'disputes'}
+              Showing {visibleDisputes.length} of {totalBookingDisputes} booking {totalBookingDisputes === 1 ? 'dispute' : 'disputes'}
             </p>
           )}
         </div>
@@ -668,145 +818,12 @@ export default function AdminDisputesPage() {
           <Card>
             <CardContent className="py-12 text-center">
               <Shield className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No disputes found</p>
+              <p className="text-gray-500">No booking disputes found</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
-            {visibleDisputes.map((d) => {
-              const dType: DisputeType = (d.dispute?.type as DisputeType | undefined) ?? 'extra_costs'
-              const startingCustomer = startingChatFor === `${d._id}:customer`
-              const startingPro = startingChatFor === `${d._id}:professional`
-              return (
-                <Card key={d._id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1 flex-1 min-w-0">
-                        <div className="flex items-center flex-wrap gap-2">
-                          <span className="font-semibold text-sm">{d.bookingNumber}</span>
-                          <Badge variant="outline" className="text-xs">
-                            Type: {DISPUTE_TYPE_LABEL[dType] || 'Extra costs'}
-                          </Badge>
-                          <Badge variant={d.dispute?.resolvedAt ? "default" : "destructive"} className="text-xs">
-                            {d.dispute?.resolvedAt ? 'Resolved' : 'Open'}
-                          </Badge>
-                          {!d.dispute?.resolvedAt && d.dispute?.slaDeadline && new Date(d.dispute.slaDeadline) < new Date() && (
-                            <Badge variant="destructive" className="text-xs bg-red-700">
-                              SLA breached
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Customer: {d.customer?.name || d.customer?.email || 'Unknown'}
-                          {' | '}
-                          Professional: {d.professional?.name || d.professional?.username || 'Unknown'}
-                        </p>
-                        {d.project?.title && (
-                          <p className="text-xs text-gray-400">{d.project.title}</p>
-                        )}
-                        <p className="text-xs text-red-600 font-medium mt-1">
-                          <AlertTriangle className="h-3 w-3 inline mr-1" />
-                          {d.dispute?.reason}
-                        </p>
-                        {d.extraCostTotal != null && (
-                          <p className="text-xs text-gray-600">
-                            Extra costs claimed: {d.payment?.currency || 'EUR'} {d.extraCostTotal.toFixed(2)}
-                            {' | '}
-                            Original: {d.payment?.currency || 'EUR'} {(d.payment?.amount || 0).toFixed(2)}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="h-7 text-xs"
-                            onClick={() => viewCustomerProChat(d)}
-                          >
-                            <MessageSquare className="h-3 w-3 mr-1" />
-                            View customer↔pro chat
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="h-7 text-xs"
-                            disabled={startingCustomer || !d.customer?._id}
-                            onClick={() => startSupportChat(d, 'customer')}
-                          >
-                            {startingCustomer ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
-                            Open dispute chat with customer
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="h-7 text-xs"
-                            disabled={startingPro || !d.professional?._id}
-                            onClick={() => startSupportChat(d, 'professional')}
-                          >
-                            {startingPro ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <MessageSquare className="h-3 w-3 mr-1" />}
-                            Open dispute chat with professional
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1 items-end shrink-0">
-                        <p className="text-xs text-gray-400">
-                          {d.dispute?.raisedAt ? new Date(d.dispute.raisedAt).toLocaleDateString() : ''}
-                        </p>
-                        {d.readOnly ? (
-                          <>
-                            <Button
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => openExternalDialog(d)}
-                            >
-                              Resolve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              disabled={!d.bookingId}
-                              onClick={() => d.bookingId && router.push(`/bookings/${d.bookingId}`)}
-                            >
-                              View Booking
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            {!d.dispute?.resolvedAt && (
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => openResolveDialog(d)}
-                              >
-                                Resolve
-                              </Button>
-                            )}
-                            {d.dispute?.resolvedAt && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => setResolveInfoDispute(d)}
-                              >
-                                View resolve
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => router.push(`/bookings/${d._id}`)}
-                            >
-                              View Booking
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+            {visibleDisputes.map((d) => renderDisputeCard(d))}
 
             {totalPages > 1 && (
               <div className="flex justify-center gap-2 pt-2">
@@ -816,6 +833,29 @@ export default function AdminDisputesPage() {
               </div>
             )}
           </div>
+        )}
+
+        {overview.showSeparateQueues && (
+          <section className="space-y-3" data-testid="separate-queues" aria-labelledby="separate-queues-heading">
+            <div>
+              <h2 id="separate-queues-heading" className="text-lg font-semibold text-gray-900">
+                Warranty claims and escalated refund requests
+              </h2>
+              <p className="text-sm text-gray-500">
+                Separate queues. These are not booking disputes and are not included in the booking-dispute counts above.
+              </p>
+            </div>
+            {analytics?.separateQueues && <SeparateQueueCounts queues={analytics.separateQueues} />}
+            {isLoading ? null : overview.separatePreviewOnPageOne ? (
+              <p className="text-xs text-gray-500">Previews of these queues are listed on page 1.</p>
+            ) : visibleExternalRows.length === 0 ? (
+              <p className="text-sm text-gray-500">No active warranty claims or escalated refund requests.</p>
+            ) : (
+              <div className="space-y-3">
+                {visibleExternalRows.map((d) => renderDisputeCard(d))}
+              </div>
+            )}
+          </section>
         )}
 
         <Dialog open={showResolveDialog} onOpenChange={setShowResolveDialog}>

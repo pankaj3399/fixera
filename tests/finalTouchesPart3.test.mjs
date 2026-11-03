@@ -22,7 +22,7 @@ test('cancelled, refunded and rejected bookings are hidden from the calendar', (
   }
 })
 
-test('dispute overview keeps only dispute-status bookings plus external escalations', () => {
+test('dispute overview keeps only dispute-status bookings; external escalations are a separate queue', () => {
   const rows = [
     { _id: 'a', status: 'dispute' },
     { _id: 'b', status: 'professional_completed' },
@@ -34,8 +34,9 @@ test('dispute overview keeps only dispute-status bookings plus external escalati
   assert.ok(isDisputeOverviewRow(rows[0]))
   assert.ok(!isDisputeOverviewRow(rows[1]))
   assert.ok(!isDisputeOverviewRow(rows[2]))
-  assert.ok(isDisputeOverviewRow(rows[4]))
-  assert.deepEqual(filterDisputeOverviewRows(rows).map((row) => row._id), ['a', 'e', 'f'])
+  // Warranty/refund rows are never booking-dispute rows (own section, own counts).
+  assert.ok(!isDisputeOverviewRow(rows[4]))
+  assert.deepEqual(filterDisputeOverviewRows(rows).map((row) => row._id), ['a'])
   assert.deepEqual(filterDisputeOverviewRows(null), [])
 })
 
@@ -75,9 +76,9 @@ test('search page wires relevance sort, keyword field, and dispute/calendar cons
   assert.match(filters, /filters\.keyword/)
 
   const disputes = readFileSync(new URL('../app/(pages)/admin/disputes/page.tsx', import.meta.url), 'utf8')
-  assert.match(disputes, /filterDisputeOverviewRows\(disputes\)/)
+  assert.match(disputes, /buildDisputeOverview\(\{ disputes, externalDisputes: externalRows, view: statusFilter, page \}\)/)
   assert.match(disputes, /visibleDisputes\.length === 0/)
-  assert.match(disputes, /visibleDisputes\.map\(\(d\) => \{/)
+  assert.match(disputes, /visibleDisputes\.map\(\(d\) => renderDisputeCard\(d\)\)/)
   // List-scoped count derives from the filtered list; analytics cards stay server-driven.
   assert.match(disputes, /Showing \{visibleDisputes\.length\}/)
 
