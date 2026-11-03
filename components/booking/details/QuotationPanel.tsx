@@ -11,6 +11,7 @@ import {
   durationLabel,
   formatCalendarDate,
   formatInstant,
+  pushQuotationVersionUrl,
   quotationVersionLabel,
   quoteVersionStatus,
   resolveQuotationVersionFromUrl,
@@ -352,7 +353,9 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
                       event.preventDefault()
                       setSelectedVersion(version.version)
                       if (typeof window !== "undefined") {
-                        window.history.pushState(null, "", buildQuoteAnchors(pathname, search, version.version).version)
+                        // Announced as a hash change so the booking page's
+                        // pinned version (Accept & Pay gate) follows the selection.
+                        pushQuotationVersionUrl(buildQuoteAnchors(pathname, search, version.version).version)
                       }
                     }}
                     className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs hover:bg-slate-50 ${

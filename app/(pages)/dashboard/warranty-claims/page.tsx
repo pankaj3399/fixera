@@ -251,7 +251,10 @@ function WarrantyClaimsContent() {
 
       const data = payload.data || {}
       const nextClaims = Array.isArray(data.claims) ? data.claims : []
-      if (highlightedClaim && page === 1) {
+      // The highlighted claim is only injected when no search/service filter
+      // is active: those filters run server-side and may exclude it.
+      const hasServerOnlyFilters = Boolean(debouncedSearch.trim()) || serviceFilter !== "all"
+      if (highlightedClaim && page === 1 && !hasServerOnlyFilters) {
         const matchesFilter = statusFilter === "all" || highlightedClaim.status === statusFilter
         if (matchesFilter && !nextClaims.some((claim: ClaimRecord) => claim._id === highlightedClaim._id)) {
           setClaims([highlightedClaim, ...nextClaims])

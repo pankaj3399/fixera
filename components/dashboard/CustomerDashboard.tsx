@@ -220,7 +220,8 @@ export default function CustomerDashboard() {
       const data = await response.json()
       if (requestId !== latestListRequest.current[kind]) return
       if (!response.ok || !data.success) {
-        setState((prev) => ({ ...prev, loading: false, error: getErrorText(data, t("customerDashboard.loadFailed")) }))
+        // Remember the page that failed, so Retry repeats that request.
+        setState((prev) => ({ ...prev, page: opts.page, loading: false, error: getErrorText(data, t("customerDashboard.loadFailed")) }))
         return
       }
       setState({
@@ -236,7 +237,7 @@ export default function CustomerDashboard() {
       })
     } catch (err) {
       if (requestId !== latestListRequest.current[kind]) return
-      setState((prev) => ({ ...prev, loading: false, error: getErrorText(err, t("customerDashboard.loadFailed")) }))
+      setState((prev) => ({ ...prev, page: opts.page, loading: false, error: getErrorText(err, t("customerDashboard.loadFailed")) }))
     }
   }, [getErrorText, t])
 

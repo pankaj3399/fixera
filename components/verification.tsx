@@ -18,9 +18,26 @@ interface VerificationComponentProps {
   email: string
   phone: string
   onVerificationSuccess: () => void
+  /**
+   * When the initial codes were actually sent (epoch ms), if known. The first
+   * resend then waits out the cooldown from that send. Unknown (omitted) keeps
+   * resend available: no send time is ever assumed from a mount or re-render.
+   */
+  emailCodeSentAt?: number | null
+  phoneCodeSentAt?: number | null
 }
 
-export default function VerificationComponent({ email, phone, onVerificationSuccess }: VerificationComponentProps) {
+/** Cooldown deadline for a recorded send time; null when the time is unknown. */
+const deadlineFromSentAt = (sentAt: number | null | undefined): number | null =>
+  typeof sentAt === "number" && Number.isFinite(sentAt) ? otpResendDeadline(sentAt) : null
+
+export default function VerificationComponent({
+  email,
+  phone,
+  onVerificationSuccess,
+  emailCodeSentAt,
+  phoneCodeSentAt,
+}: VerificationComponentProps) {
   const t = useTranslations("auth")
   const [emailOtp, setEmailOtp] = useState("")
   const [phoneOtp, setPhoneOtp] = useState("")
@@ -31,9 +48,20 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   // channels share the DualVerificationComponent cooldown semantics. The
   // remaining time derives from a wall-clock deadline, so throttled timers
   // in a hidden tab never extend the wait.
-  const [emailResendDeadline, setEmailResendDeadline] = useState<number | null>(null)
-  const [phoneResendDeadline, setPhoneResendDeadline] = useState<number | null>(null)
+  const [emailResendDeadline, setEmailResendDeadline] = useState<number | null>(() => deadlineFromSentAt(emailCodeSentAt))
+  const [phoneResendDeadline, setPhoneResendDeadline] = useState<number | null>(() => deadlineFromSentAt(phoneCodeSentAt))
   const [now, setNow] = useState(() => Date.now())
+  // A send time reported after mount moves the deadline forward, never back.
+  useEffect(() => {
+    const deadline = deadlineFromSentAt(emailCodeSentAt)
+    if (deadline == null) return
+    setEmailResendDeadline((prev) => (prev != null && prev >= deadline ? prev : deadline))
+  }, [emailCodeSentAt])
+  useEffect(() => {
+    const deadline = deadlineFromSentAt(phoneCodeSentAt)
+    if (deadline == null) return
+    setPhoneResendDeadline((prev) => (prev != null && prev >= deadline ? prev : deadline))
+  }, [phoneCodeSentAt])
   // In-flight resend guard: the cooldown starts only once the request
   // succeeds, so a double click must not send a second OTP/SMS meanwhile.
   // The ref blocks re-entry before React re-renders; the state disables the button.

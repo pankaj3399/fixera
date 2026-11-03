@@ -206,6 +206,14 @@ function ProfileContent() {
     if (usernameAbortRef.current) usernameAbortRef.current.abort()
     usernameAbortRef.current = null
   }
+  // Leaving the editor (Cancel or a successful save) drops any pending check
+  // and its results, so reopening never shows a stale status or suggestions.
+  const closeUsernameEditor = () => {
+    cancelPendingUsernameCheck()
+    setUsernameEdit(false)
+    setUsernameCheck({})
+    setUsernameSuggestions([])
+  }
   const [hourlyRate, setHourlyRate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [serviceCategories, setServiceCategories] = useState<string[]>([])
@@ -1971,7 +1979,7 @@ function ProfileContent() {
                                   const data = await res.json()
                                   if (data.success) {
                                     toast.success(t('toasts.usernameUpdated'))
-                                    setUsernameEdit(false)
+                                    closeUsernameEditor()
                                     await checkAuth()
                                   } else {
                                     toast.error(getErrorText(data, t('toasts.usernameUpdateFailed')))
@@ -1983,10 +1991,8 @@ function ProfileContent() {
                               {usernameSaving ? t('common.saving') : t('business.saveUsername')}
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => {
-                              setUsernameEdit(false)
+                              closeUsernameEditor()
                               setUsername(user?.username || '')
-                              setUsernameCheck({})
-                              setUsernameSuggestions([])
                             }}>{t('common.cancel')}</Button>
                           </div>
                         </div>

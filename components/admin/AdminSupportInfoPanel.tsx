@@ -191,7 +191,7 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
               <KpiRow label="Completed" value={kpis.completedCount} />
               <KpiRow label="Quoted" value={kpis.quotedCount} />
               <KpiRow label="Disputes" value={kpis.disputeCount} />
-              <KpiRow label="Gross €" value={formatGross(kpis)} />
+              <KpiRow label="Gross" value={formatGross(kpis)} />
               <KpiRow label="Refund %" value={formatPct(kpis.refundPercent, kpis.financialAccess === false)} />
             </div>
           </div>

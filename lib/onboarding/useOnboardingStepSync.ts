@@ -26,8 +26,9 @@ export interface OnboardingStepSyncOptions {
 /**
  * Owns the onboarding `currentStep` and keeps it in sync with `?step=`.
  *
- * Initial step resolution order: a valid `?step=` from the URL wins;
- * otherwise the step is derived from the saved profile once it loads. The
+ * Initial step resolution order: a valid (numeric) `?step=` from the URL
+ * wins; otherwise, including a malformed value, the step is derived from the
+ * saved profile once it loads. The
  * URL is only written after that initial step is resolved, so the first
  * render (step 1) never overwrites a deep-linked `?step=3`, and a premature
  * `?step=1` never suppresses the profile-based resume.
@@ -41,24 +42,27 @@ export function useOnboardingStepSync({
 }: OnboardingStepSyncOptions): [number, Dispatch<SetStateAction<number>>] {
   const [currentStep, setCurrentStep] = useState(1);
   const stepParam = searchParams.get('step');
+  // A non-numeric `?step=` (e.g. `?step=abc`) counts as absent, so it never
+  // suppresses the profile-based resume.
+  const parsedStepParam = stepParam ? Number.parseInt(stepParam, 10) : Number.NaN;
+  const validStepParam = Number.isNaN(parsedStepParam) ? null : parsedStepParam;
+  const hasValidStepParam = validStepParam !== null;
 
   useEffect(() => {
-    if (!stepParam) return;
-    const parsed = Number.parseInt(stepParam, 10);
-    if (Number.isNaN(parsed)) return;
-    setCurrentStep(normalizeOnboardingStep(parsed));
-  }, [stepParam]);
+    if (validStepParam === null) return;
+    setCurrentStep(normalizeOnboardingStep(validStepParam));
+  }, [validStepParam]);
 
   const resumeInitializedRef = useRef(false);
   const [resumeResolved, setResumeResolved] = useState(false);
   useEffect(() => {
     if (loading || !user) return;
-    if (!stepParam && !resumeInitializedRef.current) {
+    if (!hasValidStepParam && !resumeInitializedRef.current) {
       resumeInitializedRef.current = true;
       setCurrentStep((prev) => (prev === 1 ? deriveOnboardingResumeStep(user) : prev));
     }
     setResumeResolved(true);
-  }, [loading, user, stepParam]);
+  }, [loading, user, hasValidStepParam]);
 
   useEffect(() => {
     if (!resumeResolved) return;

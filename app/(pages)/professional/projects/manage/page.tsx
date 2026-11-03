@@ -971,7 +971,7 @@ export default function ManageProjectsPage() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 md:gap-4 mb-6 md:mb-8">
           <Card>
             <CardHeader className="pb-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3">
               <CardTitle className="flex items-center gap-1 text-xs">

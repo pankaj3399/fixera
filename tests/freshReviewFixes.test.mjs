@@ -526,3 +526,380 @@ test('Dutch dashboard copy uses vakman/dienst consistently', () => {
   assert.equal(widgets.tables.colProfessional, 'Vakman')
   assert.equal(proProjects.manage.card.service, 'Dienst: {value}')
 })
+
+// ---------------------------------------------------------------------------
+// CodeRabbit CLI review of e03bbc6: behavior regressions through the real
+// components and the hook stand-in above.
+// ---------------------------------------------------------------------------
+
+test('category page: navigating to an unknown slug never shows the previous category while it redirects', async () => {
+  const previousDocument = globalThis.document
+  const previousFetch = globalThis.fetch
+  globalThis.document = { cookie: '' }
+  try {
+    const state = hooks()
+    const requests = []
+    globalThis.fetch = (url, { signal }) => {
+      const pendingResponse = deferred()
+      signal.addEventListener('abort', () => pendingResponse.reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+      requests.push({ url, signal, ...pendingResponse })
+      return pendingResponse.promise
+    }
+    let slug = 'gardening'
+    const replaces = []
+    const router = { replace: href => replaces.push(href) }
+    const Component = loadComponent('../app/(pages)/categories/[categorySlug]/page.tsx', {
+      react: state.api,
+      'next/link': { __esModule: true, default: () => null },
+      sonner: { toast: { error() {} } },
+      'next/navigation': { useParams: () => ({ categorySlug: slug }), useRouter: () => router },
+      'next-intl': { useTranslations: () => key => key },
+      '@/components/ui/skeleton': { Skeleton: () => null }, '@/components/ui/button': { Button: () => null },
+      '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: () => 'BE', matchCatalogCategory: (rows, s) => rows.find(row => row.slug === s), normalizeCategorySlug: s => s },
+      '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
+    })
+    const catalog = [{ slug: 'gardening', name: 'Gardening', services: [] }]
+    state.render(() => Component())
+    state.flush()
+    requests[0].resolve({ ok: true, json: async () => catalog })
+    await settle()
+    assert.ok(textOf(state.render(() => Component())).includes('Gardening'))
+
+    slug = 'no-such-category'
+    state.render(() => Component())
+    state.flush()
+    requests[1].resolve({ ok: true, json: async () => catalog })
+    await settle()
+    assert.deepEqual(replaces, ['/services'])
+    // Loading ended, the redirect is pending: nothing of Gardening is shown.
+    assert.equal(state.render(() => Component()), null)
+    state.unmount()
+  } finally { globalThis.document = previousDocument; globalThis.fetch = previousFetch }
+})
+
+test('verification: the first resend waits for the recorded initial send; an unknown send time assumes nothing', async () => {
+  const previousDocument = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  try {
+    const Button = () => null
+    const load = state => loadComponent('../components/verification.tsx', {
+      react: state.api,
+      'next-intl': { useTranslations: () => (key, values) => (values?.time ? `${key}:${values.time}` : key) },
+      '@/components/ui/button': { Button },
+      '@/components/ui/card': stubModule(),
+      '@/components/ui/input-otp': stubModule(),
+      'lucide-react': stubModule(),
+      sonner: { toast: { success() {}, error() {} } },
+      axios: { __esModule: true, default: { post: () => new Promise(() => {}) } },
+      '@/lib/auth/signupOtpCooldown': signupOtpCooldown,
+    })
+    const base = { email: 'a@example.com', phone: '+32470000000', onVerificationSuccess() {} }
+    const resendButtons = (state, Component, props) =>
+      findAll(state.render(() => Component(props)), node => node.type === Button && node.props.variant === 'outline')
+
+    // Codes sent 30 s ago: 90 s of cooldown remain, on every re-render.
+    const sent = Date.now() - 30_000
+    const state = hooks()
+    const Component = load(state)
+    const props = { ...base, emailCodeSentAt: sent, phoneCodeSentAt: sent }
+    let [emailResend, phoneResend] = resendButtons(state, Component, props)
+    assert.equal(emailResend.props.disabled, true)
+    assert.equal(phoneResend.props.disabled, true)
+    assert.match(textOf(emailResend), /verification\.resendIn:1:(29|30)/)
+    state.flush()
+    ;[emailResend] = resendButtons(state, Component, props)
+    assert.match(textOf(emailResend), /verification\.resendIn:1:(29|30)/, 're-render keeps the original deadline')
+    state.unmount()
+
+    // A send that already left the cooldown window enables resend.
+    const old = hooks()
+    const OldComponent = load(old)
+    ;[emailResend] = resendButtons(old, OldComponent, { ...base, emailCodeSentAt: Date.now() - 121_000 })
+    assert.equal(emailResend.props.disabled, false)
+
+    // No recorded send time: existing callers keep resend available.
+    const unknown = hooks()
+    const UnknownComponent = load(unknown)
+    ;[emailResend, phoneResend] = resendButtons(unknown, UnknownComponent, base)
+    assert.equal(emailResend.props.disabled, false)
+    assert.equal(phoneResend.props.disabled, false)
+  } finally { globalThis.document = previousDocument }
+})
+
+test('customer dashboard: Retry repeats the page that failed, not the last page that loaded', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const listRequests = []
+    globalThis.fetch = url => {
+      url = String(url)
+      if (url.includes('/api/bookings/my-bookings') && url.includes('limit=20')) {
+        const d = deferred()
+        listRequests.push({ url, ...d })
+        return d.promise
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ success: true, bookings: [], data: { claims: [] } }) })
+    }
+    const ui = stubModule()
+    const Button = function Button() { return null }
+    const t = key => key
+    const getErrorText = (err, fallback) => (err && typeof err.msg === 'string' ? err.msg : fallback)
+    const router = { push() {}, replace() {} }
+    const auth = { user: { role: 'customer' } }
+    const currency = { formatMoney: amount => String(amount) }
+    const locale = { intl: 'en-GB' }
+    const Component = loadComponent('../components/dashboard/CustomerDashboard.tsx', {
+      react: state.api,
+      'next/navigation': { useRouter: () => router },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+      '@/components/ui/card': ui, '@/components/ui/button': { Button }, '@/components/ui/badge': ui,
+      '@/components/ui/input': ui, '@/components/ui/tabs': ui, '@/components/ui/skeleton': ui, '@/components/ui/checkbox': ui,
+      '@/components/ui/select': ui,
+      'lucide-react': ui,
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      '@/contexts/CurrencyContext': { useCurrency: () => currency },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => locale },
+      '@/lib/utils': { getAuthToken: () => null },
+      '@/lib/dashboardBookingHelpers': dashboardBookingHelpers,
+      '@/lib/dashboardOverview': dashboardOverview,
+      '@/lib/actionNeededHelpers': await import('../lib/actionNeededHelpers.ts'),
+      '@/components/dashboard/QuoteComparisonModal': ui,
+      '@/components/dashboard/SharedBookingsTable': ui,
+      '@/components/dashboard/SharedQuotesTable': ui,
+    })
+    const render = () => state.render(() => Component())
+    render()
+    state.flush()
+    const bookingRequest = listRequests.find(r => r.url.includes('status=quote_accepted'))
+    const quoteRequest = listRequests.find(r => r.url.includes('status=rfq'))
+    quoteRequest.resolve({ ok: true, json: async () => ({ success: true, bookings: [], pagination: { page: 1, totalPages: 1, total: 0 } }) })
+    bookingRequest.resolve({ ok: true, json: async () => ({ success: true, bookings: [{ _id: 'b1', status: 'booked' }], statusCounts: {}, serviceCounts: {}, distinctServices: [], pagination: { page: 1, totalPages: 3, total: 41 } }) })
+    await settle()
+
+    const next = findAll(render(), node => node.type === Button && node.props.children === 'common.next')[0]
+    next.props.onClick()
+    const pageTwo = listRequests.at(-1)
+    assert.match(pageTwo.url, /page=2&limit=20/)
+    pageTwo.resolve({ ok: false, json: async () => ({ success: false, msg: 'Bookings unavailable' }) })
+    await settle()
+
+    const alert = findAll(render(), node => node.props?.role === 'alert' && textOf(node).includes('Bookings unavailable'))[0]
+    const retry = findAll(alert, node => node.type === Button && node.props.children === 'common.retry')[0]
+    retry.props.onClick()
+    assert.match(listRequests.at(-1).url, /page=2&limit=20/)
+    // A thrown request (network) also remembers its page.
+    listRequests.at(-1).reject(new Error('network'))
+    await settle()
+    const retryAgain = findAll(render(), node => node.type === Button && node.props.children === 'common.retry')[0]
+    retryAgain.props.onClick()
+    assert.match(listRequests.at(-1).url, /page=2&limit=20/)
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('professional payments: an ok response with success:false clears the previous rows and shows the error', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const txRequests = []
+    globalThis.fetch = url => {
+      url = String(url)
+      if (url.includes('/api/professional/transactions')) {
+        const d = deferred()
+        txRequests.push({ url, ...d })
+        return d.promise
+      }
+      if (url.includes('/account-status')) return Promise.resolve({ ok: true, json: async () => ({ success: true, data: { onboardingCompleted: true, chargesEnabled: true } }) })
+      return Promise.resolve({ ok: true, json: async () => ({ success: true, data: { totalEarnings: 0, pendingEarnings: 0, completedBookings: 0, pendingBookings: 0, currency: 'EUR' } }) })
+    }
+    const ui = stubModule()
+    const Select = function Select() { return null }
+    const t = key => key
+    const router = { push() {}, replace() {} }
+    const auth = { user: { role: 'professional' }, isAuthenticated: true, loading: false }
+    const currency = { formatMoney: amount => String(amount) }
+    const locale = { intl: 'en-GB' }
+    const state = hooks()
+    const Dashboard = loadComponent('../app/(pages)/dashboard/payments/page.tsx', {
+      react: state.api,
+      'next/link': { __esModule: true, default: () => null },
+      'next/navigation': { useRouter: () => router },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/apiErrors': apiErrors,
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_e, fallback) => fallback },
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      '@/contexts/CurrencyContext': { useCurrency: () => currency },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => locale },
+      '@/components/ui/card': ui, '@/components/ui/input': ui, '@/components/ui/badge': ui, '@/components/ui/button': ui, '@/components/ui/skeleton': ui,
+      '@/components/ui/select': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'Select' ? Select : function Stub() { return null }) }),
+      'lucide-react': ui,
+    })
+    const ViewComponent = state.render(() => Dashboard()).type
+    state.reset()
+    const render = () => state.render(() => ViewComponent())
+    const texts = tree => findAll(tree, node => typeof node.props?.children === 'string').map(node => node.props.children)
+    render()
+    state.flush()
+    await settle()
+    render()
+    state.flush()
+    txRequests[0].resolve({ ok: true, json: async () => ({ success: true, data: [{ _id: 't1', bookingNumber: 'BK-OLD-1', status: 'completed', amount: 10, currency: 'EUR', date: null }], pagination: { page: 1, totalPages: 1 } }) })
+    await settle()
+    assert.ok(textOf(render()).includes('BK-OLD-1'))
+
+    const statusSelect = findAll(render(), node => node.type === Select && node.props.value === 'all')[0]
+    statusSelect.props.onValueChange('transfer_failed')
+    render()
+    state.flush()
+    txRequests.at(-1).resolve({ ok: true, json: async () => ({ success: false, error: { code: 'SERVER_ERROR' } }) })
+    await settle()
+    const tree = render()
+    assert.ok(!textOf(tree).includes('BK-OLD-1'), 'rows of the previous filter are gone')
+    assert.ok(texts(tree).includes('payments.loadFailed'))
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('warranty claims: a deep-linked claim is not injected into a service-filtered list that excludes it', async () => {
+  const previousFetch = globalThis.fetch
+  const previousWindow = globalThis.window
+  try {
+    globalThis.window = { requestAnimationFrame: () => 0, cancelAnimationFrame() {}, setTimeout, clearTimeout }
+    const listRequests = []
+    const highlighted = { _id: 'c1', claimNumber: 'WC-2026-000001', status: 'open', booking: { _id: 'b1', bookingNumber: 'BK-1' }, evidence: [] }
+    globalThis.fetch = url => {
+      url = String(url)
+      if (url.includes('/api/warranty-claims/my')) {
+        const d = deferred()
+        listRequests.push({ url, ...d })
+        return d.promise
+      }
+      if (url.includes('/api/warranty-claims/c1')) return Promise.resolve({ ok: true, json: async () => ({ success: true, claim: highlighted }) })
+      return Promise.resolve({ ok: true, json: async () => ({ success: true, distinctServices: ['Plumbing'] }) })
+    }
+    const ui = stubModule()
+    const Select = function Select() { return null }
+    const SelectItem = function SelectItem() { return null }
+    const t = key => key
+    const router = { push() {}, replace() {} }
+    const auth = { user: { role: 'customer' }, isAuthenticated: true, loading: false }
+    const searchParams = new URLSearchParams('claimId=c1')
+    const state = hooks()
+    const Page = loadComponent('../app/(pages)/dashboard/warranty-claims/page.tsx', {
+      react: state.api,
+      'next/navigation': { useRouter: () => router, useSearchParams: () => searchParams },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/apiErrors': apiErrors,
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      '@/lib/utils': { getAuthToken: () => null },
+      '@/components/ui/card': ui, '@/components/ui/input': ui, '@/components/ui/button': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
+      '@/components/ui/select': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'Select' ? Select : key === 'SelectItem' ? SelectItem : function Stub() { return null }) }),
+      'lucide-react': ui,
+      '@/lib/warrantyClaim': await import('../lib/warrantyClaim.ts'),
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_e, fallback) => fallback },
+    })
+    const Content = state.render(() => Page()).props.children.type
+    state.reset()
+    const render = () => state.render(() => Content())
+    // Mount, then let the claim lookup and the service facet settle.
+    for (let i = 0; i < 4; i++) { render(); state.flush(); await settle() }
+    const pendingList = listRequests.at(-1)
+    pendingList.resolve({ ok: true, json: async () => ({ success: true, data: { claims: [], pagination: { total: 0, totalPages: 1 } } }) })
+    await settle()
+    // Unfiltered list: the deep-linked claim is shown on page 1.
+    assert.ok(textOf(render()).includes('WC-2026-000001'))
+
+    const serviceSelect = findAll(render(), node => node.type === Select && findAll(node, child => child.type === SelectItem && child.props.value === 'Plumbing').length > 0)[0]
+    serviceSelect.props.onValueChange('Plumbing')
+    render()
+    state.flush()
+    const filtered = listRequests.at(-1)
+    assert.match(filtered.url, /service=Plumbing/)
+    filtered.resolve({ ok: true, json: async () => ({ success: true, data: { claims: [], pagination: { total: 0, totalPages: 1 } } }) })
+    await settle()
+    const tree = render()
+    assert.ok(!textOf(tree).includes('WC-2026-000001'), 'the server said no claim matches this service')
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch; globalThis.window = previousWindow }
+})
+
+test('quotation tab: picking a historical version announces the hash change the booking page listens to', async () => {
+  const previousWindow = globalThis.window
+  const previousDocument = globalThis.document
+  try {
+    const listeners = new Map()
+    const dispatched = []
+    const location = { href: 'http://localhost/bookings/test?tab=quotation', hash: '', pathname: '/bookings/test', search: '?tab=quotation' }
+    globalThis.document = { getElementById: () => null }
+    globalThis.window = {
+      location,
+      history: {
+        pushState(_state, _title, url) {
+          const next = new URL(url, location.href)
+          Object.assign(location, { href: next.href, hash: next.hash, pathname: next.pathname, search: next.search })
+        },
+      },
+      addEventListener(type, fn) { listeners.set(type, [...(listeners.get(type) || []), fn]) },
+      removeEventListener(type, fn) { listeners.set(type, (listeners.get(type) || []).filter(f => f !== fn)) },
+      dispatchEvent(event) { dispatched.push([event.type, location.hash]); for (const fn of listeners.get(event.type) || []) fn(event) },
+    }
+    const bookingDetails = await import('../lib/bookingDetails.ts')
+    // The booking page's pinned-version listener: it reads the hash on hashchange.
+    let pinned = bookingDetails.resolveQuotationVersionFromUrl(location.hash, null, null)
+    window.addEventListener('hashchange', () => { pinned = bookingDetails.resolveQuotationVersionFromUrl(location.hash, null, null) })
+
+    const state = hooks()
+    const ui = stubModule()
+    const detailPrimitives = new Proxy({}, {
+      get: (_, key) => key === '__esModule' ? true
+        : key === 'useDetailT' ? () => (_key, fallback) => fallback
+        : key === 'useDetailDisplayTimeZone' ? () => ({ timeZone: 'UTC' })
+        : key === 'actorDisplayName' ? () => ''
+        : function Stub() { return null },
+    })
+    const file = '../components/booking/details/QuotationPanel.tsx'
+    const { code } = transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+      filename: file, jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
+    })
+    const mocks = {
+      react: state.api,
+      'next-intl': { useTranslations: () => key => key },
+      '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/bookingDetails': bookingDetails,
+      './DetailPrimitives': detailPrimitives,
+      './BookingDataPanel': ui,
+    }
+    const exports = {}
+    new Function('require', 'exports', code)(name => {
+      if (name in mocks) return mocks[name]
+      if (name.startsWith('@/') || name.startsWith('./')) throw new Error(`unmocked import ${name}`)
+      return require(name)
+    }, exports)
+    const payload = JSON.parse(readFileSync(new URL('./fixtures/bookingDetails/quoted-customer.json', import.meta.url), 'utf8'))
+    const props = { booking: payload.booking, details: payload.details, pathname: '/bookings/test', search: 'tab=quotation' }
+    const render = () => state.render(() => exports.QuotationPanel(props))
+    const versionLink = (tree, version) => findAll(tree, node => node.type === 'a' && typeof node.props.href === 'string' && node.props.href.endsWith(`#quotation-v${version}`) && typeof node.props.onClick === 'function')[0]
+
+    render()
+    state.flush()
+    assert.equal(pinned, null)
+    const event = { preventDefault() {} }
+    versionLink(render(), 1).props.onClick(event)
+    // pushState alone fires no event; the panel announces the new hash.
+    assert.deepEqual(dispatched, [['hashchange', '#quotation-v1']])
+    assert.equal(location.hash, '#quotation-v1')
+    assert.equal(pinned, 1, 'the page now knows a historical version is shown (Accept & Pay gate)')
+    // The panel itself follows the same URL.
+    render()
+    state.flush()
+    // Re-selecting the version already in the URL pushes and announces nothing.
+    versionLink(render(), 1).props.onClick(event)
+    assert.equal(dispatched.length, 1)
+    versionLink(render(), 2).props.onClick(event)
+    assert.deepEqual(dispatched.at(-1), ['hashchange', '#quotation-v2'])
+    assert.equal(pinned, 2)
+    state.unmount()
+  } finally { globalThis.window = previousWindow; globalThis.document = previousDocument }
+})

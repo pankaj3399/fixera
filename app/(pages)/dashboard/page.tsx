@@ -362,6 +362,8 @@ export default function DashboardPage() {
     const loadSummary = async () => {
       setPaymentSummaryLoading(true)
       setPaymentSummaryError(null)
+      // A failed refetch must not leave the previous figures beside the error.
+      setPaymentSummary(null)
       try {
         const token = getAuthToken()
         const headers: Record<string, string> = {}

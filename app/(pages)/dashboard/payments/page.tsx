@@ -488,14 +488,14 @@ function ProfessionalPaymentsView() {
       });
 
       if (!transactionsResponse.ok) throw new Error("Transactions request failed");
-      if (transactionsResponse.ok) {
-        const transactionsData = await transactionsResponse.json();
-        if (transactionsData.success) {
-          setRecentTransactions(transactionsData.data);
-          setTxTotalPages(transactionsData.pagination?.totalPages || 1);
-          setTxPage(transactionsData.pagination?.page || page);
-        }
-      }
+      const transactionsData = await transactionsResponse.json();
+      if (signal.aborted) return;
+      // An ok response with success:false is a failure too: the catch clears
+      // the previous rows so the table never shows another filter's results.
+      if (!transactionsData.success) throw new Error("Transactions request failed");
+      setRecentTransactions(transactionsData.data);
+      setTxTotalPages(transactionsData.pagination?.totalPages || 1);
+      setTxPage(transactionsData.pagination?.page || page);
     } catch {
       if (!signal.aborted) { setRecentTransactions([]); setTxError(true); }
     } finally {

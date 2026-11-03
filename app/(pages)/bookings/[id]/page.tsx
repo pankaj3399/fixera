@@ -1692,8 +1692,14 @@ function BookingDetailContent() {
       )
     }
     readHash()
+    // Back/Forward between version entries, and version picks inside the
+    // Quotation tab (announced as hashchange), keep the pinned version in sync.
     window.addEventListener("hashchange", readHash)
-    return () => window.removeEventListener("hashchange", readHash)
+    window.addEventListener("popstate", readHash)
+    return () => {
+      window.removeEventListener("hashchange", readHash)
+      window.removeEventListener("popstate", readHash)
+    }
   }, [bookingId])
   const effectiveQuoteVersion = pinnedQuoteVersion ?? booking?.currentQuoteVersion
   const currentVersion = hasQuotationVersions

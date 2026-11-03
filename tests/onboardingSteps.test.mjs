@@ -146,3 +146,12 @@ test('a legacy ?step=5 deep link normalizes to the employees step in the URL', (
   assert.equal(result.step, 6)
   assert.deepEqual(result.replaces, ['/professional/onboarding?step=6'])
 })
+
+test('a malformed ?step= value is treated as absent, so the saved profile still resumes', () => {
+  for (const initialSearch of ['step=abc', 'step=']) {
+    const result = mountStepSync({ initialSearch, user: { ...completeId, ...completeBusiness }, loadingFirst: true })
+    assert.deepEqual(result.beforeAuth.replaces, [])
+    assert.equal(result.step, 3)
+    assert.deepEqual(result.replaces, ['/professional/onboarding?step=3'])
+  }
+})
