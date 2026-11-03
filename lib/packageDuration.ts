@@ -62,3 +62,109 @@ export function effectiveExecutionDuration<D extends DurationLike>(
   }
   return source
 }
+
+type DurationUnit = 'hours' | 'days'
+
+/**
+ * The professional's per-unit duration, kept while the package's pricing
+ * option is temporarily hourly so a return to the same option restores it.
+ * Wizard state only: `withoutRetainedDurations` strips it before saving.
+ */
+export type RetainedPerUnitDuration = { pricingUnit?: string; value: number; unit?: DurationUnit }
+
+type WizardPackage = {
+  pricing: { type?: string; unit?: string; durationBasis?: string }
+  executionDuration?: { value?: number; unit?: DurationUnit; range?: { min?: number; max?: number } }
+  retainedPerUnitDuration?: RetainedPerUnitDuration
+}
+
+/**
+ * Updates for a package whose pricing type is chosen (type select or the
+ * auto-repair to a valid type). A fixed/RFQ duration covers the whole job;
+ * carried into unit pricing it would be read per unit (3 days × 10 units =
+ * 30 days), so the value is cleared on entering unit pricing.
+ */
+export function pricingTypeChangeUpdates<P extends WizardPackage>(
+  pkg: P,
+  nextPricing: P['pricing'],
+): Pick<P, 'pricing' | 'executionDuration' | 'retainedPerUnitDuration'> {
+  const entersUnit = nextPricing.type === 'unit' && pkg.pricing.type !== 'unit'
+  return {
+    pricing: nextPricing,
+    executionDuration: entersUnit && pkg.executionDuration
+      ? { ...pkg.executionDuration, value: undefined }
+      : pkg.executionDuration,
+    retainedPerUnitDuration: undefined,
+  } as Pick<P, 'pricing' | 'executionDuration' | 'retainedPerUnitDuration'>
+}
+
+/**
+ * A unit package after the Step 1 pricing option changes its unit.
+ *
+ * Per-unit → hourly: the hours the customer books become the duration, so the
+ * value is cleared, but the professional's per-unit value and its unit are
+ * kept aside. Hourly → the same per-unit option: they are restored. Any other
+ * return leaves the value empty for the professional to enter.
+ */
+export function withSyncedPricingUnit<P extends WizardPackage>(pkg: P, unit: string | undefined): P {
+  if (pkg.pricing.unit === unit) return pkg
+  const next: P = { ...pkg, pricing: { ...pkg.pricing, unit } }
+  const before = packageDurationMode(pkg.pricing)
+  const after = packageDurationMode(next.pricing)
+
+  if (before === 'per_unit' && after === 'customer_hours') {
+    const value = pkg.executionDuration?.value
+    return {
+      ...next,
+      retainedPerUnitDuration: typeof value === 'number' && Number.isFinite(value) && value > 0
+        ? { pricingUnit: pkg.pricing.unit, value, unit: pkg.executionDuration?.unit }
+        : undefined,
+      executionDuration: { ...pkg.executionDuration, value: undefined, unit: 'hours' },
+    }
+  }
+
+  if (before === 'customer_hours' && after === 'per_unit') {
+    const retained = pkg.retainedPerUnitDuration
+    const restored = { ...next, retainedPerUnitDuration: undefined }
+    if (retained && retained.pricingUnit === unit) {
+      restored.executionDuration = {
+        ...pkg.executionDuration,
+        value: retained.value,
+        unit: retained.unit ?? pkg.executionDuration?.unit ?? 'hours',
+      }
+    }
+    return restored
+  }
+
+  return next
+}
+
+/** Packages as saved: the wizard-only retained duration never reaches the API. */
+export function withoutRetainedDurations<P extends object>(packages: P[] | undefined): P[] | undefined {
+  if (!Array.isArray(packages)) return packages
+  return packages.map((pkg) => {
+    if (!('retainedPerUnitDuration' in pkg)) return pkg
+    const rest = { ...pkg } as P & { retainedPerUnitDuration?: unknown }
+    delete rest.retainedPerUnitDuration
+    return rest
+  })
+}
+
+/**
+ * What a package card shows for its execution duration: "determined by
+ * customer" for customer-set hours (no stored value by design), a finite
+ * stored duration otherwise, or nothing.
+ */
+export type PackageDurationDisplay =
+  | { kind: 'customer_hours' }
+  | { kind: 'duration'; value: number; unit: DurationUnit }
+  | null
+
+export function packageDurationDisplay(
+  pkg: { pricing?: PricingLike; executionDuration?: { value?: unknown; unit?: string } | null } | null | undefined,
+): PackageDurationDisplay {
+  if (packageDurationMode(pkg?.pricing) === 'customer_hours') return { kind: 'customer_hours' }
+  const value = pkg?.executionDuration?.value
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return { kind: 'duration', value, unit: pkg?.executionDuration?.unit === 'days' ? 'days' : 'hours' }
+}

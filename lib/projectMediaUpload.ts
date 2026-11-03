@@ -21,6 +21,13 @@ export const PROJECT_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msv
 export const isAllowedProjectImageType = (type: string) =>
   (PROJECT_IMAGE_TYPES as readonly string[]).includes(type === 'image/jpg' ? 'image/jpeg' : type)
 
+/**
+ * Upper bound for one upload request. A stalled request would otherwise keep
+ * its queue slot forever and block save, step changes and submit until a
+ * reload. Ten minutes fits the 50 MiB video limit at about 0.7 Mbit/s.
+ */
+export const PROJECT_MEDIA_UPLOAD_TIMEOUT_MS = 10 * 60_000
+
 export type ProjectMediaUploadResult =
   | { ok: true; url: string }
   | { ok: false; status: number; message?: string }
@@ -47,19 +54,23 @@ export async function uploadProjectMedia({
   file,
   projectId,
   fetchImpl,
+  timeoutMs = PROJECT_MEDIA_UPLOAD_TIMEOUT_MS,
 }: {
   apiBase: string
   kind: ProjectMediaKind
   file: Blob & { name?: string }
   projectId?: string | null
   fetchImpl: (url: string, init: RequestInit) => Promise<Response>
+  timeoutMs?: number
 }): Promise<ProjectMediaUploadResult> {
   const body = new FormData()
   body.append(kind, file, file.name || kind)
   if (projectId && /^[A-Za-z0-9_-]{1,64}$/.test(projectId)) body.append('projectId', projectId)
+  // Covers the response body too: an aborted read resolves to a failed upload.
+  const signal = AbortSignal.timeout(timeoutMs)
   let res: Response
   try {
-    res = await fetchImpl(`${apiBase}/api/user/projects/upload/${kind}`, { method: 'POST', body })
+    res = await fetchImpl(`${apiBase}/api/user/projects/upload/${kind}`, { method: 'POST', body, signal })
   } catch {
     return { ok: false, status: 0 }
   }

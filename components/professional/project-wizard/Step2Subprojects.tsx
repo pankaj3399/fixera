@@ -37,7 +37,13 @@ import {
 import { toast } from 'sonner';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { packageDurationMode, withChosenDurationBasis } from '@/lib/packageDuration';
+import {
+  packageDurationMode,
+  pricingTypeChangeUpdates,
+  withChosenDurationBasis,
+  withSyncedPricingUnit,
+  type RetainedPerUnitDuration,
+} from '@/lib/packageDuration';
 import {
   collectSubprojectErrors,
   isQuickAddItemIncluded,
@@ -99,6 +105,8 @@ interface ISubproject {
     unit: 'hours' | 'days';
     range?: { min?: number; max?: number };
   };
+  /** Wizard-only: per-unit duration kept while the pricing option is hourly. */
+  retainedPerUnitDuration?: RetainedPerUnitDuration;
   buffer?: { // Made optional
     value?: number; // Value inside buffer also made optional
     unit: 'hours' | 'days';
@@ -541,7 +549,7 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
         if (!validTypes.includes(sub.pricing.type)) {
           return {
             ...sub,
-            pricing: withPricingUnit(withChosenDurationBasis({ ...sub.pricing, type: defaultType }), unitLabel),
+            ...pricingTypeChangeUpdates(sub, withPricingUnit(withChosenDurationBasis({ ...sub.pricing, type: defaultType }), unitLabel)),
           };
         }
         return sub;
@@ -557,9 +565,7 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
       const next = prev.map((sub) => {
         if (sub.pricing.type === 'unit') {
           const resolvedUnit = data.selectedPricingOption?.unit || sub.pricing.unit || unitLabel;
-          return resolvedUnit === sub.pricing.unit
-            ? sub
-            : { ...sub, pricing: { ...sub.pricing, unit: resolvedUnit } };
+          return withSyncedPricingUnit(sub, resolvedUnit);
         }
         return sub.pricing.unit === undefined
           ? sub
@@ -1064,9 +1070,10 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
                       <Select
                         value={subproject.pricing.type}
                         onValueChange={(value: 'fixed' | 'unit' | 'rfq') => {
-                          updateSubproject(subproject.id, {
-                            pricing: withPricingUnit(withChosenDurationBasis({ ...subproject.pricing, type: value }), unitLabel),
-                          });
+                          updateSubproject(
+                            subproject.id,
+                            pricingTypeChangeUpdates(subproject, withPricingUnit(withChosenDurationBasis({ ...subproject.pricing, type: value }), unitLabel)),
+                          );
                         }}
                       >
                         <SelectTrigger>

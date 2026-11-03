@@ -6,7 +6,7 @@ import { Suspense } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { bookedSubprojectIndex, canonicalUnit, resolveBookingUnit } from "@/lib/bookingUnits"
+import { bookedSubprojectIndex, bookedUnitPricing, canonicalUnit, resolveBookingUnit } from "@/lib/bookingUnits"
 import { useAuth } from "@/contexts/AuthContext"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
@@ -2309,26 +2309,18 @@ function BookingDetailContent() {
   const addExtraCost = (type: 'unit_adjustment' | 'condition' | 'option' | 'other') => {
     let unitDefaults: { estimatedUnits: number; actualUnits: number; unitPrice: number } | null = null
     if (type === 'unit_adjustment') {
-      const subprojects = booking?.project?.subprojects || []
-      let subIdx: number
-      if (typeof booking?.selectedSubprojectIndex === 'number') {
-        subIdx = booking.selectedSubprojectIndex
-      } else if (subprojects.length === 1) {
-        subIdx = 0
-      } else {
-        toast.error(t("extraCosts.toasts.noSubproject"))
+      // Price from the same booking-time snapshot the unit label uses.
+      const pricing = bookedUnitPricing({
+        snapshotPricing: details?.bookingSnapshot?.selectedSubproject?.pricing,
+        liveSubprojects: bookingSubprojects,
+        selectedIndex: booking?.selectedSubprojectIndex,
+      })
+      if (!pricing.ok) {
+        toast.error(t(`extraCosts.toasts.${pricing.reason}`))
         return
       }
-      const sub = subprojects[subIdx]
-      if (sub?.pricing?.type !== 'unit') {
-        toast.error(t("extraCosts.toasts.notUnitPriced"))
-        return
-      }
-      const unitPrice = Number(sub?.pricing?.amount)
-      if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-        toast.error(t("extraCosts.toasts.unitPriceMissing"))
-        return
-      }
+      const { unitPrice } = pricing
+      const sub = pricing.liveSubprojectIndex != null ? bookingSubprojects[pricing.liveSubprojectIndex] : undefined
 
       const inputs = sub?.professionalInputs || []
       const priceModelToken = ((booking?.project as { priceModel?: string } | undefined)?.priceModel || '').toLowerCase().replace(/[^a-z0-9]/g, '')

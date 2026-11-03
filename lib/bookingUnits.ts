@@ -64,10 +64,41 @@ export function resolveBookingUnit(sources: BookingUnitSources): string | null {
   )
 }
 
-/** Index of the booked subproject (explicit index, else the only one). */
+/**
+ * Index of the booked subproject: the stored index when it is valid, else the
+ * only package when no index is stored. A stored but invalid index (the
+ * package was removed) never falls back to whichever package remains.
+ */
 export function bookedSubprojectIndex(selectedIndex: unknown, subprojectCount: number): number | null {
-  if (typeof selectedIndex === 'number' && Number.isInteger(selectedIndex) && selectedIndex >= 0 && selectedIndex < subprojectCount) {
-    return selectedIndex
+  if (typeof selectedIndex === 'number') {
+    return Number.isInteger(selectedIndex) && selectedIndex >= 0 && selectedIndex < subprojectCount ? selectedIndex : null
   }
   return subprojectCount === 1 ? 0 : null
+}
+
+type PricingSource = { type?: string | null; amount?: number | null; unit?: string | null } | null | undefined
+
+export type BookedUnitPricing =
+  | { ok: true; unitPrice: number; liveSubprojectIndex: number | null }
+  | { ok: false; reason: 'noSubproject' | 'notUnitPriced' | 'unitPriceMissing' }
+
+/**
+ * Pricing of the booked package for a completion unit adjustment. The
+ * booking-time snapshot wins, as it does for the unit label
+ * (`snapshotSubprojectUnit`), so a package re-priced or re-united after the
+ * booking cannot price the adjustment with today's rate. The live project is
+ * only a fallback for bookings without a snapshot.
+ */
+export function bookedUnitPricing(input: {
+  snapshotPricing: PricingSource
+  liveSubprojects: Array<{ pricing?: PricingSource } | null | undefined>
+  selectedIndex: unknown
+}): BookedUnitPricing {
+  const liveSubprojectIndex = bookedSubprojectIndex(input.selectedIndex, input.liveSubprojects.length)
+  const pricing = input.snapshotPricing ?? (liveSubprojectIndex != null ? input.liveSubprojects[liveSubprojectIndex]?.pricing : undefined)
+  if (!input.snapshotPricing && liveSubprojectIndex == null) return { ok: false, reason: 'noSubproject' }
+  if (pricing?.type !== 'unit') return { ok: false, reason: 'notUnitPriced' }
+  const unitPrice = Number(pricing.amount)
+  if (!Number.isFinite(unitPrice) || unitPrice <= 0) return { ok: false, reason: 'unitPriceMissing' }
+  return { ok: true, unitPrice, liveSubprojectIndex }
 }

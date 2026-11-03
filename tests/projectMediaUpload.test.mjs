@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { isAllowedProjectImageType, pickProjectMediaUrl, uploadProjectMedia } from '../lib/projectMediaUpload.ts'
+import { PROJECT_MEDIA_UPLOAD_TIMEOUT_MS, isAllowedProjectImageType, pickProjectMediaUrl, uploadProjectMedia } from '../lib/projectMediaUpload.ts'
+import { createProjectMediaQueue } from '../lib/projectMediaQueue.ts'
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'kitchen.png', { type: 'image/png' })
@@ -67,4 +68,47 @@ test('wizard step 1 no longer inlines media as data URLs', () => {
     const guide = JSON.parse(readFileSync(new URL(`../messages/${locale}/projectWizard.json`, import.meta.url), 'utf8')).step1.images.guide
     assert.doesNotMatch(guide, /GIF|SVG/, `${locale} guide must not promise formats the upload rejects`)
   }
+})
+
+/** A request that never answers unless its signal aborts, like a stalled upload. */
+const stalledFetch = (seen) => (_url, init) => new Promise((_resolve, reject) => {
+  seen.push(init.signal)
+  init.signal?.addEventListener('abort', () => reject(init.signal.reason), { once: true })
+})
+
+test('a stalled upload is aborted and reported as a failed upload', async () => {
+  const seen = []
+  const result = await uploadProjectMedia({ apiBase: '', kind: 'video', file, fetchImpl: stalledFetch(seen), timeoutMs: 25 })
+  assert.deepEqual(result, { ok: false, status: 0 })
+  assert.ok(seen[0] instanceof AbortSignal && seen[0].aborted)
+})
+
+test('the default upload timeout leaves room for the 50 MiB video limit', async () => {
+  assert.equal(PROJECT_MEDIA_UPLOAD_TIMEOUT_MS, 10 * 60_000)
+  // 50 MiB in 10 minutes needs only about 0.7 Mbit/s.
+  assert.ok((50 * 1024 * 1024 * 8) / (PROJECT_MEDIA_UPLOAD_TIMEOUT_MS / 1000) < 1_000_000)
+  let signal
+  await uploadProjectMedia({ apiBase: '', kind: 'image', file, fetchImpl: async (_url, init) => { signal = init.signal; return json(200, { success: true, data: { url: 'u' } }) } })
+  assert.ok(signal instanceof AbortSignal && !signal.aborted, 'every request carries a timeout signal')
+})
+
+test('a timed-out upload releases its queue slot so saves and navigation unblock', async () => {
+  const pendingSeen = []
+  const appended = []
+  const seen = []
+  const enqueue = createProjectMediaQueue(
+    1,
+    () => appended.length,
+    async (f) => {
+      const result = await uploadProjectMedia({ apiBase: '', kind: 'video', file: f, fetchImpl: stalledFetch(seen), timeoutMs: 25 })
+      return result.ok ? result.url : null
+    },
+    (values) => appended.push(...values),
+    (pending) => pendingSeen.push(pending),
+  )
+  assert.equal(await enqueue([file]), true)
+  assert.deepEqual(pendingSeen, [1, 0])
+  assert.deepEqual(appended, [])
+  // The slot is free again for a retry.
+  assert.equal(await enqueue([file]), true)
 })

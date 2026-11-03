@@ -204,6 +204,7 @@
     "selectPackageFromPage": "Please select a package from the project page",
     "estimatedUsageRequired": "Please provide an estimated usage amount",
     "minOrderQuantity": "Minimum order quantity is {min}.",
+    "maxHoursPerWorkingDay": "Maximum is {max} hours per working day.",
     "selectStartDate": "Please select a preferred start date",
     "dateUnavailable": "Selected date is not available. Please choose another date.",
     "dateNotMeetingAvailability": "Selected date does not meet team availability requirements.",

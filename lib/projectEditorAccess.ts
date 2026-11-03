@@ -68,7 +68,9 @@ export function resolveProjectEditorView(input: {
   const { authLoading, user, projectId, load } = input
   if (authLoading) return 'checking-access'
   if (!user || user.role !== 'professional' || user.professionalStatus !== 'approved') return 'blocked'
-  if (!projectId) return 'ready'
+  // A new project needs Stripe; the page redirects to setup, so the blank form
+  // never shows (also after a query-only navigation that drops `?id=`).
+  if (!projectId) return projectWizardStripeRedirect(user, '/projects/create', '') ? 'blocked' : 'ready'
   if (load.status === 'idle' || load.projectId !== projectId) return 'loading-project'
   if (load.status === 'loading') return 'loading-project'
   if (load.status === 'error') return 'load-error'

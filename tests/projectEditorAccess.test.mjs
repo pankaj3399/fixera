@@ -78,6 +78,21 @@ test('editor view: delayed role hydration never exposes a blank form for an exis
   assert.equal(view(false, approvedProWithStripe, null, idle), 'ready')
 })
 
+test('new-project path without Stripe stays blocked, also after a query-only ?id= → no id navigation', () => {
+  const idle = { status: 'idle' }
+  // Editing an owned draft is allowed without Stripe...
+  assert.equal(resolveProjectEditorView({ authLoading: false, user: approvedProWithoutStripe, projectId: 'draft1', load: { status: 'loaded', projectId: 'draft1' } }), 'ready')
+  // ...the same pathname without ?id= is a new project and is not.
+  assert.equal(resolveProjectEditorView({ authLoading: false, user: approvedProWithoutStripe, projectId: null, load: { status: 'loaded', projectId: 'draft1' } }), 'blocked')
+  assert.equal(resolveProjectEditorView({ authLoading: false, user: approvedProWithoutStripe, projectId: null, load: idle }), 'blocked')
+  assert.equal(resolveProjectEditorView({ authLoading: false, user: approvedProWithStripe, projectId: null, load: idle }), 'ready')
+  // The page re-checks the redirect whenever the query id changes.
+  const page = readFileSync(new URL('../app/(pages)/projects/create/page.tsx', import.meta.url), 'utf8')
+  assert.match(page, /const stripeRedirect = projectWizardStripeRedirect\(user, '\/projects\/create', projectId \? `\?id=\$\{encodeURIComponent\(projectId\)\}` : ''\)\s*if \(stripeRedirect\) router\.replace\(stripeRedirect\)\s*\}, \[loading, isAuthenticated, user, canCreateProjects, projectId, router, t\]\)/)
+  assert.equal(projectWizardStripeRedirect(approvedProWithoutStripe, '/projects/create', ''), STRIPE_SETUP_PATH)
+  assert.equal(projectWizardStripeRedirect(approvedProWithoutStripe, '/projects/create', '?id=draft1'), null)
+})
+
 test('editor view: non-professionals, unapproved professionals and signed-out visitors stay blocked', () => {
   const loaded = { status: 'loaded', projectId: 'draft1' }
   for (const user of [null, { role: 'customer' }, { role: 'admin' }, { role: 'employee' }, { role: 'professional', professionalStatus: 'pending' }, { role: 'professional', professionalStatus: 'suspended' }, { role: 'professional' }]) {

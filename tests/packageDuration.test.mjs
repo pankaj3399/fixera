@@ -8,7 +8,10 @@ const {
   effectiveExecutionDuration,
   isHourUnit,
   packageDurationMode,
+  pricingTypeChangeUpdates,
   withChosenDurationBasis,
+  withSyncedPricingUnit,
+  withoutRetainedDurations,
 } = await import('../lib/packageDuration.ts')
 const { collectSubprojectErrors } = await import('../lib/projectWizardValidation.ts')
 
@@ -59,6 +62,12 @@ test('6.B: a per-unit duration scales by the booked quantity, legacy and fixed p
   assert.deepEqual(effectiveExecutionDuration(perM2, undefined, 0), perM2.executionDuration)
 })
 
+const validBase = {
+  name: 'Package', description: 'A described package scope',
+  included: [{ name: 'a' }, { name: 'b' }, { name: 'c' }], materialsIncluded: false,
+  preparationDuration: { value: 0 },
+}
+
 test('wizard validation does not ask a duration for hourly packages but still does for per-unit ones', () => {
   const base = {
     name: 'Package', description: 'A described package scope',
@@ -100,4 +109,78 @@ test('new duration strings exist in every locale with their placeholders', () =>
     assert.match(timing.executionPerUnitHint, /\{unit\}/, locale)
     assert.match(summary.durationPerUnit, /\{value\}.*\{unit\}.*\{pricingUnit\}/, locale)
   }
+})
+
+// Wizard package helpers. `typeChange` stands in for the Step 2 type select and
+// auto-repair: withChosenDurationBasis, then the pricing unit, then the updates.
+const typeChange = (pkg, type, unit) => ({
+  ...pkg,
+  ...pricingTypeChangeUpdates(pkg, { ...withChosenDurationBasis({ ...pkg.pricing, type }), unit: type === 'unit' ? unit : undefined }),
+})
+
+test('a whole-job duration is not carried into unit pricing, where it would be read per unit', () => {
+  const fixed = { pricing: { type: 'fixed', amount: 900 }, executionDuration: { value: 3, unit: 'days' } }
+  const unit = typeChange(fixed, 'unit', 'm²')
+  assert.equal(packageDurationMode(unit.pricing), 'per_unit')
+  assert.equal(unit.executionDuration.value, undefined, '3 days must not become 3 days per m²')
+  assert.equal(unit.executionDuration.unit, 'days', 'the unit choice is kept')
+  // Without the reset, 10 booked m² would block 30 days.
+  assert.equal(effectiveExecutionDuration(unit, undefined, 10).value, undefined)
+  const rfq = { pricing: { type: 'rfq' }, executionDuration: { value: 2, unit: 'hours', range: { min: 1, max: 4 } } }
+  assert.equal(typeChange(rfq, 'unit', 'room').executionDuration.value, undefined)
+  // Other type changes keep the duration.
+  assert.equal(typeChange(fixed, 'rfq').executionDuration.value, 3)
+  const perUnit = { pricing: { type: 'unit', unit: 'm²', durationBasis: 'per_unit' }, executionDuration: { value: 0.5, unit: 'days' } }
+  assert.equal(typeChange(perUnit, 'fixed').executionDuration.value, 0.5)
+})
+
+test('per-unit option → hourly option → same per-unit option restores the value and its unit', () => {
+  const perM2 = { pricing: { type: 'unit', unit: 'm²', durationBasis: 'per_unit' }, executionDuration: { value: 0.5, unit: 'days' } }
+  const hourly = withSyncedPricingUnit(perM2, 'hour')
+  assert.equal(packageDurationMode(hourly.pricing), 'customer_hours')
+  assert.deepEqual(hourly.executionDuration, { value: undefined, unit: 'hours' })
+  const back = withSyncedPricingUnit(hourly, 'm²')
+  assert.deepEqual(back.executionDuration, { value: 0.5, unit: 'days' })
+  assert.equal(back.retainedPerUnitDuration, undefined)
+  assert.deepEqual(collectSubprojectErrors({ ...validBase, ...back, pricing: { ...back.pricing, amount: 12 } }, 0, t), [])
+  // A different per-unit option does not inherit the m² value.
+  assert.equal(withSyncedPricingUnit(hourly, 'room').executionDuration.value, undefined)
+  // Unchanged unit is a no-op.
+  assert.equal(withSyncedPricingUnit(perM2, 'm²'), perM2)
+})
+
+test('an old fixed duration is never restored as a per-unit duration', () => {
+  const fixed = { pricing: { type: 'fixed', amount: 900 }, executionDuration: { value: 3, unit: 'days' } }
+  // Fixed → unit while the option is hourly, then the option changes to m².
+  const hourly = typeChange(fixed, 'unit', 'hour')
+  assert.equal(packageDurationMode(hourly.pricing), 'customer_hours')
+  assert.equal(hourly.retainedPerUnitDuration, undefined)
+  assert.equal(withSyncedPricingUnit(hourly, 'm²').executionDuration.value, undefined)
+  // A type change also drops a value kept from an earlier per-unit option.
+  const perM2 = { pricing: { type: 'unit', unit: 'm²', durationBasis: 'per_unit' }, executionDuration: { value: 0.5, unit: 'days' } }
+  const kept = withSyncedPricingUnit(perM2, 'hour')
+  assert.ok(kept.retainedPerUnitDuration)
+  const viaFixed = typeChange(typeChange(kept, 'fixed'), 'unit', 'hour')
+  assert.equal(viaFixed.retainedPerUnitDuration, undefined)
+  assert.equal(withSyncedPricingUnit(viaFixed, 'm²').executionDuration.value, undefined)
+})
+
+test('a saved hourly package has no duration value and no wizard-only field', () => {
+  const perM2 = { id: 'a', pricing: { type: 'unit', unit: 'm²', durationBasis: 'per_unit' }, executionDuration: { value: 0.5, unit: 'days' } }
+  const hourly = withSyncedPricingUnit(perM2, 'hour')
+  const [saved] = JSON.parse(JSON.stringify(withoutRetainedDurations([hourly])))
+  assert.deepEqual(saved.executionDuration, { unit: 'hours' })
+  assert.equal('retainedPerUnitDuration' in saved, false)
+  assert.equal(withoutRetainedDurations(undefined), undefined)
+  const untouched = { id: 'b', pricing: { type: 'fixed' } }
+  assert.equal(withoutRetainedDurations([untouched])[0], untouched)
+})
+
+test('wizard wiring: type select, auto-repair, option sync and saving use the duration helpers', () => {
+  const step2 = source('components/professional/project-wizard/Step2Subprojects.tsx')
+  assert.match(step2, /\.\.\.pricingTypeChangeUpdates\(sub, withPricingUnit\(withChosenDurationBasis\(\{ \.\.\.sub\.pricing, type: defaultType \}\), unitLabel\)\)/, 'auto-repair')
+  assert.match(step2, /updateSubproject\(\s*subproject\.id,\s*pricingTypeChangeUpdates\(subproject, withPricingUnit\(withChosenDurationBasis\(\{ \.\.\.subproject\.pricing, type: value \}\), unitLabel\)\),/, 'type select')
+  assert.match(step2, /return withSyncedPricingUnit\(sub, resolvedUnit\);/, 'option sync')
+  const page = source('app/(pages)/projects/create/page.tsx')
+  assert.match(page, /subprojects: normalizePreparationDuration\(withoutRetainedDurations\(projectData\.subprojects\)\)/)
 })

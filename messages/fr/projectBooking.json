@@ -204,6 +204,7 @@
     "selectPackageFromPage": "Sélectionnez un forfait sur la page du projet",
     "estimatedUsageRequired": "Indiquez une quantité estimée",
     "minOrderQuantity": "La quantité minimale de commande est de {min}.",
+    "maxHoursPerWorkingDay": "Maximum {max} heures par jour ouvré.",
     "selectStartDate": "Sélectionnez une date de début souhaitée",
     "dateUnavailable": "La date sélectionnée n'est pas disponible. Choisissez une autre date.",
     "dateNotMeetingAvailability": "La date sélectionnée ne répond pas aux exigences de disponibilité de l'équipe.",

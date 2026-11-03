@@ -32,11 +32,12 @@ import {
   type ProjectMediaUploader,
 } from '@/lib/projectMediaUploads'
 import { useAuth } from '@/contexts/AuthContext'
-import { packageDurationMode } from '@/lib/packageDuration'
+import { packageDurationMode, withoutRetainedDurations } from '@/lib/packageDuration'
 import {
   PROJECT_MANAGE_PATH,
   createLatestLoadGuard,
   fetchProjectForEditor,
+  projectWizardStripeRedirect,
   resolveProjectEditorView,
   type ProjectLoadState,
 } from '@/lib/projectEditorAccess'
@@ -382,8 +383,15 @@ function ProjectCreateContent() {
     if (!canCreateProjects) {
       toast.error(t('create.adminApprovalRequired'))
       router.replace('/professional/projects/manage')
+      return
     }
-  }, [loading, isAuthenticated, user?.role, canCreateProjects, router, t])
+
+    // Same rule as the AuthContext route guard, re-checked here because a
+    // query-only navigation (?id=… → no id) keeps the pathname, so the
+    // guard does not run again. New projects need Stripe; editing does not.
+    const stripeRedirect = projectWizardStripeRedirect(user, '/projects/create', projectId ? `?id=${encodeURIComponent(projectId)}` : '')
+    if (stripeRedirect) router.replace(stripeRedirect)
+  }, [loading, isAuthenticated, user, canCreateProjects, projectId, router, t])
 
   const normalizePreparationDuration = (subprojects?: ISubproject[]) => {
     if (!Array.isArray(subprojects)) return subprojects
@@ -542,7 +550,7 @@ function ProjectCreateContent() {
           videos: projectData.media?.videos || [],
           video: projectData.media?.videos?.[0],
         },
-        subprojects: normalizePreparationDuration(projectData.subprojects),
+        subprojects: normalizePreparationDuration(withoutRetainedDurations(projectData.subprojects)),
         priceModel: computedPriceModel,
         currentStep
       }
