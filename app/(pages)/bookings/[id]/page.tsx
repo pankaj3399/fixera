@@ -44,7 +44,7 @@ import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
-import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
 import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
@@ -2536,25 +2536,20 @@ function BookingDetailContent() {
   // charge plan (options in full on the first milestone). Falls back to the
   // proportional preview when the backend sent no plan. Hooks stay above the
   // loading/auth early returns.
-  const rescheduleEntries = useMemo<RescheduleHistoryDto[]>(() => {
-    if (details?.reschedules && details.reschedules.length > 0) return details.reschedules
-    const legacy = booking?.rescheduleRequest
-    if (!legacy) return []
-    return [
-      {
-        requestedAt: legacy.requestedAt ?? null,
-        reason: legacy.reason ?? null,
-        description: legacy.description ?? null,
-        note: legacy.note ?? null,
-        status: legacy.status ?? 'pending',
-        // The legacy shape carries no terminal flag: only a pending request
-        // from the other party is answerable.
-        canRespond: legacy.status === 'pending' && legacy.requestedBy !== user?._id,
-        previousSchedule: legacy.previousSchedule ?? null,
-        proposedSchedule: legacy.proposedSchedule ?? null,
-      },
-    ]
-  }, [details, booking?.rescheduleRequest, user?._id])
+  const rescheduleEntries = useMemo<RescheduleHistoryDto[]>(
+    () =>
+      // Details entries from a backend without `canRespond` get the endpoint's
+      // live-pending rule; without details entries, only a recorded legacy
+      // request shows (never the schema-default `{previousSchedule:
+      // {assignedTeamMembers:[]}, …}` shell every booking carries).
+      resolveRescheduleEntries({
+        reschedules: details?.reschedules,
+        liveRequest: booking?.rescheduleRequest,
+        bookingStatus: booking?.status,
+        viewerUserId: user?._id,
+      }),
+    [details?.reschedules, booking?.rescheduleRequest, booking?.status, user?._id]
+  )
   const recordedMilestoneCharges = useMemo<(number | null)[] | null>(() => {
     const plan = details?.payments?.milestones
     if (!plan || plan.length === 0) return null
@@ -2642,7 +2637,8 @@ function BookingDetailContent() {
   )
   // Tasks 3/9a: cancellation + reschedule requests from the booking-details
   // DTO, with a legacy fallback for bookings without a details payload.
-  const cancellationRequest = details?.cancellations?.[0] ?? null
+  // The DTO lists requests oldest first: show the live/newest one.
+  const cancellationRequest = selectCancellationRequest(details?.cancellations)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">

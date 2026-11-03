@@ -2,11 +2,13 @@ import type {
   ActivityItem,
   AttachmentDto,
   BookingDetailsDto,
+  CancellationRequestDto,
   DetailViewerRole,
   DetailsNotice,
   PaymentRecordDto,
   QuotationVersionDto,
   RefundDto,
+  RescheduleHistoryDto,
   SnapshotQuestion,
 } from "../types/bookingDetails.ts";
 
@@ -1720,4 +1722,161 @@ export function resolvePanelHourMode(
     bookingExecutionUnit: bookingUnit,
     bookingTimeMode: booking?.project?.timeMode ?? null,
   });
+}
+
+/** `booking.rescheduleRequest` as the booking GET returns it (legacy, pre-details shape). */
+export interface LegacyRescheduleRequest {
+  status?: string | null;
+  requestedBy?: unknown;
+  requestedAt?: string | null;
+  reason?: string | null;
+  description?: string | null;
+  note?: string | null;
+  respondedAt?: string | null;
+  responseNote?: string | null;
+  previousSchedule?: (LegacySchedule & Record<string, unknown>) | null;
+  proposedSchedule?: (LegacySchedule & Record<string, unknown>) | null;
+}
+
+const recordedValue = (value: unknown): boolean => {
+  if (value == null) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+};
+
+const recordedSchedule = (schedule: unknown): boolean =>
+  !!schedule && typeof schedule === "object" && !Array.isArray(schedule)
+  && Object.values(schedule as Record<string, unknown>).some(recordedValue);
+
+/**
+ * True only when `request` carries something a reschedule writer recorded.
+ *
+ * The backend Booking schema declares `rescheduleRequest` as a nested path
+ * whose `previousSchedule`/`proposedSchedule` contain `assignedTeamMembers`
+ * arrays. Mongoose materializes those arrays as `[]` on every hydrated
+ * booking, so a booking that never had a request still serializes as
+ * `{ previousSchedule: { assignedTeamMembers: [] }, proposedSchedule: { … } }`.
+ * That default shell is not a request; any recorded field (status, actor,
+ * time, reason/description/note, response or a schedule value) is.
+ */
+export function hasRecordedRescheduleRequest(request: unknown): request is LegacyRescheduleRequest {
+  if (!request || typeof request !== "object" || Array.isArray(request)) return false;
+  const value = request as LegacyRescheduleRequest;
+  return recordedValue(value.status)
+    || recordedValue(value.requestedAt)
+    || recordedValue(value.requestedBy)
+    || recordedValue(value.reason)
+    || recordedValue(value.description)
+    || recordedValue(value.note)
+    || recordedValue(value.respondedAt)
+    || recordedValue(value.responseNote)
+    || recordedSchedule(value.proposedSchedule)
+    || recordedSchedule(value.previousSchedule);
+}
+
+const actorIdOf = (value: unknown): string | null => {
+  if (typeof value === "string") return value || null;
+  if (value && typeof value === "object") {
+    const record = value as { _id?: unknown; id?: unknown };
+    const id = record._id ?? record.id;
+    return id == null ? null : String(id);
+  }
+  return null;
+};
+
+/**
+ * Reschedule card entries for a booking whose details DTO has no
+ * `reschedules`: the legacy `rescheduleRequest`, but only when it was
+ * actually recorded (see `hasRecordedRescheduleRequest`).
+ */
+export function legacyRescheduleEntries(
+  request: unknown,
+  viewerUserId?: string | null
+): RescheduleHistoryDto[] {
+  if (!hasRecordedRescheduleRequest(request)) return [];
+  const requesterId = actorIdOf(request.requestedBy);
+  return [
+    {
+      requestedAt: request.requestedAt ?? null,
+      reason: request.reason ?? null,
+      description: request.description ?? null,
+      note: request.note ?? null,
+      status: request.status ?? "pending",
+      // The legacy shape carries no terminal flag: only a pending request
+      // from the other party is answerable.
+      canRespond: request.status === "pending" && requesterId !== (viewerUserId ?? null),
+      previousSchedule: request.previousSchedule ?? null,
+      proposedSchedule: request.proposedSchedule ?? null,
+    },
+  ];
+}
+
+const instantOf = (value: unknown): number | null => {
+  if (typeof value !== "string" || !value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+};
+
+/**
+ * Reschedule card entries from the booking-details DTO.
+ *
+ * A details payload that predates `canRespond` (no boolean on an entry) gets
+ * the same answerability rule the respond-reschedule endpoint enforces: only
+ * the live pending request of a `rescheduling_requested` booking (matched by
+ * its request time), and never the requester's own request. An explicit
+ * boolean from the backend is kept as sent. Without details entries, this
+ * falls back to the recorded legacy `rescheduleRequest`.
+ */
+export function resolveRescheduleEntries(params: {
+  reschedules?: RescheduleHistoryDto[] | null;
+  liveRequest?: unknown;
+  bookingStatus?: string | null;
+  viewerUserId?: string | null;
+}): RescheduleHistoryDto[] {
+  const { reschedules, liveRequest, bookingStatus, viewerUserId } = params;
+  if (!reschedules || reschedules.length === 0) {
+    return legacyRescheduleEntries(liveRequest, viewerUserId);
+  }
+  const live = hasRecordedRescheduleRequest(liveRequest) ? liveRequest : null;
+  const livePending = bookingStatus === "rescheduling_requested" && live?.status === "pending";
+  const liveInstant = livePending ? instantOf(live?.requestedAt) : null;
+  const viewerId = viewerUserId ?? null;
+  return reschedules.map((entry) => {
+    if (typeof entry.canRespond === "boolean") return entry;
+    const entryInstant = instantOf(entry.requestedAt);
+    const isLivePending =
+      liveInstant != null && entryInstant != null && entryInstant === liveInstant;
+    const requesterId = actorIdOf(entry.requestedBy) ?? (isLivePending ? actorIdOf(live?.requestedBy) : null);
+    const canRespond =
+      isLivePending
+      && (entry.status ?? "pending") === "pending"
+      && !(viewerId != null && requesterId === viewerId);
+    return { ...entry, canRespond };
+  });
+}
+
+/** Cancellation statuses that still await a party or an admin. */
+const LIVE_CANCELLATION_STATUSES = new Set(["pending", "processing", "negotiating", "escalated"]);
+
+/**
+ * The cancellation request the booking page shows. The participant details
+ * DTO lists requests oldest first (the admin detail lists them newest first),
+ * so the array position is not the current request. A live request (the
+ * backend allows one at a time, and the professional's respond endpoint acts
+ * on it) wins; otherwise the most recent one by `createdAt`.
+ */
+export function selectCancellationRequest(
+  cancellations: CancellationRequestDto[] | null | undefined
+): CancellationRequestDto | null {
+  if (!cancellations || cancellations.length === 0) return null;
+  const newestFirst = cancellations
+    .map((request, index) => ({ request, index, at: instantOf(request?.createdAt) ?? Number.NEGATIVE_INFINITY }))
+    .sort((a, b) => (b.at - a.at) || (a.index - b.index))
+    .map((entry) => entry.request);
+  return (
+    newestFirst.find((request) => LIVE_CANCELLATION_STATUSES.has(String(request?.status || "pending"))) ??
+    newestFirst[0] ??
+    null
+  );
 }
