@@ -9,6 +9,7 @@ import {
   EMAIL_LOG_TEXT_FILTERS,
   EMPTY_EMAIL_LOG_FILTERS,
   buildEmailLogQuery,
+  emailLogDateRangeProblem,
   isBookingIdFilter,
   parseEmailLogsResponse,
   sameEmailLogFilters,
@@ -215,6 +216,14 @@ export default function AdminEmailLogsPage() {
                   onChange={(e) => updateFilter("until", e.target.value)}
                 />
               </div>
+              {emailLogDateRangeProblem(filters) && (
+                <p role="status" className="text-xs text-amber-600 col-span-full">
+                  {emailLogDateRangeProblem(filters)}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 col-span-full">
+                Dates use your local time zone, like the times shown below.
+              </p>
             </div>
           </CardContent>
         </Card>

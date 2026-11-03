@@ -61,6 +61,28 @@ export const isEmailLogStatus = (value: unknown): value is EmailLogStatus =>
 export const isBookingIdFilter = (value: string) => OBJECT_ID.test(value.trim())
 
 /**
+ * Start (or last millisecond) of a calendar day in the admin's own time zone,
+ * as an ISO instant. Rows are displayed with toLocaleString(), so the date
+ * filters must use the same local day boundaries; sending a bare YYYY-MM-DD
+ * made the backend treat it as a UTC day (Belgian admins lost the emails sent
+ * between local midnight and 01:00/02:00). The backend parses ISO instants
+ * as-is and widens `until` only when it is exactly UTC midnight, which a
+ * 23:59:59.999 local end never is.
+ */
+export function localDayBoundary(day: string, edge: 'start' | 'end'): string | null {
+  if (!ISO_DAY.test(day)) return null
+  const instant = new Date(`${day}T${edge === 'start' ? '00:00:00.000' : '23:59:59.999'}`)
+  return Number.isNaN(instant.getTime()) ? null : instant.toISOString()
+}
+
+/** User-facing problem with the date range, or null. */
+export function emailLogDateRangeProblem(filters: Pick<EmailLogFilters, 'from' | 'until'>): string | null {
+  const from = localDayBoundary(filters.from, 'start')
+  const until = localDayBoundary(filters.until, 'end')
+  return from && until && from > until ? '"From" is after "Until", so no email can match.' : null
+}
+
+/**
  * Build the query string. Filters the backend would silently ignore (recipient
  * under 2 chars, partial booking ids, malformed dates) are omitted, so the
  * page never claims a filter is active when it is not.
@@ -73,8 +95,10 @@ export function buildEmailLogQuery(filters: EmailLogFilters, page: number, limit
   const to = filters.to.trim()
   if (to.length >= 2) params.set('to', to)
   if (isBookingIdFilter(filters.relatedBooking)) params.set('relatedBooking', filters.relatedBooking.trim())
-  if (ISO_DAY.test(filters.from)) params.set('from', filters.from)
-  if (ISO_DAY.test(filters.until)) params.set('until', filters.until)
+  const from = localDayBoundary(filters.from, 'start')
+  const until = localDayBoundary(filters.until, 'end')
+  if (from) params.set('from', from)
+  if (until) params.set('until', until)
   params.set('page', String(Math.max(1, Math.floor(page) || 1)))
   params.set('limit', String(limit))
   return params.toString()
