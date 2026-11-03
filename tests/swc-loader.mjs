@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -14,7 +14,15 @@ const candidates = (base) => [
   path.join(base, 'index.ts'),
 ]
 
-const resolveFile = (base) => candidates(base).find((candidate) => existsSync(candidate) && !candidate.endsWith(path.sep))
+// Files only: `@/lib/cms` must resolve to lib/cms.ts even though lib/cms/ exists.
+const isFile = (candidate) => {
+  try {
+    return statSync(candidate).isFile()
+  } catch {
+    return false
+  }
+}
+const resolveFile = (base) => candidates(base).find(isFile)
 
 export async function resolve(specifier, context, nextResolve) {
   // Next package subpaths are not exported with Node's extensionless ESM

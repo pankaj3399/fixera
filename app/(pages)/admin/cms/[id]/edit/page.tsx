@@ -46,5 +46,6 @@ export default function EditCmsContentPage() {
     );
   }
 
-  return <CmsContentForm mode="edit" initial={content} />;
+  // Keyed by id: opening another language version remounts with its own state.
+  return <CmsContentForm key={content._id} mode="edit" initial={content} />;
 }
