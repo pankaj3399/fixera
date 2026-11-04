@@ -438,22 +438,21 @@
     "label": "Frais supplémentaires",
     "total": "Total des frais supplémentaires",
     "totalLabel": "Total des frais supplémentaires :",
-    "unitAdjustmentName": "Ajustement basé sur les unités",
-    "unitDetail": "(estimé : {estimated}, réel : {actual})",
+    "unitAdjustmentName": "Ajustement de quantité ({unit})",
+    "unitDetail": "(estimé : {estimated} {unit}, réel : {actual} {unit})",
     "subtotal": "Sous-total (dont {percent} % de frais de plateforme)",
     "loyaltyLine": "Fidélité {level} ({percentage} %)",
     "vat": "TVA",
     "payBeforeConfirmTitle": "Payez les frais supplémentaires avant la confirmation finale",
     "payBeforeConfirmDescription": "Dès que ce paiement est effectué, la réservation sera finalisée automatiquement.",
     "paymentSucceeded": "Paiement des frais supplémentaires réussi. Finalisation de la réservation en cours. Si la page ne s'actualise pas, utilisez à nouveau le bouton de confirmation.",
-    "addUnit": "+ Unité",
+    "addUnit": "+ Ajust. {unit}",
     "addCondition": "+ Condition",
     "addOption": "+ Option",
     "addOther": "+ Autre",
-    "unitsFallback": "unités",
     "estimatedUnits": "Nombre de {unit} estimé",
     "actualUnits": "Nombre réel de {unit}",
-    "unitPrice": "Prix unitaire",
+    "unitPrice": "Prix par {unit}",
     "conditionLabel": "Condition (à choisir dans le projet)",
     "selectCondition": "Sélectionnez une condition",
     "noConditions": "Aucune condition de projet disponible",
@@ -477,6 +476,28 @@
       "noSubproject": "Impossible d'ajouter un ajustement unitaire : aucun sous-projet n'est sélectionné pour cette réservation.",
       "notUnitPriced": "Impossible d'ajouter un ajustement unitaire : ce sous-projet n'est pas facturé à l'unité.",
       "unitPriceMissing": "Impossible d'ajouter un ajustement unitaire : le prix unitaire n'est pas défini."
+    },
+    "unitNames": {
+      "one": {
+        "hour": "heure",
+        "day": "jour",
+        "meter": "mètre",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "pièce",
+        "piece": "article",
+        "unit": "unité"
+      },
+      "other": {
+        "hour": "heures",
+        "day": "jours",
+        "meter": "mètres",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "pièces",
+        "piece": "articles",
+        "unit": "unités"
+      }
     }
   },
   "review": {

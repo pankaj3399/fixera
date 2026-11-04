@@ -204,6 +204,7 @@
     "selectPackageFromPage": "Kies een pakket op de projectpagina",
     "estimatedUsageRequired": "Geef een geschatte hoeveelheid in",
     "minOrderQuantity": "De minimale bestelhoeveelheid is {min}.",
+    "maxHoursPerWorkingDay": "Maximaal {max} uur per werkdag.",
     "selectStartDate": "Kies een gewenste startdatum",
     "dateUnavailable": "De gekozen datum is niet beschikbaar. Kies een andere datum.",
     "dateNotMeetingAvailability": "De gekozen datum voldoet niet aan de beschikbaarheid van het team.",

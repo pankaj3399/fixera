@@ -4,6 +4,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
+import { effectiveExecutionDuration, packageDurationMode } from '@/lib/packageDuration';
+import {
+  addExecutionHours,
+  advanceWorkingDays as advanceWorkingDaysWithin,
+  maxWorkingWindowHours,
+  withBookingQuantity,
+  workingHoursForDay,
+} from '@/lib/bookingSchedule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -561,10 +569,21 @@ export default function ProjectBookingForm({
         ? 1
         : undefined;
 
+  // Execution the booking occupies, as the backend schedules it: an hourly
+  // unit package lasts the booked hours, a per-unit package scales its unit
+  // duration by the booked quantity, anything else keeps its stored duration.
+  const bookedExecution = useMemo(
+    () => effectiveExecutionDuration<AnyExecutionDuration>(
+      selectedPackage,
+      project.executionDuration,
+      isUnitPricing ? estimatedUsage : 1,
+    ),
+    [selectedPackage, project.executionDuration, isUnitPricing, estimatedUsage],
+  );
+
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
-    selectedPackage?.executionDuration?.unit ||
-    project.executionDuration?.unit ||
+    bookedExecution?.unit ||
     'days';
   const professionalTz = normalizeTimezone(professionalTimezone);
   // Formats DayPicker/local Date objects in local timezone (date-only value from the picker).
@@ -811,6 +830,7 @@ export default function ProjectBookingForm({
     blockedDates,
     professionalAvailability,
     selectedPackage,
+    bookedExecution,
     selectedTime,
   ]);
 
@@ -835,7 +855,7 @@ export default function ProjectBookingForm({
         if (typeof selectedPackageIndex === 'number') {
           url += `&subprojectIndex=${selectedPackageIndex}`;
         }
-        if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
+        url = withBookingQuantity(url, isUnitPricing, estimatedUsage);
         const res = await fetch(url, { signal: controller.signal });
         if (!isCurrent()) return;
         if (!res.ok) {
@@ -882,7 +902,7 @@ export default function ProjectBookingForm({
       if (typeof selectedPackageIndex === 'number') {
         url += `&subprojectIndex=${selectedPackageIndex}`;
       }
-      if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
+      url = withBookingQuantity(url, isUnitPricing, estimatedUsage);
       if (startTime) {
         url += `&startTime=${startTime}`;
       }
@@ -946,7 +966,7 @@ export default function ProjectBookingForm({
       if (typeof packageIndex === 'number') {
         url += `?subprojectIndex=${packageIndex}`;
       }
-      if (isUnitPricing) url += `${url.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
+      url = withBookingQuantity(url, isUnitPricing, estimatedUsage);
       const response = await fetch(url);
       const data: AvailabilityResponse = await response.json();
 
@@ -1030,7 +1050,7 @@ export default function ProjectBookingForm({
       if (typeof packageIndex === 'number') {
         endpoint += `?subprojectIndex=${packageIndex}`;
       }
-      if (isUnitPricing) endpoint += `${endpoint.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
+      endpoint = withBookingQuantity(endpoint, isUnitPricing, estimatedUsage);
 
       const response = await fetch(endpoint);
       const data: ScheduleProposalsResponse = await response.json();
@@ -1130,35 +1150,14 @@ export default function ProjectBookingForm({
     return Math.ceil(convertDurationToDays(buffer));
   };
 
-  const advanceWorkingDays = (startDate: Date, workingDays: number) => {
-    if (workingDays <= 0) {
-      return startDate;
-    }
-    if (workingDays === 1) {
-      return startDate;
-    }
-
-    let cursor = startDate;
-    let countedDays = 0;
-
-    // First, check if startDate itself is a working day and count it
-    const startStr = toLocalDateKey(startDate);
-    if (isProfessionalWorkingDay(startDate) && !isDateBlocked(startStr)) {
-      countedDays = 1;
-    }
-
-    // Now find remaining working days
-    while (countedDays < workingDays) {
-      cursor = addDays(cursor, 1);
-      const cursorStr = toLocalDateKey(cursor);
-
-      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
-        countedDays++;
-      }
-    }
-
-    return cursor;
-  };
+  // Null when no completion date exists within the search horizon (for
+  // example, the professional is unavailable every day).
+  const advanceWorkingDays = (startDate: Date, workingDays: number): Date | null =>
+    advanceWorkingDaysWithin(
+      startDate,
+      workingDays,
+      (day) => isProfessionalWorkingDay(day) && !isDateBlocked(toLocalDateKey(day)),
+    );
 
   // Check if a date is a weekend (Saturday or Sunday)
   const isWeekend = useCallback((date: Date): boolean => {
@@ -1265,17 +1264,11 @@ export default function ProjectBookingForm({
       dayAvailability = professionalAvailability[dayName];
     }
 
-    if (!dayAvailability || !dayAvailability.available) return defaultHours;
-
-    return {
-      startTime: dayAvailability.startTime || '09:00',
-      endTime: dayAvailability.endTime || '17:00',
-    };
+    return workingHoursForDay(dayAvailability);
   }, [professionalAvailability, professionalTz, toLocalDateKey]);
 
   const getExecutionDurationHours = (): number => {
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     if (!executionSource) {
       return 0;
@@ -1736,8 +1729,7 @@ export default function ProjectBookingForm({
     if (!startTime) return '';
 
     // Get execution duration in hours
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     let executionHours = 0;
     if (executionSource) {
@@ -1772,8 +1764,7 @@ export default function ProjectBookingForm({
     const endTime = calculateEndTime(startTime);
 
     // Get execution duration
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     const durationLabel =
       executionSource && typeof executionSource.value === 'number'
@@ -1824,11 +1815,11 @@ export default function ProjectBookingForm({
 
   const executionDaysForBlocking = useMemo(() => {
     if (projectMode !== 'days') return 0;
-    const executionSource = selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource = bookedExecution;
     const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const days = Math.ceil(convertDurationToDays(executionSource, preferRange));
     return Number.isFinite(days) && days > 0 ? days : 0;
-  }, [projectMode, selectedPackage, project.executionDuration]);
+  }, [projectMode, selectedPackage, bookedExecution]);
 
   const isExecutionWindowBlockedForStart = (startDate: Date): boolean => {
     if (executionDaysForBlocking <= 1) return false;
@@ -2050,8 +2041,7 @@ export default function ProjectBookingForm({
   const calculateCompletionDate = (includeBuffer = false): Date | null => {
     if (!selectedDate) return null;
 
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
     const preferRange =
       selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const executionDays = Math.ceil(
@@ -2064,7 +2054,7 @@ export default function ProjectBookingForm({
         ? advanceWorkingDays(startingPoint, executionDays)
         : startingPoint;
 
-    if (!includeBuffer) {
+    if (!completionWithoutBuffer || !includeBuffer) {
       return completionWithoutBuffer;
     }
 
@@ -2090,8 +2080,7 @@ export default function ProjectBookingForm({
     const [hours, minutes] = selectedTime.split(':').map(Number);
     const startDate = parseISO(selectedDate);
     startDate.setHours(hours, minutes, 0, 0);
-    const executionEnd = new Date(startDate);
-    executionEnd.setHours(executionEnd.getHours() + executionHours);
+    const executionEnd = addExecutionHours(startDate, executionHours);
 
     if (!includeBuffer) {
       return executionEnd;
@@ -2115,6 +2104,7 @@ export default function ProjectBookingForm({
 
     const bufferStart = addDays(startOfDay(executionEnd), 1);
     const bufferEndDate = advanceWorkingDays(bufferStart, bufferDays);
+    if (!bufferEndDate) return null;
     const { endTime } = getWorkingHoursForDate(bufferEndDate);
     const [endHour, endMin] = endTime.split(':').map(Number);
     const completion = new Date(bufferEndDate);
@@ -2241,6 +2231,16 @@ export default function ProjectBookingForm({
       if (minOrderQuantity && estimatedUsage < minOrderQuantity) {
         toast.error(t('toasts.minOrderQuantity', { min: minOrderQuantity }));
         return false;
+      }
+
+      // Customer-set hours: more hours than the longest working day leave no
+      // bookable slot on any date, so say so here instead of an empty calendar.
+      if (packageDurationMode(selectedPackage.pricing) === 'customer_hours') {
+        const maxHours = maxWorkingWindowHours(professionalAvailability);
+        if (estimatedUsage > maxHours) {
+          toast.error(t('toasts.maxHoursPerWorkingDay', { max: maxHours }));
+          return false;
+        }
       }
     }
 
@@ -2903,8 +2903,7 @@ export default function ProjectBookingForm({
       return null;
     }
 
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
     const preferRange =
       selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const executionDays = Math.ceil(
@@ -2941,8 +2940,7 @@ export default function ProjectBookingForm({
     projectMode,
     selectedDate,
     professionalAvailability,
-    selectedPackage?.executionDuration,
-    project.executionDuration,
+    bookedExecution,
     selectedPackage?.pricing.type,
     scheduleWindowCompletionDate,
     professionalTz,
@@ -3351,7 +3349,7 @@ export default function ProjectBookingForm({
                               className='text-lg'
                             />
 
-                            {selectedPackage.pricing.unit?.toLowerCase().match(/^(h|hr|hrs|hour|hours|hur)$/) && !selectedPackage.executionDuration?.value ? (
+                            {packageDurationMode(selectedPackage.pricing) === 'customer_hours' ? (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>{t('package.hoursDeterminedByCustomer')}</span>
                             ) : project.priceModel && (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>

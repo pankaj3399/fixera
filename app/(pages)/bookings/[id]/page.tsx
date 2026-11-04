@@ -6,6 +6,7 @@ import { Suspense } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { bookedSubprojectIndex, bookedUnitPricing, canonicalUnit, resolveBookingUnit } from "@/lib/bookingUnits"
 import { useAuth } from "@/contexts/AuthContext"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
@@ -256,7 +257,7 @@ interface BookingDetail {
     termsConditions?: Array<{ name?: string; additionalCost?: number; type?: 'condition' | 'warning' }>
     subprojects?: Array<{
       name?: string
-      pricing?: { type?: 'fixed' | 'unit' | 'rfq'; amount?: number }
+      pricing?: { type?: 'fixed' | 'unit' | 'rfq'; amount?: number; unit?: string }
       professionalInputs?: Array<{ fieldName?: string; value?: string | number | { min?: number | string; max?: number | string } }>
       executionDuration?: { value?: number; unit?: 'hours' | 'days' }
     }>
@@ -572,6 +573,12 @@ function BookingDetailContent() {
     const key = `${prefix}.${value}`
     const hasKey = (t.has as unknown as (k: string) => boolean)(key)
     return hasKey ? (t as unknown as (k: string) => string)(key) : value.replace(/_/g, " ")
+  }
+  /** Configured unit word (m², hours, …) for the completion pop-up; never a bare "unit" when one is configured. */
+  const unitWord = (raw: string | null | undefined, form: 'one' | 'other') => {
+    const canonical = canonicalUnit(raw)
+    if (canonical) return (t as unknown as (k: string) => string)(`extraCosts.unitNames.${form}.${canonical}`)
+    return raw?.trim() || (t as unknown as (k: string) => string)(`extraCosts.unitNames.${form}.unit`)
   }
   const formatWarrantyRejections = (rejected: WarrantyFileRejection[]) =>
     rejected
@@ -2290,29 +2297,30 @@ function BookingDetailContent() {
     setShowDisputeModal(true)
   }
 
+  const bookingSubprojects = booking?.project?.subprojects || []
+  const bookedSubIdx = bookedSubprojectIndex(booking?.selectedSubprojectIndex, bookingSubprojects.length)
+  const configuredUnit = resolveBookingUnit({
+    checkoutSnapshotUnit: booking?.checkoutSnapshot?.unit,
+    snapshotSubprojectUnit: details?.bookingSnapshot?.selectedSubproject?.pricing?.unit,
+    subprojectUnit: bookedSubIdx != null ? bookingSubprojects[bookedSubIdx]?.pricing?.unit : undefined,
+    priceModel: (booking?.project as { priceModel?: string } | undefined)?.priceModel,
+  })
+
   const addExtraCost = (type: 'unit_adjustment' | 'condition' | 'option' | 'other') => {
     let unitDefaults: { estimatedUnits: number; actualUnits: number; unitPrice: number } | null = null
     if (type === 'unit_adjustment') {
-      const subprojects = booking?.project?.subprojects || []
-      let subIdx: number
-      if (typeof booking?.selectedSubprojectIndex === 'number') {
-        subIdx = booking.selectedSubprojectIndex
-      } else if (subprojects.length === 1) {
-        subIdx = 0
-      } else {
-        toast.error(t("extraCosts.toasts.noSubproject"))
+      // Price from the same booking-time snapshot the unit label uses.
+      const pricing = bookedUnitPricing({
+        snapshotPricing: details?.bookingSnapshot?.selectedSubproject?.pricing,
+        liveSubprojects: bookingSubprojects,
+        selectedIndex: booking?.selectedSubprojectIndex,
+      })
+      if (!pricing.ok) {
+        toast.error(t(`extraCosts.toasts.${pricing.reason}`))
         return
       }
-      const sub = subprojects[subIdx]
-      if (sub?.pricing?.type !== 'unit') {
-        toast.error(t("extraCosts.toasts.notUnitPriced"))
-        return
-      }
-      const unitPrice = Number(sub?.pricing?.amount)
-      if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-        toast.error(t("extraCosts.toasts.unitPriceMissing"))
-        return
-      }
+      const { unitPrice } = pricing
+      const sub = pricing.liveSubprojectIndex != null ? bookingSubprojects[pricing.liveSubprojectIndex] : undefined
 
       const inputs = sub?.professionalInputs || []
       const priceModelToken = ((booking?.project as { priceModel?: string } | undefined)?.priceModel || '').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -2382,7 +2390,7 @@ function BookingDetailContent() {
     }
     setCompletionExtraCosts(prev => [...prev, {
       type,
-      name: type === 'unit_adjustment' ? t("extraCosts.unitAdjustmentName") : '',
+      name: type === 'unit_adjustment' ? t("extraCosts.unitAdjustmentName", { unit: unitWord(configuredUnit, 'other') }) : '',
       justification: '',
       amount: 0,
       ...(unitDefaults || {}),
@@ -3985,7 +3993,7 @@ function BookingDetailContent() {
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 <span className="capitalize">{enumLabel("extraCostType", cost.type)}</span>
-                                {cost.type === 'unit_adjustment' && ` ${t("extraCosts.unitDetail", { estimated: cost.estimatedUnits ?? 0, actual: cost.actualUnits ?? 0 })}`}
+                                {cost.type === 'unit_adjustment' && ` ${t("extraCosts.unitDetail", { estimated: cost.estimatedUnits ?? 0, actual: cost.actualUnits ?? 0, unit: unitWord(resolveBookingUnit({ costUnit: cost.unit }) ?? configuredUnit, 'other') })}`}
                               </p>
                               <p className="text-xs text-gray-500 italic">{cost.justification}</p>
                             </div>
@@ -4662,7 +4670,7 @@ function BookingDetailContent() {
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">{t("extraCosts.label")}</Label>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={() => addExtraCost('unit_adjustment')} className="text-xs h-7">{t("extraCosts.addUnit")}</Button>
+                    <Button size="sm" variant="outline" onClick={() => addExtraCost('unit_adjustment')} className="text-xs h-7">{t("extraCosts.addUnit", { unit: unitWord(configuredUnit, 'other') })}</Button>
                     <Button size="sm" variant="outline" onClick={() => addExtraCost('condition')} className="text-xs h-7">{t("extraCosts.addCondition")}</Button>
                     <Button size="sm" variant="outline" onClick={() => addExtraCost('option')} className="text-xs h-7">{t("extraCosts.addOption")}</Button>
                     <Button size="sm" variant="outline" onClick={() => addExtraCost('other')} className="text-xs h-7">{t("extraCosts.addOther")}</Button>
@@ -4672,16 +4680,17 @@ function BookingDetailContent() {
                 {completionExtraCosts.map((cost, i) => (
                   <div key={i} className="border rounded-lg p-3 space-y-2 bg-gray-50">
                     <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs capitalize">{enumLabel("extraCostType", cost.type)}</Badge>
+                      <Badge variant="outline" className={`text-xs ${cost.type === 'unit_adjustment' ? '' : 'capitalize'}`}>
+                        {cost.type === 'unit_adjustment'
+                          ? t("extraCosts.unitAdjustmentName", { unit: unitWord(resolveBookingUnit({ costUnit: cost.unit }) ?? configuredUnit, 'other') })
+                          : enumLabel("extraCostType", cost.type)}
+                      </Badge>
                       <Button size="sm" variant="ghost" onClick={() => removeExtraCost(i)} className="text-red-500 h-6 text-xs">{t("common.remove")}</Button>
                     </div>
 
                     {cost.type === 'unit_adjustment' && (() => {
-                      const projectPriceModel = (booking?.project as { priceModel?: string } | undefined)?.priceModel || ''
-                      const unitLabel = cost.unit || booking?.checkoutSnapshot?.unit || (projectPriceModel && !/^(rfq|fixed|total|unit)/i.test(projectPriceModel.trim())
-                        ? projectPriceModel
-                        : t("extraCosts.unitsFallback")
-                      )
+                      const costUnit = resolveBookingUnit({ costUnit: cost.unit }) ?? configuredUnit
+                      const unitLabel = unitWord(costUnit, 'other')
                       return (
                       <div className="grid grid-cols-3 gap-2">
                         <div>
@@ -4698,7 +4707,7 @@ function BookingDetailContent() {
                           <Input type="number" value={cost.actualUnits || ''} onChange={(e) => updateExtraCost(i, 'actualUnits', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
                         </div>
                         <div>
-                          <Label className="text-xs">{t("extraCosts.unitPrice")}</Label>
+                          <Label className="text-xs">{t("extraCosts.unitPrice", { unit: unitWord(costUnit, 'one') })}</Label>
                           <Input
                             type="number"
                             value={cost.unitPrice || ''}

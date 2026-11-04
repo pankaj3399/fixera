@@ -154,7 +154,7 @@
       "description": "Upload maximaal 4 afbeeldingen om je werk te tonen (optioneel)",
       "dropzone": "Klik om afbeeldingen te uploaden of sleep ze hierheen",
       "hint": "PNG, JPG, WebP tot 5 MB per bestand (max. 4 afbeeldingen)",
-      "guide": "Maximaal 4 afbeeldingen van 5 MiB per stuk. JPEG, PNG, WebP, GIF of SVG. Liggend 4:3 rond 1200 × 900 px wordt aanbevolen; miniaturen worden bijgesneden. Geen minimale afmetingen.",
+      "guide": "Maximaal 4 afbeeldingen van 5 MiB per stuk. JPEG, PNG of WebP. Liggend 4:3 rond 1200 × 900 px wordt aanbevolen; miniaturen worden bijgesneden. Geen minimale afmetingen.",
       "choose": "Bestanden kiezen",
       "alt": "Project {index}",
       "mainImage": "Hoofdafbeelding",
@@ -181,7 +181,13 @@
       "oneVideoOnly": "Maximaal 1 video toegestaan",
       "videoFormat": "Alleen MP4-, MOV- en AVI-video's zijn toegestaan",
       "videoTooLarge": "Het videobestand is te groot. De maximale grootte is 50 MB",
-      "mediaReadFailed": "Dit bestand kon niet worden gelezen. Selecteer het opnieuw."
+      "imageFormat": "Bestand {file} is geen JPEG-, PNG- of WebP-afbeelding",
+      "mediaUploadFailed": "{file} kon niet worden geüpload. Probeer het opnieuw.",
+      "mediaUploadTooLarge": "{file} is te groot om te uploaden. Kies een kleiner bestand.",
+      "waitForUploads": "Wacht tot je afbeeldingen en video volledig zijn geüpload."
+    },
+    "media": {
+      "uploading": "{count, plural, one {# bestand wordt geüpload…} other {# bestanden worden geüpload…}}"
     }
   },
   "step2": {
@@ -269,7 +275,11 @@
       "executionLabel": "Uitvoeringsduur *",
       "intakeTitle": "Duur van het intakegesprek",
       "durationLabel": "Duur *",
-      "intakeBufferLabel": "Buffer (optioneel)"
+      "intakeBufferLabel": "Buffer (optioneel)",
+      "determinedByCustomer": "Bepaald door de klant",
+      "determinedByCustomerHint": "De klant kiest het aantal uren bij het boeken. Die uren zijn de uitvoeringsduur en blokkeren de agenda.",
+      "executionPerUnitLabel": "Uitvoeringsduur per {unit} *",
+      "executionPerUnitHint": "Benodigde tijd voor één {unit}. De hoeveelheid die de klant boekt, vermenigvuldigt deze tijd om de uitvoeringsduur te berekenen en de agenda te blokkeren."
     },
     "summary": {
       "title": "Overzicht van de pakketten",
@@ -294,7 +304,8 @@
       "durationTo": "- {max} {unit}",
       "durationValue": "{value} {unit}",
       "totalFixed": "Totaal van de vaste prijspakketten: {total}",
-      "customerSeesTotal": "(Klant ziet: {price})"
+      "customerSeesTotal": "(Klant ziet: {price})",
+      "durationPerUnit": "{value} {unit} per {pricingUnit}"
     },
     "toast": {
       "maxSubprojects": "Maximaal 5 subprojecten toegestaan",

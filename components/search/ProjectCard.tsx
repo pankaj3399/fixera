@@ -12,6 +12,7 @@ import type { PublicProfessionalDto } from '@/types/project';
 import FavoriteButton from '@/components/favorites/FavoriteButton';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+import PackageDurationLabel from '@/components/search/PackageDurationLabel';
 
 const PRICE_MODEL_KEYS = {
   fixed: 'priceModels.fixed',
@@ -95,9 +96,12 @@ interface ProjectCardProps {
         type: 'fixed' | 'unit' | 'rfq';
         amount?: number;
         priceRange?: { min: number; max: number };
+        unit?: string;
+        durationBasis?: 'per_booking' | 'per_unit';
       };
+      // Customer-set hourly packages store no value: the customer picks the hours.
       executionDuration?: {
-        value: number;
+        value?: number;
         unit: 'hours' | 'days';
       };
       warrantyPeriod?: {
@@ -167,7 +171,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
   const firstAvailableWindowLabels = formatWindowUtcViewer(project.firstAvailableWindow, viewerTimeZone);
 
   const getProjectDuration = () => {
-    if (project.executionDuration) {
+    if (project.executionDuration && Number.isFinite(project.executionDuration.value)) {
       const exec = project.executionDuration;
       const buffer = project.bufferDuration;
       // The unit message already renders the full "<count> <unit>" label, so
@@ -399,11 +403,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                   <div className="flex-1 min-w-0 mr-2">
                     <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
                     <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-gray-500">
-                      {subproject.executionDuration && (
-                        <span>
-                          {t(subproject.executionDuration.unit === 'days' ? 'units.days' : 'units.hours', { count: subproject.executionDuration.value })}
-                        </span>
-                      )}
+                      <PackageDurationLabel subproject={subproject} />
                       {subproject.warrantyPeriod && (
                         <span>
                           {t('projectCard.warranty', {
