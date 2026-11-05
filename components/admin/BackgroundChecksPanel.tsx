@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { Info, Loader2, Play } from "lucide-react"
@@ -24,22 +24,42 @@ export const BACKGROUND_CHECK_ENDPOINTS = {
   autoaccept: "run-completion-auto-accept",
 } as const
 
+/** Own this state above tab content so pending requests survive tab switches. */
+export function useBackgroundCheckState() {
+  const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
+  const [isRunningRfqCheck, setIsRunningRfqCheck] = useState(false)
+  const [isRunningNotifReminders, setIsRunningNotifReminders] = useState(false)
+  const [isRunningAutoAccept, setIsRunningAutoAccept] = useState(false)
+  return {
+    isRunningWarrantyCheck, setIsRunningWarrantyCheck,
+    isRunningRfqCheck, setIsRunningRfqCheck,
+    isRunningNotifReminders, setIsRunningNotifReminders,
+    isRunningAutoAccept, setIsRunningAutoAccept,
+  }
+}
+
 export default function BackgroundChecksPanel({
   onCompleted,
   className,
+  runningState,
 }: {
   /** Called after a check finished, e.g. to reload dashboard stats. */
   onCompleted?: () => void | Promise<void>
   className?: string
+  runningState?: ReturnType<typeof useBackgroundCheckState>
 }) {
   const t = useTranslations("dashboard")
   const getErrorText = useErrorMessage()
   const { can } = useAdminAccess()
   const canRunMaintenance = can("maintenance.run")
-  const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
-  const [isRunningRfqCheck, setIsRunningRfqCheck] = useState(false)
-  const [isRunningNotifReminders, setIsRunningNotifReminders] = useState(false)
-  const [isRunningAutoAccept, setIsRunningAutoAccept] = useState(false)
+  const localRunningState = useBackgroundCheckState()
+  const {
+    isRunningWarrantyCheck, setIsRunningWarrantyCheck,
+    isRunningRfqCheck, setIsRunningRfqCheck,
+    isRunningNotifReminders, setIsRunningNotifReminders,
+    isRunningAutoAccept, setIsRunningAutoAccept,
+  } = runningState ?? localRunningState
+  const helpId = useId()
 
   const runSchedulerCheck = async (type: 'warranty' | 'rfq' | 'notif' | 'autoaccept') => {
     if (!canRunMaintenance) {
@@ -126,12 +146,19 @@ export default function BackgroundChecksPanel({
           disabled={isRunningWarrantyCheck}
           className="flex-1 border-rose-300 text-rose-700 hover:bg-rose-50"
         >
-          {isRunningWarrantyCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+          {isRunningWarrantyCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin motion-reduce:animate-none" /> : <Play className="h-4 w-4 mr-2" />}
           {t("maintenance.warrantyButton")}
         </Button>
         <div className="relative group">
-          <Info className="h-4 w-4 text-slate-400 cursor-help" />
-          <div className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
+          <button
+            type="button"
+            aria-label={t("maintenance.warrantyAria")}
+            aria-describedby={`${helpId}-warranty`}
+            className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <Info className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <div id={`${helpId}-warranty`} role="tooltip" className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
             <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
             <ul className="space-y-1 list-disc pl-3">
               <li>{t("maintenance.warrantyItem1")}</li>
@@ -148,12 +175,19 @@ export default function BackgroundChecksPanel({
           disabled={isRunningRfqCheck}
           className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50"
         >
-          {isRunningRfqCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+          {isRunningRfqCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin motion-reduce:animate-none" /> : <Play className="h-4 w-4 mr-2" />}
           {t("maintenance.rfqButton")}
         </Button>
         <div className="relative group">
-          <Info className="h-4 w-4 text-slate-400 cursor-help" />
-          <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
+          <button
+            type="button"
+            aria-label={t("maintenance.rfqAria")}
+            aria-describedby={`${helpId}-rfq`}
+            className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <Info className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <div id={`${helpId}-rfq`} role="tooltip" className="absolute right-0 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
             <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
             <ul className="space-y-1 list-disc pl-3">
               <li>{t("maintenance.rfqItem1")}</li>
@@ -173,7 +207,7 @@ export default function BackgroundChecksPanel({
           disabled={isRunningNotifReminders}
           className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
         >
-          {isRunningNotifReminders ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+          {isRunningNotifReminders ? <Loader2 className="h-4 w-4 mr-2 animate-spin motion-reduce:animate-none" /> : <Play className="h-4 w-4 mr-2" />}
           {t("maintenance.notificationsButton")}
         </Button>
         <div className="relative group">
@@ -207,7 +241,7 @@ export default function BackgroundChecksPanel({
           disabled={isRunningAutoAccept}
           className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
         >
-          {isRunningAutoAccept ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+          {isRunningAutoAccept ? <Loader2 className="h-4 w-4 mr-2 animate-spin motion-reduce:animate-none" /> : <Play className="h-4 w-4 mr-2" />}
           {t("maintenance.autoAcceptButton")}
         </Button>
         <div className="relative group">

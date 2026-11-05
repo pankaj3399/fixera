@@ -277,21 +277,24 @@ test('badge store: stale responses are ignored and a role switch clears the old 
   store.setIdentity('super-a')
   const first = store.refresh()
   assert.equal(store.getSnapshot().status, 'loading')
-  const second = store.refresh()
-  assert.equal(calls[0].signal.aborted, true, 'the superseded request is aborted')
-  calls[1].resolve({ disputes: 2 })
-  await second
-  calls[0].resolve({ disputes: 99 })
+  await store.refresh()
+  assert.equal(calls.length, 1, 'polls skip a pending request for the same identity')
+  assert.equal(calls[0].signal.aborted, false)
+  calls[0].resolve({ disputes: 2 })
   await first
   assert.deepEqual(store.getSnapshot(), { identity: 'super-a', status: 'ready', counts: { disputes: 2 } })
 
-  // Role switch: counts are dropped at once and a late answer for the old role is ignored.
+  // Role switch aborts immediately; an old role's late response is ignored.
   const late = store.refresh()
   store.setIdentity('care-b')
+  assert.equal(calls[1].signal.aborted, true)
   assert.deepEqual(store.getSnapshot(), { identity: 'care-b', status: 'idle', counts: null })
-  calls[2].resolve({ disputes: 5, reviewModeration: 1 })
+  const newer = store.refresh()
+  calls[2].resolve({ supportTickets: 1 })
+  await newer
+  calls[1].resolve({ disputes: 99, reviewModeration: 50 })
   await late
-  assert.deepEqual(store.getSnapshot(), { identity: 'care-b', status: 'idle', counts: null })
+  assert.deepEqual(store.getSnapshot(), { identity: 'care-b', status: 'ready', counts: { supportTickets: 1 } })
 
   // Failure is unknown; a later success replaces it.
   const failing = store.refresh()
@@ -396,6 +399,54 @@ test('Background Checks reuses the existing maintenance checks, behind maintenan
   // The dashboard keeps its Run Automated Checks card, same permission, still refreshing its stats.
   const dashboard = read('app/(pages)/dashboard/page.tsx')
   assert.match(dashboard, /const canRunMaintenance = can\('maintenance\.run'\)/)
-  assert.match(dashboard, /\{canRunMaintenance && <BackgroundChecksPanel onCompleted=\{fetchAdminData\} \/>\}/)
+  assert.match(dashboard, /\{canRunMaintenance && <BackgroundChecksPanel onCompleted=\{fetchAdminData\} runningState=\{backgroundCheckState\} \/>\}/)
   assert.doesNotMatch(dashboard, /run-warranty-checks/)
+})
+
+
+test('badge timeout aborts a stalled request, reports unknown and permits recovery', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let signal, stalled = true
+  const store = createAdminNavBadgeStore((s) => {
+    signal = s
+    return stalled ? new Promise(() => {}) : Promise.resolve({ disputes: 1 })
+  }, { timeoutMs: 45_000 })
+  store.setIdentity('care')
+  const pending = store.refresh()
+  t.mock.timers.tick(30_000)
+  await store.refresh()
+  assert.equal(signal.aborted, false, 'a poll does not starve a slow request')
+  t.mock.timers.tick(15_000)
+  await pending
+  assert.equal(signal.aborted, true)
+  assert.deepEqual(store.getSnapshot(), { identity: 'care', status: 'error', counts: null })
+  stalled = false
+  await store.refresh()
+  assert.deepEqual(store.getSnapshot().counts, { disputes: 1 })
+  store.dispose()
+})
+
+test('badge fetcher rejects malformed counts but accepts an authorized empty object', async () => {
+  const signal = new AbortController().signal
+  for (const counts of [undefined, null, [], 'bad', 0]) {
+    const fetcher = createHttpBadgeFetcher('https://api.test', async () => ({
+      ok: true, status: 200, json: async () => ({ success: true, data: { counts } }),
+    }))
+    await assert.rejects(() => fetcher(signal), /counts object/)
+  }
+  const fetcher = createHttpBadgeFetcher('https://api.test', async () => ({
+    ok: true, status: 200, json: async () => ({ success: true, data: { counts: {} } }),
+  }))
+  assert.deepEqual(await fetcher(signal), {})
+})
+
+test('rendered restricted menu never shows or aggregates a hidden queue count', () => {
+  const user = adminUser('care')
+  const groups = visibleAdminNavigation(user)
+  const snapshot = ready({ disputes: 2, supportTickets: 3, reviewModeration: 9876, professionalApprovals: 8765, projectApprovals: 7654 })
+  const html = render({ groups, active: { itemId: null, childId: null }, badges: snapshot })
+  assert.doesNotMatch(html, /9876|8765|7654|Review Moderation|Professional Approval|Project Approval/)
+  const support = groups.find((g) => g.id === 'support-moderation')
+  assert.deepEqual(groupBadgeDisplay(support, snapshot), { kind: 'count', value: 5 })
+  assert.equal(itemBadgeDisplay(support.items.find((i) => i.badge === 'chatReports'), snapshot), null, 'omitted authorized key is not a false zero')
 })

@@ -14,7 +14,7 @@ import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import FavoritesWidget from "@/components/dashboard/FavoritesWidget"
-import BackgroundChecksPanel from "@/components/admin/BackgroundChecksPanel"
+import BackgroundChecksPanel, { useBackgroundCheckState } from "@/components/admin/BackgroundChecksPanel"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems, type ProfessionalActionItemKey } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -208,6 +208,7 @@ export default function DashboardPage() {
   const canManageServices = can('services.manage')
   const canManagePayments = can('payments.manage')
   const canRunMaintenance = can('maintenance.run')
+  const backgroundCheckState = useBackgroundCheckState()
   // The admin menu in document order (same config and gate as the admin
   // sidebar); the Tools tab lists it grouped, only what this admin may open.
   const adminDirectory = user?.role === 'admin' ? visibleAdminNavigation(user) : []
@@ -1160,7 +1161,7 @@ export default function DashboardPage() {
               </Card>
               )}
 
-              {canRunMaintenance && <BackgroundChecksPanel onCompleted={fetchAdminData} />}
+              {canRunMaintenance && <BackgroundChecksPanel onCompleted={fetchAdminData} runningState={backgroundCheckState} />}
               </div>
             </TabsContent>
             )}

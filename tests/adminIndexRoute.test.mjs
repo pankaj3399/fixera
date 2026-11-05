@@ -14,13 +14,11 @@ const pageUrl = new URL('../app/(pages)/admin/page.tsx', import.meta.url)
 test('/admin has a page that hands off to the role-aware admin dashboard', async () => {
   assert.ok(existsSync(pageUrl), '/admin must not 404 (Settings "Dashboard" button, login redirect default)')
   const source = readFileSync(pageUrl, 'utf8')
-  assert.match(source, /const ADMIN_HOME_PATH = '\/dashboard'/)
-  assert.match(source, /router\.replace\(ADMIN_HOME_PATH\)/)
   // Only the default export: Next rejects other page exports.
   assert.doesNotMatch(source, /^export (const|function|let)/m)
 
   const { default: AdminIndexPage } = await import('@/app/(pages)/admin/page')
-  // Effects do not run in server rendering; the redirect is asserted from source above.
+  // The redirect effect itself runs in adminReviewRuntime.test.mjs.
   const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }
   const html = renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router }, React.createElement(AdminIndexPage)))
   assert.match(html, /Opening the admin dashboard/)

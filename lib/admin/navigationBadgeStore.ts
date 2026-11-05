@@ -11,14 +11,17 @@ export interface AdminNavBadgeStore {
   subscribe(listener: () => void): () => void
   /** Switch to another admin/role (or `null` when signed out): old counts are dropped at once. */
   setIdentity(identity: string | null): void
-  /** One request for every badge; a newer request or identity supersedes it. */
+  /** One bounded request for every badge; overlapping refreshes for an identity are skipped. */
   refresh(): Promise<void>
   dispose(): void
 }
 
 const EMPTY: AdminNavBadgeSnapshot = Object.freeze({ identity: null, status: 'idle', counts: null })
 
-export function createAdminNavBadgeStore(fetchCounts: FetchAdminNavBadgeCounts): AdminNavBadgeStore {
+export function createAdminNavBadgeStore(
+  fetchCounts: FetchAdminNavBadgeCounts,
+  { timeoutMs = 45_000 }: { timeoutMs?: number } = {},
+): AdminNavBadgeStore {
   let snapshot: AdminNavBadgeSnapshot = EMPTY
   let sequence = 0
   let inFlight: AbortController | null = null
@@ -48,22 +51,29 @@ export function createAdminNavBadgeStore(fetchCounts: FetchAdminNavBadgeCounts):
     },
     async refresh() {
       const identity = snapshot.identity
-      if (disposed || !identity) return
-      abortInFlight()
+      if (disposed || !identity || inFlight) return
       const request = ++sequence
       const controller = new AbortController()
       inFlight = controller
       if (snapshot.status === 'idle') publish({ identity, status: 'loading', counts: null })
       const current = () => !disposed && request === sequence && snapshot.identity === identity
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      let onAbort: () => void
+      const aborted = new Promise<never>((_resolve, reject) => {
+        onAbort = () => reject(new Error('badge request aborted or timed out'))
+        controller.signal.addEventListener('abort', onAbort, { once: true })
+      })
       try {
-        const counts = await fetchCounts(controller.signal)
+        const counts = await Promise.race([fetchCounts(controller.signal), aborted])
         if (!current()) return
         publish({ identity, status: 'ready', counts })
       } catch {
-        if (!current() || controller.signal.aborted) return
+        if (!current()) return
         // Unknown, not zero: the badges show "count unavailable".
         publish({ identity, status: 'error', counts: null })
       } finally {
+        clearTimeout(timer)
+        controller.signal.removeEventListener('abort', onAbort!)
         if (inFlight === controller) inFlight = null
       }
     },
@@ -89,8 +99,12 @@ export function createHttpBadgeFetcher(
       signal,
     })
     const body = await response.json().catch(() => null)
-    if (!response.ok || !body?.success) throw new Error(`badge request failed (${response.status})`)
-    return parseAdminNavBadgeCounts(body.data?.counts)
+    if (!response.ok || body?.success !== true) throw new Error(`badge request failed (${response.status})`)
+    const counts = body.data?.counts
+    if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
+      throw new Error('badge response has no counts object')
+    }
+    return parseAdminNavBadgeCounts(counts)
   }
 }
 

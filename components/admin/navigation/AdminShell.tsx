@@ -52,7 +52,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   if (groups.length === 0) return <>{children}</>
 
   return (
-    <div className="lg:flex lg:items-start" data-admin-shell>
+    <div className="lg:flex" data-admin-shell>
       <div className="sticky top-[var(--header-offset,4rem)] z-30 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:hidden">
         <button
           ref={toggleRef}
