@@ -93,5 +93,7 @@ test('hooks and overlays use the key-scoped state', () => {
     assert.match(src, /setState\(\(prev\) => raiseKeyedFlag\(prev, key\)\)/, file)
     assert.match(src, /return isKeyedFlagOn\(current, key\);/, file)
   }
+  // The timer only arms for a set key; the flag tests above never reach it.
+  assert.match(read('useDelayedReveal.ts'), /if \(!key\) return;\s*\n\s*const timer = window\.setTimeout\(/, 'useDelayedReveal.ts')
   assert.match(read('Overlays.tsx'), /exitIntent \? `\$\{exitIntent\._id\}:\$\{exitOccurrence\}` : null/)
 })
