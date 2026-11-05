@@ -10,6 +10,7 @@ import {
   buildAutoConversionPayload,
   editAutoConversionCard,
   initAutoConversionCard,
+  isAutoConversionConfig,
   savedAutoConversionCard,
   syncAutoConversionCard,
   toggleRolloutCountry,
@@ -34,7 +35,7 @@ export default function AutoConversionSettingsCard({ initial }: { initial: unkno
   const [search, setSearch] = useState("")
 
   // Re-hydrate from a new `initial` (adjusted during render) unless the admin
-  // has unsaved edits: saving the main settings form must not wipe them.
+  // has unsaved edits: a settings refresh must not wipe them.
   const synced = syncAutoConversionCard(cardState, initial)
   if (synced !== cardState) setCardState(synced)
   const draft = synced.draft
@@ -69,12 +70,12 @@ export default function AutoConversionSettingsCard({ initial }: { initial: unkno
         },
       )
       const json = await res.json().catch(() => null)
-      if (!res.ok || json?.success === false) {
+      if (!res.ok || json?.success !== true || !isAutoConversionConfig(json.data)) {
         toast.error(messageFromApiBody(json, "Failed to save auto-conversion settings"))
         return
       }
-      const saved = json?.data ?? buildAutoConversionPayload(draft)
-      setCardState((prev) => savedAutoConversionCard(prev, saved))
+      const saved = json.data
+      setCardState((prev) => savedAutoConversionCard(prev, saved, draft))
       toast.success("Auto-conversion settings saved. Visitors pick them up within a few minutes.")
     } catch {
       toast.error("Failed to save auto-conversion settings")

@@ -40,13 +40,16 @@ export function createAutoConversionLoader({
 }: AutoConversionLoaderOptions): () => Promise<AutoConversionState> {
   let state: AutoConversionState = AUTO_CONVERSION_UNKNOWN;
   let expiresAt = 0;
+  let attempted = false;
   let inflight: Promise<AutoConversionState> | null = null;
 
   const refresh = async (): Promise<AutoConversionState> => {
     const controller = new AbortController();
+    const requestTimeoutMs = attempted ? timeoutMs : firstTimeoutMs;
+    attempted = true;
     const timer = setTimeout(
       () => controller.abort(),
-      state.status === "unknown" ? firstTimeoutMs : timeoutMs,
+      requestTimeoutMs,
     );
     try {
       const res = await fetchImpl(url, {

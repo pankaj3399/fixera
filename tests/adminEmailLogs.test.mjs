@@ -87,7 +87,7 @@ test('response parser normalizes rows and pagination from the backend envelope',
   assert.equal(normalizeEmailLog({ _id: 'x', createdAt: 'garbage' }), null)
 })
 
-test('filter equality drives debounce/reset', () => {
+test('filter equality distinguishes unchanged and changed filters', () => {
   assert.equal(sameEmailLogFilters(EMPTY_EMAIL_LOG_FILTERS, { ...EMPTY_EMAIL_LOG_FILTERS }), true)
   assert.equal(sameEmailLogFilters(EMPTY_EMAIL_LOG_FILTERS, { ...EMPTY_EMAIL_LOG_FILTERS, status: 'sent' }), false)
 })
@@ -113,4 +113,11 @@ test('F10: an inverted range is called out instead of silently matching nothing'
   assert.equal(emailLogDateRangeProblem({ from: '2026-11-03', until: '' }), null)
   const page = readFileSync(new URL('../app/(pages)/admin/email-logs/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /emailLogDateRangeProblem\(filters\)/)
+})
+
+test('malformed successful email log envelopes throw rather than hiding entries', () => {
+  for (const logs of [undefined, null, {}, 'bad', 12]) {
+    assert.throws(() => parseEmailLogsResponse({ success: true, data: { logs } }), /Invalid email log response/)
+  }
+  assert.deepEqual(parseEmailLogsResponse({ success: true, data: { logs: [] } }).logs, [])
 })

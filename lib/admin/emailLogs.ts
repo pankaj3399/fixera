@@ -139,10 +139,8 @@ export function parseEmailLogsResponse(json: unknown): EmailLogPage {
     success?: unknown
     data?: { logs?: unknown; pagination?: { page?: unknown; totalPages?: unknown; total?: unknown } }
   }
-  if (body.success !== true || !body.data) throw new Error('Invalid email log response')
-  const logs = Array.isArray(body.data.logs)
-    ? body.data.logs.map(normalizeEmailLog).filter((log): log is EmailLog => log !== null)
-    : []
+  if (body.success !== true || !body.data || !Array.isArray(body.data.logs)) throw new Error('Invalid email log response')
+  const logs = body.data.logs.map(normalizeEmailLog).filter((log): log is EmailLog => log !== null)
   const pagination = body.data.pagination || {}
   const positive = (value: unknown, fallback: number) => {
     const n = Number(value)

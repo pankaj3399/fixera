@@ -96,7 +96,8 @@ export default function AdminEmailLogsPage() {
         setLogs(result.logs)
         setTotal(result.total)
         setTotalPages(result.totalPages)
-        if (result.page !== page) setPage(result.page)
+        const nextPage = Math.min(result.page, result.totalPages)
+        if (nextPage !== page) setPage(nextPage)
       } catch (err) {
         if ((err as { name?: string })?.name === "AbortError") return
         console.error("email-logs fetch failed", err)
@@ -273,6 +274,7 @@ export default function AdminEmailLogsPage() {
                       aria-label={`Open details for email to ${log.to} at ${new Date(log.createdAt).toLocaleString()}`}
                       onClick={() => setSelectedLog(log)}
                       onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
                           setSelectedLog(log)

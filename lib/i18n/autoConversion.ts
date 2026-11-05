@@ -60,7 +60,9 @@ export function parseAutoConversionState(json: unknown): AutoConversionState | n
   if (body.success !== true || !body.data || typeof body.data !== "object") return null;
   const data = body.data as { configured?: unknown; enabledCountries?: unknown; defaultCountry?: unknown };
   if (data.configured === false) return AUTO_CONVERSION_UNCONFIGURED;
-  if (data.configured !== true) return null;
+  if (data.configured !== true || !Array.isArray(data.enabledCountries) ||
+      data.enabledCountries.some((code) => !normalizeCountryCode(code)) ||
+      !normalizeCountryCode(data.defaultCountry)) return null;
   return {
     status: "configured",
     config: {

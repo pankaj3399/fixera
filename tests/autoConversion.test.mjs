@@ -22,6 +22,7 @@ const { parseAutoConversionResponse, parseAutoConversionState, resolveEffectiveC
 const { createAutoConversionLoader } = await import('../lib/i18n/autoConversionLoader.ts')
 const {
   buildAutoConversionPayload,
+  isAutoConversionConfig,
   hydrateAutoConversion,
   initAutoConversionCard,
   syncAutoConversionCard,
@@ -38,7 +39,7 @@ const configured = (enabledCountries, defaultCountry = 'BE') => ({
 })
 
 test('roll-out countries keep their geo country; all others get the default country', () => {
-  const config = parseAutoConversionResponse(configured(['be', 'NL', 'NL', 'xx1']))
+  const config = parseAutoConversionResponse(configured(['be', 'NL', 'NL']))
   assert.deepEqual(config, { enabledCountries: ['BE', 'NL'], defaultCountry: 'BE' })
   assert.deepEqual(resolveEffectiveCountry('NL', config), { country: 'NL', autoConverted: true })
   assert.deepEqual(resolveEffectiveCountry('DE', config), { country: 'BE', autoConverted: false })
@@ -51,6 +52,12 @@ test('only an authoritative "configured: false" is unconfigured; unusable bodies
   assert.equal(parseAutoConversionState({ success: false }), null)
   assert.equal(parseAutoConversionState({ success: true, data: {} }), null)
   assert.equal(parseAutoConversionState('nope'), null)
+  for (const data of [{ configured: true }, { configured: true, enabledCountries: [] },
+    { configured: true, enabledCountries: 'NL', defaultCountry: 'BE' },
+    { configured: true, enabledCountries: ['invalid'], defaultCountry: 'BE' },
+    { configured: true, enabledCountries: ['NL'], defaultCountry: 123 }]) {
+    assert.equal(parseAutoConversionState({ success: true, data }), null)
+  }
   assert.deepEqual(resolveEffectiveCountry('DE', null), { country: 'DE', autoConverted: true })
   assert.deepEqual(resolveEffectiveCountry(undefined, null), { country: undefined, autoConverted: false })
 })
@@ -74,6 +81,7 @@ test('loader caches, dedupes, survives outages and keeps the last good value', a
   const fetchImpl = async () => {
     calls++
     if (mode === 'down') throw new Error('offline')
+    if (mode === 'partial') return new Response(JSON.stringify({ success: true, data: { configured: true } }))
     return new Response(JSON.stringify(configured(['FR'], 'FR')), { status: 200 })
   }
   const load = createAutoConversionLoader({ url: 'x', fetchImpl, now: () => clock, ttlMs: 1000, failureTtlMs: 100 })
@@ -93,21 +101,31 @@ test('loader caches, dedupes, survives outages and keeps the last good value', a
   assert.equal(calls, 2, 'failure window avoids hammering the backend')
   clock = 1700
   mode = 'ok'
-  await load()
+  const recovered = await load()
   assert.equal(calls, 3)
+  clock = 2800; mode = 'partial'
+  assert.equal(await load(), recovered, 'an incomplete configured body keeps the last good value')
 })
 
-test('F5: a cold isolate that times out reports unknown (not unconfigured) and uses the longer first timeout', async () => {
-  const timeouts = []
-  let started
+test('loader uses the long timeout for only its first attempt, even after failure', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let signal
   const fetchImpl = (_url, init) => new Promise((_resolve, reject) => {
-    started = Date.now()
-    init.signal.addEventListener('abort', () => { timeouts.push(Date.now() - started); reject(new Error('aborted')) })
+    signal = init.signal
+    signal.addEventListener('abort', () => reject(new Error('aborted')))
   })
   let clock = 0
   const load = createAutoConversionLoader({ url: 'x', fetchImpl, now: () => clock, timeoutMs: 5, firstTimeoutMs: 40, failureTtlMs: 10 })
-  assert.deepEqual(await load(), { status: 'unknown' })
-  assert.ok(timeouts[0] >= 30, `first fetch waits for firstTimeoutMs (${timeouts[0]} ms)`)
+  const first = load()
+  t.mock.timers.tick(39)
+  assert.equal(signal.aborted, false)
+  t.mock.timers.tick(1)
+  assert.deepEqual(await first, { status: 'unknown' })
+  clock = 11
+  const retry = load()
+  t.mock.timers.tick(5)
+  assert.equal(signal.aborted, true, 'retry uses the steady-state timeout after a failed first attempt')
+  assert.deepEqual(await retry, { status: 'unknown' })
 })
 
 test('F5: 5xx and unusable bodies keep unknown / the last answer; 404 (no endpoint) is authoritative unconfigured', async () => {
@@ -201,5 +219,50 @@ test('middleware serves non-roll-out visitors as the default country, roll-out v
     assert.equal(seen.length, 1, 'config fetched once per isolate within the TTL')
   } finally {
     globalThis.fetch = realFetch
+  }
+})
+
+
+test('admin validator and editor cover assigned ISO countries rather than arbitrary letters or Europe alone', () => {
+  assert.equal(ROLLOUT_COUNTRY_OPTIONS.length, 249)
+  const codes = new Set(ROLLOUT_COUNTRY_OPTIONS.map((c) => c.code))
+  assert.equal(codes.size, 249)
+  for (const code of ['US', 'CA', 'AU', 'JP', 'AQ', 'BV', 'AX', 'BQ', 'SS']) {
+    assert.ok(codes.has(code))
+    assert.equal(validateAutoConversionDraft({ enabledCountries: [code], defaultCountry: code }), null)
+  }
+  for (const code of ['ZZ', 'XX', 'EU', 'UN', 'UK', 'AN', 'XK']) {
+    assert.ok(validateAutoConversionDraft({ enabledCountries: [code], defaultCountry: 'BE' }))
+    assert.ok(validateAutoConversionDraft({ enabledCountries: [], defaultCountry: code }))
+  }
+  assert.equal(isAutoConversionConfig({ enabledCountries: ['US'], defaultCountry: 'US' }), true)
+})
+
+test('a completed save only clears the submitted draft, never newer edits', () => {
+  const state = initAutoConversionCard({ enabledCountries: ['NL'], defaultCountry: 'BE' })
+  const submitted = state.draft
+  const newer = editAutoConversionCard(state, (draft) => ({ ...draft, defaultCountry: 'US' }))
+  const saved = { enabledCountries: ['NL'], defaultCountry: 'FR' }
+  const result = savedAutoConversionCard(newer, saved, submitted)
+  assert.equal(result.draft, newer.draft)
+  assert.equal(result.dirty, true)
+  assert.equal(savedAutoConversionCard(state, saved, submitted).dirty, false)
+})
+
+test('content-country reader prefers middleware country and falls back to platform geo', async () => {
+  const { readContentCountry } = await import('../lib/geo/contentCountryHeader.ts')
+  assert.equal(readContentCountry(new Headers({ 'x-fixera-content-country': 'BE', 'x-vercel-ip-country': 'DE' })), 'BE')
+  assert.equal(readContentCountry(new Headers({ 'x-vercel-ip-country': 'DE' })), 'DE')
+  assert.equal(readContentCountry(new Headers({ 'x-fixera-content-country': 'bad', 'x-vercel-ip-country': 'NL' })), 'NL')
+})
+
+test('middleware matcher covers dynamic CMS slugs with asset extensions', async () => {
+  const { unstable_doesMiddlewareMatch } = await import('next/experimental/testing/server.js')
+  const { config } = await import('../middleware.ts')
+  for (const url of ['/pages/example.png', '/pages/example.svg', '/services/example.webp', '/blog', '/faq', '/api/cms/revalidate']) {
+    assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url }), true, url)
+  }
+  for (const url of ['/_next/static/chunk.js', '/_next/image?url=a', '/favicon.ico', '/sw.js']) {
+    assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url }), false, url)
   }
 })

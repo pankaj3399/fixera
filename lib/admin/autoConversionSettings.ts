@@ -23,20 +23,35 @@ export interface RolloutCountryOption {
 const flagFor = (code: string) =>
   String.fromCodePoint(...[...code].map((char) => 0x1f1e6 + char.charCodeAt(0) - 65));
 
-/** EU members plus the other European markets the currency layer supports. */
-const EXTRA_COUNTRIES: Array<[string, string]> = [
-  ["CH", "Switzerland"],
-  ["GB", "United Kingdom"],
-  ["IS", "Iceland"],
-  ["LI", "Liechtenstein"],
-  ["MC", "Monaco"],
-  ["NO", "Norway"],
-];
+/** Assigned ISO 3166-1 alpha-2 codes: https://www.iso.org/obp/ui/#search/code/ */
+const ASSIGNED_COUNTRY_CODES = `
+AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ
+CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR
+GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP
+KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS
+MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS
+RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW
+TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW
+`.trim().split(/\s+/);
+const assignedCountries = new Set(ASSIGNED_COUNTRY_CODES);
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
 
-export const ROLLOUT_COUNTRY_OPTIONS: RolloutCountryOption[] = [
-  ...EU_COUNTRIES.map(({ code, name, flag }) => ({ code, name, flag })),
-  ...EXTRA_COUNTRIES.map(([code, name]) => ({ code, name, flag: flagFor(code) })),
-].sort((a, b) => a.name.localeCompare(b.name, "en"));
+/** All assigned countries are editable, including stored non-European roll-outs. */
+export const ROLLOUT_COUNTRY_OPTIONS: RolloutCountryOption[] = ASSIGNED_COUNTRY_CODES.map((code) => ({
+  code,
+  name: EU_COUNTRIES.find((country) => country.code === code)?.name ?? countryNames.of(code) ?? code,
+  flag: flagFor(code),
+})).sort((a, b) => a.name.localeCompare(b.name, "en"));
+
+const isAssignedCountry = (code: string) => assignedCountries.has(normalizeCountryCode(code) ?? "");
+
+/** A complete settings value, rather than a partial or malformed success response. */
+export function isAutoConversionConfig(value: unknown): value is AutoConversionConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const config = value as AutoConversionConfig;
+  return typeof config.defaultCountry === "string" && isAssignedCountry(config.defaultCountry) &&
+    Array.isArray(config.enabledCountries) && config.enabledCountries.every((code) => typeof code === "string" && isAssignedCountry(code));
+}
 
 export interface AutoConversionDraft extends AutoConversionConfig {
   /** False until the backend has stored a roll-out. */
@@ -64,8 +79,8 @@ export function toggleRolloutCountry(list: string[], code: string, enabled: bool
 
 /** Returns a user-facing problem, or null when the draft can be saved. */
 export function validateAutoConversionDraft(draft: AutoConversionConfig): string | null {
-  if (!normalizeCountryCode(draft.defaultCountry)) return "Choose a default country.";
-  if (draft.enabledCountries.some((code) => !normalizeCountryCode(code))) {
+  if (!isAssignedCountry(draft.defaultCountry)) return "Choose a default country.";
+  if (draft.enabledCountries.some((code) => !isAssignedCountry(code))) {
     return "Roll-out countries must be ISO 3166-1 alpha-2 codes.";
   }
   return null;
@@ -80,9 +95,8 @@ export function buildAutoConversionPayload(draft: AutoConversionConfig): AutoCon
 
 /**
  * Card state: the admin's draft plus whether it has unsaved edits. The parent
- * page hands the card a new `initial` object after every general settings
- * save (the PATCH response re-serializes autoConversion), so a prop change
- * alone must not wipe a dirty draft.
+ * page supplies `initial` only from a settings GET, never an unrelated PUT
+ * response. A refreshed initial value must not wipe a dirty draft.
  */
 export interface AutoConversionCardState {
   draft: AutoConversionDraft;
@@ -109,7 +123,12 @@ export function editAutoConversionCard(
   return { ...state, draft: update(state.draft), dirty: true };
 }
 
-/** After a successful auto-conversion save: the stored value, clean. */
-export function savedAutoConversionCard(state: AutoConversionCardState, saved: unknown): AutoConversionCardState {
+/** Adopt a successful save only if the current draft is still the one submitted. */
+export function savedAutoConversionCard(
+  state: AutoConversionCardState,
+  saved: unknown,
+  submitted: AutoConversionDraft = state.draft,
+): AutoConversionCardState {
+  if (state.draft !== submitted) return { ...state, dirty: true };
   return { draft: hydrateAutoConversion(saved), dirty: false, source: state.source };
 }
