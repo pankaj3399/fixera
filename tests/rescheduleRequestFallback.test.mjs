@@ -36,7 +36,7 @@ const CUSTOMER = 'customer-1'
 const PROFESSIONAL = 'pro-1'
 const REQUESTED_AT = '2026-10-20T09:00:00.000Z'
 
-function renderCard(reschedules, viewer = { id: CUSTOMER, role: 'customer' }) {
+function renderCard(reschedules, viewer = { id: CUSTOMER, role: 'customer' }, { hourMode = false } = {}) {
   return renderToStaticMarkup(
     React.createElement(
       NextIntlClientProvider,
@@ -46,6 +46,7 @@ function renderCard(reschedules, viewer = { id: CUSTOMER, role: 'customer' }) {
         reschedules,
         viewerUserId: viewer.id,
         viewerRole: viewer.role,
+        hourMode,
       })
     )
   )
@@ -89,7 +90,7 @@ test('a recorded legacy pending request from the other party still renders with 
   assert.equal(entries.length, 1)
   assert.equal(entries[0].canRespond, true)
   assert.equal(entries[0].status, 'pending')
-  const html = renderCard(entries)
+  const html = renderCard(entries, undefined, { hourMode: true })
   assert.match(html, /Material delivery delayed/)
   assert.match(html, /Supplier moved the delivery by a week\./)
   assert.match(html, /09:00 /, 'original schedule time')

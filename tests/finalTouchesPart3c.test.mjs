@@ -552,7 +552,7 @@ test('booking info and timeline consume the recorded end time', () => {
 test('booking page prefers the recorded quotation saving amount', () => {
   const page = readSource('../app/(pages)/bookings/[id]/page.tsx')
   assert.match(page, /recordedQuotationSaving/)
-  assert.match(page, /customerTotals\?\.discount\?\.totalDiscount/)
+  assert.match(page, /recordedQuotationPricing\(details\?\.quotation/ )
   assert.match(page, /quotationSavingAmount/)
   assert.doesNotMatch(page, /youSave", \{ amount: formatMoney\(currentVersionOriginalQuoteTotals\.total - currentVersionQuoteTotals\.total/)
 })

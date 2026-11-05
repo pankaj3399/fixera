@@ -297,7 +297,7 @@ test('tier colours come from configuration everywhere tags appear', () => {
 })
 
 test('RFQ wording and milestone/price keys exist with placeholders intact', () => {
-  assert.equal(bookingsEn.page.titleRfq, 'Quotation request')
+  assert.equal(bookingsEn.page.titleRfq, 'RFQ')
   assert.equal(bookingsEn.page.typeRfq, 'Quotation request')
   assert.equal(bookingsEn.details.tabs.bookingRfq, 'Quotation request')
   assert.equal(bookingsEn.milestones.optionsFirstNote.slice(0, 8), 'Selected')

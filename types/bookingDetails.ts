@@ -387,6 +387,7 @@ export interface QuotationVersionDto {
     vatAmount?: number | null;
     vatRate?: number | null;
     totalWithVat?: number | null;
+    vatBreakdown?: Array<{ description: string; netAmount: number; vatRate: number; vatAmount: number; totalAmount: number }>;
     totalAmount?: number | null;
     currency?: string | null;
     recordedAt?: string | null;
@@ -396,6 +397,7 @@ export interface QuotationVersionDto {
       pointsDiscountAmount?: number | null;
       codeDiscountAmount?: number | null;
       totalDiscount?: number | null;
+      totalDiscountWithVat?: number | null;
     } | null;
   } | null;
   customerTotalsRecorded?: boolean;

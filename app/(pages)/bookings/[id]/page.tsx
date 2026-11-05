@@ -46,6 +46,7 @@ import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/custome
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
+import { recordedQuotationPricing } from "@/lib/booking/quotationPricing"
 import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
@@ -1731,19 +1732,25 @@ function BookingDetailContent() {
     currentQuoteVersion: booking?.currentQuoteVersion,
     pinnedVersion: pinnedQuoteVersion,
   })
+  const recordedPricing = useMemo(() => recordedQuotationPricing(details?.quotation?.versions?.find(
+    (version) => version.version === currentVersion?.version
+  )), [details?.quotation?.versions, currentVersion?.version])
+  const quotePricingReady = Boolean(recordedPricing) || customerPricingReady
+  const quotationPricingLines = recordedPricing?.lines?.map((line) => ({ ...line, price: line.netAmount }))
+    ?? currentVersion?.pricingLines ?? []
   const currentVersionQuoteTotals = useMemo(
-    () => calculateQuoteVersionVatTotals(
+    () => recordedPricing?.totals ?? calculateQuoteVersionVatTotals(
       currentVersion,
       customerPricingReady ? customerPrice : undefined
     ),
-    [currentVersion, customerPricingReady, customerPrice]
+    [currentVersion, recordedPricing, customerPricingReady, customerPrice]
   )
   const currentVersionMilestoneGrossAmounts = useMemo(
-    () => calculateMilestoneGrossAmounts(
+    () => recordedPricing?.milestones ?? calculateMilestoneGrossAmounts(
       currentVersion,
       customerPricingReady ? customerPrice : undefined
     ),
-    [currentVersion, customerPricingReady, customerPrice]
+    [currentVersion, recordedPricing, customerPricingReady, customerPrice]
   )
   const currentVersionOriginalQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(
@@ -1755,15 +1762,9 @@ function BookingDetailContent() {
   // Task 19a: the "you save" amount on the booking page must equal the
   // quotation's recorded saving, not a live re-computation against the
   // customer's current loyalty tier (which may have changed since the quote).
-  const recordedQuotationSaving = useMemo(() => {
-    const recorded = details?.quotation?.versions?.find(
-      (v) => v.version === currentVersion?.version
-    )?.customerTotals?.discount?.totalDiscount
-    const amount = typeof recorded === 'number' ? recorded : Number(recorded)
-    return Number.isFinite(amount) ? amount : null
-  }, [details?.quotation?.versions, currentVersion?.version])
+  const recordedQuotationSaving = recordedPricing?.saving ?? null
   const quotationSavingAmount = recordedQuotationSaving
-    ?? (currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total)
+    ?? (recordedPricing ? 0 : currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total)
   const bookingMilestoneGrossAmounts = useMemo(() => {
     if (!booking?.milestonePayments?.length || !authoritativeVersion) return []
     return calculateMilestoneGrossAmounts(
@@ -3357,7 +3358,7 @@ function BookingDetailContent() {
                           )}
                         </div>
                       )}
-                      {currentVersion.pricingLines && currentVersion.pricingLines.length > 0 && (
+                      {quotationPricingLines.length > 0 && (!recordedPricing || recordedPricing.lines) && (
                         <div>
                           <p className="text-xs text-gray-500 font-medium mb-2">{t("quotation.pricingBreakdown")}</p>
                           <div className="rounded-md border overflow-x-auto">
@@ -3371,21 +3372,22 @@ function BookingDetailContent() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {currentVersion.pricingLines.map((line, index) => {
-                                  const net = customerPricingReady ? customerPrice(line.price) : line.price
-                                  const vatAmount = net * ((line.vatRate || 0) / 100)
-                                  const total = net + vatAmount
+                                {quotationPricingLines.map((line, index) => {
+                                  const recordedLine = recordedPricing?.lines?.[index]
+                                  const net = recordedLine?.netAmount ?? (customerPricingReady ? customerPrice(line.price) : line.price)
+                                  const vatAmount = recordedLine?.vatAmount ?? net * ((line.vatRate || 0) / 100)
+                                  const total = recordedLine?.totalAmount ?? net + vatAmount
                                   return (
                                     <tr key={index} className="border-t">
                                       <td className="px-3 py-2 text-gray-800">
                                         <div>{line.description}</div>
                                         <div className="text-[10px] text-gray-500">
-                                          {line.vatLabel || t("quotation.vatRate", { rate: line.vatRate })}
+                                          {('vatLabel' in line && line.vatLabel) || t("quotation.vatRate", { rate: line.vatRate })}
                                         </div>
                                       </td>
-                                      <td className="px-3 py-2 text-right">{customerPricingReady ? formatMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
-                                      <td className="px-3 py-2 text-right">{customerPricingReady ? formatMoney(vatAmount, currentVersion.currency || 'EUR') : '...'}</td>
-                                      <td className="px-3 py-2 text-right font-medium">{customerPricingReady ? formatMoney(total, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatMoney(vatAmount, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right font-medium">{quotePricingReady ? formatMoney(total, currentVersion.currency || 'EUR') : '...'}</td>
                                     </tr>
                                   )
                                 })}
@@ -3396,9 +3398,9 @@ function BookingDetailContent() {
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm font-semibold text-gray-900">{t("quotation.totalInclVat")}</span>
-                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') : '...'}</span>
+                        <span className="text-2xl font-bold text-green-600">{quotePricingReady ? formatMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') : '...'}</span>
                       </div>
-                      {customerPricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
+                      {quotePricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
                         <p className="text-xs text-gray-500 text-right">
                           {t("quotation.netPlusVat", {
                             net: formatMoney(currentVersionQuoteTotals.netAmount, currentVersion.currency || 'EUR'),
@@ -3406,13 +3408,13 @@ function BookingDetailContent() {
                           })}
                         </p>
                       )}
-                      {customerPricingReady && loyalty && loyalty.percentage > 0 && (
+                      {quotePricingReady && quotationSavingAmount > 0 && (
                         <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                           <div className="text-xs text-amber-800">
-                            <span className="font-semibold">{t("loyalty.member", { level: loyalty.level })}</span> · {t("loyalty.discountApplied", { percentage: loyalty.percentage })}
+                            <span className="font-semibold">{t("loyalty.youSave")}</span>
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            {t("quotation.youSave", { amount: formatMoney(Math.max(0, quotationSavingAmount), currentVersion.currency || 'EUR') })}
+                            {formatMoney(Math.max(0, quotationSavingAmount), currentVersion.currency || 'EUR')}
                           </div>
                         </div>
                       )}
