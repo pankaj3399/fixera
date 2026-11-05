@@ -185,3 +185,11 @@ test('a fully refunded extra-cost charge nets to 0, never a negative credit; rea
   assert.deepEqual(completionAdditionOf({ _id: 'b1', status: 'completed', payment: { ...base, ...fullyRefunded }, overview: { completionAddition: null } }), unknown)
 })
 
+
+test('both shared tables link a recorded subproject title to its project', () => {
+  const booking = { _id: 'b1', status: 'booked', bookingSnapshot: { project: { id: 'p1', title: 'Project' }, selectedSubproject: { title: 'Bathroom package' } } }
+  for (const Component of [SharedBookingsTable, SharedQuotesTable]) {
+    const html = render(Component, booking, 'customer')
+    assert.match(html, /<a[^>]*href="[^"]*p1[^"]*"[^>]*>Bathroom package<\/a>/)
+  }
+})

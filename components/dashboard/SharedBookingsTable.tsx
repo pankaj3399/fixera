@@ -296,7 +296,13 @@ export default function SharedBookingsTable({
                   ) : (
                     <span className="font-medium text-gray-900">{titles.projectTitle || DASH}</span>
                   )}
-                  <div className="mt-0.5 text-gray-500">{titles.subprojectTitle || DASH}</div>
+                  <div className="mt-0.5 text-gray-500">
+                    {titles.subprojectTitle && titles.projectId ? (
+                      <Link href={projectHref(titles.projectId)} className="text-indigo-700 hover:underline">
+                        {titles.subprojectTitle}
+                      </Link>
+                    ) : titles.subprojectTitle || DASH}
+                  </div>
                 </td>
                 <td className="px-3 py-3">
                   <Link href={bookingHref(booking._id)} className="font-medium text-indigo-700 hover:underline">
