@@ -70,6 +70,7 @@ type SavingsSummaryResponse = {
     currency?: string;
     byType?: { recurring?: number; loyalty?: number; discountCode?: number; points?: number };
     referral?: number | null;
+    recordedReferral?: number;
     totalRecorded?: number;
     bookingCount?: number;
     coverage?: 'complete' | 'partial';
@@ -454,7 +455,10 @@ export default function BenefitsPage() {
                         ))}
                         <div className="flex items-center justify-between gap-3 border-t pt-2">
                           <span className="text-slate-600">{t("benefits.savings.referral")}</span>
-                          <Badge variant="secondary">{t("benefits.savings.referralUnknown")}</Badge>
+                          <span className="text-right">
+                            <span className="font-medium text-slate-900">{formatMoney(group.recordedReferral ?? group.referral ?? 0, group.currency)}</span>
+                            {group.referral == null && <Badge variant="secondary" className="ml-2">{t("benefits.savings.referralUnknown")}</Badge>}
+                          </span>
                         </div>
                       </div>
                     </div>
