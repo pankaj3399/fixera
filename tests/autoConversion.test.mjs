@@ -256,13 +256,13 @@ test('content-country reader prefers middleware country and falls back to platfo
   assert.equal(readContentCountry(new Headers({ 'x-fixera-content-country': 'bad', 'x-vercel-ip-country': 'NL' })), 'NL')
 })
 
-test('middleware matcher covers dynamic CMS slugs with asset extensions', async () => {
+test('middleware matcher excludes static asset extensions and Next internals', async () => {
   const { unstable_doesMiddlewareMatch } = await import('next/experimental/testing/server.js')
   const { config } = await import('../middleware.ts')
-  for (const url of ['/pages/example.png', '/pages/example.svg', '/services/example.webp', '/blog', '/faq', '/api/cms/revalidate']) {
+  for (const url of ['/blog', '/faq', '/api/cms/revalidate']) {
     assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url }), true, url)
   }
-  for (const url of ['/_next/static/chunk.js', '/_next/image?url=a', '/favicon.ico', '/sw.js']) {
+  for (const url of ['/_next/static/chunk.js', '/_next/image?url=a', '/favicon.ico', '/sw.js', '/pages/example.png', '/pages/example.svg', '/services/example.webp', '/photo.jpg', '/photo.jpeg', '/animation.gif', '/manifest.webmanifest', '/offline.html', '/firebase-messaging-sw-config.js']) {
     assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url }), false, url)
   }
 })

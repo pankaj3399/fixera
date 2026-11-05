@@ -174,9 +174,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match dynamic routes even when their slug ends with an image extension.
-     * Only known static entry points and Next internals bypass sanitization.
+     * Match all paths except static assets and Next internals.
      */
-    "/((?!_next/static|_next/image|(?:sw\\.js|manifest\\.webmanifest|offline\\.html|firebase-messaging-sw-config\\.js|favicon\\.ico)$).*)",
+    "/((?!_next/static|_next/image|(?:sw\\.js|manifest\\.webmanifest|offline\\.html|firebase-messaging-sw-config\\.js|favicon\\.ico)$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|ico)$).*)",
   ],
 };
