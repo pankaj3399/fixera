@@ -65,7 +65,8 @@ client-supplied value and then sets it; `lib/geo/contentCountryHeader.ts`
 (`readContentCountry`) reads it first and falls back to `x-vercel-ip-country`.
 The middleware still also overrides `x-vercel-ip-country` for older readers, but
 no reader relies on the host forwarding that override. CMS reads send both
-headers to the backend, which currently filters by `x-vercel-ip-country`.
+headers to the backend, which prefers `x-fixera-content-country` and falls
+back to the platform geo headers.
 
 `Accept-Language` parsing (`i18n/localeResolution.ts`) ignores `q=0` entries,
 clamps numeric out-of-range weights into `0…1`, ignores malformed qvalues and
