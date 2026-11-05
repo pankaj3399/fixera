@@ -158,7 +158,7 @@
     "defaultTitle": "Booking",
     "typeProject": "Project booking",
     "typeProfessional": "Professional booking",
-    "titleRfq": "Quotation request",
+    "titleRfq": "RFQ",
     "subtitleRfq": "Review this quotation request and respond with a quotation.",
     "defaultTitleRfq": "Quotation request",
     "typeRfq": "Quotation request"

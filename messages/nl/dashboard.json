@@ -462,7 +462,7 @@
     "wallet": {
       "title": "Hoe de puntenportemonnee werkt",
       "bodyCustomer": "Je spaart Fixtract-punten bij elke boeking en wisselt ze bij het afrekenen in voor directe korting. Je saldo zie je hierboven, je besparingen per boeking hieronder.",
-      "bodyProfessional": "Je punten worden omgezet in boekingskredieten voor je niveauprogressie via de boost-actie: boost om kredieten toe te voegen richting je volgende niveau.",
+      "bodyProfessional": "Professionele punten kunnen als boekingscredits meetellen voor niveauvoortgang. De niveauboost is momenteel beschikbaar via de service-API; deze pagina heeft geen boostbediening.",
       "balanceLink": "Bekijk saldo",
       "historyLink": "Bekijk besparingsgeschiedenis",
       "benefitsLink": "Bekijk voordelen"
