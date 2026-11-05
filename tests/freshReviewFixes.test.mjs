@@ -1908,3 +1908,42 @@ test('professional timeline: an older response never overwrites a newer filter; 
     state.unmount()
   } finally { globalThis.fetch = previousFetch; console.error = previousConsoleError }
 })
+
+test('participant disputes: later pages clear stale rows on failure and Refresh retries the selected page', async () => {
+  const state = hooks()
+  const requests = []
+  const t = key => key
+  const auth = { user: { _id: 'u1' }, loading: false }
+  const Button = () => null
+  const ui = stubModule()
+  const Component = loadComponent('../app/(pages)/dashboard/disputes/page.tsx', {
+    react: state.api,
+    'next/navigation': { useRouter: () => ({ push() {} }), usePathname: () => '/dashboard/disputes' },
+    'next-intl': { useTranslations: () => t },
+    '@/contexts/AuthContext': { useAuth: () => auth },
+    '@/lib/utils': { authFetch: (url, options) => { const d = deferred(); requests.push({ url, ...options, ...d }); return d.promise } },
+    '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+    '@/components/ui/card': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
+    '@/components/ui/button': { Button }, 'lucide-react': ui, sonner: { toast: { error() {} } },
+  })
+  const render = () => state.render(() => Component())
+  let tree = render(); state.flush()
+  requests[0].resolve({ ok: true, json: async () => ({ success: true, data: {
+    items: [{ _id: 'b1', bookingNumber: 'FIRST-PAGE', dispute: { reason: 'First dispute' } }], pagination: { totalPages: 6 },
+  } }) }); await settle()
+  tree = render()
+  assert.ok(textOf(tree).includes('FIRST-PAGE'))
+  const button = label => findAll(tree, node => node.type === Button && textOf(node).includes(label))[0]
+  button('common.next').props.onClick(); tree = render(); state.flush()
+  assert.match(requests[1].url, /page=2&limit=20/)
+  assert.equal(requests[0].signal.aborted, true)
+  requests[1].reject(new Error('offline')); await settle(); tree = render()
+  assert.ok(!textOf(tree).includes('FIRST-PAGE'))
+  assert.ok(textOf(tree).includes('disputes.loadFailed'))
+  button('common.refresh').props.onClick()
+  assert.match(requests[2].url, /page=2&limit=20/)
+  requests[2].resolve({ ok: true, json: async () => ({ success: true, data: { items: [], pagination: { totalPages: 6 } } }) })
+  await settle(); tree = render()
+  assert.ok(!textOf(tree).includes('disputes.loadFailed'))
+  state.unmount()
+})
