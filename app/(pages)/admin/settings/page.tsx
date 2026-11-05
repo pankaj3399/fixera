@@ -18,6 +18,8 @@ import { EU_COUNTRIES } from "@/lib/countries"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { invalidateClientRequest } from "@/lib/clientRequestCache"
 import { adminSetSupportChatEnabled } from "@/lib/support"
+import { isAutoConversionConfig } from "@/lib/admin/autoConversionSettings"
+import AutoConversionSettingsCard from "@/components/admin/AutoConversionSettingsCard"
 
 const normalizeCountryCode = (value?: string): string => {
   const trimmed = (value || '').trim()
@@ -146,6 +148,9 @@ export default function AdminSettingsPage() {
   const [odooCompaniesError, setOdooCompaniesError] = useState<string | null>(null)
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [version, setVersion] = useState<number>(0)
+  // Raw `autoConversion` from the API; the card owns its own draft and save.
+  const [autoConversion, setAutoConversion] = useState<unknown>(undefined)
+  const [autoConversionLoaded, setAutoConversionLoaded] = useState(false)
 
   useEffect(() => {
     if (!loading && (!isAuthenticated || user?.role !== 'admin')) {
@@ -155,6 +160,7 @@ export default function AdminSettingsPage() {
 
   const fetchSettings = useCallback(async () => {
     setIsLoading(true)
+    setAutoConversionLoaded(false)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/platform-settings`, adminRequestInit())
       if (response.ok) {
@@ -163,6 +169,9 @@ export default function AdminSettingsPage() {
           toast.error('We could not read the server response. Please try again.')
           return
         }
+        setAutoConversion(data.data.autoConversion)
+        setAutoConversionLoaded(data.success === true &&
+          (data.data.autoConversion == null || isAutoConversionConfig(data.data.autoConversion)))
         applySettingsState(hydrateSettingsResponse(data.data), {
           setCommissionPercent,
           setCompanyVatNumber,
@@ -301,6 +310,7 @@ export default function AdminSettingsPage() {
           toast.error('We could not read the server response. Please try again.')
           return
         }
+        // General saves do not own the card: a delayed PUT may contain an old rollout.
         applySettingsState(hydrateSettingsResponse(data.data), {
           setCommissionPercent,
           setCompanyVatNumber,
@@ -618,6 +628,16 @@ export default function AdminSettingsPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* The backend accepts auto-conversion changes from super admins only. */}
+        {!isLoading && user?.adminRole === 'super' && (
+          autoConversionLoaded ? <AutoConversionSettingsCard initial={autoConversion} /> : (
+            <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4" role="alert">
+              <p>Auto-conversion settings could not be loaded.</p>
+              <Button type="button" variant="outline" className="mt-2" onClick={fetchSettings}>Retry</Button>
+            </div>
+          )
         )}
 
         {!isLoading && user?.adminRole === 'super' && (

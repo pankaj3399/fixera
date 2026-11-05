@@ -61,6 +61,8 @@
     "rfqItem2": "Envoie des rappels aux professionnels qui n'ont pas soumis de devis depuis 2 jours ouvrables ou plus",
     "rfqItem3": "Signale les devis dont la date de validité est dépassée",
     "notificationsButton": "Lancer les rappels de notification",
+    "warrantyAria": "Aide sur les vérifications de garantie",
+    "rfqAria": "Aide sur les vérifications des demandes de devis",
     "notificationsAria": "Que fait « Lancer les rappels de notification » ?",
     "notificationsItem1": "Envoie un rappel après 3 jours pour les RFQ, les replanifications, les remboursements, les clôtures et les réservations non démarrées",
     "notificationsItem2": "Rappels d'avis à 10 et 20 jours ; chat non lu après 24 h",

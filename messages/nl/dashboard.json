@@ -61,6 +61,8 @@
     "rfqItem2": "Stuurt herinneringen naar vakmensen die al 2+ werkdagen geen offerte hebben ingediend",
     "rfqItem3": "Markeert offertes die hun geldigheidsdatum hebben overschreden",
     "notificationsButton": "Herinneringsmeldingen uitvoeren",
+    "warrantyAria": "Hulp bij garantiecontroles",
+    "rfqAria": "Hulp bij offerteaanvraagcontroles",
     "notificationsAria": "Wat doet Herinneringsmeldingen uitvoeren?",
     "notificationsItem1": "Stuurt na 3 dagen een duwtje voor RFQ's, herplanningen, terugbetalingen, afrondingen en boekingen die nog niet zijn gestart",
     "notificationsItem2": "Herinneringen voor beoordelingen na 10 en 20 dagen; ongelezen chat na 24 uur",

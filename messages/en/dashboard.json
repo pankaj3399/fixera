@@ -61,6 +61,8 @@
     "rfqItem2": "Sends reminders to professionals who haven't submitted a quotation for 2+ working days",
     "rfqItem3": "Flags quotations that have passed their validity date",
     "notificationsButton": "Run Notification Reminders",
+    "warrantyAria": "Warranty checks help",
+    "rfqAria": "RFQ checks help",
     "notificationsAria": "What does Run Notification Reminders do?",
     "notificationsItem1": "Sends 3-day nudges for RFQ, reschedule, refund, completion, and not-started bookings",
     "notificationsItem2": "Review reminders at 10 and 20 days; unread chat after 24h",

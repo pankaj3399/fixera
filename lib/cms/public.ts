@@ -8,7 +8,12 @@ import type {
   FaqCategory,
   FaqGroup,
 } from "@/lib/cms";
-import { getVisitorCountryCode, parseVisitorCountryCode } from "@/lib/cms/visitorCountry";
+import { getVisitorCountryCode } from "@/lib/cms/visitorCountry";
+import {
+  CONTENT_COUNTRY_REQUEST_HEADER,
+  PLATFORM_COUNTRY_REQUEST_HEADER,
+  readContentCountry,
+} from "@/lib/geo/contentCountryHeader";
 import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 
@@ -37,7 +42,9 @@ async function parseJsonRequired<T>(res: Response): Promise<T> {
 }
 
 async function getTrustedRequestCountry(): Promise<string | undefined> {
-  const requestCountry = parseVisitorCountryCode((await headers()).get("x-vercel-ip-country"));
+  // Middleware-set first-party content country (auto-conversion aware), then
+  // the platform geo header.
+  const requestCountry = readContentCountry(await headers());
   if (requestCountry) return requestCountry;
   // Local development has no platform geo header; retain the middleware's dev override.
   return process.env.NODE_ENV === "production" ? undefined : getVisitorCountryCode();
@@ -45,7 +52,12 @@ async function getTrustedRequestCountry(): Promise<string | undefined> {
 
 async function cmsFetchHeaders(): Promise<HeadersInit | undefined> {
   const country = await getTrustedRequestCountry();
-  return country ? { "x-vercel-ip-country": country } : undefined;
+  // The backend filters by x-vercel-ip-country today; the first-party header
+  // is sent too so the backend can prefer it (a hosting edge in front of the
+  // backend may replace x-vercel-ip-country with the caller's geo).
+  return country
+    ? { [PLATFORM_COUNTRY_REQUEST_HEADER]: country, [CONTENT_COUNTRY_REQUEST_HEADER]: country }
+    : undefined;
 }
 
 /**
