@@ -50,6 +50,8 @@ export default function DashboardDisputesPage() {
 
   const [items, setItems] = useState<DisputeRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -61,7 +63,7 @@ export default function DashboardDisputesPage() {
   const fetchDisputes = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine`)
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine?page=${page}&limit=20`)
       if (!res.ok) {
         toast.error(t("disputes.loadFailed"))
         return
@@ -69,6 +71,7 @@ export default function DashboardDisputesPage() {
       const json = await res.json()
       if (json.success) {
         setItems(json.data?.items || [])
+        setTotalPages(json.data?.pagination?.totalPages || 0)
       } else {
         toast.error(t("disputes.loadFailed"))
       }
@@ -77,7 +80,7 @@ export default function DashboardDisputesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [t])
+  }, [t, page])
 
   useEffect(() => {
     if (user) fetchDisputes()
@@ -182,6 +185,13 @@ export default function DashboardDisputesPage() {
           </div>
           )
         })()}
+        <div className="flex items-center justify-between gap-3" aria-live="polite">
+          <span className="text-sm text-gray-500">{t("common.pageOf", { page, total: Math.max(1, totalPages) })}</span>
+          <div className="flex gap-2">
+            <Button variant="outline" disabled={isLoading || page <= 1} onClick={() => setPage(p => p - 1)}>{t("common.previous")}</Button>
+            <Button variant="outline" disabled={isLoading || page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common.next")}</Button>
+          </div>
+        </div>
       </div>
     </div>
   )
