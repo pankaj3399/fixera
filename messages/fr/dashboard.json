@@ -462,7 +462,7 @@
     "wallet": {
       "title": "Comment fonctionne le portefeuille de points",
       "bodyCustomer": "Vous gagnez des points Fixtract à chaque réservation et les échangez au paiement contre une remise immédiate. Votre solde est affiché ci-dessus, vos économies par réservation ci-dessous.",
-      "bodyProfessional": "Les points professionnels peuvent compter comme crédits de réservation pour la progression de niveau. Le bonus de niveau est actuellement disponible via le service API ; cette page ne propose pas de commande de bonus.",
+      "bodyProfessional": "Votre solde de points et votre progression de niveau sont affichés ici. Dépenser des points pour accélérer la progression de niveau n’est pas encore possible dans l’application web.",
       "balanceLink": "Voir le solde",
       "historyLink": "Voir l'historique des économies",
       "benefitsLink": "Voir les avantages"
