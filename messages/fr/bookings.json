@@ -336,7 +336,9 @@
       "rejected": "Devis refusé. Le professionnel en sera informé.",
       "respondFailed": "La réponse au devis a échoué"
     },
-    "currentPreviewNote": "Aperçu actuel du paiement avec les tarifs de paiement actuels. Le devis enregistré se trouve dans l'onglet Devis."
+    "currentPreviewNote": "Aperçu actuel du paiement avec les tarifs de paiement actuels. Le devis enregistré se trouve dans l'onglet Devis.",
+    "viewingPinnedVersion": "Version épinglée v{version} affichée. Accepter et payer utilise toujours la version valide actuelle.",
+    "backToCurrentVersion": "Retour à la version actuelle"
   },
   "loyalty": {
     "member": "Membre {level}",

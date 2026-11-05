@@ -252,29 +252,32 @@ export default function SubprojectComparisonTable({
         <CardContent className="p-0">
           {/* Tab Navigation */}
           <div className="border-b border-gray-200">
-            <div className="flex">
+            <div className="flex overflow-x-auto">
               {subprojects.map((subproject, index) => (
                 <button
                   key={index}
                   onClick={() => onSelectIndex(index)}
-                  className={`flex-1 px-6 py-4 text-center font-semibold text-base transition-all relative ${selectedIndex === index
+                  className={`flex-1 min-w-[120px] px-3 sm:px-6 py-4 flex flex-col items-center justify-end gap-1 text-center font-semibold text-base transition-all ${selectedIndex === index
                     ? 'text-gray-900 border-b-2 border-gray-900'
                     : 'text-gray-500 hover:text-gray-700'
                     }`}
+                  title={subproject.name}
                 >
-                  {subproject.name}
+                  {/* The badge sits in flow above the label (labels stay bottom-aligned
+                      across tabs), so it can never cover a long name on a narrow tab. */}
                   {index === 1 && subprojects.length === 3 && (
-                    <span className="absolute -top-2 right-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
+                    <span className="whitespace-nowrap bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
                       {t('comparison.popular')}
                     </span>
                   )}
+                  <span className="block max-w-full truncate">{subproject.name}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Package Content */}
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             {/* Package Header */}
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">{currentSubproject.name}</h3>

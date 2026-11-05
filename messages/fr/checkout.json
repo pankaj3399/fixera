@@ -130,7 +130,9 @@
     "preparationValue": "Préparation : {duration}",
     "executionValue": "Exécution : {duration}",
     "bufferValue": "Marge : {duration}",
-    "saving": "Enregistrement..."
+    "saving": "Enregistrement...",
+    "backToDetails": "Retour aux détails de la réservation",
+    "previousToSchedule": "Précédent : infos de réservation"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Paiement réussi",

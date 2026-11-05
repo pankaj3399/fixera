@@ -3,12 +3,13 @@
 import { apiErrorFromBody } from '@/lib/apiErrors'
 
 import { Suspense } from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -136,9 +137,14 @@ function WarrantyClaimsContent() {
 
   const [claims, setClaims] = useState<ClaimRecord[]>([])
   const [statusFilter, setStatusFilter] = useState<"all" | WarrantyClaimStatus>("all")
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [serviceFilter, setServiceFilter] = useState("all")
+  const [services, setServices] = useState<string[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [totalClaims, setTotalClaims] = useState(0)
+  // null = unknown (not loaded yet, or the last request failed); never shown as 0.
+  const [totalClaims, setTotalClaims] = useState<number | null>(null)
   const [isLoadingClaims, setIsLoadingClaims] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [highlightedClaim, setHighlightedClaim] = useState<ClaimRecord | null>(null)
@@ -218,7 +224,15 @@ function WarrantyClaimsContent() {
     return () => controller.abort()
   }, [claimIdFromQuery, fetchClaimById, getErrorText, normalizedStatusFromQuery, t])
 
-  const fetchClaims = useCallback(async (signal?: AbortSignal) => {
+  // The one in-flight list request. Every entry point (filter effect, Refresh)
+  // goes through fetchClaims, which aborts the previous request first, so a
+  // slower superseded response can never write rows, totals or the spinner.
+  const claimsRequestRef = useRef<AbortController | null>(null)
+  const fetchClaims = useCallback(async () => {
+    claimsRequestRef.current?.abort()
+    const controller = new AbortController()
+    claimsRequestRef.current = controller
+    const { signal } = controller
     if (!isAuthenticated || (user?.role !== "professional" && user?.role !== "customer")) return
     setIsLoadingClaims(true)
     setError(null)
@@ -231,19 +245,25 @@ function WarrantyClaimsContent() {
       params.set("page", String(page))
       params.set("limit", "20")
       if (statusFilter !== "all") params.set("status", statusFilter)
+      if (debouncedSearch.trim()) params.set("q", debouncedSearch.trim())
+      if (serviceFilter !== "all") params.set("service", serviceFilter)
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/my?${params.toString()}`,
         { credentials: "include", headers, signal }
       )
       const payload = await response.json()
+      if (signal.aborted) return
       if (!response.ok || !payload.success) {
         throw apiErrorFromBody(payload, t("warranty.loadClaimsFailed"), { status: response.status })
       }
 
       const data = payload.data || {}
       const nextClaims = Array.isArray(data.claims) ? data.claims : []
-      if (highlightedClaim && page === 1) {
+      // The highlighted claim is only injected when no search/service filter
+      // is active: those filters run server-side and may exclude it.
+      const hasServerOnlyFilters = Boolean(debouncedSearch.trim()) || serviceFilter !== "all"
+      if (highlightedClaim && page === 1 && !hasServerOnlyFilters) {
         const matchesFilter = statusFilter === "all" || highlightedClaim.status === statusFilter
         if (matchesFilter && !nextClaims.some((claim: ClaimRecord) => claim._id === highlightedClaim._id)) {
           setClaims([highlightedClaim, ...nextClaims])
@@ -257,20 +277,51 @@ function WarrantyClaimsContent() {
       setTotalPages(data.pagination?.totalPages || 1)
       setTotalClaims(data.pagination?.total || 0)
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return
+      if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) return
       setClaims([])
       setTotalPages(1)
-      setTotalClaims(0)
+      setTotalClaims(null)
       setError(getErrorText(err, t("warranty.loadClaimsFailed")))
     } finally {
-      setIsLoadingClaims(false)
+      // An aborted request was superseded; its replacement owns the flag.
+      if (!signal.aborted) setIsLoadingClaims(false)
+      if (claimsRequestRef.current === controller) claimsRequestRef.current = null
     }
-  }, [highlightedClaim, isAuthenticated, page, statusFilter, user?.role, getErrorText, t])
+  }, [highlightedClaim, isAuthenticated, page, statusFilter, debouncedSearch, serviceFilter, user?.role, getErrorText, t])
 
   useEffect(() => {
-    const controller = new AbortController()
-    fetchClaims(controller.signal)
-    return () => controller.abort()
+    const timer = setTimeout(() => setDebouncedSearch(search), 500)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Service options resolve from the viewer's own bookings facet.
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const loadServices = async () => {
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers.Authorization = `Bearer ${token}`
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=1&limit=1`,
+          { credentials: "include", headers },
+        )
+        const payload = await response.json()
+        if (response.ok && payload.success && Array.isArray(payload.distinctServices)) {
+          setServices(payload.distinctServices)
+        }
+      } catch {
+        // non-blocking
+      }
+    }
+    void loadServices()
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    void fetchClaims()
+    // A filter change or unmount supersedes whichever request is in flight,
+    // including one started by Refresh.
+    return () => claimsRequestRef.current?.abort()
   }, [fetchClaims])
 
   useEffect(() => {
@@ -323,7 +374,7 @@ function WarrantyClaimsContent() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               {t("common.back")}
             </Button>
-            <Button onClick={() => fetchClaims()} disabled={isLoadingClaims}>
+            <Button onClick={() => void fetchClaims()} disabled={isLoadingClaims}>
               {isLoadingClaims ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
@@ -339,26 +390,51 @@ function WarrantyClaimsContent() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
                 <CardTitle>{t("warranty.queueTitle")}</CardTitle>
-                <CardDescription>{t("warranty.totalClaims", { count: totalClaims })}</CardDescription>
+                {totalClaims != null && !isLoadingClaims && (
+                  <CardDescription>{t("warranty.totalClaims", { count: totalClaims })}</CardDescription>
+                )}
               </div>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  setPage(1)
-                  setStatusFilter(value as "all" | WarrantyClaimStatus)
-                }}
-              >
-                <SelectTrigger className="w-full md:w-[220px]">
-                  <SelectValue placeholder={t("common.filterStatus")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(WARRANTY_STATUS_KEYS[option.value] ?? "warranty.status.all")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  aria-label={t("warranty.search")}
+                  placeholder={t("warranty.search")}
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                  className="w-full sm:w-64"
+                />
+                <Select
+                  value={serviceFilter}
+                  onValueChange={(value) => { setPage(1); setServiceFilter(value) }}
+                >
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder={t("warranty.filterService")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("warranty.allServices")}</SelectItem>
+                    {services.map((svc) => (
+                      <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => {
+                    setPage(1)
+                    setStatusFilter(value as "all" | WarrantyClaimStatus)
+                  }}
+                >
+                  <SelectTrigger className="w-full md:w-[220px]">
+                    <SelectValue placeholder={t("common.filterStatus")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(WARRANTY_STATUS_KEYS[option.value] ?? "warranty.status.all")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             {error && <p role="alert" className="text-sm text-rose-600 mt-2">{error}</p>}
           </CardHeader>
@@ -497,7 +573,7 @@ function WarrantyClaimsContent() {
               </div>
             )}
 
-            {totalPages > 1 && (
+            {!isLoadingClaims && totalPages > 1 && (
               <div className="flex items-center justify-between pt-2">
                 <Button
                   variant="outline"

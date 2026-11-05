@@ -12,6 +12,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
+import { resolvePostAuthRedirect } from "@/lib/auth/redirectResolver"
 
 function LoginPageContent() {
   const t = useTranslations("auth")
@@ -29,9 +30,11 @@ function LoginPageContent() {
       const professionalMustFinishOnboarding =
         user?.role === 'professional' &&
         (!user.isEmailVerified || !user.isPhoneVerified || !user.professionalOnboardingCompletedAt)
-      const redirectTo = professionalMustFinishOnboarding
-        ? '/professional/onboarding'
-        : (searchParams.get('redirect') || '/dashboard')
+      const redirectTo = resolvePostAuthRedirect({
+        role: user?.role,
+        explicitRedirect: searchParams.get('redirect'),
+        onboardingPath: professionalMustFinishOnboarding ? '/professional/onboarding' : null,
+      })
       router.push(redirectTo)
     }
   }, [isAuthenticated, loading, router, searchParams, user])

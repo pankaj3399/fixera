@@ -30,16 +30,42 @@ interface ParticipantKpis {
   completedCount: number
   quotedCount: number
   disputeCount: number
-  grossEur: number
+  grossEur: number | null
   refundPercent: number | null
+  financialAccess?: boolean
+  grossByCurrency?: Array<{ currency: string; gross: number }>
 }
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL
 
-const formatMoney = (value: number) =>
-  value.toLocaleString("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+// Recorded payment currencies come from stored booking data; one malformed
+// code (null, "€", "EURO") must not throw a RangeError and take down the
+// admin chat page. Such an amount is shown with its raw label, or none.
+const formatMoney = (value: unknown, currency: unknown = "EUR"): string => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—"
+  if (typeof currency === "string" && /^[A-Za-z]{3}$/.test(currency)) {
+    try {
+      return value.toLocaleString("en-GB", { style: "currency", currency, maximumFractionDigits: 0 })
+    } catch {
+      // Fall through to the plain number.
+    }
+  }
+  const amount = value.toLocaleString("en-GB", { maximumFractionDigits: 0 })
+  const label = typeof currency === "string" ? currency.trim() : ""
+  return label ? `${amount} ${label}` : amount
+}
 
-const formatPct = (value: number | null) => (value == null ? "—" : `${value}%`)
+const formatGross = (kpis: ParticipantKpis): string => {
+  if (kpis.financialAccess === false) return "Restricted"
+  if (kpis.grossEur != null) return formatMoney(kpis.grossEur)
+  if (Array.isArray(kpis.grossByCurrency) && kpis.grossByCurrency.length > 0) {
+    return kpis.grossByCurrency.map((bucket) => formatMoney(bucket?.gross, bucket?.currency ?? null)).join(" + ")
+  }
+  return "—"
+}
+
+const formatPct = (value: number | null, restricted: boolean) =>
+  restricted ? "Restricted" : value == null ? "—" : `${value}%`
 
 function KpiRow({ label, value }: { label: string; value: string | number }) {
   return (
@@ -179,8 +205,8 @@ export default function AdminSupportInfoPanel({ conversationId }: { conversation
               <KpiRow label="Completed" value={kpis.completedCount} />
               <KpiRow label="Quoted" value={kpis.quotedCount} />
               <KpiRow label="Disputes" value={kpis.disputeCount} />
-              <KpiRow label="Gross €" value={formatMoney(kpis.grossEur)} />
-              <KpiRow label="Refund %" value={formatPct(kpis.refundPercent)} />
+              <KpiRow label="Gross" value={formatGross(kpis)} />
+              <KpiRow label="Refund %" value={formatPct(kpis.refundPercent, kpis.financialAccess === false)} />
             </div>
           </div>
         )}

@@ -130,7 +130,9 @@
     "preparationValue": "Preparation: {duration}",
     "executionValue": "Execution: {duration}",
     "bufferValue": "Buffer: {duration}",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "backToDetails": "Back to booking details",
+    "previousToSchedule": "Previous: booking info"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Payment successful",

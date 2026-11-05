@@ -130,7 +130,9 @@
     "preparationValue": "Voorbereiding: {duration}",
     "executionValue": "Uitvoering: {duration}",
     "bufferValue": "Buffer: {duration}",
-    "saving": "Opslaan..."
+    "saving": "Opslaan...",
+    "backToDetails": "Terug naar boekingsgegevens",
+    "previousToSchedule": "Vorige: boekingsinfo"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Betaling geslaagd",

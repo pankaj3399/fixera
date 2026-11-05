@@ -17,6 +17,9 @@ import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import ReferralCard from "@/components/dashboard/ReferralCard"
 import BacklinkCard from "@/components/dashboard/BacklinkCard"
 
+/** Upper bound for the savings summary request; it must never hang the card. */
+const SAVINGS_TIMEOUT_MS = 10_000
+
 type CustomerBenefitsResponse = {
   loyaltyStatus?: {
     level?: string
@@ -62,8 +65,27 @@ type ProfessionalBenefitsResponse = {
   }
 }
 
-type ReferralData = {
-  referralCode?: string
+type SavingsSummaryResponse = {
+  groups?: Array<{
+    currency?: string;
+    byType?: { recurring?: number; loyalty?: number; discountCode?: number; points?: number };
+    referral?: number | null;
+    totalRecorded?: number;
+    bookingCount?: number;
+    coverage?: 'complete' | 'partial';
+    excludedUncertain?: number;
+    unrecorded?: number;
+  }>;
+  complete?: boolean;
+  settledBookingCount?: number;
+  unrecordedBookingCount?: number;
+  excludedUncertainCount?: number;
+  referral?: null;
+  referralStatus?: string;
+  totalLabel?: string;
+}
+
+type ReferralData = {  referralCode?: string
   points?: number
   pointsExpiry?: string | null
   totalReferrals?: number
@@ -105,6 +127,10 @@ export default function BenefitsPage() {
   const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(null)
   const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(null)
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
+  const [savingsData, setSavingsData] = useState<SavingsSummaryResponse | null>(null)
+  // Savings load independently of the page skeleton: a failed load shows its
+  // own error instead of the "no savings yet" message.
+  const [savingsStatus, setSavingsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -146,6 +172,42 @@ export default function BenefitsPage() {
 
     const controller = new AbortController()
 
+    const loadSavings = async (headers: HeadersInit) => {
+      setSavingsStatus("loading")
+      const timeoutController = new AbortController()
+      const abortOnUnmount = () => timeoutController.abort()
+      controller.signal.addEventListener("abort", abortOnUnmount)
+      const timeout = setTimeout(() => timeoutController.abort(), SAVINGS_TIMEOUT_MS)
+      try {
+        const savingsResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/savings/summary`, {
+          credentials: "include",
+          headers,
+          signal: timeoutController.signal,
+        })
+        let savingsPayload: { success?: boolean; data?: SavingsSummaryResponse } | null = null
+        try {
+          savingsPayload = await savingsResponse.json()
+        } catch (error) {
+          console.error("Failed to parse savings summary response:", error)
+        }
+        if (controller.signal.aborted) return
+        if (savingsResponse.ok && savingsPayload?.success) {
+          setSavingsData(savingsPayload.data ?? null)
+          setSavingsStatus("ready")
+        } else {
+          console.error("Savings summary request failed:", savingsResponse.status)
+          setSavingsStatus("error")
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        console.error("Failed to fetch savings data:", error)
+        setSavingsStatus("error")
+      } finally {
+        clearTimeout(timeout)
+        controller.signal.removeEventListener("abort", abortOnUnmount)
+      }
+    }
+
     const load = async () => {
       setPageLoading(true)
       const headers = benefitsAuthHeaders()
@@ -159,6 +221,10 @@ export default function BenefitsPage() {
           return null
         }
       }
+
+      // Savings never hold the page skeleton; they settle on their own with a
+      // bounded timeout and an explicit error state.
+      if (user.role === "customer") void loadSavings(headers)
 
       const [benefitsResult, referralResult] = await Promise.allSettled([
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${benefitsEndpoint}`, {
@@ -337,6 +403,77 @@ export default function BenefitsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {isCustomer && (
+          <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gift className="h-5 w-5 text-emerald-600" />
+                {t("benefits.savings.title")}
+                <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+                  {t("benefits.savings.recordedSavings")}
+                </Badge>
+              </CardTitle>
+              <CardDescription>{t("benefits.savings.subtitle")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {savingsStatus === "loading" || savingsStatus === "idle" ? (
+                <div className="space-y-2" aria-busy="true">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : savingsStatus === "error" ? (
+                <p role="alert" className="text-sm text-rose-700">{t("benefits.savings.loadFailed")}</p>
+              ) : !savingsData || savingsData.settledBookingCount === 0 ? (
+                <p className="text-sm text-slate-600">{t("benefits.savings.noSavingsYet")}</p>
+              ) : (
+                <>
+                  {(savingsData.groups ?? []).map((group) => (
+                    <div key={group.currency ?? 'UNKNOWN'} className="rounded-lg border bg-white p-4">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-500">
+                          {t("benefits.savings.bookingsCount", { count: group.bookingCount ?? 0 })}
+                        </p>
+                        <p className="text-2xl font-bold text-emerald-700">
+                          {formatMoney(group.totalRecorded ?? 0, group.currency)}
+                        </p>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm">
+                        {(
+                          [
+                            ['recurring', group.byType?.recurring ?? 0],
+                            ['loyalty', group.byType?.loyalty ?? 0],
+                            ['discountCode', group.byType?.discountCode ?? 0],
+                            ['points', group.byType?.points ?? 0],
+                          ] as const
+                        ).map(([key, amount]) => (
+                          <div key={key} className="flex items-center justify-between gap-3">
+                            <span className="text-slate-600">{t(`benefits.savings.${key}`)}</span>
+                            <span className="font-medium text-slate-900">{formatMoney(amount, group.currency)}</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between gap-3 border-t pt-2">
+                          <span className="text-slate-600">{t("benefits.savings.referral")}</span>
+                          <Badge variant="secondary">{t("benefits.savings.referralUnknown")}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {(savingsData.unrecordedBookingCount ?? 0) > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {t("benefits.savings.unknownCoverage", { count: savingsData.unrecordedBookingCount ?? 0 })}
+                    </p>
+                  )}
+                  {(savingsData.excludedUncertainCount ?? 0) > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {t("benefits.savings.excludedUncertain", { count: savingsData.excludedUncertainCount ?? 0 })}
+                    </p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-indigo-100 bg-white/90">
           <CardHeader>
