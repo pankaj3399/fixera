@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
 import { markAnnouncementShown } from "@/lib/marketing/siteAnnouncements/dismissStorage";
+import { whenDocumentVisible } from "@/lib/marketing/siteAnnouncements/visibility";
 import { recordAnnouncementEvent } from "@/lib/marketing/siteAnnouncements/events";
 import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
 import { PromoOverlay } from "./PromoOverlay";
@@ -37,14 +38,18 @@ export function SiteAnnouncementOverlays() {
 
   useEffect(() => {
     if (skip || !showModal || !modal) return;
-    markAnnouncementShown(modal);
-    recordAnnouncementEvent(modal, "impression", modalOccurrence);
+    return whenDocumentVisible(() => {
+      markAnnouncementShown(modal);
+      recordAnnouncementEvent(modal, "impression", modalOccurrence);
+    });
   }, [skip, showModal, modal, modalOccurrence]);
 
   useEffect(() => {
     if (skip || showModal || !showExit || !exitIntent) return;
-    markAnnouncementShown(exitIntent);
-    recordAnnouncementEvent(exitIntent, "impression", exitOccurrence);
+    return whenDocumentVisible(() => {
+      markAnnouncementShown(exitIntent);
+      recordAnnouncementEvent(exitIntent, "impression", exitOccurrence);
+    });
   }, [skip, showModal, showExit, exitIntent, exitOccurrence]);
 
   useEffect(() => {

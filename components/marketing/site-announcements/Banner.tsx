@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
+import { whenDocumentVisible } from "@/lib/marketing/siteAnnouncements/visibility";
 import { recordAnnouncementEvent } from "@/lib/marketing/siteAnnouncements/events";
 import { useAnnouncementsCtx } from "./context";
 import { AnnouncementTopBar } from "./TopBar";
@@ -41,7 +42,7 @@ export function SiteAnnouncementBanner() {
   // The top bar persists across client navigation: one impression per page load.
   useEffect(() => {
     if (!topBar || isPreview) return;
-    recordAnnouncementEvent(topBar, "impression");
+    return whenDocumentVisible(() => recordAnnouncementEvent(topBar, "impression"));
   }, [topBar, isPreview]);
 
   useEffect(() => {

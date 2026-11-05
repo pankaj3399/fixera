@@ -107,5 +107,35 @@ test('overlays and top bar record impressions on reveal, never for previews', ()
   const previewSection = overlays.slice(overlays.indexOf('export function SiteAnnouncementPreviewOverlays'))
   assert.doesNotMatch(previewSection, /recordAnnouncementEvent/)
   const banner = readFileSync(new URL('../components/marketing/site-announcements/Banner.tsx', import.meta.url), 'utf8')
-  assert.match(banner, /if \(!topBar \|\| isPreview\) return;\s*recordAnnouncementEvent\(topBar, "impression"\)/)
+  assert.match(banner, /if \(!topBar \|\| isPreview\) return;\s*return whenDocumentVisible\(\(\) => recordAnnouncementEvent\(topBar, "impression"\)\)/)
+})
+
+
+test('background impressions wait for visibility and are cancelled when the announcement leaves', async () => {
+  const { whenDocumentVisible } = await import('../lib/marketing/siteAnnouncements/visibility.ts')
+  const originalDocument = globalThis.document
+  const doc = new EventTarget()
+  doc.visibilityState = 'hidden'
+  globalThis.document = doc
+  try {
+    let impressions = 0
+    const cancel = whenDocumentVisible(() => { impressions += 1 })
+    assert.equal(impressions, 0)
+    cancel() // navigated away before this background modal was seen
+    doc.visibilityState = 'visible'
+    doc.dispatchEvent(new Event('visibilitychange'))
+    assert.equal(impressions, 0)
+
+    doc.visibilityState = 'hidden'
+    whenDocumentVisible(() => { impressions += 1 })
+    doc.visibilityState = 'visible'
+    doc.dispatchEvent(new Event('visibilitychange'))
+    doc.dispatchEvent(new Event('visibilitychange'))
+    assert.equal(impressions, 1, 'counts once when the tab becomes visible')
+    whenDocumentVisible(() => { impressions += 1 })
+    assert.equal(impressions, 2, 'foreground reveals count immediately')
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document
+    else globalThis.document = originalDocument
+  }
 })
