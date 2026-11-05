@@ -61,6 +61,7 @@
     "executionEnds": "Execution ends:",
     "projectCompletion": "Project completion (incl. buffer):",
     "extraOptions": "Extra Options",
+    "agreedOptionsLocked": "Options included in an agreed price require a revised quotation to change.",
     "selectedOptionsTotal": "Selected options total:",
     "additionalNotes": "Additional Notes",
     "optional": "(optional)",

@@ -61,6 +61,7 @@
     "executionEnds": "Uitvoering eindigt:",
     "projectCompletion": "Afronding project (incl. buffer):",
     "extraOptions": "Extra opties",
+    "agreedOptionsLocked": "Voor het wijzigen van opties in een overeengekomen prijs is een herziene offerte nodig.",
     "selectedOptionsTotal": "Totaal geselecteerde opties:",
     "additionalNotes": "Extra opmerkingen",
     "optional": "(optioneel)",

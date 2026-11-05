@@ -61,6 +61,7 @@
     "executionEnds": "Fin de l'exécution :",
     "projectCompletion": "Fin du projet (marge incl.) :",
     "extraOptions": "Options supplémentaires",
+    "agreedOptionsLocked": "La modification des options incluses dans un prix convenu nécessite un devis révisé.",
     "selectedOptionsTotal": "Total des options sélectionnées :",
     "additionalNotes": "Remarques supplémentaires",
     "optional": "(facultatif)",

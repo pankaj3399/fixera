@@ -632,7 +632,7 @@ export default function BookingPaymentPage() {
           scheduledStartTime:
             scheduleMode === 'hours' ? selectedStartTime || undefined : undefined,
           additionalNotes: additionalNotes || undefined,
-          selectedExtraOptions,
+          selectedExtraOptions: optionsLocked ? undefined : selectedExtraOptions,
         }),
       });
       const data = await response.json();
@@ -969,6 +969,7 @@ export default function BookingPaymentPage() {
     }
     return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + breakdownOptionsBaseTotal)) < 0.02;
   })();
+  const optionsLocked = Boolean(booking?.quoteVersions?.length || extrasIncludedInQuote);
   const breakdownBaseTotal = extrasIncludedInQuote
     ? quoteAmount
     : quoteAmount + breakdownOptionsBaseTotal;
@@ -1412,6 +1413,7 @@ export default function BookingPaymentPage() {
                 {projectExtraOptions.length > 0 && (
                   <div className="rounded-lg border border-gray-200 p-4">
                     <h3 className="text-sm font-semibold text-gray-900 mb-2">{t('paymentPage.extraOptions')}</h3>
+                    {optionsLocked && <p className="mb-3 text-xs text-gray-600">{t('paymentPage.agreedOptionsLocked')}</p>}
                     <div className="space-y-2">
                       {projectExtraOptions.map((option, index) => {
                         const selected = selectedExtraOptions.includes(index);
@@ -1437,6 +1439,7 @@ export default function BookingPaymentPage() {
                               <input
                                 type="checkbox"
                                 checked={selected}
+                                disabled={optionsLocked}
                                 onChange={() => toggleExtraOption(index)}
                               />
                             </div>
@@ -1525,7 +1528,9 @@ export default function BookingPaymentPage() {
               onClick={() => {
                 setClientSecret('');
                 setError('');
-                setSelectedStartDate(booking?.scheduledStartDate?.slice(0, 10) || '');
+                setSelectedStartDate(booking?.scheduledStartDate ? formatInTimeZone(parseISO(booking.scheduledStartDate), professionalTimezone, 'yyyy-MM-dd') : '');
+                setValidatedScheduleSelectionKey('');
+                setScheduleWindow(null);
                 setSelectedStartTime(booking?.scheduledStartTime || '');
                 setScheduleStep(true);
                 void loadScheduleProposals(booking);
