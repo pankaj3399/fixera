@@ -1259,8 +1259,21 @@ function ProfessionalOnboardingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
-  // Step state + ?step= sync (URL deep link, then saved-profile resume).
-  const [currentStep, setCurrentStep] = useOnboardingStepSync({ loading, user, searchParams, pathname, router })
+  const onboardingComplete = !loading && user?.role === 'professional' && Boolean(
+    user.professionalOnboardingCompletedAt || (user.professionalStatus !== undefined && user.professionalStatus !== 'draft')
+  )
+  const [completionStarted, setCompletionStarted] = useState(false)
+  const completionRedirectRef = useRef<string | null>(null)
+  const finishOnboarding = useCallback(() => {
+    if (completionRedirectRef.current !== null) return
+    completionRedirectRef.current = completedOnboardingRedirect(searchParams.get('redirect'), sessionStorage)
+    setCompletionStarted(true)
+    router.push(completionRedirectRef.current)
+  }, [router, searchParams])
+  // Completion owns navigation; step synchronization must not replace it.
+  const [currentStep, setCurrentStep] = useOnboardingStepSync({
+    loading, user, searchParams, pathname, router, enabled: !onboardingComplete && !completionStarted,
+  })
   const [stripeStatus, setStripeStatus] = useState<StripeAccountStatus | null>(null)
   const [stripeLoading, setStripeLoading] = useState(false)
   const [stripeError, setStripeError] = useState('')
@@ -1327,14 +1340,8 @@ function ProfessionalOnboardingContent() {
   }, [loading, user?.role, router])
 
   useEffect(() => {
-    if (
-      !loading &&
-      user?.role === 'professional' &&
-      (user.professionalOnboardingCompletedAt || (user.professionalStatus !== undefined && user.professionalStatus !== 'draft'))
-    ) {
-      router.push(completedOnboardingRedirect(searchParams.get('redirect'), sessionStorage))
-    }
-  }, [loading, user, router, searchParams])
+    if (onboardingComplete) finishOnboarding()
+  }, [onboardingComplete, finishOnboarding])
 
   useEffect(() => {
     if (!user) return
@@ -1762,8 +1769,9 @@ function ProfessionalOnboardingContent() {
       })
       if (result.success) {
         toast.success(t('onboarding.toasts.submitted'))
+        setCompletionStarted(true)
         await checkAuth()
-        router.push(completedOnboardingRedirect(searchParams.get('redirect'), sessionStorage))
+        finishOnboarding()
       } else {
         const combinedRequirements: MissingRequirementInput[] = [
           ...(result.missingRequirementDetails || []),

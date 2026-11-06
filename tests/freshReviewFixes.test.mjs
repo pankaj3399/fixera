@@ -2178,3 +2178,56 @@ test('comparison tabs reveal selected packages by scrolling only their horizonta
   state.unmount()
 })
 
+test('onboarding completion preserves its stored workflow through repeated effects without step replacements', async () => {
+  const previous = { fetch: globalThis.fetch, sessionStorage: globalThis.sessionStorage }
+  const state = hooks()
+  const pushes = [], replaces = [], removals = []
+  let stored = '/bookings/stored-workflow'
+  let reads = 0
+  globalThis.sessionStorage = { getItem: () => { reads++; return stored }, removeItem: key => { removals.push(key); stored = null } }
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ success: true, data: {} }) })
+  const auth = { loading: false, isAuthenticated: true, user: { role: 'professional', professionalStatus: 'approved', isEmailVerified: true, isPhoneVerified: true }, checkAuth: async () => {} }
+  const router = { push: path => pushes.push(path), replace: path => replaces.push(path) }
+  let params = new URLSearchParams('step=5')
+  const t = key => key
+  const getErrorText = (_error, fallback) => fallback
+  const ui = stubModule()
+  try {
+    const resumeStep = await import('../lib/onboarding/resumeStep.ts')
+    const useOnboardingStepSync = loadComponent('../lib/onboarding/useOnboardingStepSync.ts', { react: state.api, './resumeStep': resumeStep }, 'useOnboardingStepSync')
+    const Page = loadComponent('../app/(pages)/professional/onboarding/page.tsx', {
+      react: state.api,
+      '@/lib/auth/redirectResolver': await import('../lib/auth/redirectResolver.ts'),
+      '@/lib/onboarding/useOnboardingStepSync': { useOnboardingStepSync },
+      '@/lib/onboarding/resumeStep': resumeStep,
+      '@/lib/constants/onboardingSteps': { ONBOARDING_STEPS },
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      'next/navigation': { useRouter: () => router, useSearchParams: () => params, usePathname: () => '/professional/onboarding' },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+      '@/components/ui/button': ui, '@/components/ui/input': ui, '@/components/ui/label': ui,
+      '@/components/ui/select': ui, '@/components/ui/checkbox': ui, '@/components/ui/skeleton': ui,
+      '@/components/professional/project-wizard/AddressAutocomplete': ui,
+      '@/components/TeamManagement': ui, '@/components/DualVerificationComponent': ui,
+      '@/lib/countries': await import('../lib/countries.ts'),
+      '@/lib/utils': { getAuthToken: () => null, buildUsernameSuggestionParams() {} },
+      '@/lib/vatValidation': await import('../lib/vatValidation.ts'),
+      '@/lib/defaults/companyAvailability': await import('../lib/defaults/companyAvailability.ts'),
+      '@/lib/cms': { publicListPolicyLinks: async () => [] },
+      'next/link': ui, 'lucide-react': ui,
+      sonner: { toast: { success() {}, error() {} } },
+    })
+    const Content = state.render(() => Page()).props.children.type
+    state.reset()
+    const commit = async () => { state.render(() => Content()); state.flush(); await settle() }
+    for (let i = 0; i < 4; i++) await commit()
+    params = new URLSearchParams('step=6')
+    auth.user = { ...auth.user, profileImage: 'updated-avatar' }
+    for (let i = 0; i < 3; i++) await commit()
+    assert.deepEqual(pushes, ['/bookings/stored-workflow'])
+    assert.deepEqual(replaces, [])
+    assert.equal(reads, 1)
+    assert.deepEqual(removals, ['redirectAfterAuth'])
+  } finally { state.unmount(); globalThis.fetch = previous.fetch; globalThis.sessionStorage = previous.sessionStorage }
+})

@@ -94,7 +94,7 @@ function loadStepSyncHook(reactApi) {
 }
 
 /** Mounts the hook with a URL, then lets auth resolve; returns the settled step and URL writes. */
-function mountStepSync({ initialSearch, user, loadingFirst }) {
+function mountStepSync({ initialSearch, user, loadingFirst, enabled = true }) {
   const state = hooks()
   const useOnboardingStepSync = loadStepSyncHook(state.api)
   let search = initialSearch
@@ -109,6 +109,7 @@ function mountStepSync({ initialSearch, user, loadingFirst }) {
       if (params.toString() !== search) params = new URLSearchParams(search)
       ;[step] = state.render(() => useOnboardingStepSync({
         loading,
+        enabled,
         user: loading ? null : user,
         searchParams: params,
         pathname: '/professional/onboarding',
@@ -200,4 +201,13 @@ test('mounted onboarding query changes never rewrite the new step to the previou
   ui.navigate('step=5')
   assert.equal(ui.step, 6)
   assert.deepEqual(ui.replaces, ['/professional/onboarding?step=6'])
+})
+
+test('completion disables step URL writes even for legacy or absent step parameters', () => {
+  for (const initialSearch of ['', 'step=5', 'step=abc']) {
+    const result = mountStepSync({ initialSearch, user: completeId, loadingFirst: false, enabled: false })
+    assert.deepEqual(result.replaces, [])
+    result.navigate('step=5')
+    assert.deepEqual(result.replaces, [])
+  }
 })

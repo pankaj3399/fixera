@@ -18,6 +18,8 @@ interface StepSyncRouter {
 export interface OnboardingStepSyncOptions {
   /** Auth is still resolving; the resume decision waits for the profile. */
   loading: boolean;
+  /** Completion navigation owns the URL once onboarding finishes. */
+  enabled?: boolean;
   user: OnboardingResumeProfile | null | undefined;
   searchParams: StepSyncSearchParams;
   pathname: string;
@@ -36,6 +38,7 @@ export interface OnboardingStepSyncOptions {
  */
 export function useOnboardingStepSync({
   loading,
+  enabled = true,
   user,
   searchParams,
   pathname,
@@ -67,14 +70,14 @@ export function useOnboardingStepSync({
   }, [loading, user, hasValidStepParam]);
 
   useEffect(() => {
-    if (!resumeResolved) return;
+    if (!enabled || !resumeResolved) return;
     if (urlStepTargetRef.current !== null && currentStep !== urlStepTargetRef.current) return;
     urlStepTargetRef.current = null;
     if (stepParam === String(currentStep)) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set('step', String(currentStep));
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [currentStep, router, pathname, searchParams, stepParam, resumeResolved]);
+  }, [currentStep, router, pathname, searchParams, stepParam, resumeResolved, enabled]);
 
   return [currentStep, setCurrentStep];
 }
