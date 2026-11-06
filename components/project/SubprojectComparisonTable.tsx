@@ -75,9 +75,18 @@ export default function SubprojectComparisonTable({
   onContactProfessional
 }: SubprojectComparisonTableProps) {
   const t = useTranslations('projects')
+  const packageTabContainerRef = useRef<HTMLDivElement | null>(null)
   const packageTabsRef = useRef<Array<HTMLButtonElement | null>>([])
   useEffect(() => {
-    packageTabsRef.current[selectedIndex]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    const container = packageTabContainerRef.current
+    const tab = packageTabsRef.current[selectedIndex]
+    if (!container || !tab) return
+    const containerBounds = container.getBoundingClientRect()
+    const tabBounds = tab.getBoundingClientRect()
+    const offset = tabBounds.left < containerBounds.left
+      ? tabBounds.left - containerBounds.left
+      : tabBounds.right > containerBounds.right ? tabBounds.right - containerBounds.right : 0
+    if (offset) container.scrollBy({ left: offset })
   }, [selectedIndex])
   const tWizard = useTranslations('projectWizard')
   const { formatPrice } = useCurrency()
@@ -257,7 +266,7 @@ export default function SubprojectComparisonTable({
           {/* Tab Navigation */}
           <div className="relative border-b border-gray-200">
             {subprojects.length > 1 && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-10 w-5 bg-gradient-to-l from-white to-transparent" />}
-            <div className="flex overflow-x-auto">
+            <div ref={packageTabContainerRef} className="flex overflow-x-auto">
               {subprojects.map((subproject, index) => (
                 <button
                   key={index}

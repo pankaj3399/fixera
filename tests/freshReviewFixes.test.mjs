@@ -2146,3 +2146,35 @@ test('an abandoned project filter render cannot strand the committed request on 
   } finally { state.unmount(); globalThis.fetch = previousFetch }
 })
 
+test('comparison tabs reveal selected packages by scrolling only their horizontal container', async () => {
+  const state = hooks()
+  const ui = stubModule()
+  const Component = loadComponent('../components/project/SubprojectComparisonTable.tsx', {
+    react: state.api,
+    'next-intl': { useTranslations: () => key => key },
+    '@/components/ui/button': ui, '@/components/ui/card': ui, 'lucide-react': ui,
+    '@/lib/projectHighlights': { formatPriceModelLabel: value => value },
+    '@/lib/projectPricing': await import('../lib/projectPricing.ts'),
+    '@/hooks/useCustomerPricing': { useCustomerPricing: () => ({ customerPrice: value => value, originalPrice: value => value, commissionPercent: 0, loyaltyLoaded: true }) },
+    '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: String }) },
+    '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
+  })
+  const props = { subprojects: [0, 1, 2].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 1, onSelectPackage() {}, onSelectIndex() {} }
+  const scrolls = []
+  let pageScrolls = 0
+  const container = { getBoundingClientRect: () => ({ left: 0, right: 240 }), scrollBy: options => scrolls.push(options) }
+  const tree = state.render(() => Component(props))
+  findAll(tree, node => node.props.className === 'flex overflow-x-auto')[0].props.ref.current = container
+  const buttons = findAll(tree, node => node.type === 'button' && typeof node.props.ref === 'function')
+  const bounds = [{ left: -40, right: 80 }, { left: 240, right: 360 }, { left: 60, right: 180 }]
+  buttons.forEach((button, i) => button.props.ref({ getBoundingClientRect: () => bounds[i], scrollIntoView: () => pageScrolls++ }))
+  state.flush()
+  assert.deepEqual(scrolls, [{ left: 120 }])
+  state.render(() => Component({ ...props, selectedIndex: 2 })); state.flush()
+  assert.equal(scrolls.length, 1, 'already-visible tab does not scroll')
+  state.render(() => Component({ ...props, selectedIndex: 0 })); state.flush()
+  assert.deepEqual(scrolls, [{ left: 120 }, { left: -40 }])
+  assert.equal(pageScrolls, 0)
+  state.unmount()
+})
+
