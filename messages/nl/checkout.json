@@ -96,6 +96,7 @@
     "memberBenefitsApplied": "Voordelen van {tier}-lid toegepast",
     "originalServiceAmount": "Oorspronkelijk dienstbedrag:",
     "selectedOptions": "Geselecteerde opties:",
+    "referralDiscountLine": "Verwijzingskorting",
     "loyaltyDiscountLine": "Loyaliteitskorting ({percent}%):",
     "returningCustomerLine": "Korting terugkerende klant ({percent}%):",
     "pointsRedeemedLine": "Ingewisselde punten ({points} pt):",

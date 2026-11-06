@@ -96,6 +96,7 @@
     "memberBenefitsApplied": "Avantages membre {tier} appliqués",
     "originalServiceAmount": "Montant initial du service :",
     "selectedOptions": "Options sélectionnées :",
+    "referralDiscountLine": "Réduction de parrainage",
     "loyaltyDiscountLine": "Remise fidélité ({percent} %) :",
     "returningCustomerLine": "Remise client fidèle ({percent} %) :",
     "pointsRedeemedLine": "Points utilisés ({points} pts) :",

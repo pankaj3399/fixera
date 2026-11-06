@@ -96,6 +96,7 @@
     "memberBenefitsApplied": "{tier} member benefits applied",
     "originalServiceAmount": "Original Service Amount:",
     "selectedOptions": "Selected Options:",
+    "referralDiscountLine": "Referral discount",
     "loyaltyDiscountLine": "Loyalty Discount ({percent}%):",
     "returningCustomerLine": "Returning Customer Discount ({percent}%):",
     "pointsRedeemedLine": "Points Redeemed ({points} pts):",

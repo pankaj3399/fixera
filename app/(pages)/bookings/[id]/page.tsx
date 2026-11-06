@@ -1707,6 +1707,8 @@ function BookingDetailContent() {
     quoteVersions: booking?.quoteVersions,
     currentQuoteVersion: booking?.currentQuoteVersion,
     pinnedVersion: pinnedQuoteVersion,
+    displayQuoteVersions: details?.quotation?.versions,
+    displayCurrentQuoteVersion: details?.quotation?.currentVersion,
   })
   const currentVersionQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(

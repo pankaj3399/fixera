@@ -743,3 +743,34 @@ test('raw role DTOs keep only the customer payment-page client secret and no int
     assert.doesNotMatch(serialized, /stripeClientSecret|extraCostClientSecret|stripePaymentIntentId|INTERNAL REFUND NOTE|INTERNAL SECRET NOTE/)
   }
 })
+
+
+test('zero discount snapshots omit the recorded discounts section and positive referral savings have their own line', () => {
+  const payload = fixture('completed-customer')
+  const details = structuredClone(payload.details)
+  details.payments.records = [{ id: 'p1', currency: 'EUR', discount: { loyaltyTier: 'Bronze', loyaltyAmount: 0, totalDiscount: 0 } }]
+  assert.doesNotMatch(paymentsHtml(details, payload.booking), /Discounts and coupons \(recorded\)/)
+  details.payments.records[0].discount = { loyaltyAmount: 0, referralDiscountAmount: 12, totalDiscount: 12 }
+  const html = paymentsHtml(details, payload.booking)
+  assert.match(html, /Referral discount/)
+  assert.match(html, /12\.00/)
+})
+test('overview renders an empty discount instead of €0.00 for a zero snapshot', async () => {
+  const { createRequire } = await import('node:module')
+  const require = createRequire(import.meta.url)
+  const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
+  const { AuthProvider } = await import('@/contexts/AuthContext')
+  const { OverviewPanel } = await import('@/components/booking/details/OverviewPanel')
+  const payload = fixture('completed-customer')
+  payload.booking.payment = { ...payload.booking.payment, discount: { totalDiscount: 0 } }
+  payload.details.payments.base = { ...payload.details.payments.base, discountTotal: 0 }
+  const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }
+  const html = render(React.createElement(AppRouterContext.Provider, { value: router },
+    React.createElement(AuthProvider, null, React.createElement(OverviewPanel, {
+      ...payload, viewerRole: 'customer', pathname: '/bookings/test', search: '', onSelectTab() {},
+    }))))
+  const discount = html.match(/Discount<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/)?.[1]
+  assert.ok(discount)
+  assert.doesNotMatch(discount, /0\.00/)
+  assert.match(discount, /not recorded|Not recorded/)
+})
