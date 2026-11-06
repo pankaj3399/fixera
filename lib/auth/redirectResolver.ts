@@ -55,9 +55,23 @@ export function resolvePostAuthRedirect(options: {
   onboardingPath?: string | null;
 }): string {
   const { role, explicitRedirect, onboardingPath } = options;
-  if (onboardingPath) return onboardingPath;
+  if (onboardingPath) {
+    if (isSafeRedirectPath(explicitRedirect)) {
+      const separator = onboardingPath.includes('?') ? '&' : '?';
+      return `${onboardingPath}${separator}redirect=${encodeURIComponent(explicitRedirect)}`;
+    }
+    return onboardingPath;
+  }
   if (typeof explicitRedirect === 'string' && isSafeRedirectPath(explicitRedirect)) {
     return explicitRedirect;
   }
   return defaultPathForRole(role);
+}
+
+/** Professional onboarding completion consumes only a validated workflow path. */
+export function completedOnboardingRedirect(explicitRedirect: unknown, storage?: Pick<Storage, 'getItem' | 'removeItem'>): string {
+  const saved = storage?.getItem('redirectAfterAuth');
+  const path = isSafeRedirectPath(explicitRedirect) ? explicitRedirect : isSafeRedirectPath(saved) ? saved : null;
+  if (path) storage?.removeItem('redirectAfterAuth');
+  return path || '/dashboard?verification=pending';
 }

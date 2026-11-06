@@ -88,14 +88,14 @@ function quotePriceOf(booking: QuoteRowBooking) {
     const isLegacyUnpriced = !Array.isArray(pinned.pricingLines) || pinned.pricingLines.length === 0
     const amount = recordedGross ?? (isLegacyUnpriced ? pinned.totalAmount ?? pinned.amount ?? null : null)
     if (typeof amount === "number" && Number.isFinite(amount)) {
-      return { amount, currency: pinned.currency || booking.quote?.currency || "EUR", source: "recorded" as const }
+      return { amount, currency: pinned.currency || null, source: "recorded" as const }
     }
     return { amount: null, currency: null, source: "not_recorded" as const }
   }
   if (!Array.isArray(booking.quoteVersions) || booking.quoteVersions.length === 0) {
     const amount = booking.quote?.totalAmount ?? booking.quote?.amount ?? null
     if (typeof amount === "number" && Number.isFinite(amount)) {
-      return { amount, currency: booking.quote?.currency || "EUR", source: "recorded" as const }
+      return { amount, currency: booking.quote?.currency || null, source: "recorded" as const }
     }
   }
   return { amount: null, currency: null, source: "not_recorded" as const }
@@ -156,8 +156,9 @@ export default function SharedQuotesTable({
             const { pinnedVersion } = resolvePinnedQuoteVersion(booking)
             const pinned = pinnedVersionDoc(booking)
             const quotationNumber = booking.quotationNumber ?? booking.quote?.quotationNumber ?? null
-            const firstStart = pinned?.firstPossibleStart ?? booking.scheduleSnapshot?.firstPossibleStart ?? null
-            const duration = pinned?.executionDuration ?? booking.scheduleSnapshot?.executionDuration ?? null
+            const hasVersions = Boolean(booking.quoteVersions?.length)
+            const firstStart = pinned?.firstPossibleStart ?? (!hasVersions ? booking.scheduleSnapshot?.firstPossibleStart : null) ?? null
+            const duration = pinned?.executionDuration ?? (!hasVersions ? booking.scheduleSnapshot?.executionDuration : null) ?? null
             const canAcceptPay = booking.status === "quoted"
             // Accept runs on the booking detail route (existing version,
             // expiry, and idempotency authority). Already-accepted quotes go
@@ -208,8 +209,8 @@ export default function SharedQuotesTable({
                 )}
                 <td className="px-3 py-3 text-gray-700">{formatUnknownDate(booking.createdAt, intl)}</td>
                 <td className="px-3 py-3 text-gray-700">
-                  {formatUnknownDate(pinned?.submittedAt ?? pinned?.createdAt ?? booking.quote?.submittedAt, intl)} /{" "}
-                  {formatUnknownDate(pinned?.validUntil ?? booking.quote?.validUntil, intl)}
+                  {formatUnknownDate(pinned?.submittedAt ?? pinned?.createdAt ?? (!hasVersions ? booking.quote?.submittedAt : null), intl)} /{" "}
+                  {formatUnknownDate(pinned?.validUntil ?? (!hasVersions ? booking.quote?.validUntil : null), intl)}
                 </td>
                 <td className="px-3 py-3 text-gray-700">
                   {formatUnknownDate(firstStart, intl)}

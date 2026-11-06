@@ -21,7 +21,7 @@ import RefundRequestsPanel from "@/components/dashboard/RefundRequestsPanel"
 import SharedBookingsTable from "@/components/dashboard/SharedBookingsTable"
 import SharedQuotesTable from "@/components/dashboard/SharedQuotesTable"
 import { useCurrency } from "@/contexts/CurrencyContext"
-import { facetCount, sumStatusCounts } from "@/lib/dashboardOverview"
+import { facetCount, sumStatusCounts, readFacetCounts } from "@/lib/dashboardOverview"
 import {
   type BookingStatus,
   QUOTE_STATUSES,
@@ -195,8 +195,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalBookings, setTotalBookings] = useState(0)
-  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
-  const [serviceCounts, setServiceCounts] = useState<Record<string, number>>({})
+  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null)
+  const [serviceCounts, setServiceCounts] = useState<Record<string, number> | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -371,7 +371,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
   }, [showCreateQuoteModal])
 
   const withCount = (id: string, label: string) => {
-    if (id === "all") return label
+    if (id === "all" || statusCounts === null) return label
     if (mode === "bookings" && id === "awaiting_payment") {
       return `${label} (${facetCount(statusCounts, "quote_accepted") + facetCount(statusCounts, "payment_pending")})`
     }
@@ -445,6 +445,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     } else {
       setIsLoading(true)
       setError(null)
+      setStatusCounts(null)
+      setServiceCounts(null)
       // Any in-flight load-more belongs to the superseded query.
       setIsLoadingMore(false)
       setLoadMoreError(null)
@@ -490,12 +492,8 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
         if (Array.isArray(data.distinctServices)) {
           setAllServices(data.distinctServices)
         }
-        if (data.statusCounts && typeof data.statusCounts === "object") {
-          setStatusCounts(data.statusCounts)
-        }
-        if (data.serviceCounts && typeof data.serviceCounts === "object") {
-          setServiceCounts(data.serviceCounts)
-        }
+        setStatusCounts(readFacetCounts(data.statusCounts))
+        setServiceCounts(readFacetCounts(data.serviceCounts))
         const incomingBookings = Array.isArray(data.bookings) ? data.bookings : []
         const pagination = data.pagination || {}
         const totalFromApi = typeof pagination.total === "number" ? pagination.total : null
@@ -761,13 +759,13 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>{t("professionalManager.stats.pending")}</CardDescription>
-              <CardTitle>{sumStatusCounts(statusCounts, pendingModeStatuses)}</CardTitle>
+              <CardTitle>{statusCounts === null ? "—" : sumStatusCounts(statusCounts, pendingModeStatuses.filter(status => statusFilter === "all" || (statusFilter === "awaiting_payment" ? ["quote_accepted", "payment_pending"].includes(status) : status === statusFilter)))}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>{t("professionalManager.stats.finished")}</CardDescription>
-              <CardTitle>{sumStatusCounts(statusCounts, finishedModeStatuses)}</CardTitle>
+              <CardTitle>{statusCounts === null ? "—" : sumStatusCounts(statusCounts, finishedModeStatuses.filter(status => statusFilter === "all" || status === statusFilter))}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -805,7 +803,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
               <SelectContent>
                 <SelectItem value="all">{t("common.allServices")}</SelectItem>
                 {uniqueServices.map(svc => (
-                  <SelectItem key={svc} value={svc}>{svc} ({facetCount(serviceCounts, svc)})</SelectItem>
+                  <SelectItem key={svc} value={svc}>{svc}{serviceCounts === null ? "" : ` (${facetCount(serviceCounts, svc)})`}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -844,7 +842,7 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           </Card>
         )}
 
-        {!isLoading && !error && mode === "bookings" && (
+        {mode === "bookings" && (
           timelineState === "loading" ? (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">

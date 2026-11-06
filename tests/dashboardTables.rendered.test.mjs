@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire, register } from 'node:module'
 import { test } from 'node:test'
 register('./swc-loader.mjs', import.meta.url)
+process.env.TZ = 'UTC'
 const require = createRequire(import.meta.url)
 const React = await import('react')
 const { renderToStaticMarkup } = await import('react-dom/server')
@@ -108,7 +109,7 @@ test('booking table subtracts only actually returned extra-cost refunds, once', 
     { amount: 50, kind: 'booking', status: 'succeeded' }, // booking-price refund, not the addition
   ]
   const html = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { ...payment, refunds } }, 'professional')
-  assert.equal(stripTags(paidCell(html)), 'EUR 1210.00− EUR 35.00')
+  assert.equal(stripTags(paidCell(html)), 'EUR 1210.00', 'unlinked refunds cannot establish the missing original extra-cost charge')
   // The booking-price refund stays in its own column from refundAmount, not doubled.
   assert.equal((html.match(/EUR 50.00/g) || []).length, 1)
   // Charge and returned refund net out per the recorded facts.
@@ -167,16 +168,16 @@ test('a fully refunded extra-cost charge nets to 0, never a negative credit; rea
   for (const extraCostStatus of ['succeeded', 'refunded']) {
     assert.deepEqual(addition({ extraCostAmount: -121, extraCostStatus, refunds: [] }), unknown, extraCostStatus)
     assert.deepEqual(addition({ extraCostAmount: -121, extraCostStatus }), unknown, extraCostStatus)
-    // A real credit row still shows when the charge field is malformed.
-    assert.deepEqual(addition({ extraCostAmount: -121, extraCostStatus, refunds: [refund(30)] }), money(-30), extraCostStatus)
+    // A malformed charge cannot establish that its refund is a base-price credit.
+    assert.deepEqual(addition({ extraCostAmount: -121, extraCostStatus, refunds: [refund(30)] }), unknown, extraCostStatus)
   }
   // A zero charge with a loaded ledger is a recorded zero addition.
   assert.deepEqual(addition({ extraCostAmount: 0, extraCostStatus: 'succeeded', refunds: [] }), money(0))
-  // Negative-only credit against the base charge, with no extra charge.
-  assert.deepEqual(addition({ refunds: [refund(30), refund(5, undefined)] }), money(-35))
+  // A missing original charge leaves a partial refund payload unknown.
+  assert.deepEqual(addition({ refunds: [refund(30), refund(5, undefined)] }), unknown)
   for (const extraCostStatus of ['pending', 'failed', undefined]) {
-    // An unsettled charge adds nothing; a real credit still shows.
-    assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus, refunds: [refund(30)] }), money(-30), String(extraCostStatus))
+    // An unsettled charge and an unlinked refund cannot establish a settled addition.
+    assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus, refunds: [refund(30)] }), unknown, String(extraCostStatus))
     assert.deepEqual(addition({ extraCostAmount: 121, extraCostStatus }), unknown, String(extraCostStatus))
   }
   // No charge and no returned refund: nothing invented.
@@ -192,4 +193,34 @@ test('both shared tables link a recorded subproject title to its project', () =>
     const html = render(Component, booking, 'customer')
     assert.match(html, /<a[^>]*href="[^"]*p1[^"]*"[^>]*>Bathroom package<\/a>/)
   }
+})
+
+
+test('quote table renders the accepted version when current differs, and does not cross-fill missing fields', () => {
+  const booking = { _id: 'b1', status: 'quote_accepted', acceptedQuoteVersion: 2, currentQuoteVersion: 4, quotationNumber: 'Q-1',
+    scheduleSnapshot: { firstPossibleStart: '2026-12-31T08:00:00Z', executionDuration: { value: 99, unit: 'days' } },
+    quote: { submittedAt: '2026-12-30T08:00:00Z', validUntil: '2026-12-31T08:00:00Z' },
+    quoteVersions: [
+      { version: 2, currency: 'EUR', customerTotals: { totalWithVat: 363 }, firstPossibleStart: '2026-10-28T08:00:00Z' },
+      { version: 4, currency: 'EUR', customerTotals: { totalWithVat: 484 }, firstPossibleStart: '2026-11-30T08:00:00Z' },
+    ] }
+  const html = render(SharedQuotesTable, booking, 'customer')
+  assert.match(html, /EUR 363.00/)
+  assert.doesNotMatch(html, /EUR 484.00|31\/12\/2026|30\/12\/2026|99 days/)
+  assert.match(html, /28\/10\/2026/)
+  assert.match(html, /Q-1 v2/)
+  assert.match(html, /href="\/bookings\/b1#quotation-v2"/)
+})
+test('expired checkout money and missing currencies never appear as paid prices', () => {
+  for (const payment of [{ status: 'expired', totalWithVat: 121, currency: 'EUR' }, { status: 'completed', totalWithVat: 121 }]) {
+    assert.equal(stripTags(paidCell(render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment }, 'customer'))), '—')
+  }
+})
+test('professional payout column uses the recorded aggregate refund before the compatibility fallback', () => {
+  const html = render(SharedBookingsTable, { _id: 'b1', status: 'completed', payment: { professionalPayout: 100, currency: 'EUR', refundedTotal: 30, refundAmount: 10 } }, 'professional')
+  assert.match(html, /EUR 30.00/)
+  assert.doesNotMatch(html, /EUR 10.00/)
+})
+test('the authoritative overview can explicitly record a base-price credit without an extra charge', () => {
+  assert.deepEqual(completionAdditionOf({ _id: 'b1', status: 'completed', overview: { completionAddition: { amount: -30, currency: 'EUR', source: 'recorded' } } }), { amount: -30, currency: 'EUR', source: 'recorded' })
 })

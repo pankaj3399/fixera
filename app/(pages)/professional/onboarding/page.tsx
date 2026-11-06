@@ -1,5 +1,7 @@
 'use client'
 
+import { completedOnboardingRedirect } from '@/lib/auth/redirectResolver'
+
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -1330,9 +1332,9 @@ function ProfessionalOnboardingContent() {
       user?.role === 'professional' &&
       (user.professionalOnboardingCompletedAt || (user.professionalStatus !== undefined && user.professionalStatus !== 'draft'))
     ) {
-      router.push('/dashboard')
+      router.push(completedOnboardingRedirect(searchParams.get('redirect'), sessionStorage))
     }
-  }, [loading, user, router])
+  }, [loading, user, router, searchParams])
 
   useEffect(() => {
     if (!user) return
@@ -1761,7 +1763,7 @@ function ProfessionalOnboardingContent() {
       if (result.success) {
         toast.success(t('onboarding.toasts.submitted'))
         await checkAuth()
-        router.push('/dashboard?verification=pending')
+        router.push(completedOnboardingRedirect(searchParams.get('redirect'), sessionStorage))
       } else {
         const combinedRequirements: MissingRequirementInput[] = [
           ...(result.missingRequirementDetails || []),

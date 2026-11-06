@@ -57,7 +57,7 @@ test('auth guard uses the shared rule instead of the self-defeating onboarding r
   assert.match(auth, /projectWizardStripeRedirect\(currentUser, pathname, typeof window !== 'undefined' \? window\.location\.search : ''\)/)
   assert.doesNotMatch(auth, /onboarding\?step=\$\{ONBOARDING_STEPS\.STRIPE\}/)
   // Why onboarding cannot be the target: it pushes every onboarded professional away.
-  assert.match(onboarding, /user\.professionalOnboardingCompletedAt \|\| \(user\.professionalStatus !== undefined && user\.professionalStatus !== 'draft'\)\)\s*\)\s*\{\s*router\.push\('\/dashboard'\)/)
+  assert.match(onboarding, /user\.professionalOnboardingCompletedAt \|\| \(user\.professionalStatus !== undefined && user\.professionalStatus !== 'draft'\)\)\s*\)\s*\{\s*router\.push\(completedOnboardingRedirect\(searchParams\.get\('redirect'\), sessionStorage\)\)/)
 })
 
 test('editor view: delayed role hydration never exposes a blank form for an existing id', () => {

@@ -11,15 +11,21 @@ import { getServiceCategories } from "@/lib/server/serviceCategories";
 import { readContentCountry } from "@/lib/geo/contentCountryHeader";
 import { resolveCategoryRoute, type CategoryLayoutMatch } from "@/lib/catalog/categoryLayoutLookup";
 
+const categoryNameKeys = {
+  "interior-services": "names.categories.interior-services.name",
+  "exterior-structural": "names.categories.exterior-structural.name",
+  "outdoor-garden": "names.categories.outdoor-garden.name",
+} as const;
+
 interface Props {
   children: React.ReactNode;
   params: Promise<{ categorySlug: string }>;
 }
 
 /**
- * Live catalog categories only (cached fetch; outage falls back to the
- * built-in category list); see resolveCategoryRoute for the redirect/404
- * rules. Deduped per request so metadata and layout share one lookup.
+ * Live catalog results authorize redirects/404s; the static outage fallback
+ * preserves the route so its client can retry. Metadata and layout share
+ * one request-scoped lookup.
  */
 const resolveCategory = cache(async (categorySlug: string): Promise<CategoryLayoutMatch> => {
   const country = readContentCountry(await headers()) ?? "BE";
@@ -33,9 +39,11 @@ export async function generateMetadata({ params }: { params: Promise<{ categoryS
   const { categorySlug } = await params;
   const t = await getTranslations("catalog");
   const cat = await resolveCategory(categorySlug);
+  const nameKey = categoryNameKeys[cat.slug as keyof typeof categoryNameKeys];
+  const categoryName = nameKey ? t(nameKey) : cat.name;
   return buildMetadata({
-    title: cat.name,
-    description: t("categoryLayout.fallbackDescription", { category: cat.name.toLowerCase() }),
+    title: categoryName,
+    description: t("categoryLayout.fallbackDescription", { category: categoryName.toLowerCase() }),
     path: `/categories/${cat.slug}`,
   });
 }
@@ -44,7 +52,8 @@ export default async function CategoryLayout({ children, params }: Props) {
   const { categorySlug } = await params;
   const t = await getTranslations("catalog");
   const cat = await resolveCategory(categorySlug);
-  const categoryName = cat.name;
+  const nameKey = categoryNameKeys[cat.slug as keyof typeof categoryNameKeys];
+  const categoryName = nameKey ? t(nameKey) : cat.name;
   return (
     <>
       <JsonLd

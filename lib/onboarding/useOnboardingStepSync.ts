@@ -48,8 +48,10 @@ export function useOnboardingStepSync({
   const validStepParam = parseOnboardingStepParam(stepParam);
   const hasValidStepParam = validStepParam !== null;
 
+  const urlStepTargetRef = useRef<number | null>(null);
   useEffect(() => {
     if (validStepParam === null) return;
+    urlStepTargetRef.current = normalizeOnboardingStep(validStepParam);
     setCurrentStep(normalizeOnboardingStep(validStepParam));
   }, [validStepParam]);
 
@@ -66,6 +68,8 @@ export function useOnboardingStepSync({
 
   useEffect(() => {
     if (!resumeResolved) return;
+    if (urlStepTargetRef.current !== null && currentStep !== urlStepTargetRef.current) return;
+    urlStepTargetRef.current = null;
     if (stepParam === String(currentStep)) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set('step', String(currentStep));

@@ -36,8 +36,13 @@ async function fetchCategories(country: string, signal: AbortSignal) {
     { signal, credentials: 'include' }
   );
   if (!response.ok) throw new Error('Failed to fetch categories');
-  const data = await response.json();
-  return (Array.isArray(data) ? data : []) as CatalogCategoryItem[];
+  const data: unknown = await response.json();
+  if (!Array.isArray(data) || data.some(category =>
+    !category || typeof category.slug !== 'string' || typeof category.name !== 'string' || !Array.isArray(category.services)
+    || category.services.some((service: unknown) => !service || typeof service !== 'object'
+      || typeof (service as { slug?: unknown }).slug !== 'string' || typeof (service as { name?: unknown }).name !== 'string')
+  )) throw new Error('Invalid category catalog response');
+  return data as CatalogCategoryItem[];
 }
 
 export default function CategoryPage() {

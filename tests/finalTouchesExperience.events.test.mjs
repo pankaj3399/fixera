@@ -223,3 +223,28 @@ test('a matched category renders its service links, or the empty-services state'
     }
   } finally { globalThis.document = previousDocument; globalThis.fetch = previousFetch }
 })
+
+
+test('a newer selected place survives an older deferred geocode result', async () => {
+  const previousDocument = globalThis.document
+  const previousGoogle = globalThis.google
+  let finishGeocode
+  const geocode = new Promise(resolve => { finishGeocode = resolve })
+  try {
+    const ui = mountAddressAutocomplete({ validateAddress: async () => true, geocodeAddress: () => geocode })
+    let input = ui.render()
+    input.props.onChange({ target: { value: 'Typed old address' } })
+    input = ui.render()
+    const blur = input.props.onBlur()
+    await new Promise(resolve => setImmediate(resolve))
+    ui.setPlace({ formatted_address: 'New selected address', geometry: { location: { lat: () => 51, lng: () => 4 } }, address_components: [] })
+    ui.listeners.place_changed()
+    finishGeocode({ lat: 1, lng: 2 })
+    await blur
+    assert.equal(ui.changes.at(-1)[0], 'New selected address')
+    assert.deepEqual(ui.changes.at(-1)[1].coordinates, { lat: 51, lng: 4 })
+    input = ui.render()
+    input.props.onChange({ target: { value: 'Unvalidated edited address' } })
+    assert.equal(ui.validations.at(-1), false)
+  } finally { globalThis.document = previousDocument; globalThis.google = previousGoogle }
+})

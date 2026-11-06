@@ -870,6 +870,7 @@ test('quotation tab: picking a historical version announces the hash change the 
       '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
       '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
       '@/lib/bookingDetails': bookingDetails,
+      '@/lib/booking/usePinnedQuoteVersion': loadPinnedVersionModule(state.api, bookingDetails),
       './DetailPrimitives': detailPrimitives,
       './BookingDataPanel': ui,
     }
@@ -1406,12 +1407,13 @@ test('warranty claims: a slower Refresh response never overwrites a newer filter
   } finally { globalThis.fetch = previousFetch; globalThis.window = previousWindow }
 })
 
-async function mountProfile() {
+async function mountProfile({ deferSaves = false } = {}) {
+  const saveRequests = []
   const suggestRequests = []
   const checkRequests = []
   globalThis.fetch = (url, opts = {}) => {
     url = String(url)
-    const queue = url.includes('/generate-username') ? suggestRequests : url.includes('/check-username/') ? checkRequests : null
+    const queue = deferSaves && opts.method === 'PUT' && url.endsWith('/user/username') ? saveRequests : url.includes('/generate-username') ? suggestRequests : url.includes('/check-username/') ? checkRequests : null
     if (queue) {
       const d = deferred()
       queue.push({ url, signal: opts.signal, ...d })
@@ -1467,7 +1469,7 @@ async function mountProfile() {
   }
   const suggestionChips = () => findAll(usernameBlock(), node => node.type === 'button').map(textOf)
   const statusBox = () => findAll(usernameBlock(), node => node.type === 'div' && typeof node.props?.className === 'string' && node.props.className.includes('rounded-lg') && node.props.className.includes('text-xs')).map(textOf)
-  return { state, render, button, usernameField, closedName, suggestionChips, statusBox, suggestRequests, checkRequests, toasts }
+  return { state, render, button, usernameField, closedName, suggestionChips, statusBox, suggestRequests, checkRequests, saveRequests, auth, toasts }
 }
 
 test('profile username: a Suggest response after Cancel never changes the shown name, chips or availability', async () => {
@@ -1946,4 +1948,130 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
   await settle(); tree = render()
   assert.ok(!textOf(tree).includes('disputes.loadFailed'))
   state.unmount()
+})
+
+
+test('normalized quotation panels cannot leave quote response actions enabled on a historical version', () => {
+  const { resolveQuoteVersionView } = loadPinnedVersionModule(hooks().api, {})
+  const view = resolveQuoteVersionView({ quoteVersions: [{ version: 2 }], currentQuoteVersion: 2, pinnedVersion: 2,
+    displayQuoteVersions: [{ version: 2 }, { version: 3 }], displayCurrentQuoteVersion: 3 })
+  assert.equal(view.viewingPinnedVersion, true)
+})
+test('profile username unmount aborts suggestions; overlength suggestions never become available', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const p = await mountProfile()
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.button('business.suggest').props.onClick()
+    const suggestion = p.suggestRequests.at(-1)
+    suggestion.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['a'.repeat(31), 'valid-name'] }) })
+    await settle(); p.render()
+    assert.deepEqual(p.suggestionChips(), ['valid-name'])
+    assert.equal(p.usernameField().props.value, 'valid-name')
+    p.button('business.suggest').props.onClick()
+    const pending = p.suggestRequests.at(-1)
+    p.state.unmount()
+    assert.equal(pending.signal.aborted, true)
+    pending.reject(new Error('offline'))
+    await settle()
+    assert.equal(p.toasts.length, 0)
+  } finally { globalThis.fetch = previousFetch }
+})
+
+
+test('a username save from a cancelled editor never closes a new session or refreshes its draft', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const p = await mountProfile({ deferSaves: true })
+    let refreshes = 0
+    p.auth.checkAuth = async () => { refreshes++ }
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.button('business.suggest').props.onClick()
+    p.suggestRequests.at(-1).resolve({ ok: true, json: async () => ({ success: true, suggestions: ['first-name'] }) })
+    await settle(); p.render()
+    const saving = p.button('business.saveUsername').props.onClick()
+    p.button('common.cancel').props.onClick(); p.render()
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.usernameField().props.onChange({ target: { value: 'new-session' } }); p.render()
+    p.button('business.suggest').props.onClick()
+    const pending = p.suggestRequests.at(-1)
+    p.saveRequests[0].resolve({ ok: true, json: async () => ({ success: true }) })
+    await saving; p.render()
+    assert.equal(p.usernameField().props.value, 'new-session')
+    assert.equal(pending.signal.aborted, false)
+    assert.equal(refreshes, 0)
+    assert.equal(p.toasts.length, 0)
+    p.state.unmount()
+    pending.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['late-name'] }) })
+    await settle()
+  } finally { globalThis.fetch = previousFetch }
+})
+test('profile refresh cancels username availability and never approves its stale response', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const p = await mountProfile()
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.usernameField().props.onChange({ target: { value: 'pending-name' } }); p.render()
+    await new Promise(resolve => setTimeout(resolve, 550))
+    const request = p.checkRequests.at(-1)
+    assert.ok(request)
+    p.auth.user = { ...p.auth.user, profileImage: 'new-avatar' }
+    p.render(); p.state.flush(); p.render()
+    assert.equal(request.signal.aborted, true)
+    request.resolve({ ok: true, json: async () => ({ success: true, available: true }) })
+    await settle(); p.render()
+    assert.equal(p.button('business.saveUsername').props.disabled, true)
+    assert.ok(!p.statusBox().includes('business.usernameAvailable'))
+    p.state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+test('customer action query follows every page and retries after an outage with identifiable cards', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const requests = []
+    const m = mountCustomerDashboard(state, requests)
+    const baseFetch = globalThis.fetch
+    const pages = []
+    let fail = true
+    globalThis.fetch = async url => {
+      const query = new URL(String(url), 'https://example.test').searchParams
+      if (query.get('limit') !== '50' || !String(url).includes('/my-bookings')) return baseFetch(url)
+      const page = Number(query.get('page')); pages.push(page)
+      if (fail) return { ok: false, json: async () => ({ success: false, msg: 'Offline actions' }) }
+      return { ok: true, json: async () => ({ success: true, bookings: [{ _id: `action-${page}`, bookingNumber: `BK-ACTION-${page}`, bookingType: 'professional', status: 'quoted' }], pagination: { totalPages: 2 } }) }
+    }
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    render(); state.flush(); await settle()
+    let tree = render()
+    assert.ok(textOf(tree).includes('Offline actions'))
+    fail = false
+    findAll(tree, node => node.type === m.Button && textOf(node) === 'common.retry')[0].props.onClick()
+    await settle(); tree = render()
+    assert.deepEqual(pages, [1, 1, 2])
+    assert.ok(textOf(tree).includes('BK-ACTION-1'))
+    assert.ok(textOf(tree).includes('BK-ACTION-2'))
+    assert.ok(!textOf(tree).includes('Offline actions'))
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+test('an empty later customer booking page retains navigation to earlier pages', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const requests = []
+    const m = mountCustomerDashboard(state, requests)
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    render(); state.flush()
+    for (const request of requests) request.resolve({ ok: true, json: async () => ({ success: true, bookings: [], pagination: { page: 3, totalPages: 3, total: 40 }, statusCounts: {}, serviceCounts: {} }) })
+    await settle()
+    const previous = findAll(render(), node => node.type === m.Button && textOf(node) === 'common.previous')
+    assert.ok(previous.length >= 1)
+    assert.ok(previous.every(button => !button.props.disabled))
+    previous[0].props.onClick()
+    assert.match(requests.at(-1).url, /page=2/)
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
 })

@@ -157,3 +157,15 @@ test('facet counts: plain or null-prototype objects of integer counts only', () 
     assert.equal(readFacetCounts(value), null, Object.prototype.toString.call(value))
   }
 })
+
+
+test('explicit RFQ pricing wins over retained legacy basePrice', () => {
+  assert.deepEqual(cheapestPriceByModelUnit([{ pricing: { type: 'rfq' }, basePrice: 300 }]), [])
+})
+test('top-level legacy units remain distinct price buckets', () => {
+  assert.deepEqual(cheapestPriceByModelUnit([{ basePrice: 10, pricingModel: 'unit', unit: 'm2' }, { basePrice: 20, pricingModel: 'unit', unit: 'hour' }]).map(bucket => bucket.unit), ['hour', 'm2'])
+})
+test('unknown currencies never receive a default EUR label', () => {
+  assert.equal(formatOverviewMoney({ amount: 123, currency: null, source: 'recorded' }, eur), '—')
+  assert.equal(formatOverviewMoney({ amount: 123, currency: 'UNKNOWN', source: 'recorded' }, eur), '—')
+})

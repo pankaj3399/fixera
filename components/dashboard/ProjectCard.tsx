@@ -84,7 +84,7 @@ export default function ProjectCard({ project, formatMoney, intl, statusBadge, a
   const submittedDate = formatDate(project.submittedAt, intl)
   const archivedDate = formatDate(project.archivedAt, intl)
   const updatedDate = formatDate(project.autoSaveTimestamp || project.updatedAt, intl)
-  const isOnHold = String(project.status).toLowerCase() === "on_hold"
+  const isOnHold = ["on_hold", "on hold", "hold", "suspended", "paused", "pause"].includes(String(project.status).trim().toLowerCase())
   const holdDays = isOnHold ? recordedHoldDays(project.onHoldAt) : null
   const repeat = project.repeatBuyerDiscount
 

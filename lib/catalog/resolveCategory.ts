@@ -65,6 +65,7 @@ export function resolveCatalogCountry(
 function languageTagRegion(language: unknown): string | undefined {
   if (typeof language !== "string") return undefined;
   const subtags = language.split(";")[0].trim().split(/[-_]/);
+  if (subtags[0]?.length === 1) return undefined;
   for (let i = 1; i < subtags.length; i++) {
     const subtag = subtags[i];
     if (subtag.length === 1) break; // extension (u, t, ...) or private use (x)

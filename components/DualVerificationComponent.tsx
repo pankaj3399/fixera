@@ -56,10 +56,10 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
     phoneLoading: false,
     emailResendLoading: false,
     phoneResendLoading: false,
-    emailResendDisabled: true,
-    phoneResendDisabled: true,
-    emailResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS,
-    phoneResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS
+    emailResendDisabled: false,
+    phoneResendDisabled: false,
+    emailResendTime: 0,
+    phoneResendTime: 0
   });
 
   // Countdown timers for resend buttons. Each channel keeps a wall-clock
@@ -68,9 +68,8 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
   const emailResendDeadlineRef = useRef<number | null>(null);
   const phoneResendDeadlineRef = useRef<number | null>(null);
   useEffect(() => {
-    // The codes were sent just before this screen mounted.
-    emailResendDeadlineRef.current ??= otpResendDeadline();
-    phoneResendDeadlineRef.current ??= otpResendDeadline();
+    // Returning to onboarding does not imply another OTP was sent.
+    // Successful resend handlers establish their own channel's deadline.
     const tick = () => {
       const email = otpResendStateAt(emailResendDeadlineRef.current);
       const phone = otpResendStateAt(phoneResendDeadlineRef.current);

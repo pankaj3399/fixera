@@ -55,6 +55,7 @@ export interface SharedBookingRow {
     discountTotal?: number | null
     professionalPayout?: number | null
     refundAmount?: number | null
+    refundedTotal?: number | null
     /** Separate extra-cost PaymentIntent: VAT-inclusive customer charge and its status. */
     extraCostAmount?: number | null
     extraCostStatus?: "pending" | "succeeded" | "failed" | "refunded" | string | null
@@ -114,7 +115,7 @@ interface Props {
 }
 
 const UNPAID_BOOKING_STATUSES = new Set(["quote_accepted", "payment_pending"])
-const UNPAID_PAYMENT_STATUSES = new Set(["pending", "failed"])
+const UNPAID_PAYMENT_STATUSES = new Set(["pending", "failed", "expired"])
 
 const NOT_RECORDED: OverviewMoney = { amount: null, currency: null, source: "not_recorded" }
 
@@ -124,7 +125,7 @@ const roundMoney = (value: number): number => Math.round((value + Number.EPSILON
 
 const recordedMoney = (amount: number, currency: string | null | undefined): OverviewMoney => ({
   amount,
-  currency: typeof currency === "string" && currency ? currency : "EUR",
+  currency: typeof currency === "string" && currency ? currency : null,
   source: "recorded",
 })
 
@@ -187,7 +188,8 @@ export function paidPriceOf(booking: SharedBookingRow): OverviewMoney {
  *   loaded: a partial refund absent from the payload would be hidden.
  * - `kind: "extra_cost"` refund rows that actually returned money are
  *   subtracted: refunds of that charge (a partial refund leaves the rest),
- *   or, without a charge, credits against the base charge (negative).
+ *   an absent charge remains unknown because a partial payload cannot prove
+ *   whether the refund is an actual base-charge credit.
  * - A `refunded` charge whose returned rows do not cover it is not
  *   recorded: the refund that returned it is not in this payload (the
  *   ledger rows live on the payment records), so a net figure would be
@@ -212,7 +214,8 @@ export function completionAdditionOf(booking: SharedBookingRow): OverviewMoney {
     ? payment.extraCostAmount
     : null
   if (charged == null) {
-    return returned > 0 ? recordedMoney(roundMoney(-returned), payment.currency) : NOT_RECORDED
+    // A refund without its original charge is an incomplete payload.
+    return NOT_RECORDED
   }
   // A settled charge needs the refund ledger to be net: without it a refund of
   // that charge may simply be absent from this payload.
@@ -371,8 +374,8 @@ export default function SharedBookingsTable({
                     {booking.payment?.professionalPayout != null
                       ? formatMoney(booking.payment.professionalPayout, booking.payment?.currency)
                       : DASH}
-                    {booking.payment?.refundAmount != null && (
-                      <div className="mt-0.5">− {formatMoney(booking.payment.refundAmount, booking.payment?.currency)}</div>
+                    {(booking.payment?.refundedTotal ?? booking.payment?.refundAmount) != null && (
+                      <div className="mt-0.5">− {formatMoney((booking.payment?.refundedTotal ?? booking.payment?.refundAmount) as number, booking.payment?.currency)}</div>
                     )}
                   </td>
                 )}
