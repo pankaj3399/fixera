@@ -185,3 +185,45 @@ test('outage metadata and breadcrumbs normalize spelling and encode URL delimite
     assert.equal(url.pathname.split('/').length, 3)
   }
 })
+test('category page fetches the server-selected BE catalog for an nl-NL browser with no geo cookie', async () => {
+  const previous = { fetch: globalThis.fetch, document: globalThis.document, navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator') }
+  const t = key => key
+  globalThis.document = { cookie: '' }
+  Object.defineProperty(globalThis, 'navigator', { value: { language: 'nl-NL' }, configurable: true, writable: true })
+  try {
+    for (const [serverCountry, expected] of [['BE', 'BE'], [null, 'NL']]) {
+      const redirects = []
+      const router = { replace: path => redirects.push(path) }
+      const urls = []
+      // Only the BE catalog has this category: a mismatched NL fetch would redirect to /services.
+      globalThis.fetch = async url => {
+        urls.push(String(url))
+        const services = String(url).endsWith('country=BE') ? [{ slug: 'painting', name: 'Painting' }] : null
+        return { ok: true, json: async () => (services ? [{ slug: 'garden-work', name: 'Garden work', services }] : []) }
+      }
+      const ui = componentHarness(new URL('../app/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), {
+        'next/navigation': { useParams: () => ({ categorySlug: 'garden-work' }), useRouter: () => router },
+        'next-intl': { useTranslations: () => t },
+        sonner: { toast: { error() {} } },
+        '@/lib/catalog/resolveCategory': categoryResolver,
+        '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => serverCountry },
+      })
+      ui.render(); await ui.settle()
+      assert.match(urls[0], new RegExp(`country=${expected}$`), `server country ${serverCountry}`)
+      if (serverCountry) {
+        assert.deepEqual(redirects, [], 'a valid BE category is not redirected')
+        assert.ok(ui.findAll(node => node.props.href === '/services/painting').length)
+      } else {
+        // Outside the layout the browser-language fallback still applies.
+        assert.deepEqual(redirects, ['/services'])
+      }
+      ui.unmount()
+    }
+  } finally {
+    globalThis.fetch = previous.fetch
+    globalThis.document = previous.document
+    if (previous.navigator) Object.defineProperty(globalThis, 'navigator', previous.navigator)
+    else delete globalThis.navigator
+  }
+})
