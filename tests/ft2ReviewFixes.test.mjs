@@ -164,3 +164,22 @@ test('approved professionals with no completion timestamp retain their explicit 
   assert.deepEqual(pushes, ['/bookings/approved-booking'])
   ui.unmount()
 })
+
+test('outage metadata and breadcrumbs normalize spelling and encode URL delimiters', async () => {
+  const fallback = [{ slug: 'interior', name: 'Interior', services: [], isFallback: true }]
+  for (const [raw, path] of [
+    ['Garden_Work', '/categories/garden-work'],
+    ['%2F', '/categories/%2F'],
+    ['Garden%2FWork%3Fquery%23anchor', '/categories/garden%2Fwork%3Fquery%23anchor'],
+  ]) {
+    const ui = layoutHarness(fallback, raw)
+    const metadata = await ui.exports.generateMetadata(ui.props)
+    const tree = await ui.exports.default(ui.props)
+    assert.equal(metadata.path, path)
+    assert.equal(tree.props.children[0].props.data.at(-1).path, path)
+    const url = new URL(metadata.path, 'https://example.test')
+    assert.equal(url.search, '')
+    assert.equal(url.hash, '')
+    assert.equal(url.pathname.split('/').length, 3)
+  }
+})

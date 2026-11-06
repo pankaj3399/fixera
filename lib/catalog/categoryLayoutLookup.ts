@@ -66,7 +66,7 @@ export function resolveCategoryRoute(
   if (liveCategories.some(category => category.isFallback)) {
     const known = [...staticCategories, ...liveCategories].find(category => normalizeRouteSlug(category.slug) === slug);
     const name = known && "name" in known && typeof known.name === "string" ? known.name : slug.replace(/-/g, " ");
-    return { kind: "category", category: { slug: decodeSlug(rawSlug), name } };
+    return { kind: "category", category: { slug: encodeURIComponent(slug), name } };
   }
   const live = liveCategories.find(
     (category) => typeof category?.slug === "string" && normalizeRouteSlug(category.slug) === slug,
