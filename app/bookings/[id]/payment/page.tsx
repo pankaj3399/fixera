@@ -26,6 +26,7 @@ import {
   calculateMilestoneGrossAmounts,
   calculateQuoteVersionVatTotals,
 } from '@/lib/vatPricing';
+import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVersion';
 import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
@@ -57,6 +58,7 @@ interface BookingPayment {
     pointsRedeemed?: number;
     pointsDiscountAmount?: number;
     codeDiscountAmount?: number;
+    referralDiscountAmount?: number;
     codeLabel?: string;
     totalDiscount?: number;
     originalAmount?: number;
@@ -74,6 +76,7 @@ interface BookingProfessional {
   username?: string;
   businessInfo?: {
     companyName?: string;
+    timezone?: string;
   };
 }
 
@@ -114,6 +117,8 @@ interface Booking {
   payment?: BookingPayment;
   quote?: BookingQuote;
   rfqDetails?: BookingRfqDetails;
+  rfqData?: { additionalNotes?: string };
+  scheduleTimeZone?: string;
   professional?: BookingProfessional;
   project?: BookingProject;
   scheduledStartDate?: string;
@@ -253,9 +258,7 @@ export default function BookingPaymentPage() {
 
   const getCurrentQuoteVersion = useCallback((b: Booking | null): QuoteVersion | null => {
     if (!b?.quoteVersions?.length) return null;
-    return b.currentQuoteVersion != null
-      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion) ?? b.quoteVersions[b.quoteVersions.length - 1] ?? null
-      : b.quoteVersions[b.quoteVersions.length - 1] ?? null;
+    return resolveAuthoritativeQuoteVersion(b.quoteVersions, b.currentQuoteVersion);
   }, []);
 
   const currentQuoteVersion = useMemo(() => getCurrentQuoteVersion(booking), [booking, getCurrentQuoteVersion]);
@@ -971,10 +974,14 @@ export default function BookingPaymentPage() {
     const price = typeof persisted?.bookedPrice === 'number' ? persisted.bookedPrice : (opt?.price || 0);
     return sum + price;
   }, 0);
+  const persistedOptionsBaseTotal = (booking?.selectedExtraOptions ?? []).reduce<number>((sum, option) => {
+    if (typeof option === 'number') return sum + (booking?.project?.extraOptions?.[option]?.price || 0);
+    return sum + (option.bookedPrice || 0);
+  }, 0);
   const quoteAmount = Number(booking?.quote?.amount || 0);
   const snapshot = booking?.checkoutSnapshot;
   const extrasIncludedInQuote = (() => {
-    if (breakdownOptionsBaseTotal <= 0) return false;
+    if (persistedOptionsBaseTotal <= 0) return false;
     if (
       snapshot &&
       Number(snapshot.extraOptionsTotal) > 0 &&
@@ -987,7 +994,7 @@ export default function BookingPaymentPage() {
     if (Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - baseSubtotal) < 0.02) {
       return false;
     }
-    return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + breakdownOptionsBaseTotal)) < 0.02;
+    return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + persistedOptionsBaseTotal)) < 0.02;
   })();
   const optionsLocked = Boolean(booking?.quoteVersions?.length || extrasIncludedInQuote);
   const breakdownBaseTotal = extrasIncludedInQuote
@@ -1557,9 +1564,12 @@ export default function BookingPaymentPage() {
             <button
               type="button"
               onClick={() => {
+                if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = null;
+                setAdditionalNotes(booking?.rfqData?.additionalNotes || '');
                 setClientSecret('');
                 setError('');
-                setSelectedStartDate(booking?.scheduledStartDate ? formatInTimeZone(parseISO(booking.scheduledStartDate), professionalTimezone, 'yyyy-MM-dd') : '');
+                setSelectedStartDate(booking?.scheduledStartDate ? formatInTimeZone(parseISO(booking.scheduledStartDate), booking.scheduleTimeZone || booking.professional?.businessInfo?.timezone || professionalTimezone, 'yyyy-MM-dd') : '');
                 setValidatedScheduleSelectionKey('');
                 setScheduleWindow(null);
                 setSelectedStartTime(booking?.scheduledStartTime || '');
@@ -1681,7 +1691,7 @@ export default function BookingPaymentPage() {
               </div>
             )}
 
-            {discountInfo?.loyaltyTier && (
+            {discountInfo?.loyaltyTier && (discountInfo.loyaltyAmount ?? 0) > 0 && (
               <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="text-sm font-medium text-amber-900">
                   {t('paymentPage.memberBenefitsApplied', { tier: discountInfo.loyaltyTier })}
@@ -1731,13 +1741,22 @@ export default function BookingPaymentPage() {
                 </div>
               )}
 
-              {(discountInfo?.pointsRedeemed ?? 0) > 0 && (
+              {(discountInfo?.pointsDiscountAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
                     {t('paymentPage.pointsRedeemedLine', { points: discountInfo?.pointsRedeemed ?? 0 })}
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {(discountInfo?.referralDiscountAmount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{t('paymentPage.referralDiscountLine')}</span>
+                  <span className="text-green-700">
+                    -{formatMoney(discountInfo?.referralDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}

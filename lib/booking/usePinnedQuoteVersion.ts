@@ -58,17 +58,18 @@ export function isViewingPinnedQuoteVersion({
  * created; array order is not relied on). Never the hash-pinned version, which
  * may be historical. null without versions.
  */
-export function resolveAuthoritativeQuoteVersion<V extends { version: number }>(
+export function resolveAuthoritativeQuoteVersion<V extends { version?: number | null }>(
   quoteVersions: readonly V[] | null | undefined,
   currentQuoteVersion: number | null | undefined,
 ): V | null {
   if (!Array.isArray(quoteVersions) || quoteVersions.length === 0) return null
-  const current = quoteVersions.find(v => v.version === currentQuoteVersion)
+  const current = typeof currentQuoteVersion === "number" ? quoteVersions.find(v => v.version === currentQuoteVersion) : null
   if (current) return current
   let latest: V | null = null
+  let latestNumber = -Infinity
   for (const v of quoteVersions) {
     if (typeof v?.version !== "number" || !Number.isFinite(v.version)) continue
-    if (!latest || v.version > latest.version) latest = v
+    if (v.version > latestNumber) { latest = v; latestNumber = v.version }
   }
   return latest
 }
@@ -89,10 +90,14 @@ export function resolveQuoteVersionView<V extends { version: number }>({
   quoteVersions,
   currentQuoteVersion,
   pinnedVersion,
+  displayQuoteVersions,
+  displayCurrentQuoteVersion,
 }: {
   quoteVersions: readonly V[] | null | undefined
   currentQuoteVersion: number | null | undefined
   pinnedVersion: number | null
+  displayQuoteVersions?: readonly { version: number }[] | null
+  displayCurrentQuoteVersion?: number | null
 }): {
   hasQuotationVersions: boolean
   displayedVersion: V | null
@@ -107,11 +112,14 @@ export function resolveQuoteVersionView<V extends { version: number }>({
   const authoritativeVersion = resolveAuthoritativeQuoteVersion(versions, currentQuoteVersion)
   const pinned = pinnedVersion != null ? versions.find(v => v.version === pinnedVersion) : undefined
   const displayedVersion = pinned ?? authoritativeVersion
+  const panelCurrent = resolveAuthoritativeQuoteVersion(displayQuoteVersions, displayCurrentQuoteVersion)
+  const panelPinExists = displayQuoteVersions?.some(version => version.version === pinnedVersion)
+  const panelIsHistorical = Boolean(panelPinExists && pinnedVersion !== panelCurrent?.version)
   return {
     hasQuotationVersions,
     displayedVersion,
     authoritativeVersion,
-    viewingPinnedVersion: isViewingPinnedQuoteVersion({
+    viewingPinnedVersion: panelIsHistorical || isViewingPinnedQuoteVersion({
       hasQuotationVersions,
       pinnedVersion,
       currentQuoteVersion: authoritativeVersion?.version,

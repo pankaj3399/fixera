@@ -69,7 +69,6 @@ export default function DashboardDisputesPage() {
     setIsLoading(true)
     setLoadFailed(false)
     setItems([])
-    setTotalPages(0)
     try {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine?page=${page}&limit=20`, { signal: controller.signal })
       if (!res.ok) throw new Error('Disputes request failed')

@@ -200,21 +200,32 @@ function ProfileContent() {
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const usernameAbortRef = useRef<AbortController | null>(null)
   const usernameSuggestAbortRef = useRef<AbortController | null>(null)
+  const usernameEditSessionRef = useRef(0)
+  const usernameEditingRef = useRef(usernameEdit)
+  useEffect(() => {
+    usernameEditingRef.current = usernameEdit
+  }, [usernameEdit])
   // Cancels a debounced or in-flight availability check and an in-flight
   // Suggest request, so an older response can never overwrite the name now in
   // the field or reach a closed editor (typing, a picked suggestion, Cancel
   // and Save all go through here).
-  const cancelPendingUsernameCheck = () => {
+  const cancelPendingUsernameCheck = useCallback(() => {
     if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current)
     usernameTimerRef.current = null
     if (usernameAbortRef.current) usernameAbortRef.current.abort()
     usernameAbortRef.current = null
     if (usernameSuggestAbortRef.current) usernameSuggestAbortRef.current.abort()
     usernameSuggestAbortRef.current = null
-  }
+  }, [])
+  useEffect(() => () => {
+    usernameEditSessionRef.current++
+    cancelPendingUsernameCheck()
+  }, [cancelPendingUsernameCheck])
   // Leaving the editor (Cancel or a successful save) drops any pending check
   // and its results, so reopening never shows a stale status or suggestions.
   const closeUsernameEditor = () => {
+    usernameEditSessionRef.current++
+    setUsernameSaving(false)
     cancelPendingUsernameCheck()
     setUsernameEdit(false)
     setUsernameCheck({})
@@ -448,7 +459,10 @@ function ProfileContent() {
           ...user.businessInfo
         }))
       }
-      if (user.username) setUsername(user.username)
+      cancelPendingUsernameCheck()
+      setUsernameCheck({})
+      setUsernameSuggestions([])
+      if (!usernameEditingRef.current) setUsername(user.username || '')
       if (user.hourlyRate) setHourlyRate(user.hourlyRate.toString())
       if (user.currency) setCurrency(user.currency)
       if (user.serviceCategories) setServiceCategories(user.serviceCategories)
@@ -1826,7 +1840,7 @@ function ProfileContent() {
 
         {isProfessional ? (
           <Tabs value={profileTab} onValueChange={handleProfileTabChange} className="w-full">
-            <TabsList className="flex w-full justify-start gap-1 overflow-x-auto scrollbar-thin p-1">
+            <TabsList className="flex h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto scrollbar-thin p-1">
               <TabsTrigger value="profile" className="shrink-0 whitespace-nowrap">{t('tabs.profile')}</TabsTrigger>
               <TabsTrigger value="business" className="shrink-0 whitespace-nowrap">{t('tabs.business')}</TabsTrigger>
               <TabsTrigger value="documents" className="shrink-0 whitespace-nowrap">{t('tabs.documents')}</TabsTrigger>
@@ -1890,13 +1904,13 @@ function ProfileContent() {
                     </div>
                     {/* Display username is a profile parameter: edit it here, not under business info. */}
                     <div className="space-y-2">
-                      <Label>{t('business.usernameLabel')}</Label>
+                      <Label htmlFor="profile-username">{t('business.usernameLabel')}</Label>
                       <p className="text-xs text-gray-500">{t('business.usernameHint')}</p>
                       {!usernameEdit ? (
                         <div className="flex items-center gap-2">
                           <AtSign className="h-4 w-4 text-gray-500" />
                           <span className="text-sm font-medium flex-1">{username || t('business.usernameNotSet')}</span>
-                          <Button size="sm" variant="ghost" onClick={() => setUsernameEdit(true)} className="h-6 w-6 p-0" aria-label={t('business.editUsername')}>
+                          <Button size="sm" variant="ghost" onClick={() => { usernameEditSessionRef.current++; setUsernameEdit(true) }} className="h-6 w-6 p-0" aria-label={t('business.editUsername')}>
                             <Pencil className="h-3 w-3" />
                           </Button>
                         </div>
@@ -1904,6 +1918,7 @@ function ProfileContent() {
                         <div className="space-y-2">
                           <div className="flex gap-2">
                             <Input
+                              id="profile-username"
                               value={username}
                               onChange={(e) => {
                                 const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
@@ -1947,10 +1962,13 @@ function ProfileContent() {
                                   if (!isCurrent()) return
                                   usernameSuggestAbortRef.current = null
                                   if (!res.ok || !data?.success) { toast.error(t('toasts.suggestionsFailed')); return }
-                                  if (Array.isArray(data.suggestions) && data.suggestions.length) {
+                                  const suggestions = Array.isArray(data.suggestions)
+                                    ? data.suggestions.filter((value: unknown): value is string => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(value))
+                                    : []
+                                  if (suggestions.length) {
                                     cancelPendingUsernameCheck()
-                                    setUsernameSuggestions(data.suggestions)
-                                    setUsername(data.suggestions[0])
+                                    setUsernameSuggestions(suggestions)
+                                    setUsername(suggestions[0])
                                     setUsernameCheck({ available: true })
                                   }
                                 } catch {
@@ -1988,9 +2006,11 @@ function ProfileContent() {
                           <div className="flex gap-2">
                             <Button
                               size="sm"
-                              disabled={usernameSaving || !username || username.length < 3 || usernameCheck.available !== true}
+                              disabled={usernameSaving || !username || username.length < 3 || username.length > 30 || usernameCheck.available !== true}
                               onClick={async () => {
                                 // A late Suggest must not swap the name being saved.
+                                const editSession = usernameEditSessionRef.current
+                                const isCurrentSave = () => editSession === usernameEditSessionRef.current
                                 cancelPendingUsernameCheck()
                                 setUsernameSaving(true)
                                 try {
@@ -2001,6 +2021,7 @@ function ProfileContent() {
                                     body: JSON.stringify({ username }),
                                   })
                                   const data = await res.json()
+                                  if (!isCurrentSave()) return
                                   if (data.success) {
                                     toast.success(t('toasts.usernameUpdated'))
                                     closeUsernameEditor()
@@ -2008,8 +2029,8 @@ function ProfileContent() {
                                   } else {
                                     toast.error(getErrorText(data, t('toasts.usernameUpdateFailed')))
                                   }
-                                } catch { toast.error(t('toasts.usernameUpdateFailed')) }
-                                finally { setUsernameSaving(false) }
+                                } catch { if (isCurrentSave()) toast.error(t('toasts.usernameUpdateFailed')) }
+                                finally { if (isCurrentSave()) setUsernameSaving(false) }
                               }}
                             >
                               {usernameSaving ? t('common.saving') : t('business.saveUsername')}

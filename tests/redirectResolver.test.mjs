@@ -62,7 +62,33 @@ test('open-redirect attacks fall back to the role default', () => {
 
 test('incomplete professional onboarding wins over every explicit workflow intent', () => {
   for (const explicitRedirect of ['/dashboard', '/bookings/abc', '//evil.com', null]) {
-    assert.equal(resolvePostAuthRedirect({ role: 'professional', explicitRedirect, onboardingPath: '/professional/onboarding' }), '/professional/onboarding')
+    assert.equal(resolvePostAuthRedirect({ role: 'professional', explicitRedirect, onboardingPath: '/professional/onboarding' }), isSafeRedirectPath(explicitRedirect) ? `/professional/onboarding?redirect=${encodeURIComponent(explicitRedirect)}` : '/professional/onboarding')
   }
   assert.equal(resolvePostAuthRedirect({ role: 'professional', explicitRedirect: '/bookings/abc' }), '/bookings/abc')
+})
+
+
+test('onboarding completion restores a validated workflow and consumes its storage once', async () => {
+  const { completedOnboardingRedirect } = await import('../lib/auth/redirectResolver.ts')
+  const saved = new Map([['redirectAfterAuth', '/projects/create']])
+  const storage = { getItem: key => saved.get(key) ?? null, removeItem: key => saved.delete(key) }
+  assert.equal(completedOnboardingRedirect(null, storage), '/projects/create')
+  assert.equal(saved.size, 0)
+  assert.equal(completedOnboardingRedirect(null, storage), '/dashboard?verification=pending')
+  assert.equal(completedOnboardingRedirect('//evil.example', storage), '/dashboard?verification=pending')
+  assert.equal(completedOnboardingRedirect('/bookings/abc', storage), '/bookings/abc')
+})
+
+test('onboarding completion never returns to the onboarding wizard', async () => {
+  const { completedOnboardingRedirect } = await import('../lib/auth/redirectResolver.ts')
+  const saved = new Map([['redirectAfterAuth', '/professional/onboarding']])
+  const storage = { getItem: key => saved.get(key) ?? null, removeItem: key => saved.delete(key) }
+  assert.equal(completedOnboardingRedirect(null, storage), '/dashboard?verification=pending')
+  assert.equal(saved.size, 0, 'a stale onboarding intent is cleared')
+  for (const target of ['/professional/onboarding', '/professional/onboarding/', '/professional/onboarding?step=3', '/Professional/Onboarding#ids']) {
+    assert.equal(completedOnboardingRedirect(target, storage), '/dashboard?verification=pending', target)
+  }
+  saved.set('redirectAfterAuth', '/projects/create')
+  assert.equal(completedOnboardingRedirect('/professional/onboarding?step=2', storage), '/projects/create')
+  assert.equal(completedOnboardingRedirect('/professional/onboarding-help', storage), '/professional/onboarding-help')
 })

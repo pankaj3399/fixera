@@ -806,6 +806,7 @@
       "repeatBuyer": "Repeat buyer discount",
       "pointsDiscount": "Points discount",
       "codeDiscount": "Discount code",
+      "referralDiscount": "Referral discount",
       "totalDiscount": "Total discount",
       "status": "Status",
       "workStatus": "Work",

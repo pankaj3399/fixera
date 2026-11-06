@@ -22,6 +22,7 @@ export interface StaticCategoryLike {
 }
 
 export interface LiveCategoryLike {
+  isFallback?: boolean;
   slug: string;
   name: string;
 }
@@ -62,6 +63,11 @@ export function resolveCategoryRoute(
 ): CategoryRouteResolution {
   const slug = normalizeRouteSlug(rawSlug);
   if (!slug) return { kind: "not_found" };
+  if (liveCategories.some(category => category.isFallback)) {
+    const known = [...staticCategories, ...liveCategories].find(category => normalizeRouteSlug(category.slug) === slug);
+    const name = known && "name" in known && typeof known.name === "string" ? known.name : slug.replace(/-/g, " ");
+    return { kind: "category", category: { slug: encodeURIComponent(slug), name } };
+  }
   const live = liveCategories.find(
     (category) => typeof category?.slug === "string" && normalizeRouteSlug(category.slug) === slug,
   );

@@ -62,9 +62,22 @@ function hooks() {
       }
     },
   }
+  api.useLayoutEffect = api.useEffect
   return {
     api,
     render(fn) { index = 0; return fn() },
+    abandonRender(fn) {
+      // State/memo/effect work is discarded; ref objects retain render writes,
+      // matching the leak this regression must catch.
+      const previous = slots.slice()
+      const snapshots = previous.map(slot => slot && !('current' in slot) ? { ...slot } : null)
+      const beforePending = new Set(pending)
+      try { index = 0; return fn() } finally {
+        previous.forEach((slot, i) => { if (snapshots[i]) Object.assign(slot, snapshots[i]) })
+        slots.splice(0, slots.length, ...previous)
+        pending = beforePending
+      }
+    },
     flush() {
       const run = [...pending]
       pending = new Set()
@@ -79,7 +92,7 @@ function hooks() {
   }
 }
 
-function loadComponent(file, mocks) {
+function loadComponent(file, mocks, exportName = 'default') {
   const { code } = transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
     filename: file, jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
   })
@@ -89,7 +102,7 @@ function loadComponent(file, mocks) {
     if (name.startsWith('@/')) throw new Error(`unmocked import ${name}`)
     return require(name)
   }, exports)
-  return exports.default
+  return exports[exportName]
 }
 
 /** Any named export is an inert component (UI primitives, icons). */
@@ -137,6 +150,7 @@ test('category page: an aborted request does not end the loading state of its re
       '@/components/ui/skeleton': { Skeleton }, '@/components/ui/button': { Button: () => null },
       '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: () => 'BE', matchCatalogCategory: (rows, s) => rows.find(row => row.slug === s), normalizeCategorySlug: s => s },
       '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
+      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
     })
     state.render(() => Component())
     state.flush()
@@ -557,6 +571,7 @@ test('category page: navigating to an unknown slug never shows the previous cate
       '@/components/ui/skeleton': { Skeleton: () => null }, '@/components/ui/button': { Button: () => null },
       '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: () => 'BE', matchCatalogCategory: (rows, s) => rows.find(row => row.slug === s), normalizeCategorySlug: s => s },
       '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
+      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
     })
     const catalog = [{ slug: 'gardening', name: 'Gardening', services: [] }]
     state.render(() => Component())
@@ -870,6 +885,7 @@ test('quotation tab: picking a historical version announces the hash change the 
       '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
       '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
       '@/lib/bookingDetails': bookingDetails,
+      '@/lib/booking/usePinnedQuoteVersion': loadPinnedVersionModule(state.api, bookingDetails),
       './DetailPrimitives': detailPrimitives,
       './BookingDataPanel': ui,
     }
@@ -1406,12 +1422,13 @@ test('warranty claims: a slower Refresh response never overwrites a newer filter
   } finally { globalThis.fetch = previousFetch; globalThis.window = previousWindow }
 })
 
-async function mountProfile() {
+async function mountProfile({ deferSaves = false } = {}) {
+  const saveRequests = []
   const suggestRequests = []
   const checkRequests = []
   globalThis.fetch = (url, opts = {}) => {
     url = String(url)
-    const queue = url.includes('/generate-username') ? suggestRequests : url.includes('/check-username/') ? checkRequests : null
+    const queue = deferSaves && opts.method === 'PUT' && url.endsWith('/user/username') ? saveRequests : url.includes('/generate-username') ? suggestRequests : url.includes('/check-username/') ? checkRequests : null
     if (queue) {
       const d = deferred()
       queue.push({ url, signal: opts.signal, ...d })
@@ -1468,7 +1485,7 @@ async function mountProfile() {
   }
   const suggestionChips = () => findAll(usernameBlock(), node => node.type === 'button').map(textOf)
   const statusBox = () => findAll(usernameBlock(), node => node.type === 'div' && typeof node.props?.className === 'string' && node.props.className.includes('rounded-lg') && node.props.className.includes('text-xs')).map(textOf)
-  return { state, render, button, usernameField, closedName, suggestionChips, statusBox, suggestRequests, checkRequests, toasts }
+  return { state, render, button, usernameField, closedName, suggestionChips, statusBox, suggestRequests, checkRequests, saveRequests, auth, toasts }
 }
 
 test('profile username: a Suggest response after Cancel never changes the shown name, chips or availability', async () => {
@@ -1948,4 +1965,281 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
   await settle(); tree = render()
   assert.ok(!textOf(tree).includes('disputes.loadFailed'))
   state.unmount()
+})
+
+
+test('normalized quotation panels cannot leave quote response actions enabled on a historical version', () => {
+  const { resolveQuoteVersionView } = loadPinnedVersionModule(hooks().api, {})
+  const view = resolveQuoteVersionView({ quoteVersions: [{ version: 2 }], currentQuoteVersion: 2, pinnedVersion: 2,
+    displayQuoteVersions: [{ version: 2 }, { version: 3 }], displayCurrentQuoteVersion: 3 })
+  assert.equal(view.viewingPinnedVersion, true)
+})
+test('profile username unmount aborts suggestions; overlength suggestions never become available', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const p = await mountProfile()
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.button('business.suggest').props.onClick()
+    const suggestion = p.suggestRequests.at(-1)
+    suggestion.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['a'.repeat(31), 'valid-name'] }) })
+    await settle(); p.render()
+    assert.deepEqual(p.suggestionChips(), ['valid-name'])
+    assert.equal(p.usernameField().props.value, 'valid-name')
+    p.button('business.suggest').props.onClick()
+    const pending = p.suggestRequests.at(-1)
+    p.state.unmount()
+    assert.equal(pending.signal.aborted, true)
+    pending.reject(new Error('offline'))
+    await settle()
+    assert.equal(p.toasts.length, 0)
+  } finally { globalThis.fetch = previousFetch }
+})
+
+
+test('a username save from a cancelled editor never closes a new session or refreshes its draft', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const p = await mountProfile({ deferSaves: true })
+    let refreshes = 0
+    p.auth.checkAuth = async () => { refreshes++ }
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.button('business.suggest').props.onClick()
+    p.suggestRequests.at(-1).resolve({ ok: true, json: async () => ({ success: true, suggestions: ['first-name'] }) })
+    await settle(); p.render()
+    const saving = p.button('business.saveUsername').props.onClick()
+    p.button('common.cancel').props.onClick(); p.render()
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.usernameField().props.onChange({ target: { value: 'new-session' } }); p.render()
+    p.button('business.suggest').props.onClick()
+    const pending = p.suggestRequests.at(-1)
+    p.saveRequests[0].resolve({ ok: true, json: async () => ({ success: true }) })
+    await saving; p.render()
+    assert.equal(p.usernameField().props.value, 'new-session')
+    assert.equal(pending.signal.aborted, false)
+    assert.equal(refreshes, 0)
+    assert.equal(p.toasts.length, 0)
+    p.state.unmount()
+    pending.resolve({ ok: true, json: async () => ({ success: true, suggestions: ['late-name'] }) })
+    await settle()
+  } finally { globalThis.fetch = previousFetch }
+})
+test('profile refresh cancels username availability and never approves its stale response', async () => {
+  const previousFetch = globalThis.fetch
+  const realSetTimeout = globalThis.setTimeout
+  const realClearTimeout = globalThis.clearTimeout
+  const timers = new Map()
+  let nextTimer = 1
+  globalThis.setTimeout = fn => { const id = nextTimer++; timers.set(id, fn); return id }
+  globalThis.clearTimeout = id => { timers.delete(id) }
+  try {
+    const p = await mountProfile()
+    p.button('business.editUsername').props.onClick(); p.render()
+    p.usernameField().props.onChange({ target: { value: 'pending-name' } }); p.render()
+    const pendingTimers = [...timers.values()]
+    timers.clear()
+    pendingTimers.forEach(fn => fn())
+    const request = p.checkRequests.at(-1)
+    assert.ok(request)
+    p.auth.user = { ...p.auth.user, profileImage: 'new-avatar' }
+    p.render(); p.state.flush(); p.render()
+    assert.equal(request.signal.aborted, true)
+    request.resolve({ ok: true, json: async () => ({ success: true, available: true }) })
+    await settle(); p.render()
+    assert.equal(p.button('business.saveUsername').props.disabled, true)
+    assert.ok(!p.statusBox().includes('business.usernameAvailable'))
+    p.state.unmount()
+  } finally { globalThis.fetch = previousFetch; globalThis.setTimeout = realSetTimeout; globalThis.clearTimeout = realClearTimeout }
+})
+test('customer action query follows every page and retries after an outage with identifiable cards', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const requests = []
+    const m = mountCustomerDashboard(state, requests)
+    const baseFetch = globalThis.fetch
+    const pages = []
+    let fail = true
+    globalThis.fetch = async url => {
+      const query = new URL(String(url), 'https://example.test').searchParams
+      if (query.get('limit') !== '50' || !String(url).includes('/my-bookings')) return baseFetch(url)
+      const page = Number(query.get('page')); pages.push(page)
+      if (fail) return { ok: false, json: async () => ({ success: false, msg: 'Offline actions' }) }
+      return { ok: true, json: async () => ({ success: true, bookings: [{ _id: `action-${page}`, bookingNumber: `BK-ACTION-${page}`, bookingType: 'professional', status: 'quoted' }], pagination: { totalPages: 2 } }) }
+    }
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    render(); state.flush(); await settle()
+    let tree = render()
+    assert.ok(textOf(tree).includes('Offline actions'))
+    fail = false
+    findAll(tree, node => node.type === m.Button && textOf(node) === 'common.retry')[0].props.onClick()
+    await settle(); tree = render()
+    assert.deepEqual(pages, [1, 1, 2])
+    assert.ok(textOf(tree).includes('BK-ACTION-1'))
+    assert.ok(textOf(tree).includes('BK-ACTION-2'))
+    assert.ok(!textOf(tree).includes('Offline actions'))
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+test('an empty later customer booking page retains navigation to earlier pages', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const requests = []
+    const m = mountCustomerDashboard(state, requests)
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    render(); state.flush()
+    for (const request of requests) request.resolve({ ok: true, json: async () => ({ success: true, bookings: [], pagination: { page: 3, totalPages: 3, total: 40 }, statusCounts: {}, serviceCounts: {} }) })
+    await settle()
+    const previous = findAll(render(), node => node.type === m.Button && textOf(node) === 'common.previous')
+    assert.ok(previous.length >= 1)
+    assert.ok(previous.every(button => !button.props.disabled))
+    previous[0].props.onClick()
+    assert.match(requests.at(-1).url, /page=2/)
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('an abandoned project filter render cannot strand the committed request on its skeleton', async () => {
+  const previousFetch = globalThis.fetch
+  const state = hooks()
+  const requests = []
+  const t = key => key
+  const getErrorText = (_error, fallback) => fallback
+  const auth = { user: { role: 'professional', professionalStatus: 'approved' }, loading: false, isAuthenticated: true }
+  const router = { push() {} }
+  const ui = stubModule()
+  const Select = () => null
+  const SelectItem = () => null
+  const Skeleton = () => null
+  const ProjectCard = () => null
+  globalThis.fetch = url => { const d = deferred(); requests.push({ url: String(url), ...d }); return d.promise }
+  try {
+    const Component = loadComponent('../app/(pages)/professional/projects/manage/page.tsx', {
+      react: state.api,
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      'next/navigation': { useRouter: () => router },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+      '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: String }) },
+      '@/components/dashboard/ProjectCard': { __esModule: true, default: ProjectCard },
+      '@/lib/dashboardOverview': dashboardOverview,
+      '@/components/ui/card': ui, '@/components/ui/button': ui, '@/components/ui/badge': ui,
+      '@/components/ui/tabs': ui, '@/components/ui/dropdown-menu': ui, '@/components/ui/dialog': ui,
+      '@/components/ui/input': ui, '@/components/ui/select': { ...ui, Select, SelectItem },
+      '@/components/ui/skeleton': { Skeleton }, 'lucide-react': ui,
+      sonner: { toast: { error() {}, success() {} } },
+    })
+    const render = () => state.render(() => Component())
+    render(); state.flush()
+    requests[0].resolve({ ok: true, json: async () => ({ items: [], meta: { pages: 1, page: 1, total: 0 } }) })
+    await settle()
+    const tree = render()
+    const statusSelect = findAll(tree, node => node.type === Select && findAll(node, child => child.type === SelectItem && child.props.value === 'published').length)[0]
+    assert.ok(statusSelect)
+    statusSelect.props.onValueChange('published'); render(); state.flush()
+    assert.equal(requests.length, 2)
+    state.abandonRender(() => {
+      statusSelect.props.onValueChange('archived')
+      Component()
+    })
+    requests[1].resolve({ ok: true, json: async () => ({ items: [{ _id: 'committed-project', status: 'published' }], meta: { pages: 1, page: 1, total: 1 } }) })
+    await settle()
+    const committedTree = render()
+    assert.equal(findAll(committedTree, node => node.type === Skeleton).length, 0)
+    assert.ok(findAll(committedTree, node => node.type === ProjectCard && node.props.project._id === 'committed-project').length)
+    assert.equal(requests.length, 2, 'discarded render must not issue a replacement request')
+    state.flush()
+    statusSelect.props.onValueChange('archived'); render(); state.flush()
+    assert.equal(requests.length, 3)
+    assert.match(requests[2].url, /status=archived/)
+  } finally { state.unmount(); globalThis.fetch = previousFetch }
+})
+
+test('comparison tabs reveal selected packages by scrolling only their horizontal container', async () => {
+  const state = hooks()
+  const ui = stubModule()
+  const Component = loadComponent('../components/project/SubprojectComparisonTable.tsx', {
+    react: state.api,
+    'next-intl': { useTranslations: () => key => key },
+    '@/components/ui/button': ui, '@/components/ui/card': ui, 'lucide-react': ui,
+    '@/lib/projectHighlights': { formatPriceModelLabel: value => value },
+    '@/lib/projectPricing': await import('../lib/projectPricing.ts'),
+    '@/hooks/useCustomerPricing': { useCustomerPricing: () => ({ customerPrice: value => value, originalPrice: value => value, commissionPercent: 0, loyaltyLoaded: true }) },
+    '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: String }) },
+    '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
+  })
+  const props = { subprojects: [0, 1, 2].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 1, onSelectPackage() {}, onSelectIndex() {} }
+  const scrolls = []
+  let pageScrolls = 0
+  const container = { getBoundingClientRect: () => ({ left: 0, right: 240 }), scrollBy: options => scrolls.push(options) }
+  const tree = state.render(() => Component(props))
+  findAll(tree, node => node.props.className === 'flex overflow-x-auto')[0].props.ref.current = container
+  const buttons = findAll(tree, node => node.type === 'button' && typeof node.props.ref === 'function')
+  const bounds = [{ left: -40, right: 80 }, { left: 240, right: 360 }, { left: 60, right: 180 }]
+  buttons.forEach((button, i) => button.props.ref({ getBoundingClientRect: () => bounds[i], scrollIntoView: () => pageScrolls++ }))
+  state.flush()
+  assert.deepEqual(scrolls, [{ left: 120 }])
+  state.render(() => Component({ ...props, selectedIndex: 2 })); state.flush()
+  assert.equal(scrolls.length, 1, 'already-visible tab does not scroll')
+  state.render(() => Component({ ...props, selectedIndex: 0 })); state.flush()
+  assert.deepEqual(scrolls, [{ left: 120 }, { left: -40 }])
+  assert.equal(pageScrolls, 0)
+  state.unmount()
+})
+
+test('onboarding completion preserves its stored workflow through repeated effects without step replacements', async () => {
+  const previous = { fetch: globalThis.fetch, sessionStorage: globalThis.sessionStorage }
+  const state = hooks()
+  const pushes = [], replaces = [], removals = []
+  let stored = '/bookings/stored-workflow'
+  let reads = 0
+  globalThis.sessionStorage = { getItem: () => { reads++; return stored }, removeItem: key => { removals.push(key); stored = null } }
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ success: true, data: {} }) })
+  const auth = { loading: false, isAuthenticated: true, user: { role: 'professional', professionalStatus: 'approved', isEmailVerified: true, isPhoneVerified: true }, checkAuth: async () => {} }
+  const router = { push: path => pushes.push(path), replace: path => replaces.push(path) }
+  let params = new URLSearchParams('step=5')
+  const t = key => key
+  const getErrorText = (_error, fallback) => fallback
+  const ui = stubModule()
+  try {
+    const resumeStep = await import('../lib/onboarding/resumeStep.ts')
+    const useOnboardingStepSync = loadComponent('../lib/onboarding/useOnboardingStepSync.ts', { react: state.api, './resumeStep': resumeStep }, 'useOnboardingStepSync')
+    const Page = loadComponent('../app/(pages)/professional/onboarding/page.tsx', {
+      react: state.api,
+      '@/lib/auth/redirectResolver': await import('../lib/auth/redirectResolver.ts'),
+      '@/lib/onboarding/useOnboardingStepSync': { useOnboardingStepSync },
+      '@/lib/onboarding/resumeStep': resumeStep,
+      '@/lib/constants/onboardingSteps': { ONBOARDING_STEPS },
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      'next/navigation': { useRouter: () => router, useSearchParams: () => params, usePathname: () => '/professional/onboarding' },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+      '@/components/ui/button': ui, '@/components/ui/input': ui, '@/components/ui/label': ui,
+      '@/components/ui/select': ui, '@/components/ui/checkbox': ui, '@/components/ui/skeleton': ui,
+      '@/components/professional/project-wizard/AddressAutocomplete': ui,
+      '@/components/TeamManagement': ui, '@/components/DualVerificationComponent': ui,
+      '@/lib/countries': await import('../lib/countries.ts'),
+      '@/lib/utils': { getAuthToken: () => null, buildUsernameSuggestionParams() {} },
+      '@/lib/vatValidation': await import('../lib/vatValidation.ts'),
+      '@/lib/defaults/companyAvailability': await import('../lib/defaults/companyAvailability.ts'),
+      '@/lib/cms': { publicListPolicyLinks: async () => [] },
+      'next/link': ui, 'lucide-react': ui,
+      sonner: { toast: { success() {}, error() {} } },
+    })
+    const Content = state.render(() => Page()).props.children.type
+    state.reset()
+    const commit = async () => { state.render(() => Content()); state.flush(); await settle() }
+    for (let i = 0; i < 4; i++) await commit()
+    params = new URLSearchParams('step=6')
+    auth.user = { ...auth.user, profileImage: 'updated-avatar' }
+    for (let i = 0; i < 3; i++) await commit()
+    assert.deepEqual(pushes, ['/bookings/stored-workflow'])
+    assert.deepEqual(replaces, [])
+    assert.equal(reads, 1)
+    assert.deepEqual(removals, ['redirectAfterAuth'])
+  } finally { state.unmount(); globalThis.fetch = previous.fetch; globalThis.sessionStorage = previous.sessionStorage }
 })

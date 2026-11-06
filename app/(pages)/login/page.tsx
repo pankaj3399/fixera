@@ -29,7 +29,7 @@ function LoginPageContent() {
     if (!loading && isAuthenticated) {
       const professionalMustFinishOnboarding =
         user?.role === 'professional' &&
-        (!user.isEmailVerified || !user.isPhoneVerified || !user.professionalOnboardingCompletedAt)
+        (!user.isEmailVerified || !user.isPhoneVerified || !(user.professionalOnboardingCompletedAt || (user.professionalStatus && user.professionalStatus !== 'draft')))
       const redirectTo = resolvePostAuthRedirect({
         role: user?.role,
         explicitRedirect: searchParams.get('redirect'),

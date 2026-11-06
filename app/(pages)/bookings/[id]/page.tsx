@@ -1731,6 +1731,8 @@ function BookingDetailContent() {
     quoteVersions: booking?.quoteVersions,
     currentQuoteVersion: booking?.currentQuoteVersion,
     pinnedVersion: pinnedQuoteVersion,
+    displayQuoteVersions: details?.quotation?.versions,
+    displayCurrentQuoteVersion: details?.quotation?.currentVersion,
   })
   const recordedPricing = useMemo(() => recordedQuotationPricing(details?.quotation?.versions?.find(
     (version) => version.version === currentVersion?.version

@@ -806,6 +806,7 @@
       "repeatBuyer": "Remise client récurrent",
       "pointsDiscount": "Remise points",
       "codeDiscount": "Code de réduction",
+      "referralDiscount": "Réduction de parrainage",
       "totalDiscount": "Remise totale",
       "status": "Statut",
       "workStatus": "Travail",

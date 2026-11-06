@@ -445,7 +445,7 @@ export function OverviewPanel({
             <DetailField label={dt("fields.totalWithVat", "Total incl. VAT")} empty={(payment?.totalWithVat ?? booking.payment?.totalWithVat) == null}>
               <MoneyText amount={payment?.totalWithVat ?? booking.payment?.totalWithVat} currency={currency} formatMoney={formatMoney} />
             </DetailField>
-            <DetailField label={dt("fields.discount", "Discount")} empty={(payment?.discountTotal ?? booking.payment?.discount?.totalDiscount) == null}>
+            <DetailField label={dt("fields.discount", "Discount")} empty={!((payment?.discountTotal ?? booking.payment?.discount?.totalDiscount ?? 0) > 0)}>
               <MoneyText
                 amount={payment?.discountTotal ?? booking.payment?.discount?.totalDiscount}
                 currency={currency}

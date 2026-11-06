@@ -396,6 +396,7 @@ export interface QuotationVersionDto {
       repeatBuyerAmount?: number | null;
       pointsDiscountAmount?: number | null;
       codeDiscountAmount?: number | null;
+      referralDiscountAmount?: number | null;
       totalDiscount?: number | null;
       totalDiscountWithVat?: number | null;
     } | null;
@@ -443,6 +444,7 @@ export interface PaymentDiscountDto {
   pointsRedeemed?: number | null;
   pointsDiscountAmount?: number | null;
   codeDiscountAmount?: number | null;
+  referralDiscountAmount?: number | null;
   codeLabel?: string | null;
   totalDiscount?: number | null;
   originalAmount?: number | null;

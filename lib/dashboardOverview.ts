@@ -33,8 +33,8 @@ export function formatOverviewMoney(
   money: OverviewMoney | null | undefined,
   formatAmount: (amount: number, currency?: string | null) => string,
 ): string {
-  if (!money || money.amount == null || money.source !== "recorded") return DASH
-  return formatAmount(money.amount, money.currency || "EUR")
+  if (!money || money.amount == null || money.source !== "recorded" || !money.currency || money.currency === "UNKNOWN") return DASH
+  return formatAmount(money.amount, money.currency)
 }
 
 export function formatUnknownDate(value: string | null | undefined, intl: string): string {
@@ -240,6 +240,7 @@ export interface PricedSubproject {
     priceRange?: { min?: number } | null
     unit?: string | null
   } | null
+  unit?: string | null
   basePrice?: number | null
   pricingModel?: string | null
 }
@@ -257,6 +258,7 @@ export function cheapestPriceByModelUnit(
   for (const subproject of subprojects) {
     const pricing = subproject?.pricing ?? null
     // Legacy list shape carries basePrice/pricingModel instead of pricing.
+    if (pricing?.type === "rfq") continue
     const legacyAmount = asNumber(subproject?.basePrice)
     if ((!pricing || pricing.type === "rfq") && legacyAmount == null) continue
     const amount = pricing && pricing.type !== "rfq"
@@ -264,7 +266,7 @@ export function cheapestPriceByModelUnit(
       : legacyAmount
     if (amount == null) continue
     const model = (pricing && pricing.type !== "rfq" ? pricing.type : null) || subproject?.pricingModel || "fixed"
-    const unit = pricing && typeof pricing.unit === "string" && pricing.unit ? pricing.unit : null
+    const unit = pricing && typeof pricing.unit === "string" && pricing.unit ? pricing.unit : asText(subproject?.unit)
     const key = `${model}||${unit || ""}`
     const current = groups.get(key)
     if (!current || amount < current.cheapest) {

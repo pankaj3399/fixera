@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
@@ -321,7 +321,18 @@ export default function ManageProjectsPage() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
+  const activeProjectQuery = JSON.stringify([debouncedSearchTerm, statusFilter, serviceFilter, currentPage])
+  const activeProjectQueryRef = useRef(activeProjectQuery)
+  useLayoutEffect(() => {
+    activeProjectQueryRef.current = activeProjectQuery
+  }, [activeProjectQuery])
+  const projectRequestRef = useRef(0)
+  const restoringProjectRef = useRef<string | null>(null)
+  const [restoringProjectId, setRestoringProjectId] = useState<string | null>(null)
   const fetchProjects = useCallback(async () => {
+    if (activeProjectQueryRef.current !== activeProjectQuery) return
+    const requestId = ++projectRequestRef.current
+    const isCurrent = () => projectRequestRef.current === requestId && activeProjectQueryRef.current === activeProjectQuery
     setIsLoading(true)
     setError(null)
     try {
@@ -362,6 +373,7 @@ export default function ManageProjectsPage() {
 
       if (projectsResponse.ok) {
         const responseData = await projectsResponse.json()
+        if (!isCurrent()) return
         let fetchedProjects: Project[] = []
         let responseCounts: Record<string, number> | undefined
 
@@ -378,7 +390,7 @@ export default function ManageProjectsPage() {
           responseCounts = responseData.counts
           setTotalPages(responseData.meta.pages || 1)
           setTotalProjects(responseData.meta.total || responseData.items.length)
-          setCurrentPage(responseData.meta.page || 1)
+          setCurrentPage(Math.min(responseData.meta.page || 1, Math.max(1, responseData.meta.pages || 1)))
         } else if (responseData.projects) {
           console.log('[ManageProjects] Using legacy projects format', {
             totalPages: responseData.totalPages,
@@ -392,7 +404,7 @@ export default function ManageProjectsPage() {
           responseCounts = responseData.counts
           setTotalPages(responseData.totalPages || 1)
           setTotalProjects(responseData.totalProjects || responseData.projects.length)
-          setCurrentPage(responseData.currentPage || 1)
+          setCurrentPage(Math.min(responseData.currentPage || 1, Math.max(1, responseData.totalPages || 1)))
         } else if (Array.isArray(responseData)) {
           console.log('[ManageProjects] Using array response format', {
             itemCount: responseData.length
@@ -432,6 +444,7 @@ export default function ManageProjectsPage() {
         }
       } else {
         const errorData = await projectsResponse.json().catch(() => ({}))
+        if (!isCurrent()) return
         console.error('[ManageProjects] Failed to fetch projects', {
           status: projectsResponse.status,
           errorData
@@ -443,6 +456,7 @@ export default function ManageProjectsPage() {
         setProjectCounts({ ...DEFAULT_PROJECT_COUNTS })
       }
     } catch (error) {
+      if (!isCurrent()) return
       console.error('[ManageProjects] Exception while fetching projects', error)
       setError(getErrorText(error, t('manage.errors.fetchFailedConnection')))
       setProjects([])
@@ -450,9 +464,9 @@ export default function ManageProjectsPage() {
       setTotalProjects(0)
       setProjectCounts({ ...DEFAULT_PROJECT_COUNTS })
     } finally {
-      setIsLoading(false)
+      if (isCurrent()) setIsLoading(false)
     }
-  }, [debouncedSearchTerm, statusFilter, serviceFilter, currentPage, getErrorText, t])
+  }, [activeProjectQuery, debouncedSearchTerm, statusFilter, serviceFilter, currentPage, getErrorText, t])
 
   // Single effect to fetch projects — fetchProjects changes when filters/page change
   useEffect(() => {
@@ -606,7 +620,7 @@ export default function ManageProjectsPage() {
       if (response.ok) {
         fetchProjects()
         setArchiveDialogOpen(false)
-        setSelectedProject(null)
+        setSelectedProject(current => current?._id === projectId ? null : current)
       } else {
         const errorData = await response.json()
         toast.error(getErrorText(errorData, t('manage.errors.archiveFailed')))
@@ -618,6 +632,9 @@ export default function ManageProjectsPage() {
   }
 
   const restoreProject = async (projectId: string) => {
+    if (restoringProjectRef.current) return
+    restoringProjectRef.current = projectId
+    setRestoringProjectId(projectId)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects/${projectId}/restore`, {
         method: 'POST',
@@ -627,7 +644,7 @@ export default function ManageProjectsPage() {
       if (response.ok) {
         fetchProjects()
         setRestoreDialogOpen(false)
-        setSelectedProject(null)
+        setSelectedProject(current => current?._id === projectId ? null : current)
       } else {
         const errorData = await response.json()
         toast.error(getErrorText(errorData, t('manage.errors.restoreFailed')))
@@ -635,6 +652,9 @@ export default function ManageProjectsPage() {
     } catch (error) {
       console.error('Failed to restore project:', error)
       toast.error(getErrorText(error, t('manage.errors.restoreFailed')))
+    } finally {
+      restoringProjectRef.current = null
+      setRestoringProjectId(null)
     }
   }
 
@@ -653,7 +673,7 @@ export default function ManageProjectsPage() {
   }
 
   // Since filtering is now handled server-side, we use projects directly
-  const filteredProjects = projects
+  const filteredProjects = statusFilter === 'archived' ? projects : projects.filter(project => normalizeProjectStatus(project.status) !== 'archived')
 
   if (loading || isLoading) {
     return (
@@ -1466,7 +1486,7 @@ export default function ManageProjectsPage() {
                 {t('common.cancel')}
               </Button>
               <Button
-                onClick={() => selectedProject && restoreProject(selectedProject._id)}
+                disabled={restoringProjectId !== null} onClick={() => selectedProject && restoreProject(selectedProject._id)}
               >
                 {t('manage.dialogs.restoreConfirm')}
               </Button>

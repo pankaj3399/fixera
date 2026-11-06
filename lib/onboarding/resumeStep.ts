@@ -1,3 +1,4 @@
+import { isValidVATFormat } from '@/lib/vatValidation';
 import { ONBOARDING_STEPS } from '@/lib/constants/onboardingSteps';
 
 /**
@@ -72,7 +73,7 @@ export const hasCompleteBusinessStep = (user: OnboardingResumeProfile): boolean 
     filled(info?.companyName) &&
     username.length >= 3 &&
     username.length <= 30 &&
-    filled(user.vatNumber) &&
+    isValidVATFormat(typeof user.vatNumber === 'string' ? user.vatNumber : '') &&
     filled(info?.address) &&
     filled(info?.city) &&
     filled(info?.country) &&

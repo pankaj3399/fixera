@@ -40,7 +40,7 @@ test('resume derivation never skips business validation or Stripe verification',
   assert.equal(deriveOnboardingResumeStep(completeId), 2)
   // Partial business profiles stay on the business step.
   assert.equal(deriveOnboardingResumeStep({ ...completeId, businessInfo: { companyName: 'Acme' } }), 2)
-  assert.equal(deriveOnboardingResumeStep({ ...completeId, vatNumber: 'BE123' }), 2)
+  assert.equal(deriveOnboardingResumeStep({ ...completeId, ...completeBusiness, vatNumber: 'BE123' }), 2)
   assert.equal(
     deriveOnboardingResumeStep({ ...completeId, businessInfo: { companyName: 'Acme' }, username: 'acme' }),
     2,
@@ -94,7 +94,7 @@ function loadStepSyncHook(reactApi) {
 }
 
 /** Mounts the hook with a URL, then lets auth resolve; returns the settled step and URL writes. */
-function mountStepSync({ initialSearch, user, loadingFirst }) {
+function mountStepSync({ initialSearch, user, loadingFirst, enabled = true }) {
   const state = hooks()
   const useOnboardingStepSync = loadStepSyncHook(state.api)
   let search = initialSearch
@@ -109,6 +109,7 @@ function mountStepSync({ initialSearch, user, loadingFirst }) {
       if (params.toString() !== search) params = new URLSearchParams(search)
       ;[step] = state.render(() => useOnboardingStepSync({
         loading,
+        enabled,
         user: loading ? null : user,
         searchParams: params,
         pathname: '/professional/onboarding',
@@ -122,7 +123,7 @@ function mountStepSync({ initialSearch, user, loadingFirst }) {
   const beforeAuth = { step, replaces: [...replaces] }
   loading = false
   settle()
-  return { beforeAuth, step, replaces, search }
+  return { beforeAuth, get step() { return step }, replaces, get search() { return search }, navigate(query) { search = query; settle() } }
 }
 
 test('a deep-linked ?step=3 survives mount and URL synchronization', () => {
@@ -185,4 +186,28 @@ test('an all-digit ?step= too long for a finite number clamps to the last step, 
   // A malformed long value is still absent: the saved profile resumes at 3.
   const malformed = mountStepSync({ initialSearch: `step=${huge}x`, user: { ...completeId, ...completeBusiness }, loadingFirst: true })
   assert.equal(malformed.step, 3)
+})
+
+
+test('mounted onboarding query changes never rewrite the new step to the previous state', () => {
+  const ui = mountStepSync({ initialSearch: 'step=3', user: completeId, loadingFirst: false })
+  ui.navigate('step=4')
+  assert.equal(ui.step, 4)
+  assert.equal(ui.search, 'step=4')
+  assert.deepEqual(ui.replaces, [])
+  ui.navigate('step=2')
+  assert.equal(ui.step, 2)
+  assert.deepEqual(ui.replaces, [])
+  ui.navigate('step=5')
+  assert.equal(ui.step, 6)
+  assert.deepEqual(ui.replaces, ['/professional/onboarding?step=6'])
+})
+
+test('completion disables step URL writes even for legacy or absent step parameters', () => {
+  for (const initialSearch of ['', 'step=5', 'step=abc']) {
+    const result = mountStepSync({ initialSearch, user: completeId, loadingFirst: false, enabled: false })
+    assert.deepEqual(result.replaces, [])
+    result.navigate('step=5')
+    assert.deepEqual(result.replaces, [])
+  }
 })

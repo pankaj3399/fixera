@@ -461,7 +461,7 @@ export default function BenefitsPage() {
                 </div>
               ) : savingsStatus === "error" ? (
                 <p role="alert" className="text-sm text-rose-700">{t("benefits.savings.loadFailed")}</p>
-              ) : !savingsData || savingsData.settledBookingCount === 0 ? (
+              ) : !savingsData || (savingsData.settledBookingCount === 0 && !(savingsData.excludedUncertainCount ?? 0) && !(savingsData.unrecordedBookingCount ?? 0)) ? (
                 <p className="text-sm text-slate-600">{t("benefits.savings.noSavingsYet")}</p>
               ) : (
                 <>
@@ -472,7 +472,7 @@ export default function BenefitsPage() {
                           {t("benefits.savings.bookingsCount", { count: group.bookingCount ?? 0 })}
                         </p>
                         <p className="text-2xl font-bold text-emerald-700">
-                          {formatMoney(group.totalRecorded ?? 0, group.currency)}
+                          {(group.currency && group.currency !== "UNKNOWN" ? formatMoney(group.totalRecorded ?? 0, group.currency) : "—")}
                         </p>
                       </div>
                       <div className="mt-3 space-y-2 text-sm">
@@ -486,13 +486,13 @@ export default function BenefitsPage() {
                         ).map(([key, amount]) => (
                           <div key={key} className="flex items-center justify-between gap-3">
                             <span className="text-slate-600">{t(`benefits.savings.${key}`)}</span>
-                            <span className="font-medium text-slate-900">{formatMoney(amount, group.currency)}</span>
+                            <span className="font-medium text-slate-900">{(group.currency && group.currency !== "UNKNOWN" ? formatMoney(amount, group.currency) : "—")}</span>
                           </div>
                         ))}
                         <div className="flex items-center justify-between gap-3 border-t pt-2">
                           <span className="text-slate-600">{t("benefits.savings.referral")}</span>
                           <span className="text-right">
-                            <span className="font-medium text-slate-900">{formatMoney(group.recordedReferral ?? group.referral ?? 0, group.currency)}</span>
+                            <span className="font-medium text-slate-900">{(group.currency && group.currency !== "UNKNOWN" ? formatMoney(group.recordedReferral ?? group.referral ?? 0, group.currency) : "—")}</span>
                             {group.referral == null && <Badge variant="secondary" className="ml-2">{t("benefits.savings.referralUnknown")}</Badge>}
                           </span>
                         </div>

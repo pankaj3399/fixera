@@ -181,7 +181,7 @@ function CustomerPaymentsView() {
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
-  const [summary, setSummary] = useState<CustomerPaymentSummary>({ totalPaid: 0, inEscrow: 0, refunded: 0 });
+  const [summary, setSummary] = useState<CustomerPaymentSummary | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState<'all' | PaymentStatus>('all');
@@ -227,6 +227,9 @@ function CustomerPaymentsView() {
       setTotalPages(payload.data.pagination.totalPages || 1);
     } catch (err) {
       if (requestId !== latestPaymentsRequest.current) return;
+      setPayments([]);
+      setSummary(null);
+      setTotalPages(1);
       setError(getErrorText(err, t('payments.loadFailed')));
     } finally {
       if (requestId === latestPaymentsRequest.current) setIsLoading(false);
@@ -278,7 +281,7 @@ function CustomerPaymentsView() {
             <CardHeader className="pb-2">
               <CardDescription>{t('payments.summary.totalPaid')}</CardDescription>
               <CardTitle className="text-2xl">
-                {formatMoney(summary.totalPaid)}
+                {summary ? formatMoney(summary.totalPaid) : "—"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-500">{t('payments.summary.completedPayments')}</CardContent>
@@ -287,7 +290,7 @@ function CustomerPaymentsView() {
             <CardHeader className="pb-2">
               <CardDescription>{t('payments.summary.inEscrow')}</CardDescription>
               <CardTitle className="text-2xl">
-                {formatMoney(summary.inEscrow)}
+                {summary ? formatMoney(summary.inEscrow) : "—"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-500">{t('payments.summary.awaitingCompletion')}</CardContent>
@@ -296,7 +299,7 @@ function CustomerPaymentsView() {
             <CardHeader className="pb-2">
               <CardDescription>{t('payments.summary.refunded')}</CardDescription>
               <CardTitle className="text-2xl">
-                {formatMoney(summary.refunded)}
+                {summary ? formatMoney(summary.refunded) : "—"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-500">{t('payments.summary.totalRefunded')}</CardContent>
@@ -423,10 +426,10 @@ function CustomerPaymentsView() {
               <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-gray-600">
                 <span>{t('common.pageOf', { page, total: totalPages })}</span>
                 <div className="space-x-2">
-                  <Button variant="outline" size="sm" disabled={page === 1 || isLoading} onClick={() => setPage(p => Math.max(p - 1, 1))}>
+                  <Button variant="outline" size="sm" disabled={page === 1 || isLoading || search !== debouncedSearch} onClick={() => setPage(p => Math.max(p - 1, 1))}>
                     {t('common.previous')}
                   </Button>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading} onClick={() => setPage(p => p + 1)}>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading || search !== debouncedSearch} onClick={() => setPage(p => p + 1)}>
                     {t('common.next')}
                   </Button>
                 </div>
@@ -500,7 +503,7 @@ function ProfessionalPaymentsView() {
       if (!transactionsData.success) throw new Error("Transactions request failed");
       setRecentTransactions(transactionsData.data);
       setTxTotalPages(transactionsData.pagination?.totalPages || 1);
-      setTxPage(transactionsData.pagination?.page || page);
+      setTxPage(Math.min(transactionsData.pagination?.page || page, Math.max(1, transactionsData.pagination?.totalPages || 1)));
     } catch {
       // Keep the requested page (Refresh repeats it) but drop the rows and the
       // page count: both belonged to an earlier query.
@@ -757,6 +760,7 @@ function ProfessionalPaymentsView() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t('payments.status.all')}</SelectItem>
+                  <SelectItem value="pending">{t('payments.status.pending')}</SelectItem>
                   <SelectItem value="authorized">{t('payments.status.authorized')}</SelectItem>
                   <SelectItem value="completed">{t('payments.status.completed')}</SelectItem>
                   <SelectItem value="transfer_pending">{t('payments.professional.transferPending')}</SelectItem>

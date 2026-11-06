@@ -54,11 +54,13 @@ export function componentHarness(file, imports = {}) {
     throw new Error(`Missing component test import: ${name}`)
   }
   new Function('require', 'module', 'exports', source)(load, compiled, compiled.exports)
+  let activeComponent = compiled.exports.default
   const api = {
+    useComponent(component) { activeComponent = component; dirty = true },
     exports: compiled.exports,
     render(nextProps = props) {
       props = nextProps; cursor = 0; dirty = false; effects = []
-      tree = compiled.exports.default(props)
+      tree = activeComponent(props)
       for (const effect of effects) effect()
       return tree
     },

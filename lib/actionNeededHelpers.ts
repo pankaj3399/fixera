@@ -2,6 +2,7 @@ import type { BookingStatus } from "./dashboardBookingHelpers"
 
 export interface ActionNeededBooking {
   _id: string
+  bookingNumber?: string
   bookingType: "professional" | "project"
   status: BookingStatus
   customer?: { _id: string; name?: string }

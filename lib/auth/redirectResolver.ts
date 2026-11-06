@@ -55,9 +55,41 @@ export function resolvePostAuthRedirect(options: {
   onboardingPath?: string | null;
 }): string {
   const { role, explicitRedirect, onboardingPath } = options;
-  if (onboardingPath) return onboardingPath;
+  if (onboardingPath) {
+    if (isSafeRedirectPath(explicitRedirect)) {
+      const separator = onboardingPath.includes('?') ? '&' : '?';
+      return `${onboardingPath}${separator}redirect=${encodeURIComponent(explicitRedirect)}`;
+    }
+    return onboardingPath;
+  }
   if (typeof explicitRedirect === 'string' && isSafeRedirectPath(explicitRedirect)) {
     return explicitRedirect;
   }
   return defaultPathForRole(role);
+}
+
+const ONBOARDING_PATH = '/professional/onboarding';
+
+/** True when a safe path points back into the onboarding wizard itself. */
+function isOnboardingPath(path: string): boolean {
+  const { pathname } = new URL(path, SAFE_REDIRECT_BASE);
+  const normalized = pathname.replace(/\/+$/, '').toLowerCase();
+  return normalized === ONBOARDING_PATH || normalized.startsWith(`${ONBOARDING_PATH}/`);
+}
+
+function isCompletionDestination(value: unknown): value is string {
+  return isSafeRedirectPath(value) && !isOnboardingPath(value);
+}
+
+/**
+ * Professional onboarding completion consumes only a validated workflow path.
+ * The onboarding wizard itself is never a completion destination (a signed-out
+ * visit to it is stored as the post-login intent), so it falls back to the
+ * pending-verification dashboard.
+ */
+export function completedOnboardingRedirect(explicitRedirect: unknown, storage?: Pick<Storage, 'getItem' | 'removeItem'>): string {
+  const saved = storage?.getItem('redirectAfterAuth');
+  const path = isCompletionDestination(explicitRedirect) ? explicitRedirect : isCompletionDestination(saved) ? saved : null;
+  if (path || isSafeRedirectPath(saved)) storage?.removeItem('redirectAfterAuth');
+  return path || '/dashboard?verification=pending';
 }

@@ -255,6 +255,13 @@ export default function CustomerDashboard() {
         setState((prev) => failedListState(prev, opts.page, getErrorText(data, t("customerDashboard.loadFailed"))))
         return
       }
+      if (kind === "quotes" && Array.isArray(data.bookings)) {
+        setSelectedQuotes(previous => {
+          const next = new Map(previous)
+          for (const booking of data.bookings as Booking[]) if (next.has(booking._id)) next.set(booking._id, booking)
+          return next
+        })
+      }
       setState({
         items: Array.isArray(data.bookings) ? data.bookings : [],
         page: data.pagination?.page ?? opts.page,
@@ -288,37 +295,45 @@ export default function CustomerDashboard() {
 
   // Action-needed items resolve from a dedicated server query over
   // action-relevant statuses so paging the main tabs never hides them.
-  useEffect(() => {
-    const loadActions = async () => {
-      setActionsLoading(true)
-      setActionsError(null)
-      try {
-        const token = getAuthToken()
-        const headers: Record<string, string> = {}
-        if (token) headers.Authorization = `Bearer ${token}`
+  const latestActionsRequest = useRef(0)
+  const loadActions = useCallback(async () => {
+    const requestId = ++latestActionsRequest.current
+    setActionsLoading(true)
+    setActionsError(null)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers.Authorization = `Bearer ${token}`
+      const all: ActionNeededBooking[] = []
+      let page = 1
+      let totalPages = 1
+      do {
         const params = new URLSearchParams({
-          page: "1",
-          limit: "50",
+          page: String(page), limit: "50",
           status: "rfq,quoted,quote_accepted,payment_pending,rescheduling_requested,professional_completed,dispute",
         })
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params.toString()}`,
-          { credentials: "include", headers },
-        )
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params}`, { credentials: "include", headers })
         const payload = await response.json()
-        if (response.ok && payload.success) setActionBookings(payload.bookings || [])
-        else setActionsError(getErrorText(payload, t("customerDashboard.loadFailed")))
-      } catch (err) {
-        // A failed load must not masquerade as "no actions".
-        setActionsError(getErrorText(err, t("customerDashboard.loadFailed")))
-      } finally {
-        setActionsLoading(false)
-      }
+        if (requestId !== latestActionsRequest.current) return
+        if (!response.ok || !payload.success) throw payload
+        all.push(...(Array.isArray(payload.bookings) ? payload.bookings : []))
+        const pages = Number(payload.pagination?.totalPages)
+        totalPages = Number.isFinite(pages) ? Math.max(1, Math.floor(pages)) : 1
+        page++
+      } while (page <= totalPages)
+      setActionBookings(all)
+    } catch (err) {
+      if (requestId !== latestActionsRequest.current) return
+      setActionBookings([])
+      setActionsError(getErrorText(err, t("customerDashboard.loadFailed")))
+    } finally {
+      if (requestId === latestActionsRequest.current) setActionsLoading(false)
     }
+  }, [getErrorText, t])
+  useEffect(() => {
     void loadActions()
-    // Mount-only load; the message helpers only format a failure.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    return () => { latestActionsRequest.current++ }
+  }, [loadActions])
 
   useEffect(() => {
     const loadClaims = async () => {
@@ -490,6 +505,7 @@ export default function CustomerDashboard() {
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
+            <p className="mb-1 text-sm font-semibold">{booking.bookingNumber || booking._id}</p>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={`text-xs capitalize ${statusClasses}`}>
                 {statusLabel(booking.status)}
@@ -682,9 +698,9 @@ export default function CustomerDashboard() {
                       payNowLabel={t("customerDashboard.payNow")}
                       viewLabel={t("customerDashboard.viewDetails")}
                     />
-                    {renderPager(bookings, gotoBookingsPage)}
                   </>
                 )}
+                {!bookings.error && renderPager(bookings, gotoBookingsPage)}
             </>
           </TabsContent>
 
@@ -737,9 +753,9 @@ export default function CustomerDashboard() {
                       acceptPayLabel={t("customerDashboard.acceptPay")}
                       viewLabel={t("customerDashboard.viewDetails")}
                     />
-                    {renderPager(quotes, gotoQuotesPage)}
                   </>
                 )}
+                {!quotes.error && renderPager(quotes, gotoQuotesPage)}
             </>
           </TabsContent>
 
@@ -748,7 +764,10 @@ export default function CustomerDashboard() {
             {actionsLoading && renderLoadingSkeleton()}
             {!actionsLoading && actionsError && (
               <Card className="border-rose-200 bg-rose-50">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{actionsError}</CardContent>
+                <CardContent role="alert" className="flex items-center justify-between gap-3 py-4 text-sm text-rose-700">
+                  <span>{actionsError}</span>
+                  <Button variant="outline" size="sm" onClick={() => void loadActions()}>{t("common.retry")}</Button>
+                </CardContent>
               </Card>
             )}
             {!actionsLoading && !actionsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (

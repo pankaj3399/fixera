@@ -53,11 +53,9 @@ test('creating a new project still requires Stripe, and the target is reachable'
 
 test('auth guard uses the shared rule instead of the self-defeating onboarding redirect', () => {
   const auth = readFileSync(new URL('../contexts/AuthContext.tsx', import.meta.url), 'utf8')
-  const onboarding = readFileSync(new URL('../app/(pages)/professional/onboarding/page.tsx', import.meta.url), 'utf8')
   assert.match(auth, /projectWizardStripeRedirect\(currentUser, pathname, typeof window !== 'undefined' \? window\.location\.search : ''\)/)
   assert.doesNotMatch(auth, /onboarding\?step=\$\{ONBOARDING_STEPS\.STRIPE\}/)
-  // Why onboarding cannot be the target: it pushes every onboarded professional away.
-  assert.match(onboarding, /user\.professionalOnboardingCompletedAt \|\| \(user\.professionalStatus !== undefined && user\.professionalStatus !== 'draft'\)\)\s*\)\s*\{\s*router\.push\('\/dashboard'\)/)
+  // Completion navigation is covered by the real page/hook regression in freshReviewFixes.test.mjs.
 })
 
 test('editor view: delayed role hydration never exposes a blank form for an existing id', () => {

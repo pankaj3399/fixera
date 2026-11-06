@@ -319,6 +319,7 @@ export default function AddressAutocomplete({
           id="address"
           value={effectiveValue}
           onChange={(e) => {
+            if (isValid) onValidation(false);
             if (!useCompanyAddress) {
               const newValue = e.target.value;
               dropdownPointerDownRef.current = false;

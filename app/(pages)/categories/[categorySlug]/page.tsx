@@ -16,6 +16,7 @@ import {
   type CatalogCategoryItem,
 } from '@/lib/catalog/resolveCategory';
 import { GEO_COUNTRY_COOKIE } from '@/lib/marketing/siteAnnouncements/constants';
+import { useCatalogCountry } from '@/components/catalog/CatalogCountryContext';
 
 /** Catalog categories with translated copy in the `catalog` namespace. */
 const TRANSLATED_CATEGORY_SLUGS = [
@@ -36,8 +37,13 @@ async function fetchCategories(country: string, signal: AbortSignal) {
     { signal, credentials: 'include' }
   );
   if (!response.ok) throw new Error('Failed to fetch categories');
-  const data = await response.json();
-  return (Array.isArray(data) ? data : []) as CatalogCategoryItem[];
+  const data: unknown = await response.json();
+  if (!Array.isArray(data) || data.some(category =>
+    !category || typeof category.slug !== 'string' || typeof category.name !== 'string' || !Array.isArray(category.services)
+    || category.services.some((service: unknown) => !service || typeof service !== 'object'
+      || typeof (service as { slug?: unknown }).slug !== 'string' || typeof (service as { name?: unknown }).name !== 'string')
+  )) throw new Error('Invalid category catalog response');
+  return data as CatalogCategoryItem[];
 }
 
 export default function CategoryPage() {
@@ -45,6 +51,8 @@ export default function CategoryPage() {
   const router = useRouter();
   const rawSlug = params?.categorySlug as string;
   const t = useTranslations('catalog');
+  // The layout's server-selected country, so both catalog lookups agree.
+  const serverCountry = useCatalogCountry();
 
   const [category, setCategory] = useState<CatalogCategoryItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,10 +73,12 @@ export default function CategoryPage() {
           typeof document !== 'undefined'
             ? new RegExp(`(?:^|;\\s*)${GEO_COUNTRY_COOKIE}=([^;]*)`).exec(document.cookie)?.[1]
             : null;
-        const resolvedCountry =
-          typeof navigator !== 'undefined'
+        // Prefer the country the server layout validated this slug against; the
+        // cookie/browser-language guess is only a fallback outside the layout.
+        const resolvedCountry = serverCountry
+          ?? (typeof navigator !== 'undefined'
             ? resolveCatalogCountry(geoCountry, navigator.language, CATALOG_HOME_COUNTRY)
-            : CATALOG_HOME_COUNTRY;
+            : CATALOG_HOME_COUNTRY);
         const categories = await fetchCategories(resolvedCountry, controller.signal);
         const match = matchCatalogCategory(categories, rawSlug);
         if (!match) {
@@ -95,7 +105,7 @@ export default function CategoryPage() {
     };
     void load();
     return () => controller.abort();
-  }, [rawSlug, router, t, reloadToken]);
+  }, [rawSlug, router, t, reloadToken, serverCountry]);
 
   const displayCategoryName = category
     ? isTranslatedCategorySlug(category.slug)
