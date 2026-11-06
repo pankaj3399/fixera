@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
 import { markAnnouncementShown } from "@/lib/marketing/siteAnnouncements/dismissStorage";
+import { whenDocumentVisible } from "@/lib/marketing/siteAnnouncements/visibility";
+import { recordAnnouncementEvent } from "@/lib/marketing/siteAnnouncements/events";
 import { useAnnouncementsCtx, useSiteAnnouncementPreview } from "./context";
 import { PromoOverlay } from "./PromoOverlay";
 import { useAnalyticsConsentFlag } from "./useAnalyticsConsentFlag";
@@ -21,22 +23,34 @@ export function SiteAnnouncementOverlays() {
       : null,
     (modal?.delaySeconds ?? 3) * 1000,
   );
-  // Do not arm exit while a timed modal campaign is still present.
+  // One impression per reveal: a `once_pageview` campaign re-reveals (and
+  // counts) on every page; other frequencies reveal once per page load.
+  const modalOccurrence = modal?.frequency === "once_pageview" ? pathname ?? "" : "campaign";
+  const exitOccurrence = exitIntent?.frequency === "once_pageview" ? pathname ?? "" : "campaign";
+
+  // Do not arm exit while a timed modal campaign is still present. The
+  // trigger is scoped to this announcement and page occurrence.
   const showExit = useExitIntent(
     Boolean(exitIntent) && !modal,
     Math.max(1500, (exitIntent?.delaySeconds ?? 3) * 1000),
-    exitIntent?.frequency === "once_pageview" ? pathname : null,
+    exitIntent ? `${exitIntent._id}:${exitOccurrence}` : null,
   );
 
   useEffect(() => {
     if (skip || !showModal || !modal) return;
-    markAnnouncementShown(modal);
-  }, [skip, showModal, modal]);
+    return whenDocumentVisible(() => {
+      markAnnouncementShown(modal);
+      recordAnnouncementEvent(modal, "impression", modalOccurrence);
+    });
+  }, [skip, showModal, modal, modalOccurrence]);
 
   useEffect(() => {
     if (skip || showModal || !showExit || !exitIntent) return;
-    markAnnouncementShown(exitIntent);
-  }, [skip, showModal, showExit, exitIntent]);
+    return whenDocumentVisible(() => {
+      markAnnouncementShown(exitIntent);
+      recordAnnouncementEvent(exitIntent, "impression", exitOccurrence);
+    });
+  }, [skip, showModal, showExit, exitIntent, exitOccurrence]);
 
   useEffect(() => {
     if (!analyticsOk || !showModal || !modal) return;
