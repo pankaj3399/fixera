@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
@@ -323,7 +323,9 @@ export default function ManageProjectsPage() {
 
   const activeProjectQuery = JSON.stringify([debouncedSearchTerm, statusFilter, serviceFilter, currentPage])
   const activeProjectQueryRef = useRef(activeProjectQuery)
-  activeProjectQueryRef.current = activeProjectQuery
+  useLayoutEffect(() => {
+    activeProjectQueryRef.current = activeProjectQuery
+  }, [activeProjectQuery])
   const projectRequestRef = useRef(0)
   const restoringProjectRef = useRef<string | null>(null)
   const [restoringProjectId, setRestoringProjectId] = useState<string | null>(null)

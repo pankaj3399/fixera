@@ -62,9 +62,22 @@ function hooks() {
       }
     },
   }
+  api.useLayoutEffect = api.useEffect
   return {
     api,
     render(fn) { index = 0; return fn() },
+    abandonRender(fn) {
+      // State/memo/effect work is discarded; ref objects retain render writes,
+      // matching the leak this regression must catch.
+      const previous = slots.slice()
+      const snapshots = previous.map(slot => slot && !('current' in slot) ? { ...slot } : null)
+      const beforePending = new Set(pending)
+      try { index = 0; return fn() } finally {
+        previous.forEach((slot, i) => { if (snapshots[i]) Object.assign(slot, snapshots[i]) })
+        slots.splice(0, slots.length, ...previous)
+        pending = beforePending
+      }
+    },
     flush() {
       const run = [...pending]
       pending = new Set()
@@ -79,7 +92,7 @@ function hooks() {
   }
 }
 
-function loadComponent(file, mocks) {
+function loadComponent(file, mocks, exportName = 'default') {
   const { code } = transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
     filename: file, jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
   })
@@ -89,7 +102,7 @@ function loadComponent(file, mocks) {
     if (name.startsWith('@/')) throw new Error(`unmocked import ${name}`)
     return require(name)
   }, exports)
-  return exports.default
+  return exports[exportName]
 }
 
 /** Any named export is an inert component (UI primitives, icons). */
@@ -2075,3 +2088,61 @@ test('an empty later customer booking page retains navigation to earlier pages',
     state.unmount()
   } finally { globalThis.fetch = previousFetch }
 })
+
+test('an abandoned project filter render cannot strand the committed request on its skeleton', async () => {
+  const previousFetch = globalThis.fetch
+  const state = hooks()
+  const requests = []
+  const t = key => key
+  const getErrorText = (_error, fallback) => fallback
+  const auth = { user: { role: 'professional', professionalStatus: 'approved' }, loading: false, isAuthenticated: true }
+  const router = { push() {} }
+  const ui = stubModule()
+  const Select = () => null
+  const SelectItem = () => null
+  const Skeleton = () => null
+  const ProjectCard = () => null
+  globalThis.fetch = url => { const d = deferred(); requests.push({ url: String(url), ...d }); return d.promise }
+  try {
+    const Component = loadComponent('../app/(pages)/professional/projects/manage/page.tsx', {
+      react: state.api,
+      '@/contexts/AuthContext': { useAuth: () => auth },
+      'next/navigation': { useRouter: () => router },
+      'next-intl': { useTranslations: () => t },
+      '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+      '@/lib/i18n/useErrorMessage': { useErrorMessage: () => getErrorText },
+      '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: String }) },
+      '@/components/dashboard/ProjectCard': { __esModule: true, default: ProjectCard },
+      '@/lib/dashboardOverview': dashboardOverview,
+      '@/components/ui/card': ui, '@/components/ui/button': ui, '@/components/ui/badge': ui,
+      '@/components/ui/tabs': ui, '@/components/ui/dropdown-menu': ui, '@/components/ui/dialog': ui,
+      '@/components/ui/input': ui, '@/components/ui/select': { ...ui, Select, SelectItem },
+      '@/components/ui/skeleton': { Skeleton }, 'lucide-react': ui,
+      sonner: { toast: { error() {}, success() {} } },
+    })
+    const render = () => state.render(() => Component())
+    render(); state.flush()
+    requests[0].resolve({ ok: true, json: async () => ({ items: [], meta: { pages: 1, page: 1, total: 0 } }) })
+    await settle()
+    const tree = render()
+    const statusSelect = findAll(tree, node => node.type === Select && findAll(node, child => child.type === SelectItem && child.props.value === 'published').length)[0]
+    assert.ok(statusSelect)
+    statusSelect.props.onValueChange('published'); render(); state.flush()
+    assert.equal(requests.length, 2)
+    state.abandonRender(() => {
+      statusSelect.props.onValueChange('archived')
+      Component()
+    })
+    requests[1].resolve({ ok: true, json: async () => ({ items: [{ _id: 'committed-project', status: 'published' }], meta: { pages: 1, page: 1, total: 1 } }) })
+    await settle()
+    const committedTree = render()
+    assert.equal(findAll(committedTree, node => node.type === Skeleton).length, 0)
+    assert.ok(findAll(committedTree, node => node.type === ProjectCard && node.props.project._id === 'committed-project').length)
+    assert.equal(requests.length, 2, 'discarded render must not issue a replacement request')
+    state.flush()
+    statusSelect.props.onValueChange('archived'); render(); state.flush()
+    assert.equal(requests.length, 3)
+    assert.match(requests[2].url, /status=archived/)
+  } finally { state.unmount(); globalThis.fetch = previousFetch }
+})
+
