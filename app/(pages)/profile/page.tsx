@@ -201,7 +201,9 @@ function ProfileContent() {
   const usernameSuggestAbortRef = useRef<AbortController | null>(null)
   const usernameEditSessionRef = useRef(0)
   const usernameEditingRef = useRef(usernameEdit)
-  usernameEditingRef.current = usernameEdit
+  useEffect(() => {
+    usernameEditingRef.current = usernameEdit
+  }, [usernameEdit])
   // Cancels a debounced or in-flight availability check and an in-flight
   // Suggest request, so an older response can never overwrite the name now in
   // the field or reach a closed editor (typing, a picked suggestion, Cancel

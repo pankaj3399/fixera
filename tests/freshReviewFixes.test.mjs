@@ -2021,11 +2021,19 @@ test('a username save from a cancelled editor never closes a new session or refr
 })
 test('profile refresh cancels username availability and never approves its stale response', async () => {
   const previousFetch = globalThis.fetch
+  const realSetTimeout = globalThis.setTimeout
+  const realClearTimeout = globalThis.clearTimeout
+  const timers = new Map()
+  let nextTimer = 1
+  globalThis.setTimeout = fn => { const id = nextTimer++; timers.set(id, fn); return id }
+  globalThis.clearTimeout = id => { timers.delete(id) }
   try {
     const p = await mountProfile()
     p.button('business.editUsername').props.onClick(); p.render()
     p.usernameField().props.onChange({ target: { value: 'pending-name' } }); p.render()
-    await new Promise(resolve => setTimeout(resolve, 550))
+    const pendingTimers = [...timers.values()]
+    timers.clear()
+    pendingTimers.forEach(fn => fn())
     const request = p.checkRequests.at(-1)
     assert.ok(request)
     p.auth.user = { ...p.auth.user, profileImage: 'new-avatar' }
@@ -2036,7 +2044,7 @@ test('profile refresh cancels username availability and never approves its stale
     assert.equal(p.button('business.saveUsername').props.disabled, true)
     assert.ok(!p.statusBox().includes('business.usernameAvailable'))
     p.state.unmount()
-  } finally { globalThis.fetch = previousFetch }
+  } finally { globalThis.fetch = previousFetch; globalThis.setTimeout = realSetTimeout; globalThis.clearTimeout = realClearTimeout }
 })
 test('customer action query follows every page and retries after an outage with identifiable cards', async () => {
   const previousFetch = globalThis.fetch
