@@ -59,3 +59,16 @@ test('layout consults the live catalog, redirects or 404s on the server', () => 
   const server = readFileSync(new URL('../lib/server/serviceCategories.ts', import.meta.url), 'utf8')
   assert.match(server, /slug: "interior"/)
 })
+
+test('the category page fetches with the country the server layout validated against', () => {
+  const layout = readFileSync(new URL('../app/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), 'utf8')
+  // One request-scoped country feeds both the server lookup and the provider.
+  assert.match(layout, /const resolveContentCountry = cache\(async \(\): Promise<string> => readContentCountry\(await headers\(\)\) \?\? "BE"\);/)
+  assert.match(layout, /const country = await resolveContentCountry\(\);\n  const route = resolveCategoryRoute/)
+  assert.match(layout, /<CatalogCountryProvider country=\{country\}>/)
+  // The page prefers it over a browser-language guess (no BE/NL mismatch redirect).
+  assert.match(page, /const serverCountry = useCatalogCountry\(\);/)
+  assert.match(page, /const resolvedCountry = serverCountry\n\s*\?\? \(typeof navigator/)
+  assert.match(page, /\[rawSlug, router, t, reloadToken, serverCountry\]/)
+})

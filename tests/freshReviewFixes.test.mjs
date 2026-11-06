@@ -150,6 +150,7 @@ test('category page: an aborted request does not end the loading state of its re
       '@/components/ui/skeleton': { Skeleton }, '@/components/ui/button': { Button: () => null },
       '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: () => 'BE', matchCatalogCategory: (rows, s) => rows.find(row => row.slug === s), normalizeCategorySlug: s => s },
       '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
+      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
     })
     state.render(() => Component())
     state.flush()
@@ -570,6 +571,7 @@ test('category page: navigating to an unknown slug never shows the previous cate
       '@/components/ui/skeleton': { Skeleton: () => null }, '@/components/ui/button': { Button: () => null },
       '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: () => 'BE', matchCatalogCategory: (rows, s) => rows.find(row => row.slug === s), normalizeCategorySlug: s => s },
       '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
+      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
     })
     const catalog = [{ slug: 'gardening', name: 'Gardening', services: [] }]
     state.render(() => Component())

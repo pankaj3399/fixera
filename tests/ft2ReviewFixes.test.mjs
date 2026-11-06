@@ -31,6 +31,7 @@ function layoutHarness(categories, slug) {
     '@/lib/server/serviceCategories': { getServiceCategories: async country => { countries.push(country); return categories } },
     '@/lib/geo/contentCountryHeader': { readContentCountry: headers => headers.get('x-fixera-content-country') },
     '@/lib/catalog/categoryLayoutLookup': categoryLookup,
+    '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
   })
   return { exports, countries, redirects, props: { children: 'category body', params: Promise.resolve({ categorySlug: slug }) } }
 }
@@ -72,6 +73,7 @@ test('malformed array or services responses reach the retry UI and recover witho
         sonner: { toast: { error() {} } },
         '@/lib/catalog/resolveCategory': categoryResolver,
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
       })
       ui.render(); await ui.settle()
       assert.match(elementText(ui.render()), /servicesPage.errorMessage/)
