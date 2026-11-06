@@ -67,8 +67,6 @@ test('the category page fetches with the country the server layout validated aga
   assert.match(layout, /const resolveContentCountry = cache\(async \(\): Promise<string> => readContentCountry\(await headers\(\)\) \?\? "BE"\);/)
   assert.match(layout, /const country = await resolveContentCountry\(\);\n  const route = resolveCategoryRoute/)
   assert.match(layout, /<CatalogCountryProvider country=\{country\}>/)
-  // The page prefers it over a browser-language guess (no BE/NL mismatch redirect).
-  assert.match(page, /const serverCountry = useCatalogCountry\(\);/)
-  assert.match(page, /const resolvedCountry = serverCountry\n\s*\?\? \(typeof navigator/)
+  // The mounted page test covers the country preference; refetch when it changes.
   assert.match(page, /\[rawSlug, router, t, reloadToken, serverCountry\]/)
 })
