@@ -58,3 +58,35 @@ test('reverse charge normalization precedes custom-rate validation after a racin
     assert.deepEqual(h.errors, [])
   } finally { h.state.unmount(); globalThis.fetch = previousFetch }
 })
+
+test('country changes invalidate reverse-charge data and block submission through failures until retry succeeds', async () => {
+  const previousFetch = globalThis.fetch, h = wizard()
+  globalThis.fetch = h.fetch
+  try {
+    h.render(); fill(h)
+    h.requests.at(-1).resolve(response(rc)); await settle(); h.render()
+    assert.equal(h.form().pricingLines[0].vatLabel, 'Reverse Charge')
+    h.change('countryPlaceholder', 'NL')
+    assert.equal(h.submit().props.disabled, true)
+    assert.equal(h.form().pricingLines[0].vatRateMode, 'custom')
+    assert.equal(h.form().pricingLines[0].vatRateExplicitlyEntered, false)
+    const pendingCount = h.requests.length
+    await h.submit().props.onClick()
+    assert.equal(h.requests.length, pendingCount)
+    h.requests.at(-1).resolve({ ok: false, json: async () => ({ success: false }) }); await settle(); h.render()
+    assert.equal(h.submit().props.disabled, true)
+    const retry = findAll(h.render(), n => n.props.onClick && textOf(n) === 'wizard.vatDetermination.retry')[0]
+    retry.props.onClick(); h.render()
+    const standard = { options: [{ rate: 21, country: 'NL', label: '21%', reverseCharge: false, source: 'standard' }] }
+    h.requests.at(-1).resolve(response(standard)); await settle(); h.render()
+    assert.equal(h.submit().props.disabled, false)
+    const select = findAll(h.render(), n => n.props.onValueChange && 'disabled' in n.props)[0]
+    select.props.onValueChange('NL:21:standard:21%'); h.render()
+    const submitted = h.submit().props.onClick(), request = h.requests.at(-1)
+    assert.equal(request.options.method, 'POST')
+    const body = JSON.parse(request.options.body)
+    assert.equal(body.pricingLines[0].vatCountry, 'NL')
+    assert.equal(body.pricingLines[0].vatRate, 21)
+    request.resolve(response({})); await submitted
+  } finally { h.state.unmount(); globalThis.fetch = previousFetch }
+})

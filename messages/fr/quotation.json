@@ -62,6 +62,7 @@
       "no": "Non",
       "reverseChargeNote": "Autoliquidation applicable : TVA à 0 % sur toutes les lignes. Aucun choix de taux possible.",
       "reverseChargeRate": "Autoliquidation à 0 % (déterminée)",
+      "retry": "Réessayer le calcul de la TVA",
       "loadError": "Les options de TVA n'ont pas pu être chargées. Vous pouvez tout de même finaliser le devis ; le taux sera validé à l'envoi."
     },
     "netTotal": "Total HT :",

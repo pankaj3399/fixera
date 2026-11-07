@@ -245,6 +245,9 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const [vatRateOptions, setVatRateOptions] = useState<VatRateOption[]>([])
   const [vatDetermination, setVatDetermination] = useState<QuotationVatDetermination | null>(null)
   const [vatOptionsError, setVatOptionsError] = useState(false)
+  const [vatLoadedCountry, setVatLoadedCountry] = useState<string | null>(null)
+  const [vatLookupRetry, setVatLookupRetry] = useState(0)
+  const vatDataReady = vatLoadedCountry === (form.serviceLocation?.country?.trim() || '') && !vatOptionsError
   const [vatRateDrafts, setVatRateDrafts] = useState<Record<string, string>>({})
 
   // Stored VAT labels are identifiers (they are persisted with the quote), so
@@ -257,8 +260,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   }
 
   const effectiveVatRateOptions = useMemo(
-    () => vatRateOptions.length > 0 ? vatRateOptions : FALLBACK_VAT_RATE_OPTIONS,
-    [vatRateOptions],
+    () => vatDataReady && vatRateOptions.length > 0 ? vatRateOptions : FALLBACK_VAT_RATE_OPTIONS,
+    [vatRateOptions, vatDataReady],
   )
 
   const defaultVatOption = effectiveVatRateOptions[0] || FALLBACK_VAT_RATE_OPTIONS[0]
@@ -266,7 +269,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   // Reverse charge determined by the flowchart: single 0% option, no
   // professional rate choice. Forcing requires a real reverse-charge option
   // from the response, never the "VAT unavailable" fallback.
-  const isReverseCharge = isReverseChargeDetermination(vatDetermination, vatRateOptions)
+  const isReverseCharge = vatDataReady && isReverseChargeDetermination(vatDetermination, vatRateOptions)
   const reverseChargeOption = isReverseCharge
     ? vatRateOptions.find((option) => option.reverseCharge) || null
     : null
@@ -308,6 +311,10 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
   useEffect(() => {
     let cancelled = false
+    setVatRateOptions([])
+    setVatDetermination(null)
+    setVatLoadedCountry(null)
+    setVatOptionsError(false)
 
     const loadVatRateOptions = async () => {
       try {
@@ -329,9 +336,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         const parsed = parseQuotationVatOptionsResponse(data)
         if (!response.ok || !parsed) {
           if (!cancelled) {
-            // Legacy/loading/error: keep the fallback options so existing
-            // quotation creation/editing never breaks; the rate is validated
-            // again on submit.
+            // Preserve entered lines, but require current-country VAT data
+            // before any quotation can be submitted.
             setVatOptionsError(true)
           }
           return
@@ -339,6 +345,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
 
         if (!cancelled) {
           setVatOptionsError(false)
+          setVatLoadedCountry(serviceCountry)
           setVatRateOptions(parsed.options)
           setVatDetermination(parsed.vatDetermination)
           const firstOption = parsed.options[0] as VatRateOption | undefined
@@ -354,12 +361,13 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             // Reverse charge is the determined VAT for every line: force it
             // even onto already-entered or legacy lines so no other rate can
             // be rendered or submitted.
-            setForm(prev => ({
+            setForm(prev => (prev.serviceLocation?.country?.trim() || '') !== serviceCountry ? prev : ({
               ...prev,
               pricingLines: applyReverseChargeToLines(prev.pricingLines, reverseChargeForced),
             }))
           } else if (!existingVersion && firstOption) {
             setForm(prev => {
+              if ((prev.serviceLocation?.country?.trim() || '') !== serviceCountry) return prev
               const isPristine = prev.pricingLines.every((line) =>
                 !line.description.trim() && Number(line.price) === 0 &&
                 line.vatRateMode === 'custom' && line.vatRateExplicitlyEntered !== true
@@ -392,9 +400,24 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     return () => {
       cancelled = true
     }
-  }, [bookingId, existingVersion, form.serviceLocation?.country])
+  }, [bookingId, existingVersion, form.serviceLocation?.country, vatLookupRetry])
 
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
+    if (key === 'serviceLocation' && (value as QuotationWizardFormData['serviceLocation'])?.country?.trim() !== form.serviceLocation?.country?.trim()) {
+      setVatRateOptions([])
+      setVatDetermination(null)
+      setVatLoadedCountry(null)
+      setVatOptionsError(false)
+      setVatRateDrafts({})
+      setForm(prev => ({
+        ...prev, [key]: value,
+        pricingLines: isReverseCharge ? prev.pricingLines.map(line => ({
+          ...line, vatRate: 0, vatCountry: '', vatLabel: CUSTOM_VAT_RATE_PLACEHOLDER,
+          vatRateMode: 'custom' as const, vatRateExplicitlyEntered: false,
+        })) : prev.pricingLines,
+      }))
+      return
+    }
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
@@ -507,6 +530,10 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     }
     if (!form.serviceLocation?.country?.trim()) {
       toast.error(t('wizard.validation.countryRequired'))
+      return
+    }
+    if (!vatDataReady) {
+      toast.error(t('wizard.vatDetermination.loadError'))
       return
     }
     const pricingLinesWithDrafts = form.pricingLines.map((line, index) => {
@@ -800,9 +827,14 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             <CreditCard className="h-4 w-4" /> {t('wizard.pricingLinesLabel')}
           </Label>
           <div className="mt-2 space-y-3">
-            {vatDetermination ? <VatDeterminationPanel determination={vatDetermination} /> : null}
+            {vatDataReady && vatDetermination ? <VatDeterminationPanel determination={vatDetermination} /> : null}
             {vatOptionsError ? (
-              <p role="alert" className="text-sm text-amber-700">{t('wizard.vatDetermination.loadError')}</p>
+              <div role="alert" className="text-sm text-amber-700">
+                <p>{t('wizard.vatDetermination.loadError')}</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => setVatLookupRetry(value => value + 1)}>
+                  {t('wizard.vatDetermination.retry')}
+                </Button>
+              </div>
             ) : null}
             {!vatCountryKnown && !isReverseCharge && (
               <p role="status" className="text-sm text-amber-700">{t('wizard.vatCountryMissing')}</p>
@@ -832,6 +864,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                   </div>
                 ) : (
                 <Select
+                  disabled={!vatDataReady}
                   value={getVatOptionValue(findVatOptionForPricingLine(line))}
                   onValueChange={v => {
                     const option = selectVatRateOptions.find(candidate => getVatOptionValue(candidate) === v)
@@ -1088,7 +1121,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         <div className="flex gap-3 pt-2">
           <Button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || !vatDataReady}
             className="bg-purple-600 hover:bg-purple-700 text-white"
           >
             {submitting ? (

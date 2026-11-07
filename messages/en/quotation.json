@@ -62,6 +62,7 @@
       "no": "No",
       "reverseChargeNote": "Reverse charge applies: 0% VAT on all lines. No rate selection is available.",
       "reverseChargeRate": "0% Reverse Charge (determined)",
+      "retry": "Retry VAT lookup",
       "loadError": "VAT options could not be loaded. You can still complete the quotation; the rate will be validated on submit."
     },
     "netTotal": "Net total:",
