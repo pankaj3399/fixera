@@ -60,6 +60,13 @@ test('TierBadge renders the configured colour and falls back safely', () => {
   )
 })
 
+test('TierBadge chooses the greater WCAG contrast for saturated and neutral backgrounds', () => {
+  for (const [background, text] of [['#FF8000', '#000000'], ['#FF0000', '#000000'], ['#00FF00', '#000000'], ['#0000FF', '#FFFFFF'], ['#FFFFFF', '#000000'], ['#000000', '#FFFFFF']]) {
+    const html = renderToStaticMarkup(React.createElement(TierBadge, { level: 'Test', color: background }))
+    assert.match(html, new RegExp(`;color:${text}`, 'i'))
+  }
+})
+
 // Task 3: cancellation request visible on the booking page with action.
 test('CancellationRequestCard renders status, reason, actor and professional actions', () => {
   const request = {
