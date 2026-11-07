@@ -39,8 +39,10 @@ function toMap(entries: TierEntry[] | undefined): Record<string, string> {
 async function loadTierColors(): Promise<void> {
   const load = async (kind: 'tiers' | 'levels') => {
     try {
-      const endpoint = kind === 'tiers' ? 'loyalty-tiers' : 'professional-levels'
-      const response = await fetch(`${BACKEND_URL}/api/public/${endpoint}`)
+      const endpoint = kind === 'tiers'
+        ? `${BACKEND_URL}/api/public/loyalty-tiers`
+        : `${BACKEND_URL}/api/public/professional-levels`
+      const response = await fetch(endpoint)
       if (!response.ok) return
       const json = await response.json()
       if (!json?.success || !Array.isArray(json.data?.[kind])) return
