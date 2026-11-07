@@ -845,3 +845,25 @@ test('a pending refund is labeled as pending funds instead of returned cash', ()
   assert.match(html, /Refund pending/)
   assert.match(html, /funds have not been returned/)
 })
+
+test('overview keeps the accepted quotation link and recorded summary authoritative over newer raw versions', async () => {
+  const { createRequire } = await import('node:module')
+  const require = createRequire(import.meta.url)
+  const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
+  const { AuthProvider } = await import('@/contexts/AuthContext')
+  const { OverviewPanel } = await import('@/components/booking/details/OverviewPanel')
+  const payload = fixture('completed-customer')
+  payload.details.booking.quote = { ...payload.details.booking.quote, currentVersion: 2, acceptedVersion: 1,
+    totalAmount: 123.45, currency: 'EUR', validUntil: null, firstPossibleStart: '2027-01-04', createdAt: '2026-01-02' }
+  payload.details.quotation.acceptedVersion = { version: 1, source: 'recorded' }
+  payload.booking.quoteVersions = [{ version: 2, totalAmount: 999.99, validUntil: '2099-12-31' }]
+  const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }
+  const html = render(React.createElement(AppRouterContext.Provider, { value: router },
+    React.createElement(AuthProvider, null, React.createElement(OverviewPanel, {
+      ...payload, viewerRole: 'customer', pathname: '/bookings/test', search: '', onSelectTab() {},
+    }))))
+  assert.match(html, /#quotation-v1/)
+  assert.match(html, /123\.45/)
+  assert.doesNotMatch(html, /999\.99|2099/)
+  assert.match(html, /First possible start/)
+})

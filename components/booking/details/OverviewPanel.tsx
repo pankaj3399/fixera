@@ -160,22 +160,22 @@ export function OverviewPanel({
           source: "acceptedVersionSource" in quote ? quote.acceptedVersionSource : undefined,
         }
       : null)
-  const professionalTotal =
+  const professionalTotal = overview?.quote ? overview.quote.totalAmount :
     (quote && "totalAmountProfessional" in quote ? quote.totalAmountProfessional : undefined) ??
     (quote && "totalAmount" in quote ? quote.totalAmount : undefined) ??
     details?.quotation?.totalAmountProfessional ??
     booking.quote?.amount
-  const quoteCurrency =
+  const quoteCurrency = overview?.quote ? overview.quote.currency :
     (quote && "currency" in quote ? quote.currency : undefined) || details?.quotation?.currency || booking.quote?.currency
   const quoteStatus =
     (quote && "status" in quote ? quote.status : undefined) ||
     details?.quotation?.status ||
     (booking.quote ? "legacy" : null)
-  const validUntil =
+  const validUntil = overview?.quote ? overview.quote.validUntil :
     (quote && "validUntil" in quote ? quote.validUntil : undefined) ||
     booking.quoteVersions?.find((version) => version.version === currentVersion)?.validUntil ||
     booking.quote?.validUntil
-  const quoteAnchors = buildQuoteAnchors(pathname, search, currentVersion)
+  const quoteAnchors = buildQuoteAnchors(pathname, search, acceptedVersion?.version ?? currentVersion)
 
   const notices = useMemo(
     () => [...(details?.meta?.notices || []), ...(snapshot?.notices || [])],
