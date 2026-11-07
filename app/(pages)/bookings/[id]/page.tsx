@@ -2340,8 +2340,8 @@ function BookingDetailContent() {
         setShowRescheduleRefundModal(false)
         setRescheduleRefundNote("")
         await refreshBooking()
-      } else if (response.status === 409 || disputedCode === 'RESCHEDULE_DISPUTED') {
-        // Task 9c: a disputed request answers 409 — surface the disputed
+      } else if (disputedCode === 'RESCHEDULE_DISPUTED') {
+        // Task 9c: RESCHEDULE_DISPUTED identifies the disputed
         // state instead of a generic failure.
         toast.error(t("rescheduleRequest.toasts.disputed"))
         setShowRescheduleRefundModal(false)
@@ -3360,8 +3360,8 @@ function BookingDetailContent() {
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
                                 <span className="text-gray-700">{ms.title}</span>
                                 <span className="font-medium">
-                                  {quotePricingReady
-                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i] ?? 0, currentVersion.currency || 'EUR')
+                                  {quotePricingReady && currentVersionMilestoneGrossAmounts[i] != null
+                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i], currentVersion.currency || 'EUR')
                                     : '...'}
                                 </span>
                               </div>
