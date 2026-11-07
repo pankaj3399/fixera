@@ -25,3 +25,14 @@ test('timeline tooltip uses the recorded zone for both dates and preserves recor
     assert.equal(buildTooltip(calendar, getTimelineBounds(calendar)), '05 Nov 2026 00:30\n06 Nov 2026 00:30')
   } finally { if (previousTZ === undefined) delete process.env.TZ; else process.env.TZ = previousTZ }
 })
+
+test('a moved reschedule start never inherits the previous end time without an explicit proposed end', () => {
+  const base = { status: 'rescheduling_requested', scheduledStartDate: '2026-11-05', scheduledExecutionEndDate: '2026-11-05', scheduledStartTime: '10:00', scheduledEndTime: '12:00' }
+  for (const proposedSchedule of [{ scheduledStartDate: '2026-11-06' }, { scheduledStartTime: '14:00' }]) {
+    const schedule = getTimelineDisplaySchedule({ ...base, rescheduleRequest: { proposedSchedule } })
+    assert.equal(schedule.scheduledEndTime, null)
+    assert.equal(resolveTimelineShowTimes({ ...base, project: { timeMode: 'hours' }, rescheduleRequest: { proposedSchedule } }), false)
+  }
+  assert.equal(getTimelineDisplaySchedule({ ...base, rescheduleRequest: { proposedSchedule: { scheduledStartTime: '10:00' } } }).scheduledEndTime, '12:00')
+  assert.equal(getTimelineDisplaySchedule({ ...base, rescheduleRequest: { proposedSchedule: { scheduledStartTime: '14:00', scheduledEndTime: '16:00' } } }).scheduledEndTime, '16:00')
+})
