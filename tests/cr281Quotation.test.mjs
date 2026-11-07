@@ -132,3 +132,24 @@ test('a country change clears old forced VAT even after a failed refresh removed
     assert.equal(h.submit().props.disabled, true)
   } finally { h.state.unmount(); globalThis.fetch = previousFetch }
 })
+
+test('reverse charge overrides an unentered custom VAT rate restored by a stale add-line handler', async () => {
+  const previousFetch = globalThis.fetch, h = wizard()
+  globalThis.fetch = h.fetch
+  try {
+    h.render(); fill(h)
+    const addLine = findAll(h.render(), n => n.props.onClick && textOf(n).includes('wizard.addPricingLine'))[0].props.onClick
+    h.requests.at(-1).resolve(response(rc)); await settle(); h.render()
+    addLine(); h.render()
+    assert.equal(h.form().pricingLines[0].vatRateMode, 'custom')
+    assert.equal(h.form().pricingLines[0].vatRateExplicitlyEntered, false)
+    const submitted = h.submit().props.onClick(), request = h.requests.at(-1)
+    assert.equal(request.options.method, 'POST', 'hidden custom VAT must not fail validation before reverse charge is applied')
+    const body = JSON.parse(request.options.body)
+    assert.equal(body.pricingLines.length, 1)
+    assert.equal(body.pricingLines[0].vatLabel, 'Reverse Charge')
+    assert.equal(body.pricingLines[0].vatRate, 0)
+    request.resolve(response({})); await submitted
+    assert.deepEqual(h.errors, [])
+  } finally { h.state.unmount(); globalThis.fetch = previousFetch }
+})
