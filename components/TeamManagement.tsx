@@ -1263,7 +1263,7 @@ export default function EmployeeManagement() {
                   openEditRange(event.meta.rangeIndex)
                 }
                 if (
-                  (event.type === 'booking' || event.type === 'booking-buffer') &&
+                  (event.type === 'booking' || event.type === 'booking-active' || event.type === 'booking-buffer') &&
                   event.meta?.bookingId
                 ) {
                   router.push(`/bookings/${event.meta.bookingId}`)
