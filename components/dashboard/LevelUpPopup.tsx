@@ -106,7 +106,7 @@ export default function LevelUpPopup() {
     } catch {
       // Fall through to a same-origin push.
     }
-    router.push(url.startsWith("/") ? url : "/dashboard/benefits")
+    router.push("/dashboard/benefits")
   }
 
   return (

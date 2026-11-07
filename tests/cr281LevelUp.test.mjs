@@ -84,3 +84,20 @@ test('failed read recovery retries a dismissed popup without showing it again', 
     t.mock.timers.tick(10000); assert.equal(reads, 2, 'successful read cancels retries')
   } finally { h.state.unmount(); globalThis.window = previousWindow }
 })
+
+for (const [url, expected] of [
+  ['/dashboard/benefits?tab=levels#gold', '/dashboard/benefits?tab=levels#gold'],
+  ['https://fixera.test/profile', '/profile'],
+  ['//evil.test/path', '/dashboard/benefits'],
+  ['/\\evil.test/path', '/dashboard/benefits'],
+  ['https://evil.test/path', '/dashboard/benefits'],
+  ['javascript:alert(1)', '/dashboard/benefits'],
+]) test(`level-up navigation validates the resolved origin: ${url}`, () => {
+  const previousWindow = globalThis.window
+  globalThis.window = { location: { origin: 'https://fixera.test' }, localStorage: { getItem() {}, setItem() {} } }
+  const h = popup({ notification: item({ clickUrl: url }) })
+  try {
+    findAll(h.render(), n => typeof n.props.onClick === 'function' && textOf(n) === 'View my benefits')[0].props.onClick()
+    assert.deepEqual(h.pushes, [expected])
+  } finally { h.state.unmount(); globalThis.window = previousWindow }
+})
