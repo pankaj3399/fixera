@@ -101,6 +101,23 @@ export function buildUsernameSuggestionParams(fields: { companyName?: string; ci
   return qs ? `?${qs}` : ''
 }
 
+/**
+ * Username availability from a check-username response. Only an explicit
+ * `available: true` is available; a missing field, an error body or any other
+ * value is unavailable with a displayable reason, so the status box always
+ * explains why Save stays disabled.
+ */
+export function usernameCheckResult(
+  data: unknown,
+  describeFailure: (reason: unknown) => string,
+): { available: boolean; reason?: string } {
+  const record = data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+  if (record.available === true) {
+    return { available: true, reason: typeof record.reason === 'string' ? record.reason : undefined }
+  }
+  return { available: false, reason: describeFailure(record.reason) }
+}
+
 export async function authFetch(url: string, options?: RequestInit): Promise<Response> {
   const token = getAuthToken()
   const headers: Record<string, string> = {}

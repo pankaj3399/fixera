@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,20 +8,78 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Mail, Phone, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
+import {
+  formatOtpCooldown,
+  otpResendDeadline,
+  otpResendStateAt,
+} from "@/lib/auth/signupOtpCooldown"
 
 interface VerificationComponentProps {
   email: string
   phone: string
   onVerificationSuccess: () => void
+  /**
+   * When the initial codes were actually sent (epoch ms), if known. The first
+   * resend then waits out the cooldown from that send. Unknown (omitted) keeps
+   * resend available: no send time is ever assumed from a mount or re-render.
+   */
+  emailCodeSentAt?: number | null
+  phoneCodeSentAt?: number | null
 }
 
-export default function VerificationComponent({ email, phone, onVerificationSuccess }: VerificationComponentProps) {
+/** Cooldown deadline for a recorded send time; null when the time is unknown. */
+const deadlineFromSentAt = (sentAt: number | null | undefined): number | null =>
+  typeof sentAt === "number" && Number.isFinite(sentAt) ? otpResendDeadline(sentAt) : null
+
+export default function VerificationComponent({
+  email,
+  phone,
+  onVerificationSuccess,
+  emailCodeSentAt,
+  phoneCodeSentAt,
+}: VerificationComponentProps) {
   const t = useTranslations("auth")
   const [emailOtp, setEmailOtp] = useState("")
   const [phoneOtp, setPhoneOtp] = useState("")
   const [emailVerified, setEmailVerified] = useState(false)
   const [phoneVerified, setPhoneVerified] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  // Resend cooldown (120s, UX only — OTP validity is server-side). Both
+  // channels share the DualVerificationComponent cooldown semantics. The
+  // remaining time derives from a wall-clock deadline, so throttled timers
+  // in a hidden tab never extend the wait.
+  const [emailResendDeadline, setEmailResendDeadline] = useState<number | null>(() => deadlineFromSentAt(emailCodeSentAt))
+  const [phoneResendDeadline, setPhoneResendDeadline] = useState<number | null>(() => deadlineFromSentAt(phoneCodeSentAt))
+  const [now, setNow] = useState(() => Date.now())
+  // A send time reported after mount moves the deadline forward, never back.
+  useEffect(() => {
+    const deadline = deadlineFromSentAt(emailCodeSentAt)
+    if (deadline == null) return
+    setEmailResendDeadline((prev) => (prev != null && prev >= deadline ? prev : deadline))
+  }, [emailCodeSentAt])
+  useEffect(() => {
+    const deadline = deadlineFromSentAt(phoneCodeSentAt)
+    if (deadline == null) return
+    setPhoneResendDeadline((prev) => (prev != null && prev >= deadline ? prev : deadline))
+  }, [phoneCodeSentAt])
+  // In-flight resend guard: the cooldown starts only once the request
+  // succeeds, so a double click must not send a second OTP/SMS meanwhile.
+  // The ref blocks re-entry before React re-renders; the state disables the button.
+  const resendInFlight = useRef({ email: false, phone: false })
+  const [emailResending, setEmailResending] = useState(false)
+  const [phoneResending, setPhoneResending] = useState(false)
+  const emailResend = otpResendStateAt(emailResendDeadline, now)
+  const phoneResend = otpResendStateAt(phoneResendDeadline, now)
+
+  useEffect(() => {
+    const tick = () => setNow(Date.now())
+    const timer = setInterval(tick, 1000)
+    document.addEventListener("visibilitychange", tick)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener("visibilitychange", tick)
+    }
+  }, [])
 
   const handleEmailVerification = async () => {
     if (emailOtp.length !== 6) {
@@ -78,20 +136,36 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
   }
 
   const resendEmailOtp = async () => {
+    if (resendInFlight.current.email) return
+    resendInFlight.current.email = true
+    setEmailResending(true)
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-email-otp`, { email })
+      setEmailResendDeadline(otpResendDeadline())
+      setNow(Date.now())
       toast.success(t("verification.emailResent"))
     } catch {
       toast.error(t("verification.emailResendFailed"))
+    } finally {
+      resendInFlight.current.email = false
+      setEmailResending(false)
     }
   }
 
   const resendPhoneOtp = async () => {
+    if (resendInFlight.current.phone) return
+    resendInFlight.current.phone = true
+    setPhoneResending(true)
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/resend-phone-otp`, { phone })
+      setPhoneResendDeadline(otpResendDeadline())
+      setNow(Date.now())
       toast.success(t("verification.phoneResent"))
     } catch {
       toast.error(t("verification.phoneResendFailed"))
+    } finally {
+      resendInFlight.current.phone = false
+      setPhoneResending(false)
     }
   }
 
@@ -129,8 +203,10 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
                   <Button onClick={handleEmailVerification} disabled={isLoading || emailOtp.length !== 6} size="sm">
                     {t("verification.verifyEmail")}
                   </Button>
-                  <Button variant="outline" onClick={resendEmailOtp} size="sm">
-                    {t("verification.resend")}
+                  <Button variant="outline" onClick={resendEmailOtp} size="sm" disabled={emailResend.disabled || emailResending}>
+                    {emailResend.disabled
+                      ? t("verification.resendIn", { time: formatOtpCooldown(emailResend.remainingSeconds) })
+                      : t("verification.resend")}
                   </Button>
                 </div>
               )}
@@ -161,8 +237,10 @@ export default function VerificationComponent({ email, phone, onVerificationSucc
                   <Button onClick={handlePhoneVerification} disabled={isLoading || phoneOtp.length !== 6} size="sm">
                     {t("verification.verifyPhone")}
                   </Button>
-                  <Button variant="outline" onClick={resendPhoneOtp} size="sm">
-                    {t("verification.resend")}
+                  <Button variant="outline" onClick={resendPhoneOtp} size="sm" disabled={phoneResend.disabled || phoneResending}>
+                    {phoneResend.disabled
+                      ? t("verification.resendIn", { time: formatOtpCooldown(phoneResend.remainingSeconds) })
+                      : t("verification.resend")}
                   </Button>
                 </div>
               )}

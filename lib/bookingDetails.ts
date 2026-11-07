@@ -51,6 +51,35 @@ export function buildQuoteAnchors(pathname: string, search: string | URLSearchPa
   };
 }
 
+/**
+ * Push a quotation-version URL (`#quotation-vN`) and announce it the way a
+ * fragment navigation would. `history.pushState` fires neither `hashchange`
+ * nor `popstate`, so everything that derives state from the hash (the
+ * booking page's pinned version, which gates Accept & Pay, and the tab bar)
+ * would otherwise keep showing the previous version. Re-selecting the
+ * version already in the URL pushes nothing and announces nothing.
+ */
+export function pushQuotationVersionUrl(href: string, win: Window = window): void {
+  const oldURL = win.location.href;
+  // Compare the resolved target first: re-selecting the URL already shown
+  // must not add a history entry (Back would then need an extra click).
+  let target: string;
+  try {
+    target = new URL(href, oldURL).href;
+  } catch {
+    return;
+  }
+  if (target === oldURL) return;
+  win.history.pushState(null, "", href);
+  const newURL = win.location.href;
+  if (oldURL === newURL) return;
+  const event =
+    typeof HashChangeEvent === "function"
+      ? new HashChangeEvent("hashchange", { oldURL, newURL })
+      : new Event("hashchange");
+  win.dispatchEvent(event);
+}
+
 /** Explicit hash (`#quotation-v2`) wins over `?tab=` when both are present. */
 export function detailTabFromHash(hash: string | null | undefined): DetailTab | null {
   if (!hash) return null;

@@ -66,6 +66,45 @@ export const CUSTOMER_BOOKING_STATUSES = new Set<BookingStatus>([
   "completed", "cancelled", "dispute", "refunded",
 ])
 
+/**
+ * Statuses a dashboard status filter queries: the whole mode set for "all",
+ * the `quote_accepted,payment_pending` pair for the awaiting-payment alias,
+ * otherwise the one status. The list request and the summary figures both
+ * use this, so the figures describe exactly the rows the query returns.
+ */
+export function statusFilterScope(filter: string, modeStatuses: Iterable<string>): string[] {
+  if (filter === "all") return Array.from(modeStatuses)
+  if (filter === "payment_pending") return ["quote_accepted", "payment_pending"]
+  return [filter]
+}
+
+/** Customer booking statuses that are finished, not active. */
+export const CUSTOMER_CLOSED_BOOKING_STATUSES: ReadonlySet<string> = new Set(["completed", "cancelled", "refunded"])
+
+/**
+ * Active and completed summary figures for the customer bookings tab, in the
+ * same status scope as the tab's filtered total. The server's `statusCounts`
+ * facet ignores the status filter (it respects every other filter), so only
+ * the statuses inside the query's status scope are summed; subtracting
+ * all-status closed counts from a status-filtered total would mix scopes.
+ * Unknown facets (or an unknown query) stay unknown (null), never 0.
+ */
+export function customerBookingSummaryCounts(
+  statusCounts: Record<string, number> | null | undefined,
+  statusFilter: string | null | undefined,
+): { active: number | null; completed: number | null } {
+  if (!statusCounts || typeof statusFilter !== "string") return { active: null, completed: null }
+  let active = 0
+  let completed = 0
+  for (const status of new Set(statusFilterScope(statusFilter, CUSTOMER_BOOKING_STATUSES))) {
+    const count = statusCounts[status]
+    const value = typeof count === "number" && Number.isFinite(count) ? count : 0
+    if (status === "completed") completed += value
+    if (!CUSTOMER_CLOSED_BOOKING_STATUSES.has(status)) active += value
+  }
+  return { active, completed }
+}
+
 // Status filter options for customer quotes tab
 export const CUSTOMER_QUOTE_STATUS_FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "All" },

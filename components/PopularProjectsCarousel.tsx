@@ -69,7 +69,7 @@ const PopularProjectsCarousel = ({
   if (projects.length === 0) return null;
 
   return (
-    <div className="mt-10 max-w-5xl mx-auto text-left">
+    <div className="mt-6 max-w-5xl mx-auto text-left">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-800">{headingText}</h3>
         <div className="flex gap-2">

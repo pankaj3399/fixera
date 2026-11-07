@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { StripeProvider } from '@/components/stripe/StripeProvider';
@@ -25,6 +26,7 @@ import {
   calculateMilestoneGrossAmounts,
   calculateQuoteVersionVatTotals,
 } from '@/lib/vatPricing';
+import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVersion';
 import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
@@ -56,6 +58,7 @@ interface BookingPayment {
     pointsRedeemed?: number;
     pointsDiscountAmount?: number;
     codeDiscountAmount?: number;
+    referralDiscountAmount?: number;
     codeLabel?: string;
     totalDiscount?: number;
     originalAmount?: number;
@@ -73,6 +76,7 @@ interface BookingProfessional {
   username?: string;
   businessInfo?: {
     companyName?: string;
+    timezone?: string;
   };
 }
 
@@ -113,6 +117,8 @@ interface Booking {
   payment?: BookingPayment;
   quote?: BookingQuote;
   rfqDetails?: BookingRfqDetails;
+  rfqData?: { additionalNotes?: string };
+  scheduleTimeZone?: string;
   professional?: BookingProfessional;
   project?: BookingProject;
   scheduledStartDate?: string;
@@ -245,9 +251,7 @@ export default function BookingPaymentPage() {
 
   const getCurrentQuoteVersion = useCallback((b: Booking | null): QuoteVersion | null => {
     if (!b?.quoteVersions?.length) return null;
-    return b.currentQuoteVersion != null
-      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion) ?? b.quoteVersions[b.quoteVersions.length - 1] ?? null
-      : b.quoteVersions[b.quoteVersions.length - 1] ?? null;
+    return resolveAuthoritativeQuoteVersion(b.quoteVersions, b.currentQuoteVersion);
   }, []);
 
   const currentQuoteVersion = useMemo(() => getCurrentQuoteVersion(booking), [booking, getCurrentQuoteVersion]);
@@ -631,7 +635,7 @@ export default function BookingPaymentPage() {
           scheduledStartTime:
             scheduleMode === 'hours' ? selectedStartTime || undefined : undefined,
           additionalNotes: additionalNotes || undefined,
-          selectedExtraOptions,
+          selectedExtraOptions: optionsLocked ? undefined : selectedExtraOptions,
         }),
       });
       const data = await response.json();
@@ -950,10 +954,14 @@ export default function BookingPaymentPage() {
     const price = typeof persisted?.bookedPrice === 'number' ? persisted.bookedPrice : (opt?.price || 0);
     return sum + price;
   }, 0);
+  const persistedOptionsBaseTotal = (booking?.selectedExtraOptions ?? []).reduce<number>((sum, option) => {
+    if (typeof option === 'number') return sum + (booking?.project?.extraOptions?.[option]?.price || 0);
+    return sum + (option.bookedPrice || 0);
+  }, 0);
   const quoteAmount = Number(booking?.quote?.amount || 0);
   const snapshot = booking?.checkoutSnapshot;
   const extrasIncludedInQuote = (() => {
-    if (breakdownOptionsBaseTotal <= 0) return false;
+    if (persistedOptionsBaseTotal <= 0) return false;
     if (
       snapshot &&
       Number(snapshot.extraOptionsTotal) > 0 &&
@@ -966,8 +974,9 @@ export default function BookingPaymentPage() {
     if (Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - baseSubtotal) < 0.02) {
       return false;
     }
-    return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + breakdownOptionsBaseTotal)) < 0.02;
+    return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + persistedOptionsBaseTotal)) < 0.02;
   })();
+  const optionsLocked = Boolean(booking?.quoteVersions?.length || extrasIncludedInQuote);
   const breakdownBaseTotal = extrasIncludedInQuote
     ? quoteAmount
     : quoteAmount + breakdownOptionsBaseTotal;
@@ -1041,6 +1050,14 @@ export default function BookingPaymentPage() {
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
+          <div className="mb-4">
+            <Link
+              href={`/bookings/${bookingId}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+            >
+              <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
+            </Link>
+          </div>
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="bg-blue-600 px-6 py-4">
               <h1 className="text-2xl font-bold text-white">{t('paymentPage.completeBooking')}</h1>
@@ -1403,6 +1420,7 @@ export default function BookingPaymentPage() {
                 {projectExtraOptions.length > 0 && (
                   <div className="rounded-lg border border-gray-200 p-4">
                     <h3 className="text-sm font-semibold text-gray-900 mb-2">{t('paymentPage.extraOptions')}</h3>
+                    {optionsLocked && <p className="mb-3 text-xs text-gray-600">{t('paymentPage.agreedOptionsLocked')}</p>}
                     <div className="space-y-2">
                       {projectExtraOptions.map((option, index) => {
                         const selected = selectedExtraOptions.includes(index);
@@ -1428,6 +1446,7 @@ export default function BookingPaymentPage() {
                               <input
                                 type="checkbox"
                                 checked={selected}
+                                disabled={optionsLocked}
                                 onChange={() => toggleExtraOption(index)}
                               />
                             </div>
@@ -1502,6 +1521,38 @@ export default function BookingPaymentPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Link
+            href={`/bookings/${bookingId}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+          >
+            <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
+          </Link>
+          {['quote_accepted', 'payment_pending'].includes(booking?.status || '') &&
+            !booking?.milestonePayments?.some(milestone => milestone.status === 'paid') && (
+            <button
+              type="button"
+              onClick={() => {
+                if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = null;
+                setAdditionalNotes(booking?.rfqData?.additionalNotes || '');
+                setClientSecret('');
+                setError('');
+                setSelectedStartDate(booking?.scheduledStartDate ? formatInTimeZone(parseISO(booking.scheduledStartDate), booking.scheduleTimeZone || booking.professional?.businessInfo?.timezone || professionalTimezone, 'yyyy-MM-dd') : '');
+                setValidatedScheduleSelectionKey('');
+                setScheduleWindow(null);
+                setSelectedStartTime(booking?.scheduledStartTime || '');
+                setScheduleStep(true);
+                void loadScheduleProposals(booking);
+                void loadAvailability(booking);
+                void loadWorkingHours(booking);
+              }}
+              className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+            >
+              <span aria-hidden="true">←</span> {t('paymentPage.previousToSchedule')}
+            </button>
+          )}
+        </div>
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Header */}
           <div className="bg-blue-600 px-6 py-4">
@@ -1609,7 +1660,7 @@ export default function BookingPaymentPage() {
               </div>
             )}
 
-            {discountInfo?.loyaltyTier && (
+            {discountInfo?.loyaltyTier && (discountInfo.loyaltyAmount ?? 0) > 0 && (
               <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="text-sm font-medium text-amber-900">
                   {t('paymentPage.memberBenefitsApplied', { tier: discountInfo.loyaltyTier })}
@@ -1657,13 +1708,22 @@ export default function BookingPaymentPage() {
                 </div>
               )}
 
-              {(discountInfo?.pointsRedeemed ?? 0) > 0 && (
+              {(discountInfo?.pointsDiscountAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
                     {t('paymentPage.pointsRedeemedLine', { points: discountInfo?.pointsRedeemed ?? 0 })}
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {(discountInfo?.referralDiscountAmount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{t('paymentPage.referralDiscountLine')}</span>
+                  <span className="text-green-700">
+                    -{formatMoney(discountInfo?.referralDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}

@@ -1,5 +1,7 @@
 "use client"
 
+import { resolveAuthoritativeQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
+
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useCurrency } from "@/contexts/CurrencyContext"
@@ -11,6 +13,7 @@ import {
   durationLabel,
   formatCalendarDate,
   formatInstant,
+  pushQuotationVersionUrl,
   quotationVersionLabel,
   quoteVersionStatus,
   resolveQuotationVersionFromUrl,
@@ -121,7 +124,8 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
     }))
   }, [booking.quotationNumber, booking.quoteVersions, quotation?.versions])
 
-  const currentVersion = quotation?.currentVersion ?? booking.currentQuoteVersion ?? versions[versions.length - 1]?.version ?? null
+  const authoritativeVersion = resolveAuthoritativeQuoteVersion(versions, quotation?.currentVersion ?? booking.currentQuoteVersion)
+  const currentVersion = authoritativeVersion?.version ?? null
   const [selectedVersion, setSelectedVersion] = useState<number | null>(currentVersion)
   const quotationNumber = quotation?.quotationNumber || versions[0]?.quotationNumber || booking.quotationNumber || null
   const acceptedVersion = quotation?.acceptedVersion || null
@@ -144,7 +148,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
   const selected =
     versions.find((version) => version.version === selectedVersion) ||
     versions.find((version) => version.version === currentVersion) ||
-    versions[versions.length - 1] ||
+    authoritativeVersion ||
     null
 
   const selectedStatus = selected ? quoteVersionStatus(selected, details) : null
@@ -172,7 +176,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
   useEffect(() => {
     if (typeof window === "undefined") return
     const applyUrl = () => {
-      const fallbackVersion = versions[versions.length - 1]?.version ?? null
+      const fallbackVersion = currentVersion
       setSelectedVersion(
         resolveQuotationVersionFromUrl(window.location.hash, currentVersion, fallbackVersion)
       )
@@ -352,7 +356,9 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
                       event.preventDefault()
                       setSelectedVersion(version.version)
                       if (typeof window !== "undefined") {
-                        window.history.pushState(null, "", buildQuoteAnchors(pathname, search, version.version).version)
+                        // Announced as a hash change so the booking page's
+                        // pinned version (Accept & Pay gate) follows the selection.
+                        pushQuotationVersionUrl(buildQuoteAnchors(pathname, search, version.version).version)
                       }
                     }}
                     className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs hover:bg-slate-50 ${
