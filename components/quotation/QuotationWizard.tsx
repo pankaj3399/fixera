@@ -467,9 +467,10 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   ])
   const removePricingLine = (index: number) => updateForm('pricingLines', form.pricingLines.filter((_, i) => i !== index))
   const updatePricingLine = (index: number, field: keyof QuotationPricingLine, value: string | number) => {
-    const updated = [...form.pricingLines]
-    updated[index] = { ...updated[index], [field]: value }
-    updateForm('pricingLines', updated)
+    setForm(prev => ({
+      ...prev,
+      pricingLines: prev.pricingLines.map((line, lineIndex) => lineIndex === index ? { ...line, [field]: value } : line),
+    }))
   }
 
   const updatePricingLineVat = (index: number, option: VatRateOption) => {

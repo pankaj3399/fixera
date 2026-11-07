@@ -44,9 +44,9 @@ test('reverse charge normalization precedes custom-rate validation after a racin
     h.render(); fill(h)
     const stalePriceHandler = h.field('pricePlaceholder').props.onChange
     h.requests.at(-1).resolve(response(rc)); await settle(); h.render()
-    // A handler from the pre-response render restores a custom/unentered line.
+    // A handler from the pre-response render must preserve the current forced VAT.
     stalePriceHandler({ target: { value: '120' } }); h.render()
-    assert.equal(h.form().pricingLines[0].vatRateExplicitlyEntered, false)
+    assert.equal(h.form().pricingLines[0].vatRateExplicitlyEntered, true)
     const submitted = h.submit().props.onClick()
     const request = h.requests.at(-1)
     assert.equal(request.options.method, 'POST')
@@ -118,13 +118,14 @@ test('a country change clears old forced VAT even after a failed refresh removed
   try {
     h.render(); fill(h)
     h.requests.at(-1).resolve(response(rc)); await settle(); h.render()
+    const stalePriceHandler = h.field('pricePlaceholder').props.onChange
     // A new country lookup fails; selecting another country must still clear
     // any stale line VAT rather than relying on a currently loaded determination.
     h.change('countryPlaceholder', 'NL')
     h.requests.at(-1).resolve({ ok: false, json: async () => ({ success: false }) }); await settle(); h.render()
-    // Simulate a stale pre-country handler writing its previously forced line.
-    const form = h.form()
-    form.pricingLines[0] = { ...form.pricingLines[0], vatLabel: 'Reverse Charge', vatCountry: 'BE', vatRateMode: 'preset', vatRateExplicitlyEntered: true }
+    stalePriceHandler({ target: { value: '120' } }); h.render()
+    assert.equal(h.form().pricingLines[0].vatCountry, '', 'racing edits cannot restore previous-country VAT')
+    assert.equal(h.form().pricingLines[0].price, 120)
     h.change('countryPlaceholder', 'FR')
     assert.equal(h.form().pricingLines[0].vatRateMode, 'custom')
     assert.equal(h.form().pricingLines[0].vatCountry, '')
