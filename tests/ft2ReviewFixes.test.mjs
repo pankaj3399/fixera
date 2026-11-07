@@ -135,7 +135,7 @@ test('uncertain-only savings retain coverage warnings and unknown currencies nev
     '@/components/dashboard/BenefitsProgramCard': { __esModule: true, default: 'BenefitsProgramCard' },
     '@/components/dashboard/ReferralCard': { __esModule: true, default: 'ReferralCard' },
     '@/components/dashboard/BacklinkCard': { __esModule: true, default: 'BacklinkCard' },
-    '@/components/dashboard/TierBadge': { TierBadge: 'TierBadge' },
+    '@/components/dashboard/TierBadge': { __esModule: true, default: 'TierBadge' },
   })
   globalThis.fetch = async url => ({ ok: true, json: async () => ({ success: true, data: String(url).includes('/savings/summary')
     ? { settledBookingCount: 0, excludedUncertainCount: 1, groups: [{ currency: 'UNKNOWN', totalRecorded: 12, bookingCount: 0, recordedReferral: 12 }] }

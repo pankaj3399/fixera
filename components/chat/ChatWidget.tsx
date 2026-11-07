@@ -281,17 +281,22 @@ export default function ChatWidget() {
       const request = (async () => {
         try {
           const data = await fetchConversations({ page: 1, limit: 50 });
-          const list = data.conversations || [];
           if (session !== chatSessionRef.current) return;
+          const list = [...(data.conversations || [])];
+          // Page one is only a partial list. Keep the independently resolved
+          // selection through refreshes and polling; fresh rows take precedence.
+          const selected = conversationListRef.current.find(
+            (conversation) => conversation._id === selectedConversationIdRef.current,
+          );
+          if (selected && !list.some((conversation) => conversation._id === selected._id)) {
+            list.unshift(selected);
+          }
           setConversations(list);
           conversationListRef.current = list;
 
           // Messenger-like behavior:
           // Keep the user's current view. Do NOT auto-open latest conversation.
-          setSelectedConversationId((current) => {
-            if (!current) return null;
-            return list.some((conversation) => conversation._id === current) ? current : null;
-          });
+          // Absence from this page does not invalidate the current selection.
         } catch {
           if (open) {
             toast.error(t("toasts.loadConversationsFailed"));
@@ -389,7 +394,9 @@ export default function ChatWidget() {
 
       if (detail.conversationId) {
         setManualNewChatPanel(false);
+        selectedConversationIdRef.current = detail.conversationId;
         setSelectedConversationId(detail.conversationId);
+        const session = chatSessionRef.current;
         // The target may sit beyond the loaded page. Resolve it into the list
         // so type/status-based guards (support read-only) apply to it too.
         if (!conversationListRef.current.some((c) => c._id === detail.conversationId)) {
@@ -398,8 +405,9 @@ export default function ChatWidget() {
               String(detail.conversationId),
               { limit: 1 },
             );
+            if (session !== chatSessionRef.current) return;
             if (conversation) {
-              const next = [conversation, ...conversationListRef.current];
+              const next = [conversation, ...conversationListRef.current.filter((c) => c._id !== conversation._id)];
               conversationListRef.current = next;
               setConversations(next);
             }
