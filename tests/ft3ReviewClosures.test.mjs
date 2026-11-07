@@ -3,6 +3,8 @@ import { test } from 'node:test'
 import { hooks, loadComponent, findAll, common, settle, textOf } from './reviewComponentHarness.mjs'
 
 test('every employee calendar includes company closure days and ranges after list refresh', async () => {
+  const previousTZ = process.env.TZ
+  process.env.TZ = 'America/New_York'
   const previousFetch = globalThis.fetch
   const state = hooks()
   const Calendar = () => null
@@ -43,5 +45,9 @@ test('every employee calendar includes company closure days and ranges after lis
     assert.equal(updated.length, 1)
     assert.equal(updated[0].meta.note, 'Updated closure')
     assert.equal(updated[0].start.getMonth(), 1)
-  } finally { state.unmount(); globalThis.fetch = previousFetch }
+    assert.equal(updated[0].start.getDate(), 1, 'ISO midnight remains February 1 in New York')
+    assert.equal(updated[0].start.getHours(), 0)
+    assert.equal(updated[0].end.getDate(), 1)
+    assert.equal(updated[0].end.getHours(), 23)
+  } finally { state.unmount(); globalThis.fetch = previousFetch; if (previousTZ === undefined) delete process.env.TZ; else process.env.TZ = previousTZ }
 })

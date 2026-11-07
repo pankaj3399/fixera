@@ -512,8 +512,9 @@ export default function EmployeeManagement() {
     const events: CalendarEvent[] = []
 
     const closureDate = (value: string, isEnd = false) => {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return new Date(`${value}T${isEnd ? '23:59:59' : '00:00:00'}`)
+      const calendarDate = /^(\d{4}-\d{2}-\d{2})(?:T00:00(?::00(?:\.0+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/.exec(value)
+      if (calendarDate) {
+        return new Date(`${calendarDate[1]}T${isEnd ? '23:59:59' : '00:00:00'}`)
       }
       return new Date(value)
     }
