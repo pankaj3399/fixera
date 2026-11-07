@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, startOfDay, isSameDay } from "date-fns"
 import type { Locale as DateFnsLocale } from "date-fns"
+import { formatInTimeZone } from "date-fns-tz"
 import {
   getTimelineBounds,
   getTimelineDisplaySchedule,
@@ -60,6 +61,7 @@ export interface TimelineBooking {
   scheduledBufferEndDate?: string
   scheduledStartTime?: string
   scheduledEndTime?: string
+  scheduleTimeZone?: string
   payment?: {
     status?: string
     currency?: string
@@ -192,10 +194,14 @@ const getTimelineBarKey = (status: BookingStatus) => {
   return "booked"
 }
 
-const formatDateLabel = (value: string | Date | null | undefined, fallback: string, locale: DateFnsLocale) => {
+const formatDateLabel = (value: string | Date | null | undefined, fallback: string, locale: DateFnsLocale, timeZone?: string) => {
   if (!value) return fallback
   const parsed = value instanceof Date ? value : toTimelineDate(value)
   if (!parsed) return fallback
+  // Calendar dates already name their day; only instants need zone conversion.
+  if (timeZone && !(typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))) {
+    try { return formatInTimeZone(parsed, timeZone, "dd MMM yyyy", { locale }) } catch { /* Legacy invalid zone: preserve the date fallback. */ }
+  }
   return format(parsed, "dd MMM yyyy", { locale })
 }
 
@@ -529,8 +535,8 @@ export default function BookingTimelineBoard({
     // therefore the "end" line) cover execution time only, never the buffer.
     const schedule = getDisplaySchedule(booking)
     const showTimes = resolveTimelineShowTimes(booking)
-    const startValue = formatDateLabel(bounds.start, t("common.unscheduled"), dateFns)
-    const endValue = formatDateLabel(bounds.end, t("common.unscheduled"), dateFns)
+    const startValue = formatDateLabel(schedule.scheduledStartDate || bounds.start, t("common.unscheduled"), dateFns, booking.scheduleTimeZone)
+    const endValue = formatDateLabel(schedule.scheduledExecutionEndDate || bounds.end, t("common.unscheduled"), dateFns, booking.scheduleTimeZone)
     parts.push(t("timeline.tooltip.start", {
       value: showTimes ? `${startValue} ${schedule.scheduledStartTime}` : startValue,
     }))
@@ -542,7 +548,7 @@ export default function BookingTimelineBoard({
     const bufferEnd = toTimelineDate(schedule.scheduledBufferEndDate)
     if (bufferEnd && (!executionEnd || bufferEnd.getTime() !== executionEnd.getTime())) {
       parts.push(t("timeline.tooltip.bufferEnd", {
-        value: formatDateLabel(bufferEnd, t("common.unscheduled"), dateFns),
+        value: formatDateLabel(schedule.scheduledBufferEndDate || bufferEnd, t("common.unscheduled"), dateFns, booking.scheduleTimeZone),
       }))
     }
     return parts.join("\n")
