@@ -1288,6 +1288,10 @@ function BookingDetailContent() {
     let clarificationText: string | undefined
     if (action === "decline") {
       clarificationText = (clarification ?? "").trim()
+      if (clarificationText.length > 1000) {
+        setProposalDeclineError(t("warranty.clarificationTooLong"))
+        return
+      }
       if (clarificationText.length < 3) {
         setProposalDeclineError(t("warranty.clarificationRequired"))
         return
@@ -4713,15 +4717,18 @@ function BookingDetailContent() {
                           value={proposalDeclineClarification}
                           onChange={(e) => {
                             setProposalDeclineClarification(e.target.value)
-                            if (proposalDeclineError && e.target.value.trim().length >= 3) setProposalDeclineError(null)
+                            if (proposalDeclineError && e.target.value.trim().length >= 3 && e.target.value.trim().length <= 1000) setProposalDeclineError(null)
                           }}
                           placeholder={t("warranty.clarificationPlaceholder")}
                           className="min-h-[100px]"
                           aria-required="true"
-                          aria-invalid={proposalDeclineError ? true : undefined}
-                          aria-describedby={proposalDeclineError ? "proposal-decline-error" : undefined}
+                          aria-invalid={proposalDeclineError || proposalDeclineClarification.trim().length > 1000 ? true : undefined}
+                          aria-describedby={`proposal-decline-limit${proposalDeclineError ? " proposal-decline-error" : ""}`}
                           autoFocus
                         />
+                        <p id="proposal-decline-limit" className="text-xs text-gray-500">
+                          {t("warranty.clarificationLimit", { count: proposalDeclineClarification.trim().length })}
+                        </p>
                         {proposalDeclineError ? (
                           <p id="proposal-decline-error" role="alert" className="text-xs text-rose-600">
                             {proposalDeclineError}
@@ -4738,7 +4745,7 @@ function BookingDetailContent() {
                         </Button>
                         <Button
                           onClick={() => handleRespondToWarrantyProposal("decline", proposalDeclineClarification)}
-                          disabled={warrantyActionLoading || !proposalDeclineClarification.trim()}
+                          disabled={warrantyActionLoading || !proposalDeclineClarification.trim() || proposalDeclineClarification.trim().length > 1000}
                           className="bg-rose-600 hover:bg-rose-700 text-white"
                         >
                           {warrantyActionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

@@ -64,3 +64,21 @@ test('quotation milestone preview renders immutable totals before live pricing l
   assert.match(renderToStaticMarkup(render(false)), /\.\.\./)
 })
 
+test('proposal decline enforces the trimmed 3–1000-character range before sending', async () => {
+  const calls = [], errors = [], loading = []
+  const submit = fragment('const handleRespondToWarrantyProposal =', 'const handleMarkWarrantyResolved =', {
+    warrantyClaim: { _id: 'claim' }, t: key => key, setProposalDeclineError: error => errors.push(error),
+    setWarrantyActionLoading: value => loading.push(value), callWarrantyAction: async (...args) => { calls.push(args); return {} },
+    setWarrantyClaim() {}, setShowProposalDeclineDialog() {}, setProposalDeclineClarification() {}, toast: { success() {}, error() {} }, getErrorText() {},
+  }, 'handleRespondToWarrantyProposal')
+  await submit('decline', ` ${'x'.repeat(1001)} `)
+  await submit('decline', ' ab ')
+  assert.deepEqual(errors, ['warranty.clarificationTooLong', 'warranty.clarificationRequired'])
+  assert.deepEqual(calls, [])
+  assert.deepEqual(loading, [])
+  await submit('decline', ` ${'x'.repeat(1000)} `)
+  assert.equal(calls[0][1].clarification.length, 1000)
+  assert.equal(calls[0][0], 'claim/proposal-response')
+  await submit('accept')
+  assert.deepEqual(calls[1][1], { action: 'accept' })
+})

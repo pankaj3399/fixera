@@ -589,6 +589,8 @@
     "clarificationLabel": "Toelichting",
     "clarificationPlaceholder": "Leg uit wat er ontbreekt of mis is met de voorgestelde oplossing...",
     "clarificationRequired": "Voeg een korte toelichting toe voordat je afwijst.",
+    "clarificationTooLong": "Beperk je toelichting tot maximaal 1.000 tekens.",
+    "clarificationLimit": "{count} / 1.000 tekens (zonder spaties aan het begin en einde)",
     "confirmDecline": "Voorstel afwijzen"
   },
   "dispute": {
