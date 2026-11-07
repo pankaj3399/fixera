@@ -483,6 +483,8 @@
     "professionalTitle": "Level up!",
     "customerBody": "Congratulations — you reached a new loyalty tier.",
     "professionalBody": "Congratulations — you reached a new professional level.",
+    "customerBodyWithLevel": "Congratulations — you reached loyalty tier {level}.",
+    "professionalBodyWithLevel": "Congratulations — you reached professional level {level}.",
     "viewBenefits": "View my benefits",
     "dismiss": "Maybe later"
   }

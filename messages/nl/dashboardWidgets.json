@@ -483,6 +483,8 @@
     "professionalTitle": "Niveau omhoog!",
     "customerBody": "Gefeliciteerd — je hebt een nieuw loyaliteitsniveau bereikt.",
     "professionalBody": "Gefeliciteerd — je hebt een nieuw professioneel niveau bereikt.",
+    "customerBodyWithLevel": "Gefeliciteerd — je hebt loyaliteitsniveau {level} bereikt.",
+    "professionalBodyWithLevel": "Gefeliciteerd — je hebt professioneel niveau {level} bereikt.",
     "viewBenefits": "Bekijk mijn voordelen",
     "dismiss": "Later"
   }

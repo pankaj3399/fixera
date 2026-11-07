@@ -65,6 +65,10 @@ export default function LevelUpPopup() {
   if (!pending) return null
 
   const isProfessional = pending.eventKey === "professional.leveling_up"
+  // The inbox wire format stores rendered copy rather than level metadata.
+  // Recover the level from the registry's named-level template, then localize it.
+  const levelName = /^Congratulations — you reached (.+)\.$/.exec(pending.body || "")?.[1]
+  const hasNamedLevel = levelName && !["a new loyalty tier", "a new professional level"].includes(levelName)
 
   const acknowledge = () => {
     try {
@@ -111,7 +115,9 @@ export default function LevelUpPopup() {
             {isProfessional ? t("levelUp.professionalTitle") : t("levelUp.customerTitle")}
           </DialogTitle>
           <DialogDescription className="text-center">
-            {pending.body || (isProfessional ? t("levelUp.professionalBody") : t("levelUp.customerBody"))}
+            {hasNamedLevel
+              ? t(isProfessional ? "levelUp.professionalBodyWithLevel" : "levelUp.customerBodyWithLevel", { level: levelName })
+              : t(isProfessional ? "levelUp.professionalBody" : "levelUp.customerBody")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:flex-col">
