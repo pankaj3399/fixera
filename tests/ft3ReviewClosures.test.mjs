@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { hooks, loadComponent, findAll, common, settle } from './reviewComponentHarness.mjs'
+import { hooks, loadComponent, findAll, common, settle, textOf } from './reviewComponentHarness.mjs'
 
 test('every employee calendar includes company closure days and ranges after list refresh', async () => {
   const previousFetch = globalThis.fetch
@@ -33,5 +33,15 @@ test('every employee calendar includes company closure days and ranges after lis
       assert.equal(events[1].start.getDate(), 4)
       assert.ok(events[1].end > events[1].start)
     }
+    // Save reloads the employee-list response while booking/personal ranges
+    // are unchanged: closure state must be a calendar memo dependency.
+    closures = { companyBlockedDates: [{ date: '2027-02-01T00:00:00.000Z', reason: 'Updated closure' }], companyBlockedRanges: [] }
+    const save = findAll(render(), node => node.props?.onClick && textOf(node) === 'teamManagement.availabilityDialog.saveAvailability')[0]
+    assert.ok(save)
+    await save.props.onClick(); await settle()
+    const updated = findAll(render(), node => node.type === Calendar)[0].props.events
+    assert.equal(updated.length, 1)
+    assert.equal(updated[0].meta.note, 'Updated closure')
+    assert.equal(updated[0].start.getMonth(), 1)
   } finally { state.unmount(); globalThis.fetch = previousFetch }
 })

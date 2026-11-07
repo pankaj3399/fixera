@@ -107,7 +107,7 @@ const ui = stubModule()
 const common = {
   'next-intl': { useTranslations: () => translator },
   'next/navigation': { useRouter: () => ({ push() {} }), usePathname: () => '/' },
-  sonner: { toast: { error() {} } },
+  sonner: { toast: { error() {}, success() {} } },
   'lucide-react': ui,
   '@/lib/i18n/useErrorMessage': { useErrorMessage: () => translator },
   ...Object.fromEntries(['card', 'button', 'input', 'label', 'dialog', 'badge', 'table', 'switch', 'select', 'skeleton'].map(name => [`@/components/ui/${name}`, ui])),
