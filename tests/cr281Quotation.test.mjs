@@ -90,3 +90,24 @@ test('country changes invalidate reverse-charge data and block submission throug
     request.resolve(response({})); await submitted
   } finally { h.state.unmount(); globalThis.fetch = previousFetch }
 })
+
+test('a reverse-charge determination without an RC option is rejected and preserves rates until a successful retry', async () => {
+  const malformed = { ...rc, options: [{ rate: 21, country: 'BE', label: '21%', reverseCharge: false, source: 'standard' }] }
+  assert.equal(quotationVat.parseQuotationVatOptionsResponse({ success: true, data: malformed }), null)
+  const previousFetch = globalThis.fetch, h = wizard()
+  globalThis.fetch = h.fetch
+  try {
+    h.render(); fill(h)
+    const originalLine = { ...h.form().pricingLines[0] }
+    h.requests.at(-1).resolve(response(malformed)); await settle(); h.render()
+    assert.deepEqual(h.form().pricingLines[0], originalLine)
+    assert.equal(h.submit().props.disabled, true)
+    const requestCount = h.requests.length
+    await h.submit().props.onClick(); assert.equal(h.requests.length, requestCount)
+    const retry = findAll(h.render(), n => n.props.onClick && textOf(n) === 'wizard.vatDetermination.retry')[0]
+    retry.props.onClick(); h.render()
+    h.requests.at(-1).resolve(response(rc)); await settle(); h.render()
+    assert.equal(h.submit().props.disabled, false)
+    assert.equal(h.form().pricingLines[0].vatLabel, 'Reverse Charge')
+  } finally { h.state.unmount(); globalThis.fetch = previousFetch }
+})

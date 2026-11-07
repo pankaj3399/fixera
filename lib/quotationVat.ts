@@ -117,10 +117,9 @@ export function parseQuotationVatOptionsResponse(body: unknown): {
   // Malformed options (non-finite rate) are dropped instead of becoming a
   // NaN-rate default that could be rendered or submitted.
   })).filter((option) => Number.isFinite(option.rate))
-  return {
-    options,
-    vatDetermination: parseQuotationVatDetermination(data.vatDetermination),
-  }
+  const vatDetermination = parseQuotationVatDetermination(data.vatDetermination)
+  if (vatDetermination?.reverseCharge && !options.some(option => option.reverseCharge)) return null
+  return { options, vatDetermination }
 }
 
 /** Reverse charge applies: single 0% option, no professional rate choice. */
