@@ -509,25 +509,6 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       toast.error(t('wizard.validation.countryRequired'))
       return
     }
-    const invalidVatLine = form.pricingLines.find((line, index) => {
-      const hasContent = line.description.trim() || Number(line.price) > 0
-      if (!hasContent) return false
-
-      const key = line.clientKey || `line-${index}`
-      const draft = vatRateDrafts[key]
-      const vatRate = draft === undefined ? Number(line.vatRate) : parseFlexibleNumber(draft)
-      return (
-        (draft === undefined && line.vatRateMode === 'custom' && line.vatRateExplicitlyEntered !== true) ||
-        !Number.isFinite(vatRate) ||
-        vatRate < 0 ||
-        vatRate > 100
-      )
-    })
-    if (invalidVatLine) {
-      toast.error(t('wizard.validation.invalidVatRate'))
-      return
-    }
-
     const pricingLinesWithDrafts = form.pricingLines.map((line, index) => {
       const key = line.clientKey || `line-${index}`
       const draft = vatRateDrafts[key]
@@ -541,6 +522,25 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     const pricingLinesForSubmit = rcOptionForSubmit
       ? applyReverseChargeToLines(pricingLinesWithDrafts, rcOptionForSubmit)
       : pricingLinesWithDrafts
+    const invalidVatLine = pricingLinesForSubmit.find((line, index) => {
+      const hasContent = line.description.trim() || Number(line.price) > 0
+      if (!hasContent) return false
+
+      const key = line.clientKey || `line-${index}`
+      const draft = vatRateDrafts[key]
+      const vatRate = Number(line.vatRate)
+      return (
+        (draft === undefined && line.vatRateMode === 'custom' && line.vatRateExplicitlyEntered !== true) ||
+        !Number.isFinite(vatRate) ||
+        vatRate < 0 ||
+        vatRate > 100
+      )
+    })
+    if (invalidVatLine) {
+      toast.error(t('wizard.validation.invalidVatRate'))
+      return
+    }
+
     const validPricingLines = pricingLinesForSubmit.filter((line) => {
       const price = Number(line.price)
       const vatRate = Number(line.vatRate)
