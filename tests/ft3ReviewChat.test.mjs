@@ -9,6 +9,7 @@ test('opening an older conversation keeps its selection through immediate refres
   const state = hooks()
   const polls = []
   const older = { _id: 'older', type: 'support', status: 'active' }
+  let deleted = false
   let page = [{ _id: 'recent', type: 'support', status: 'active' }]
   const List = () => null
   const Thread = () => null
@@ -22,7 +23,7 @@ test('opening an older conversation keeps its selection through immediate refres
       '@/lib/anonymizedUsers': { isAnonymizedIdentity: () => false, conversationCounterparty: () => null, isConversationCounterpartyAnonymized: () => false },
       '@/components/chat/ChatList': { default: List, __esModule: true },
       '@/components/chat/ChatThread': { default: Thread, __esModule: true }, '@/components/chat/ChatComposer': ui,
-      '@/lib/chatApi': { fetchConversations: async () => ({ conversations: page }), fetchConversationMessages: async () => ({ conversation: older, messages: [] }), markConversationAsRead: async () => {} },
+      '@/lib/chatApi': { fetchConversations: async () => ({ conversations: page }), fetchConversationMessages: async () => { if (deleted) throw Object.assign(new Error("not found"), { status: 404 }); return { conversation: older, messages: [] } }, markConversationAsRead: async () => {} },
       '@/lib/chatWidgetEvents': { CHAT_WIDGET_OPEN_EVENT: 'chat-open' },
       '@/lib/utils': { cn: () => '', getAuthToken: () => null },
       '@/lib/storageMigration': { getMigratedItem: () => null, removeMigratedItem() {} },
@@ -44,6 +45,13 @@ test('opening an older conversation keeps its selection through immediate refres
     await polls[0](); tree = render()
     assert.equal(findAll(tree, node => node.type === Thread)[0]?.props.conversationId, 'older')
     assert.equal(rows().find(c => c._id === 'older').status, 'archived')
+    deleted = true
+    await polls[1](); tree = render()
+    assert.equal(findAll(tree, node => node.type === Thread).length, 0)
+    assert.deepEqual(rows().map(c => c._id), ['recent'])
+    await polls[0](); tree = render()
+    assert.equal(findAll(tree, node => node.type === Thread).length, 0)
+    assert.deepEqual(rows().map(c => c._id), ['recent'])
   } finally { state.unmount(); globalThis.window = previousWindow }
 })
 
