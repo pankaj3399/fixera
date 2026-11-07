@@ -247,9 +247,9 @@ test('post-booking submission updates details without inventing a timestamp', ()
 test('admin links require role and area permissions and never appear for participants', () => {
   const permissions = {
     bookingsRead: true,
-    disputesManage: true,
-    warrantyManage: true,
-    paymentsManage: true,
+    disputesRead: true,
+    warrantyRead: true,
+    paymentsRead: true,
   }
   const participant = buildAdminDetailLinks({
     viewerRole: 'customer',
@@ -274,7 +274,7 @@ test('admin links require role and area permissions and never appear for partici
   const limited = buildAdminDetailLinks({
     viewerRole: 'admin',
     bookingId: 'b1',
-    permissions: { ...permissions, warrantyManage: false, disputesManage: false, paymentsManage: false },
+    permissions: { ...permissions, warrantyRead: false, disputesRead: false, paymentsRead: false },
   })
   assert.deepEqual(limited.map((link) => link.key), ['booking'])
 })
@@ -471,9 +471,9 @@ test('admin warranty link falls back to the list when no claim number exists', (
     bookingId: 'b1',
     permissions: {
       bookingsRead: false,
-      disputesManage: false,
-      warrantyManage: true,
-      paymentsManage: false,
+      disputesRead: false,
+      warrantyRead: true,
+      paymentsRead: false,
     },
   })
   assert.deepEqual(links, [{ key: 'warranty', href: '/admin/warranty-claims' }])

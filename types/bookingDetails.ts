@@ -71,6 +71,7 @@ export interface BookingOverviewSchedule {
 }
 
 export interface BookingOverviewDto {
+  priceModel?: string | null;
   id?: string;
   bookingNumber?: string | null;
   bookingType?: "professional" | "project" | string;
@@ -105,6 +106,8 @@ export interface BookingOverviewDto {
     totalAmount?: number | null;
     currency?: string | null;
     validUntil?: string | null;
+    firstPossibleStart?: string | null;
+    createdAt?: string | null;
   } | null;
   payment?: {
     status?: string | null;
@@ -137,6 +140,9 @@ export interface BookingOverviewDto {
 }
 
 export interface PartyDto {
+  professionalLevel?: string | null;
+  publicTags?: string[];
+  metadataSource?: "current_profile";
   id?: string | null;
   /** Present when the party account has been anonymized. */
   deletedAt?: string | null;
@@ -335,6 +341,7 @@ export interface BookingWizardDto {
 }
 
 export interface QuotationVersionDto {
+  firstPossibleStart?: string | null;
   version: number;
   quotationNumber?: string | null;
   scope?: string | null;
@@ -632,6 +639,8 @@ export interface ExtraCostsDetailsDto {
 }
 
 export interface RefundDto {
+  providerStatus?: string | null;
+  cashReturned?: boolean;
   id: string;
   amount?: number | null;
   currency?: string | null;
@@ -804,6 +813,7 @@ export interface ActivityItem {
     version?: number | null;
     reasonCategory?: string | null;
     claimId?: string | null;
+    participantCanOpen?: boolean;
     claimNumber?: string | null;
     disputeId?: string | null;
     disputeType?: string | null;
@@ -844,6 +854,7 @@ export interface ActivityItem {
 }
 
 export interface BookingActivityDto {
+  coverage?: { status: "unknown"; source: "surviving_records"; appendOnlyArchive: false };
   order?: "asc";
   items?: ActivityItem[];
   generatedAt?: string | null;

@@ -823,7 +823,18 @@
       "paymentAtCheckout": "Betaald bij afrekenen",
       "extraCostsProfessional": "Meerwerk bij oplevering (professioneel bedrag)",
       "professionalNet": "Professioneel netto",
-      "amountBeforeDiscounts": "Bedrag vóór kortingen"
+      "amountBeforeDiscounts": "Bedrag vóór kortingen",
+      "firstPossibleStart": "Eerst mogelijke start",
+      "priceModel": "Prijsmodel",
+      "professionalLevel": "Niveau van de professional",
+      "publicTags": "Openbare labels",
+      "tagVerified": "Geverifieerd",
+      "tagOurChoice": "Onze keuze",
+      "currentProfessionalMetadata": "Het niveau en de openbare labels komen uit het huidige profiel.",
+      "milestoneOrder": "Volgorde",
+      "milestoneStatus": "Status",
+      "customDueDate": "Vervaldatum",
+      "quoteDate": "Offertedatum"
     },
     "parties": {
       "customer": "Klant",
@@ -1076,7 +1087,8 @@
       "transferAmount": "Uitbetalingsbedrag",
       "transferAttemptedAt": "Uitbetaling geprobeerd",
       "extraCostTransferStatus": "Uitbetaling meerwerk",
-      "peppolStatusLabel": "Peppolstatus:"
+      "peppolStatusLabel": "Peppolstatus:",
+      "refundPending": "Terugbetaling in afwachting — het geld is nog niet teruggestort"
     },
     "activity": {
       "deletedActor": "Verwijderde gebruiker",
@@ -1169,25 +1181,27 @@
         "cancellation_countered": "Tegenbod op annulering",
         "cancellation_escalated": "Annulering geëscaleerd",
         "refund_issued": "Terugbetaling uitgevoerd",
-        "admin_status_changed": "Status gewijzigd door beheerder"
+        "admin_status_changed": "Status gewijzigd door beheerder",
+        "refund_pending": "Terugbetaling in afwachting"
       },
       "sourceUser": "gebruiker",
       "sourceAdmin": "beheerder",
       "sourceSystem": "systeem",
       "qualityNotes": {
-        "undated_quote_version": "Een offerteversie heeft geen vastgelegd aanmaaktijdstip en staat niet in de tijdlijn.",
+        "undated_quote_version": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "quote_actor_not_recorded": "Een offerteversie heeft geen vastgelegde actor.",
         "legacy_quote_actor_missing": "Een oude offerte heeft geen vastgelegde actor.",
-        "undated_refund": "Een terugbetaling heeft geen vastgelegde datum en staat niet in de tijdlijn.",
+        "undated_refund": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "refund_vat_split_not_recorded": "Voor minstens één terugbetaling zijn btw en netto niet vastgelegd.",
-        "undated_extra_costs": "Voor meerwerk bij oplevering is geen vastgelegd aanmeldtijdstip.",
-        "undated_reschedule": "Een herplanningsverzoek heeft geen vastgelegde datum.",
-        "undated_cancellation_request": "Een annuleringsverzoek heeft geen vastgelegde datum.",
-        "undated_warranty_claim": "Een garantieclaim heeft geen vastgelegde openingsdatum.",
-        "post_booking_timestamp_not_recorded": "Voor antwoorden na de boeking is geen vastgelegd indientijdstip.",
-        "undated_status_history": "Een statuswijziging heeft geen vastgelegd tijdstip.",
+        "undated_extra_costs": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_reschedule": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_cancellation_request": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_warranty_claim": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "post_booking_timestamp_not_recorded": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_status_history": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "legacy_attachment_owner_not_recorded": "Een oude bijlage heeft geen vastgelegde eigenaar, dus toegang kon niet worden gecontroleerd.",
-        "attachment_unavailable_for_legacy_record": "Een oude bijlage is niet beschikbaar omdat het eigenaarschap niet is vastgelegd."
+        "attachment_unavailable_for_legacy_record": "Een oude bijlage is niet beschikbaar omdat het eigenaarschap niet is vastgelegd.",
+        "historical_coverage_unknown": "De volledigheid van de geschiedenis is onbekend. Alleen bewaarde gegevens worden getoond."
       },
       "amountKinds": {
         "net": "Netto",
@@ -1202,7 +1216,9 @@
       },
       "previousStatus": "Vorige status",
       "newStatus": "Nieuwe status",
-      "recordedInEnglish": "taal vastgelegd als Engels"
+      "recordedInEnglish": "taal vastgelegd als Engels",
+      "coverageUnknown": "De volledigheid van de geschiedenis is onbekend. Alleen bewaarde gegevens worden getoond.",
+      "openWarranty": "Garantieclaim openen"
     },
     "notices": {
       "termsSnapshotNotRecorded": "De voorwaarden bij boeking zijn niet vastgelegd voor deze verouderde boeking. Huidige projectgegevens worden apart getoond.",
@@ -1310,6 +1326,12 @@
         "sent": "Verzonden",
         "failed": "Mislukt",
         "skipped": "Overgeslagen"
+      },
+      "milestoneStatus": {
+        "pending": "In afwachting",
+        "invoiced": "Gefactureerd",
+        "paid": "Betaald",
+        "overdue": "Achterstallig"
       }
     },
     "currencyNotRecorded": "valuta niet vastgelegd",

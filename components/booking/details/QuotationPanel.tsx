@@ -24,6 +24,7 @@ import {
 import type {
   ActivityItem,
   BookingDetailsDto,
+  DetailViewerRole,
   QuotationVersionDto,
   RawBookingRecord,
 } from "@/types/bookingDetails"
@@ -48,6 +49,7 @@ import {
 import { QuestionAnswerList } from "./BookingDataPanel"
 
 interface QuotationPanelProps {
+  viewerRole?: DetailViewerRole | null
   booking: RawBookingRecord
   details: BookingDetailsDto | null
   pathname: string
@@ -105,7 +107,7 @@ function ActivityHistory({ items, timeZone }: { items: ActivityItem[]; timeZone:
   )
 }
 
-export function QuotationPanel({ booking, details, pathname, search }: QuotationPanelProps) {
+export function QuotationPanel({ booking, details, pathname, search, viewerRole }: QuotationPanelProps) {
   const t = useTranslations("bookings")
   const dt = useDetailT()
   const { formatMoney } = useCurrency()
@@ -116,9 +118,10 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
     recordedScheduleTimeZone(details, booking.scheduleTimeZone)
   )
 
+  const role = viewerRole || details?.viewerRole || "customer"
   const quotation = details?.quotation
   const versions: QuotationVersionDto[] = useMemo(() => {
-    if (Array.isArray(quotation?.versions) && quotation.versions.length > 0) return quotation.versions
+    if (Array.isArray(quotation?.versions)) return quotation.versions
     return (booking.quoteVersions || []).map((version) => ({
       ...version,
       quotationNumber: version.quotationNumber || booking.quotationNumber || null,
@@ -205,8 +208,8 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
 
   const history = useMemo(() => {
     const provided = dedupeActivity([...(quotation?.history || []), ...(quotation?.rfqHistory || [])])
-    if (provided.length > 0) return provided
-    const fallback = details?.activity?.items?.length
+    if (Array.isArray(quotation?.history) || Array.isArray(quotation?.rfqHistory)) return provided
+    const fallback = Array.isArray(details?.activity?.items)
       ? details.activity.items
       : buildLegacyActivity(booking)
     return sortActivity(
@@ -436,6 +439,9 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
                 dt("quotation.actorNotRecorded", "actor not recorded")
               )}
             </DetailField>
+            <DetailField label={dt("fields.firstPossibleStart", "First possible start")} empty={!selected.firstPossibleStart}>
+              {formatCalendarDate(selected.firstPossibleStart, intl)}
+            </DetailField>
             <DetailField label={dt("fields.validUntil", "Valid until")} empty={!selected.validUntil}>
               {formatCalendarDate(selected.validUntil, intl) || selected.validUntil}
             </DetailField>
@@ -575,9 +581,11 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
                 <DetailField label={dt("fields.totalWithVat", "Total incl. VAT")} empty={selected.customerTotals.totalWithVat == null && selected.customerTotals.totalAmount == null}>
                   <MoneyText amount={selected.customerTotals.totalWithVat ?? selected.customerTotals.totalAmount} currency={selected.customerTotals.currency || selected.currency} formatMoney={formatMoney} />
                 </DetailField>
+                {role !== "customer" ? (
                 <DetailField label={dt("fields.commission", "Commission")} empty={selected.customerTotals.commissionPercent == null}>
                   {selected.customerTotals.commissionPercent != null ? `${selected.customerTotals.commissionPercent}%` : null}
                 </DetailField>
+                ) : null}
                 <DetailField label={dt("fields.recordedAt", "Recorded at")} empty={!selected.customerTotals.recordedAt}>
                   {formatInstant(selected.customerTotals.recordedAt, intl, displayTimeZone.timeZone)}
                 </DetailField>
@@ -643,10 +651,13 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("quotation.milestones", "Payment milestones")}</p>
               <ul className="mt-1 space-y-1 text-xs text-gray-700">
-                {selected.milestones.map((milestone, index) => (
+                {[...selected.milestones].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((milestone, index) => (
                   <li key={`${milestone.title}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
                     <span>
-                      {milestone.title}
+                      <span className="font-medium">{dt("fields.milestoneOrder", "Order")}: {milestone.order ?? dt("notRecorded", "Not recorded")} · {milestone.title}</span>
+                      {milestone.description ? <span className="mt-1 block whitespace-pre-wrap">{milestone.description}</span> : null}
+                      <span className="mt-1 block">{dt("fields.milestoneStatus", "Status")}: <EnumText prefix="details.enums.milestoneStatus" value={milestone.status} /></span>
+                      <span className="mt-1 block">{dt("fields.customDueDate", "Due date")}: {formatCalendarDate(milestone.customDueDate, intl) || dt("notRecorded", "Not recorded")}</span>
                       {milestone.dueCondition ? <span className="ml-2 text-[10px] text-gray-500"><EnumText prefix="details.enums.dueCondition" value={milestone.dueCondition} /></span> : null}
                     </span>
                     <span className="tabular-nums">
@@ -791,6 +802,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
         title={dt("quotation.history", "RFQ & quotation history")}
         description={dt("quotation.historyDescription", "Recorded events with their stored actor and time; no inferred steps.")}
       >
+        <p className="text-xs text-amber-800">{dt("activity.coverageUnknown", "Historical coverage is unknown. Only surviving records are shown.")}</p>
         <ActivityHistory items={history} timeZone={displayTimeZone.timeZone} />
       </DetailCard>
     </div>

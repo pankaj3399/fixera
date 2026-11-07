@@ -1509,9 +1509,9 @@ export function recordedNumber(value: number | null | undefined): number | null 
 
 export interface AdminLinkPermissions {
   bookingsRead: boolean;
-  disputesManage: boolean;
-  warrantyManage: boolean;
-  paymentsManage: boolean;
+  disputesRead: boolean;
+  warrantyRead: boolean;
+  paymentsRead: boolean;
 }
 
 export interface AdminDetailLink {
@@ -1536,16 +1536,16 @@ export function buildAdminDetailLinks(input: {
   if (input.permissions.bookingsRead) {
     links.push({ key: "booking", href: `/admin/bookings/${input.bookingId}` });
   }
-  if (input.permissions.warrantyManage) {
+  if (input.permissions.warrantyRead) {
     const href = input.claimNumber
       ? `/admin/warranty-claims?search=${encodeURIComponent(input.claimNumber)}`
       : "/admin/warranty-claims";
     links.push({ key: "warranty", href });
   }
-  if (input.permissions.disputesManage && input.hasDispute) {
+  if (input.permissions.disputesRead && input.hasDispute) {
     links.push({ key: "disputes", href: "/admin/disputes" });
   }
-  if (input.permissions.paymentsManage && input.hasPayment) {
+  if (input.permissions.paymentsRead && input.hasPayment) {
     links.push({ key: "payments", href: "/admin/payments" });
   }
   return links;

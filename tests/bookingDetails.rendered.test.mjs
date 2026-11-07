@@ -774,3 +774,74 @@ test('overview renders an empty discount instead of €0.00 for a zero snapshot'
   assert.doesNotMatch(discount, /0\.00/)
   assert.match(discount, /not recorded|Not recorded/)
 })
+
+test('customer quotation hides a percentage from normalized and raw legacy versions, professional keeps it', () => {
+  const payload = fixture('quoted-customer')
+  payload.details.quotation.versions.forEach(v => { v.customerTotals = { ...v.customerTotals, commissionPercent: 17.4321 } })
+  const props = { ...payload, pathname: '/bookings/test', search: '' }
+  const customer = render(React.createElement(QuotationPanel, { ...props, viewerRole: 'customer' }))
+  assert.doesNotMatch(customer, /17\.4321%/)
+  assert.match(render(React.createElement(QuotationPanel, { ...props, viewerRole: 'professional' })), /17\.4321%/)
+  payload.booking.quoteVersions = payload.details.quotation.versions
+  const raw = render(React.createElement(QuotationPanel, { ...props, booking: payload.booking, details: null, viewerRole: 'customer' }))
+  assert.doesNotMatch(raw, /17\.4321%/)
+})
+
+test('milestones render their stored order, description, due date and status with first possible start in all locales', () => {
+  const payload = fixture('quoted-customer')
+  const current = payload.details.quotation.versions.at(-1)
+  current.firstPossibleStart = '2027-01-04'
+  current.milestones = [
+    { title: 'Final inspection', description: 'Inspect every fitting', amount: 30, order: 2, status: 'overdue', customDueDate: '2027-01-10', dueCondition: 'custom_date' },
+    { title: 'Prepare the site', description: 'Protect the floor', amount: 70, order: 0, status: 'paid', dueCondition: 'on_start' },
+  ]
+  for (const locale of ['en', 'nl', 'fr']) {
+    const html = render(React.createElement(QuotationPanel, { ...payload, pathname: '/bookings/test', search: '' }), locale)
+    assert.ok(html.indexOf('Prepare the site') < html.indexOf('Final inspection'))
+    assert.match(html, /Inspect every fitting/)
+    assert.ok(html.includes(messagesByLocale[locale].details.fields.firstPossibleStart))
+    assert.ok(html.includes(messagesByLocale[locale].details.enums.milestoneStatus.overdue))
+    assert.doesNotMatch(html, /details\.enums\.milestoneStatus/)
+  }
+})
+
+test('normalized empty quotation history remains authoritative over raw history', () => {
+  const payload = fixture('quoted-customer')
+  payload.details.quotation.history = []
+  payload.details.quotation.rfqHistory = []
+  payload.details.activity.items = []
+  payload.booking.statusHistory = [{ status: 'quoted', timestamp: '2026-01-01', note: 'RAW HISTORY SHOULD NOT APPEAR' }]
+  const html = render(React.createElement(QuotationPanel, { ...payload, pathname: '/bookings/test', search: '' }))
+  assert.doesNotMatch(html, /RAW HISTORY SHOULD NOT APPEAR/)
+  assert.match(html, /Historical coverage is unknown/)
+})
+
+test('undated RFQ history shows its recorded brief and evidence without fabricating a date', () => {
+  const payload = fixture('quoted-customer')
+  payload.details.quotation.history = [{ id: 'rfq:submitted', type: 'rfq_submitted', category: 'rfq', occurredAt: '', timestampRecorded: false,
+    actorRecorded: false, description: 'Stored RFQ brief', attachments: [{ url: 'https://example.test/brief.pdf', fileName: 'brief.pdf', signed: true }] }]
+  payload.details.quotation.rfqHistory = []
+  const html = render(React.createElement(QuotationPanel, { ...payload, pathname: '/bookings/test', search: '' }))
+  assert.match(html, /date not recorded/i)
+  assert.match(html, /Stored RFQ brief/)
+  assert.match(html, /brief\.pdf/)
+})
+
+test('professional card renders current public metadata and never resurrects it for an anonymized party', () => {
+  const labels = { name: 'Name', username: 'Username', businessName: 'Company', email: 'Email', phone: 'Phone', vat: 'VAT', website: 'Website', city: 'City', postalCode: 'Postcode', country: 'Country', timeZone: 'Timezone', customerType: 'Customer type' }
+  const party = { name: 'Professional', professionalLevel: 'Expert', publicTags: ['verified', 'our choice'], metadataSource: 'current_profile' }
+  const html = render(React.createElement(PartyCard, { title: 'Professional', role: 'professional', labels, party }))
+  assert.match(html, /Expert/)
+  assert.match(html, /Verified/)
+  assert.match(html, /current profile/)
+  const masked = render(React.createElement(PartyCard, { title: 'Professional', role: 'professional', labels, party: { ...party, isAnonymized: true } }))
+  assert.doesNotMatch(masked, /Expert|Verified/)
+})
+
+test('a pending refund is labeled as pending funds instead of returned cash', () => {
+  const payload = fixture('completed-customer')
+  payload.details.payments.refunds = [{ id: 'pending', amount: 12, currency: 'EUR', providerStatus: 'pending', cashReturned: false, status: 'recorded', vatAmount: null }]
+  const html = paymentsHtml(payload.details, payload.booking)
+  assert.match(html, /Refund pending/)
+  assert.match(html, /funds have not been returned/)
+})

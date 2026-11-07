@@ -823,7 +823,18 @@
       "paymentAtCheckout": "Payé au moment du paiement",
       "extraCostsProfessional": "Suppléments de fin de chantier (montant professionnel)",
       "professionalNet": "Net professionnel",
-      "amountBeforeDiscounts": "Montant avant remises"
+      "amountBeforeDiscounts": "Montant avant remises",
+      "firstPossibleStart": "Première date de début possible",
+      "priceModel": "Modèle de tarification",
+      "professionalLevel": "Niveau du professionnel",
+      "publicTags": "Étiquettes publiques",
+      "tagVerified": "Vérifié",
+      "tagOurChoice": "Notre choix",
+      "currentProfessionalMetadata": "Le niveau et les étiquettes publiques proviennent du profil actuel.",
+      "milestoneOrder": "Ordre",
+      "milestoneStatus": "Statut",
+      "customDueDate": "Date d’échéance",
+      "quoteDate": "Date du devis"
     },
     "parties": {
       "customer": "Client",
@@ -1076,7 +1087,8 @@
       "transferAmount": "Montant du virement",
       "transferAttemptedAt": "Virement tenté",
       "extraCostTransferStatus": "Virement des frais supplémentaires",
-      "peppolStatusLabel": "Statut Peppol :"
+      "peppolStatusLabel": "Statut Peppol :",
+      "refundPending": "Remboursement en attente — les fonds ne sont pas encore remboursés"
     },
     "activity": {
       "deletedActor": "Utilisateur supprimé",
@@ -1169,25 +1181,27 @@
         "cancellation_countered": "Contre-offre d'annulation",
         "cancellation_escalated": "Annulation escaladée",
         "refund_issued": "Remboursement effectué",
-        "admin_status_changed": "Statut modifié par un administrateur"
+        "admin_status_changed": "Statut modifié par un administrateur",
+        "refund_pending": "Remboursement en attente"
       },
       "sourceUser": "utilisateur",
       "sourceAdmin": "administrateur",
       "sourceSystem": "système",
       "qualityNotes": {
-        "undated_quote_version": "Une version de devis n'a pas d'heure de création enregistrée et n'apparaît pas dans la chronologie.",
+        "undated_quote_version": "Conservé sans date ; affiché dans le groupe sans date.",
         "quote_actor_not_recorded": "Une version de devis n'a pas d'acteur enregistré.",
         "legacy_quote_actor_missing": "Un ancien devis n'a pas d'acteur enregistré.",
-        "undated_refund": "Un remboursement n'a pas de date enregistrée et n'apparaît pas dans la chronologie.",
+        "undated_refund": "Conservé sans date ; affiché dans le groupe sans date.",
         "refund_vat_split_not_recorded": "Au moins un remboursement n'a pas de répartition TVA/net enregistrée.",
-        "undated_extra_costs": "Les suppléments de fin de chantier n'ont pas d'heure de déclaration enregistrée.",
-        "undated_reschedule": "Une demande de replanification n'a pas de date enregistrée.",
-        "undated_cancellation_request": "Une demande d'annulation n'a pas de date enregistrée.",
-        "undated_warranty_claim": "Une réclamation de garantie n'a pas de date d'ouverture enregistrée.",
-        "post_booking_timestamp_not_recorded": "Les réponses après réservation n'ont pas d'heure de soumission enregistrée.",
-        "undated_status_history": "Un changement de statut n'a pas d'horodatage enregistré.",
+        "undated_extra_costs": "Conservé sans date ; affiché dans le groupe sans date.",
+        "undated_reschedule": "Conservé sans date ; affiché dans le groupe sans date.",
+        "undated_cancellation_request": "Conservé sans date ; affiché dans le groupe sans date.",
+        "undated_warranty_claim": "Conservé sans date ; affiché dans le groupe sans date.",
+        "post_booking_timestamp_not_recorded": "Conservé sans date ; affiché dans le groupe sans date.",
+        "undated_status_history": "Conservé sans date ; affiché dans le groupe sans date.",
         "legacy_attachment_owner_not_recorded": "Une ancienne pièce jointe n'a pas de propriétaire enregistré ; l'accès n'a pas pu être vérifié.",
-        "attachment_unavailable_for_legacy_record": "Une ancienne pièce jointe est indisponible car la propriété n'a pas été enregistrée."
+        "attachment_unavailable_for_legacy_record": "Une ancienne pièce jointe est indisponible car la propriété n'a pas été enregistrée.",
+        "historical_coverage_unknown": "La couverture historique est inconnue. Seuls les enregistrements conservés sont affichés."
       },
       "amountKinds": {
         "net": "Net",
@@ -1202,7 +1216,9 @@
       },
       "previousStatus": "Statut précédent",
       "newStatus": "Nouveau statut",
-      "recordedInEnglish": "langue enregistrée comme anglais"
+      "recordedInEnglish": "langue enregistrée comme anglais",
+      "coverageUnknown": "La couverture historique est inconnue. Seuls les enregistrements conservés sont affichés.",
+      "openWarranty": "Ouvrir la demande de garantie"
     },
     "notices": {
       "termsSnapshotNotRecorded": "Les conditions au moment de la réservation n'ont pas été enregistrées pour cette ancienne réservation. Les données actuelles du projet sont affichées séparément.",
@@ -1310,6 +1326,12 @@
         "sent": "Envoyé",
         "failed": "Échec",
         "skipped": "Ignoré"
+      },
+      "milestoneStatus": {
+        "pending": "En attente",
+        "invoiced": "Facturé",
+        "paid": "Payé",
+        "overdue": "En retard"
       }
     },
     "currencyNotRecorded": "devise non enregistrée",

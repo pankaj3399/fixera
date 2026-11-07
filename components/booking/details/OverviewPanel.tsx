@@ -74,7 +74,7 @@ export function OverviewPanel({
   const dt = useDetailT()
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
-  const { can } = useAdminAccess()
+  const { canReadArea } = useAdminAccess()
   const displayTimeZone = useDetailDisplayTimeZone(
     recordedScheduleTimeZone(details, booking.scheduleTimeZone)
   )
@@ -188,16 +188,16 @@ export function OverviewPanel({
         viewerRole,
         bookingId: booking._id,
         permissions: {
-          bookingsRead: can("bookings.read"),
-          disputesManage: can("disputes.manage"),
-          warrantyManage: can("warranty.manage"),
-          paymentsManage: can("payments.manage"),
+          bookingsRead: canReadArea("bookings"),
+          disputesRead: canReadArea("disputes"),
+          warrantyRead: canReadArea("warranty"),
+          paymentsRead: canReadArea("payments"),
         },
         claimNumber: details?.warrantyClaims?.[0]?.claimNumber,
         hasDispute: Boolean(booking.dispute?.raisedAt || details?.extraCosts?.dispute),
         hasPayment: Boolean(booking.payment || details?.payments),
       }),
-    [booking._id, booking.dispute?.raisedAt, booking.payment, can, details?.extraCosts?.dispute, details?.payments, details?.warrantyClaims, viewerRole]
+    [booking._id, booking.dispute?.raisedAt, booking.payment, canReadArea, details?.extraCosts?.dispute, details?.payments, details?.warrantyClaims, viewerRole]
   )
 
   const dtoAdminKeys = details?.adminLinks
@@ -248,6 +248,9 @@ export function OverviewPanel({
               : booking.bookingType === "professional"
               ? dt("fields.typeProfessional", "Professional booking")
               : booking.bookingType}
+          </DetailField>
+          <DetailField label={dt("fields.priceModel", "Price model")} empty={!details?.booking?.priceModel}>
+            <EnumText prefix="details.enums.pricingType" value={details?.booking?.priceModel} />
           </DetailField>
           <DetailField label={dt("fields.serviceType", "Service type")} empty={!serviceType}>{serviceType}</DetailField>
           <DetailField label={dt("fields.category", "Category")} empty={!category}>{category}</DetailField>
@@ -405,6 +408,12 @@ export function OverviewPanel({
             </DetailField>
             <DetailField label={dt("fields.professionalTotal", "Professional amount (excl. commission)")} empty={professionalTotal == null}>
               <MoneyText amount={professionalTotal} currency={quoteCurrency} formatMoney={formatMoney} />
+            </DetailField>
+            <DetailField label={dt("fields.firstPossibleStart", "First possible start")} empty={!details?.booking?.quote?.firstPossibleStart}>
+              {formatCalendarDate(details?.booking?.quote?.firstPossibleStart, intl)}
+            </DetailField>
+            <DetailField label={dt("fields.quoteDate", "Quote date")} empty={!details?.booking?.quote?.createdAt}>
+              {formatInstant(details?.booking?.quote?.createdAt, intl, displayTimeZone.timeZone)}
             </DetailField>
             <DetailField label={dt("fields.validUntil", "Valid until")} empty={!validUntil}>
               {formatCalendarDate(validUntil, intl) || validUntil}

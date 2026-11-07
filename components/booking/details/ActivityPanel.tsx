@@ -164,9 +164,10 @@ function ActivityEvent({
       : item.descriptionSource === "system"
       ? dt("activity.sourceSystem", "system")
       : item.descriptionSource
-  const claimHref = claimNumber && claimAdminHref
-    ? `/admin/warranty-claims?search=${encodeURIComponent(claimNumber)}`
-    : claimAdminHref
+  const claimId = item.metadata?.claimId || null
+  const claimHref = viewerRole === "admin"
+    ? claimNumber && claimAdminHref ? `/admin/warranty-claims?search=${encodeURIComponent(claimNumber)}` : claimAdminHref
+    : claimId && item.metadata?.participantCanOpen === true ? `/dashboard/warranty-claims?claimId=${encodeURIComponent(claimId)}` : null
 
   return (
     <li className="relative pl-7">
@@ -303,9 +304,9 @@ function ActivityEvent({
             </div>
           ) : null}
 
-          {claimNumber && viewerRole === "admin" && claimHref ? (
+          {claimHref ? (
             <a href={claimHref} className="inline-block text-[11px] text-slate-700 underline">
-              {dt("activity.openWarrantyAdmin", "Open warranty claim (admin)")}: {claimNumber}
+              {viewerRole === "admin" ? dt("activity.openWarrantyAdmin", "Open warranty claim (admin)") : dt("activity.openWarranty", "Open warranty claim")}: {claimNumber}
             </a>
           ) : null}
           {disputeType && viewerRole === "admin" && disputeAdminHref ? (
@@ -330,7 +331,7 @@ function ActivityEvent({
 export function ActivityPanel({ booking, details, viewerRole, pathname, search }: ActivityPanelProps) {
   const dt = useDetailT()
   const { intl } = useFormatLocale()
-  const { can } = useAdminAccess()
+  const { canReadArea } = useAdminAccess()
   const role = viewerRole || "customer"
   const items = useMemo(() => resolveActivityItems(details, booking as never, role), [booking, details, role])
   const displayTimeZone = useDetailDisplayTimeZone(
@@ -346,10 +347,10 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
     viewerRole,
     bookingId: booking._id,
     permissions: {
-      bookingsRead: can("bookings.read"),
-      disputesManage: can("disputes.manage"),
-      warrantyManage: can("warranty.manage"),
-      paymentsManage: can("payments.manage"),
+      bookingsRead: canReadArea("bookings"),
+      disputesRead: canReadArea("disputes"),
+      warrantyRead: canReadArea("warranty"),
+      paymentsRead: canReadArea("payments"),
     },
     claimNumber: details?.warrantyClaims?.[0]?.claimNumber,
     hasDispute: Boolean(booking.dispute?.raisedAt || details?.extraCosts?.dispute),
@@ -377,10 +378,8 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
         description={dt("activity.descriptionLong", "Chronological, day-grouped events from recorded booking data. Expand an event for its details.")}
       >
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-          <ProvenanceBadge tone={activity?.complete === false ? "amber" : "emerald"}>
-            {activity?.complete === false
-              ? dt("activity.partial", "Some history may be unavailable")
-              : dt("activity.complete", "Recorded history")}
+          <ProvenanceBadge tone="amber">
+            {dt("activity.coverageUnknown", "Historical coverage is unknown. Only surviving records are shown.")}
           </ProvenanceBadge>
           <span>{dt("activity.eventCount", "{count} events", { count: items.length })}</span>
           {details?.meta?.legacy ? <ProvenanceBadge tone="amber">{dt("activity.legacy", "Legacy record")}</ProvenanceBadge> : null}
