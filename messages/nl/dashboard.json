@@ -461,7 +461,7 @@
     },
     "wallet": {
       "title": "Hoe de puntenportemonnee werkt",
-      "bodyCustomer": "Je spaart Fixtract-punten bij elke boeking en wisselt ze bij het afrekenen in voor directe korting. Je saldo zie je hierboven, je besparingen per boeking hieronder.",
+      "bodyCustomer": "Je spaart Fixtract-punten bij elke boeking en wisselt ze bij het afrekenen in voor directe korting. Je saldo zie je hierboven. Hieronder staan je geregistreerde besparingstotalen, gegroepeerd per valuta en kortingstype.",
       "bodyProfessional": "Hier zie je je puntensaldo en niveauvoortgang. Punten uitgeven voor een niveauboost is momenteel niet mogelijk in de webapp.",
       "balanceLink": "Bekijk saldo",
       "historyLink": "Bekijk besparingsgeschiedenis",
