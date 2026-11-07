@@ -27,9 +27,11 @@ import {
   calculateQuoteVersionVatTotals,
 } from '@/lib/vatPricing';
 import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVersion';
+import { milestoneDisplayAmount } from '@/lib/booking/milestoneDisplay';
 import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
+  milestoneIndex?: number;
   stripeClientSecret?: string;
   currency?: string;
   netAmount?: number;
@@ -251,6 +253,7 @@ export default function BookingPaymentPage() {
   // booking page returns it alongside the booking.
   const [recordedMilestonePlan, setRecordedMilestonePlan] = useState<Array<{
     expectedCustomerCharge?: number | null;
+    customerChargeTotalWithVat?: number | null;
     includesSelectedOptions?: boolean | null;
   }> | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -288,14 +291,14 @@ export default function BookingPaymentPage() {
   }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice, hasUsableQuoteTotal, t]);
 
   const getMilestoneDisplayAmount = useCallback((index: number, netAmount: number) => {
-    // Task 19b: the recorded charge-plan amount is the source of truth
-    // (selected options in full on the first milestone).
-    const recorded = recordedMilestonePlan?.[index]?.expectedCustomerCharge;
-    if (typeof recorded === 'number' && recorded > 0) return recorded;
-    const grossAmount = milestoneGrossAmounts[index];
-    if (grossAmount != null && grossAmount > 0) return grossAmount;
-    return customerPrice(netAmount);
-  }, [recordedMilestonePlan, milestoneGrossAmounts, customerPrice]);
+    return milestoneDisplayAmount({
+      index,
+      recorded: recordedMilestonePlan?.[index],
+      payment: booking?.payment,
+      preview: milestoneGrossAmounts[index],
+      fallback: customerPrice(netAmount),
+    });
+  }, [recordedMilestonePlan, booking?.payment, milestoneGrossAmounts, customerPrice]);
 
   const getQuotedDurations = (b: Booking | null) => {
     const version = getCurrentQuoteVersion(b);
@@ -804,6 +807,7 @@ export default function BookingPaymentPage() {
       setBooking(bookingInfo);
       const plan = (bookingData as { details?: { payments?: { milestones?: Array<{
         expectedCustomerCharge?: number | null;
+    customerChargeTotalWithVat?: number | null;
         includesSelectedOptions?: boolean | null;
       }> } } }).details?.payments?.milestones;
       setRecordedMilestonePlan(
