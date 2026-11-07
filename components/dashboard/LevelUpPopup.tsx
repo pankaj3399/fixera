@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { Award, Gift } from "lucide-react"
@@ -61,6 +61,20 @@ export default function LevelUpPopup() {
   // Fix 2 (review): no reset-on-length-change — the in-memory dismiss must
   // survive inbox refreshes until markRead round-trips. A genuinely new
   // level-up carries a different id, so it still surfaces.
+
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = []
+    for (const item of pendingItems ?? items) {
+      if (!isLevelUp(item) || item.readAt) continue
+      let dismissed = item.id === dismissedId
+      try { dismissed ||= Boolean(window.localStorage.getItem(seenStorageKey(item.id))) } catch { /* In-memory dismissal still applies. */ }
+      if (!dismissed) continue
+      // Failed PATCHes refresh the inbox back to unread. Retry through the
+      // provider's normal read flow, without reopening the dismissed popup.
+      timers.push(setTimeout(() => { void markRead(item.id) }, 5000))
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [items, pendingItems, dismissedId, markRead])
 
   if (!pending) return null
 

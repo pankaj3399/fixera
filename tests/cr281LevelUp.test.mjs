@@ -58,3 +58,29 @@ test('inbox scans unread before/nextCursor pages independently and read flow upd
     assert.equal(value.unreadCount, 54)
   } finally { state.unmount(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; if (previousBackend === undefined) delete process.env.NEXT_PUBLIC_BACKEND_URL; else process.env.NEXT_PUBLIC_BACKEND_URL = previousBackend }
 })
+
+test('failed read recovery retries a dismissed popup without showing it again', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const previousWindow = globalThis.window
+  const storage = new Map()
+  globalThis.window = { localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) } }
+  let reads = 0
+  const inbox = { pendingItems: [item()] }
+  const h = popup({ inbox, markRead: async id => {
+    reads++
+    inbox.pendingItems = inbox.pendingItems.map(n => n.id === id ? { ...n, readAt: 'optimistic' } : n)
+  } })
+  try {
+    const tree = h.render()
+    findAll(tree, n => typeof n.props.onClick === 'function' && textOf(n) === 'Maybe later')[0].props.onClick()
+    assert.equal(reads, 1)
+    assert.equal(h.render(), null)
+    // The provider refresh restores unread state after a failed PATCH.
+    inbox.pendingItems = [item()]
+    assert.equal(h.render(), null)
+    t.mock.timers.tick(4999); assert.equal(reads, 1)
+    t.mock.timers.tick(1); await settle(); assert.equal(reads, 2)
+    assert.equal(h.render(), null)
+    t.mock.timers.tick(10000); assert.equal(reads, 2, 'successful read cancels retries')
+  } finally { h.state.unmount(); globalThis.window = previousWindow }
+})
