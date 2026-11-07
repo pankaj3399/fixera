@@ -2557,9 +2557,12 @@ function BookingDetailContent() {
     const plan = details?.payments?.milestones
     if (!plan || plan.length === 0) return null
     if (booking?.milestonePayments && plan.length !== booking.milestonePayments.length) return null
-    return plan.map((entry) =>
-      typeof entry.expectedCustomerCharge === 'number' ? entry.expectedCustomerCharge : null
-    )
+    return plan.map((entry) => {
+      if (entry.status === 'paid' && typeof entry.customerChargeTotalWithVat === 'number'
+        && Number.isFinite(entry.customerChargeTotalWithVat)) return entry.customerChargeTotalWithVat
+      return typeof entry.expectedCustomerCharge === 'number' && Number.isFinite(entry.expectedCustomerCharge)
+        ? entry.expectedCustomerCharge : null
+    })
   }, [details, booking?.milestonePayments])
   const milestoneIncludesOptions = useMemo<boolean[]>(() => {
     const plan = details?.payments?.milestones
