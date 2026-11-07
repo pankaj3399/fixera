@@ -295,10 +295,10 @@ export default function BookingPaymentPage() {
       index,
       recorded: recordedMilestonePlan?.[index],
       payment: booking?.payment,
-      preview: milestoneGrossAmounts[index],
-      fallback: customerPrice(netAmount),
+      preview: customerPricingReady ? milestoneGrossAmounts[index] : null,
+      fallback: customerPricingReady ? customerPrice(netAmount) : null,
     });
-  }, [recordedMilestonePlan, booking?.payment, milestoneGrossAmounts, customerPrice]);
+  }, [recordedMilestonePlan, booking?.payment, milestoneGrossAmounts, customerPrice, customerPricingReady]);
 
   const getQuotedDurations = (b: Booking | null) => {
     const version = getCurrentQuoteVersion(b);
@@ -1135,7 +1135,9 @@ export default function BookingPaymentPage() {
                         : t('paymentPage.milestones')}
                     </p>
                     <div className="space-y-1">
-                      {booking.milestonePayments.map((m, i) => (
+                      {booking.milestonePayments.map((m, i) => {
+                        const displayAmount = getMilestoneDisplayAmount(i, m.amount ?? 0);
+                        return (
                         <div key={i} className="flex justify-between text-sm">
                           <span className="text-gray-600">
                             {m.title || t('paymentPage.milestoneFallback', { number: i + 1 })}
@@ -1146,15 +1148,15 @@ export default function BookingPaymentPage() {
                             ) : null}
                           </span>
                           <span className="text-gray-900">
-                            {customerPricingReady
+                            {displayAmount != null
                               ? formatMoney(
-                                  getMilestoneDisplayAmount(i, m.amount ?? 0),
+                                  displayAmount,
                                   booking?.quote?.currency?.toUpperCase() || 'EUR'
                                 )
                               : '...'}
                           </span>
                         </div>
-                      ))}
+                      )})}
                     </div>
                     {recordedMilestonePlan?.some((entry) => entry?.includesSelectedOptions) ? (
                       <p className="mt-1 text-[11px] text-gray-500">

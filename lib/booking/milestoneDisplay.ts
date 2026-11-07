@@ -2,13 +2,13 @@ export type MilestoneDisplayRecord = {
   expectedCustomerCharge?: number | null;
   customerChargeTotalWithVat?: number | null;
 };
-export function milestoneDisplayAmount(args: {
+export function milestoneDisplayAmount<Fallback extends number | null>(args: {
   index: number;
   recorded?: MilestoneDisplayRecord | null;
   payment?: { milestoneIndex?: number; totalWithVat?: number } | null;
   preview?: number | null;
-  fallback: number;
-}): number {
+  fallback: Fallback;
+}): number | Fallback {
   const amounts = [
     args.recorded?.customerChargeTotalWithVat,
     args.payment?.milestoneIndex === args.index ? args.payment.totalWithVat : undefined,
