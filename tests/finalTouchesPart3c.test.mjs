@@ -431,7 +431,7 @@ test('hour-mode helpers gate times on execution unit, never on presence alone', 
   assert.equal(resolveBookingHourMode({ bookingTimeMode: 'days' }), false)
   assert.equal(resolveBookingHourMode(null), false)
   assert.equal(formatScheduleTimeRange('14:00', '16:00'), '14:00–16:00')
-  assert.equal(formatScheduleTimeRange('14:00', null), null)
+  assert.equal(formatScheduleTimeRange('14:00', null), '14:00')
   assert.equal(formatScheduleTimeRange(null, '16:00'), null)
 })
 
@@ -555,4 +555,12 @@ test('booking page prefers the recorded quotation saving amount', () => {
   assert.match(page, /recordedQuotationPricing\(details\?\.quotation/ )
   assert.match(page, /quotationSavingAmount/)
   assert.doesNotMatch(page, /youSave", \{ amount: formatMoney\(currentVersionOriginalQuoteTotals\.total - currentVersionQuoteTotals\.total/)
+})
+
+test('recorded schedule execution unit wins over package and live project units in every booking panel', () => {
+  const booking = { scheduleSnapshot: { executionDuration: { unit: 'hours' } }, project: { timeMode: 'days', executionDuration: { unit: 'days' } } }
+  const details = { bookingSnapshot: { selectedSubproject: { executionDuration: { unit: 'days' } } } }
+  assert.equal(resolvePanelHourMode(booking, details), true)
+  assert.equal(resolvePanelHourMode({ ...booking, scheduleSnapshot: { executionDuration: { unit: 'days' } }, project: { timeMode: 'hours' } }, { bookingSnapshot: { selectedSubproject: { executionDuration: { unit: 'hours' } } } }), false)
+  assert.equal(resolvePanelHourMode({ ...booking, scheduleSnapshot: null }, details), false)
 })
