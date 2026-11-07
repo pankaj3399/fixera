@@ -31,3 +31,12 @@ test('missing snapshots stay unknown while zero is a valid recorded amount', () 
   assert.equal(recordedQuotationPricing({ customerTotals: { customerNetAmount: 10 } }), null)
   assert.equal(recordedQuotationPricing({ customerTotals: { customerNetAmount: 0, vatAmount: 0, totalWithVat: 0 } }).totals.total, 0)
 })
+
+test('savings stay unknown if any immutable pricing line has incomplete or non-finite inputs', () => {
+  for (const patch of [{ price: undefined }, { vatRate: undefined }, { price: NaN }, { vatRate: Infinity }]) {
+    const input = version()
+    delete input.customerTotals.discount.totalDiscountWithVat
+    Object.assign(input.pricingLines[0], patch)
+    assert.equal(recordedQuotationPricing(input).saving, null)
+  }
+})

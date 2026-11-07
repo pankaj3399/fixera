@@ -14,7 +14,8 @@ export function recordedQuotationPricing(version: QuotationVersionDto | null | u
   // from that immutable version's lines and recorded commission, never from
   // the customer's current tier or live platform settings.
   if (!finite(saving) && finite(totals.amountBeforeDiscounts) && finite(totals.commissionPercent)
-    && version.pricingLines?.length) {
+    && version.pricingLines?.length
+    && version.pricingLines.every((line) => finite(line.price) && finite(line.vatRate))) {
     const lines = version.pricingLines.flatMap((line) => finite(line.price) && finite(line.vatRate)
       ? [{ net: money(line.price * (1 + totals.commissionPercent! / 100)), rate: line.vatRate }] : [])
     const last = lines[lines.length - 1]
