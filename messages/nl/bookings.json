@@ -448,7 +448,7 @@
     "totalLabel": "Totaal meerkosten:",
     "unitAdjustmentName": "Aanpassing aantal ({unit})",
     "unitDetail": "(geschat: {estimated} {unit}, werkelijk: {actual} {unit})",
-    "subtotal": "Subtotaal (incl. {percent}% platformvergoeding)",
+    "subtotal": "Subtotaal",
     "loyaltyLine": "{level}-loyaliteit ({percentage}%)",
     "vat": "Btw",
     "payBeforeConfirmTitle": "Betaal de meerkosten vóór de definitieve bevestiging",

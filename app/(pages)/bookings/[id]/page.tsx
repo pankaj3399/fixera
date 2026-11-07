@@ -42,7 +42,6 @@ import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
-import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
@@ -594,8 +593,8 @@ function BookingDetailContent() {
         return t("warranty.fileUnsupported", { name: item.name })
       })
       .join("; ")
-  const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount } = useCustomerPricing()
-  const customerPricingReady = commissionPercent != null && loyaltyLoaded
+  const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount, pricingReady, customerExtraCost, customerExtraCostTotal } = useCustomerPricing()
+  const customerPricingReady = pricingReady && loyaltyLoaded
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -2527,7 +2526,7 @@ function BookingDetailContent() {
   // Before the charge exists: the per-unit customer price less the loyalty
   // discount the customer would get, as the server will compute it.
   const customerExtraCostEstimate = withLoyaltyDiscount(
-    commissionedExtraCostTotal(booking?.extraCosts, booking?.extraCostTotal || 0, commissionPercent ?? 0),
+    customerExtraCostTotal(booking?.extraCosts, booking?.extraCostTotal || 0),
   )
   const extraCostAmounts = getExtraCostAmounts(
     extraCostCharge,
@@ -4113,7 +4112,7 @@ function BookingDetailContent() {
                       <div className="bg-white/60 rounded p-2 space-y-2">
                         <p className="text-xs font-semibold text-gray-700">{t("extraCosts.title")}</p>
                         {booking.extraCosts.map((cost, i) => {
-                          const displayAmount = customerPricingReady ? commissionedExtraCost(cost, commissionPercent ?? 0) : null
+                          const displayAmount = customerPricingReady ? customerExtraCost(cost) : null
                           const isPositive = displayAmount == null ? cost.amount >= 0 : displayAmount >= 0
                           return (
                             <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
@@ -4137,7 +4136,7 @@ function BookingDetailContent() {
                           const currency = booking.payment?.currency || 'EUR'
                           const rawTotal = booking.extraCostTotal || 0
                           const subtotalInclCommission = extraCostCharge?.subtotalInclCommission
-                            ?? commissionedExtraCostTotal(booking.extraCosts, rawTotal, commissionPercent ?? 0)
+                            ?? customerExtraCostTotal(booking.extraCosts, rawTotal)
                           const { vat: vatAmount, vatRate, net: netCharge, total: displayedTotal } = extraCostAmounts
                           const computedLoyalty = rawTotal > 0
                             ? Math.max(0, +(subtotalInclCommission - netCharge).toFixed(2))
@@ -4153,9 +4152,9 @@ function BookingDetailContent() {
                           const showLoyalty = loyaltyDiscount > 0 && loyaltyPercentage > 0
                           return (
                             <div className="space-y-1 pt-1 border-t border-gray-200 text-xs">
-                              {commissionPercent != null && rawTotal !== 0 && (
+                              {customerPricingReady && rawTotal !== 0 && (
                                 <div className="flex justify-between text-gray-600">
-                                  <span>{t("extraCosts.subtotal", { percent: commissionPercent })}</span>
+                                  <span>{t("extraCosts.subtotal")}</span>
                                   <span>{subtotalInclCommission >= 0 ? '+' : ''}{formatMoney(subtotalInclCommission, currency)}</span>
                                 </div>
                               )}

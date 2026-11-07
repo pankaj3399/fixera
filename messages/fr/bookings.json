@@ -448,7 +448,7 @@
     "totalLabel": "Total des frais supplémentaires :",
     "unitAdjustmentName": "Ajustement de quantité ({unit})",
     "unitDetail": "(estimé : {estimated} {unit}, réel : {actual} {unit})",
-    "subtotal": "Sous-total (dont {percent} % de frais de plateforme)",
+    "subtotal": "Sous-total",
     "loyaltyLine": "Fidélité {level} ({percentage} %)",
     "vat": "TVA",
     "payBeforeConfirmTitle": "Payez les frais supplémentaires avant la confirmation finale",

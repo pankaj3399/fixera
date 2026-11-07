@@ -1,3 +1,4 @@
+import { CustomerPricingNotice } from "@/components/CustomerPricingNotice";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Suspense } from "react";
@@ -156,6 +157,7 @@ export default async function RootLayout({
                   </Suspense>
                   <main className="flex flex-col min-h-screen">
                     <Toaster></Toaster>
+                    <CustomerPricingNotice />
                     {children}
                   </main>
                   <Footer />

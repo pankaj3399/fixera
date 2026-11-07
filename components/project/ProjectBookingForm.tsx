@@ -281,8 +281,8 @@ export default function ProjectBookingForm({
   onBack,
   selectedSubprojectIndex,
 }: ProjectBookingFormProps) {
-  const { customerPrice, commissionPercent, loyaltyLoaded } = useCustomerPricing();
-  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
+  const { customerPrice, pricingReady, loyaltyLoaded } = useCustomerPricing();
+  const customerPricingReady = pricingReady && loyaltyLoaded;
   const router = useRouter();
   const { user } = useAuth();
   const t = useTranslations('projectBooking');
@@ -294,7 +294,7 @@ export default function ProjectBookingForm({
   // nothing is converted — only formatted in the active locale.
   const formatAmount = useCallback(
     (amount?: number | null) =>
-      typeof amount === 'number' ? formatMoney(amount) : null,
+      typeof amount === 'number' ? formatMoney(amount) : '…',
     [formatMoney]
   );
 
@@ -2390,7 +2390,7 @@ export default function ProjectBookingForm({
       return;
     }
 
-    if (shouldPayAtCheckoutFlow && !customerPricingReady) {
+    if (shouldPayAtCheckoutFlow && (!customerPricingReady || !Number.isFinite(totalPricing.customerAmount))) {
       toast.error(t('toasts.finalizingPricing'));
       return;
     }
@@ -2806,7 +2806,7 @@ export default function ProjectBookingForm({
   const baseDisplayTotal =
     typeof displayTotalPrice === 'number'
       ? displayTotalPrice
-      : calculateTotal(packageUnitCount);
+      : NaN;
   const repeatBuyerDiscountAmount =
     discountedDisplayTotalPrice != null && discountedDisplayTotalPrice < baseDisplayTotal
       ? +(baseDisplayTotal - discountedDisplayTotalPrice).toFixed(2)
@@ -2822,7 +2822,7 @@ export default function ProjectBookingForm({
     selectedPackage?.pricing.type !== 'rfq' &&
     typeof selectedPackage?.pricing.amount === 'number' &&
     selectedPackage.pricing.amount >= 0 &&
-    finalDisplayTotal > 0 &&
+    calculateTotal(packageUnitCount) > 0 &&
     !vatNeedsRfqReview;
   const finalStepLabel = shouldPayAtCheckoutFlow
     ? t('steps.reviewAndPay')
@@ -3306,7 +3306,7 @@ export default function ProjectBookingForm({
                                       <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                     </div>
                                   ) : (
-                                    formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)
+                                    formatAmount(displayPackagePrice)
                                   )}
                                 </div>
                               )}
@@ -3317,7 +3317,7 @@ export default function ProjectBookingForm({
                                     {hasSelectedPackageUnitDiscount
                                       ? formatAmount(discountedSelectedPackageUnitPrice)
                                       : formatAmount(
-                                        displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                                        displaySelectedPackageUnitPrice
                                       )}
                                     <span className='text-sm font-normal text-gray-500 ml-1'>
                                       /{getUnitLabelText(project.priceModel)}
@@ -3405,15 +3405,14 @@ export default function ProjectBookingForm({
                                     <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                   </div>
                                 ) : (
-                                  formatAmount(displayPackagePrice ?? getEffectivePackagePrice() ?? 0)
+                                  formatAmount(displayPackagePrice)
                                 )}
                               </div>
                               <p className='text-sm text-gray-500'>
                                 {packageUnitCount}{' '}
                                 {getUnitLabelText(project.priceModel)} x{' '}
                                 {formatAmount(
-                                  displayPackageBreakdownUnitPrice ??
-                                    selectedPackage.pricing.amount
+                                  displayPackageBreakdownUnitPrice
                                 )}
                                 /{getUnitLabelText(project.priceModel)}
                               </p>
@@ -3948,7 +3947,7 @@ export default function ProjectBookingForm({
                                 <div className='text-right flex-shrink-0'>
                                   <p className='font-bold text-blue-600'>
                                     +{formatAmount(
-                                      getCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.price)
                                     )}
                                   </p>
                                 </div>
@@ -4000,7 +3999,7 @@ export default function ProjectBookingForm({
                                   </span>
                                   <span className='font-semibold text-green-600'>
                                     +{formatAmount(
-                                      getCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.price)
                                     )}
                                   </span>
                                 </div>
@@ -4067,8 +4066,7 @@ export default function ProjectBookingForm({
                               unit: getUnitLabelText(project.priceModel),
                               price:
                                 formatAmount(
-                                  displayPackageBreakdownUnitPrice ??
-                                    selectedPackage.pricing.amount
+                                  displayPackageBreakdownUnitPrice
                                 ) ?? '',
                             })}
                           </p>
@@ -4391,7 +4389,7 @@ export default function ProjectBookingForm({
                             <span className='font-semibold text-blue-600'>
                               {hasDisplayPackageDiscount
                                 ? formatAmount(discountedDisplayPackagePrice)
-                                : formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)}
+                                : formatAmount(displayPackagePrice)}
                             </span>
                           )}
                         {selectedPackage.pricing.type === 'unit' &&
@@ -4400,7 +4398,7 @@ export default function ProjectBookingForm({
                               {hasSelectedPackageUnitDiscount
                                 ? formatAmount(discountedSelectedPackageUnitPrice)
                                 : formatAmount(
-                                  displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                                  displaySelectedPackageUnitPrice
                                 )}
                               <span className='text-xs font-normal text-gray-500 ml-1'>
                                 /{getUnitLabelText(project.priceModel)}
@@ -4648,8 +4646,7 @@ export default function ProjectBookingForm({
                             unit: getUnitLabelText(project.priceModel),
                             price:
                               formatAmount(
-                                displayPackageBreakdownUnitPrice ??
-                                  selectedPackage.pricing.amount
+                                displayPackageBreakdownUnitPrice
                               ) ?? '',
                           })}
                         </p>
@@ -4686,7 +4683,7 @@ export default function ProjectBookingForm({
                                 </div>
                                 <span className='font-semibold text-green-600 ml-4 flex-shrink-0'>
                                   +{formatAmount(
-                                    getCustomerDisplayAmount(option.price) ?? option.price
+                                    getCustomerDisplayAmount(option.price)
                                   )}
                                 </span>
                               </div>
@@ -4896,7 +4893,7 @@ export default function ProjectBookingForm({
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && !customerPricingReady)}
+              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && (!customerPricingReady || !Number.isFinite(totalPricing.customerAmount)))}
               className='bg-blue-600 hover:bg-blue-700'
             >
               {loading ? (

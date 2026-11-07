@@ -37,6 +37,7 @@ export interface PriceOptions {
 }
 
 function formatAmount(amount: number, currency: string, locale: string): string {
+  if (!Number.isFinite(amount)) return "…";
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
@@ -66,6 +67,7 @@ export function resolveRecordCurrency(
  * stored as GBP. Unknown/invalid codes fall back to "CODE 1,234.00".
  */
 export function formatMoney(amount: number, currency: string | null | undefined, locale: string): string {
+  if (!Number.isFinite(amount)) return "…";
   const raw = (currency || BASE_CURRENCY).trim();
   // Legacy records store a symbol instead of an ISO code (e.g. RFQ budgets use "€").
   const code = LEGACY_SYMBOLS[raw] ?? raw.toUpperCase();

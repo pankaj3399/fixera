@@ -4,6 +4,7 @@ import { getAuthToken } from '@/lib/utils'
 import { useCommissionRate } from './useCommissionRate'
 import { cachedClientRequest } from '@/lib/clientRequestCache'
 import type { UnitPricing } from '@/lib/customerPricing'
+import type { ExtraCostPreview } from '@/lib/customerPricePreview'
 
 interface LoyaltyDiscountInfo {
   level: string
@@ -30,6 +31,11 @@ interface LoyaltyStatusResponse {
 export interface CustomerPricing {
   commissionPercent: number | null
   commissionLoaded: boolean
+  pricingReady: boolean
+  pricingError: Error | null
+  retryPricing: () => void
+  customerExtraCost: (cost: ExtraCostPreview) => number
+  customerExtraCostTotal: (costs: ExtraCostPreview[] | undefined, amount: number) => number
   commissionError: Error | null
   loyalty: LoyaltyDiscountInfo | null
   loyaltyLoaded: boolean
@@ -44,7 +50,7 @@ export interface CustomerPricing {
 const toRoundedTwo = (value: number) => Math.round(value * 100) / 100
 
 export function useCustomerPricing(): CustomerPricing {
-  const { commissionPercent, commissionLoaded, commissionError, customerPrice: baseCustomerPrice } = useCommissionRate()
+  const { commissionPercent, commissionLoaded, commissionError, pricingReady, pricingError, retryPricing, customerExtraCost, customerExtraCostTotal, customerPrice: baseCustomerPrice } = useCommissionRate()
   const { user, isAuthenticated } = useAuth()
   const [loyalty, setLoyalty] = useState<LoyaltyDiscountInfo | null>(null)
   const [loyaltyLoaded, setLoyaltyLoaded] = useState(false)
@@ -151,7 +157,7 @@ export function useCustomerPricing(): CustomerPricing {
   return useMemo(
     () => ({
       commissionPercent,
-      commissionLoaded,
+      commissionLoaded, pricingReady, pricingError, retryPricing, customerExtraCost, customerExtraCostTotal,
       commissionError,
       loyalty,
       loyaltyLoaded,
@@ -160,6 +166,6 @@ export function useCustomerPricing(): CustomerPricing {
       withLoyaltyDiscount: applyLoyaltyDiscount,
       customerPriceWithRepeatBuyer,
     }),
-    [commissionPercent, commissionLoaded, commissionError, loyalty, loyaltyLoaded, customerPrice, originalPrice, applyLoyaltyDiscount, customerPriceWithRepeatBuyer]
+    [commissionPercent, commissionLoaded, commissionError, pricingReady, pricingError, retryPricing, customerExtraCost, customerExtraCostTotal, loyalty, loyaltyLoaded, customerPrice, originalPrice, applyLoyaltyDiscount, customerPriceWithRepeatBuyer]
   )
 }

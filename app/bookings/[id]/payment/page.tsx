@@ -215,8 +215,8 @@ export default function BookingPaymentPage() {
   const getErrorText = useErrorMessage();
   const { formatMoney, currency: displayCurrency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
-  const { commissionPercent, customerPrice, loyalty, loyaltyLoaded, originalPrice } = useCustomerPricing();
-  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
+  const { customerPrice, loyalty, loyaltyLoaded, originalPrice, pricingReady } = useCustomerPricing();
+  const customerPricingReady = pricingReady && loyaltyLoaded;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');

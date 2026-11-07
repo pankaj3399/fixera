@@ -448,7 +448,7 @@
     "totalLabel": "Total Extra Costs:",
     "unitAdjustmentName": "Quantity adjustment ({unit})",
     "unitDetail": "(estimated: {estimated} {unit}, actual: {actual} {unit})",
-    "subtotal": "Subtotal (incl. {percent}% platform fee)",
+    "subtotal": "Subtotal",
     "loyaltyLine": "{level} loyalty ({percentage}%)",
     "vat": "VAT",
     "payBeforeConfirmTitle": "Pay extra costs before final confirmation",
