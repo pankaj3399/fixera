@@ -351,7 +351,11 @@ const SearchFilters = ({
               type="text"
               value={keywordDraft}
               onChange={(e) => setKeywordDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitKeyword(); } }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+                e.preventDefault();
+                commitKeyword();
+              }}
               placeholder={t('filters.keywordPlaceholder')}
               className="pr-8"
             />
