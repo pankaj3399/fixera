@@ -25,3 +25,36 @@ for (const locale of ['en', 'nl', 'fr']) test(`level-up description translates s
     h.state.unmount()
   }
 })
+
+test('pending level-ups are independent of the bell first page', () => {
+  const h = popup({ notification: item({ eventKey: 'other' }), inbox: { pendingItems: [item()] } })
+  assert.match(textOf(h.render()), /Gold/)
+  h.state.unmount()
+})
+
+test('inbox scans unread before/nextCursor pages independently and read flow updates older items', async () => {
+  const previousWindow = globalThis.window, previousFetch = globalThis.fetch, previousBackend = process.env.NEXT_PUBLIC_BACKEND_URL
+  process.env.NEXT_PUBLIC_BACKEND_URL = 'https://backend.test'
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, setInterval: () => 1, clearInterval() {} }
+  const urls = [], state = hooks()
+  globalThis.fetch = async (url, options) => {
+    urls.push(String(url))
+    if (options?.method === 'PATCH') return { ok: true }
+    const query = new URL(url).searchParams
+    const data = !query.has('unreadOnly') ? { items: [item({ id: 'bell', eventKey: 'other' })], unreadCount: 55 }
+      : query.has('before') ? { items: [item()], nextCursor: null }
+      : { items: Array.from({ length: 50 }, (_, i) => item({ id: `recent-${i}`, eventKey: 'other' })), nextCursor: '2026-10-01T00:00:00.000Z|older-id' }
+    return { ok: true, json: async () => ({ success: true, data }) }
+  }
+  try {
+    const Provider = loadComponent('../contexts/NotificationInboxProvider.tsx', { react: state.api, '@/lib/utils': { getAuthToken: () => null } }, 'NotificationInboxProvider')
+    const render = () => { const tree = state.render(() => Provider({ isAuthenticated: true, sessionKey: 'user' })); state.flush(); return tree.props.value }
+    render(); await settle(); let value = render()
+    assert.deepEqual(value.items.map(n => n.id), ['bell'])
+    assert.equal(value.pendingItems.length, 51)
+    assert.equal(new URL(urls[2]).searchParams.get('before'), '2026-10-01T00:00:00.000Z|older-id')
+    await value.markRead('up-1'); value = render()
+    assert.ok(value.pendingItems.find(n => n.id === 'up-1').readAt)
+    assert.equal(value.unreadCount, 54)
+  } finally { state.unmount(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; if (previousBackend === undefined) delete process.env.NEXT_PUBLIC_BACKEND_URL; else process.env.NEXT_PUBLIC_BACKEND_URL = previousBackend }
+})

@@ -33,13 +33,13 @@ function isLevelUp(item: InboxNotification): boolean {
 export default function LevelUpPopup() {
   const t = useTranslations("dashboardWidgets")
   const router = useRouter()
-  const { items, markRead } = useNotificationInbox()
+  const { items, pendingItems, markRead } = useNotificationInbox()
   const [dismissedId, setDismissedId] = useState<string | null>(null)
 
   const pending = useMemo(() => {
     // Fix 1: already-read items never re-pop (other browser/incognito);
     // localStorage stays as an extra guard for unread items dismissed here.
-    const candidates = items.filter((item) => isLevelUp(item) && !item.readAt)
+    const candidates = (pendingItems ?? items).filter((item) => isLevelUp(item) && !item.readAt)
     if (candidates.length === 0) return null
     const sorted = [...candidates].sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -56,7 +56,7 @@ export default function LevelUpPopup() {
       return item
     }
     return null
-  }, [items, dismissedId])
+  }, [items, pendingItems, dismissedId])
 
   // Fix 2 (review): no reset-on-length-change — the in-memory dismiss must
   // survive inbox refreshes until markRead round-trips. A genuinely new
