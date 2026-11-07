@@ -458,6 +458,14 @@
       "unknownCoverage": "{count, plural, one {# settled booking predates} other {# settled bookings predate}} discount records, so the total is a lower bound.",
       "excludedUncertain": "{count, plural, one {# booking is} other {# bookings are}} excluded (partial refund or dispute: no exact discount allocation on record).",
       "bookingsCount": "{count, plural, one {# settled booking} other {# settled bookings}}"
+    },
+    "wallet": {
+      "title": "How the points wallet works",
+      "bodyCustomer": "You earn Fixtract points with every booking and redeem them at checkout for an instant discount. Your balance is shown above and your savings per booking below.",
+      "bodyProfessional": "Your points balance and level progress appear here. Spending points on a level boost is not currently available in the web app.",
+      "balanceLink": "View balance",
+      "historyLink": "View savings history",
+      "benefitsLink": "View benefits"
     }
   },
   "disputes": {

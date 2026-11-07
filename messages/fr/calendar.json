@@ -2,6 +2,9 @@
   "eventTitles": {
     "personalBlock": "Blocage personnel",
     "booking": "Réservation",
+    "bookingPending": "Réservation en attente",
+    "bookingActive": "En cours",
+    "bookingCompleted": "Réservation terminée",
     "buffer": "Marge",
     "companyClosure": "Fermeture de l'entreprise",
     "holiday": "Jour férié",

@@ -52,6 +52,7 @@ import { getAuthToken } from '@/lib/utils';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
 import { trackBeginCheckout, trackCompleteRfq, trackEvent } from '@/lib/analytics';
+import { hasEnoughFreeWorkingTime } from '@/lib/calendar/dayAvailability';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -377,7 +378,6 @@ export default function ProjectBookingForm({
   const [professionalTimezone, setProfessionalTimezone] =
     useState<string>('UTC');
   const [viewerTimeZone, setViewerTimeZone] = useState<string>('UTC');
-  const PARTIAL_BLOCK_THRESHOLD_HOURS = 4;
 
   // Form state
   const [selectedPackageIndex, setSelectedPackageIndex] = useState<
@@ -1424,13 +1424,9 @@ export default function ProjectBookingForm({
     date: Date,
     intervals: Array<{ start: Date; end: Date }>
   ) => {
-    if (intervals.length === 0) {
-      return false;
-    }
-
-    const { blockedHours } = computeBlockedHoursForIntervals(date, intervals);
-    // Block the day if 4 or more hours are blocked (matches backend logic)
-    return blockedHours >= PARTIAL_BLOCK_THRESHOLD_HOURS;
+    // A day needs at least MIN_FREE_WORKING_HOURS free inside its working
+    // schedule (matches the backend engine); short schedules count too.
+    return !hasEnoughFreeWorkingTime(computeBlockedHoursForIntervals(date, intervals));
   };
 
   const windowOverlapsBlockedRanges = (
@@ -1639,7 +1635,7 @@ export default function ProjectBookingForm({
     const blockedIntervals = getBlockedIntervalsForDate(date);
     const buffer = getBufferDuration();
 
-    // NOTE: For hours mode, we do NOT use shouldBlockDayForIntervals (4-hour threshold)
+    // NOTE: For hours mode, we do NOT use shouldBlockDayForIntervals (3-free-hour day rule)
     // because we want customers to be able to book any remaining available slots
     // The per-slot overlap check below handles blocking individual time slots
 
@@ -1903,7 +1899,7 @@ export default function ProjectBookingForm({
         dateObj,
         intervals
       );
-      const blockedByRanges = blockedHours >= PARTIAL_BLOCK_THRESHOLD_HOURS;
+      const blockedByRanges = !hasEnoughFreeWorkingTime({ blockedHours, workingHours });
       const finalBlocked = explicitBlocked || blockedByRanges;
 
       return {
@@ -1943,7 +1939,6 @@ export default function ProjectBookingForm({
     professionalAvailability,
     professionalTz,
     blockedDates,
-    PARTIAL_BLOCK_THRESHOLD_HOURS,
     project._id,
   ]);
 
@@ -1952,10 +1947,12 @@ export default function ProjectBookingForm({
       Date | { from: Date; to: Date } | ((date: Date) => boolean)
     > = [];
 
-    // For days mode, use a function matcher that applies the 4-hour threshold
-    // instead of disabling entire ranges
+    // For days mode, use a function matcher that applies the 3-free-hour day
+    // rule (lib/calendar/dayAvailability) instead of disabling entire ranges
     if (projectMode !== 'hours') {
-      // Create a function matcher that checks each day using the 4-hour threshold
+      // Server blockedDates already apply the same rule (backend
+      // MIN_FREE_HOURS_FOR_DAY_AVAILABILITY); the interval check covers the
+      // blocked ranges the client knows about.
       const rangeBlockMatcher = (date: Date) => {
         const dateKey = toLocalDateKey(date);
         if (blockedDates.blockedDates.includes(dateKey)) {

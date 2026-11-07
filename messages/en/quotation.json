@@ -38,6 +38,32 @@
       "legacy": "0% VAT (legacy quote)",
       "unavailable": "VAT unavailable — enter a booking address"
     },
+    "vatDetermination": {
+      "title": "VAT determination",
+      "customerType": "Customer type",
+      "customerTypes": {
+        "b2c": "Consumer (B2C)",
+        "b2b": "Business (B2B)"
+      },
+      "article47": "Article 47 classification",
+      "article47Classes": {
+        "movable": "Movable",
+        "immovable": "Immovable",
+        "immovableExempt": "Immovable but exempt from Belgian reverse charge"
+      },
+      "addressType": "VAT address",
+      "addressTypes": {
+        "booking": "Booking address",
+        "business": "Customer business address"
+      },
+      "country": "VAT country",
+      "reverseCharge": "Reverse charge",
+      "yes": "Yes",
+      "no": "No",
+      "reverseChargeNote": "Reverse charge applies: 0% VAT on all lines. No rate selection is available.",
+      "reverseChargeRate": "0% Reverse Charge (determined)",
+      "loadError": "VAT options could not be loaded. You can still complete the quotation; the rate will be validated on submit."
+    },
     "netTotal": "Net total:",
     "vatTotal": "VAT:",
     "totalInclVat": "Total (incl. VAT):",

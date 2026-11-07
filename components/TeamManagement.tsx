@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner"
 import { toLocalInputValue, getDateValue, toIsoDateTime, type DateInput } from "@/lib/dateUtils"
 import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
+import { bookingCalendarEventType } from "@/lib/calendar/bookingEvents"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
 type Day =
@@ -53,6 +54,11 @@ interface DayAvailability {
 type WeeklyAvailability = {
   [day in Day]: DayAvailability;
 };
+
+interface CompanyClosures {
+  companyBlockedDates: { date: string; reason?: string; isHoliday?: boolean }[]
+  companyBlockedRanges: { startDate: string; endDate: string; reason?: string; isHoliday?: boolean }[]
+}
 
 interface Employee {
   _id: string
@@ -76,6 +82,7 @@ interface Employee {
     startDate: string;
     endDate: string;
     reason?: string;
+    status?: string;
     bookingId?: string;
     bookingNumber?: string;
     customerName?: string;
@@ -95,6 +102,7 @@ export default function EmployeeManagement() {
   const tCalendar = useTranslations("calendar")
   const { intl } = useFormatLocale()
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [companyClosures, setCompanyClosures] = useState<CompanyClosures>({ companyBlockedDates: [], companyBlockedRanges: [] })
   const [loading, setLoading] = useState(true)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [inviting, setInviting] = useState(false)
@@ -172,6 +180,10 @@ export default function EmployeeManagement() {
 
       if (data.success) {
         setEmployees(data.data.employees || [])
+        setCompanyClosures({
+          companyBlockedDates: data.data.companyBlockedDates || [],
+          companyBlockedRanges: data.data.companyBlockedRanges || [],
+        })
       } else {
         console.error('Failed to fetch employees:', data.msg)
       }
@@ -499,6 +511,35 @@ export default function EmployeeManagement() {
   const calendarEvents = useMemo<CalendarEvent[]>(() => {
     const events: CalendarEvent[] = []
 
+    const closureDate = (value: string, isEnd = false) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return new Date(`${value}T${isEnd ? '23:59:59' : '00:00:00'}`)
+      }
+      return new Date(value)
+    }
+    companyClosures.companyBlockedRanges.forEach((range, index) => {
+      const start = closureDate(range.startDate)
+      const end = closureDate(range.endDate, true)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
+      events.push({
+        id: `company-${index}`, type: 'company',
+        title: range.isHoliday ? tCalendar('eventTitles.holiday') : tCalendar('eventTitles.companyClosure'),
+        start, end, meta: { note: range.reason }, readOnly: true,
+      })
+    })
+    companyClosures.companyBlockedDates.forEach((item, index) => {
+      const start = closureDate(item.date)
+      // A date is a whole calendar day, including API ISO-midnight dates.
+      const end = new Date(start)
+      end.setHours(23, 59, 59, 999)
+      if (Number.isNaN(start.getTime()) || end <= start) return
+      events.push({
+        id: `company-date-${index}`, type: 'company',
+        title: item.isHoliday ? tCalendar('eventTitles.holiday') : tCalendar('eventTitles.companyClosure'),
+        start, end, meta: { note: item.reason }, readOnly: true,
+      })
+    })
+
     blockedRanges.forEach((range, index) => {
       const start = new Date(range.startDate)
       const end = new Date(range.endDate)
@@ -517,11 +558,30 @@ export default function EmployeeManagement() {
       const start = new Date(range.startDate)
       const end = new Date(range.endDate)
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return
-      const type = range.reason === 'booking-buffer' ? 'booking-buffer' : 'booking'
+      if (range.reason === 'booking-buffer') {
+        events.push({
+          id: `booking-${range.bookingId || index}`,
+          type: 'booking-buffer',
+          title: tCalendar('eventTitles.buffer'),
+          start,
+          end,
+          meta: {
+            bookingId: range.bookingId,
+            bookingNumber: range.bookingNumber,
+            customerName: range.customerName,
+            location: range.location
+          }
+        })
+        return
+      }
+      // Status-derived colour: pending renders blue, in-progress indigo,
+      // completed emerald. Ranges without a status fall back to pending blue.
+      const bookingType = bookingCalendarEventType(range.status)
+      if (!bookingType) return
       events.push({
         id: `booking-${range.bookingId || index}`,
-        type,
-        title: type === 'booking-buffer' ? tCalendar('eventTitles.buffer') : tCalendar('eventTitles.booking'),
+        type: bookingType,
+        title: tCalendar('eventTitles.booking'),
         start,
         end,
         meta: {
@@ -534,7 +594,7 @@ export default function EmployeeManagement() {
     })
 
     return events
-  }, [availabilityDialog?.bookingBlockedRanges, blockedRanges, tCalendar])
+  }, [availabilityDialog?.bookingBlockedRanges, blockedRanges, companyClosures, tCalendar])
 
   // Save employee blocked dates (employees follow company weekly schedule)
   const saveEmployeeAvailability = async () => {

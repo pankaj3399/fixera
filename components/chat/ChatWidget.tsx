@@ -105,6 +105,7 @@ export default function ChatWidget() {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("none");
   const conversationListRef = useRef<ChatConversation[]>([]);
+  const selectedConversationIdRef = useRef<string | null>(null);
   const conversationListRequestRef = useRef<Promise<void> | null>(null);
   const conversationListRequestGenerationRef = useRef(0);
   const pendingStartInFlightRef = useRef<string | null>(null);
@@ -203,6 +204,10 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [professionalOptions, setProfessionalOptions] = useState<ProfessionalOption[]>([]);
 
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId;
+  }, [selectedConversationId]);
+
   const userRole = user?.role;
   const userId = user?._id || null;
 
@@ -276,17 +281,22 @@ export default function ChatWidget() {
       const request = (async () => {
         try {
           const data = await fetchConversations({ page: 1, limit: 50 });
-          const list = data.conversations || [];
           if (session !== chatSessionRef.current) return;
+          const list = [...(data.conversations || [])];
+          // Page one is only a partial list. Keep the independently resolved
+          // selection through refreshes and polling; fresh rows take precedence.
+          const selected = conversationListRef.current.find(
+            (conversation) => conversation._id === selectedConversationIdRef.current,
+          );
+          if (selected && !list.some((conversation) => conversation._id === selected._id)) {
+            list.unshift(selected);
+          }
           setConversations(list);
           conversationListRef.current = list;
 
           // Messenger-like behavior:
           // Keep the user's current view. Do NOT auto-open latest conversation.
-          setSelectedConversationId((current) => {
-            if (!current) return null;
-            return list.some((conversation) => conversation._id === current) ? current : null;
-          });
+          // Absence from this page does not invalidate the current selection.
         } catch {
           if (open) {
             toast.error(t("toasts.loadConversationsFailed"));
@@ -348,6 +358,20 @@ export default function ChatWidget() {
     [open, t]
   );
 
+  const selectConversation = useCallback(
+    (conversationId: string) => {
+      setManualNewChatPanel(false);
+      if (selectedConversationIdRef.current === conversationId) {
+        // Re-selecting the already-open conversation (e.g. after a failed or
+        // stale load) must still fetch and display its messages.
+        void loadMessages(conversationId, true);
+        return;
+      }
+      setSelectedConversationId(conversationId);
+    },
+    [loadMessages]
+  );
+
   const loadProfessionalOptions = useCallback(async () => {
     if (!open || userRole !== "customer") return;
 
@@ -370,7 +394,9 @@ export default function ChatWidget() {
 
       if (detail.conversationId) {
         setManualNewChatPanel(false);
+        selectedConversationIdRef.current = detail.conversationId;
         setSelectedConversationId(detail.conversationId);
+        const session = chatSessionRef.current;
         // The target may sit beyond the loaded page. Resolve it into the list
         // so type/status-based guards (support read-only) apply to it too.
         if (!conversationListRef.current.some((c) => c._id === detail.conversationId)) {
@@ -379,8 +405,9 @@ export default function ChatWidget() {
               String(detail.conversationId),
               { limit: 1 },
             );
+            if (session !== chatSessionRef.current) return;
             if (conversation) {
-              const next = [conversation, ...conversationListRef.current];
+              const next = [conversation, ...conversationListRef.current.filter((c) => c._id !== conversation._id)];
               conversationListRef.current = next;
               setConversations(next);
             }
@@ -388,6 +415,9 @@ export default function ChatWidget() {
             // Unresolved: the composer stays disabled until the list loads it.
           }
         }
+        // Refresh so the selected conversation resolves to an object
+        // (header/actions) while the message effect fetches its thread.
+        void loadConversationList(false);
         return;
       }
 
@@ -661,7 +691,12 @@ export default function ChatWidget() {
       {!open && (
         <Button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true);
+            // Load explicitly: opening from the floating button must show the
+            // conversation list immediately instead of waiting for a poll tick.
+            void loadConversationList(true);
+          }}
           className="h-14 rounded-full bg-indigo-600 px-5 text-white shadow-xl hover:bg-indigo-700"
         >
           <MessageSquare className="mr-2 h-5 w-5" />
@@ -873,8 +908,7 @@ export default function ChatWidget() {
                     userLabels={[]}
                     compact
                     onSelect={(conversationId) => {
-                      setManualNewChatPanel(false);
-                      setSelectedConversationId(conversationId);
+                      selectConversation(conversationId);
                     }}
                     onFilterChange={() => {}}
                     onToggleStar={() => {}}
