@@ -194,7 +194,7 @@ test('RescheduleRequestCard hides actions once the request is disputed/terminal'
   )
   assert.match(html, /Disputed/)
   assert.match(html, /can no longer be accepted or declined/)
-  assert.doesNotMatch(html, /common\.accept/)
+  assert.doesNotMatch(html, new RegExp(`>${bookingsEn.common.accept}<`))
 })
 
 test('LevelUpPopup stays hidden without a level-up notification', () => {
