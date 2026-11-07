@@ -82,3 +82,13 @@ test('proposal decline enforces the trimmed 3–1000-character range before send
   await submit('accept')
   assert.deepEqual(calls[1][1], { action: 'accept' })
 })
+
+test('unknown customer charges retain booking progress without treating unknown milestones as zero', () => {
+  const progress = charges => fragment("const isCustomerView = user?.role === 'customer'", 'const amountLabel =', {
+    user: { role: 'customer' }, booking: { milestonePayments: [{ amount: 100, status: 'paid', workStatus: 'completed' }, { amount: 100, status: 'pending' }] },
+    getBookingMilestoneDisplayAmount: index => charges[index],
+  }, '({ paymentPct, workPct, showAmounts })')
+  assert.deepEqual(progress([null, null]), { paymentPct: 50, workPct: 50, showAmounts: false })
+  assert.deepEqual(progress([133.1, null]), { paymentPct: 50, workPct: 50, showAmounts: false })
+  assert.deepEqual(progress([133.1, 133.1]), { paymentPct: 50, workPct: 50, showAmounts: true })
+})

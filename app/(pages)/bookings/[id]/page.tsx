@@ -3581,16 +3581,18 @@ function BookingDetailContent() {
                           ? getBookingMilestoneDisplayAmount(index, milestone.amount)
                           : milestone.amount
                       )
-                      const displayTotal = displayAmounts.reduce<number>((sum, amount) => sum + (amount ?? 0), 0)
+                      const showAmounts = displayAmounts.every((amount) => amount != null)
+                      // Preserve progress while unknown customer charges still load.
+                      const progressAmounts = showAmounts ? displayAmounts : booking.milestonePayments!.map(milestone => milestone.amount)
+                      const displayTotal = progressAmounts.reduce<number>((sum, amount) => sum + (amount ?? 0), 0)
                       const displayPaid = booking.milestonePayments!.reduce((sum, milestone, index) =>
-                        milestone.status === 'paid' ? sum + (displayAmounts[index] || 0) : sum
+                        milestone.status === 'paid' ? sum + (progressAmounts[index] || 0) : sum
                       , 0)
                       const displayCompleted = booking.milestonePayments!.reduce((sum, milestone, index) =>
-                        (milestone.workStatus || 'pending') === 'completed' ? sum + (displayAmounts[index] || 0) : sum
+                        (milestone.workStatus || 'pending') === 'completed' ? sum + (progressAmounts[index] || 0) : sum
                       , 0)
                       const paymentPct = displayTotal > 0 ? Math.round((displayPaid / displayTotal) * 100) : 0
                       const workPct = displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0
-                      const showAmounts = displayAmounts.every((amount) => amount != null)
                       const amountLabel = isCustomerView ? t("milestones.basisInclVat") : t("milestones.basisNet")
                       return (
                         <div className="mb-4 space-y-3">
