@@ -63,7 +63,7 @@
       "reverseChargeNote": "Verleggingsregeling is van toepassing: 0% btw op alle regels. Er kan geen tarief worden gekozen.",
       "reverseChargeRate": "0% verleggingsregeling (vastgesteld)",
       "retry": "Btw opnieuw ophalen",
-      "loadError": "Btw-opties konden niet worden geladen. Je kunt de offerte toch afronden; het tarief wordt bij het indienen gevalideerd."
+      "loadError": "De btw-opties konden niet worden geladen. Haal ze opnieuw op voordat je deze offerte indient."
     },
     "netTotal": "Nettototaal:",
     "vatTotal": "Btw:",

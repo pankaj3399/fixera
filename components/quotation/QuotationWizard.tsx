@@ -411,10 +411,10 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
       setVatRateDrafts({})
       setForm(prev => ({
         ...prev, [key]: value,
-        pricingLines: isReverseCharge ? prev.pricingLines.map(line => ({
+        pricingLines: prev.pricingLines.map(line => ({
           ...line, vatRate: 0, vatCountry: '', vatLabel: CUSTOM_VAT_RATE_PLACEHOLDER,
           vatRateMode: 'custom' as const, vatRateExplicitlyEntered: false,
-        })) : prev.pricingLines,
+        })),
       }))
       return
     }

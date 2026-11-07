@@ -111,3 +111,23 @@ test('a reverse-charge determination without an RC option is rejected and preser
     assert.equal(h.form().pricingLines[0].vatLabel, 'Reverse Charge')
   } finally { h.state.unmount(); globalThis.fetch = previousFetch }
 })
+
+test('a country change clears old forced VAT even after a failed refresh removed the RC determination', async () => {
+  const previousFetch = globalThis.fetch, h = wizard()
+  globalThis.fetch = h.fetch
+  try {
+    h.render(); fill(h)
+    h.requests.at(-1).resolve(response(rc)); await settle(); h.render()
+    // A new country lookup fails; selecting another country must still clear
+    // any stale line VAT rather than relying on a currently loaded determination.
+    h.change('countryPlaceholder', 'NL')
+    h.requests.at(-1).resolve({ ok: false, json: async () => ({ success: false }) }); await settle(); h.render()
+    // Simulate a stale pre-country handler writing its previously forced line.
+    const form = h.form()
+    form.pricingLines[0] = { ...form.pricingLines[0], vatLabel: 'Reverse Charge', vatCountry: 'BE', vatRateMode: 'preset', vatRateExplicitlyEntered: true }
+    h.change('countryPlaceholder', 'FR')
+    assert.equal(h.form().pricingLines[0].vatRateMode, 'custom')
+    assert.equal(h.form().pricingLines[0].vatCountry, '')
+    assert.equal(h.submit().props.disabled, true)
+  } finally { h.state.unmount(); globalThis.fetch = previousFetch }
+})
