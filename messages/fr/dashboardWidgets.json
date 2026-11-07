@@ -483,6 +483,8 @@
     "professionalTitle": "Niveau supérieur !",
     "customerBody": "Félicitations — vous avez atteint un nouveau niveau de fidélité.",
     "professionalBody": "Félicitations — vous avez atteint un nouveau niveau professionnel.",
+    "customerBodyWithLevel": "Félicitations — vous avez atteint le niveau de fidélité {level}.",
+    "professionalBodyWithLevel": "Félicitations — vous avez atteint le niveau professionnel {level}.",
     "viewBenefits": "Voir mes avantages",
     "dismiss": "Plus tard"
   }

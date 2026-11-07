@@ -461,7 +461,7 @@
     },
     "wallet": {
       "title": "Comment fonctionne le portefeuille de points",
-      "bodyCustomer": "Vous gagnez des points Fixtract à chaque réservation et les échangez au paiement contre une remise immédiate. Votre solde est affiché ci-dessus, vos économies par réservation ci-dessous.",
+      "bodyCustomer": "Vous gagnez des points Fixtract à chaque réservation et les utilisez lors du paiement pour une remise immédiate. Votre solde est affiché ci-dessus et les totaux des économies enregistrées ci-dessous, regroupés par devise et type de remise.",
       "bodyProfessional": "Votre solde de points et votre progression de niveau sont affichés ici. Dépenser des points pour accélérer la progression de niveau n’est pas encore possible dans l’application web.",
       "balanceLink": "Voir le solde",
       "historyLink": "Voir l'historique des économies",

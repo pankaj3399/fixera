@@ -320,6 +320,17 @@ export default function ChatWidget() {
     [isAuthenticated, open, userRole, t]
   );
 
+  const forgetConversation = useCallback((conversationId: string) => {
+    const list = conversationListRef.current.filter((conversation) => conversation._id !== conversationId);
+    conversationListRef.current = list;
+    setConversations(list);
+    if (selectedConversationIdRef.current === conversationId) {
+      selectedConversationIdRef.current = null;
+      setSelectedConversationId(null);
+      setMessages([]);
+    }
+  }, []);
+
   const loadMessages = useCallback(
     async (conversationId: string, busy: boolean) => {
       if (!conversationId) return;
@@ -337,14 +348,12 @@ export default function ChatWidget() {
           generation !== messageRequestGenerationRef.current
         ) return;
         setMessages(data.messages || []);
-      } catch {
-        if (
-          session === chatSessionRef.current &&
-          generation === messageRequestGenerationRef.current &&
-          open
-        ) {
-          toast.error(t("toasts.loadMessagesFailed"));
+      } catch (error) {
+        if (session !== chatSessionRef.current || generation !== messageRequestGenerationRef.current) return;
+        if (error && typeof error === "object" && "status" in error && error.status === 404) {
+          forgetConversation(conversationId);
         }
+        if (open) toast.error(t("toasts.loadMessagesFailed"));
       } finally {
         if (
           busy &&
@@ -355,7 +364,7 @@ export default function ChatWidget() {
         }
       }
     },
-    [open, t]
+    [open, t, forgetConversation]
   );
 
   const selectConversation = useCallback(
@@ -411,8 +420,12 @@ export default function ChatWidget() {
               conversationListRef.current = next;
               setConversations(next);
             }
-          } catch {
-            // Unresolved: the composer stays disabled until the list loads it.
+          } catch (error) {
+            if (session !== chatSessionRef.current) return;
+            if (error && typeof error === "object" && "status" in error && error.status === 404) {
+              forgetConversation(String(detail.conversationId));
+            }
+            // Other failures leave the conversation unresolved and retryable.
           }
         }
         // Refresh so the selected conversation resolves to an object
@@ -484,7 +497,7 @@ export default function ChatWidget() {
         setCreatingConversation(false);
       }
     },
-    [isAuthenticated, loadConversationList, userRole, getErrorText, t]
+    [isAuthenticated, loadConversationList, userRole, getErrorText, t, forgetConversation]
   );
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { register } from 'node:module'
+import { hooks, loadComponent, findAll, common, ui, settle } from './reviewComponentHarness.mjs'
 
 register('./swc-loader.mjs', import.meta.url)
 
@@ -59,7 +60,8 @@ test('chat open/select flow loads lists and threads, admin reselect forces reloa
   assert.doesNotMatch(adminChat, /if \(id === selectedId\) return/)
 })
 
-test('search page wires relevance sort, keyword field, and dispute/calendar consumers', async () => {
+test('search page wires relevance sort, preserves backend result order, and connects dispute/calendar consumers', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const { readFileSync } = await import('node:fs')
   const page = readFileSync(new URL('../app/(pages)/search/page.tsx', import.meta.url), 'utf8')
   // Server owns relevance order globally (pre-pagination slice): the client
@@ -68,6 +70,44 @@ test('search page wires relevance sort, keyword field, and dispute/calendar cons
   assert.match(page, /sortBy: 'relevant'/)
   assert.doesNotMatch(page, /rankResultsByRelevance/)
   assert.doesNotMatch(page, /lib\/search\/relevance/)
+
+  const previousFetch = globalThis.fetch
+  try {
+    for (const type of ['projects', 'professionals']) {
+      const state = hooks(), requests = []
+      const ProjectCard = () => null, ProfessionalCard = () => null
+      const orderedResults = [{ _id: 'b', title: 'Zulu' }, { _id: 'a', title: 'Alpha' }, { _id: 'c', title: 'Middle' }]
+      globalThis.fetch = async url => {
+        requests.push(String(url))
+        return { ok: true, json: async () => ({ results: structuredClone(orderedResults), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } }) }
+      }
+      const Page = loadComponent('../app/(pages)/search/page.tsx', {
+        ...common, react: state.api,
+        'next/navigation': { useSearchParams: () => new URLSearchParams(`type=${type}`) },
+        '@/components/ui/tabs': ui,
+        '@/components/search/ProfessionalCard': { __esModule: true, default: ProfessionalCard },
+        '@/components/search/ProjectCard': { __esModule: true, default: ProjectCard },
+        '@/components/search/SearchFilters': { __esModule: true, default: () => null },
+        '@/hooks/useFilterOptions': { useFilterOptions: () => ({ filterOptions: {} }) },
+        '@/hooks/useCustomerPricing': { useCustomerPricing: () => ({ customerPrice: value => value, originalPrice: value => value }) },
+        '@/hooks/useFavoriteStatus': { useFavoriteStatus: () => ({}) },
+        '@/lib/analytics': { trackProjectSearch() {} },
+        '@/contexts/AuthContext': { useAuth: () => ({ user: null, loading: false }) },
+        '@/contexts/CurrencyContext': { useCurrency: () => ({ convertToEur: value => value }) },
+        '@/lib/utils': { getAuthToken: () => null },
+      })
+      const Inner = Page().props.children.type
+      const render = () => { const tree = state.render(() => Inner()); state.flush(); return tree }
+      try {
+        render(); t.mock.timers.tick(300); await settle()
+        const tree = render()
+        assert.equal(new URL(requests[0]).searchParams.get('sortBy'), 'relevant')
+        const cards = findAll(tree, node => node.type === (type === 'projects' ? ProjectCard : ProfessionalCard))
+        assert.deepEqual(cards.map(card => (card.props.project || card.props.professional)._id), ['b', 'a', 'c'], 'render backend ordering unchanged')
+      } finally { state.unmount() }
+    }
+  } finally { globalThis.fetch = previousFetch }
+
 
   const filters = readFileSync(new URL('../components/search/SearchFilters.tsx', import.meta.url), 'utf8')
   assert.match(filters, /if \(keywordDraft\.trim\(\) === filters\.query\) return/)

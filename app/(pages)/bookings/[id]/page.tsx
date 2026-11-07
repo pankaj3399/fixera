@@ -46,6 +46,7 @@ import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/custome
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
+import { milestoneDisplayAmount } from "@/lib/booking/milestoneDisplay"
 import { recordedQuotationPricing } from "@/lib/booking/quotationPricing"
 import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
@@ -1287,6 +1288,10 @@ function BookingDetailContent() {
     let clarificationText: string | undefined
     if (action === "decline") {
       clarificationText = (clarification ?? "").trim()
+      if (clarificationText.length > 1000) {
+        setProposalDeclineError(t("warranty.clarificationTooLong"))
+        return
+      }
       if (clarificationText.length < 3) {
         setProposalDeclineError(t("warranty.clarificationRequired"))
         return
@@ -2557,10 +2562,19 @@ function BookingDetailContent() {
     const plan = details?.payments?.milestones
     if (!plan || plan.length === 0) return null
     if (booking?.milestonePayments && plan.length !== booking.milestonePayments.length) return null
-    return plan.map((entry) =>
-      typeof entry.expectedCustomerCharge === 'number' ? entry.expectedCustomerCharge : null
-    )
+    return plan.map((entry) => {
+      if (entry.status === 'paid' && typeof entry.customerChargeTotalWithVat === 'number'
+        && Number.isFinite(entry.customerChargeTotalWithVat)) return entry.customerChargeTotalWithVat
+      return typeof entry.expectedCustomerCharge === 'number' && Number.isFinite(entry.expectedCustomerCharge)
+        ? entry.expectedCustomerCharge : null
+    })
   }, [details, booking?.milestonePayments])
+  const getBookingMilestoneDisplayAmount = (index: number, amount: number) => milestoneDisplayAmount({
+    index,
+    recorded: { expectedCustomerCharge: recordedMilestoneCharges?.[index] },
+    preview: customerPricingReady ? bookingMilestoneGrossAmounts[index] : null,
+    fallback: customerPricingReady ? customerPrice(amount) : null,
+  })
   const milestoneIncludesOptions = useMemo<boolean[]>(() => {
     const plan = details?.payments?.milestones
     if (!plan || plan.length === 0) return []
@@ -3346,14 +3360,14 @@ function BookingDetailContent() {
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
                                 <span className="text-gray-700">{ms.title}</span>
                                 <span className="font-medium">
-                                  {customerPricingReady
+                                  {quotePricingReady
                                     ? formatMoney(currentVersionMilestoneGrossAmounts[i] ?? 0, currentVersion.currency || 'EUR')
                                     : '...'}
                                 </span>
                               </div>
                             ))}
                           </div>
-                          {customerPricingReady && (
+                          {quotePricingReady && (
                             <p className="mt-1 text-[11px] text-gray-500">
                               {t("quotation.milestonesNote")}
                             </p>
@@ -3563,25 +3577,22 @@ function BookingDetailContent() {
                     {(() => {
                       const isCustomerView = user?.role === 'customer'
                       const displayAmounts = booking.milestonePayments!.map((milestone, index) =>
-                        isCustomerView && customerPricingReady
-                          // Task 1/19b: the recorded charge-plan amount is the
-                          // source of truth (options in full on the first
-                          // milestone), never a proportional recalculation.
-                          ? recordedMilestoneCharges?.[index] ??
-                            bookingMilestoneGrossAmounts[index] ??
-                            customerPrice(milestone.amount)
+                        isCustomerView
+                          ? getBookingMilestoneDisplayAmount(index, milestone.amount)
                           : milestone.amount
                       )
-                      const displayTotal = displayAmounts.reduce((sum, amount) => sum + amount, 0)
+                      const showAmounts = displayAmounts.every((amount) => amount != null)
+                      // Preserve progress while unknown customer charges still load.
+                      const progressAmounts = showAmounts ? displayAmounts : booking.milestonePayments!.map(milestone => milestone.amount)
+                      const displayTotal = progressAmounts.reduce<number>((sum, amount) => sum + (amount ?? 0), 0)
                       const displayPaid = booking.milestonePayments!.reduce((sum, milestone, index) =>
-                        milestone.status === 'paid' ? sum + (displayAmounts[index] || 0) : sum
+                        milestone.status === 'paid' ? sum + (progressAmounts[index] || 0) : sum
                       , 0)
                       const displayCompleted = booking.milestonePayments!.reduce((sum, milestone, index) =>
-                        (milestone.workStatus || 'pending') === 'completed' ? sum + (displayAmounts[index] || 0) : sum
+                        (milestone.workStatus || 'pending') === 'completed' ? sum + (progressAmounts[index] || 0) : sum
                       , 0)
                       const paymentPct = displayTotal > 0 ? Math.round((displayPaid / displayTotal) * 100) : 0
                       const workPct = displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0
-                      const showAmounts = !isCustomerView || customerPricingReady
                       const amountLabel = isCustomerView ? t("milestones.basisInclVat") : t("milestones.basisNet")
                       return (
                         <div className="mb-4 space-y-3">
@@ -3618,6 +3629,7 @@ function BookingDetailContent() {
                     })()}
                     <div className="space-y-2">
                       {booking.milestonePayments.map((ms, i) => {
+                        const displayAmount = user?.role === 'customer' ? getBookingMilestoneDisplayAmount(i, ms.amount) : ms.amount
                         const isPaid = ms.status === 'paid'
                         const workStatus = ms.workStatus || 'pending'
                         const prevPaid = booking.milestonePayments!.slice(0, i).every(m => m.status === 'paid')
@@ -3665,9 +3677,7 @@ function BookingDetailContent() {
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
                                   <p className="text-xs text-gray-500">
-                                    {user?.role === 'customer'
-                                      ? (customerPricingReady ? formatMoney(recordedMilestoneCharges?.[i] ?? bookingMilestoneGrossAmounts[i] ?? customerPrice(ms.amount), booking.quote?.currency || 'EUR') : '...')
-                                      : formatMoney(ms.amount, booking.quote?.currency || 'EUR')}
+                                    {displayAmount != null ? formatMoney(displayAmount, booking.quote?.currency || 'EUR') : '...'}
                                     {user?.role === 'customer' ? ` ${t("milestones.basisInclVat")}` : ` ${t("milestones.basisNet")}`}
                                   </p>
                                   {user?.role === 'customer' && milestoneIncludesOptions[i] && (
@@ -4709,15 +4719,18 @@ function BookingDetailContent() {
                           value={proposalDeclineClarification}
                           onChange={(e) => {
                             setProposalDeclineClarification(e.target.value)
-                            if (proposalDeclineError && e.target.value.trim().length >= 3) setProposalDeclineError(null)
+                            if (proposalDeclineError && e.target.value.trim().length >= 3 && e.target.value.trim().length <= 1000) setProposalDeclineError(null)
                           }}
                           placeholder={t("warranty.clarificationPlaceholder")}
                           className="min-h-[100px]"
                           aria-required="true"
-                          aria-invalid={proposalDeclineError ? true : undefined}
-                          aria-describedby={proposalDeclineError ? "proposal-decline-error" : undefined}
+                          aria-invalid={proposalDeclineError || proposalDeclineClarification.trim().length > 1000 ? true : undefined}
+                          aria-describedby={`proposal-decline-limit${proposalDeclineError ? " proposal-decline-error" : ""}`}
                           autoFocus
                         />
+                        <p id="proposal-decline-limit" className="text-xs text-gray-500">
+                          {t("warranty.clarificationLimit", { count: proposalDeclineClarification.trim().length })}
+                        </p>
                         {proposalDeclineError ? (
                           <p id="proposal-decline-error" role="alert" className="text-xs text-rose-600">
                             {proposalDeclineError}
@@ -4734,7 +4747,7 @@ function BookingDetailContent() {
                         </Button>
                         <Button
                           onClick={() => handleRespondToWarrantyProposal("decline", proposalDeclineClarification)}
-                          disabled={warrantyActionLoading || !proposalDeclineClarification.trim()}
+                          disabled={warrantyActionLoading || !proposalDeclineClarification.trim() || proposalDeclineClarification.trim().length > 1000}
                           className="bg-rose-600 hover:bg-rose-700 text-white"
                         >
                           {warrantyActionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

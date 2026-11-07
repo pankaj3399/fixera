@@ -12,6 +12,9 @@ const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/+$/, 
 
 let tierCache: Record<string, string> | null = null
 let levelCache: Record<string, string> | null = null
+let tierLoaded = false
+let levelLoaded = false
+let retryTimer: ReturnType<typeof setTimeout> | null = null
 let inflight: Promise<void> | null = null
 const listeners = new Set<() => void>()
 
@@ -34,33 +37,48 @@ function toMap(entries: TierEntry[] | undefined): Record<string, string> {
 }
 
 async function loadTierColors(): Promise<void> {
-  if (!BACKEND_URL) return
-  try {
-    const [tiersRes, levelsRes] = await Promise.all([
-      fetch(`${BACKEND_URL}/api/public/loyalty-tiers`),
-      fetch(`${BACKEND_URL}/api/public/professional-levels`),
-    ])
-    if (tiersRes.ok) {
-      const json = await tiersRes.json().catch(() => null)
-      if (json?.success) tierCache = toMap(json?.data?.tiers)
+  const load = async (kind: 'tiers' | 'levels') => {
+    try {
+      const endpoint = kind === 'tiers'
+        ? `${BACKEND_URL}/api/public/loyalty-tiers`
+        : `${BACKEND_URL}/api/public/professional-levels`
+      const response = await fetch(endpoint)
+      if (!response.ok) return
+      const json = await response.json()
+      if (!json?.success || !Array.isArray(json.data?.[kind])) return
+      if (kind === 'tiers') {
+        tierCache = toMap(json.data.tiers)
+        tierLoaded = true
+      } else {
+        levelCache = toMap(json.data.levels)
+        levelLoaded = true
+      }
+    } catch {
+      // Keep fallback colours and retry only the failed metadata request.
     }
-    if (levelsRes.ok) {
-      const json = await levelsRes.json().catch(() => null)
-      if (json?.success) levelCache = toMap(json?.data?.levels)
-    }
-  } catch {
-    // Display-only metadata: keep the safe fallback colour on failure.
   }
-  tierCache = tierCache ?? {}
-  levelCache = levelCache ?? {}
+  await Promise.all([
+    tierLoaded ? Promise.resolve() : load('tiers'),
+    levelLoaded ? Promise.resolve() : load('levels'),
+  ])
 }
 
 function ensureTierColors() {
-  if (tierCache !== null && levelCache !== null) return
+  if (!BACKEND_URL || (tierLoaded && levelLoaded)) return
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
   if (!inflight) {
     inflight = loadTierColors().finally(() => {
       inflight = null
       notifyTierColors()
+      if (listeners.size > 0 && (!tierLoaded || !levelLoaded)) {
+        retryTimer = setTimeout(() => {
+          retryTimer = null
+          ensureTierColors()
+        }, 5000)
+      }
     })
   }
 }
@@ -81,6 +99,10 @@ export function useTierColors(): {
     ensureTierColors()
     return () => {
       listeners.delete(forceUpdate)
+      if (listeners.size === 0 && retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
     }
   }, [])
 

@@ -241,3 +241,27 @@ test('the booking page wires the resolvers instead of the raw DTO rows', () => {
   assert.match(page, /selectCancellationRequest\(details\?\.cancellations\)/)
   assert.doesNotMatch(page, /details\?\.cancellations\?\.\[0\]/)
 })
+
+test('legacy fallback preserves normalized requester identity and response note without details reschedules', () => {
+  const populated = { _id: PROFESSIONAL, name: 'Pro Joe', role: 'professional' }
+  for (const requestedBy of [PROFESSIONAL, populated]) {
+    const [entry] = resolveRescheduleEntries({ reschedules: [], liveRequest: { ...liveRequest, requestedBy, status: 'declined', responseNote: 'Please keep the agreed date.' }, bookingStatus: 'booked', viewerUserId: CUSTOMER })
+    assert.equal(entry.requestedBy.id, PROFESSIONAL)
+    assert.equal(entry.actorRecorded, true)
+    assert.equal(entry.responseNote, 'Please keep the agreed date.')
+    const html = renderCard([entry])
+    assert.match(html, /Please keep the agreed date\./)
+    if (typeof requestedBy === 'object') assert.match(html, /Pro Joe/)
+  }
+})
+test('legacy pending response actions are gated by the current booking status', () => {
+  for (const bookingStatus of ['cancelled', 'completed', 'booked', 'rescheduling_requested']) {
+    for (const viewerUserId of [CUSTOMER, PROFESSIONAL]) {
+      const entries = resolveRescheduleEntries({ reschedules: [], liveRequest, bookingStatus, viewerUserId })
+      const allowed = bookingStatus === 'rescheduling_requested' && viewerUserId !== PROFESSIONAL
+      assert.equal(entries[0].canRespond, allowed)
+      if (allowed) assert.match(renderCard(entries), acceptButton)
+      else assert.doesNotMatch(renderCard(entries), acceptButton)
+    }
+  }
+})

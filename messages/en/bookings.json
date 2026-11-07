@@ -589,6 +589,8 @@
     "clarificationLabel": "Clarification",
     "clarificationPlaceholder": "Explain what is missing or wrong with the proposed solution...",
     "clarificationRequired": "Please add a short clarification before declining.",
+    "clarificationTooLong": "Please keep your clarification to 1,000 characters or fewer.",
+    "clarificationLimit": "{count} / 1,000 characters (excluding surrounding spaces)",
     "confirmDecline": "Decline proposal"
   },
   "dispute": {

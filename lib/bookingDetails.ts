@@ -1662,16 +1662,17 @@ export function resolveBookingHourMode(
   });
 }
 
-/** "14:00–16:00" range; null unless both times are recorded. */
+/** Recorded start, with an end range when available; null without a start. */
 export function formatScheduleTimeRange(
   startTime?: string | null,
   endTime?: string | null
 ): string | null {
-  if (!startTime || !endTime) return null;
-  return `${startTime}–${endTime}`;
+  if (!startTime) return null;
+  return endTime ? `${startTime}–${endTime}` : startTime;
 }
 
 interface PanelHourModeBooking {
+  scheduleSnapshot?: { executionDuration?: { unit?: string | null } | null } | null;
   project?: {
     timeMode?: string | null;
     executionDuration?: { value?: number; unit?: string | null } | null;
@@ -1717,7 +1718,8 @@ export function resolvePanelHourMode(
   if (!bookingUnit) bookingUnit = booking?.project?.executionDuration?.unit ?? null;
   return resolveBookingHourMode({
     snapshotExecutionUnit:
-      details?.bookingSnapshot?.selectedSubproject?.executionDuration?.unit ?? null,
+      booking?.scheduleSnapshot?.executionDuration?.unit
+      ?? details?.bookingSnapshot?.selectedSubproject?.executionDuration?.unit ?? null,
     snapshotTimeMode: details?.bookingSnapshot?.project?.timeMode ?? null,
     bookingExecutionUnit: bookingUnit,
     bookingTimeMode: booking?.project?.timeMode ?? null,
@@ -1796,9 +1798,14 @@ export function legacyRescheduleEntries(
 ): RescheduleHistoryDto[] {
   if (!hasRecordedRescheduleRequest(request)) return [];
   const requesterId = actorIdOf(request.requestedBy);
+  const requester = actorFromValue(request.requestedBy);
   return [
     {
       requestedAt: request.requestedAt ?? null,
+      requestedBy: requester.actor,
+      actorRecorded: requester.recorded,
+      respondedAt: request.respondedAt ?? null,
+      responseNote: request.responseNote ?? null,
       reason: request.reason ?? null,
       description: request.description ?? null,
       note: request.note ?? null,
@@ -1836,7 +1843,9 @@ export function resolveRescheduleEntries(params: {
 }): RescheduleHistoryDto[] {
   const { reschedules, liveRequest, bookingStatus, viewerUserId } = params;
   if (!reschedules || reschedules.length === 0) {
-    return legacyRescheduleEntries(liveRequest, viewerUserId);
+    return legacyRescheduleEntries(liveRequest, viewerUserId).map((entry) => ({
+      ...entry, canRespond: entry.canRespond === true && bookingStatus === "rescheduling_requested",
+    }));
   }
   const live = hasRecordedRescheduleRequest(liveRequest) ? liveRequest : null;
   const livePending = bookingStatus === "rescheduling_requested" && live?.status === "pending";

@@ -589,6 +589,8 @@
     "clarificationLabel": "Clarification",
     "clarificationPlaceholder": "Expliquez ce qui manque ou ne convient pas dans la solution proposée...",
     "clarificationRequired": "Veuillez ajouter une courte clarification avant de refuser.",
+    "clarificationTooLong": "Veuillez limiter votre explication à 1 000 caractères.",
+    "clarificationLimit": "{count} / 1 000 caractères (hors espaces au début et à la fin)",
     "confirmDecline": "Refuser la proposition"
   },
   "dispute": {

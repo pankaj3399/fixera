@@ -461,7 +461,7 @@
     },
     "wallet": {
       "title": "How the points wallet works",
-      "bodyCustomer": "You earn Fixtract points with every booking and redeem them at checkout for an instant discount. Your balance is shown above and your savings per booking below.",
+      "bodyCustomer": "You earn Fixtract points with every booking and redeem them at checkout for an instant discount. Your balance is shown above and recorded savings totals are shown below, grouped by currency and discount type.",
       "bodyProfessional": "Your points balance and level progress appear here. Spending points on a level boost is not currently available in the web app.",
       "balanceLink": "View balance",
       "historyLink": "View savings history",

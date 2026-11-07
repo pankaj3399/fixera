@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { register } from 'node:module'
 import { test } from 'node:test'
+import { transformSync } from '@swc/core'
 register('./swc-loader.mjs', import.meta.url)
 
 const {
@@ -11,7 +12,12 @@ const {
   syncCancellationStatusFilterState,
 } = await import('@/lib/admin/cancellationRequestFilters')
 
-// Mirrors the page: it stays mounted across client navigations, keeps
+const pageSource = readFileSync(new URL('../app/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
+const handlerSource = pageSource.slice(pageSource.indexOf('  const selectStatusFilter ='), pageSource.indexOf('  const limit ='))
+const handlerCode = transformSync(handlerSource, { jsc: { parser: { syntax: 'typescript' } } }).code
+
+// Keep the filter state across navigations and execute the actual page handler.
+// The model keeps
 // `{ filterState, page }` in state and, on every render, syncs from the
 // current `searchParams.get('status')` (resetting the page when the filter
 // changes). A dropdown selection updates the filter and writes the URL; the
@@ -35,11 +41,22 @@ function mountQueue(search) {
     navigate(nextSearch) { view.search = nextSearch; return render() },
     goToPage(page) { view.page = page },
     select(filter) {
-      view.filterState = selectCancellationStatusFilter(view.filterState, filter)
-      view.page = 1
-      const before = render() // React re-renders before the URL update lands
-      view.search = cancellationRequestsSearch(view.search, filter)
-      return [before, render()]
+      const previousWindow = globalThis.window
+      let writtenSearch
+      globalThis.window = {
+        location: { pathname: '/admin/cancellation-requests', search: view.search, hash: '' },
+        history: { replaceState(_state, _title, url) { writtenSearch = new URL(url, 'https://fixera.test').search } },
+      }
+      try {
+        const selectStatusFilter = new Function('setFilterState', 'setPage', 'selectCancellationStatusFilter', 'cancellationRequestsSearch', `${handlerCode}; return selectStatusFilter;`)(
+          update => { view.filterState = update(view.filterState) },
+          page => { view.page = page }, selectCancellationStatusFilter, cancellationRequestsSearch,
+        )
+        selectStatusFilter(filter)
+        const before = render() // React re-renders before the URL update lands
+        view.search = writtenSearch
+        return [before, render()]
+      } finally { globalThis.window = previousWindow }
     },
   }
 }
@@ -72,6 +89,7 @@ test('a dropdown selection is kept, written to the URL, and still reset by the p
   assert.equal(queue.filter, 'escalated')
   assert.equal(queue.page, 3, 'unchanged query keeps the page')
   assert.deepEqual(queue.select('denied'), ['denied', 'denied'])
+  assert.equal(queue.page, 1, 'actual selectStatusFilter resets page 3 to page 1')
   assert.equal(queue.search, '?status=denied')
   assert.equal(queue.navigate(''), 'pending')
 

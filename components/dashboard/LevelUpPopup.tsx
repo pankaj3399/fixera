@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { Award, Gift } from "lucide-react"
@@ -33,13 +33,13 @@ function isLevelUp(item: InboxNotification): boolean {
 export default function LevelUpPopup() {
   const t = useTranslations("dashboardWidgets")
   const router = useRouter()
-  const { items, markRead } = useNotificationInbox()
+  const { items, pendingItems, markRead } = useNotificationInbox()
   const [dismissedId, setDismissedId] = useState<string | null>(null)
 
   const pending = useMemo(() => {
     // Fix 1: already-read items never re-pop (other browser/incognito);
     // localStorage stays as an extra guard for unread items dismissed here.
-    const candidates = items.filter((item) => isLevelUp(item) && !item.readAt)
+    const candidates = (pendingItems ?? items).filter((item) => isLevelUp(item) && !item.readAt)
     if (candidates.length === 0) return null
     const sorted = [...candidates].sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -56,15 +56,33 @@ export default function LevelUpPopup() {
       return item
     }
     return null
-  }, [items, dismissedId])
+  }, [items, pendingItems, dismissedId])
 
   // Fix 2 (review): no reset-on-length-change — the in-memory dismiss must
   // survive inbox refreshes until markRead round-trips. A genuinely new
   // level-up carries a different id, so it still surfaces.
 
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = []
+    for (const item of pendingItems ?? items) {
+      if (!isLevelUp(item) || item.readAt) continue
+      let dismissed = item.id === dismissedId
+      try { dismissed ||= Boolean(window.localStorage.getItem(seenStorageKey(item.id))) } catch { /* In-memory dismissal still applies. */ }
+      if (!dismissed) continue
+      // Failed PATCHes refresh the inbox back to unread. Retry through the
+      // provider's normal read flow, without reopening the dismissed popup.
+      timers.push(setTimeout(() => { void markRead(item.id) }, 5000))
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [items, pendingItems, dismissedId, markRead])
+
   if (!pending) return null
 
   const isProfessional = pending.eventKey === "professional.leveling_up"
+  // The inbox wire format stores rendered copy rather than level metadata.
+  // Recover the level from the registry's named-level template, then localize it.
+  const levelName = /^Congratulations — you reached (.+)\.$/.exec(pending.body || "")?.[1]
+  const hasNamedLevel = levelName && !["a new loyalty tier", "a new professional level"].includes(levelName)
 
   const acknowledge = () => {
     try {
@@ -88,7 +106,7 @@ export default function LevelUpPopup() {
     } catch {
       // Fall through to a same-origin push.
     }
-    router.push(url.startsWith("/") ? url : "/dashboard/benefits")
+    router.push("/dashboard/benefits")
   }
 
   return (
@@ -111,7 +129,9 @@ export default function LevelUpPopup() {
             {isProfessional ? t("levelUp.professionalTitle") : t("levelUp.customerTitle")}
           </DialogTitle>
           <DialogDescription className="text-center">
-            {pending.body || (isProfessional ? t("levelUp.professionalBody") : t("levelUp.customerBody"))}
+            {hasNamedLevel
+              ? t(isProfessional ? "levelUp.professionalBodyWithLevel" : "levelUp.customerBodyWithLevel", { level: levelName })
+              : t(isProfessional ? "levelUp.professionalBody" : "levelUp.customerBody")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:flex-col">

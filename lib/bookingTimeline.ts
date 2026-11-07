@@ -112,13 +112,18 @@ export function getTimelineDisplaySchedule(booking: TimelineBookingLike): Timeli
     return persistedSchedule
   }
 
+  const proposed = booking.rescheduleRequest.proposedSchedule
+  const changesStart =
+    (proposed.scheduledStartDate != null && proposed.scheduledStartDate !== persistedSchedule.scheduledStartDate)
+    || (proposed.scheduledStartTime != null && proposed.scheduledStartTime !== persistedSchedule.scheduledStartTime)
+
   return {
     scheduledStartDate: booking.rescheduleRequest.proposedSchedule.scheduledStartDate ?? persistedSchedule.scheduledStartDate,
     scheduledExecutionEndDate: booking.rescheduleRequest.proposedSchedule.scheduledExecutionEndDate ?? persistedSchedule.scheduledExecutionEndDate,
     scheduledBufferStartDate: booking.rescheduleRequest.proposedSchedule.scheduledBufferStartDate ?? persistedSchedule.scheduledBufferStartDate,
     scheduledBufferEndDate: booking.rescheduleRequest.proposedSchedule.scheduledBufferEndDate ?? persistedSchedule.scheduledBufferEndDate,
     scheduledStartTime: booking.rescheduleRequest.proposedSchedule.scheduledStartTime ?? persistedSchedule.scheduledStartTime,
-    scheduledEndTime: booking.rescheduleRequest.proposedSchedule.scheduledEndTime ?? persistedSchedule.scheduledEndTime,
+    scheduledEndTime: proposed.scheduledEndTime ?? (changesStart ? null : persistedSchedule.scheduledEndTime),
   }
 }
 
