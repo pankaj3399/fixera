@@ -458,6 +458,14 @@
       "unknownCoverage": "{count, plural, one {# afgeronde boeking is} other {# afgeronde boekingen zijn}} van vóór de kortingsregistratie, dus het totaal is een ondergrens.",
       "excludedUncertain": "{count, plural, one {# boeking is} other {# boekingen zijn}} uitgesloten (gedeeltelijke terugbetaling of geschil: geen exacte kortingstoewijzing geregistreerd).",
       "bookingsCount": "{count, plural, one {# afgeronde boeking} other {# afgeronde boekingen}}"
+    },
+    "wallet": {
+      "title": "Hoe de puntenportemonnee werkt",
+      "bodyCustomer": "Je spaart Fixtract-punten bij elke boeking en wisselt ze bij het afrekenen in voor directe korting. Je saldo zie je hierboven. Hieronder staan je geregistreerde besparingstotalen, gegroepeerd per valuta en kortingstype.",
+      "bodyProfessional": "Hier zie je je puntensaldo en niveauvoortgang. Punten uitgeven voor een niveauboost is momenteel niet mogelijk in de webapp.",
+      "balanceLink": "Bekijk saldo",
+      "historyLink": "Bekijk besparingsgeschiedenis",
+      "benefitsLink": "Bekijk voordelen"
     }
   },
   "disputes": {

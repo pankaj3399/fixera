@@ -13,11 +13,12 @@ import { fetchConversationInfo } from "@/lib/chatApi";
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 import type { ChatConversation, ConversationInfoStats } from "@/types/chat";
 import {
-  getLevelColor,
   getAdminTagStyle,
   formatAdminTagLabel,
   formatResponseTime,
 } from "@/lib/professionalLevel";
+import TierBadge from "@/components/dashboard/TierBadge";
+import { useTierColors } from "@/lib/tierColors";
 
 interface ChatInfoPanelProps {
   conversationId: string;
@@ -64,6 +65,7 @@ const StarRating = ({ rating, label }: { rating: number; label?: string }) => {
 export default function ChatInfoPanel({ conversationId, conversation, currentUserRole }: ChatInfoPanelProps) {
   const t = useTranslations("chat");
   const { intl } = useFormatLocale();
+  const { levelColor } = useTierColors();
   const [stats, setStats] = useState<ConversationInfoStats | null>(null);
   const [infoConversation, setInfoConversation] = useState<ChatConversation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -223,9 +225,11 @@ export default function ChatInfoPanel({ conversationId, conversation, currentUse
                   <Award className="h-3.5 w-3.5 text-indigo-500" />
                   <span>{t("info.level")}</span>
                 </div>
-                <Badge className={`text-[10px] ${getLevelColor(stats.professionalLevel)}`}>
-                  {levelKey ? t(levelKey) : stats.professionalLevel}
-                </Badge>
+                <TierBadge
+                  level={levelKey ? t(levelKey) : stats.professionalLevel}
+                  color={levelColor(stats.professionalLevel)}
+                  className="text-[10px]"
+                />
               </div>
             )}
 

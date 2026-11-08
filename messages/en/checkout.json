@@ -134,7 +134,11 @@
     "bufferValue": "Buffer: {duration}",
     "saving": "Saving...",
     "backToDetails": "Back to booking details",
-    "previousToSchedule": "Previous: booking info"
+    "previousToSchedule": "Previous: booking info",
+    "fullPrice": "Full price",
+    "milestoneIncludesOptions": "Includes selected options in full",
+    "optionsFirstMilestoneNote": "Selected options are charged in full with the first milestone, not split across milestones.",
+    "selectedOptionsInfo": "Selected options (included)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Payment successful",

@@ -134,7 +134,11 @@
     "bufferValue": "Buffer: {duration}",
     "saving": "Opslaan...",
     "backToDetails": "Terug naar boekingsgegevens",
-    "previousToSchedule": "Vorige: boekingsinfo"
+    "previousToSchedule": "Vorige: boekingsinfo",
+    "fullPrice": "Volledige prijs",
+    "milestoneIncludesOptions": "Inclusief geselecteerde opties (volledig)",
+    "optionsFirstMilestoneNote": "Geselecteerde opties worden volledig bij de eerste mijlpaal in rekening gebracht, niet verdeeld over mijlpalen.",
+    "selectedOptionsInfo": "Geselecteerde opties (inbegrepen)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Betaling geslaagd",

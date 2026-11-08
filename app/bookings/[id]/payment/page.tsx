@@ -27,9 +27,11 @@ import {
   calculateQuoteVersionVatTotals,
 } from '@/lib/vatPricing';
 import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVersion';
+import { milestoneDisplayAmount } from '@/lib/booking/milestoneDisplay';
 import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
+  milestoneIndex?: number;
   stripeClientSecret?: string;
   currency?: string;
   netAmount?: number;
@@ -246,6 +248,14 @@ export default function BookingPaymentPage() {
   const [loadingWorkingHours, setLoadingWorkingHours] = useState(false);
   const [professionalTimezone, setProfessionalTimezone] = useState('UTC');
   const [showCalendar, setShowCalendar] = useState(false);
+  // Task 19b: recorded per-milestone customer charges from the booking-details
+  // charge plan (options in full on the first milestone). Same endpoint as the
+  // booking page returns it alongside the booking.
+  const [recordedMilestonePlan, setRecordedMilestonePlan] = useState<Array<{
+    expectedCustomerCharge?: number | null;
+    customerChargeTotalWithVat?: number | null;
+    includesSelectedOptions?: boolean | null;
+  }> | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
@@ -281,10 +291,14 @@ export default function BookingPaymentPage() {
   }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice, hasUsableQuoteTotal, t]);
 
   const getMilestoneDisplayAmount = useCallback((index: number, netAmount: number) => {
-    const grossAmount = milestoneGrossAmounts[index];
-    if (grossAmount != null && grossAmount > 0) return grossAmount;
-    return customerPrice(netAmount);
-  }, [milestoneGrossAmounts, customerPrice]);
+    return milestoneDisplayAmount({
+      index,
+      recorded: recordedMilestonePlan?.[index],
+      payment: booking?.payment,
+      preview: customerPricingReady ? milestoneGrossAmounts[index] : null,
+      fallback: customerPricingReady ? customerPrice(netAmount) : null,
+    });
+  }, [recordedMilestonePlan, booking?.payment, milestoneGrossAmounts, customerPrice, customerPricingReady]);
 
   const getQuotedDurations = (b: Booking | null) => {
     const version = getCurrentQuoteVersion(b);
@@ -791,6 +805,16 @@ export default function BookingPaymentPage() {
 
       const bookingInfo = bookingData.booking as Booking; // Backend returns { success, booking }
       setBooking(bookingInfo);
+      const plan = (bookingData as { details?: { payments?: { milestones?: Array<{
+        expectedCustomerCharge?: number | null;
+    customerChargeTotalWithVat?: number | null;
+        includesSelectedOptions?: boolean | null;
+      }> } } }).details?.payments?.milestones;
+      setRecordedMilestonePlan(
+        Array.isArray(plan) && bookingInfo?.milestonePayments && plan.length === bookingInfo.milestonePayments.length
+          ? plan
+          : null
+      );
       setSelectedExtraOptions(storedExtrasToIndexes(bookingInfo?.selectedExtraOptions, bookingInfo?.project?.extraOptions));
       setLoading(false);
 
@@ -984,7 +1008,6 @@ export default function BookingPaymentPage() {
     breakdownBaseTotal > 0 && breakdownOptionsBaseTotal > 0
       ? +((originalServiceAmount * breakdownOptionsBaseTotal) / breakdownBaseTotal).toFixed(2)
       : 0;
-  const serviceOnlyAmount = +(originalServiceAmount - commissionedOptionsAmount).toFixed(2);
 
   if (loading) {
     return (
@@ -1112,20 +1135,34 @@ export default function BookingPaymentPage() {
                         : t('paymentPage.milestones')}
                     </p>
                     <div className="space-y-1">
-                      {booking.milestonePayments.map((m, i) => (
+                      {booking.milestonePayments.map((m, i) => {
+                        const displayAmount = getMilestoneDisplayAmount(i, m.amount ?? 0);
+                        return (
                         <div key={i} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{m.title || t('paymentPage.milestoneFallback', { number: i + 1 })}</span>
+                          <span className="text-gray-600">
+                            {m.title || t('paymentPage.milestoneFallback', { number: i + 1 })}
+                            {recordedMilestonePlan?.[i]?.includesSelectedOptions ? (
+                              <span className="ml-1 text-[11px] text-blue-700">
+                                · {t('paymentPage.milestoneIncludesOptions')}
+                              </span>
+                            ) : null}
+                          </span>
                           <span className="text-gray-900">
-                            {customerPricingReady
+                            {displayAmount != null
                               ? formatMoney(
-                                  getMilestoneDisplayAmount(i, m.amount ?? 0),
+                                  displayAmount,
                                   booking?.quote?.currency?.toUpperCase() || 'EUR'
                                 )
                               : '...'}
                           </span>
                         </div>
-                      ))}
+                      )})}
                     </div>
+                    {recordedMilestonePlan?.some((entry) => entry?.includesSelectedOptions) ? (
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        {t('paymentPage.optionsFirstMilestoneNote')}
+                      </p>
+                    ) : null}
                   </div>
                 )}
                 {(typeof booking?.project?.minResources === 'number' || typeof booking?.project?.minOverlapPercentage === 'number') && (
@@ -1668,19 +1705,21 @@ export default function BookingPaymentPage() {
               </div>
             )}
             <div className="space-y-2">
+              {/* Task 25a: the base line shows the full price; discounts are
+                  separate lines below. The options share is informational. */}
               {(hasDiscountBreakdown || commissionedOptionsAmount > 0) && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">{t('paymentPage.originalServiceAmount')}</span>
+                  <span className="text-gray-600">{t('paymentPage.fullPrice')}</span>
                   <span className="text-gray-900">
-                    {formatMoney(serviceOnlyAmount, paymentCurrency)}
+                    {formatMoney(originalServiceAmount, paymentCurrency)}
                   </span>
                 </div>
               )}
 
               {commissionedOptionsAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">{t('paymentPage.selectedOptions')}</span>
-                  <span className="text-gray-900">
+                  <span className="text-gray-600">{t('paymentPage.selectedOptionsInfo')}</span>
+                  <span className="text-sm text-gray-500">
                     {formatMoney(commissionedOptionsAmount, paymentCurrency)}
                   </span>
                 </div>

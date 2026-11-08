@@ -67,6 +67,7 @@ function AdminChatInner() {
   const [conversation, setConversation] = useState<AdminConversation | null>(null)
   const [messages, setMessages] = useState<AdminMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -75,10 +76,12 @@ function AdminChatInner() {
   const lastMessageIdRef = useRef<string | null>(null)
   const selectedIdRef = useRef<string>(selectedId)
   const inboxRequestIdRef = useRef(0)
+  const reloadKeyRef = useRef(reloadKey)
 
   useEffect(() => {
     selectedIdRef.current = selectedId
-  }, [selectedId])
+    reloadKeyRef.current = reloadKey
+  }, [selectedId, reloadKey])
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) {
@@ -140,6 +143,8 @@ function AdminChatInner() {
       setIsLoading(false)
       return
     }
+    const generation = reloadKey
+    const isCurrent = () => conversationId === selectedIdRef.current && generation === reloadKeyRef.current
     if (!silent) {
       setIsLoading(true)
       setLoadError(null)
@@ -151,7 +156,7 @@ function AdminChatInner() {
       ])
       const convJson = await convRes.json()
       const msgJson = await msgRes.json()
-      if (conversationId !== selectedIdRef.current) return
+      if (!isCurrent()) return
       if (!convRes.ok || !convJson?.success) {
         throw new Error(messageFromApiBody(convJson, "Failed to load conversation"))
       }
@@ -164,15 +169,15 @@ function AdminChatInner() {
       markAdminConversationSeen(conversationId)
       setLoadError(null)
     } catch (error) {
-      if (!silent) {
+      if (isCurrent() && !silent) {
         const message = getErrorMessage(error, "Failed to load conversation")
         toast.error(message)
         setLoadError(message)
       }
     } finally {
-      if (!silent) setIsLoading(false)
+      if (isCurrent()) setIsLoading(false)
     }
-  }, [conversationId])
+  }, [conversationId, reloadKey])
 
   useEffect(() => {
     if (user?.role === 'admin' && conversationId) {
@@ -212,11 +217,19 @@ function AdminChatInner() {
   }, [messages])
 
   const selectConversation = (id: string) => {
-    if (id === selectedId) return
-    setSelectedId(id)
+    selectedIdRef.current = id
+    reloadKeyRef.current += 1
+    if (id !== selectedId) {
+      setSelectedId(id)
+      router.replace(`/admin/chat?conversationId=${id}`)
+    }
+    // Always reset the thread and force a reload: clicking the active
+    // conversation (or landing on it from a launcher) must still fetch and
+    // display its messages, even if a previous load failed or stalled.
     setConversation(null)
     setMessages([])
-    router.replace(`/admin/chat?conversationId=${id}`)
+    setLoadError(null)
+    setReloadKey((key) => key + 1)
   }
 
   const send = async () => {

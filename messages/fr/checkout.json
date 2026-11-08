@@ -134,7 +134,11 @@
     "bufferValue": "Marge : {duration}",
     "saving": "Enregistrement...",
     "backToDetails": "Retour aux détails de la réservation",
-    "previousToSchedule": "Précédent : infos de réservation"
+    "previousToSchedule": "Précédent : infos de réservation",
+    "fullPrice": "Prix total",
+    "milestoneIncludesOptions": "Inclut les options sélectionnées (en totalité)",
+    "optionsFirstMilestoneNote": "Les options sélectionnées sont facturées en totalité avec le premier jalon, et non réparties sur les jalons.",
+    "selectedOptionsInfo": "Options sélectionnées (incluses)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Paiement réussi",

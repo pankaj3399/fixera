@@ -3,7 +3,15 @@
 import { messageFromApiBody } from '@/lib/apiErrors';
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import {
+  type CancellationStatusFilter,
+  cancellationRequestsSearch,
+  cancellationStatusFilterStateFromQuery,
+  isAdminActionableCancellation,
+  selectCancellationStatusFilter,
+  syncCancellationStatusFilterState,
+} from "@/lib/admin/cancellationRequestFilters"
 import { useAuth } from "@/contexts/AuthContext"
 import { authFetch } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,7 +28,7 @@ import { CANCEL_REASONS } from "@/lib/constants/cancelReasons"
 
 interface CancellationRequestItem {
   _id: string
-  status: 'pending' | 'approved' | 'denied'
+  status: 'pending' | 'processing' | 'negotiating' | 'escalated' | 'approved' | 'denied'
   reasonCategory?: string
   reason?: string
   evidence?: string[]
@@ -42,7 +50,7 @@ interface CancellationRequestItem {
   }
 }
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'denied'
+type StatusFilter = CancellationStatusFilter
 
 export default function AdminCancellationRequestsPage() {
   const { user, loading } = useAuth()
@@ -51,8 +59,29 @@ export default function AdminCancellationRequestsPage() {
   const [items, setItems] = useState<CancellationRequestItem[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
+  const searchParams = useSearchParams()
+  // `?status=escalated` is the dispute page's link to this queue; without a
+  // valid value the default view stays `pending`. Client navigation keeps this
+  // page mounted, so the filter follows later query changes too (e.g. the plain
+  // menu link after the dispute link resets to `pending`).
+  const statusQuery = searchParams.get('status')
+  const [filterState, setFilterState] = useState(() => cancellationStatusFilterStateFromQuery(statusQuery))
   const [page, setPage] = useState(1)
+  const syncedFilterState = syncCancellationStatusFilterState(filterState, statusQuery)
+  if (syncedFilterState !== filterState) {
+    // Adjust state during render (React's pattern for state derived from a changing input).
+    setFilterState(syncedFilterState)
+    if (syncedFilterState.filter !== filterState.filter) setPage(1)
+  }
+  const statusFilter = syncedFilterState.filter
+  const selectStatusFilter = (value: StatusFilter) => {
+    setFilterState((state) => selectCancellationStatusFilter(state, value))
+    setPage(1)
+    // Keep the selection in the URL (no new history entry, no refetch of the route),
+    // so a reload keeps it and the plain menu link still resets to `pending`.
+    const { pathname, search, hash } = window.location
+    window.history.replaceState(null, '', `${pathname}${cancellationRequestsSearch(search, value)}${hash}`)
+  }
   const limit = 20
 
   const [denyTarget, setDenyTarget] = useState<CancellationRequestItem | null>(null)
@@ -174,13 +203,14 @@ export default function AdminCancellationRequestsPage() {
         </div>
 
         <div className="flex gap-2">
-          <Select value={statusFilter} onValueChange={(value: StatusFilter) => { setStatusFilter(value); setPage(1) }}>
+          <Select value={statusFilter} onValueChange={selectStatusFilter}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="escalated">Escalated</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
               <SelectItem value="denied">Denied</SelectItem>
             </SelectContent>
@@ -222,7 +252,7 @@ export default function AdminCancellationRequestsPage() {
                           <span className="font-semibold text-sm">{item.booking?.bookingNumber || item.booking?._id}</span>
                           <Badge
                             variant={
-                              item.status === 'pending' ? 'destructive' : item.status === 'approved' ? 'default' : 'secondary'
+                              isAdminActionableCancellation(item.status) ? 'destructive' : item.status === 'approved' ? 'default' : 'secondary'
                             }
                             className="text-xs"
                           >
@@ -274,7 +304,7 @@ export default function AdminCancellationRequestsPage() {
                         <p className="text-xs text-gray-400">
                           {new Date(item.createdAt).toLocaleDateString()}
                         </p>
-                        {item.status === 'pending' && (
+                        {isAdminActionableCancellation(item.status) && (
                           <>
                             <Button
                               size="sm"

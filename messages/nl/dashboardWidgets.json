@@ -262,7 +262,8 @@
       "address": "Adres: {value}",
       "price": "Prijs: {value}",
       "start": "Start: {value}",
-      "end": "Einde: {value}"
+      "end": "Einde: {value}",
+      "bufferEnd": "Einde buffer: {value}"
     },
     "actions": {
       "cancel": "Annuleren",
@@ -476,5 +477,15 @@
     "colDetails": "Details",
     "bookingsTableLabel": "Boekingen",
     "quotesTableLabel": "Offertes"
+  },
+  "levelUp": {
+    "customerTitle": "Niveau omhoog!",
+    "professionalTitle": "Niveau omhoog!",
+    "customerBody": "Gefeliciteerd — je hebt een nieuw loyaliteitsniveau bereikt.",
+    "professionalBody": "Gefeliciteerd — je hebt een nieuw professioneel niveau bereikt.",
+    "customerBodyWithLevel": "Gefeliciteerd — je hebt loyaliteitsniveau {level} bereikt.",
+    "professionalBodyWithLevel": "Gefeliciteerd — je hebt professioneel niveau {level} bereikt.",
+    "viewBenefits": "Bekijk mijn voordelen",
+    "dismiss": "Later"
   }
 }

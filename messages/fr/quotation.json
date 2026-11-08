@@ -38,6 +38,33 @@
       "legacy": "0 % de TVA (devis antérieur)",
       "unavailable": "TVA indisponible — saisissez une adresse de réservation"
     },
+    "vatDetermination": {
+      "title": "Détermination de la TVA",
+      "customerType": "Type de client",
+      "customerTypes": {
+        "b2c": "Particulier (B2C)",
+        "b2b": "Professionnel (B2B)"
+      },
+      "article47": "Classification article 47",
+      "article47Classes": {
+        "movable": "Mobilier",
+        "immovable": "Immobilier",
+        "immovableExempt": "Immobilier mais exonéré de l'autoliquidation belge"
+      },
+      "addressType": "Adresse TVA",
+      "addressTypes": {
+        "booking": "Adresse de réservation",
+        "business": "Adresse professionnelle du client"
+      },
+      "country": "Pays de TVA",
+      "reverseCharge": "Autoliquidation",
+      "yes": "Oui",
+      "no": "Non",
+      "reverseChargeNote": "Autoliquidation applicable : TVA à 0 % sur toutes les lignes. Aucun choix de taux possible.",
+      "reverseChargeRate": "Autoliquidation à 0 % (déterminée)",
+      "retry": "Réessayer le calcul de la TVA",
+      "loadError": "Les options de TVA n’ont pas pu être chargées. Réessayez avant d’envoyer ce devis."
+    },
     "netTotal": "Total HT :",
     "vatTotal": "TVA :",
     "totalInclVat": "Total (TVA incl.) :",

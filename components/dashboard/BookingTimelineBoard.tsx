@@ -4,8 +4,16 @@ import { useMemo, useState, useRef, useCallback, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
-import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, parseISO, startOfDay, isSameDay } from "date-fns"
+import { differenceInCalendarDays, eachDayOfInterval, format, isAfter, isBefore, startOfDay, isSameDay } from "date-fns"
 import type { Locale as DateFnsLocale } from "date-fns"
+import { formatInTimeZone } from "date-fns-tz"
+import {
+  getTimelineBounds,
+  getTimelineDisplaySchedule,
+  resolveTimelineIsDaysMode,
+  resolveTimelineShowTimes,
+  toTimelineDate,
+} from "@/lib/bookingTimeline"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -53,6 +61,7 @@ export interface TimelineBooking {
   scheduledBufferEndDate?: string
   scheduledStartTime?: string
   scheduledEndTime?: string
+  scheduleTimeZone?: string
   payment?: {
     status?: string
     currency?: string
@@ -95,6 +104,9 @@ export interface TimelineBooking {
     dueCondition?: 'on_start' | 'on_milestone_start' | 'on_milestone_completion' | 'custom_date'
     customDueDate?: string | Date
   }>
+  scheduleSnapshot?: {
+    executionDuration?: { value?: number; unit?: 'hours' | 'days' }
+  }
   extraCostTotal?: number
   extraCostStatus?: "pending" | "confirmed" | "disputed"
   rescheduleRequest?: {
@@ -142,24 +154,9 @@ const MAX_SPAN_DAYS = 365
 const DAY_WIDTH = 40
 const ROW_LABEL_WIDTH = 200
 
-const resolveIsDaysMode = (booking?: TimelineBooking | null): boolean => {
-  const project = booking?.project
-  const subprojects = project?.subprojects
-  const selectedIndex = booking?.selectedSubprojectIndex
-  let unit: 'hours' | 'days' | undefined
-  if (subprojects && subprojects.length > 0) {
-    const sub =
-      typeof selectedIndex === 'number'
-        ? subprojects[selectedIndex]
-        : subprojects.length === 1
-        ? subprojects[0]
-        : undefined
-    unit = sub?.executionDuration?.unit
-  }
-  if (!unit) unit = project?.executionDuration?.unit
-  if (unit) return unit === 'days'
-  return project?.timeMode === 'days'
-}
+// Days-mode detection lives in @/lib/bookingTimeline so bounds, tooltips and
+// rows share one rule (task 22c/23a).
+const resolveIsDaysMode = resolveTimelineIsDaysMode
 
 const BAR_META: Record<string, {
   labelKey:
@@ -197,16 +194,14 @@ const getTimelineBarKey = (status: BookingStatus) => {
   return "booked"
 }
 
-const toDate = (value?: string) => {
-  if (!value) return null
-  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseISO(value) : new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
-const formatDateLabel = (value: string | Date | null | undefined, fallback: string, locale: DateFnsLocale) => {
+const formatDateLabel = (value: string | Date | null | undefined, fallback: string, locale: DateFnsLocale, timeZone?: string) => {
   if (!value) return fallback
-  const parsed = value instanceof Date ? value : toDate(value)
+  const parsed = value instanceof Date ? value : toTimelineDate(value)
   if (!parsed) return fallback
+  // Calendar dates already name their day; only instants need zone conversion.
+  if (timeZone && !(typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))) {
+    try { return formatInTimeZone(parsed, timeZone, "dd MMM yyyy", { locale }) } catch { /* Legacy invalid zone: preserve the date fallback. */ }
+  }
   return format(parsed, "dd MMM yyyy", { locale })
 }
 
@@ -242,45 +237,7 @@ const hasOutstandingMilestones = (milestones: TimelineBooking["milestonePayments
   return milestones.some((m) => m.status !== "paid")
 }
 
-const getDisplaySchedule = (booking: TimelineBooking) => {
-  const persistedSchedule = {
-    scheduledStartDate: booking.scheduledStartDate,
-    scheduledExecutionEndDate: booking.scheduledExecutionEndDate,
-    scheduledBufferStartDate: booking.scheduledBufferStartDate,
-    scheduledBufferEndDate: booking.scheduledBufferEndDate,
-    scheduledStartTime: booking.scheduledStartTime,
-    scheduledEndTime: booking.scheduledEndTime,
-  }
-
-  if (booking.status !== "rescheduling_requested" || !booking.rescheduleRequest?.proposedSchedule) {
-    return persistedSchedule
-  }
-
-  return {
-    scheduledStartDate: booking.rescheduleRequest.proposedSchedule.scheduledStartDate ?? persistedSchedule.scheduledStartDate,
-    scheduledExecutionEndDate: booking.rescheduleRequest.proposedSchedule.scheduledExecutionEndDate ?? persistedSchedule.scheduledExecutionEndDate,
-    scheduledBufferStartDate: booking.rescheduleRequest.proposedSchedule.scheduledBufferStartDate ?? persistedSchedule.scheduledBufferStartDate,
-    scheduledBufferEndDate: booking.rescheduleRequest.proposedSchedule.scheduledBufferEndDate ?? persistedSchedule.scheduledBufferEndDate,
-    scheduledStartTime: booking.rescheduleRequest.proposedSchedule.scheduledStartTime ?? persistedSchedule.scheduledStartTime,
-    scheduledEndTime: booking.rescheduleRequest.proposedSchedule.scheduledEndTime ?? persistedSchedule.scheduledEndTime,
-  }
-}
-
-const getTimelineBounds = (booking: TimelineBooking) => {
-  const schedule = getDisplaySchedule(booking)
-  const start = toDate(schedule.scheduledStartDate || booking.rfqData?.preferredStartDate || booking.createdAt)
-  if (!start) return null
-
-  const end =
-    toDate(schedule.scheduledBufferEndDate)
-    || toDate(schedule.scheduledExecutionEndDate)
-    || start
-
-  return {
-    start,
-    end: isAfter(end, start) ? end : start,
-  }
-}
+const getDisplaySchedule = getTimelineDisplaySchedule
 
 const getBookingPrice = (
   booking: TimelineBooking,
@@ -574,8 +531,26 @@ export default function BookingTimelineBoard({
     if (addr) parts.push(t("timeline.tooltip.address", { value: addr }))
     const price = getBookingPrice(booking, formatMoney)
     if (price) parts.push(t("timeline.tooltip.price", { value: price }))
-    parts.push(t("timeline.tooltip.start", { value: formatDateLabel(bounds.start, t("common.unscheduled"), dateFns) }))
-    parts.push(t("timeline.tooltip.end", { value: formatDateLabel(bounds.end, t("common.unscheduled"), dateFns) }))
+    // Hour mode shows start/end times; day mode stays date-only. Bounds (and
+    // therefore the "end" line) cover execution time only, never the buffer.
+    const schedule = getDisplaySchedule(booking)
+    const showTimes = resolveTimelineShowTimes(booking)
+    const startValue = formatDateLabel(schedule.scheduledStartDate || bounds.start, t("common.unscheduled"), dateFns, booking.scheduleTimeZone)
+    const endValue = formatDateLabel(schedule.scheduledExecutionEndDate || bounds.end, t("common.unscheduled"), dateFns, booking.scheduleTimeZone)
+    parts.push(t("timeline.tooltip.start", {
+      value: showTimes ? `${startValue} ${schedule.scheduledStartTime}` : startValue,
+    }))
+    parts.push(t("timeline.tooltip.end", {
+      value: showTimes ? `${endValue} ${schedule.scheduledEndTime}` : endValue,
+    }))
+    // Buffer stays a separate display: it never extends the timeline above.
+    const executionEnd = toTimelineDate(schedule.scheduledExecutionEndDate)
+    const bufferEnd = toTimelineDate(schedule.scheduledBufferEndDate)
+    if (bufferEnd && (!executionEnd || bufferEnd.getTime() !== executionEnd.getTime())) {
+      parts.push(t("timeline.tooltip.bufferEnd", {
+        value: formatDateLabel(schedule.scheduledBufferEndDate || bufferEnd, t("common.unscheduled"), dateFns, booking.scheduleTimeZone),
+      }))
+    }
     return parts.join("\n")
   }
 
@@ -812,7 +787,12 @@ export default function BookingTimelineBoard({
                   const counterpartyName = viewerRole === "professional"
                     ? booking.customer?.name
                     : booking.professional?.username || booking.professional?.name || booking.professional?.businessInfo?.companyName
-                  const barLabel = [projectName, counterpartyName].filter(Boolean).join(" — ")
+                  const timelineSchedule = getDisplaySchedule(booking)
+                  const timelineShowTimes = resolveTimelineShowTimes(booking)
+                  const timeSuffix = timelineShowTimes
+                    ? ` ${timelineSchedule.scheduledStartTime}–${timelineSchedule.scheduledEndTime}`
+                    : ""
+                  const barLabel = [projectName, counterpartyName].filter(Boolean).join(" — ") + timeSuffix
                   const actions = renderActionButtons(booking)
                   const rowHeight = actions.length > 0 ? 48 + 24 : 48
 

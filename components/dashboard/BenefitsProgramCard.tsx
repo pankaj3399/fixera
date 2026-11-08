@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getAuthToken } from "@/lib/utils"
+import TierBadge from "@/components/dashboard/TierBadge"
 
 type CustomerBenefitsResponse = {
   loyaltyStatus?: {
@@ -25,6 +26,9 @@ type CustomerBenefitsResponse = {
   }
   userStats?: {
     totalSpent?: number
+    tierInfo?: {
+      color?: string | null
+    }
   }
   benefits?: string[]
 }
@@ -32,6 +36,7 @@ type CustomerBenefitsResponse = {
 type ProfessionalBenefitsResponse = {
   level?: {
     currentLevel?: string
+    color?: string | null
     nextLevel?: {
       name?: string
       progress?: number
@@ -121,6 +126,10 @@ export default function BenefitsProgramCard({
   const currentLevel = isCustomer
     ? customerData?.loyaltyStatus?.level || user.loyaltyLevel || "Bronze"
     : professionalData?.level?.currentLevel || user.professionalLevel || "New"
+  // Task 14b: the tag uses the colour from the level/tier configuration.
+  const currentLevelColor = isCustomer
+    ? customerData?.userStats?.tierInfo?.color || null
+    : professionalData?.level?.color || null
   const nextLevel = isCustomer
     ? customerData?.loyaltyStatus?.nextLevel
     : professionalData?.level?.nextLevel?.name
@@ -142,7 +151,7 @@ export default function BenefitsProgramCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Gift className="h-5 w-5 text-indigo-600" />
-          {t("benefitsProgram.title")} <Badge variant="outline">{currentLevel}</Badge>
+          {t("benefitsProgram.title")} <TierBadge level={currentLevel} color={currentLevelColor} />
         </CardTitle>
         <CardDescription>
           {isCustomer ? t("benefitsProgram.descriptionCustomer") : t("benefitsProgram.descriptionProfessional")}

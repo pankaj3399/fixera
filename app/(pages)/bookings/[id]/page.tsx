@@ -31,19 +31,23 @@ import ReviewModal from "@/components/booking/ReviewModal"
 import QuotationWizard from "@/components/quotation/QuotationWizard"
 import AvailabilityDatePicker from "@/components/booking/AvailabilityDatePicker"
 import CustomerRefundOffer from "@/components/booking/CustomerRefundOffer"
+import CancellationRequestCard from "@/components/booking/CancellationRequestCard"
+import RescheduleRequestCard from "@/components/booking/RescheduleRequestCard"
 import { StripeProvider } from "@/components/stripe/StripeProvider"
 import { PaymentForm } from "@/components/stripe/PaymentForm"
 import { BookingDetailsTabs } from "@/components/booking/details/BookingDetailsTabs"
 import { PostBookingQuestionField } from "@/components/booking/details/PostBookingQuestionField"
-import type { BookingDetailsDto } from "@/types/bookingDetails"
+import type { BookingDetailsDto, RescheduleHistoryDto } from "@/types/bookingDetails"
 import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
-import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePostBookingFormQuestions, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
+import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
+import { milestoneDisplayAmount } from "@/lib/booking/milestoneDisplay"
+import { recordedQuotationPricing } from "@/lib/booking/quotationPricing"
 import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
 import { createOrGetConversation } from "@/lib/chatApi"
@@ -919,6 +923,8 @@ function BookingDetailContent() {
     (details?.bookingSnapshot?.capturedAt ? details?.booking?.title : null) ||
     (details?.bookingSnapshot?.immutable ? details?.booking?.title : null) ||
     null
+  // Task 17: RFQ surfaces say "Quotation request", not "Booking".
+  const isRfqView = booking?.status === "rfq" || booking?.status === "rfq_accepted"
   const warrantyDurationValue = Number(booking?.warrantyCoverage?.duration?.value || 0)
   const hasWarrantyCoverage = warrantyDurationValue > 0
   const warrantyEndsAtTs = booking?.warrantyCoverage?.endsAt
@@ -1272,12 +1278,35 @@ function BookingDetailContent() {
     }
   }
 
-  const handleRespondToWarrantyProposal = async (action: "accept" | "decline") => {
+  const [showProposalDeclineDialog, setShowProposalDeclineDialog] = useState(false)
+  const [proposalDeclineClarification, setProposalDeclineClarification] = useState("")
+  const [proposalDeclineError, setProposalDeclineError] = useState<string | null>(null)
+  const handleRespondToWarrantyProposal = async (action: "accept" | "decline", clarification?: string) => {
     if (!warrantyClaim?._id) return
+    // Task 16: declining a warranty proposal requires a clarification.
+    // Accept stays one click.
+    let clarificationText: string | undefined
+    if (action === "decline") {
+      clarificationText = (clarification ?? "").trim()
+      if (clarificationText.length > 1000) {
+        setProposalDeclineError(t("warranty.clarificationTooLong"))
+        return
+      }
+      if (clarificationText.length < 3) {
+        setProposalDeclineError(t("warranty.clarificationRequired"))
+        return
+      }
+    }
     setWarrantyActionLoading(true)
     try {
-      const data = await callWarrantyAction(`${warrantyClaim._id}/proposal-response`, { action })
+      const data = await callWarrantyAction(`${warrantyClaim._id}/proposal-response`, {
+        action,
+        ...(clarificationText ? { clarification: clarificationText } : {}),
+      })
       setWarrantyClaim(data.claim || null)
+      setShowProposalDeclineDialog(false)
+      setProposalDeclineClarification("")
+      setProposalDeclineError(null)
       toast.success(action === "accept" ? t("warranty.toasts.proposalAccepted") : t("warranty.toasts.proposalDeclined"))
     } catch (err) {
       toast.error(getErrorText(err, t("warranty.toasts.proposalResponseFailed")))
@@ -1710,19 +1739,25 @@ function BookingDetailContent() {
     displayQuoteVersions: details?.quotation?.versions,
     displayCurrentQuoteVersion: details?.quotation?.currentVersion,
   })
+  const recordedPricing = useMemo(() => recordedQuotationPricing(details?.quotation?.versions?.find(
+    (version) => version.version === currentVersion?.version
+  )), [details?.quotation?.versions, currentVersion?.version])
+  const quotePricingReady = Boolean(recordedPricing) || customerPricingReady
+  const quotationPricingLines = recordedPricing?.lines?.map((line) => ({ ...line, price: line.netAmount }))
+    ?? currentVersion?.pricingLines ?? []
   const currentVersionQuoteTotals = useMemo(
-    () => calculateQuoteVersionVatTotals(
+    () => recordedPricing?.totals ?? calculateQuoteVersionVatTotals(
       currentVersion,
       customerPricingReady ? customerPrice : undefined
     ),
-    [currentVersion, customerPricingReady, customerPrice]
+    [currentVersion, recordedPricing, customerPricingReady, customerPrice]
   )
   const currentVersionMilestoneGrossAmounts = useMemo(
-    () => calculateMilestoneGrossAmounts(
+    () => recordedPricing?.milestones ?? calculateMilestoneGrossAmounts(
       currentVersion,
       customerPricingReady ? customerPrice : undefined
     ),
-    [currentVersion, customerPricingReady, customerPrice]
+    [currentVersion, recordedPricing, customerPricingReady, customerPrice]
   )
   const currentVersionOriginalQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(
@@ -1731,6 +1766,12 @@ function BookingDetailContent() {
     ),
     [currentVersion, customerPricingReady, originalPrice]
   )
+  // Task 19a: the "you save" amount on the booking page must equal the
+  // quotation's recorded saving, not a live re-computation against the
+  // customer's current loyalty tier (which may have changed since the quote).
+  const recordedQuotationSaving = recordedPricing?.saving ?? null
+  const quotationSavingAmount = recordedQuotationSaving
+    ?? (recordedPricing ? 0 : currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total)
   const bookingMilestoneGrossAmounts = useMemo(() => {
     if (!booking?.milestonePayments?.length || !authoritativeVersion) return []
     return calculateMilestoneGrossAmounts(
@@ -2288,6 +2329,8 @@ function BookingDetailContent() {
         }
       )
       const result = await response.json()
+      const disputedCode =
+        result?.error?.code || result?.code
       if (response.ok && result.success) {
         toast.success(
           action === 'accept'
@@ -2296,6 +2339,12 @@ function BookingDetailContent() {
         )
         setShowRescheduleRefundModal(false)
         setRescheduleRefundNote("")
+        await refreshBooking()
+      } else if (disputedCode === 'RESCHEDULE_DISPUTED') {
+        // Task 9c: RESCHEDULE_DISPUTED identifies the disputed
+        // state instead of a generic failure.
+        toast.error(t("rescheduleRequest.toasts.disputed"))
+        setShowRescheduleRefundModal(false)
         await refreshBooking()
       } else {
         toast.error(getErrorText(result, t("reschedule.toasts.respondFailed")))
@@ -2491,6 +2540,48 @@ function BookingDetailContent() {
       : customerExtraCostEstimate,
   )
 
+  // Tasks 1/19b: recorded per-milestone customer charges from the shared
+  // charge plan (options in full on the first milestone). Falls back to the
+  // proportional preview when the backend sent no plan. Hooks stay above the
+  // loading/auth early returns.
+  const rescheduleEntries = useMemo<RescheduleHistoryDto[]>(
+    () =>
+      // Details entries from a backend without `canRespond` get the endpoint's
+      // live-pending rule; without details entries, only a recorded legacy
+      // request shows (never the schema-default `{previousSchedule:
+      // {assignedTeamMembers:[]}, …}` shell every booking carries).
+      resolveRescheduleEntries({
+        reschedules: details?.reschedules,
+        liveRequest: booking?.rescheduleRequest,
+        bookingStatus: booking?.status,
+        viewerUserId: user?._id,
+      }),
+    [details?.reschedules, booking?.rescheduleRequest, booking?.status, user?._id]
+  )
+  const recordedMilestoneCharges = useMemo<(number | null)[] | null>(() => {
+    const plan = details?.payments?.milestones
+    if (!plan || plan.length === 0) return null
+    if (booking?.milestonePayments && plan.length !== booking.milestonePayments.length) return null
+    return plan.map((entry) => {
+      if (entry.status === 'paid' && typeof entry.customerChargeTotalWithVat === 'number'
+        && Number.isFinite(entry.customerChargeTotalWithVat)) return entry.customerChargeTotalWithVat
+      return typeof entry.expectedCustomerCharge === 'number' && Number.isFinite(entry.expectedCustomerCharge)
+        ? entry.expectedCustomerCharge : null
+    })
+  }, [details, booking?.milestonePayments])
+  const getBookingMilestoneDisplayAmount = (index: number, amount: number) => milestoneDisplayAmount({
+    index,
+    recorded: { expectedCustomerCharge: recordedMilestoneCharges?.[index] },
+    preview: customerPricingReady ? bookingMilestoneGrossAmounts[index] : null,
+    fallback: customerPricingReady ? customerPrice(amount) : null,
+  })
+  const milestoneIncludesOptions = useMemo<boolean[]>(() => {
+    const plan = details?.payments?.milestones
+    if (!plan || plan.length === 0) return []
+    if (booking?.milestonePayments && plan.length !== booking.milestonePayments.length) return []
+    return plan.map((entry) => entry.includesSelectedOptions === true)
+  }, [details, booking?.milestonePayments])
+
   if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
@@ -2561,6 +2652,10 @@ function BookingDetailContent() {
     booking?.payment?.currency,
     booking?.quote?.currency
   )
+  // Tasks 3/9a: cancellation + reschedule requests from the booking-details
+  // DTO, with a legacy fallback for bookings without a details payload.
+  // The DTO lists requests oldest first: show the live/newest one.
+  const cancellationRequest = selectCancellationRequest(details?.cancellations)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
@@ -2568,10 +2663,10 @@ function BookingDetailContent() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-              {t("page.title")}
+              {isRfqView ? t("page.titleRfq") : t("page.title")}
             </h1>
             <p className="text-sm text-gray-600">
-              {t("page.subtitle")}
+              {isRfqView ? t("page.subtitleRfq") : t("page.subtitle")}
             </p>
           </div>
           <div className="flex max-w-full flex-wrap items-center gap-2">
@@ -2622,6 +2717,43 @@ function BookingDetailContent() {
             bookingId={bookingId}
             currency={booking?.payment?.currency || 'EUR'}
             onResolved={refreshBooking}
+          />
+        )}
+
+        {/* Task 3: cancellation request from the booking-details DTO — the
+            deep links from cancel notifications target this booking page. */}
+        {!error && booking && cancellationRequest && (
+          <CancellationRequestCard
+            bookingId={booking._id}
+            request={cancellationRequest}
+            viewerRole={
+              viewerRole ??
+              (user?.role === 'customer' || user?.role === 'professional' || user?.role === 'admin' ? user.role : null)
+            }
+            currency={booking.payment?.currency || booking.quote?.currency || 'EUR'}
+            onResolved={refreshBooking}
+          />
+        )}
+
+        {/* Tasks 9a/9c: full reschedule request info with history; the card
+            disables accept/decline once the request is disputed/terminal. */}
+        {!error && booking && bookingId && rescheduleEntries.length > 0 && (
+          <RescheduleRequestCard
+            bookingId={bookingId}
+            reschedules={rescheduleEntries}
+            viewerUserId={user?._id}
+            viewerRole={user?.role}
+            hourMode={resolvePanelHourMode(booking, details)}
+            onResolved={refreshBooking}
+            onOpenDispute={user?.role === 'customer' ? () => openDisputeModal('reschedule') : undefined}
+            onDeclineWithNote={
+              user?.role === 'customer'
+                ? () => {
+                    setRescheduleRefundNote("")
+                    setShowRescheduleRefundModal(true)
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -2765,13 +2897,15 @@ function BookingDetailContent() {
                         {recordedBookingTitle ||
                           booking.rfqData?.serviceType ||
                           booking.professional?.username ||
-                          t("page.defaultTitle")}
+                          (isRfqView ? t("page.defaultTitleRfq") : t("page.defaultTitle"))}
                       </CardTitle>
                     </div>
                     <CardDescription className="text-xs text-gray-500">
-                      {booking.bookingType === "project"
-                        ? t("page.typeProject")
-                        : t("page.typeProfessional")}
+                      {isRfqView
+                        ? t("page.typeRfq")
+                        : booking.bookingType === "project"
+                          ? t("page.typeProject")
+                          : t("page.typeProfessional")}
                     </CardDescription>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -2808,43 +2942,6 @@ function BookingDetailContent() {
                             {t("common.dispute")}
                           </Button>
                         )}
-                      </div>
-                    )}
-                    {user?.role === "customer"
-                      && booking.rescheduleRequest?.status === "pending"
-                      && booking.rescheduleRequest?.requestedBy !== user?._id && (
-                      <div className="flex flex-wrap gap-2 justify-end">
-                        <Button
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={() => handleRespondReschedule('accept')}
-                          disabled={respondingReschedule}
-                        >
-                          {respondingReschedule ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />}
-                          {t("common.accept")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-rose-300 text-rose-700 hover:bg-rose-50"
-                          onClick={() => {
-                            setRescheduleRefundNote("")
-                            setShowRescheduleRefundModal(true)
-                          }}
-                          disabled={respondingReschedule}
-                        >
-                          {t("common.refund")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                          onClick={() => openDisputeModal('reschedule')}
-                          disabled={respondingReschedule}
-                        >
-                          <AlertTriangle className="h-3.5 w-3.5 mr-1" />
-                          {t("common.dispute")}
-                        </Button>
                       </div>
                     )}
                     {user?.role === "customer" && booking.status === "completed" && booking.actualEndDate && (() => {
@@ -3263,21 +3360,21 @@ function BookingDetailContent() {
                               <div key={i} className="flex justify-between items-center text-sm bg-gray-50 rounded px-2 py-1">
                                 <span className="text-gray-700">{ms.title}</span>
                                 <span className="font-medium">
-                                  {customerPricingReady
-                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i] ?? 0, currentVersion.currency || 'EUR')
+                                  {quotePricingReady && currentVersionMilestoneGrossAmounts[i] != null
+                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i], currentVersion.currency || 'EUR')
                                     : '...'}
                                 </span>
                               </div>
                             ))}
                           </div>
-                          {customerPricingReady && (
+                          {quotePricingReady && (
                             <p className="mt-1 text-[11px] text-gray-500">
                               {t("quotation.milestonesNote")}
                             </p>
                           )}
                         </div>
                       )}
-                      {currentVersion.pricingLines && currentVersion.pricingLines.length > 0 && (
+                      {quotationPricingLines.length > 0 && (!recordedPricing || recordedPricing.lines) && (
                         <div>
                           <p className="text-xs text-gray-500 font-medium mb-2">{t("quotation.pricingBreakdown")}</p>
                           <div className="rounded-md border overflow-x-auto">
@@ -3291,21 +3388,22 @@ function BookingDetailContent() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {currentVersion.pricingLines.map((line, index) => {
-                                  const net = customerPricingReady ? customerPrice(line.price) : line.price
-                                  const vatAmount = net * ((line.vatRate || 0) / 100)
-                                  const total = net + vatAmount
+                                {quotationPricingLines.map((line, index) => {
+                                  const recordedLine = recordedPricing?.lines?.[index]
+                                  const net = recordedLine?.netAmount ?? (customerPricingReady ? customerPrice(line.price) : line.price)
+                                  const vatAmount = recordedLine?.vatAmount ?? net * ((line.vatRate || 0) / 100)
+                                  const total = recordedLine?.totalAmount ?? net + vatAmount
                                   return (
                                     <tr key={index} className="border-t">
                                       <td className="px-3 py-2 text-gray-800">
                                         <div>{line.description}</div>
                                         <div className="text-[10px] text-gray-500">
-                                          {line.vatLabel || t("quotation.vatRate", { rate: line.vatRate })}
+                                          {('vatLabel' in line && line.vatLabel) || t("quotation.vatRate", { rate: line.vatRate })}
                                         </div>
                                       </td>
-                                      <td className="px-3 py-2 text-right">{customerPricingReady ? formatMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
-                                      <td className="px-3 py-2 text-right">{customerPricingReady ? formatMoney(vatAmount, currentVersion.currency || 'EUR') : '...'}</td>
-                                      <td className="px-3 py-2 text-right font-medium">{customerPricingReady ? formatMoney(total, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatMoney(vatAmount, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right font-medium">{quotePricingReady ? formatMoney(total, currentVersion.currency || 'EUR') : '...'}</td>
                                     </tr>
                                   )
                                 })}
@@ -3316,9 +3414,9 @@ function BookingDetailContent() {
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm font-semibold text-gray-900">{t("quotation.totalInclVat")}</span>
-                        <span className="text-2xl font-bold text-green-600">{customerPricingReady ? formatMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') : '...'}</span>
+                        <span className="text-2xl font-bold text-green-600">{quotePricingReady ? formatMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') : '...'}</span>
                       </div>
-                      {customerPricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
+                      {quotePricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
                         <p className="text-xs text-gray-500 text-right">
                           {t("quotation.netPlusVat", {
                             net: formatMoney(currentVersionQuoteTotals.netAmount, currentVersion.currency || 'EUR'),
@@ -3326,13 +3424,13 @@ function BookingDetailContent() {
                           })}
                         </p>
                       )}
-                      {customerPricingReady && loyalty && loyalty.percentage > 0 && (
+                      {quotePricingReady && quotationSavingAmount > 0 && (
                         <div className="flex items-center justify-between rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                           <div className="text-xs text-amber-800">
-                            <span className="font-semibold">{t("loyalty.member", { level: loyalty.level })}</span> · {t("loyalty.discountApplied", { percentage: loyalty.percentage })}
+                            <span className="font-semibold">{t("loyalty.youSave")}</span>
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            {t("quotation.youSave", { amount: formatMoney(currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') })}
+                            {formatMoney(Math.max(0, quotationSavingAmount), currentVersion.currency || 'EUR')}
                           </div>
                         </div>
                       )}
@@ -3471,23 +3569,30 @@ function BookingDetailContent() {
                     <p className="mb-3 rounded-md border border-sky-200 bg-white/70 px-2.5 py-1.5 text-[11px] text-sky-800">
                       {t("milestones.currentPreviewNote")}
                     </p>
+                    {user?.role === 'customer' && milestoneIncludesOptions.some(Boolean) && (
+                      <p className="mb-3 rounded-md border border-sky-200 bg-white/70 px-2.5 py-1.5 text-[11px] text-sky-800">
+                        {t("milestones.optionsFirstNote")}
+                      </p>
+                    )}
                     {(() => {
                       const isCustomerView = user?.role === 'customer'
                       const displayAmounts = booking.milestonePayments!.map((milestone, index) =>
-                        isCustomerView && customerPricingReady
-                          ? bookingMilestoneGrossAmounts[index] ?? customerPrice(milestone.amount)
+                        isCustomerView
+                          ? getBookingMilestoneDisplayAmount(index, milestone.amount)
                           : milestone.amount
                       )
-                      const displayTotal = displayAmounts.reduce((sum, amount) => sum + amount, 0)
+                      const showAmounts = displayAmounts.every((amount) => amount != null)
+                      // Preserve progress while unknown customer charges still load.
+                      const progressAmounts = showAmounts ? displayAmounts : booking.milestonePayments!.map(milestone => milestone.amount)
+                      const displayTotal = progressAmounts.reduce<number>((sum, amount) => sum + (amount ?? 0), 0)
                       const displayPaid = booking.milestonePayments!.reduce((sum, milestone, index) =>
-                        milestone.status === 'paid' ? sum + (displayAmounts[index] || 0) : sum
+                        milestone.status === 'paid' ? sum + (progressAmounts[index] || 0) : sum
                       , 0)
                       const displayCompleted = booking.milestonePayments!.reduce((sum, milestone, index) =>
-                        (milestone.workStatus || 'pending') === 'completed' ? sum + (displayAmounts[index] || 0) : sum
+                        (milestone.workStatus || 'pending') === 'completed' ? sum + (progressAmounts[index] || 0) : sum
                       , 0)
                       const paymentPct = displayTotal > 0 ? Math.round((displayPaid / displayTotal) * 100) : 0
                       const workPct = displayTotal > 0 ? Math.round((displayCompleted / displayTotal) * 100) : 0
-                      const showAmounts = !isCustomerView || customerPricingReady
                       const amountLabel = isCustomerView ? t("milestones.basisInclVat") : t("milestones.basisNet")
                       return (
                         <div className="mb-4 space-y-3">
@@ -3524,6 +3629,7 @@ function BookingDetailContent() {
                     })()}
                     <div className="space-y-2">
                       {booking.milestonePayments.map((ms, i) => {
+                        const displayAmount = user?.role === 'customer' ? getBookingMilestoneDisplayAmount(i, ms.amount) : ms.amount
                         const isPaid = ms.status === 'paid'
                         const workStatus = ms.workStatus || 'pending'
                         const prevPaid = booking.milestonePayments!.slice(0, i).every(m => m.status === 'paid')
@@ -3571,11 +3677,12 @@ function BookingDetailContent() {
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
                                   <p className="text-xs text-gray-500">
-                                    {user?.role === 'customer'
-                                      ? (customerPricingReady ? formatMoney(bookingMilestoneGrossAmounts[i] ?? customerPrice(ms.amount), booking.quote?.currency || 'EUR') : '...')
-                                      : formatMoney(ms.amount, booking.quote?.currency || 'EUR')}
+                                    {displayAmount != null ? formatMoney(displayAmount, booking.quote?.currency || 'EUR') : '...'}
                                     {user?.role === 'customer' ? ` ${t("milestones.basisInclVat")}` : ` ${t("milestones.basisNet")}`}
                                   </p>
+                                  {user?.role === 'customer' && milestoneIncludesOptions[i] && (
+                                    <p className="text-[11px] text-sky-700">{t("milestones.optionsIncluded")}</p>
+                                  )}
                                   {dueLabel && !isPaid && (
                                     <p className="text-[11px] text-sky-700">{dueLabel}</p>
                                   )}
@@ -3649,11 +3756,15 @@ function BookingDetailContent() {
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-green-900 mb-3">{t("quote.receivedTitle")}</h3>
                     <div className="bg-white rounded-lg p-4 mb-4 space-y-2">
-                      {/* Original quote amount */}
+                      {/* Original quote amount — task 25a: the base line
+                          shows the full price (preview original), not the
+                          professional net, with discounts on separate lines. */}
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">{t("quote.amountExclVat")}</span>
                         <span className={`text-2xl font-bold ${discountPreview && discountPreview.totalDiscount > 0 ? "text-gray-400 line-through text-lg" : "text-green-600"}`}>
-                          {booking.quote.amount != null ? formatMoney(booking.quote.amount, booking.quote.currency || "€") : "—"}
+                          {discountPreview
+                            ? formatMoney(discountPreview.originalAmount, discountPreview.currency)
+                            : booking.quote.amount != null ? formatMoney(booking.quote.amount, booking.quote.currency || "€") : "—"}
                         </span>
                       </div>
 
@@ -4374,7 +4485,11 @@ function BookingDetailContent() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleRespondToWarrantyProposal("decline")}
+                              onClick={() => {
+                                setProposalDeclineClarification("")
+                                setProposalDeclineError(null)
+                                setShowProposalDeclineDialog(true)
+                              }}
                               disabled={warrantyActionLoading}
                               className="border-rose-300 text-rose-700"
                             >
@@ -4577,6 +4692,66 @@ function BookingDetailContent() {
                         >
                           {warrantyActionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                           {t("warranty.declineClaim")}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Task 16: declining a warranty proposal requires a
+                    clarification; accept stays one click. */}
+                <Dialog open={showProposalDeclineDialog} onOpenChange={(open) => {
+                  setShowProposalDeclineDialog(open)
+                  if (!open) { setProposalDeclineClarification(""); setProposalDeclineError(null) }
+                }}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{t("warranty.proposalDeclineTitle")}</DialogTitle>
+                      <DialogDescription>
+                        {t("warranty.proposalDeclineDescription")}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="proposal-decline-clarification">{t("warranty.clarificationLabel")}</Label>
+                        <Textarea
+                          id="proposal-decline-clarification"
+                          value={proposalDeclineClarification}
+                          onChange={(e) => {
+                            setProposalDeclineClarification(e.target.value)
+                            if (proposalDeclineError && e.target.value.trim().length >= 3 && e.target.value.trim().length <= 1000) setProposalDeclineError(null)
+                          }}
+                          placeholder={t("warranty.clarificationPlaceholder")}
+                          className="min-h-[100px]"
+                          aria-required="true"
+                          aria-invalid={proposalDeclineError || proposalDeclineClarification.trim().length > 1000 ? true : undefined}
+                          aria-describedby={`proposal-decline-limit${proposalDeclineError ? " proposal-decline-error" : ""}`}
+                          autoFocus
+                        />
+                        <p id="proposal-decline-limit" className="text-xs text-gray-500">
+                          {t("warranty.clarificationLimit", { count: proposalDeclineClarification.trim().length })}
+                        </p>
+                        {proposalDeclineError ? (
+                          <p id="proposal-decline-error" role="alert" className="text-xs text-rose-600">
+                            {proposalDeclineError}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => { setShowProposalDeclineDialog(false); setProposalDeclineClarification(""); setProposalDeclineError(null) }}
+                          disabled={warrantyActionLoading}
+                        >
+                          {t("common.cancel")}
+                        </Button>
+                        <Button
+                          onClick={() => handleRespondToWarrantyProposal("decline", proposalDeclineClarification)}
+                          disabled={warrantyActionLoading || !proposalDeclineClarification.trim() || proposalDeclineClarification.trim().length > 1000}
+                          className="bg-rose-600 hover:bg-rose-700 text-white"
+                        >
+                          {warrantyActionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          {t("warranty.confirmDecline")}
                         </Button>
                       </div>
                     </div>
