@@ -201,6 +201,8 @@ test('settings-load failure hides the editor; retry loads it and unrelated PUT r
     '@/lib/support': { adminSetSupportChatEnabled() {} },
     '@/lib/admin/autoConversionSettings': settings,
     '@/components/admin/AutoConversionSettingsCard': { __esModule: true, default: 'AutoConversionSettingsCard' },
+    '@/lib/admin/dashboardBaselines': { canManageDashboardBaselines: (user) => user?.adminRole === 'super' },
+    '@/components/admin/DashboardBaselineSettingsCard': { __esModule: true, default: 'DashboardBaselineSettingsCard' },
   })
   globalThis.fetch = async (_url, init) => {
     if (init.method === 'PUT') return putResponse.promise

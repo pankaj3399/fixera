@@ -20,6 +20,8 @@ import { invalidateClientRequest } from "@/lib/clientRequestCache"
 import { adminSetSupportChatEnabled } from "@/lib/support"
 import { isAutoConversionConfig } from "@/lib/admin/autoConversionSettings"
 import AutoConversionSettingsCard from "@/components/admin/AutoConversionSettingsCard"
+import DashboardBaselineSettingsCard from "@/components/admin/DashboardBaselineSettingsCard"
+import { canManageDashboardBaselines } from "@/lib/admin/dashboardBaselines"
 
 const normalizeCountryCode = (value?: string): string => {
   const trimmed = (value || '').trim()
@@ -678,6 +680,11 @@ export default function AdminSettingsPage() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Super admins only: start booking dashboards counting from a chosen moment. */}
+        {!isLoading && canManageDashboardBaselines(user) && (
+          <DashboardBaselineSettingsCard canManage />
         )}
       </div>
     </div>
