@@ -64,7 +64,8 @@ export default async function CategoryLayout({ children, params }: Props) {
       <JsonLd
         data={breadcrumbSchema([
           { name: t("breadcrumbs.home"), path: "/" },
-          { name: t("breadcrumbs.categories"), path: "/categories" },
+          // /categories has no index page; the services listing is the real parent.
+          { name: t("breadcrumbs.services"), path: "/services" },
           { name: categoryName, path: `/categories/${cat.slug}` },
         ])}
       />
