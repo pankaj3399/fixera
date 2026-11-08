@@ -276,7 +276,7 @@ test('tier colours come from configuration everywhere tags appear', () => {
     '../app/(pages)/dashboard/benefits/page.tsx',
     '../components/dashboard/BenefitsProgramCard.tsx',
     '../app/(pages)/admin/customers/page.tsx',
-    '../app/(pages)/projects/[id]/page.tsx',
+    '../app/(pages)/projects/[id]/ProjectDetailView.tsx',
     '../components/chat/ChatInfoPanel.tsx',
     '../components/Navbar.tsx',
     // Review item 5: residual hardcoded colours migrated to config colours.
