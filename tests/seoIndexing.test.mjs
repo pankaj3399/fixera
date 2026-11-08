@@ -11,7 +11,7 @@ process.env.NEXT_PUBLIC_BACKEND_URL = 'https://api.example.test'
 const { buildLlmsTxt } = await import('../lib/seo/llmsTxt.ts')
 const { OG_DEFAULT_IMAGE } = await import('../lib/seo/site.ts')
 const publicEntities = await import('../lib/server/publicEntities.ts')
-const { default: sitemap } = await import('../app/sitemap.ts')
+const { default: sitemap, generateSitemaps } = await import('../app/sitemap.ts')
 
 const readSource = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8')
 
@@ -138,7 +138,7 @@ test('429 and 5xx answers come back as unavailable for this render, never as a 4
 test('sitemap entity pages throw on 429 so only that entity type is dropped', async () => {
   const stub = stubFetch(() => json({ success: false, msg: 'Too many requests' }, 429))
   try {
-    await assert.rejects(publicEntities.fetchSitemapEntities('project'), /HTTP 429/)
+    await assert.rejects(publicEntities.fetchSitemapEntityPage('project', 1), /HTTP 429/)
   } finally {
     stub.restore()
   }
@@ -164,23 +164,27 @@ test('sitemap lists only real routes, with honest dates, and survives entity and
     throw new TypeError('cms down')
   })
   try {
-    const entries = await sitemap()
+    const plan = (await generateSitemaps()).map((entry) => entry.id)
+    assert.deepEqual(plan, [0, 1], 'static file plus one project chunk; the professional count failed')
+    const entries = [...(await sitemap({ id: 0 })), ...(await sitemap({ id: 1 }))]
     const urls = entries.map((entry) => entry.url)
 
     for (const dead of ['/categories', '/projects', '/search']) {
       assert.ok(!urls.includes(`https://example.test${dead}`), `${dead} must not be listed`)
+      assert.ok(!urls.includes(`https://example.test/en${dead}`), `/en${dead} must not be listed`)
     }
-    assert.ok(urls.includes('https://example.test/services'))
-    assert.ok(urls.includes('https://example.test/professionals'))
+    assert.ok(urls.includes('https://example.test/en/services'))
+    assert.ok(urls.includes('https://example.test/nl/professionals'))
 
     // Static and catalogue routes carry no fake build-time lastModified.
-    const home = entries.find((entry) => entry.url === 'https://example.test/')
+    const home = entries.find((entry) => entry.url === 'https://example.test/en')
     assert.equal(home.lastModified, undefined)
 
-    // The project entity is listed with its own updatedAt.
-    const project = entries.find((entry) => entry.url === 'https://example.test/projects/64b7f0c2a1b2c3d4e5f60720')
-    assert.ok(project, 'project detail URL listed')
+    // The project entity is listed with its own updatedAt, in every language.
+    const project = entries.find((entry) => entry.url === 'https://example.test/nl/projects/64b7f0c2a1b2c3d4e5f60720')
+    assert.ok(project, 'prefixed project URL listed')
     assert.equal(new Date(project.lastModified).toISOString(), '2026-03-01T00:00:00.000Z')
+    assert.equal(project.alternates.languages['x-default'], 'https://example.test/projects/64b7f0c2a1b2c3d4e5f60720')
 
     // A failed professional fetch drops only professional URLs and is logged clearly.
     assert.ok(!urls.some((url) => url.includes('/professional/')))
