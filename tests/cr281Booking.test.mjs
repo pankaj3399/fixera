@@ -31,6 +31,9 @@ test('tracker shows recorded charges without live pricing and never calculates p
   const resolve = (ready, recorded, preview = [999]) => fragment('const getBookingMilestoneDisplayAmount =', 'const milestoneIncludesOptions =', {
     milestoneDisplayAmount, recordedMilestoneCharges: recorded, bookingMilestoneGrossAmounts: preview,
     customerPricingReady: ready, customerPrice: amount => { assert.equal(ready, true); return amount * 1.21 },
+    // Customers read the server's customer-side milestone amount; professionals price their own locally.
+    isProfessionalViewer: false, commissionedPrice: () => NaN,
+    details: { payments: { milestones: [{ expectedCustomerNetBeforeDiscount: 100 }] } },
   }, 'getBookingMilestoneDisplayAmount(0, 100)')
   assert.equal(resolve(false, [133.1]), 133.1)
   assert.equal(resolve(false, [0]), 0)

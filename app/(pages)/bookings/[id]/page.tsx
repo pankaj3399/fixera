@@ -41,6 +41,8 @@ import type { BookingDetailsDto, RescheduleHistoryDto } from "@/types/bookingDet
 import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
+import { useCommissionRate } from "@/hooks/useCommissionRate"
+import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
 import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
@@ -593,8 +595,24 @@ function BookingDetailContent() {
         return t("warranty.fileUnsupported", { name: item.name })
       })
       .join("; ")
-  const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount, pricingReady, customerExtraCost, customerExtraCostTotal } = useCustomerPricing()
+  const { customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount, pricingReady } = useCustomerPricing()
+  // Professionals see their own base and commission and price customer amounts locally.
+  // Customers receive customer-side amounts from the server (details), never a base price.
+  const { commissionPercent, commissionedPrice } = useCommissionRate()
+  const isProfessionalViewer = user?.role === 'professional'
   const customerPricingReady = pricingReady && loyaltyLoaded
+  const customerExtraCost = (cost: { amount?: number; unitPrice?: number; actualUnits?: number; estimatedUnits?: number; type?: string }, index = -1): number => {
+    if (isProfessionalViewer) {
+      return commissionPercent == null ? Number.NaN : commissionedExtraCost(cost, commissionPercent)
+    }
+    return details?.extraCosts?.items?.[index]?.customerAmount ?? Number.NaN
+  }
+  const customerExtraCostTotal = (costs: Parameters<typeof commissionedExtraCostTotal>[0], total: number): number => {
+    if (isProfessionalViewer) {
+      return commissionPercent == null ? Number.NaN : commissionedExtraCostTotal(costs, total, commissionPercent)
+    }
+    return details?.extraCosts?.totalCustomerAmount ?? Number.NaN
+  }
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -1754,7 +1772,7 @@ function BookingDetailContent() {
   const currentVersionMilestoneGrossAmounts = useMemo(
     () => recordedPricing?.milestones ?? calculateMilestoneGrossAmounts(
       currentVersion,
-      customerPricingReady ? customerPrice : undefined
+      isProfessionalViewer ? undefined : (customerPricingReady ? customerPrice : undefined)
     ),
     [currentVersion, recordedPricing, customerPricingReady, customerPrice]
   )
@@ -1773,14 +1791,17 @@ function BookingDetailContent() {
     ?? (recordedPricing ? 0 : currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total)
   const bookingMilestoneGrossAmounts = useMemo(() => {
     if (!booking?.milestonePayments?.length || !authoritativeVersion) return []
+    if (isProfessionalViewer) return calculateMilestoneGrossAmounts({ ...authoritativeVersion, milestones: booking.milestonePayments })
+    // Customers: the server's customer-side expectation per milestone, then their loyalty discount.
+    const customerMilestones = booking.milestonePayments.map((milestone, index) => ({
+      ...milestone,
+      amount: details?.payments?.milestones?.[index]?.expectedCustomerNetBeforeDiscount ?? Number.NaN,
+    }))
     return calculateMilestoneGrossAmounts(
-      {
-        ...authoritativeVersion,
-        milestones: booking.milestonePayments,
-      },
-      user?.role === 'customer' && customerPricingReady ? customerPrice : undefined
+      { ...authoritativeVersion, milestones: customerMilestones },
+      customerPricingReady ? customerPrice : undefined
     )
-  }, [booking?.milestonePayments, authoritativeVersion, user?.role, customerPricingReady, customerPrice])
+  }, [booking?.milestonePayments, authoritativeVersion, isProfessionalViewer, details, customerPricingReady, customerPrice])
   const rfqDeadlineDate = booking?.rfqDeadline ? new Date(booking.rfqDeadline) : null
   const rfqDeadlineRemaining = rfqDeadlineDate
     ? Math.max(0, Math.ceil((rfqDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60)))
@@ -2572,7 +2593,11 @@ function BookingDetailContent() {
     index,
     recorded: { expectedCustomerCharge: recordedMilestoneCharges?.[index] },
     preview: customerPricingReady ? bookingMilestoneGrossAmounts[index] : null,
-    fallback: customerPricingReady ? customerPrice(amount) : null,
+    fallback: customerPricingReady
+      ? (isProfessionalViewer
+        ? commissionedPrice(amount)
+        : customerPrice(details?.payments?.milestones?.[index]?.expectedCustomerNetBeforeDiscount ?? Number.NaN))
+      : null,
   })
   const milestoneIncludesOptions = useMemo<boolean[]>(() => {
     const plan = details?.payments?.milestones
@@ -3389,7 +3414,9 @@ function BookingDetailContent() {
                               <tbody>
                                 {quotationPricingLines.map((line, index) => {
                                   const recordedLine = recordedPricing?.lines?.[index]
-                                  const net = recordedLine?.netAmount ?? (customerPricingReady ? customerPrice(line.price) : line.price)
+                                  const net = recordedLine?.netAmount ?? (isProfessionalViewer
+                                    ? (customerPricingReady ? commissionedPrice(line.price) : line.price)
+                                    : Number.NaN)
                                   const vatAmount = recordedLine?.vatAmount ?? net * ((line.vatRate || 0) / 100)
                                   const total = recordedLine?.totalAmount ?? net + vatAmount
                                   return (

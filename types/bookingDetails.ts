@@ -255,6 +255,8 @@ export interface BookingSnapshotDto {
     priceSource?: string;
   }>;
   checkoutSnapshot?: {
+    /** Customer total of the package and its options (checkout arithmetic). Null for professionals. */
+    customerTotal?: number | null;
     pricingType?: string;
     unitAmount?: number | null;
     quantity?: number | null;
@@ -572,6 +574,8 @@ export interface MilestonePaymentDto {
    * Null when no commission was recorded for the booking.
    */
   expectedCustomerCharge?: number | null;
+  /** Customer-side amount before discounts and VAT (commission-inclusive). Null for professionals. */
+  expectedCustomerNetBeforeDiscount?: number | null;
   /** True when this milestone carries the selected options in full. */
   includesSelectedOptions?: boolean | null;
 }
@@ -600,6 +604,8 @@ export interface ExtraCostPaymentDto {
 export interface ExtraCostsDetailsDto {
   status?: string | null;
   totalProfessionalAmount?: number | null;
+  /** Customer-side total of the extra costs (commission-inclusive, before discounts). Null for professionals. */
+  totalCustomerAmount?: number | null;
   currency?: string | null;
   currencySource?: string;
   items?: Array<{
@@ -607,6 +613,8 @@ export interface ExtraCostsDetailsDto {
     name?: string;
     justification?: string;
     professionalAmount?: number | null;
+    /** Customer-side amount of this line. Null for professionals. */
+    customerAmount?: number | null;
     unitPrice?: number | null;
     estimatedUnits?: number | null;
     actualUnits?: number | null;

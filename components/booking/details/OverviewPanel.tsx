@@ -406,9 +406,11 @@ export function OverviewPanel({
             <DetailField label={dt("fields.quoteStatus", "Quote status")} empty={!quoteStatus}>
               <StatusText value={quoteStatus} />
             </DetailField>
-            <DetailField label={dt("fields.professionalTotal", "Professional amount (excl. commission)")} empty={professionalTotal == null}>
-              <MoneyText amount={professionalTotal} currency={quoteCurrency} formatMoney={formatMoney} />
-            </DetailField>
+            {viewerRole !== "customer" && (
+              <DetailField label={dt("fields.professionalTotal", "Professional amount (excl. commission)")} empty={professionalTotal == null}>
+                <MoneyText amount={professionalTotal} currency={quoteCurrency} formatMoney={formatMoney} />
+              </DetailField>
+            )}
             <DetailField label={dt("fields.firstPossibleStart", "First possible start")} empty={!details?.booking?.quote?.firstPossibleStart}>
               {formatCalendarDate(details?.booking?.quote?.firstPossibleStart, intl)}
             </DetailField>

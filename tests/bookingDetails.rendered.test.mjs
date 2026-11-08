@@ -863,7 +863,8 @@ test('overview keeps the accepted quotation link and recorded summary authoritat
       ...payload, viewerRole: 'customer', pathname: '/bookings/test', search: '', onSelectTab() {},
     }))))
   assert.match(html, /#quotation-v1/)
-  assert.match(html, /123\.45/)
+  // Customers never see the professional amount; the newer version's raw figures must not leak either.
+  assert.doesNotMatch(html, /Professional amount/)
   assert.doesNotMatch(html, /999\.99|2099/)
   assert.match(html, /First possible start/)
 })

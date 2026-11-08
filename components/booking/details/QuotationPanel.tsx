@@ -293,9 +293,11 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
             ) : null}
           </DetailField>
           <DetailField label={dt("fields.currency", "Currency")} empty={!quotation?.currency}>{quotation?.currency}</DetailField>
+          {role !== "customer" ? (
           <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={quotation?.totalAmountProfessional == null}>
             <MoneyText amount={quotation?.totalAmountProfessional} currency={quotation?.currency} formatMoney={formatMoney} />
           </DetailField>
+          ) : null}
           <DetailField label={dt("fields.versionCount", "Versions")}>
             {versions.length > 0 ? versions.length : <NotRecorded />}
           </DetailField>
@@ -468,9 +470,11 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
             <DetailField label={dt("fields.bufferDuration", "Buffer")} empty={!durationLabel(selected.bufferDuration)}>
               <DurationText duration={selected.bufferDuration} />
             </DetailField>
+            {role !== "customer" ? (
             <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={selected.totalAmount == null}>
               <MoneyText amount={selected.totalAmount} currency={selected.currency} formatMoney={formatMoney} />
             </DetailField>
+            ) : null}
             <DetailField label={dt("fields.currency", "Currency")} empty={!selected.currency}>{selected.currency}</DetailField>
           </dl>
 
@@ -516,6 +520,7 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
             </div>
           ) : null}
 
+          {role !== "customer" ? (
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("quotation.pricingLines", "Pricing lines (professional net)")}</p>
             {Array.isArray(selected.pricingLines) && selected.pricingLines.length > 0 ? (
@@ -558,14 +563,17 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
               <div className="mt-1"><NotRecorded /></div>
             )}
           </div>
+          ) : null}
 
           {selected.customerTotals ? (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
               <p className="text-xs font-semibold text-blue-900">{dt("quotation.customerSnapshot", "Customer price recorded with this version")}</p>
               <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {role !== "customer" ? (
                 <DetailField label={dt("fields.professionalNet", "Professional net")} empty={selected.customerTotals.professionalNetAmount == null}>
                   <MoneyText amount={selected.customerTotals.professionalNetAmount} currency={selected.customerTotals.currency || selected.currency} formatMoney={formatMoney} />
                 </DetailField>
+                ) : null}
                 <DetailField label={dt("fields.customerNet", "Customer net")} empty={selected.customerTotals.customerNetAmount == null}>
                   <MoneyText amount={selected.customerTotals.customerNetAmount} currency={selected.customerTotals.currency || selected.currency} formatMoney={formatMoney} />
                 </DetailField>

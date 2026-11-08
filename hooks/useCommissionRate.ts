@@ -1,12 +1,17 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { cachedClientRequest } from '@/lib/clientRequestCache'
 import { useAuth } from '@/contexts/AuthContext'
-import { customerPriceCache, type ExtraCostPreview } from '@/lib/customerPricePreview'
-import type { UnitPricing } from '@/lib/customerPricing'
+import { customerPriceCache, type PackagePriceRef } from '@/lib/customerPricePreview'
+import { commissionedAmount, type UnitPricing } from '@/lib/customerPricing'
 
 const COMMISSION_CACHE_KEY = 'commission-rate'
 const serverSnapshot = () => 0
 
+/**
+ * Professionals may see the commission rate; customers and anonymous visitors never
+ * fetch it. A professional prices their own base amounts locally with the same
+ * arithmetic as the server. Customers get customer totals from the server.
+ */
 export function useCommissionRate() {
   const { user } = useAuth()
   const [commissionPercent, setCommissionPercent] = useState<number | null>(null)
@@ -33,30 +38,27 @@ export function useCommissionRate() {
     return () => { active = false }
   }, [user?.role, user?._id])
 
-  // The revision makes memoized price consumers recompute when their amount batch arrives.
-  const customerPrice = useCallback((amount: number, unitPricing?: UnitPricing | null) => {
-    void revision
-    if (typeof window === 'undefined') return NaN
-    const unit = unitPricing?.pricingType === 'unit' && unitPricing.unitAmount != null && unitPricing.quantity != null
-      ? { pricingType: 'unit', unitAmount: unitPricing.unitAmount, quantity: unitPricing.quantity } : undefined
-    return customerPriceCache.read({ kind: 'amount', amount, ...(unit ? { unitPricing: unit } : {}) })
-  }, [revision])
-  const customerExtraCost = useCallback((cost: ExtraCostPreview) => {
-    void revision
-    if (typeof window === 'undefined') return NaN
-    return customerPriceCache.read({ kind: 'extra_cost', amount: cost.amount ?? 0, cost })
-  }, [revision])
-  const customerExtraCostTotal = useCallback((costs: ExtraCostPreview[] | undefined, amount: number) => {
-    void revision
-    if (typeof window === 'undefined') return NaN
-    return customerPriceCache.read({ kind: 'extra_cost_total', amount, costs: costs || [] })
-  }, [revision])
-  useEffect(() => {
-    const retry = () => customerPriceCache.invalidate()
-    window.addEventListener('online', retry)
-    return () => window.removeEventListener('online', retry)
-  }, [])
+  /** Professional's own base amount with the commission added. NaN until the rate has loaded. */
+  const commissionedPrice = useCallback((amount: number, unitPricing?: UnitPricing | null) => {
+    if (commissionPercent == null || !Number.isFinite(amount)) return NaN
+    return commissionedAmount(amount, commissionPercent, unitPricing)
+  }, [commissionPercent])
 
-  return { commissionPercent, commissionLoaded, commissionError, customerPrice, customerExtraCost, customerExtraCostTotal,
-    pricingReady: customerPriceCache.ready(), pricingError: customerPriceCache.error(), retryPricing: customerPriceCache.invalidate }
+  /** Customer total for a stored package, from the server. NaN while loading or unavailable. */
+  const customerPackagePrice = useCallback((ref: PackagePriceRef) => {
+    void revision
+    if (typeof window === 'undefined') return NaN
+    return customerPriceCache.read(ref)
+  }, [revision])
+
+  return {
+    commissionPercent,
+    commissionLoaded,
+    commissionError,
+    commissionedPrice,
+    customerPackagePrice,
+    pricingReady: customerPriceCache.ready(),
+    pricingError: customerPriceCache.error(),
+    retryPricing: customerPriceCache.invalidate,
+  }
 }

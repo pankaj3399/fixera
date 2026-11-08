@@ -1,14 +1,35 @@
-import type { UnitPricing } from './customerPricing'
+/**
+ * Customer price lookups. The server prices a stored package for a customer:
+ * the request names a published project, one of its packages, the usage and the
+ * options. It cannot carry an amount, so the client never sends a base price and
+ * never receives one back.
+ */
+export type PackagePriceRef = {
+  projectId: string
+  subprojectIndex: number
+  /** Unit packages: the quantity the customer estimates. */
+  estimatedUsage?: number | string
+  /** Indexes into the project's extra options. */
+  selectedExtraOptions?: number[]
+}
 
-export type ExtraCostPreview = { type?: string; amount?: number; unitPrice?: number; actualUnits?: number; estimatedUnits?: number }
-export type CustomerPriceRequest =
-  | { kind: 'amount'; amount: number; unitPricing?: UnitPricing }
-  | { kind: 'extra_cost'; amount: number; cost: ExtraCostPreview }
-  | { kind: 'extra_cost_total'; amount: number; costs: ExtraCostPreview[] }
+const refKey = (ref: PackagePriceRef) => JSON.stringify([
+  ref.projectId,
+  ref.subprojectIndex,
+  ref.estimatedUsage ?? null,
+  [...(ref.selectedExtraOptions ?? [])].sort((a, b) => a - b),
+])
 
-/** Amount-only cache. A missing/failed preview is NaN, never an unpriced supplier amount. */
-export function createCustomerPriceCache(fetchPrices: (requests: CustomerPriceRequest[]) => Promise<number[]>) {
-  const entries = new Map<string, { request: CustomerPriceRequest; value?: number; expires: number; failed?: boolean }>()
+const isValidRef = (ref: PackagePriceRef) => Boolean(ref.projectId)
+  && Number.isInteger(ref.subprojectIndex) && ref.subprojectIndex >= 0
+
+/**
+ * Shared cache for customer totals. A missing, pending or failed lookup reads as
+ * NaN, never as an unpriced amount. One `online` listener, registered by the
+ * module, retries failed lookups for every consumer.
+ */
+export function createCustomerPriceCache(fetchPrices: (requests: PackagePriceRef[]) => Promise<number[]>) {
+  const entries = new Map<string, { request: PackagePriceRef; value?: number; expires: number; failed?: boolean }>()
   const queued = new Set<string>()
   const listeners = new Set<() => void>()
   let revision = 0
@@ -34,7 +55,7 @@ export function createCustomerPriceCache(fetchPrices: (requests: CustomerPriceRe
     } catch (cause) {
       if (generation !== currentGeneration) return
       error = cause instanceof Error ? cause : new Error('Price preview unavailable')
-      keys.forEach((key, index) => entries.set(key, { request: batch[index], expires: Infinity, failed: true }))
+      keys.forEach((key) => entries.set(key, { request: entries.get(key)!.request, expires: Infinity, failed: true }))
     } finally {
       inFlight--
       emit()
@@ -49,12 +70,13 @@ export function createCustomerPriceCache(fetchPrices: (requests: CustomerPriceRe
     snapshot: () => revision,
     ready: () => !queued.size && inFlight === 0 && !error,
     error: () => error,
-    read: (request: CustomerPriceRequest): number => {
-      if (!Number.isFinite(request.amount)) return NaN
-      const key = JSON.stringify(request)
+    /** The customer total for a package, or NaN while it is loading or unavailable. */
+    read: (ref: PackagePriceRef): number => {
+      if (!isValidRef(ref)) return NaN
+      const key = refKey(ref)
       const entry = entries.get(key)
       if (entry?.expires && entry.expires > Date.now()) return entry.value ?? NaN
-      entries.set(key, { request, expires: Infinity })
+      entries.set(key, { request: ref, expires: Infinity })
       queued.add(key)
       schedule()
       return NaN
@@ -63,9 +85,9 @@ export function createCustomerPriceCache(fetchPrices: (requests: CustomerPriceRe
   }
 }
 
-export const customerPriceCache = createCustomerPriceCache(async prices => {
+export const customerPriceCache = createCustomerPriceCache(async requests => {
   const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/customer-prices`, {
-    method: 'POST', signal: AbortSignal.timeout(15_000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prices }),
+    method: 'POST', signal: AbortSignal.timeout(15_000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }),
   })
   if (!response.ok) throw new Error('Price preview unavailable')
   const result = await response.json()
@@ -74,3 +96,8 @@ export const customerPriceCache = createCustomerPriceCache(async prices => {
 })
 
 export const invalidateCustomerPrices = () => customerPriceCache.invalidate()
+
+// One retry listener for the whole app, owned by the shared cache (not by each consumer).
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => customerPriceCache.invalidate())
+}

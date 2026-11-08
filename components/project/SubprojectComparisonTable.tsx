@@ -229,7 +229,7 @@ export default function SubprojectComparisonTable({
     return null;
   }
 
-  const currentPricing = getCustomerPricing(currentSubproject.pricing.amount)
+  const currentPricing = getCustomerPricing(currentSubproject.pricing.customerAmount)
   const currentCustomerAmount = currentPricing.customerAmount
   const currentDiscountedAmount = currentPricing.discountedAmount
   const hasCurrentDiscount =
@@ -244,8 +244,8 @@ export default function SubprojectComparisonTable({
     minProjectCustomerAmount != null &&
     minProjectDiscountedAmount != null &&
     minProjectDiscountedAmount < minProjectCustomerAmount
-  const minRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.min)
-  const maxRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.max)
+  const minRangePricing = getCustomerPricing(currentSubproject.pricing.customerPriceRange?.min)
+  const maxRangePricing = getCustomerPricing(currentSubproject.pricing.customerPriceRange?.max)
   const minRangeCustomerAmount = minRangePricing.customerAmount
   const minRangeDiscountedAmount = minRangePricing.discountedAmount
   const maxRangeCustomerAmount = maxRangePricing.customerAmount
@@ -351,7 +351,7 @@ export default function SubprojectComparisonTable({
                       )}
                     </p>
                   )}
-                  {isPricingReady && effectivePricingType(currentSubproject) === 'rfq' && currentSubproject.pricing.priceRange && (
+                  {isPricingReady && effectivePricingType(currentSubproject) === 'rfq' && currentSubproject.pricing.customerPriceRange && (
                     <p className="text-sm text-gray-500 mt-2">
                       {t('comparison.estimatedRange')} {hasMinRangeDiscount ? (
                         <>

@@ -133,6 +133,9 @@ interface Booking {
   currentQuoteVersion?: number;
   selectedExtraOptions?: Array<{ extraOptionId: string; bookedPrice: number } | number>;
   checkoutSnapshot?: {
+    /** Customer totals (checkout arithmetic). Null for professionals. */
+    customerPackageTotal?: number | null;
+    customerTotal?: number | null;
     pricingType?: string;
     unitAmount?: number;
     quantity?: number;
@@ -979,7 +982,7 @@ export default function BookingPaymentPage() {
     return sum + price;
   }, 0);
   const persistedOptionsBaseTotal = (booking?.selectedExtraOptions ?? []).reduce<number>((sum, option) => {
-    if (typeof option === 'number') return sum + (booking?.project?.extraOptions?.[option]?.price || 0);
+    if (typeof option === 'number') return sum + (booking?.project?.extraOptions?.[option]?.customerPrice ?? Number.NaN);
     return sum + (option.bookedPrice || 0);
   }, 0);
   const quoteAmount = Number(booking?.quote?.amount || 0);
@@ -1066,7 +1069,7 @@ export default function BookingPaymentPage() {
         Boolean(scheduleWindow));
     const projectExtraOptions = booking?.project?.extraOptions || [];
     const selectedOptionTotal = selectedExtraOptions.reduce(
-      (sum, optionIndex) => sum + (projectExtraOptions[optionIndex]?.price || 0),
+      (sum, optionIndex) => sum + (projectExtraOptions[optionIndex]?.customerPrice ?? Number.NaN),
       0
     );
 
@@ -1113,7 +1116,7 @@ export default function BookingPaymentPage() {
                   <span className="font-medium text-gray-900">
                     {customerPricingReady
                       ? formatMoney(
-                          currentQuoteTotals?.total ?? customerPrice(booking?.quote?.amount ?? 0, booking?.checkoutSnapshot),
+                          currentQuoteTotals?.total ?? customerPrice(booking?.checkoutSnapshot?.customerPackageTotal ?? Number.NaN),
                           booking?.quote?.currency?.toUpperCase() || 'EUR'
                         )
                       : '...'}
@@ -1178,9 +1181,9 @@ export default function BookingPaymentPage() {
                     </p>
                   </div>
                 )}
-                {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.quote?.amount != null && customerPricingReady && (() => {
-                  const baseWithCommission = originalPrice(booking.quote.amount, booking.checkoutSnapshot);
-                  const afterLoyalty = customerPrice(booking.quote.amount, booking.checkoutSnapshot);
+                {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.checkoutSnapshot?.customerPackageTotal != null && customerPricingReady && (() => {
+                  const baseWithCommission = originalPrice(booking.checkoutSnapshot.customerPackageTotal);
+                  const afterLoyalty = customerPrice(booking.checkoutSnapshot.customerPackageTotal);
                   const saving = Math.max(0, +(baseWithCommission - afterLoyalty).toFixed(2));
                   const currency = booking?.quote?.currency?.toUpperCase() || 'EUR';
                   return (
@@ -1477,7 +1480,7 @@ export default function BookingPaymentPage() {
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-gray-900">
                                 {customerPricingReady
-                                  ? formatMoney(customerPrice(option.price || 0), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                                  ? formatMoney(customerPrice(option.customerPrice ?? Number.NaN), booking?.quote?.currency?.toUpperCase() || 'EUR')
                                   : '...'}
                               </span>
                               <input
