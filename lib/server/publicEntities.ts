@@ -1,12 +1,19 @@
 import type { PublicProjectDto } from "@/types/project";
 
 /**
- * Server-side reads of public project and professional data. Both entity layouts
- * (metadata, JSON-LD) and the page bodies use these, so they share one fetch
- * (same URL, same revalidation) per cache window.
+ * Server-side reads of the public project and professional records, for the SEO HTML
+ * of the entity pages and their layouts (metadata, JSON-LD). The layout and the page
+ * body call the same function with the same URL, so they share one fetch per cache
+ * window.
  *
- * None of these responses depend on the viewer, so they are cached by time
- * (`revalidate`) instead of `no-store`.
+ * Only the entity record is read on the server. Reviews, ratings and every other
+ * secondary value load on the client, so the server does not spend the per-IP
+ * review budget of the backend.
+ *
+ * Failures: Next 15.4.10 writes a fetch response to the data cache only when it is
+ * HTTP 200 (`next/dist/server/lib/patch-fetch.js`). A 429 or 5xx is therefore not held
+ * for the revalidate window. It comes back here as `unavailable` for that render only,
+ * and the next render asks the backend again.
  */
 
 export const PUBLIC_ENTITY_REVALIDATE_SECONDS = 300;
@@ -26,36 +33,6 @@ export type EntityLookup<T> =
   | { status: "not_found" }
   | { status: "unavailable" };
 
-export interface RatingsSummary {
-  overallAverage: number;
-  avgCommunication: number;
-  avgValueOfDelivery: number;
-  avgQualityOfService: number;
-  totalReviews: number;
-}
-
-export interface ReviewPagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
-
-export interface PublicReview {
-  _id: string;
-  customerReview: {
-    communicationLevel: number;
-    valueOfDelivery: number;
-    qualityOfService: number;
-    comment?: string;
-    images?: string[];
-    reviewedAt: string;
-    reply?: { comment: string; repliedAt: string };
-  };
-  customer: { _id: string; name?: string; profileImage?: string };
-  project?: { _id: string; title: string };
-}
-
 export interface ProfessionalData {
   _id: string;
   name?: string;
@@ -73,26 +50,6 @@ export interface ProfessionalData {
   createdAt?: string;
   location?: { city?: string; country?: string };
 }
-
-/** First page of `GET /api/public/professionals/:id/reviews` (default filters). */
-export interface ProfessionalReviewsPayload {
-  professional: ProfessionalData;
-  reviews: PublicReview[];
-  projects: Array<{ _id: string; title: string }>;
-  ratingsSummary: RatingsSummary;
-  pagination: ReviewPagination;
-}
-
-/** First page of `GET /api/public/projects/:id/reviews` (default filters). */
-export interface ProjectReviewsPayload {
-  reviews: PublicReview[];
-  ratingsSummary: RatingsSummary;
-  ordersInQueue: number;
-  pagination: ReviewPagination;
-}
-
-/** Same page size the client uses for its own review requests. */
-const REVIEW_PAGE_SIZE = 10;
 
 const backendPath = (path: string) => `${process.env.NEXT_PUBLIC_BACKEND_URL || ""}${path}`;
 
@@ -125,13 +82,13 @@ async function fetchPublicEntity<T>(
 }
 
 /** Response envelopes of the public endpoints this module reads. */
-interface Envelope<T> {
-  success?: boolean;
-  data?: T;
-}
 interface ProjectEnvelope {
   success?: boolean;
   project?: PublicProjectDto;
+}
+interface ProfessionalEnvelope {
+  success?: boolean;
+  data?: { professional?: ProfessionalData };
 }
 
 export function getPublicProject(id: string): Promise<EntityLookup<PublicProjectDto>> {
@@ -145,24 +102,14 @@ export function getPublicProject(id: string): Promise<EntityLookup<PublicProject
   );
 }
 
-export function getPublicProjectReviews(id: string): Promise<EntityLookup<ProjectReviewsPayload>> {
-  return fetchPublicEntity<ProjectReviewsPayload>(
-    `/api/public/projects/${encodeURIComponent(id)}/reviews?page=1&limit=${REVIEW_PAGE_SIZE}`,
-    "project reviews",
-    (json) => {
-      const body = json as Envelope<ProjectReviewsPayload> | null;
-      return body?.success && body.data ? body.data : null;
-    },
-  );
-}
-
-export function getPublicProfessional(id: string): Promise<EntityLookup<ProfessionalReviewsPayload>> {
-  return fetchPublicEntity<ProfessionalReviewsPayload>(
-    `/api/public/professionals/${encodeURIComponent(id)}/reviews?page=1&limit=${REVIEW_PAGE_SIZE}`,
+/** Public profile record only (`GET /api/public/professionals/:id`). No reviews or ratings. */
+export function getPublicProfessional(id: string): Promise<EntityLookup<ProfessionalData>> {
+  return fetchPublicEntity<ProfessionalData>(
+    `/api/public/professionals/${encodeURIComponent(id)}`,
     "professional",
     (json) => {
-      const body = json as Envelope<ProfessionalReviewsPayload> | null;
-      return body?.success && body.data?.professional ? body.data : null;
+      const body = json as ProfessionalEnvelope | null;
+      return body?.success && body.data?.professional ? body.data.professional : null;
     },
   );
 }

@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       path,
     });
   }
-  const professional = lookup.data.professional;
+  const professional = lookup.data;
   const name = professional.name || t("meta.fallbackTitle");
   const city = professional.businessInfo?.city || professional.location?.city;
   const country = professional.businessInfo?.country || professional.location?.country;
@@ -47,8 +47,7 @@ export default async function ProfessionalLayout({ children, params }: Props) {
   const { id } = await params;
   const t = await getTranslations("professionalProfile");
   const lookup = await getPublicProfessional(id);
-  const data = lookup.status === "found" ? lookup.data : null;
-  const professional = data?.professional ?? null;
+  const professional = lookup.status === "found" ? lookup.data : null;
 
   const schemas: Array<Record<string, unknown>> = [
     breadcrumbSchema([
@@ -58,8 +57,8 @@ export default async function ProfessionalLayout({ children, params }: Props) {
     ]),
   ];
 
-  if (professional && data) {
-    const { overallAverage, totalReviews } = data.ratingsSummary;
+  // Rating data is left out here: it comes from the reviews endpoint, not from this record.
+  if (professional) {
     schemas.push(
       localBusinessSchema({
         name: professional.name || t("meta.fallbackTitle"),
@@ -70,10 +69,6 @@ export default async function ProfessionalLayout({ children, params }: Props) {
           addressLocality: professional.businessInfo?.city || professional.location?.city,
           addressCountry: professional.businessInfo?.country || professional.location?.country,
         },
-        aggregateRating:
-          typeof overallAverage === "number" && totalReviews > 0
-            ? { ratingValue: Number(overallAverage.toFixed(2)), reviewCount: totalReviews }
-            : undefined,
       })
     );
   }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import type { ProfessionalReviewsPayload } from "@/lib/server/publicEntities"
+import type { ProfessionalData } from "@/lib/server/publicEntities"
 import { useParams, useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
@@ -41,27 +41,6 @@ import { useCurrency } from "@/contexts/CurrencyContext"
 import { CurrencySymbol } from "@/components/currency/CurrencySymbol"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
-
-interface ProfessionalData {
-  _id: string
-  name?: string
-  username?: string
-  profileImage?: string
-  businessInfo?: {
-    description?: string
-    website?: string
-    city?: string
-    country?: string
-  }
-  serviceCategories?: string[]
-  hourlyRate?: number
-  currency?: string
-  createdAt?: string
-  location?: {
-    city?: string
-    country?: string
-  }
-}
 
 interface ReviewData {
   _id: string
@@ -159,11 +138,11 @@ function RatingScoreBadge({ rating, totalReviews }: { rating: number; totalRevie
 }
 
 export interface ProfessionalProfileViewProps {
-  /** Loaded on the server by the route (profile + first review page). Null: the client fetches it. */
-  initialData: ProfessionalReviewsPayload | null
+  /** Public profile loaded on the server by the route. Null: the client fetches it with the reviews. */
+  initialProfessional: ProfessionalData | null
 }
 
-export default function ProfessionalProfileView({ initialData }: ProfessionalProfileViewProps) {
+export default function ProfessionalProfileView({ initialProfessional }: ProfessionalProfileViewProps) {
   const params = useParams()
   const router = useRouter()
   const t = useTranslations("professionalProfile")
@@ -173,14 +152,15 @@ export default function ProfessionalProfileView({ initialData }: ProfessionalPro
   const professionalId = params?.id as string
   const { user, loading: authLoading } = useAuth()
 
-  const [professional, setProfessional] = useState<ProfessionalData | null>(initialData?.professional ?? null)
-  const [reviews, setReviews] = useState<ReviewData[]>(initialData?.reviews ?? [])
-  const [ratingsSummary, setRatingsSummary] = useState<RatingsSummary | null>(initialData?.ratingsSummary ?? null)
-  const [loading, setLoading] = useState(initialData === null)
+  const [professional, setProfessional] = useState<ProfessionalData | null>(initialProfessional)
+  const [reviews, setReviews] = useState<ReviewData[]>([])
+  const [ratingsSummary, setRatingsSummary] = useState<RatingsSummary | null>(null)
+  // Full-page skeleton only while the profile itself is unknown (the server could not load it).
+  const [loading, setLoading] = useState(initialProfessional === null)
+  // Reviews load on the client after mount. Until the first load, show a placeholder, not "no reviews yet".
+  const [reviewsReady, setReviewsReady] = useState(false)
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(initialData?.pagination.totalPages ?? 1)
-  /** The server already fetched the default first page of reviews; skip that request on mount. */
-  const skipInitialReviewsRef = useRef(initialData !== null)
+  const [totalPages, setTotalPages] = useState(1)
 
   // Reply state
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
@@ -192,7 +172,7 @@ export default function ProfessionalProfileView({ initialData }: ProfessionalPro
   const [reviewRatingFilter, setReviewRatingFilter] = useState<number | null>(null)
   const [reviewProjectFilter, setReviewProjectFilter] = useState("")
   const [hidingReview, setHidingReview] = useState<string | null>(null)
-  const [projectOptions, setProjectOptions] = useState<Array<{ _id: string; title: string }>>(initialData?.projects ?? [])
+  const [projectOptions, setProjectOptions] = useState<Array<{ _id: string; title: string }>>([])
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const isOwner = user?._id === professionalId && user?.role === "professional"
@@ -245,7 +225,9 @@ export default function ProfessionalProfileView({ initialData }: ProfessionalPro
       const data = await res.json()
       if (!res.ok || !data.success) {
         toast.error(getErrorText(data, t("toast.loadFailed")))
-        setProfessional(null)
+        // 404: the profile is gone or no longer public. Other failures (429, 5xx) keep the
+        // profile the server already rendered; only the reviews are cleared.
+        if (res.status === 404) setProfessional(null)
         setReviews([])
         setRatingsSummary(null)
         setTotalPages(1)
@@ -261,16 +243,13 @@ export default function ProfessionalProfileView({ initialData }: ProfessionalPro
       toast.error(t("toast.loadFailed"))
     } finally {
       setLoading(false)
+      // An aborted request is superseded by the next one, so it must not mark the list as loaded.
+      if (!signal?.aborted) setReviewsReady(true)
     }
   }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter, getErrorText, t])
 
   useEffect(() => {
     if (!professionalId) return
-    if (skipInitialReviewsRef.current) {
-      // First run is the mount: the server-loaded default page is already on screen.
-      skipInitialReviewsRef.current = false
-      return
-    }
     abortControllerRef.current?.abort()
     const controller = new AbortController()
     abortControllerRef.current = controller
@@ -675,7 +654,13 @@ export default function ProfessionalProfileView({ initialData }: ProfessionalPro
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {reviews.length === 0 ? (
+                {!reviewsReady ? (
+                  <div className="space-y-4 p-6">
+                    {[1, 2].map((i) => (
+                      <Skeleton key={i} className="h-24 w-full rounded-xl" />
+                    ))}
+                  </div>
+                ) : reviews.length === 0 ? (
                   <div className="text-center py-16">
                     <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
                       <MessageSquare className="h-7 w-7 text-gray-300" />

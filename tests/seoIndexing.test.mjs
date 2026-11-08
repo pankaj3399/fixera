@@ -86,6 +86,25 @@ test('entity lookups map 404/400 to not_found, outages to unavailable, and cache
   }
 })
 
+test('professional lookup reads only the public profile record, never the reviews endpoint', async () => {
+  const stub = stubFetch((url) => {
+    if (url === 'https://api.example.test/api/public/professionals/abc') {
+      return json({ success: true, data: { professional: { _id: 'abc', name: 'Jan Peeters' } } })
+    }
+    return json({ success: false }, 404)
+  })
+  try {
+    const lookup = await publicEntities.getPublicProfessional('abc')
+    assert.equal(lookup.status, 'found')
+    assert.equal(lookup.data.name, 'Jan Peeters')
+    assert.equal(stub.calls.length, 1)
+    assert.equal(stub.calls[0].url, 'https://api.example.test/api/public/professionals/abc')
+    assert.equal(stub.calls[0].init.next.revalidate, publicEntities.PUBLIC_ENTITY_REVALIDATE_SECONDS)
+  } finally {
+    stub.restore()
+  }
+})
+
 test('professional lookup accepts only a successful envelope with a professional', async () => {
   const stub = stubFetch(() => json({ success: true, data: { reviews: [] } }))
   try {
@@ -94,6 +113,37 @@ test('professional lookup accepts only a successful envelope with a professional
     stub.restore()
   }
 })
+
+test('429 and 5xx answers come back as unavailable for this render, never as a 404', async () => {
+  // Next 15.4.10 stores a fetch response in the data cache only when it is HTTP 200, so
+  // these failures are not held for the revalidate window. The runtime check covers that.
+  const originalWarn = console.warn
+  console.warn = () => {}
+  try {
+    for (const status of [429, 500, 503]) {
+      const stub = stubFetch(() => json({ success: false, msg: 'nope' }, status))
+      try {
+        assert.deepEqual(await publicEntities.getPublicProject('abc'), { status: 'unavailable' }, `project ${status}`)
+        assert.deepEqual(await publicEntities.getPublicProfessional('abc'), { status: 'unavailable' }, `professional ${status}`)
+        assert.equal(stub.calls.length, 2)
+      } finally {
+        stub.restore()
+      }
+    }
+  } finally {
+    console.warn = originalWarn
+  }
+})
+
+test('sitemap entity pages throw on 429 so only that entity type is dropped', async () => {
+  const stub = stubFetch(() => json({ success: false, msg: 'Too many requests' }, 429))
+  try {
+    await assert.rejects(publicEntities.fetchSitemapEntities('project'), /HTTP 429/)
+  } finally {
+    stub.restore()
+  }
+})
+
 
 test('sitemap lists only real routes, with honest dates, and survives entity and CMS failures', async () => {
   const errors = []
@@ -163,7 +213,18 @@ test('project and professional bodies are fetched on the server and 404 when mis
   assert.match(projectPage, /initialProject=/)
   const professionalPage = readSource('../app/(pages)/professional/[id]/page.tsx')
   assert.match(professionalPage, /notFound\(\)/)
-  assert.match(professionalPage, /initialData=/)
+  assert.match(professionalPage, /initialProfessional=/)
+
+  // Only the entity record is read on the server. Reviews load on the client, so they do
+  // not draw on the backend's per-IP review budget from the frontend server.
+  assert.doesNotMatch(projectPage, /getPublicProjectReviews|\/reviews/)
+  assert.doesNotMatch(professionalPage, /ProfessionalReviewsPayload|\/reviews/)
+  const professionalLayout = readSource('../app/(pages)/professional/[id]/layout.tsx')
+  assert.doesNotMatch(professionalLayout, /aggregateRating:|ratingsSummary|\/reviews/)
+  const projectView = readSource('../app/(pages)/projects/[id]/ProjectDetailView.tsx')
+  assert.doesNotMatch(projectView, /initialReviews|skipInitialReviews/)
+  const professionalView = readSource('../app/(pages)/professional/[id]/ProfessionalProfileView.tsx')
+  assert.doesNotMatch(professionalView, /initialData|skipInitialReviews|ProfessionalReviewsPayload/)
 
   for (const rel of ['../app/(pages)/projects/[id]/layout.tsx', '../app/(pages)/professional/[id]/layout.tsx']) {
     const source = readSource(rel)

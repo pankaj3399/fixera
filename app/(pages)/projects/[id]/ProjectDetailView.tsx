@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,7 +54,6 @@ import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import type { PublicProjectDto as Project } from '@/types/project';
-import type { ProjectReviewsPayload } from '@/lib/server/publicEntities';
 import {
   getAdminTagStyle,
   formatAdminTagLabel,
@@ -295,11 +294,9 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
 export interface ProjectDetailViewProps {
   /** Loaded on the server by the route, so the first HTML contains the project. Null: the client fetches it. */
   initialProject: Project | null;
-  /** First page of reviews with default filters, loaded on the server. Null: the client fetches it. */
-  initialReviews: ProjectReviewsPayload | null;
 }
 
-export default function ProjectDetailView({ initialProject, initialReviews }: ProjectDetailViewProps) {
+export default function ProjectDetailView({ initialProject }: ProjectDetailViewProps) {
   const params = useParams();
   const router = useRouter();
   const t = useTranslations('projects');
@@ -330,22 +327,22 @@ export default function ProjectDetailView({ initialProject, initialReviews }: Pr
       reply?: { comment: string; repliedAt: string };
     };
     customer: { name?: string; profileImage?: string };
-  }>>(initialReviews?.reviews ?? []);
+  }>>([]);
   const [ratingsSummary, setRatingsSummary] = useState<{
     overallAverage: number;
     avgCommunication: number;
     avgValueOfDelivery: number;
     avgQualityOfService: number;
     totalReviews: number;
-  } | null>(initialReviews?.ratingsSummary ?? null);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-  const [ordersInQueue, setOrdersInQueue] = useState(initialReviews?.ordersInQueue ?? 0);
-  /** The server already fetched the default first page of reviews; skip that request on mount. */
-  const skipInitialReviewsRef = useRef(initialReviews !== null);
+  } | null>(null);
+  // Reviews load on the client after mount. Start in the loading state so the server HTML
+  // shows the placeholder, not a false "no reviews yet".
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [ordersInQueue, setOrdersInQueue] = useState(0);
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewRatingFilter, setReviewRatingFilter] = useState<number | null>(null);
   const [reviewPage, setReviewPage] = useState(1);
-  const [reviewTotalPages, setReviewTotalPages] = useState(initialReviews?.pagination.totalPages ?? 1);
+  const [reviewTotalPages, setReviewTotalPages] = useState(1);
   const [initialFavorited, setInitialFavorited] = useState<boolean | null>(null);
   const { customerPrice } = useCustomerPricing();
 
@@ -407,11 +404,6 @@ export default function ProjectDetailView({ initialProject, initialReviews }: Pr
 
   useEffect(() => {
     if (!projectId) return;
-    if (skipInitialReviewsRef.current) {
-      // First run is the mount: the server-loaded default page is already on screen.
-      skipInitialReviewsRef.current = false;
-      return;
-    }
     const controller = new AbortController();
     const fetchReviews = async () => {
       setReviewsLoading(true);
