@@ -109,7 +109,7 @@ export default function RescheduleRequestCard({
       }
       // Task 9c: a disputed request answers 409 RESCHEDULE_DISPUTED — surface
       // the disputed state instead of a generic failure.
-      if (response.status === 409 || code === 'RESCHEDULE_DISPUTED') {
+      if (code === 'RESCHEDULE_DISPUTED') {
         toast.error(t("rescheduleRequest.toasts.disputed"))
         onResolved?.()
         return

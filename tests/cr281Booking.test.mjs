@@ -56,12 +56,15 @@ test('quotation milestone preview renders immutable totals before live pricing l
   const code = transformSync(`function preview() { return <div>${jsx}</div> }`, {
     jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
   }).code
-  const render = ready => new Function('require', 'currentVersion', 'quotePricingReady', 'customerPricingReady', 'currentVersionMilestoneGrossAmounts', 'formatMoney', `const exports = {}; ${code}; return preview();`)(
-    require, { milestones: [{ title: 'First' }], currency: 'EUR' }, ready, false, [133.1], amount => `EUR ${amount}`,
+  const render = (ready, amounts = [133.1]) => new Function('require', 'currentVersion', 'quotePricingReady', 'customerPricingReady', 'currentVersionMilestoneGrossAmounts', 'formatMoney', `const exports = {}; ${code}; return preview();`)(
+    require, { milestones: [{ title: 'First' }], currency: 'EUR' }, ready, false, amounts, amount => `EUR ${amount}`,
   )
   const { renderToStaticMarkup } = require('react-dom/server')
   assert.match(renderToStaticMarkup(render(true)), /EUR 133.1/)
   assert.match(renderToStaticMarkup(render(false)), /\.\.\./)
+  assert.match(renderToStaticMarkup(render(true, [])), /\.\.\./)
+  assert.doesNotMatch(renderToStaticMarkup(render(true, [])), /EUR 0/)
+  assert.match(renderToStaticMarkup(render(true, [0])), /EUR 0/)
 })
 
 test('proposal decline enforces the trimmed 3–1000-character range before sending', async () => {
@@ -108,4 +111,41 @@ test('completion subtotal preserves customer amounts without printing the platfo
     assert.match(html, /EUR 117\.43/)
     assert.doesNotMatch(html, /17\.4321|percent|%/)
   }
+})
+
+for (const code of ['TEAM_CONFLICT', 'RESCHEDULE_DISPUTED']) test(`booking reschedule acceptance handles 409 ${code} by its code`, async () => {
+  const errors = [], refreshes = []
+  const submit = fragment('const handleRespondReschedule =', 'const openDisputeModal =', {
+    bookingId: 'b1', setRespondingReschedule() {}, getAuthToken: () => null,
+    fetch: async () => ({ status: 409, ok: false, json: async () => ({ error: { code } }) }),
+    toast: { error: value => errors.push(value) }, t: key => key,
+    getErrorText: result => result.error.code, setShowRescheduleRefundModal() {}, setRescheduleRefundNote() {},
+    refreshBooking: async () => refreshes.push(true),
+  }, 'handleRespondReschedule')
+  await submit('accept')
+  assert.deepEqual(errors, [code === 'RESCHEDULE_DISPUTED' ? 'rescheduleRequest.toasts.disputed' : 'TEAM_CONFLICT'])
+  assert.equal(refreshes.length, code === 'RESCHEDULE_DISPUTED' ? 1 : 0)
+})
+
+import { hooks, loadComponent, findAll, textOf, common, settle } from './reviewComponentHarness.mjs'
+for (const code of ['TEAM_CONFLICT', 'RESCHEDULE_DISPUTED']) test(`reschedule card handles 409 ${code} by its code`, async () => {
+  const state = hooks(), errors = [], resolved = []
+  const t = key => key; t.has = () => false
+  const Card = loadComponent('../components/booking/RescheduleRequestCard.tsx', {
+    ...common, react: state.api, 'next-intl': { useTranslations: () => t },
+    '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en' }) },
+    '@/lib/i18n/useErrorMessage': { useErrorMessage: () => result => result.error.code },
+    '@/lib/utils': { authFetch: async () => ({ status: 409, ok: false, json: async () => ({ error: { code } }) }) },
+    '@/components/booking/details/DetailPrimitives': { ScheduleSummary: () => null },
+    '@/lib/bookingDetails': { formatInstant: () => null },
+    sonner: { toast: { error: value => errors.push(value) } },
+  })
+  try {
+    const tree = state.render(() => Card({ bookingId: 'b1', viewerUserId: 'customer', viewerRole: 'customer',
+      reschedules: [{ id: 'request', status: 'pending', canRespond: true, requestedBy: { id: 'pro' } }], onResolved: () => resolved.push(true) }))
+    findAll(tree, node => typeof node.props.onClick === 'function' && textOf(node) === 'common.accept')[0].props.onClick()
+    await settle()
+    assert.deepEqual(errors, [code === 'RESCHEDULE_DISPUTED' ? 'rescheduleRequest.toasts.disputed' : 'TEAM_CONFLICT'])
+    assert.equal(resolved.length, code === 'RESCHEDULE_DISPUTED' ? 1 : 0)
+  } finally { state.unmount() }
 })

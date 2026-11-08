@@ -27,7 +27,7 @@ export interface InboxNotification {
 
 interface NotificationInboxContextValue {
   items: InboxNotification[];
-  pendingItems: InboxNotification[];
+  pendingItems: InboxNotification[] | null;
   unreadCount: number;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -37,7 +37,7 @@ interface NotificationInboxContextValue {
 
 const NotificationInboxContext = createContext<NotificationInboxContextValue>({
   items: [],
-  pendingItems: [],
+  pendingItems: null,
   unreadCount: 0,
   loading: false,
   refresh: async () => {},
@@ -69,7 +69,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
   children,
 }) => {
   const [items, setItems] = useState<InboxNotification[]>([]);
-  const [pendingItems, setPendingItems] = useState<InboxNotification[]>([]);
+  const [pendingItems, setPendingItems] = useState<InboxNotification[] | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const isAuthenticatedRef = useRef(isAuthenticated);
@@ -85,7 +85,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
     abortRef.current = null;
     pendingAbortRef.current?.abort();
     pendingAbortRef.current = null;
-    setPendingItems([]);
+    setPendingItems(null);
     setItems([]);
     setUnreadCount(0);
     setLoading(false);
@@ -140,7 +140,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
   // API's unread cursor independently, including level-ups on older pages.
   const refreshPending = useCallback(async () => {
     if (!isAuthenticatedRef.current || !BACKEND_URL) {
-      setPendingItems([]);
+      setPendingItems(null);
       return;
     }
     pendingAbortRef.current?.abort();
@@ -153,7 +153,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
     let cursor: string | null = null;
     try {
       do {
-        const query = new URLSearchParams({ limit: '50', unreadOnly: 'true' });
+        const query = new URLSearchParams({ limit: '50', unreadOnly: 'true', eventKeys: 'customer.loyalty_tier_up,professional.leveling_up' });
         if (cursor) query.set('before', cursor);
         const res = await fetch(`${BACKEND_URL}/api/user/notifications?${query}`, {
           credentials: 'include', headers: authHeaders(), signal: controller.signal,
@@ -180,7 +180,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
     setItems((prev) =>
       prev.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: new Date().toISOString() } : n)),
     );
-    setPendingItems((prev) => prev.map((n) => n.id === id && !n.readAt ? { ...n, readAt: new Date().toISOString() } : n));
+    setPendingItems((prev) => prev?.map((n) => n.id === id && !n.readAt ? { ...n, readAt: new Date().toISOString() } : n) ?? null);
     setUnreadCount((c) => Math.max(0, c - 1));
 
     try {
@@ -197,7 +197,7 @@ export const NotificationInboxProvider: React.FC<ProviderProps> = ({
 
   const markAllRead = useCallback(async () => {
     setItems((prev) => prev.map((n) => ({ ...n, readAt: n.readAt || new Date().toISOString() })));
-    setPendingItems((prev) => prev.map((n) => ({ ...n, readAt: n.readAt || new Date().toISOString() })));
+    setPendingItems((prev) => prev?.map((n) => ({ ...n, readAt: n.readAt || new Date().toISOString() })) ?? null);
     setUnreadCount(0);
 
     try {

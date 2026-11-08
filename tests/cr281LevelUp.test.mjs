@@ -41,9 +41,10 @@ test('inbox scans unread before/nextCursor pages independently and read flow upd
     urls.push(String(url))
     if (options?.method === 'PATCH') return { ok: true }
     const query = new URL(url).searchParams
+    if (query.has('unreadOnly')) assert.equal(query.get('eventKeys'), 'customer.loyalty_tier_up,professional.leveling_up')
     const data = !query.has('unreadOnly') ? { items: [item({ id: 'bell', eventKey: 'other' })], unreadCount: 55 }
       : query.has('before') ? { items: [item()], nextCursor: null }
-      : { items: Array.from({ length: 50 }, (_, i) => item({ id: `recent-${i}`, eventKey: 'other' })), nextCursor: '2026-10-01T00:00:00.000Z|older-id' }
+      : { items: Array.from({ length: 50 }, (_, i) => item({ id: `recent-${i}`, eventKey: 'customer.loyalty_tier_up' })), nextCursor: '2026-10-01T00:00:00.000Z|older-id' }
     return { ok: true, json: async () => ({ success: true, data }) }
   }
   try {
@@ -100,4 +101,33 @@ for (const [url, expected] of [
     findAll(h.render(), n => typeof n.props.onClick === 'function' && textOf(n) === 'View my benefits')[0].props.onClick()
     assert.deepEqual(h.pushes, [expected])
   } finally { h.state.unmount(); globalThis.window = previousWindow }
+})
+
+test('failed pending snapshots preserve null and allow the bell level-up fallback', async () => {
+  const previousWindow = globalThis.window, previousFetch = globalThis.fetch, previousBackend = process.env.NEXT_PUBLIC_BACKEND_URL
+  process.env.NEXT_PUBLIC_BACKEND_URL = 'https://backend.test'
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, setInterval: () => 1, clearInterval() {} }
+  globalThis.fetch = async (url, options) => {
+    if (options?.method) return { ok: true }
+    if (new URL(url).searchParams.has('unreadOnly')) return { ok: false }
+    return { ok: true, json: async () => ({ success: true, data: { items: [item()], unreadCount: 1 } }) }
+  }
+  const state = hooks()
+  try {
+    const Provider = loadComponent('../contexts/NotificationInboxProvider.tsx', { react: state.api, '@/lib/utils': { getAuthToken: () => null } }, 'NotificationInboxProvider')
+    const render = (isAuthenticated = true) => { const tree = state.render(() => Provider({ isAuthenticated, sessionKey: isAuthenticated ? 'user' : null })); state.flush(); return tree.props.value }
+    render(); await settle(); let value = render()
+    assert.equal(value.pendingItems, null)
+    const h = popup({ inbox: value })
+    try { assert.match(textOf(h.render()), /Gold/) } finally { h.state.unmount() }
+    await value.markRead('up-1'); value = render(); assert.equal(value.pendingItems, null)
+    await value.markAllRead(); value = render(); assert.equal(value.pendingItems, null)
+    render(false); value = render(false); assert.equal(value.pendingItems, null)
+    await value.refresh(); assert.equal(render(false).pendingItems, null)
+  } finally { state.unmount(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; if (previousBackend === undefined) delete process.env.NEXT_PUBLIC_BACKEND_URL; else process.env.NEXT_PUBLIC_BACKEND_URL = previousBackend }
+})
+
+test('a successful empty pending snapshot suppresses the bell fallback', () => {
+  const h = popup({ inbox: { pendingItems: [] } })
+  try { assert.equal(h.render(), null) } finally { h.state.unmount() }
 })
