@@ -1,0 +1,60 @@
+{
+  "indicator": {
+    "countingSince": "Counting since {date}",
+    "showAll": "Show all history",
+    "showingAll": "Showing all history since the reset on {date}",
+    "countFromReset": "Count from reset"
+  },
+  "dashboards": {
+    "disputes": {
+      "label": "Booking disputes",
+      "description": "Dispute list, Open and Resolved totals, and the disputes badge."
+    },
+    "warrantyClaims": {
+      "label": "Warranty claims",
+      "description": "Warranty claim list and claim totals."
+    },
+    "cancellations": {
+      "label": "Cancellations and refunds",
+      "description": "Cancellation and refund request queue, its totals and the cancellations badge."
+    },
+    "bookingKpis": {
+      "label": "Booking KPIs",
+      "description": "KPI summary and breakdowns that count bookings in a date range."
+    }
+  },
+  "settings": {
+    "title": "Reset dashboards",
+    "description": "Booking dashboards can start counting fresh from a chosen moment. A reset only changes where counting starts. Nothing is deleted, and older records stay reachable through Show all history.",
+    "resetAll": "Reset all",
+    "reset": "Reset",
+    "undo": "Undo last reset",
+    "loading": "Loading dashboard baselines…",
+    "loadError": "Could not load dashboard baselines.",
+    "notSetYet": "Not reset yet. Counting all history.",
+    "countingSince": "Counting since {date} · set by {name}",
+    "countingSinceNoName": "Counting since {date}",
+    "historyTitle": "Reset history",
+    "historyEmpty": "No resets have been made yet.",
+    "historyEntry": "{action} · {date} · {name}",
+    "historyAction": {
+      "reset": "Reset",
+      "undo": "Undo"
+    },
+    "noteLabel": "Note (optional)",
+    "notePlaceholder": "Why are you resetting this dashboard?",
+    "noteHelp": "Up to 500 characters. Saved with the reset in the history.",
+    "confirmTitle": "Reset {dashboard}?",
+    "confirmTitleAll": "Reset all booking dashboards?",
+    "confirmBody": "Nothing is deleted. Bookings, disputes, claims, cancellations and KPI source data stay exactly as they are. From now on the dashboard counts from the moment you reset it. Older items stay reachable with Show all history.",
+    "confirmOpenItems": "Open and pending items are never hidden by a reset, so they keep appearing in their work queues.",
+    "confirmCancel": "Cancel",
+    "confirmReset": "Confirm reset",
+    "confirmResetAll": "Reset all dashboards",
+    "saving": "Saving…",
+    "resetDone": "{dashboard} now counts from this moment.",
+    "resetAllDone": "All booking dashboards now count from this moment.",
+    "undoDone": "The previous baseline was restored for {dashboard}.",
+    "error": "Could not update the dashboards. Please try again."
+  }
+}

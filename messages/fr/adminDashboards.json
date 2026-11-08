@@ -1,0 +1,60 @@
+{
+  "indicator": {
+    "countingSince": "Comptage depuis le {date}",
+    "showAll": "Afficher tout l'historique",
+    "showingAll": "Historique complet depuis la réinitialisation du {date}",
+    "countFromReset": "Compter depuis la réinitialisation"
+  },
+  "dashboards": {
+    "disputes": {
+      "label": "Litiges de réservation",
+      "description": "Liste des litiges, totaux Ouverts et Résolus, et badge des litiges."
+    },
+    "warrantyClaims": {
+      "label": "Réclamations de garantie",
+      "description": "Liste des réclamations de garantie et totaux des réclamations."
+    },
+    "cancellations": {
+      "label": "Annulations et remboursements",
+      "description": "File des demandes d'annulation et de remboursement, ses totaux et le badge des annulations."
+    },
+    "bookingKpis": {
+      "label": "KPI des réservations",
+      "description": "Synthèse des KPI et ventilations qui comptent les réservations sur une période."
+    }
+  },
+  "settings": {
+    "title": "Réinitialiser les tableaux de bord",
+    "description": "Les tableaux de bord des réservations peuvent recommencer à compter à partir d'un moment choisi. Une réinitialisation change seulement le point de départ du comptage. Rien n'est supprimé, et les anciens éléments restent accessibles via Afficher tout l'historique.",
+    "resetAll": "Tout réinitialiser",
+    "reset": "Réinitialiser",
+    "undo": "Annuler la dernière réinitialisation",
+    "loading": "Chargement des points de départ des tableaux de bord…",
+    "loadError": "Impossible de charger les points de départ des tableaux de bord.",
+    "notSetYet": "Pas encore réinitialisé. Comptage de tout l'historique.",
+    "countingSince": "Comptage depuis le {date} · défini par {name}",
+    "countingSinceNoName": "Comptage depuis le {date}",
+    "historyTitle": "Historique des réinitialisations",
+    "historyEmpty": "Aucune réinitialisation pour le moment.",
+    "historyEntry": "{action} · {date} · {name}",
+    "historyAction": {
+      "reset": "Réinitialisation",
+      "undo": "Annulation"
+    },
+    "noteLabel": "Note (facultative)",
+    "notePlaceholder": "Pourquoi réinitialisez-vous ce tableau de bord ?",
+    "noteHelp": "500 caractères maximum. Enregistrée avec la réinitialisation dans l'historique.",
+    "confirmTitle": "Réinitialiser {dashboard} ?",
+    "confirmTitleAll": "Réinitialiser tous les tableaux de bord des réservations ?",
+    "confirmBody": "Rien n'est supprimé. Les réservations, litiges, réclamations, annulations et données sources des KPI restent exactement tels qu'ils sont. À partir de maintenant, le tableau de bord compte depuis le moment de la réinitialisation. Les anciens éléments restent accessibles via Afficher tout l'historique.",
+    "confirmOpenItems": "Les éléments ouverts et en attente ne sont jamais masqués par une réinitialisation : ils restent visibles dans leurs files de travail.",
+    "confirmCancel": "Annuler",
+    "confirmReset": "Confirmer la réinitialisation",
+    "confirmResetAll": "Réinitialiser tous les tableaux de bord",
+    "saving": "Enregistrement…",
+    "resetDone": "{dashboard} compte maintenant à partir de cet instant.",
+    "resetAllDone": "Tous les tableaux de bord des réservations comptent maintenant à partir de cet instant.",
+    "undoDone": "Le point de départ précédent a été rétabli pour {dashboard}.",
+    "error": "Impossible de mettre à jour les tableaux de bord. Veuillez réessayer."
+  }
+}

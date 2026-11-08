@@ -1,0 +1,60 @@
+{
+  "indicator": {
+    "countingSince": "Telt vanaf {date}",
+    "showAll": "Toon volledige geschiedenis",
+    "showingAll": "Volledige geschiedenis sinds de reset op {date}",
+    "countFromReset": "Tel vanaf reset"
+  },
+  "dashboards": {
+    "disputes": {
+      "label": "Boekingsgeschillen",
+      "description": "Geschillenlijst, totalen Open en Opgelost, en de badge voor geschillen."
+    },
+    "warrantyClaims": {
+      "label": "Garantieclaims",
+      "description": "Lijst met garantieclaims en claimtotalen."
+    },
+    "cancellations": {
+      "label": "Annuleringen en terugbetalingen",
+      "description": "Wachtrij met annulerings- en terugbetalingsverzoeken, de totalen ervan en de badge voor annuleringen."
+    },
+    "bookingKpis": {
+      "label": "Boeking-KPI's",
+      "description": "KPI-overzicht en uitsplitsingen die boekingen tellen binnen een periode."
+    }
+  },
+  "settings": {
+    "title": "Dashboards resetten",
+    "description": "Boekingsdashboards kunnen vanaf een gekozen moment opnieuw beginnen met tellen. Een reset wijzigt alleen waar het tellen begint. Er wordt niets verwijderd, en oudere gegevens blijven bereikbaar via Toon volledige geschiedenis.",
+    "resetAll": "Alles resetten",
+    "reset": "Resetten",
+    "undo": "Laatste reset ongedaan maken",
+    "loading": "Basislijnen van dashboards laden…",
+    "loadError": "De basislijnen van de dashboards konden niet worden geladen.",
+    "notSetYet": "Nog niet gereset. Alle geschiedenis wordt geteld.",
+    "countingSince": "Telt vanaf {date} · ingesteld door {name}",
+    "countingSinceNoName": "Telt vanaf {date}",
+    "historyTitle": "Resetgeschiedenis",
+    "historyEmpty": "Er zijn nog geen resets uitgevoerd.",
+    "historyEntry": "{action} · {date} · {name}",
+    "historyAction": {
+      "reset": "Reset",
+      "undo": "Ongedaan gemaakt"
+    },
+    "noteLabel": "Notitie (optioneel)",
+    "notePlaceholder": "Waarom reset je dit dashboard?",
+    "noteHelp": "Maximaal 500 tekens. Wordt bij de reset in de geschiedenis opgeslagen.",
+    "confirmTitle": "{dashboard} resetten?",
+    "confirmTitleAll": "Alle boekingsdashboards resetten?",
+    "confirmBody": "Er wordt niets verwijderd. Boekingen, geschillen, claims, annuleringen en de brongegevens van de KPI's blijven precies zoals ze zijn. Vanaf nu telt het dashboard vanaf het moment van de reset. Oudere items blijven bereikbaar via Toon volledige geschiedenis.",
+    "confirmOpenItems": "Open en wachtende items worden door een reset nooit verborgen, dus ze blijven zichtbaar in hun werkwachtrijen.",
+    "confirmCancel": "Annuleren",
+    "confirmReset": "Reset bevestigen",
+    "confirmResetAll": "Alle dashboards resetten",
+    "saving": "Opslaan…",
+    "resetDone": "{dashboard} telt nu vanaf dit moment.",
+    "resetAllDone": "Alle boekingsdashboards tellen nu vanaf dit moment.",
+    "undoDone": "De vorige basislijn is hersteld voor {dashboard}.",
+    "error": "De dashboards konden niet worden bijgewerkt. Probeer het opnieuw."
+  }
+}

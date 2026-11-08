@@ -10,6 +10,8 @@
  * Adding a namespace later = add the name here + 3 json files.
  * Admin panel (app/(pages)/admin/**, components/admin/**) deliberately stays
  * English and must never get a namespace here unless explicitly approved.
+ * Exception, explicitly approved for the super-admin "Reset dashboards" feature:
+ * `adminDashboards` (reset section plus the "Counting since" indicator).
  */
 export const NAMESPACES = [
   "common",
@@ -41,6 +43,7 @@ export const NAMESPACES = [
   "calendar",
   "chat",
   "support",
+  "adminDashboards",
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];
