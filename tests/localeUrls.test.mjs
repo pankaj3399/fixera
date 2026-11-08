@@ -311,6 +311,29 @@ test('static file lists every page in every language with alternates and no dead
   }
 })
 
+test('sitemap.xml is an index that lists each generated sitemap file', async () => {
+  const backend = entityBackend({ project: 12000, professional: 6000 })
+  const originalWarn = console.warn
+  const originalError = console.error
+  console.warn = () => {}
+  console.error = () => {}
+  try {
+    const { GET } = await import('../app/sitemap.xml/route.ts')
+    const res = await GET()
+    const body = await res.text()
+    assert.equal(res.headers.get('content-type'), 'application/xml; charset=utf-8')
+    assert.match(body, /<sitemapindex xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/)
+    for (const id of [0, 1, 2, 3, 5, 6]) {
+      assert.ok(body.includes(`<loc>https://example.test/sitemap/${id}.xml</loc>`), `lists sitemap/${id}.xml`)
+    }
+    assert.equal((body.match(/<sitemap>/g) || []).length, 6)
+  } finally {
+    backend.restore()
+    console.warn = originalWarn
+    console.error = originalError
+  }
+})
+
 // ---------------------------------------------------------------- robots and llms.txt
 
 test('robots: AI crawlers are allowed explicitly with the same disallow list as *', () => {
