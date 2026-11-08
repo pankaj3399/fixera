@@ -3,7 +3,15 @@
 import { messageFromApiBody } from '@/lib/apiErrors';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import DashboardBaselineIndicator from '@/components/admin/DashboardBaselineIndicator'
+import {
+  buildHistoryToggleHref,
+  historyQuery,
+  isShowAllHistory,
+  parseDashboardBaselineInfo,
+  type DashboardBaselineInfo,
+} from '@/lib/admin/dashboardBaselines'
 import { useAuth } from '@/contexts/AuthContext'
 import { authFetch } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -256,6 +264,13 @@ const makeRowKey = (tab: TabKey, row: Row) => TAB_ROWKEY_FIELDS[tab].map((f) => 
 
 export default function AdminKpiDashboard() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // Counting-since baseline: ?history=all shows the full history. The flag rides
+  // on appliedRange, so summary, breakdowns, export and email all agree.
+  const showAll = isShowAllHistory(searchParams)
+  const baselineToggleHref = buildHistoryToggleHref(pathname, searchParams, showAll)
+  const [baselineInfo, setBaselineInfo] = useState<DashboardBaselineInfo | null>(null)
   const { user, loading: authLoading } = useAuth()
 
   const initial = useMemo(() => computePreset('month'), [])
@@ -338,8 +353,11 @@ export default function AdminKpiDashboard() {
   }
 
   const appliedRange = useMemo(
-    () => `from=${encodeURIComponent(appliedFrom)}&to=${encodeURIComponent(appliedTo)}&country=${encodeURIComponent(country)}`,
-    [appliedFrom, appliedTo, country]
+    () => {
+      const history = historyQuery(showAll)
+      return `from=${encodeURIComponent(appliedFrom)}&to=${encodeURIComponent(appliedTo)}&country=${encodeURIComponent(country)}${history ? `&${history}` : ''}`
+    },
+    [appliedFrom, appliedTo, country, showAll]
   )
 
   const load = useCallback(async (rangeQs: string, fromStr: string, toStr: string) => {
@@ -381,6 +399,7 @@ export default function AdminKpiDashboard() {
       ])
       if (requestId !== requestIdRef.current) return
       setSummary(sumJson.data || null)
+      setBaselineInfo(parseDashboardBaselineInfo(sumJson.data?.baseline))
       setRegions(regJson.data?.rows || [])
       setServiceBookings(svcJson.data?.serviceBookings || [])
       setSubprojects(subJson.data?.rows || [])
@@ -762,6 +781,7 @@ export default function AdminKpiDashboard() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">KPI Dashboard</h1>
             <p className="text-sm text-gray-500">Platform health by city, service, subproject, professional and customer.</p>
+            <DashboardBaselineIndicator baseline={baselineInfo} toggleHref={baselineToggleHref} />
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setShowEmails((s) => !s)}>
