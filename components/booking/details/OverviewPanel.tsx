@@ -7,6 +7,8 @@ import { CreditCard, FileText, Package, ShieldCheck, User } from "lucide-react"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useAdminAccess } from "@/hooks/useAdminAccess"
+import { useAuth } from "@/contexts/AuthContext"
+import { canAccessAdminPage } from "@/lib/adminRbac"
 import {
   buildAdminDetailLinks,
   buildQuoteAnchors,
@@ -62,6 +64,8 @@ const DETAIL_STATUS_STYLES: Record<string, string> = {
   dispute: "bg-red-50 text-red-700 border-red-100",
 }
 
+const firstRecorded = <T,>(...values: Array<T | null | undefined>): T | undefined => values.find((value) => value != null) as T | undefined
+
 export function OverviewPanel({
   booking,
   details,
@@ -75,6 +79,9 @@ export function OverviewPanel({
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
   const { canReadArea } = useAdminAccess()
+  const { user } = useAuth()
+  // Links are shown only when the destination page's own gate lets this admin in.
+  const canOpenAdminPage = (pathname: string) => canAccessAdminPage(user, pathname)
   const displayTimeZone = useDetailDisplayTimeZone(
     recordedScheduleTimeZone(details, booking.scheduleTimeZone)
   )
@@ -160,21 +167,29 @@ export function OverviewPanel({
           source: "acceptedVersionSource" in quote ? quote.acceptedVersionSource : undefined,
         }
       : null)
-  const professionalTotal = overview?.quote ? overview.quote.totalAmount :
-    (quote && "totalAmountProfessional" in quote ? quote.totalAmountProfessional : undefined) ??
-    (quote && "totalAmount" in quote ? quote.totalAmount : undefined) ??
-    details?.quotation?.totalAmountProfessional ??
-    booking.quote?.amount
+  // Each field falls back field-by-field to the values recorded for the same version, never to a newer quote.
+  // The version the summary describes: the accepted one when recorded, else the current one.
+  const sameVersion = booking.quoteVersions?.find((version) => version.version === (acceptedVersion?.version ?? currentVersion))
+  const professionalTotal = firstRecorded(
+    overview?.quote?.totalAmount,
+    quote && "totalAmountProfessional" in quote ? quote.totalAmountProfessional : undefined,
+    quote && "totalAmount" in quote ? quote.totalAmount : undefined,
+    details?.quotation?.totalAmountProfessional,
+    sameVersion?.totalAmount,
+    booking.quote?.amount,
+  )
   const quoteCurrency = overview?.quote ? overview.quote.currency :
     (quote && "currency" in quote ? quote.currency : undefined) || details?.quotation?.currency || booking.quote?.currency
   const quoteStatus =
     (quote && "status" in quote ? quote.status : undefined) ||
     details?.quotation?.status ||
     (booking.quote ? "legacy" : null)
-  const validUntil = overview?.quote ? overview.quote.validUntil :
-    (quote && "validUntil" in quote ? quote.validUntil : undefined) ||
-    booking.quoteVersions?.find((version) => version.version === currentVersion)?.validUntil ||
-    booking.quote?.validUntil
+  const validUntil = firstRecorded(
+    overview?.quote?.validUntil,
+    quote && "validUntil" in quote ? quote.validUntil : undefined,
+    sameVersion?.validUntil,
+    booking.quote?.validUntil,
+  )
   const quoteAnchors = buildQuoteAnchors(pathname, search, acceptedVersion?.version ?? currentVersion)
 
   const notices = useMemo(
@@ -188,16 +203,16 @@ export function OverviewPanel({
         viewerRole,
         bookingId: booking._id,
         permissions: {
-          bookingsRead: canReadArea("bookings"),
-          disputesRead: canReadArea("disputes"),
-          warrantyRead: canReadArea("warranty"),
-          paymentsRead: canReadArea("payments"),
+          bookingsRead: canOpenAdminPage("/admin/bookings"),
+          disputesRead: canOpenAdminPage("/admin/disputes"),
+          warrantyRead: canOpenAdminPage("/admin/warranty-claims"),
+          paymentsRead: canOpenAdminPage("/admin/payments"),
         },
         claimNumber: details?.warrantyClaims?.[0]?.claimNumber,
         hasDispute: Boolean(booking.dispute?.raisedAt || details?.extraCosts?.dispute),
         hasPayment: Boolean(booking.payment || details?.payments),
       }),
-    [booking._id, booking.dispute?.raisedAt, booking.payment, canReadArea, details?.extraCosts?.dispute, details?.payments, details?.warrantyClaims, viewerRole]
+    [booking._id, booking.dispute?.raisedAt, booking.payment, user, details?.extraCosts?.dispute, details?.payments, details?.warrantyClaims, viewerRole]
   )
 
   const dtoAdminKeys = details?.adminLinks

@@ -2391,7 +2391,7 @@ export default function ProjectBookingForm({
       return;
     }
 
-    if (shouldPayAtCheckoutFlow && (!customerPricingReady || !Number.isFinite(totalPricing.customerAmount))) {
+    if (!priceGateOpen) {
       toast.error(t('toasts.finalizingPricing'));
       return;
     }
@@ -2831,6 +2831,14 @@ export default function ProjectBookingForm({
     selectedPackage.pricing.customerAmount >= 0 &&
     calculateTotal(packageUnitCount) > 0 &&
     !vatNeedsRfqReview;
+  // Fixed and unit packages (including ones sent for VAT review) need the server's customer price before
+  // they are submitted. RFQ packages have no price and are never gated.
+  const priceRequired = packageRequiresCustomerPrice(selectedPackage?.pricing.type);
+  const priceGateOpen = customerPriceGateOpen({
+    requiresPrice: priceRequired,
+    pricingReady: customerPricingReady,
+    customerAmount: totalPricing.customerAmount,
+  });
   const finalStepLabel = shouldPayAtCheckoutFlow
     ? t('steps.reviewAndPay')
     : t('steps.reviewAndSubmitRfq');
@@ -4898,9 +4906,16 @@ export default function ProjectBookingForm({
               {t('common.nextStep')}
             </Button>
           ) : (
+            <div className='flex flex-wrap items-center justify-end gap-3'>
+              {priceRequired && pricingError ? (
+                <>
+                  <p className='text-sm text-red-600'>{t('pricingUnavailable')}</p>
+                  <Button variant='outline' onClick={retryPricing}>{t('retryPricing')}</Button>
+                </>
+              ) : null}
             <Button
               onClick={handleSubmit}
-              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && (!customerPricingReady || !Number.isFinite(totalPricing.customerAmount)))}
+              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || !priceGateOpen}
               className='bg-blue-600 hover:bg-blue-700'
             >
               {loading ? (
@@ -4912,6 +4927,7 @@ export default function ProjectBookingForm({
                 finalActionLabel
               )}
             </Button>
+            </div>
           )}
         </div>
       </div>

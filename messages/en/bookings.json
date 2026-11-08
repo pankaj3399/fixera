@@ -1246,7 +1246,9 @@
       "pricingType": {
         "fixed": "Fixed price",
         "unit": "Unit price",
-        "rfq": "Request quote"
+        "rfq": "Request quote",
+        "hour": "Per hour",
+        "day": "Per day"
       },
       "captureSource": {
         "booking_creation": "Booking creation",

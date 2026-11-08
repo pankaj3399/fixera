@@ -4139,15 +4139,16 @@ function BookingDetailContent() {
                       <div className="bg-white/60 rounded p-2 space-y-2">
                         <p className="text-xs font-semibold text-gray-700">{t("extraCosts.title")}</p>
                         {booking.extraCosts.map((cost, i) => {
-                          const displayAmount = customerPricingReady ? customerExtraCost(cost) : null
-                          const isPositive = displayAmount == null ? cost.amount >= 0 : displayAmount >= 0
+                          const displayAmount = customerPricingReady ? customerExtraCost(cost, i) : Number.NaN
+                          const hasDisplayAmount = Number.isFinite(displayAmount)
+                          const isPositive = hasDisplayAmount ? displayAmount >= 0 : (cost.amount ?? 0) >= 0
                           return (
                             <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
                               <div className="flex justify-between items-center">
                                 <span className="text-xs font-medium text-gray-800">{cost.name}</span>
                                 <span className={`text-xs font-semibold ${isPositive ? 'text-red-600' : 'text-green-600'}`}>
-                                  {customerPricingReady
-                                    ? `${displayAmount! >= 0 ? '+' : ''}${formatMoney(displayAmount!, booking.payment?.currency || 'EUR')}`
+                                  {hasDisplayAmount
+                                    ? `${displayAmount >= 0 ? '+' : ''}${formatMoney(displayAmount, booking.payment?.currency || 'EUR')}`
                                     : '...'}
                                 </span>
                               </div>
@@ -4247,7 +4248,7 @@ function BookingDetailContent() {
                       </Button>
                     </div>
 
-                    {(booking.extraCostTotal || 0) > 0 && extraCostClientSecret && (booking.payment?.extraCostAmount != null || customerPricingReady) && (
+                    {(booking.extraCostTotal || 0) > 0 && extraCostClientSecret && (booking.payment?.extraCostAmount != null || (customerPricingReady && Number.isFinite(extraCostAmounts.total))) && (
                       <div className="rounded-lg border border-teal-200 bg-white/80 p-3 space-y-3">
                         <div>
                           <p className="text-sm font-semibold text-teal-900">{t("extraCosts.payBeforeConfirmTitle")}</p>

@@ -1246,7 +1246,9 @@
       "pricingType": {
         "fixed": "Vaste prijs",
         "unit": "Prijs per eenheid",
-        "rfq": "Offerte aanvragen"
+        "rfq": "Offerte aanvragen",
+        "hour": "Per uur",
+        "day": "Per dag"
       },
       "captureSource": {
         "booking_creation": "Bij boeking",

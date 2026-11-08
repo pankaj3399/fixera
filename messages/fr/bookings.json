@@ -1246,7 +1246,9 @@
       "pricingType": {
         "fixed": "Prix fixe",
         "unit": "Prix à l'unité",
-        "rfq": "Demander un devis"
+        "rfq": "Demander un devis",
+        "hour": "À l'heure",
+        "day": "À la journée"
       },
       "captureSource": {
         "booking_creation": "Lors de la réservation",

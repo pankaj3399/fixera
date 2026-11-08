@@ -26,6 +26,9 @@ function activityPanel(areas = []) {
     '@/lib/bookingDetails': detailsLib, './DetailPrimitives': primitives,
     '@/contexts/CurrencyContext': currency, '@/lib/i18n/useFormatLocale': localeLib,
     '@/hooks/useAdminAccess': { useAdminAccess: () => ({ canReadArea: area => areas.includes(area) }) },
+    '@/contexts/AuthContext': { useAuth: () => ({ user: { role: 'admin', adminPermissionLevels: {} } }) },
+    // Destination gates: each admin link opens its page only when that page's area is readable.
+    '@/lib/adminRbac': { canAccessAdminPage: (_user, pathname) => areas.some(area => pathname === ({ bookings: '/admin/bookings', disputes: '/admin/disputes', warranty: '/admin/warranty-claims', payments: '/admin/payments' })[area]) },
   }, 'ActivityPanel')
 }
 function activityPayload(canOpen = true) {

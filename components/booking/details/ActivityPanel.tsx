@@ -21,7 +21,8 @@ import {
   recordedScheduleTimeZone,
 } from "@/lib/bookingDetails"
 import type { ActivityItem, BookingDetailsDto, DetailViewerRole, RawBookingRecord } from "@/types/bookingDetails"
-import { useAdminAccess } from "@/hooks/useAdminAccess"
+import { useAuth } from "@/contexts/AuthContext"
+import { canAccessAdminPage } from "@/lib/adminRbac"
 import {
   AttachmentLinks,
   DetailCard,
@@ -166,7 +167,7 @@ function ActivityEvent({
       : item.descriptionSource
   const claimId = item.metadata?.claimId || null
   const claimHref = viewerRole === "admin"
-    ? claimNumber && claimAdminHref ? `/admin/warranty-claims?search=${encodeURIComponent(claimNumber)}` : claimAdminHref
+    ? claimNumber && claimAdminHref ? `/admin/warranty-claims?search=${encodeURIComponent(claimNumber)}` : null
     : claimId && item.metadata?.participantCanOpen === true ? `/dashboard/warranty-claims?claimId=${encodeURIComponent(claimId)}` : null
 
   return (
@@ -331,7 +332,7 @@ function ActivityEvent({
 export function ActivityPanel({ booking, details, viewerRole, pathname, search }: ActivityPanelProps) {
   const dt = useDetailT()
   const { intl } = useFormatLocale()
-  const { canReadArea } = useAdminAccess()
+  const { user } = useAuth()
   const role = viewerRole || "customer"
   const items = useMemo(() => resolveActivityItems(details, booking as never, role), [booking, details, role])
   const displayTimeZone = useDetailDisplayTimeZone(
@@ -346,11 +347,12 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
   const adminLinks = buildAdminDetailLinks({
     viewerRole,
     bookingId: booking._id,
+    // Same destination gates as the admin pages the links open.
     permissions: {
-      bookingsRead: canReadArea("bookings"),
-      disputesRead: canReadArea("disputes"),
-      warrantyRead: canReadArea("warranty"),
-      paymentsRead: canReadArea("payments"),
+      bookingsRead: canAccessAdminPage(user, "/admin/bookings"),
+      disputesRead: canAccessAdminPage(user, "/admin/disputes"),
+      warrantyRead: canAccessAdminPage(user, "/admin/warranty-claims"),
+      paymentsRead: canAccessAdminPage(user, "/admin/payments"),
     },
     claimNumber: details?.warrantyClaims?.[0]?.claimNumber,
     hasDispute: Boolean(booking.dispute?.raisedAt || details?.extraCosts?.dispute),
