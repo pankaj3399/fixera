@@ -2,20 +2,27 @@ import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/seo/site";
 import { publicListSitemapEntries, type CmsContentType } from "@/lib/cms";
 import { serviceCategories } from "@/data/content";
+import { fetchSitemapEntities, type SitemapEntityType } from "@/lib/server/publicEntities";
 
 export const revalidate = 3600;
 
-const STATIC_ROUTES: Array<{ path: string; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]; priority: number }> = [
+type Sitemap = MetadataRoute.Sitemap;
+type Entry = Sitemap[number];
+
+/**
+ * Only routes that exist and are meant to be indexed. `/categories` and `/projects`
+ * have no index page (they 404), and `/search` is a query-driven results page, so
+ * none of them are listed. Static routes carry no `lastModified`: a build time is
+ * not a real modification date.
+ */
+const STATIC_ROUTES: Array<{ path: string; changeFrequency: Entry["changeFrequency"]; priority: number }> = [
   { path: "/", changeFrequency: "daily", priority: 1.0 },
   { path: "/about", changeFrequency: "monthly", priority: 0.7 },
   { path: "/privacy-policy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/blog", changeFrequency: "daily", priority: 0.8 },
   { path: "/news", changeFrequency: "daily", priority: 0.8 },
   { path: "/faq", changeFrequency: "weekly", priority: 0.7 },
-  { path: "/search", changeFrequency: "weekly", priority: 0.6 },
-  { path: "/categories", changeFrequency: "weekly", priority: 0.7 },
   { path: "/services", changeFrequency: "weekly", priority: 0.8 },
-  { path: "/projects", changeFrequency: "daily", priority: 0.7 },
   { path: "/professionals", changeFrequency: "daily", priority: 0.7 },
   { path: "/join", changeFrequency: "monthly", priority: 0.6 },
 ];
@@ -32,17 +39,24 @@ const CMS_PATH_PREFIX = {
   policy: (slug: string) => RESERVED_POLICY_SLUGS[slug] || `/pages/${slug}`,
 } satisfies Partial<Record<CmsContentType, (slug: string) => string>>;
 
-const STATIC_ROUTE_PATHS = new Set<string>();
+const ENTITY_PATH_PREFIX: Record<SitemapEntityType, string> = {
+  project: "/projects",
+  professional: "/professional",
+};
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+const STATIC_ROUTE_PATHS = new Set<string>(STATIC_ROUTES.map((r) => r.path));
+
+const toDate = (value: unknown): Date | undefined => {
+  if (!value) return undefined;
+  const date = new Date(value as string | number | Date);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
+export default async function sitemap(): Promise<Sitemap> {
   const base = siteUrl();
-  const now = new Date();
 
-  for (const r of STATIC_ROUTES) STATIC_ROUTE_PATHS.add(r.path);
-
-  const entries: MetadataRoute.Sitemap = STATIC_ROUTES.map((r) => ({
+  const entries: Sitemap = STATIC_ROUTES.map((r) => ({
     url: `${base}${r.path}`,
-    lastModified: now,
     changeFrequency: r.changeFrequency,
     priority: r.priority,
   }));
@@ -50,7 +64,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const cat of serviceCategories) {
     entries.push({
       url: `${base}/categories/${cat.slug}`,
-      lastModified: now,
       changeFrequency: "weekly",
       priority: 0.6,
     });
@@ -58,7 +71,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       for (const svc of sub.services || []) {
         entries.push({
           url: `${base}/services/${svc.id}`,
-          lastModified: now,
           changeFrequency: "weekly",
           priority: 0.7,
         });
@@ -75,10 +87,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         if (!pathBuilder) continue;
         const path = pathBuilder(item.slug);
         if (STATIC_ROUTE_PATHS.has(path)) continue;
-        const lastmod = item.updatedAt || item.publishedAt;
         entries.push({
           url: `${base}${path}`,
-          lastModified: lastmod ? new Date(lastmod) : now,
+          lastModified: toDate(item.updatedAt || item.publishedAt),
           changeFrequency: item.type === "blog" || item.type === "news" ? "weekly" : "monthly",
           priority: item.type === "blog" || item.type === "news" ? 0.7 : 0.5,
         });
@@ -88,16 +99,37 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch (err) {
     console.error(
-      "[sitemap] CMS fetch failed — dynamic CMS entries skipped. event=sitemap.cms.fetch_failure",
+      "[sitemap] CMS fetch failed; blog, news and landing URLs are omitted from this sitemap until the next successful build. event=sitemap.cms.fetch_failure",
       err
     );
+  }
+
+  // Published projects and approved professionals, with their own modification time.
+  // A failure is logged and only drops that type; the rest of the sitemap is served.
+  for (const type of ["project", "professional"] as const) {
+    try {
+      const rows = await fetchSitemapEntities(type);
+      for (const row of rows) {
+        entries.push({
+          url: `${base}${ENTITY_PATH_PREFIX[type]}/${encodeURIComponent(row.id)}`,
+          lastModified: toDate(row.updatedAt),
+          changeFrequency: "weekly",
+          priority: 0.6,
+        });
+      }
+    } catch (err) {
+      console.error(
+        `[sitemap] ${type} entity fetch failed; ${type} detail URLs are omitted from this sitemap. event=sitemap.entities.fetch_failure type=${type}`,
+        err
+      );
+    }
   }
 
   // Auto-translated CMS docs (nl/fr) share the English slug and the language is
   // switched on the same URL, so the backend list can contain the same
   // type+slug (i.e. the same URL) several times. Keep one entry per URL, with
   // the most recent lastModified.
-  const byUrl = new Map<string, MetadataRoute.Sitemap[number]>();
+  const byUrl = new Map<string, Entry>();
   for (const entry of entries) {
     const existing = byUrl.get(entry.url);
     if (!existing) {
