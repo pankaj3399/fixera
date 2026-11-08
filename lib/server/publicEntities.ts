@@ -121,32 +121,75 @@ export interface SitemapEntity {
 
 export type SitemapEntityType = "project" | "professional";
 
+/** Entities per sitemap file. 5,000 entities in 3 languages is 15,000 URLs, under the 50,000 limit. */
+export const SITEMAP_ENTITY_CHUNK_SIZE = 5000;
+/** Chunks per type, from the per-type safety valve. Fixed slots keep sitemap URLs stable. */
+export const SITEMAP_ENTITY_MAX_CHUNKS = SITEMAP_ENTITY_MAX_PER_TYPE / SITEMAP_ENTITY_CHUNK_SIZE;
+
+export interface SitemapEntityPage {
+  items: SitemapEntity[];
+  hasMore: boolean;
+  total: number;
+}
+
 /**
- * Pages through `GET /api/public/sitemap/entities`. Throws when a page fails, so the
- * caller can log it and keep the rest of the sitemap.
+ * One page of `GET /api/public/sitemap/entities`. Throws on any failure or unexpected
+ * body, so the caller can log it and drop only the file that needed it.
  */
-export async function fetchSitemapEntities(type: SitemapEntityType): Promise<SitemapEntity[]> {
-  const items: SitemapEntity[] = [];
-  const maxPages = Math.ceil(SITEMAP_ENTITY_MAX_PER_TYPE / SITEMAP_ENTITY_PAGE_SIZE);
-  for (let page = 1; page <= maxPages; page += 1) {
-    const res = await fetch(
-      backendPath(
-        `/api/public/sitemap/entities?type=${type}&page=${page}&limit=${SITEMAP_ENTITY_PAGE_SIZE}`,
-      ),
-      { next: { revalidate: SITEMAP_ENTITY_REVALIDATE_SECONDS } },
-    );
-    if (!res.ok) {
-      throw new Error(`sitemap entities (${type}) page ${page} failed with HTTP ${res.status}`);
-    }
-    const json = await res.json();
-    if (!json?.success || !Array.isArray(json.data?.items)) {
-      throw new Error(`sitemap entities (${type}) page ${page} returned an unexpected body`);
-    }
-    items.push(...(json.data.items as SitemapEntity[]));
-    if (!json.data.pagination?.hasMore) return items;
-  }
-  console.warn(
-    `[sitemap] ${type} entities truncated at ${SITEMAP_ENTITY_MAX_PER_TYPE}; raise the cap or add a sitemap index`,
+export async function fetchSitemapEntityPage(
+  type: SitemapEntityType,
+  page: number,
+): Promise<SitemapEntityPage> {
+  const res = await fetch(
+    backendPath(
+      `/api/public/sitemap/entities?type=${type}&page=${page}&limit=${SITEMAP_ENTITY_PAGE_SIZE}`,
+    ),
+    { next: { revalidate: SITEMAP_ENTITY_REVALIDATE_SECONDS } },
   );
+  if (!res.ok) {
+    throw new Error(`sitemap entities (${type}) page ${page} failed with HTTP ${res.status}`);
+  }
+  const json = await res.json();
+  const total = json?.data?.pagination?.total;
+  if (!json?.success || !Array.isArray(json.data?.items) || typeof total !== "number") {
+    throw new Error(`sitemap entities (${type}) page ${page} returned an unexpected body`);
+  }
+  return {
+    items: json.data.items as SitemapEntity[],
+    hasMore: json.data.pagination?.hasMore === true,
+    total,
+  };
+}
+
+/**
+ * Number of entities of a type that the sitemap may list (capped at the safety valve).
+ * Logs when the cap truncates the list.
+ */
+export async function countSitemapEntities(type: SitemapEntityType): Promise<number> {
+  const { total } = await fetchSitemapEntityPage(type, 1);
+  if (total > SITEMAP_ENTITY_MAX_PER_TYPE) {
+    console.warn(
+      `[sitemap] ${type} entities truncated at ${SITEMAP_ENTITY_MAX_PER_TYPE}; raise the cap and add sitemap chunks`,
+    );
+  }
+  return Math.min(total, SITEMAP_ENTITY_MAX_PER_TYPE);
+}
+
+/**
+ * Entities of one chunk (1-based). A chunk covers the backend pages it needs, so a
+ * sitemap file reads only its own slice of the list.
+ */
+export async function fetchSitemapEntityChunk(
+  type: SitemapEntityType,
+  chunk: number,
+): Promise<SitemapEntity[]> {
+  const pagesPerChunk = SITEMAP_ENTITY_CHUNK_SIZE / SITEMAP_ENTITY_PAGE_SIZE;
+  const firstPage = (chunk - 1) * pagesPerChunk + 1;
+  const items: SitemapEntity[] = [];
+  for (let page = firstPage; page < firstPage + pagesPerChunk; page += 1) {
+    const result = await fetchSitemapEntityPage(type, page);
+    items.push(...result.items);
+    if (!result.hasMore) break;
+  }
   return items;
 }
