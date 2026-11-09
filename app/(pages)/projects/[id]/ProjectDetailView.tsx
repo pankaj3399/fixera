@@ -1161,11 +1161,11 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                               </div>
 
                               {!isWarning &&
-                                term.additionalCost != null &&
-                                Number.isFinite(term.additionalCost) &&
-                                term.additionalCost > 0 && (
+                                term.customerAdditionalCost != null &&
+                                Number.isFinite(term.customerAdditionalCost) &&
+                                term.customerAdditionalCost > 0 && (
                                   <div className='shrink-0 text-sm font-semibold text-orange-600'>
-                                    +{formatPrice(customerPrice(term.additionalCost))}
+                                    +{formatPrice(customerPrice(term.customerAdditionalCost))}
                                   </div>
                                 )}
                             </div>
@@ -1382,7 +1382,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                         )}
                       </div>
                       <p className='font-semibold text-blue-600'>
-                        {formatPrice(customerPrice(option.price))}
+                        {formatPrice(customerPrice(option.customerPrice ?? Number.NaN))}
                       </p>
                     </div>
                   ))}

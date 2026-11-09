@@ -183,6 +183,7 @@ test('settings-load failure hides the editor; retry loads it and unrelated PUT r
   const router = { push() {} }
   let failGet = true
   let putResponse
+  let pricingInvalidations = 0
   const stored = { enabledCountries: ['NL'], defaultCountry: 'BE' }
   const data = {
     autoConversion: stored,
@@ -198,6 +199,7 @@ test('settings-load failure hides the editor; retry loads it and unrelated PUT r
     '@/lib/utils': { getAuthToken: () => null },
     '@/lib/countries': { EU_COUNTRIES: [{ code: 'BE', name: 'Belgium' }] },
     '@/lib/clientRequestCache': { invalidateClientRequest() {} },
+    '@/lib/customerPricePreview': { invalidateCustomerPrices() { pricingInvalidations++ } },
     '@/lib/support': { adminSetSupportChatEnabled() {} },
     '@/lib/admin/autoConversionSettings': settings,
     '@/components/admin/AutoConversionSettingsCard': { __esModule: true, default: 'AutoConversionSettingsCard' },
@@ -228,6 +230,7 @@ test('settings-load failure hides the editor; retry loads it and unrelated PUT r
     delete projection.autoConversion
     putResponse.resolve({ ok: true, json: async () => ({ success: true, data: projection }) })
     await projectedSave; await h.settle()
+    assert.equal(pricingInvalidations, 2, 'each settings save invalidates cached customer amounts')
     assert.equal(h.findAll((n) => n.type === 'AutoConversionSettingsCard')[0].props.initial, stored)
   } finally { globalThis.fetch = realFetch; h.unmount() }
 })

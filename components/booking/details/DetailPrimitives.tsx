@@ -400,6 +400,7 @@ export function PartyCard({
   }
 }) {
   const t = useTranslations("bookings")
+  const dt = useDetailT()
   if (!party) {
     return (
       <DetailCard title={title}>
@@ -436,6 +437,15 @@ export function PartyCard({
             {party.companyName || party.businessName}
           </DetailField>
         )}
+        {role === "professional" ? (
+          <>
+            <DetailField label={dt("fields.professionalLevel", "Professional level")} empty={!party.professionalLevel}>{party.professionalLevel}</DetailField>
+            <DetailField label={dt("fields.publicTags", "Public tags")} empty={!party.publicTags?.length}>
+              {party.publicTags?.map(tag => <span key={tag} className="mr-2">{dt(tag.toLowerCase() === "verified" ? "fields.tagVerified" : "fields.tagOurChoice", tag)}</span>)}
+            </DetailField>
+            <p className="text-[11px] text-gray-500">{dt("fields.currentProfessionalMetadata", "Level and public tags are from the current profile.")}</p>
+          </>
+        ) : null}
         <DetailField label={labels.email} empty={!party.email}>{party.email}</DetailField>
         <DetailField label={labels.phone} empty={!party.phone}>{party.phone}</DetailField>
         <DetailField label={labels.vat} empty={!party.vatNumber}>{party.vatNumber}</DetailField>

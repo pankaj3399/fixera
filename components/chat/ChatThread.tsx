@@ -13,7 +13,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { reportChatMessage } from "@/lib/chatApi";
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage";
-import { useCommissionRate } from "@/hooks/useCommissionRate";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale";
 
@@ -396,7 +395,6 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
   const [reportingId, setReportingId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const { customerPrice } = useCommissionRate();
 
   useEffect(() => {
     if (loading) return;
@@ -473,7 +471,7 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                   )}
                 </div>
                 <p className="text-xs text-gray-700 mb-1"><strong>{t("thread.scope")}</strong> {meta.scope}</p>
-                <p className="text-xs text-gray-700 mb-1"><strong>{t("thread.amount")}</strong> {formatMoney(currentUserRole === 'customer' ? customerPrice(Number(meta.totalAmount)) : Number(meta.totalAmount), meta.currency)}</p>
+                <p className="text-xs text-gray-700 mb-1"><strong>{t("thread.amount")}</strong> {formatMoney(Number(meta.totalAmount), meta.currency)}</p>
                 {meta.validUntil && (() => {
                   const raw = String(meta.validUntil).trim();
                   if (!raw) return null;

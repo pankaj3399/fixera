@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAuthToken } from '@/lib/utils'
+import type { PackagePriceRef } from '@/lib/customerPricePreview'
 import { useCommissionRate } from './useCommissionRate'
 import { cachedClientRequest } from '@/lib/clientRequestCache'
-import type { UnitPricing } from '@/lib/customerPricing'
 
 interface LoyaltyDiscountInfo {
   level: string
@@ -28,23 +28,30 @@ interface LoyaltyStatusResponse {
 }
 
 export interface CustomerPricing {
-  commissionPercent: number | null
-  commissionLoaded: boolean
-  commissionError: Error | null
+  pricingReady: boolean
+  pricingError: Error | null
+  retryPricing: () => void
   loyalty: LoyaltyDiscountInfo | null
   loyaltyLoaded: boolean
-  /** Pass the checkout's unit pricing to price a unit package per unit, as the server charges it. */
-  customerPrice: (amount: number, unitPricing?: UnitPricing | null) => number
-  originalPrice: (amount: number, unitPricing?: UnitPricing | null) => number
-  /** The customer's loyalty discount applied to an amount that already includes the commission. */
-  withLoyaltyDiscount: (commissionInclusiveAmount: number) => number
-  customerPriceWithRepeatBuyer: (amount: number, repeatBuyer?: { enabled?: boolean; percentage?: number; maxDiscountAmount?: number | null } | null, eligible?: boolean) => number
+  /** Customer total for a stored package, from the server. NaN while loading or unavailable. */
+  customerPackagePrice: (ref: PackagePriceRef) => number
+  /** Loyalty discount applied to a customer-side amount (already commission-inclusive, from the server). */
+  customerPrice: (customerAmount: number) => number
+  /** The customer-side amount before any personal discount (the strike-through reference). */
+  originalPrice: (customerAmount: number) => number
+  withLoyaltyDiscount: (customerAmount: number) => number
+  customerPriceWithRepeatBuyer: (customerAmount: number, repeatBuyer?: { enabled?: boolean; percentage?: number; maxDiscountAmount?: number | null } | null, eligible?: boolean) => number
 }
 
 const toRoundedTwo = (value: number) => Math.round(value * 100) / 100
 
+/**
+ * Customer-side pricing. Every amount it receives must already be a customer amount
+ * (commission-inclusive, from the server); it never sees a professional base price.
+ * Professionals price their own base amounts with `useCommissionRate().commissionedPrice`.
+ */
 export function useCustomerPricing(): CustomerPricing {
-  const { commissionPercent, commissionLoaded, commissionError, customerPrice: baseCustomerPrice } = useCommissionRate()
+  const { customerPackagePrice, pricingReady, pricingError, retryPricing } = useCommissionRate()
   const { user, isAuthenticated } = useAuth()
   const [loyalty, setLoyalty] = useState<LoyaltyDiscountInfo | null>(null)
   const [loyaltyLoaded, setLoyaltyLoaded] = useState(false)
@@ -105,39 +112,27 @@ export function useCustomerPricing(): CustomerPricing {
   }, [isAuthenticated, user?.role, user?._id])
 
   const applyLoyaltyDiscount = useCallback(
-    (commissionInclusiveAmount: number) => {
-      if (!loyalty || loyalty.percentage <= 0 || commissionInclusiveAmount <= 0) return commissionInclusiveAmount
-      let discount = toRoundedTwo(commissionInclusiveAmount * (loyalty.percentage / 100))
+    (customerAmount: number) => {
+      if (!loyalty || loyalty.percentage <= 0 || customerAmount <= 0) return customerAmount
+      let discount = toRoundedTwo(customerAmount * (loyalty.percentage / 100))
       if (loyalty.maxDiscountAmount != null && loyalty.maxDiscountAmount > 0) {
         discount = Math.min(discount, loyalty.maxDiscountAmount)
       }
-      return Math.max(0, toRoundedTwo(commissionInclusiveAmount - discount))
+      return Math.max(0, toRoundedTwo(customerAmount - discount))
     },
     [loyalty]
   )
 
-  const customerPrice = useCallback(
-    (amount: number, unitPricing?: UnitPricing | null) => applyLoyaltyDiscount(baseCustomerPrice(amount, unitPricing)),
-    [applyLoyaltyDiscount, baseCustomerPrice]
-  )
-
-  /**
-   * Returns the commission-inclusive base price (before any loyalty discount).
-   * Use this as the strike-through reference when displaying a discounted customerPrice.
-   * NOTE: this is *not* the raw professional amount; it already includes the platform commission.
-   */
-  const originalPrice = useCallback(
-    (amount: number, unitPricing?: UnitPricing | null) => baseCustomerPrice(amount, unitPricing),
-    [baseCustomerPrice]
-  )
+  const customerPrice = useCallback((customerAmount: number) => applyLoyaltyDiscount(customerAmount), [applyLoyaltyDiscount])
+  const originalPrice = useCallback((customerAmount: number) => customerAmount, [])
 
   const customerPriceWithRepeatBuyer = useCallback(
     (
-      amount: number,
+      customerAmount: number,
       repeatBuyer?: { enabled?: boolean; percentage?: number; maxDiscountAmount?: number | null } | null,
       eligible?: boolean
     ) => {
-      const afterLoyalty = customerPrice(amount)
+      const afterLoyalty = customerPrice(customerAmount)
       if (!eligible || !repeatBuyer?.enabled || !repeatBuyer.percentage || repeatBuyer.percentage <= 0) return afterLoyalty
       let discount = toRoundedTwo(afterLoyalty * (repeatBuyer.percentage / 100))
       if (repeatBuyer.maxDiscountAmount != null && repeatBuyer.maxDiscountAmount > 0) {
@@ -150,16 +145,17 @@ export function useCustomerPricing(): CustomerPricing {
 
   return useMemo(
     () => ({
-      commissionPercent,
-      commissionLoaded,
-      commissionError,
+      pricingReady,
+      pricingError,
+      retryPricing,
       loyalty,
       loyaltyLoaded,
+      customerPackagePrice,
       customerPrice,
       originalPrice,
       withLoyaltyDiscount: applyLoyaltyDiscount,
       customerPriceWithRepeatBuyer,
     }),
-    [commissionPercent, commissionLoaded, commissionError, loyalty, loyaltyLoaded, customerPrice, originalPrice, applyLoyaltyDiscount, customerPriceWithRepeatBuyer]
+    [pricingReady, pricingError, retryPricing, loyalty, loyaltyLoaded, customerPackagePrice, customerPrice, originalPrice, applyLoyaltyDiscount, customerPriceWithRepeatBuyer]
   )
 }

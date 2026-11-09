@@ -1,5 +1,7 @@
 'use client'
 
+import { invalidateCustomerPrices } from "@/lib/customerPricePreview"
+
 import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors';
 
 import { useAuth } from "@/contexts/AuthContext"
@@ -321,6 +323,7 @@ export default function AdminSettingsPage() {
           setVersion,
         })
         invalidateClientRequest('commission-rate')
+        invalidateCustomerPrices()
         toast.success('Platform settings updated successfully')
       } else {
         const errorData = await response.json().catch(() => null)

@@ -170,6 +170,7 @@ export function BookingDetailsTabs({
       </TabsContent>
       <TabsContent value="quotation" className="mt-0 focus-visible:outline-none">
         <QuotationPanel
+          viewerRole={viewerRole}
           booking={booking}
           details={details}
           pathname={pathname}

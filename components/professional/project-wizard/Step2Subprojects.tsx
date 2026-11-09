@@ -397,7 +397,8 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
     }))
   );
 
-  const { commissionPercent, customerPrice } = useCommissionRate();
+  // Professionals price their own base amounts locally with their rate (no customer endpoint).
+  const { commissionPercent, commissionedPrice: customerPrice } = useCommissionRate();
 
   // NEW: Dynamic fields from backend
   const [dynamicFields, setDynamicFields] = useState<IDynamicField[]>([]);

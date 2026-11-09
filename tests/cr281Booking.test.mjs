@@ -31,6 +31,9 @@ test('tracker shows recorded charges without live pricing and never calculates p
   const resolve = (ready, recorded, preview = [999]) => fragment('const getBookingMilestoneDisplayAmount =', 'const milestoneIncludesOptions =', {
     milestoneDisplayAmount, recordedMilestoneCharges: recorded, bookingMilestoneGrossAmounts: preview,
     customerPricingReady: ready, customerPrice: amount => { assert.equal(ready, true); return amount * 1.21 },
+    // Customers read the server's customer-side milestone amount; professionals price their own locally.
+    isProfessionalViewer: false, commissionedPrice: () => NaN,
+    details: { payments: { milestones: [{ expectedCustomerNetBeforeDiscount: 100 }] } },
   }, 'getBookingMilestoneDisplayAmount(0, 100)')
   assert.equal(resolve(false, [133.1]), 133.1)
   assert.equal(resolve(false, [0]), 0)
@@ -94,6 +97,23 @@ test('unknown customer charges retain booking progress without treating unknown 
   assert.deepEqual(progress([null, null]), { paymentPct: 50, workPct: 50, showAmounts: false })
   assert.deepEqual(progress([133.1, null]), { paymentPct: 50, workPct: 50, showAmounts: false })
   assert.deepEqual(progress([133.1, 133.1]), { paymentPct: 50, workPct: 50, showAmounts: true })
+})
+
+test('completion subtotal preserves customer amounts without printing the platform percentage in EN/NL/FR', () => {
+  const start = source.indexOf('{customerPricingReady && rawTotal !== 0 && (')
+  const jsx = source.slice(start, source.indexOf('{showLoyalty &&', start))
+  const code = transformSync(`function subtotal() { return <div>${jsx}</div> }`, {
+    jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
+  }).code
+  const { renderToStaticMarkup } = require('react-dom/server')
+  for (const locale of ['en', 'nl', 'fr']) {
+    const labels = JSON.parse(readFileSync(new URL(`../messages/${locale}/bookings.json`, import.meta.url)))
+    const tree = new Function('require', 't', 'customerPricingReady', 'rawTotal', 'subtotalInclCommission', 'formatMoney', 'currency',
+      `const exports = {}; ${code}; return subtotal();`)(require, key => key.split('.').reduce((v, k) => v[k], labels), true, 100, 117.43, amount => `EUR ${amount}`, 'EUR')
+    const html = renderToStaticMarkup(tree)
+    assert.match(html, /EUR 117\.43/)
+    assert.doesNotMatch(html, /17\.4321|percent|%/)
+  }
 })
 
 for (const code of ['TEAM_CONFLICT', 'RESCHEDULE_DISPUTED']) test(`booking reschedule acceptance handles 409 ${code} by its code`, async () => {
