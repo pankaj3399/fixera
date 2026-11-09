@@ -1774,7 +1774,7 @@ function BookingDetailContent() {
       currentVersion,
       isProfessionalViewer ? undefined : (customerPricingReady ? customerPrice : undefined)
     ),
-    [currentVersion, recordedPricing, customerPricingReady, customerPrice]
+    [currentVersion, recordedPricing, isProfessionalViewer, customerPricingReady, customerPrice]
   )
   const currentVersionOriginalQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(

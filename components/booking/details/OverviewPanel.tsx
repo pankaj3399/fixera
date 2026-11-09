@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { CreditCard, FileText, Package, ShieldCheck, User } from "lucide-react"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
-import { useAdminAccess } from "@/hooks/useAdminAccess"
 import { useAuth } from "@/contexts/AuthContext"
 import { canAccessAdminPage } from "@/lib/adminRbac"
 import {
@@ -78,10 +77,7 @@ export function OverviewPanel({
   const dt = useDetailT()
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
-  const { canReadArea } = useAdminAccess()
   const { user } = useAuth()
-  // Links are shown only when the destination page's own gate lets this admin in.
-  const canOpenAdminPage = (pathname: string) => canAccessAdminPage(user, pathname)
   const displayTimeZone = useDetailDisplayTimeZone(
     recordedScheduleTimeZone(details, booking.scheduleTimeZone)
   )
@@ -202,11 +198,12 @@ export function OverviewPanel({
       buildAdminDetailLinks({
         viewerRole,
         bookingId: booking._id,
+        // Links are shown only when the destination page's own gate lets this admin in.
         permissions: {
-          bookingsRead: canOpenAdminPage("/admin/bookings"),
-          disputesRead: canOpenAdminPage("/admin/disputes"),
-          warrantyRead: canOpenAdminPage("/admin/warranty-claims"),
-          paymentsRead: canOpenAdminPage("/admin/payments"),
+          bookingsRead: canAccessAdminPage(user, "/admin/bookings"),
+          disputesRead: canAccessAdminPage(user, "/admin/disputes"),
+          warrantyRead: canAccessAdminPage(user, "/admin/warranty-claims"),
+          paymentsRead: canAccessAdminPage(user, "/admin/payments"),
         },
         claimNumber: details?.warrantyClaims?.[0]?.claimNumber,
         hasDispute: Boolean(booking.dispute?.raisedAt || details?.extraCosts?.dispute),

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { register } from 'node:module'
 register('./swc-loader.mjs', import.meta.url)
@@ -86,5 +87,38 @@ test('RFQ submissions stay open while server pricing is unavailable', () => {
 test('a unit package total is charged as quantity x the customer unit price in cents', () => {
   assert.equal(customerPackageTotal(16.43, 'unit', 30), 492.9)
   assert.equal(customerPackageTotal(117, 'fixed', 1), 117)
+})
+
+const source = (file) => readFileSync(new URL(file, import.meta.url), 'utf8')
+
+test('the booking form submit handler and the pay button share one finite-price gate', () => {
+  const form = source('../components/project/ProjectBookingForm.tsx')
+  const handler = form.slice(form.indexOf('const handleSubmit = async'), form.indexOf('const handleSubmit = async') + 1200)
+  // Guard A: the handler stops a fixed or unit package until the server price is ready and finite.
+  assert.match(handler, /if \(!priceGateOpen\) \{/)
+  // Guard B: the pay button is disabled by the same gate, so a NaN total never looks payable.
+  assert.match(form, /disabled=\{[^}]*\|\| !priceGateOpen\}/)
+  // The gate reads readiness and the customer amount, and only prices that need one (RFQs stay open).
+  assert.match(form, /const priceGateOpen = customerPriceGateOpen\(\{\s*requiresPrice: priceRequired,\s*pricingReady: customerPricingReady,\s*customerAmount: totalPricing\.customerAmount,\s*\}\)/)
+  assert.match(form, /const priceRequired = packageRequiresCustomerPrice\(selectedPackage\?\.pricing\.type\)/)
+})
+
+test('a failed price preview shows its error and a retry beside the pay button', () => {
+  const form = source('../components/project/ProjectBookingForm.tsx')
+  assert.match(form, /\{priceRequired && pricingError \? \(/)
+  assert.match(form, /<Button variant='outline' onClick=\{retryPricing\}>\{t\('retryPricing'\)\}<\/Button>/)
+})
+
+test('the booking page renders the payment form and extra-cost amounts only when they are finite', () => {
+  const page = source('../app/(pages)/bookings/[id]/page.tsx')
+  assert.match(page, /\(customerPricingReady && Number\.isFinite\(extraCostAmounts\.total\)\)/)
+  assert.match(page, /const hasDisplayAmount = Number\.isFinite\(displayAmount\)/)
+})
+
+test('the online retry listener is registered once, by the shared cache, not by each consumer', () => {
+  const cache = source('../lib/customerPricePreview.ts')
+  const commission = source('../hooks/useCommissionRate.ts')
+  assert.equal((cache.match(/addEventListener\('online'/g) ?? []).length, 1)
+  assert.doesNotMatch(commission, /addEventListener\('online'/)
 })
 

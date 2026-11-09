@@ -255,6 +255,8 @@ export interface BookingSnapshotDto {
     priceSource?: string;
   }>;
   checkoutSnapshot?: {
+    /** Customer total of the package alone (checkout arithmetic). Present on the booking read for non-professionals. */
+    customerPackageTotal?: number | null;
     /** Customer total of the package and its options (checkout arithmetic). Null for professionals. */
     customerTotal?: number | null;
     pricingType?: string;

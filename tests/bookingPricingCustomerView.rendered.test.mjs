@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { NextIntlClientProvider } from 'next-intl'
-import { loadComponent } from './reviewComponentHarness.mjs'
+import { loadComponent, ui } from './reviewComponentHarness.mjs'
 import { register } from 'node:module'
 register('./swc-loader.mjs', import.meta.url)
 const currency = await import('@/contexts/CurrencyContext')
@@ -121,4 +121,51 @@ test('a known price model is translated, a custom value keeps its raw label', as
   }
   assert.match(renderWith('hour'), /Per hour/)
   assert.match(renderWith('custom_model'), /custom model/)
+})
+
+const overviewPanel = (allowedPaths) => loadComponent('../components/booking/details/OverviewPanel.tsx', {
+  ...shared(),
+  '@/components/ui/badge': ui,
+  'lucide-react': ui,
+  '@/contexts/AuthContext': { useAuth: () => ({ user: { role: 'admin', adminPermissionLevels: {} } }) },
+  '@/lib/adminRbac': { canAccessAdminPage: (_user, pathname) => allowedPaths.includes(pathname) },
+  // Stub the card so the test reads the exact links the overview passes down.
+  './AdminReferencesCard': { AdminReferencesCard: ({ links }) => React.createElement('ul', null,
+    links.map(link => React.createElement('li', { key: link.key, 'data-key': link.key }, link.key))) },
+}, 'OverviewPanel')
+
+test('admin overview links appear only for destinations the admin may open', () => {
+  const OverviewPanel = overviewPanel(['/admin/bookings'])
+  const payload = fixture()
+  payload.booking.dispute = { raisedAt: '2026-01-02T00:00:00.000Z' }
+  payload.booking.payment = { ...(payload.booking.payment || {}), currency: 'EUR' }
+  payload.details.warrantyClaims = [{ claimNumber: 'WC-1' }]
+  const html = render(React.createElement(OverviewPanel, { ...payload, viewerRole: 'admin', pathname: '/admin/bookings/x', search: '', onSelectTab() {} }))
+  assert.match(html, /data-key="booking"/)
+  assert.doesNotMatch(html, /data-key="(warranty|disputes|payments)"/)
+})
+
+test('admin overview shows each link whose destination is open to the admin', () => {
+  const OverviewPanel = overviewPanel(['/admin/bookings', '/admin/disputes', '/admin/warranty-claims', '/admin/payments'])
+  const payload = fixture()
+  payload.booking.dispute = { raisedAt: '2026-01-02T00:00:00.000Z' }
+  payload.booking.payment = { ...(payload.booking.payment || {}), currency: 'EUR' }
+  payload.details.warrantyClaims = [{ claimNumber: 'WC-1' }]
+  const html = render(React.createElement(OverviewPanel, { ...payload, viewerRole: 'admin', pathname: '/admin/bookings/x', search: '', onSelectTab() {} }))
+  assert.match(html, /data-key="(warranty|disputes|payments)"/)
+  assert.match(html, /data-key="disputes"/)
+  assert.match(html, /data-key="warranty"/)
+  assert.match(html, /data-key="payments"/)
+})
+
+test('a professional sees the base subtotal in the booking data panel, which customers never receive', async () => {
+  const { BookingPanel: BookingDataPanel } = await import('@/components/booking/details/BookingDataPanel')
+  const payload = fixture()
+  payload.details.viewerRole = 'professional'
+  payload.details.bookingSnapshot = { ...(payload.details.bookingSnapshot || {}), checkoutSnapshot: {
+    pricingType: 'fixed', unitAmount: 873.37, quantity: 1, baseSubtotal: 873.37, extraOptionsTotal: 0,
+    totalAmount: 873.37, customerTotal: null, currency: 'EUR', selectedOptions: [],
+  } }
+  const html = render(React.createElement(BookingDataPanel, { booking: payload.booking, details: payload.details }))
+  assert.match(html, /873\.37/)
 })
