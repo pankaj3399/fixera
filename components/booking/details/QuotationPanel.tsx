@@ -696,9 +696,11 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
           description={dt("quotation.legacyDescription", "The old quote format is shown as stored. It has no version history.")}
         >
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={booking.quote.amount == null}>
-              <MoneyText amount={booking.quote.amount} currency={booking.quote.currency} formatMoney={formatMoney} />
-            </DetailField>
+            {role !== "customer" ? (
+              <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={booking.quote.amount == null}>
+                <MoneyText amount={booking.quote.amount} currency={booking.quote.currency} formatMoney={formatMoney} />
+              </DetailField>
+            ) : null}
             <DetailField label={dt("fields.currency", "Currency")} empty={!booking.quote.currency}>{booking.quote.currency}</DetailField>
             <DetailField label={dt("fields.validUntil", "Valid until")} empty={!booking.quote.validUntil}>
               {formatCalendarDate(booking.quote.validUntil, intl) || booking.quote.validUntil}

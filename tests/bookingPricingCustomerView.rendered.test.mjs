@@ -169,3 +169,17 @@ test('a professional sees the base subtotal in the booking data panel, which cus
   const html = render(React.createElement(BookingDataPanel, { booking: payload.booking, details: payload.details }))
   assert.match(html, /873\.37/)
 })
+
+test('a legacy quotation shows the professional total to professionals and hides it from customers', async () => {
+  const { QuotationPanel } = await import('@/components/booking/details/QuotationPanel')
+  const legacy = (viewerRole) => {
+    const payload = fixture()
+    payload.booking.quote = { amount: 321.5, currency: 'EUR', validUntil: null, submittedAt: null, status: 'legacy' }
+    payload.details.quotation = null
+    payload.booking.quoteVersions = []
+    return render(React.createElement(QuotationPanel, { ...payload, viewerRole, pathname: '/bookings/test', search: '' }))
+  }
+  assert.match(legacy('professional'), /Professional (amount|total) \(excl\. commission\)/)
+  assert.match(legacy('professional'), /321\.5/)
+  assert.doesNotMatch(legacy('customer'), /Professional (amount|total) \(excl\. commission\)|321\.5/)
+})
