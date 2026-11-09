@@ -79,6 +79,12 @@ export default function AdminCancellationRequestsPage() {
   const statusQuery = searchParams.get('status')
   const [filterState, setFilterState] = useState(() => cancellationStatusFilterStateFromQuery(statusQuery))
   const [page, setPage] = useState(1)
+  // Switching the history mode starts this queue again on page 1.
+  const [pagedHistoryMode, setPagedHistoryMode] = useState(showAll)
+  if (pagedHistoryMode !== showAll) {
+    setPagedHistoryMode(showAll)
+    setPage(1)
+  }
   const syncedFilterState = syncCancellationStatusFilterState(filterState, statusQuery)
   if (syncedFilterState !== filterState) {
     // Adjust state during render (React's pattern for state derived from a changing input).

@@ -218,6 +218,16 @@ export default function AdminDisputesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<DisputeFilter>('all')
   const [page, setPage] = useState(1)
+  // Switching the history mode starts this queue again on page 1.
+  const [pagedHistoryMode, setPagedHistoryMode] = useState(showAll)
+  if (pagedHistoryMode !== showAll) {
+    setPagedHistoryMode(showAll)
+    setPage(1)
+  }
+  // Latest request ids: a response only lands if no newer request has started,
+  // so an older page, filter or history mode cannot overwrite the current view.
+  const disputesRequestRef = useRef(0)
+  const analyticsRequestRef = useRef(0)
   const [totalPages, setTotalPages] = useState(1)
 
   const [selectedDispute, setSelectedDispute] = useState<DisputeBooking | null>(null)
@@ -285,6 +295,7 @@ export default function AdminDisputesPage() {
   }, [user, loading, router])
 
   const fetchDisputes = useCallback(async () => {
+    const requestId = ++disputesRequestRef.current
     setIsLoading(true)
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: '20' })
@@ -293,6 +304,7 @@ export default function AdminDisputesPage() {
       const history = historyQuery(showAll)
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes?${params}${history ? `&${history}` : ''}`)
       const json = await res.json()
+      if (requestId !== disputesRequestRef.current) return
       if (json.success) {
         setBaselineInfo(parseDashboardBaselineInfo(json.data?.baseline))
         const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
@@ -305,17 +317,20 @@ export default function AdminDisputesPage() {
         setTotalPages(Number(json.data?.pagination?.pages) || 1)
       }
     } catch {
+      if (requestId !== disputesRequestRef.current) return
       toast.error('Failed to load disputes')
     } finally {
-      setIsLoading(false)
+      if (requestId === disputesRequestRef.current) setIsLoading(false)
     }
   }, [page, statusFilter, showAll])
 
   const fetchAnalytics = useCallback(async () => {
+    const requestId = ++analyticsRequestRef.current
     try {
       const history = historyQuery(showAll)
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes/analytics${history ? `?${history}` : ''}`)
       const json = await res.json()
+      if (requestId !== analyticsRequestRef.current) return
       if (json.success) {
         setAnalytics(json.data)
         setBaselineInfo((current) => parseDashboardBaselineInfo(json.data?.baseline) ?? current)
