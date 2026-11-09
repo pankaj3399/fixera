@@ -54,6 +54,7 @@ import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import type { PublicProjectDto as Project } from '@/types/project';
+import { normalizePublicProject } from '@/lib/publicProjectShape';
 import {
   getAdminTagStyle,
   formatAdminTagLabel,
@@ -166,9 +167,11 @@ const RatingSummary = ({ ratingsSummary, size = 'md' }: RatingSummaryProps) => {
 type ProvidedByCardProps = {
   pro: Project['professionalId'];
   stats?: Project['professionalStats'];
+  /** Explicit zone, so the server and the first client render show the same month. */
+  timeZone: string;
 };
 
-const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
+const ProvidedByCard = ({ pro, stats, timeZone }: ProvidedByCardProps) => {
   const t = useTranslations('projects');
   const { levelColor } = useTierColors();
   const { intl } = useFormatLocale();
@@ -178,7 +181,7 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
     .filter(Boolean)
     .join(', ');
   const memberSince = pro.createdAt
-    ? new Date(pro.createdAt).toLocaleDateString(intl, { month: 'short', year: 'numeric' })
+    ? new Date(pro.createdAt).toLocaleDateString(intl, { month: 'short', year: 'numeric', timeZone })
     : null;
   const levelKey = pro.professionalLevel
     ? PROFESSIONAL_LEVEL_KEYS[pro.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
@@ -294,9 +297,14 @@ const ProvidedByCard = ({ pro, stats }: ProvidedByCardProps) => {
 export interface ProjectDetailViewProps {
   /** Loaded on the server by the route, so the first HTML contains the project. Null: the client fetches it. */
   initialProject: Project | null;
+  /**
+   * ISO time of the server render. The closure filter uses it for the first render, so the
+   * server HTML and the hydrating client render list the same closures.
+   */
+  serverNow?: string;
 }
 
-export default function ProjectDetailView({ initialProject }: ProjectDetailViewProps) {
+export default function ProjectDetailView({ initialProject, serverNow }: ProjectDetailViewProps) {
   const params = useParams();
   const router = useRouter();
   const t = useTranslations('projects');
@@ -315,6 +323,8 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
   >(null);
   const [viewedSubprojectIndex, setViewedSubprojectIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
+  // The server time for the first render; the browser time after mount (see the effect below).
+  const [now, setNow] = useState<Date>(() => (serverNow ? new Date(serverNow) : new Date()));
   const [reviews, setReviews] = useState<Array<{
     _id: string;
     customerReview: {
@@ -350,6 +360,7 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
 
   useEffect(() => {
     setViewerTimeZone(getViewerTimezone());
+    setNow(new Date());
   }, []);
 
   useEffect(() => {
@@ -416,33 +427,65 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
           { signal: controller.signal }
         );
         const data = await res.json();
+        // A superseded request (another filter or page) must not write its result.
+        if (controller.signal.aborted) return;
         if (data.success) {
           setReviews(data.data.reviews);
           setRatingsSummary(data.data.ratingsSummary);
           setOrdersInQueue(data.data.ordersInQueue || 0);
           setReviewTotalPages(data.data.pagination.totalPages);
+        } else {
+          failReviews();
         }
       } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        // non-critical
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) return;
+        failReviews();
       } finally {
-        setReviewsLoading(false);
+        // An aborted request is superseded by the one that replaced it, which owns the loading state.
+        if (!controller.signal.aborted) setReviewsLoading(false);
       }
+    };
+    // The failed filter must not keep the previous results and pagination on screen.
+    const failReviews = () => {
+      setReviews([]);
+      setReviewTotalPages(1);
+      toast.error(t('page.loadFailed'));
     };
     fetchReviews();
     return () => { controller.abort(); };
-  }, [projectId, reviewPage, reviewSearch, reviewRatingFilter]);
+  }, [projectId, reviewPage, reviewSearch, reviewRatingFilter, t]);
 
   useEffect(() => {
     if (!projectId || !project) return;
 
-    // Fetch proposals for the currently viewed subproject
-    fetchScheduleProposals(viewedSubprojectIndex);
+    // Fetch proposals for the currently viewed subproject. The availability of the previous
+    // package is cleared at once, and a response that belongs to an older selection is dropped.
+    let current = true;
+    setProposals(null);
+    fetchScheduleProposals(viewedSubprojectIndex, () => current);
+    return () => { current = false; };
   }, [
     projectId,
     viewedSubprojectIndex,
     project?._id,
   ]);
+
+  // A refreshed record for this project replaces the state built from the earlier one.
+  useEffect(() => {
+    if (!initialProject) return;
+    setProject((previous) => (previous && previous._id !== initialProject._id ? previous : initialProject));
+    const count = initialProject.subprojects.length;
+    setViewedSubprojectIndex((index) => Math.min(index, Math.max(0, count - 1)));
+  }, [initialProject]);
+
+  // The package selection stays only while the current project still has that package.
+  useEffect(() => {
+    if (!project || selectedSubprojectIndex === null) return;
+    if (selectedSubprojectIndex >= project.subprojects.length) {
+      setSelectedSubprojectIndex(null);
+      setShowBookingForm(false);
+    }
+  }, [project, selectedSubprojectIndex]);
 
   const fetchProject = async () => {
     try {
@@ -452,8 +495,13 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
       const data = await response.json();
 
       if (data.success) {
-        setProject(data.project);
-        trackProjectView(data.project);
+        const normalized = normalizePublicProject(data.project);
+        if (normalized) {
+          setProject(normalized);
+          trackProjectView(normalized);
+        } else {
+          toast.error(t('page.loadFailed'));
+        }
       } else {
         toast.error(t('page.notFound'));
         router.push('/search');
@@ -466,7 +514,7 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
     }
   };
 
-  const fetchScheduleProposals = async (subprojectIndex?: number) => {
+  const fetchScheduleProposals = async (subprojectIndex: number | undefined, isCurrent: () => boolean) => {
     try {
       let endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${projectId}/schedule-proposals`;
       if (typeof subprojectIndex === 'number') {
@@ -474,19 +522,22 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
       }
       const response = await fetch(endpoint);
       const data: ScheduleProposalsResponse = await response.json();
+      if (!isCurrent()) return;
       if (data.success && data.proposals) {
         setProposals(data.proposals);
       } else {
         setProposals(null);
       }
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Error fetching project schedule proposals:', error);
       setProposals(null);
     }
   };
 
   const handleSelectPackage = (index: number) => {
-    if (!project) return;
+    // While auth resolves, the button is disabled; a click that gets here must not redirect.
+    if (authLoading || !project) return;
 
     if (!isAuthenticated) {
       toast.error(t('page.signInToBook'));
@@ -517,7 +568,7 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
   };
 
   const handleContactProfessional = () => {
-    if (!project) return;
+    if (authLoading || !project) return;
 
     const profId = project?.professionalId?._id;
     if (!profId) return;
@@ -1301,12 +1352,13 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
                   companyAvailability={project.professionalId.companyAvailability}
                   companyBlockedRanges={project.professionalId.companyBlockedRanges}
                   onContactProfessional={handleContactProfessional}
+                  actionsDisabled={authLoading}
                 />
               </div>
             )}
 
             {project.professionalId && (
-              <ProvidedByCard pro={project.professionalId} stats={project.professionalStats} />
+              <ProvidedByCard pro={project.professionalId} stats={project.professionalStats} timeZone={viewerTimeZone} />
             )}
 
             {/* Extra Options */}
@@ -1395,7 +1447,7 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
                           {project.professionalId.companyBlockedRanges
                             .filter((closure) => {
                               const endDate = new Date(closure.endDate);
-                              return endDate >= new Date(); // Only show future/current closures
+                              return endDate >= now; // Only show future/current closures
                             })
                             .slice(0, 5) // Limit to 5 upcoming closures
                             .map((closure, idx) => (
@@ -1413,11 +1465,11 @@ export default function ProjectDetailView({ initialProject }: ProjectDetailViewP
                                   <p className='text-gray-600 text-xs mt-1'>
                                     {new Date(
                                       closure.startDate
-                                    ).toLocaleDateString(intl)}{' '}
+                                    ).toLocaleDateString(intl, { timeZone: viewerTimeZone })}{' '}
                                     -{' '}
                                     {new Date(
                                       closure.endDate
-                                    ).toLocaleDateString(intl)}
+                                    ).toLocaleDateString(intl, { timeZone: viewerTimeZone })}
                                   </p>
                                 </div>
                                 {closure.isHoliday && (

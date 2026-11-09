@@ -58,6 +58,8 @@ interface SubprojectComparisonTableProps {
     isHoliday?: boolean;
   }>
   onContactProfessional?: () => void
+  /** Keeps both actions visible but disabled, e.g. while the sign-in state is still loading. */
+  actionsDisabled?: boolean
 }
 
 export default function SubprojectComparisonTable({
@@ -72,7 +74,8 @@ export default function SubprojectComparisonTable({
   timeMode,
   companyAvailability,
   companyBlockedRanges,
-  onContactProfessional
+  onContactProfessional,
+  actionsDisabled = false,
 }: SubprojectComparisonTableProps) {
   const t = useTranslations('projects')
   const packageTabContainerRef = useRef<HTMLDivElement | null>(null)
@@ -501,6 +504,7 @@ export default function SubprojectComparisonTable({
             {/* Continue Button */}
             <Button
               onClick={() => onSelectPackage(selectedIndex)}
+              disabled={actionsDisabled}
               className="w-full bg-black hover:bg-gray-900 text-white h-12 text-base font-semibold group"
             >
               {currentSubproject.pricing?.type === 'rfq' ? t('comparison.requestQuote') : t('comparison.continue')}
@@ -513,6 +517,7 @@ export default function SubprojectComparisonTable({
                 variant="outline"
                 className="w-full mt-3 mb-8 h-12 text-base font-medium border-gray-300 hover:bg-gray-50"
                 onClick={onContactProfessional}
+                disabled={actionsDisabled}
               >
                 {t('comparison.contactMe')}
               </Button>

@@ -13,10 +13,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const project = await getPublicProject(id);
   if (project.status === 'not_found') notFound();
 
+  // The server's clock for the first render: the closure list must match what hydration renders.
+  const serverNow = new Date().toISOString();
   return (
     <ProjectDetailView
       key={id}
       initialProject={project.status === 'found' ? project.data : null}
+      serverNow={serverNow}
     />
   );
 }
