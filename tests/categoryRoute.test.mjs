@@ -53,7 +53,7 @@ test('layout consults the live catalog, redirects or 404s on the server', () => 
   const layout = readFileSync(new URL('../app/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), 'utf8')
   assert.match(layout, /getServiceCategories\(country\)/)
   assert.match(layout, /readContentCountry\(await headers\(\)\)/)
-  assert.match(layout, /if \(route\.kind === "redirect"\) permanentRedirect\(route\.to\);/)
+  assert.match(layout, /if \(route\.kind === "redirect"\) permanentRedirect\(await redirectTarget\(route\.to\)\);/)
   assert.match(layout, /if \(route\.kind === "not_found"\) notFound\(\);/)
   // The built-in outage fallback includes the subnav's `interior` slug.
   const server = readFileSync(new URL('../lib/server/serviceCategories.ts', import.meta.url), 'utf8')

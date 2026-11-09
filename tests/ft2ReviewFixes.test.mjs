@@ -15,13 +15,18 @@ function moduleWithMocks(file, mocks) {
   new Function('require', 'exports', code)(name => name in mocks ? mocks[name] : require(name), exports)
   return exports
 }
-function layoutHarness(categories, slug) {
+function layoutHarness(categories, slug, urlLocale = null) {
   const countries = []
   const redirects = []
   const t = key => key === 'names.categories.outdoor-garden.name' ? 'Extérieur et jardin' : key
   const exports = moduleWithMocks(new URL('../app/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), {
     react: { cache: fn => fn },
-    'next/headers': { headers: async () => ({ get: name => name === 'x-fixera-content-country' ? 'NL' : null }) },
+    'next/headers': { headers: async () => ({ get: name => name === 'x-fixera-content-country' ? 'NL' : name === 'x-fixera-url-locale' ? urlLocale : null }) },
+    '@/i18n/config': { isLocale: value => ['en', 'nl', 'fr'].includes(value) },
+    '@/lib/seo/localeUrls': {
+      URL_LOCALE_REQUEST_HEADER: 'x-fixera-url-locale',
+      localizedPath: (locale, path) => (path === '/' ? `/${locale}` : `/${locale}${path}`),
+    },
     'next/navigation': { permanentRedirect: to => { redirects.push(to); throw new Error('redirect') }, notFound: () => { throw new Error('not found') } },
     'next-intl/server': { getTranslations: async () => t },
     '@/data/content': { serviceCategories: [{ slug: 'outdoor-garden', name: 'Garden' }] },
@@ -42,6 +47,15 @@ test('server category layout propagates NL to catalog lookup and preserves a liv
   assert.equal(tree.props.children[1], 'category body')
   assert.deepEqual(ui.countries, ['NL'])
   assert.deepEqual(ui.redirects, [])
+})
+test('a category alias redirect keeps the language prefix of a prefixed URL', async () => {
+  const prefixed = layoutHarness([{ slug: 'garden-work', name: 'Garden work', services: [] }], 'Garden_Work', 'nl')
+  await assert.rejects(prefixed.exports.default(prefixed.props), /redirect/)
+  assert.deepEqual(prefixed.redirects, ['/nl/categories/garden-work'])
+
+  const unprefixed = layoutHarness([{ slug: 'garden-work', name: 'Garden work', services: [] }], 'Garden_Work', null)
+  await assert.rejects(unprefixed.exports.default(unprefixed.props), /redirect/)
+  assert.deepEqual(unprefixed.redirects, ['/categories/garden-work'])
 })
 test('outage fallback cannot reject a real category outside its six navigation entries', async () => {
   const ui = layoutHarness([{ slug: 'interior', name: 'Interior', services: [], isFallback: true }], 'custom-live-category')

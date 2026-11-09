@@ -59,11 +59,18 @@ export default async function ProjectLayout({ children, params }: Props) {
   if (project) {
     // Service schema for the project's scope. Prices are left out on purpose: the amount
     // a customer sees depends on their pricing and currency, not on the public record.
+    // The professional is the provider when the record names one; otherwise no provider is claimed.
+    const pro = project.professionalId;
+    const providerName = pro?.username || pro?.name || pro?.businessInfo?.companyName;
     schemas.push(
       serviceSchema({
         name: title,
         description: project.description?.slice(0, SCHEMA_DESCRIPTION_LENGTH) || undefined,
         path: safePath,
+        provider:
+          pro?._id && providerName
+            ? { name: providerName, path: `/professional/${encodeURIComponent(pro._id)}` }
+            : null,
       }),
     );
   }

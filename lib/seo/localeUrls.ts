@@ -54,13 +54,27 @@ const SEGMENT_RULES: readonly SegmentRule[] = [
   },
 ];
 
+/**
+ * Decodes one path segment, or returns null for malformed percent-encoding. A malformed
+ * segment is never localizable, so it cannot reach a route it was not meant for.
+ */
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
 /** True when `path` (no language prefix, no query) is a public route that has a prefixed twin. */
 export function isLocalizableRoute(path: string): boolean {
   if (STATIC_LOCALIZED_PATHS.has(path)) return true;
   const match = /^\/([^/]+)\/([^/]+)$/.exec(path);
   if (!match) return false;
   const section = `/${match[1]}`;
-  const slug = match[2];
+  // Reserved names are compared decoded, so `%63reate` is the same route as `create`.
+  const slug = decodeSegment(match[2]);
+  if (slug === null) return false;
   const rule = SEGMENT_RULES.find((candidate) => candidate.section === section);
   return rule !== undefined && !rule.reserved.has(slug);
 }
