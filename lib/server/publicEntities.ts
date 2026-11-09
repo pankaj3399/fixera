@@ -1,4 +1,5 @@
 import type { PublicProjectDto } from "@/types/project";
+import { normalizePublicProject } from "@/lib/publicProjectShape";
 
 /**
  * Server-side reads of the public project and professional records, for the SEO HTML
@@ -14,6 +15,9 @@ import type { PublicProjectDto } from "@/types/project";
  * HTTP 200 (`next/dist/server/lib/patch-fetch.js`). A 429 or 5xx is therefore not held
  * for the revalidate window. It comes back here as `unavailable` for that render only,
  * and the next render asks the backend again.
+ *
+ * Deadline: every backend read has a timeout. A stalled backend aborts the request and
+ * gives the same `unavailable` outcome as an outage, so a page or layout still renders.
  */
 
 export const PUBLIC_ENTITY_REVALIDATE_SECONDS = 300;
@@ -21,6 +25,8 @@ export const SITEMAP_ENTITY_REVALIDATE_SECONDS = 3600;
 export const SITEMAP_ENTITY_PAGE_SIZE = 1000;
 /** Per-type safety valve, below the 50,000-URL limit of a single sitemap file. */
 export const SITEMAP_ENTITY_MAX_PER_TYPE = 20000;
+/** Upper bound for one backend read, including reading the response body. */
+export const BACKEND_READ_TIMEOUT_MS = 10_000;
 
 /**
  * `found`: data loaded. `not_found`: the backend says the entity is missing or not
@@ -53,6 +59,13 @@ export interface ProfessionalData {
 
 const backendPath = (path: string) => `${process.env.NEXT_PUBLIC_BACKEND_URL || ""}${path}`;
 
+/** Fetch with the deadline applied. Throws on network failure or timeout. */
+const backendFetch = (path: string, revalidate: number) =>
+  fetch(backendPath(path), {
+    next: { revalidate },
+    signal: AbortSignal.timeout(BACKEND_READ_TIMEOUT_MS),
+  });
+
 async function fetchPublicEntity<T>(
   path: string,
   label: string,
@@ -60,9 +73,7 @@ async function fetchPublicEntity<T>(
 ): Promise<EntityLookup<T>> {
   let res: Response;
   try {
-    res = await fetch(backendPath(path), {
-      next: { revalidate: PUBLIC_ENTITY_REVALIDATE_SECONDS },
-    });
+    res = await backendFetch(path, PUBLIC_ENTITY_REVALIDATE_SECONDS);
   } catch (error) {
     console.warn(`[public-entity] ${label} unavailable: request failed`, error);
     return { status: "unavailable" };
@@ -97,7 +108,8 @@ export function getPublicProject(id: string): Promise<EntityLookup<PublicProject
     "project",
     (json) => {
       const body = json as ProjectEnvelope | null;
-      return body?.success && body.project ? body.project : null;
+      // A record without a usable professional or id is treated as unavailable here.
+      return body?.success ? normalizePublicProject(body.project) : null;
     },
   );
 }
@@ -140,11 +152,9 @@ export async function fetchSitemapEntityPage(
   type: SitemapEntityType,
   page: number,
 ): Promise<SitemapEntityPage> {
-  const res = await fetch(
-    backendPath(
-      `/api/public/sitemap/entities?type=${type}&page=${page}&limit=${SITEMAP_ENTITY_PAGE_SIZE}`,
-    ),
-    { next: { revalidate: SITEMAP_ENTITY_REVALIDATE_SECONDS } },
+  const res = await backendFetch(
+    `/api/public/sitemap/entities?type=${type}&page=${page}&limit=${SITEMAP_ENTITY_PAGE_SIZE}`,
+    SITEMAP_ENTITY_REVALIDATE_SECONDS,
   );
   if (!res.ok) {
     throw new Error(`sitemap entities (${type}) page ${page} failed with HTTP ${res.status}`);
