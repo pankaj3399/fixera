@@ -231,5 +231,7 @@
     "networkError": "Netwerkfout. Controleer je verbinding en probeer het opnieuw.",
     "timeout": "De aanvraag is verlopen. Probeer het opnieuw.",
     "unexpected": "Er is een onverwachte fout opgetreden. Probeer het opnieuw."
-  }
+  },
+  "pricingUnavailable": "Prijzen zijn tijdelijk niet beschikbaar. Probeer het opnieuw om verder te gaan.",
+  "retryPricing": "Opnieuw proberen"
 }

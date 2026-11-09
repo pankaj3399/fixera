@@ -231,5 +231,7 @@
     "networkError": "Network error. Please check your connection and try again.",
     "timeout": "Request timed out. Please try again.",
     "unexpected": "An unexpected error occurred. Please try again."
-  }
+  },
+  "pricingUnavailable": "Prices are temporarily unavailable. Try again to continue.",
+  "retryPricing": "Try again"
 }

@@ -2167,7 +2167,7 @@ test('comparison tabs reveal selected packages by scrolling only their horizonta
     '@/components/ui/button': ui, '@/components/ui/card': ui, 'lucide-react': ui,
     '@/lib/projectHighlights': { formatPriceModelLabel: value => value },
     '@/lib/projectPricing': await import('../lib/projectPricing.ts'),
-    '@/hooks/useCustomerPricing': { useCustomerPricing: () => ({ customerPrice: value => value, originalPrice: value => value, commissionPercent: 0, loyaltyLoaded: true }) },
+    '@/hooks/useCustomerPricing': { useCustomerPricing: () => ({ customerPrice: value => value, originalPrice: value => value, pricingReady: true, loyaltyLoaded: true }) },
     '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: String }) },
     '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
   })

@@ -47,7 +47,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
-import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing';
+import { computeCustomerPriceWithRepeatBuyerDiscount, customerPriceGateOpen, packageRequiresCustomerPrice } from '@/lib/projectPricing';
+import { customerPackageTotal } from '@/lib/customerPricing';
 import { getAuthToken } from '@/lib/utils';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
@@ -281,8 +282,8 @@ export default function ProjectBookingForm({
   onBack,
   selectedSubprojectIndex,
 }: ProjectBookingFormProps) {
-  const { customerPrice, commissionPercent, loyaltyLoaded } = useCustomerPricing();
-  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
+  const { customerPrice, customerPackagePrice: fetchPackageCustomerTotal, pricingReady, pricingError, retryPricing, loyaltyLoaded } = useCustomerPricing();
+  const customerPricingReady = pricingReady && loyaltyLoaded;
   const router = useRouter();
   const { user } = useAuth();
   const t = useTranslations('projectBooking');
@@ -294,7 +295,7 @@ export default function ProjectBookingForm({
   // nothing is converted — only formatted in the active locale.
   const formatAmount = useCallback(
     (amount?: number | null) =>
-      typeof amount === 'number' ? formatMoney(amount) : null,
+      typeof amount === 'number' ? formatMoney(amount) : '…',
     [formatMoney]
   );
 
@@ -2390,7 +2391,7 @@ export default function ProjectBookingForm({
       return;
     }
 
-    if (shouldPayAtCheckoutFlow && !customerPricingReady) {
+    if (!priceGateOpen) {
       toast.error(t('toasts.finalizingPricing'));
       return;
     }
@@ -2445,8 +2446,8 @@ export default function ProjectBookingForm({
       const totalPrice = finalDisplayTotal;
       const isRfqPackage = selectedPackage.pricing.type === 'rfq';
       const hasValidPackageAmount =
-        typeof selectedPackage.pricing.amount === 'number' &&
-        selectedPackage.pricing.amount >= 0;
+        typeof selectedPackage.pricing.customerAmount === 'number' &&
+        selectedPackage.pricing.customerAmount >= 0;
       const shouldPayAtCheckout =
         !isRfqPackage &&
         hasValidPackageAmount &&
@@ -2707,7 +2708,7 @@ export default function ProjectBookingForm({
     packageUnitCount = getClampedPackageUnitCount()
   ): number | null => {
     const currentPackage = selectedPackage;
-    const amount = currentPackage?.pricing.amount;
+    const amount = currentPackage?.pricing.customerAmount;
     if (
       !currentPackage ||
       amount == null ||
@@ -2719,7 +2720,7 @@ export default function ProjectBookingForm({
     const multiplier = shouldCollectUsage(currentPackage.pricing.type)
       ? packageUnitCount
       : 1;
-    return multiplier * amount;
+    return customerPackageTotal(amount, currentPackage.pricing.type, multiplier);
   };
 
   const calculateTotal = (
@@ -2733,16 +2734,16 @@ export default function ProjectBookingForm({
         total += packagePrice;
       } else if (
         selectedPackage.pricing.type === 'fixed' &&
-        selectedPackage.pricing.amount
+        selectedPackage.pricing.customerAmount
       ) {
-        total += selectedPackage.pricing.amount;
+        total += selectedPackage.pricing.customerAmount;
       }
     }
 
     selectedExtraOptions.forEach((idx) => {
       const option = project.extraOptions[idx];
       if (option) {
-        total += option.price;
+        total += option.customerPrice ?? Number.NaN;
       }
     });
 
@@ -2757,26 +2758,32 @@ export default function ProjectBookingForm({
       customerPrice,
     }).customerAmount;
   const selectedPackageUnitPricing = computeCustomerPriceWithRepeatBuyerDiscount({
-    amount: selectedPackage?.pricing.amount,
+    amount: selectedPackage?.pricing.customerAmount,
     customerPrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
-  // Unit packages are charged as units x the unit price shown, in cents.
-  const packageUnitPricing =
-    selectedPackage && shouldCollectUsage(selectedPackage.pricing.type)
-      ? { pricingType: 'unit', unitAmount: selectedPackage.pricing.amount, quantity: packageUnitCount }
-      : undefined;
-  const customerPackagePrice = (amount: number) => customerPrice(amount, packageUnitPricing);
   const packagePricing = computeCustomerPriceWithRepeatBuyerDiscount({
     amount: getEffectivePackagePrice(packageUnitCount),
-    customerPrice: customerPackagePrice,
+    customerPrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
+  // The grand total is the server's customer total for the package and its selected options,
+  // the same arithmetic as checkout. RFQ packages have no server price, so only options count.
+  const customerGrandTotal = !selectedPackage
+    ? 0
+    : isRfqPackage
+      ? selectedExtraOptions.reduce((sum, idx) => sum + (project.extraOptions[idx]?.customerPrice ?? Number.NaN), 0)
+      : fetchPackageCustomerTotal({
+          projectId: String(project._id),
+          subprojectIndex: selectedPackageIndex ?? -1,
+          estimatedUsage: shouldCollectUsage(selectedPackage.pricing.type) ? packageUnitCount : undefined,
+          selectedExtraOptions: [...selectedExtraOptions],
+        });
   const totalPricing = computeCustomerPriceWithRepeatBuyerDiscount({
-    amount: calculateTotal(packageUnitCount),
-    customerPrice: customerPackagePrice,
+    amount: customerGrandTotal,
+    customerPrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
@@ -2806,7 +2813,7 @@ export default function ProjectBookingForm({
   const baseDisplayTotal =
     typeof displayTotalPrice === 'number'
       ? displayTotalPrice
-      : calculateTotal(packageUnitCount);
+      : NaN;
   const repeatBuyerDiscountAmount =
     discountedDisplayTotalPrice != null && discountedDisplayTotalPrice < baseDisplayTotal
       ? +(baseDisplayTotal - discountedDisplayTotalPrice).toFixed(2)
@@ -2820,10 +2827,18 @@ export default function ProjectBookingForm({
   const shouldPayAtCheckoutFlow =
     Boolean(selectedPackage) &&
     selectedPackage?.pricing.type !== 'rfq' &&
-    typeof selectedPackage?.pricing.amount === 'number' &&
-    selectedPackage.pricing.amount >= 0 &&
-    finalDisplayTotal > 0 &&
+    typeof selectedPackage?.pricing.customerAmount === 'number' &&
+    selectedPackage.pricing.customerAmount >= 0 &&
+    calculateTotal(packageUnitCount) > 0 &&
     !vatNeedsRfqReview;
+  // Fixed and unit packages (including ones sent for VAT review) need the server's customer price before
+  // they are submitted. RFQ packages have no price and are never gated.
+  const priceRequired = packageRequiresCustomerPrice(selectedPackage?.pricing.type);
+  const priceGateOpen = customerPriceGateOpen({
+    requiresPrice: priceRequired,
+    pricingReady: customerPricingReady,
+    customerAmount: totalPricing.customerAmount,
+  });
   const finalStepLabel = shouldPayAtCheckoutFlow
     ? t('steps.reviewAndPay')
     : t('steps.reviewAndSubmitRfq');
@@ -3016,7 +3031,7 @@ export default function ProjectBookingForm({
   })();
 
   const shouldShowUsageBreakdown = Boolean(
-    selectedPackage?.pricing.amount &&
+    selectedPackage?.pricing.customerAmount &&
     shouldCollectUsage(selectedPackage.pricing.type)
   );
 
@@ -3294,7 +3309,7 @@ export default function ProjectBookingForm({
                           </div>
                           <div className='text-right'>
                             {selectedPackage.pricing.type === 'fixed' &&
-                              selectedPackage.pricing.amount && (
+                              selectedPackage.pricing.customerAmount && (
                                 <div className='text-2xl font-bold text-blue-600'>
                                   {!customerPricingReady ? (
                                     <span className='inline-block h-7 w-24 animate-pulse rounded bg-gray-200' aria-label={t('common.loadingPrice')} />
@@ -3306,18 +3321,18 @@ export default function ProjectBookingForm({
                                       <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                     </div>
                                   ) : (
-                                    formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)
+                                    formatAmount(displayPackagePrice)
                                   )}
                                 </div>
                               )}
                             {selectedPackage.pricing.type === 'unit' &&
-                              selectedPackage.pricing.amount && (
+                              selectedPackage.pricing.customerAmount && (
                                 <div>
                                   <p className='text-2xl font-bold text-blue-600'>
                                     {hasSelectedPackageUnitDiscount
                                       ? formatAmount(discountedSelectedPackageUnitPrice)
                                       : formatAmount(
-                                        displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                                        displaySelectedPackageUnitPrice
                                       )}
                                     <span className='text-sm font-normal text-gray-500 ml-1'>
                                       /{getUnitLabelText(project.priceModel)}
@@ -3389,7 +3404,7 @@ export default function ProjectBookingForm({
                         </div>
 
                         {selectedPackage.pricing.type !== 'rfq' &&
-                          selectedPackage.pricing.amount && (
+                          selectedPackage.pricing.customerAmount && (
                             <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-2'>
                               <p className='text-sm text-gray-600'>
                                 {t('package.estimatedPrice')}
@@ -3405,15 +3420,14 @@ export default function ProjectBookingForm({
                                     <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                   </div>
                                 ) : (
-                                  formatAmount(displayPackagePrice ?? getEffectivePackagePrice() ?? 0)
+                                  formatAmount(displayPackagePrice)
                                 )}
                               </div>
                               <p className='text-sm text-gray-500'>
                                 {packageUnitCount}{' '}
                                 {getUnitLabelText(project.priceModel)} x{' '}
                                 {formatAmount(
-                                  displayPackageBreakdownUnitPrice ??
-                                    selectedPackage.pricing.amount
+                                  displayPackageBreakdownUnitPrice
                                 )}
                                 /{getUnitLabelText(project.priceModel)}
                               </p>
@@ -3948,7 +3962,7 @@ export default function ProjectBookingForm({
                                 <div className='text-right flex-shrink-0'>
                                   <p className='font-bold text-blue-600'>
                                     +{formatAmount(
-                                      getCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.customerPrice)
                                     )}
                                   </p>
                                 </div>
@@ -4000,7 +4014,7 @@ export default function ProjectBookingForm({
                                   </span>
                                   <span className='font-semibold text-green-600'>
                                     +{formatAmount(
-                                      getCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.customerPrice)
                                     )}
                                   </span>
                                 </div>
@@ -4067,8 +4081,7 @@ export default function ProjectBookingForm({
                               unit: getUnitLabelText(project.priceModel),
                               price:
                                 formatAmount(
-                                  displayPackageBreakdownUnitPrice ??
-                                    selectedPackage.pricing.amount
+                                  displayPackageBreakdownUnitPrice
                                 ) ?? '',
                             })}
                           </p>
@@ -4387,20 +4400,20 @@ export default function ProjectBookingForm({
                       </p>
                       <div className='text-sm text-gray-700 mt-2'>
                         {selectedPackage.pricing.type === 'fixed' &&
-                          selectedPackage.pricing.amount && (
+                          selectedPackage.pricing.customerAmount && (
                             <span className='font-semibold text-blue-600'>
                               {hasDisplayPackageDiscount
                                 ? formatAmount(discountedDisplayPackagePrice)
-                                : formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)}
+                                : formatAmount(displayPackagePrice)}
                             </span>
                           )}
                         {selectedPackage.pricing.type === 'unit' &&
-                          selectedPackage.pricing.amount && (
+                          selectedPackage.pricing.customerAmount && (
                             <span className='font-semibold text-blue-600'>
                               {hasSelectedPackageUnitDiscount
                                 ? formatAmount(discountedSelectedPackageUnitPrice)
                                 : formatAmount(
-                                  displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                                  displaySelectedPackageUnitPrice
                                 )}
                               <span className='text-xs font-normal text-gray-500 ml-1'>
                                 /{getUnitLabelText(project.priceModel)}
@@ -4648,8 +4661,7 @@ export default function ProjectBookingForm({
                             unit: getUnitLabelText(project.priceModel),
                             price:
                               formatAmount(
-                                displayPackageBreakdownUnitPrice ??
-                                  selectedPackage.pricing.amount
+                                displayPackageBreakdownUnitPrice
                               ) ?? '',
                           })}
                         </p>
@@ -4686,7 +4698,7 @@ export default function ProjectBookingForm({
                                 </div>
                                 <span className='font-semibold text-green-600 ml-4 flex-shrink-0'>
                                   +{formatAmount(
-                                    getCustomerDisplayAmount(option.price) ?? option.price
+                                    getCustomerDisplayAmount(option.customerPrice)
                                   )}
                                 </span>
                               </div>
@@ -4894,9 +4906,16 @@ export default function ProjectBookingForm({
               {t('common.nextStep')}
             </Button>
           ) : (
+            <div className='flex flex-wrap items-center justify-end gap-3'>
+              {priceRequired && pricingError ? (
+                <>
+                  <p className='text-sm text-red-600'>{t('pricingUnavailable')}</p>
+                  <Button variant='outline' onClick={retryPricing}>{t('retryPricing')}</Button>
+                </>
+              ) : null}
             <Button
               onClick={handleSubmit}
-              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && !customerPricingReady)}
+              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || !priceGateOpen}
               className='bg-blue-600 hover:bg-blue-700'
             >
               {loading ? (
@@ -4908,6 +4927,7 @@ export default function ProjectBookingForm({
                 finalActionLabel
               )}
             </Button>
+            </div>
           )}
         </div>
       </div>

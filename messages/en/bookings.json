@@ -448,7 +448,7 @@
     "totalLabel": "Total Extra Costs:",
     "unitAdjustmentName": "Quantity adjustment ({unit})",
     "unitDetail": "(estimated: {estimated} {unit}, actual: {actual} {unit})",
-    "subtotal": "Subtotal (incl. {percent}% platform fee)",
+    "subtotal": "Subtotal",
     "loyaltyLine": "{level} loyalty ({percentage}%)",
     "vat": "VAT",
     "payBeforeConfirmTitle": "Pay extra costs before final confirmation",
@@ -825,7 +825,18 @@
       "paymentAtCheckout": "Paid at checkout",
       "extraCostsProfessional": "Completion extras (professional amount)",
       "professionalNet": "Professional net",
-      "amountBeforeDiscounts": "Amount before discounts"
+      "amountBeforeDiscounts": "Amount before discounts",
+      "firstPossibleStart": "First possible start",
+      "priceModel": "Price model",
+      "professionalLevel": "Professional level",
+      "publicTags": "Public tags",
+      "tagVerified": "Verified",
+      "tagOurChoice": "Our choice",
+      "currentProfessionalMetadata": "Level and public tags are from the current profile.",
+      "milestoneOrder": "Order",
+      "milestoneStatus": "Status",
+      "customDueDate": "Due date",
+      "quoteDate": "Quote date"
     },
     "parties": {
       "customer": "Customer",
@@ -1078,7 +1089,8 @@
       "transferAmount": "Transfer amount",
       "transferAttemptedAt": "Transfer attempted",
       "extraCostTransferStatus": "Extra-cost payout transfer",
-      "peppolStatusLabel": "Peppol status:"
+      "peppolStatusLabel": "Peppol status:",
+      "refundPending": "Refund pending — funds have not been returned"
     },
     "activity": {
       "deletedActor": "Deleted user",
@@ -1171,25 +1183,27 @@
         "cancellation_countered": "Cancellation counter-offer",
         "cancellation_escalated": "Cancellation escalated",
         "refund_issued": "Refund issued",
-        "admin_status_changed": "Status changed by administrator"
+        "admin_status_changed": "Status changed by administrator",
+        "refund_pending": "Refund pending"
       },
       "sourceUser": "user",
       "sourceAdmin": "administrator",
       "sourceSystem": "system",
       "qualityNotes": {
-        "undated_quote_version": "A quotation version has no recorded creation time and is omitted from the timeline.",
+        "undated_quote_version": "Stored without a date; shown in the undated group.",
         "quote_actor_not_recorded": "A quotation version has no recorded actor.",
         "legacy_quote_actor_missing": "A legacy quotation has no recorded actor.",
-        "undated_refund": "A refund has no recorded date and is omitted from the timeline.",
+        "undated_refund": "Stored without a date; shown in the undated group.",
         "refund_vat_split_not_recorded": "At least one refund has no recorded VAT/net split.",
-        "undated_extra_costs": "Completion extras have no recorded declaration time.",
-        "undated_reschedule": "A reschedule request has no recorded date.",
-        "undated_cancellation_request": "A cancellation request has no recorded date.",
-        "undated_warranty_claim": "A warranty claim has no recorded opening date.",
-        "post_booking_timestamp_not_recorded": "Post-booking answers have no recorded submission time.",
-        "undated_status_history": "A status change has no recorded timestamp.",
+        "undated_extra_costs": "Stored without a date; shown in the undated group.",
+        "undated_reschedule": "Stored without a date; shown in the undated group.",
+        "undated_cancellation_request": "Stored without a date; shown in the undated group.",
+        "undated_warranty_claim": "Stored without a date; shown in the undated group.",
+        "post_booking_timestamp_not_recorded": "Stored without a date; shown in the undated group.",
+        "undated_status_history": "Stored without a date; shown in the undated group.",
         "legacy_attachment_owner_not_recorded": "A legacy attachment has no recorded owner, so access could not be verified.",
-        "attachment_unavailable_for_legacy_record": "A legacy attachment is unavailable because ownership was not recorded."
+        "attachment_unavailable_for_legacy_record": "A legacy attachment is unavailable because ownership was not recorded.",
+        "historical_coverage_unknown": "Historical coverage is unknown. Only surviving records are shown."
       },
       "amountKinds": {
         "net": "Net",
@@ -1204,7 +1218,9 @@
       },
       "previousStatus": "Previous status",
       "newStatus": "New status",
-      "recordedInEnglish": "language recorded as English"
+      "recordedInEnglish": "language recorded as English",
+      "coverageUnknown": "Historical coverage is unknown. Only surviving records are shown.",
+      "openWarranty": "Open warranty claim"
     },
     "notices": {
       "termsSnapshotNotRecorded": "Booking-time terms were not recorded for this legacy booking. Current project data is shown separately.",
@@ -1230,7 +1246,9 @@
       "pricingType": {
         "fixed": "Fixed price",
         "unit": "Unit price",
-        "rfq": "Request quote"
+        "rfq": "Request quote",
+        "hour": "Per hour",
+        "day": "Per day"
       },
       "captureSource": {
         "booking_creation": "Booking creation",
@@ -1312,6 +1330,12 @@
         "sent": "Sent",
         "failed": "Failed",
         "skipped": "Skipped"
+      },
+      "milestoneStatus": {
+        "pending": "Pending",
+        "invoiced": "Invoiced",
+        "paid": "Paid",
+        "overdue": "Overdue"
       }
     },
     "currencyNotRecorded": "currency not recorded",

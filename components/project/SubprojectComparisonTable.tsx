@@ -90,8 +90,8 @@ export default function SubprojectComparisonTable({
   }, [selectedIndex])
   const tWizard = useTranslations('projectWizard')
   const { formatPrice } = useCurrency()
-  const { customerPrice, originalPrice, loyalty, commissionPercent, loyaltyLoaded } = useCustomerPricing()
-  const isPricingReady = commissionPercent != null && loyaltyLoaded
+  const { customerPrice, originalPrice, loyalty, pricingReady, loyaltyLoaded } = useCustomerPricing()
+  const isPricingReady = pricingReady && loyaltyLoaded
 
   const unitSuffixLabel = (value: string) => {
     const key = UNIT_SUFFIX_KEYS[value.toLowerCase() as keyof typeof UNIT_SUFFIX_KEYS]
@@ -99,7 +99,7 @@ export default function SubprojectComparisonTable({
   }
 
   const formatAmount = (value?: number | null) =>
-    value == null ? null : formatPrice(value)
+    value == null ? '…' : formatPrice(value)
 
   const formatDuration = (duration?: { value?: number; unit: 'hours' | 'days' }): string => {
     if (!duration || duration.value == null) return t('common.na')
@@ -229,7 +229,7 @@ export default function SubprojectComparisonTable({
     return null;
   }
 
-  const currentPricing = getCustomerPricing(currentSubproject.pricing.amount)
+  const currentPricing = getCustomerPricing(currentSubproject.pricing.customerAmount)
   const currentCustomerAmount = currentPricing.customerAmount
   const currentDiscountedAmount = currentPricing.discountedAmount
   const hasCurrentDiscount =
@@ -244,8 +244,8 @@ export default function SubprojectComparisonTable({
     minProjectCustomerAmount != null &&
     minProjectDiscountedAmount != null &&
     minProjectDiscountedAmount < minProjectCustomerAmount
-  const minRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.min)
-  const maxRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.max)
+  const minRangePricing = getCustomerPricing(currentSubproject.pricing.customerPriceRange?.min)
+  const maxRangePricing = getCustomerPricing(currentSubproject.pricing.customerPriceRange?.max)
   const minRangeCustomerAmount = minRangePricing.customerAmount
   const minRangeDiscountedAmount = minRangePricing.discountedAmount
   const maxRangeCustomerAmount = maxRangePricing.customerAmount
@@ -316,7 +316,7 @@ export default function SubprojectComparisonTable({
                             <span>{formatAmount(currentDiscountedAmount)}</span>
                           </span>
                         ) : (
-                          formatAmount(currentCustomerAmount ?? currentSubproject.pricing.amount)
+                          formatAmount(currentCustomerAmount)
                         )}
                         {priceModel && !isSuffixlessPriceModel(priceModel) && (
                           <span className="text-lg font-normal text-gray-500 ml-2">
@@ -333,7 +333,7 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(currentDiscountedAmount)}</span>
                         </span>
                       ) : (
-                        formatAmount(currentCustomerAmount ?? currentSubproject.pricing.amount)
+                        formatAmount(currentCustomerAmount)
                       )
                     )}
                   </div>
@@ -347,11 +347,11 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(minProjectDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatAmount(minProjectCustomerAmount ?? currentSubproject.pricing.minProjectValue)
+                        formatAmount(minProjectCustomerAmount)
                       )}
                     </p>
                   )}
-                  {isPricingReady && effectivePricingType(currentSubproject) === 'rfq' && currentSubproject.pricing.priceRange && (
+                  {isPricingReady && effectivePricingType(currentSubproject) === 'rfq' && currentSubproject.pricing.customerPriceRange && (
                     <p className="text-sm text-gray-500 mt-2">
                       {t('comparison.estimatedRange')} {hasMinRangeDiscount ? (
                         <>
@@ -361,7 +361,7 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(minRangeDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatAmount(minRangeCustomerAmount ?? currentSubproject.pricing.priceRange.min)
+                        formatAmount(minRangeCustomerAmount)
                       )}{" "}
                       -{" "}
                       {hasMaxRangeDiscount ? (
@@ -372,7 +372,7 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(maxRangeDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatAmount(maxRangeCustomerAmount ?? currentSubproject.pricing.priceRange.max)
+                        formatAmount(maxRangeCustomerAmount)
                       )}
                     </p>
                   )}

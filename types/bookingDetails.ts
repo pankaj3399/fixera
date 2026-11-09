@@ -71,6 +71,7 @@ export interface BookingOverviewSchedule {
 }
 
 export interface BookingOverviewDto {
+  priceModel?: string | null;
   id?: string;
   bookingNumber?: string | null;
   bookingType?: "professional" | "project" | string;
@@ -105,6 +106,8 @@ export interface BookingOverviewDto {
     totalAmount?: number | null;
     currency?: string | null;
     validUntil?: string | null;
+    firstPossibleStart?: string | null;
+    createdAt?: string | null;
   } | null;
   payment?: {
     status?: string | null;
@@ -137,6 +140,9 @@ export interface BookingOverviewDto {
 }
 
 export interface PartyDto {
+  professionalLevel?: string | null;
+  publicTags?: string[];
+  metadataSource?: "current_profile";
   id?: string | null;
   /** Present when the party account has been anonymized. */
   deletedAt?: string | null;
@@ -249,6 +255,10 @@ export interface BookingSnapshotDto {
     priceSource?: string;
   }>;
   checkoutSnapshot?: {
+    /** Customer total of the package alone (checkout arithmetic). Present on the booking read for non-professionals. */
+    customerPackageTotal?: number | null;
+    /** Customer total of the package and its options (checkout arithmetic). Null for professionals. */
+    customerTotal?: number | null;
     pricingType?: string;
     unitAmount?: number | null;
     quantity?: number | null;
@@ -335,6 +345,7 @@ export interface BookingWizardDto {
 }
 
 export interface QuotationVersionDto {
+  firstPossibleStart?: string | null;
   version: number;
   quotationNumber?: string | null;
   scope?: string | null;
@@ -565,6 +576,8 @@ export interface MilestonePaymentDto {
    * Null when no commission was recorded for the booking.
    */
   expectedCustomerCharge?: number | null;
+  /** Customer-side amount before discounts and VAT (commission-inclusive). Null for professionals. */
+  expectedCustomerNetBeforeDiscount?: number | null;
   /** True when this milestone carries the selected options in full. */
   includesSelectedOptions?: boolean | null;
 }
@@ -593,6 +606,8 @@ export interface ExtraCostPaymentDto {
 export interface ExtraCostsDetailsDto {
   status?: string | null;
   totalProfessionalAmount?: number | null;
+  /** Customer-side total of the extra costs (commission-inclusive, before discounts). Null for professionals. */
+  totalCustomerAmount?: number | null;
   currency?: string | null;
   currencySource?: string;
   items?: Array<{
@@ -600,6 +615,8 @@ export interface ExtraCostsDetailsDto {
     name?: string;
     justification?: string;
     professionalAmount?: number | null;
+    /** Customer-side amount of this line. Null for professionals. */
+    customerAmount?: number | null;
     unitPrice?: number | null;
     estimatedUnits?: number | null;
     actualUnits?: number | null;
@@ -632,6 +649,8 @@ export interface ExtraCostsDetailsDto {
 }
 
 export interface RefundDto {
+  providerStatus?: string | null;
+  cashReturned?: boolean;
   id: string;
   amount?: number | null;
   currency?: string | null;
@@ -804,6 +823,7 @@ export interface ActivityItem {
     version?: number | null;
     reasonCategory?: string | null;
     claimId?: string | null;
+    participantCanOpen?: boolean;
     claimNumber?: string | null;
     disputeId?: string | null;
     disputeType?: string | null;
@@ -844,6 +864,7 @@ export interface ActivityItem {
 }
 
 export interface BookingActivityDto {
+  coverage?: { status: "unknown"; source: "surviving_records"; appendOnlyArchive: false };
   order?: "asc";
   items?: ActivityItem[];
   generatedAt?: string | null;

@@ -41,8 +41,9 @@ import type { BookingDetailsDto, RescheduleHistoryDto } from "@/types/bookingDet
 import type { QuoteVersion, BookingMilestone } from "@/types/quotation"
 import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelpers"
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
-import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
+import { useCommissionRate } from "@/hooks/useCommissionRate"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
+import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
@@ -594,8 +595,24 @@ function BookingDetailContent() {
         return t("warranty.fileUnsupported", { name: item.name })
       })
       .join("; ")
-  const { commissionPercent, customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount } = useCustomerPricing()
-  const customerPricingReady = commissionPercent != null && loyaltyLoaded
+  const { customerPrice, originalPrice, loyalty, loyaltyLoaded, withLoyaltyDiscount, pricingReady } = useCustomerPricing()
+  // Professionals see their own base and commission and price customer amounts locally.
+  // Customers receive customer-side amounts from the server (details), never a base price.
+  const { commissionPercent, commissionedPrice } = useCommissionRate()
+  const isProfessionalViewer = user?.role === 'professional'
+  const customerPricingReady = pricingReady && loyaltyLoaded
+  const customerExtraCost = (cost: { amount?: number; unitPrice?: number; actualUnits?: number; estimatedUnits?: number; type?: string }, index = -1): number => {
+    if (isProfessionalViewer) {
+      return commissionPercent == null ? Number.NaN : commissionedExtraCost(cost, commissionPercent)
+    }
+    return details?.extraCosts?.items?.[index]?.customerAmount ?? Number.NaN
+  }
+  const customerExtraCostTotal = (costs: Parameters<typeof commissionedExtraCostTotal>[0], total: number): number => {
+    if (isProfessionalViewer) {
+      return commissionPercent == null ? Number.NaN : commissionedExtraCostTotal(costs, total, commissionPercent)
+    }
+    return details?.extraCosts?.totalCustomerAmount ?? Number.NaN
+  }
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -1755,9 +1772,9 @@ function BookingDetailContent() {
   const currentVersionMilestoneGrossAmounts = useMemo(
     () => recordedPricing?.milestones ?? calculateMilestoneGrossAmounts(
       currentVersion,
-      customerPricingReady ? customerPrice : undefined
+      isProfessionalViewer ? undefined : (customerPricingReady ? customerPrice : undefined)
     ),
-    [currentVersion, recordedPricing, customerPricingReady, customerPrice]
+    [currentVersion, recordedPricing, isProfessionalViewer, customerPricingReady, customerPrice]
   )
   const currentVersionOriginalQuoteTotals = useMemo(
     () => calculateQuoteVersionVatTotals(
@@ -1774,14 +1791,17 @@ function BookingDetailContent() {
     ?? (recordedPricing ? 0 : currentVersionOriginalQuoteTotals.total - currentVersionQuoteTotals.total)
   const bookingMilestoneGrossAmounts = useMemo(() => {
     if (!booking?.milestonePayments?.length || !authoritativeVersion) return []
+    if (isProfessionalViewer) return calculateMilestoneGrossAmounts({ ...authoritativeVersion, milestones: booking.milestonePayments })
+    // Customers: the server's customer-side expectation per milestone, then their loyalty discount.
+    const customerMilestones = booking.milestonePayments.map((milestone, index) => ({
+      ...milestone,
+      amount: details?.payments?.milestones?.[index]?.expectedCustomerNetBeforeDiscount ?? Number.NaN,
+    }))
     return calculateMilestoneGrossAmounts(
-      {
-        ...authoritativeVersion,
-        milestones: booking.milestonePayments,
-      },
-      user?.role === 'customer' && customerPricingReady ? customerPrice : undefined
+      { ...authoritativeVersion, milestones: customerMilestones },
+      customerPricingReady ? customerPrice : undefined
     )
-  }, [booking?.milestonePayments, authoritativeVersion, user?.role, customerPricingReady, customerPrice])
+  }, [booking?.milestonePayments, authoritativeVersion, isProfessionalViewer, details, customerPricingReady, customerPrice])
   const rfqDeadlineDate = booking?.rfqDeadline ? new Date(booking.rfqDeadline) : null
   const rfqDeadlineRemaining = rfqDeadlineDate
     ? Math.max(0, Math.ceil((rfqDeadlineDate.getTime() - Date.now()) / (1000 * 60 * 60)))
@@ -2527,7 +2547,7 @@ function BookingDetailContent() {
   // Before the charge exists: the per-unit customer price less the loyalty
   // discount the customer would get, as the server will compute it.
   const customerExtraCostEstimate = withLoyaltyDiscount(
-    commissionedExtraCostTotal(booking?.extraCosts, booking?.extraCostTotal || 0, commissionPercent ?? 0),
+    customerExtraCostTotal(booking?.extraCosts, booking?.extraCostTotal || 0),
   )
   const extraCostAmounts = getExtraCostAmounts(
     extraCostCharge,
@@ -2573,7 +2593,11 @@ function BookingDetailContent() {
     index,
     recorded: { expectedCustomerCharge: recordedMilestoneCharges?.[index] },
     preview: customerPricingReady ? bookingMilestoneGrossAmounts[index] : null,
-    fallback: customerPricingReady ? customerPrice(amount) : null,
+    fallback: customerPricingReady
+      ? (isProfessionalViewer
+        ? commissionedPrice(amount)
+        : customerPrice(details?.payments?.milestones?.[index]?.expectedCustomerNetBeforeDiscount ?? Number.NaN))
+      : null,
   })
   const milestoneIncludesOptions = useMemo<boolean[]>(() => {
     const plan = details?.payments?.milestones
@@ -3390,7 +3414,9 @@ function BookingDetailContent() {
                               <tbody>
                                 {quotationPricingLines.map((line, index) => {
                                   const recordedLine = recordedPricing?.lines?.[index]
-                                  const net = recordedLine?.netAmount ?? (customerPricingReady ? customerPrice(line.price) : line.price)
+                                  const net = recordedLine?.netAmount ?? (isProfessionalViewer
+                                    ? (customerPricingReady ? commissionedPrice(line.price) : line.price)
+                                    : Number.NaN)
                                   const vatAmount = recordedLine?.vatAmount ?? net * ((line.vatRate || 0) / 100)
                                   const total = recordedLine?.totalAmount ?? net + vatAmount
                                   return (
@@ -4113,15 +4139,16 @@ function BookingDetailContent() {
                       <div className="bg-white/60 rounded p-2 space-y-2">
                         <p className="text-xs font-semibold text-gray-700">{t("extraCosts.title")}</p>
                         {booking.extraCosts.map((cost, i) => {
-                          const displayAmount = customerPricingReady ? commissionedExtraCost(cost, commissionPercent ?? 0) : null
-                          const isPositive = displayAmount == null ? cost.amount >= 0 : displayAmount >= 0
+                          const displayAmount = customerPricingReady ? customerExtraCost(cost, i) : Number.NaN
+                          const hasDisplayAmount = Number.isFinite(displayAmount)
+                          const isPositive = hasDisplayAmount ? displayAmount >= 0 : (cost.amount ?? 0) >= 0
                           return (
                             <div key={i} className="border-b border-gray-100 pb-1.5 last:border-0">
                               <div className="flex justify-between items-center">
                                 <span className="text-xs font-medium text-gray-800">{cost.name}</span>
                                 <span className={`text-xs font-semibold ${isPositive ? 'text-red-600' : 'text-green-600'}`}>
-                                  {customerPricingReady
-                                    ? `${displayAmount! >= 0 ? '+' : ''}${formatMoney(displayAmount!, booking.payment?.currency || 'EUR')}`
+                                  {hasDisplayAmount
+                                    ? `${displayAmount >= 0 ? '+' : ''}${formatMoney(displayAmount, booking.payment?.currency || 'EUR')}`
                                     : '...'}
                                 </span>
                               </div>
@@ -4137,7 +4164,7 @@ function BookingDetailContent() {
                           const currency = booking.payment?.currency || 'EUR'
                           const rawTotal = booking.extraCostTotal || 0
                           const subtotalInclCommission = extraCostCharge?.subtotalInclCommission
-                            ?? commissionedExtraCostTotal(booking.extraCosts, rawTotal, commissionPercent ?? 0)
+                            ?? customerExtraCostTotal(booking.extraCosts, rawTotal)
                           const { vat: vatAmount, vatRate, net: netCharge, total: displayedTotal } = extraCostAmounts
                           const computedLoyalty = rawTotal > 0
                             ? Math.max(0, +(subtotalInclCommission - netCharge).toFixed(2))
@@ -4153,9 +4180,9 @@ function BookingDetailContent() {
                           const showLoyalty = loyaltyDiscount > 0 && loyaltyPercentage > 0
                           return (
                             <div className="space-y-1 pt-1 border-t border-gray-200 text-xs">
-                              {commissionPercent != null && rawTotal !== 0 && (
+                              {customerPricingReady && rawTotal !== 0 && (
                                 <div className="flex justify-between text-gray-600">
-                                  <span>{t("extraCosts.subtotal", { percent: commissionPercent })}</span>
+                                  <span>{t("extraCosts.subtotal")}</span>
                                   <span>{subtotalInclCommission >= 0 ? '+' : ''}{formatMoney(subtotalInclCommission, currency)}</span>
                                 </div>
                               )}
@@ -4221,7 +4248,7 @@ function BookingDetailContent() {
                       </Button>
                     </div>
 
-                    {(booking.extraCostTotal || 0) > 0 && extraCostClientSecret && (booking.payment?.extraCostAmount != null || customerPricingReady) && (
+                    {(booking.extraCostTotal || 0) > 0 && extraCostClientSecret && (booking.payment?.extraCostAmount != null || (customerPricingReady && Number.isFinite(extraCostAmounts.total))) && (
                       <div className="rounded-lg border border-teal-200 bg-white/80 p-3 space-y-3">
                         <div>
                           <p className="text-sm font-semibold text-teal-900">{t("extraCosts.payBeforeConfirmTitle")}</p>

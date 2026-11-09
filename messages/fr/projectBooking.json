@@ -231,5 +231,7 @@
     "networkError": "Erreur réseau. Vérifiez votre connexion et réessayez.",
     "timeout": "La requête a expiré. Veuillez réessayer.",
     "unexpected": "Une erreur inattendue s'est produite. Veuillez réessayer."
-  }
+  },
+  "pricingUnavailable": "Les prix sont temporairement indisponibles. Réessayez pour continuer.",
+  "retryPricing": "Réessayer"
 }
