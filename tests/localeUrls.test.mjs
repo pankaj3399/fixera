@@ -226,12 +226,16 @@ function entityBackend(totals, { failCount = [] } = {}) {
         data: { type, items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasMore: start + count < total } },
       })
     }
-    throw new TypeError('cms down')
+    if (url.pathname === '/api/public/cms/sitemap') {
+      // An empty CMS listing: the content file holds the static pages only.
+      return json({ success: true, data: { items: [], pagination: { page: 1, limit: 1000, total: 0, totalPages: 0, hasMore: false } } })
+    }
+    throw new TypeError('unexpected request')
   }
   return { calls, restore: () => { globalThis.fetch = original } }
 }
 
-test('sitemap is an index: static file plus one file per 5,000-entity chunk, with fixed slots', async () => {
+test('sitemap is an index: content file plus one file per 5,000-entity chunk, with fixed slots', async () => {
   const backend = entityBackend({ project: 12000, professional: 6000 })
   const originalWarn = console.warn
   const originalError = console.error
@@ -239,8 +243,8 @@ test('sitemap is an index: static file plus one file per 5,000-entity chunk, wit
   console.error = () => {}
   try {
     const ids = (await generateSitemaps()).map((entry) => entry.id)
-    // project chunks 1..3, professional chunks 5..6 (slots 5 and 6 are fixed for professionals)
-    assert.deepEqual(ids, [0, 1, 2, 3, 5, 6])
+    // content file 0; project chunks 101..103; professional chunks 201..202 (fixed slots per type)
+    assert.deepEqual(ids, [0, 101, 102, 103, 201, 202])
   } finally {
     backend.restore()
     console.warn = originalWarn
@@ -251,7 +255,7 @@ test('sitemap is an index: static file plus one file per 5,000-entity chunk, wit
 test('entity chunk reads only the backend pages it covers and lists each entity in every language', async () => {
   const backend = entityBackend({ project: 12000 })
   try {
-    const entries = await sitemap({ id: 2 })
+    const entries = await sitemap({ id: 102 })
     const pages = backend.calls.map((u) => Number(u.searchParams.get('page')))
     assert.deepEqual(pages, [6, 7, 8, 9, 10], 'chunk 2 covers backend pages 6-10 only')
     assert.equal(entries.length, 5000 * 3, 'three language URLs per entity')
@@ -262,7 +266,7 @@ test('entity chunk reads only the backend pages it covers and lists each entity 
     assert.equal(first.alternates.languages['x-default'], 'https://example.test/projects/project-005000')
     assert.equal(first.lastModified.toISOString(), '2026-03-01T00:00:00.000Z')
 
-    const last = await sitemap({ id: 3 })
+    const last = await sitemap({ id: 103 })
     assert.equal(last.length, 2000 * 3, 'the final chunk stops at the last page')
   } finally {
     backend.restore()
@@ -276,7 +280,7 @@ test('a failed entity count drops only the entity chunks; the static file is sti
   console.error = (...args) => logged.push(args.map(String).join(' '))
   try {
     const ids = (await generateSitemaps()).map((entry) => entry.id)
-    assert.deepEqual(ids, [0, 1])
+    assert.deepEqual(ids, [0, 101])
     assert.ok(logged.some((line) => line.includes('event=sitemap.entities.fetch_failure') && line.includes('professional')))
   } finally {
     backend.restore()
@@ -323,7 +327,7 @@ test('sitemap.xml is an index that lists each generated sitemap file', async () 
     const body = await res.text()
     assert.equal(res.headers.get('content-type'), 'application/xml; charset=utf-8')
     assert.match(body, /<sitemapindex xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/)
-    for (const id of [0, 1, 2, 3, 5, 6]) {
+    for (const id of [0, 101, 102, 103, 201, 202]) {
       assert.ok(body.includes(`<loc>https://example.test/sitemap/${id}.xml</loc>`), `lists sitemap/${id}.xml`)
     }
     assert.equal((body.match(/<sitemap>/g) || []).length, 6)
