@@ -137,6 +137,14 @@ function RatingScoreBadge({ rating, totalReviews }: { rating: number; totalRevie
   )
 }
 
+/** The review query the list shows. The latest request's query is what a refresh reloads. */
+interface ReviewQuery {
+  page: number
+  search: string
+  rating: number | null
+  projectId: string
+}
+
 export interface ProfessionalProfileViewProps {
   /** Public profile loaded on the server by the route. Null: the client fetches it with the reviews. */
   initialProfessional: ProfessionalData | null
@@ -173,7 +181,12 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
   const [reviewProjectFilter, setReviewProjectFilter] = useState("")
   const [hidingReview, setHidingReview] = useState<string | null>(null)
   const [projectOptions, setProjectOptions] = useState<Array<{ _id: string; title: string }>>([])
-  const abortControllerRef = useRef<AbortController | null>(null)
+  // Profile lookup failed for a reason other than "not found" (429, 5xx, network): show a retry state.
+  const [profileUnavailable, setProfileUnavailable] = useState(false)
+  // Latest request and its query. An older response is ignored, and a refresh after a reply or a
+  // hide reloads the filters the user sees now, not the ones captured when the request began.
+  const latestRequestRef = useRef(0)
+  const latestQueryRef = useRef<ReviewQuery>({ page: 1, search: "", rating: null, projectId: "" })
 
   const isOwner = user?._id === professionalId && user?.role === "professional"
   const isAdmin = user?.role === "admin"
@@ -212,27 +225,37 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
     return () => { cancelled = true }
   }, [professionalId])
 
-  const fetchReviews = useCallback(async (pageNum: number, signal?: AbortSignal) => {
+  const loadReviews = useCallback(async (query: ReviewQuery, signal?: AbortSignal) => {
+    const requestId = ++latestRequestRef.current
+    latestQueryRef.current = query
+    const isLatest = () => requestId === latestRequestRef.current && !signal?.aborted
     try {
-      const params = new URLSearchParams({ page: String(pageNum), limit: "10" })
-      if (reviewSearch.trim()) params.set("search", reviewSearch.trim())
-      if (reviewRatingFilter) params.set("rating", String(reviewRatingFilter))
-      if (reviewProjectFilter) params.set("projectId", reviewProjectFilter)
+      const params = new URLSearchParams({ page: String(query.page), limit: "10" })
+      if (query.search.trim()) params.set("search", query.search.trim())
+      if (query.rating) params.set("rating", String(query.rating))
+      if (query.projectId) params.set("projectId", query.projectId)
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/professionals/${professionalId}/reviews?${params}`,
         { signal }
       )
       const data = await res.json()
+      if (!isLatest()) return
       if (!res.ok || !data.success) {
         toast.error(getErrorText(data, t("toast.loadFailed")))
         // 404: the profile is gone or no longer public. Other failures (429, 5xx) keep the
         // profile the server already rendered; only the reviews are cleared.
-        if (res.status === 404) setProfessional(null)
+        if (res.status === 404) {
+          setProfessional(null)
+          setProfileUnavailable(false)
+        } else {
+          setProfileUnavailable(true)
+        }
         setReviews([])
         setRatingsSummary(null)
         setTotalPages(1)
         return
       }
+      setProfileUnavailable(false)
       setProfessional(data.data.professional)
       setReviews(data.data.reviews)
       setRatingsSummary(data.data.ratingsSummary)
@@ -240,22 +263,27 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
       if (data.data.projects) setProjectOptions(data.data.projects)
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return
+      if (!isLatest()) return
       toast.error(t("toast.loadFailed"))
+      setProfileUnavailable(true)
     } finally {
-      setLoading(false)
-      // An aborted request is superseded by the next one, so it must not mark the list as loaded.
-      if (!signal?.aborted) setReviewsReady(true)
+      // Only the latest request decides the loaded state; a superseded one must not mark the list ready.
+      if (isLatest()) {
+        setLoading(false)
+        setReviewsReady(true)
+      }
     }
-  }, [professionalId, reviewSearch, reviewRatingFilter, reviewProjectFilter, getErrorText, t])
+  }, [professionalId, getErrorText, t])
 
   useEffect(() => {
     if (!professionalId) return
-    abortControllerRef.current?.abort()
     const controller = new AbortController()
-    abortControllerRef.current = controller
-    fetchReviews(page, controller.signal)
+    loadReviews(
+      { page, search: reviewSearch, rating: reviewRatingFilter, projectId: reviewProjectFilter },
+      controller.signal
+    )
     return () => { controller.abort() }
-  }, [professionalId, page, fetchReviews, reviewSearch, reviewRatingFilter, reviewProjectFilter])
+  }, [professionalId, page, reviewSearch, reviewRatingFilter, reviewProjectFilter, loadReviews])
 
   const handleReply = async (bookingId: string) => {
     if (!replyText.trim()) {
@@ -283,7 +311,7 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
         toast.success(t("toast.replyPosted"))
         setReplyingTo(null)
         setReplyText("")
-        fetchReviews(page)
+        loadReviews(latestQueryRef.current)
       } else {
         toast.error(getErrorText(data, t("toast.replyFailed")))
       }
@@ -311,7 +339,7 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
       const data = await res.json()
       if (res.ok && data.success) {
         toast.success(t("toast.reviewHidden"))
-        fetchReviews(page)
+        loadReviews(latestQueryRef.current)
       } else {
         toast.error(getErrorText(data, t("toast.reviewHideFailed")))
       }
@@ -358,6 +386,29 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
   }
 
   if (!professional) {
+    if (profileUnavailable) {
+      // A failed lookup is not a missing profile: offer a retry instead of a 404 message.
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
+              <MessageSquare className="h-7 w-7 text-gray-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800">{t("page.unavailableTitle")}</h2>
+            <p className="text-gray-500 text-sm">{t("page.unavailableDescription")}</p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLoading(true)
+                loadReviews(latestQueryRef.current)
+              }}
+            >
+              {t("page.retry")}
+            </Button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -382,6 +433,8 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
     ? new Date(professional.createdAt).toLocaleDateString(intl, { month: "long", year: "numeric" })
     : null
   const hasReviews = ratingsSummary && ratingsSummary.totalReviews > 0
+  // Pending: the first response has not arrived. A completed summary with no reviews is different.
+  const ratingsPending = !reviewsReady && ratingsSummary === null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -523,7 +576,14 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
-                {hasReviews ? (
+                {ratingsPending ? (
+                  <div className="space-y-4" aria-busy="true">
+                    <Skeleton className="h-12 w-40" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-5/6" />
+                    <Skeleton className="h-3 w-4/6" />
+                  </div>
+                ) : hasReviews ? (
                   <>
                     <RatingScoreBadge
                       rating={ratingsSummary!.overallAverage}
@@ -617,6 +677,7 @@ export default function ProfessionalProfileView({ initialProfessional }: Profess
                     </div>
                     {(projectOptions.length > 1 || reviewProjectFilter) && (
                       <select
+                        aria-label={t("page.filterByProject")}
                         value={reviewProjectFilter}
                         onChange={(e) => { setReviewProjectFilter(e.target.value); setPage(1) }}
                         className="h-9 rounded-md border border-input bg-background px-3 text-sm"

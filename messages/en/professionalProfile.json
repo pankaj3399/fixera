@@ -50,7 +50,11 @@
     "previousPage": "Previous page",
     "nextPage": "Next page",
     "pageOf": "Page {page} of {totalPages}",
-    "reviewCount": "{count, plural, one {# review} other {# reviews}}"
+    "reviewCount": "{count, plural, one {# review} other {# reviews}}",
+    "unavailableTitle": "We could not load this profile",
+    "unavailableDescription": "The profile could not be loaded just now. Please try again.",
+    "retry": "Try again",
+    "filterByProject": "Filter reviews by project"
   },
   "toast": {
     "loadFailed": "Failed to load professional profile",
