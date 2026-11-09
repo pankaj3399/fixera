@@ -2,7 +2,7 @@
   "indicator": {
     "countingSince": "Counting since {date}",
     "showAll": "Show all history",
-    "showingAll": "Showing all history since the reset on {date}",
+    "showingAll": "Showing all history, including records from before the reset on {date}",
     "countFromReset": "Count from reset"
   },
   "dashboards": {

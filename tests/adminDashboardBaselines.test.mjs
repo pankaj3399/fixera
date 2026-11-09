@@ -222,7 +222,7 @@ test('indicator in show-all mode says so and offers to count from the reset agai
     toggleHref: '/admin/warranty-claims',
   }))
   assert.match(html, /data-state="showing-all"/)
-  assert.match(text(html), /Showing all history since the reset on .*2026/)
+  assert.match(text(html), /Showing all history, including records from before the reset on .*2026/)
   assert.match(text(html), /Count from reset/)
   assert.match(html, /href="\/admin\/warranty-claims"/)
 })

@@ -2,7 +2,7 @@
   "indicator": {
     "countingSince": "Telt vanaf {date}",
     "showAll": "Toon volledige geschiedenis",
-    "showingAll": "Volledige geschiedenis sinds de reset op {date}",
+    "showingAll": "Volledige geschiedenis, inclusief records van vóór de reset op {date}",
     "countFromReset": "Tel vanaf reset"
   },
   "dashboards": {

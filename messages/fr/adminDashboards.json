@@ -2,7 +2,7 @@
   "indicator": {
     "countingSince": "Comptage depuis le {date}",
     "showAll": "Afficher tout l'historique",
-    "showingAll": "Historique complet depuis la réinitialisation du {date}",
+    "showingAll": "Historique complet, y compris les éléments antérieurs à la réinitialisation du {date}",
     "countFromReset": "Compter depuis la réinitialisation"
   },
   "dashboards": {
