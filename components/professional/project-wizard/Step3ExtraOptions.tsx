@@ -167,7 +167,8 @@ export default function Step3ExtraOptions({ data, onChange, onValidate }: Step3P
   const [repeatBuyerDiscount, setRepeatBuyerDiscount] = useState<IRepeatBuyerDiscount>(
     data.repeatBuyerDiscount || { enabled: false, percentage: 5, minPreviousBookings: 1 }
   )
-  const { commissionPercent, customerPrice } = useCommissionRate()
+  // Professionals price their own base amounts locally with their rate (no customer endpoint).
+  const { commissionPercent, commissionedPrice: customerPrice } = useCommissionRate()
   const [customExtraName, setCustomExtraName] = useState('')
   const [customExtraPrice, setCustomExtraPrice] = useState('')
   const [customTermName, setCustomTermName] = useState('')

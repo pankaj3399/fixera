@@ -76,8 +76,8 @@ interface ProjectCardProps {
     };
     pricing?: {
       type: 'fixed' | 'unit' | 'rfq';
-      amount?: number;
-      priceRange?: { min: number; max: number };
+      customerAmount?: number;
+      customerPriceRange?: { min: number; max: number };
     };
     priceModel?: string;
     certifications?: Array<{
@@ -96,8 +96,8 @@ interface ProjectCardProps {
       description: string;
       pricing: {
         type: 'fixed' | 'unit' | 'rfq';
-        amount?: number;
-        priceRange?: { min: number; max: number };
+        customerAmount?: number;
+        customerPriceRange?: { min: number; max: number };
         unit?: string;
         durationBasis?: 'per_booking' | 'per_unit';
       };
@@ -186,8 +186,8 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     return null;
   };
 
-  const renderSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
-    const amount = pricing.amount;
+  const renderSubprojectPrice = (pricing: { type: string; customerAmount?: number; customerPriceRange?: { min: number; max: number } }) => {
+    const amount = pricing.customerAmount;
 
     if (pricing.type === 'fixed' && amount != null && Number.isFinite(amount)) {
       if (hasDiscount(amount)) {
@@ -203,11 +203,11 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     if (pricing.type === 'unit') {
       const perUnit = perUnitSuffix();
       if (
-        pricing.priceRange &&
-        Number.isFinite(pricing.priceRange.min) &&
-        Number.isFinite(pricing.priceRange.max)
+        pricing.customerPriceRange &&
+        Number.isFinite(pricing.customerPriceRange.min) &&
+        Number.isFinite(pricing.customerPriceRange.max)
       ) {
-        return `${formatAmount(pricing.priceRange.min)}-${formatAmount(pricing.priceRange.max)}${perUnit}`;
+        return `${formatAmount(pricing.customerPriceRange.min)}-${formatAmount(pricing.customerPriceRange.max)}${perUnit}`;
       }
       if (amount != null && Number.isFinite(amount)) {
         if (hasDiscount(amount)) {

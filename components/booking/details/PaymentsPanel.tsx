@@ -1025,8 +1025,8 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
                       <p className="text-sm font-semibold tabular-nums">
                         <MoneyText amount={refund.amount} currency={refundCurrency} formatMoney={formatMoney} />
                       </p>
-                      <ProvenanceBadge tone={refund.status === "recorded" ? "emerald" : "amber"}>
-                        {refund.status ? <StatusText value={refund.status} /> : dt("payments.recorded", "recorded")}
+                      <ProvenanceBadge tone={refund.status === "recorded" && refund.cashReturned !== false ? "emerald" : "amber"}>
+                        {refund.cashReturned === false ? dt("payments.refundPending", "Refund pending — funds have not been returned") : refund.status ? <StatusText value={refund.status} /> : dt("payments.recorded", "recorded")}
                       </ProvenanceBadge>
                       {refund.kind ? (
                         <ProvenanceBadge tone={refund.kind === "extra_cost" ? "blue" : "slate"}>

@@ -57,3 +57,17 @@ export const computeCustomerPriceWithRepeatBuyerDiscount = ({
     discountedAmount: +Math.max(0, customerAmount - discountAmount).toFixed(2),
   }
 }
+
+/**
+ * A fixed or unit package is priced by the server: submitting it (or paying) needs a
+ * finite customer price. RFQ packages have no price, so their submission is never gated.
+ */
+export const packageRequiresCustomerPrice = (pricingType: string | null | undefined): boolean =>
+  Boolean(pricingType) && pricingType !== 'rfq'
+
+/** The gate is open when no price is required, or the server price is ready and finite. */
+export const customerPriceGateOpen = (params: {
+  requiresPrice: boolean
+  pricingReady: boolean
+  customerAmount: number | null | undefined
+}): boolean => !params.requiresPrice || (params.pricingReady && toFiniteAmount(params.customerAmount) != null)

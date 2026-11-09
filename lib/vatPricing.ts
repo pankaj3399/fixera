@@ -17,6 +17,7 @@ export interface VatQuoteVersionLike {
 const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100
 
 const allocateRoundedAmounts = (amounts: number[], targetTotal: number): number[] => {
+  if (!Number.isFinite(targetTotal) || amounts.some(amount => !Number.isFinite(amount))) return amounts.map(() => NaN)
   const sourceTotal = amounts.reduce((sum, amount) => sum + amount, 0)
   if (!(sourceTotal > 0) || !(targetTotal > 0)) {
     return amounts.map(() => 0)

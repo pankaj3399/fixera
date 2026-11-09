@@ -278,8 +278,16 @@ export function trackProfessionalContact(project: ProjectLike): void {
 export function getProjectPrice(project: ProjectLike, subprojectIndex?: number | null): number {
   const selected =
     typeof subprojectIndex === 'number' ? project.subprojects?.[subprojectIndex] : project.subprojects?.[0];
-  const pricing = selected?.pricing;
+  const pricing = selected?.pricing as
+    | { amount?: number; priceRange?: { min?: number }; customerAmount?: number; customerPriceRange?: { min?: number } }
+    | undefined;
   if (!pricing) return 0;
+  // Analytics leaves the site, so it reports the customer-side price. The base amount is only a fallback
+  // for views where the server did not withhold it (the owning professional).
+  if (typeof pricing.customerAmount === 'number' && Number.isFinite(pricing.customerAmount)) return pricing.customerAmount;
+  if (typeof pricing.customerPriceRange?.min === 'number' && Number.isFinite(pricing.customerPriceRange.min)) {
+    return pricing.customerPriceRange.min;
+  }
   if (typeof pricing.amount === 'number' && Number.isFinite(pricing.amount)) return pricing.amount;
   if (typeof pricing.priceRange?.min === 'number' && Number.isFinite(pricing.priceRange.min)) {
     return pricing.priceRange.min;

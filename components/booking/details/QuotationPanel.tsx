@@ -24,6 +24,7 @@ import {
 import type {
   ActivityItem,
   BookingDetailsDto,
+  DetailViewerRole,
   QuotationVersionDto,
   RawBookingRecord,
 } from "@/types/bookingDetails"
@@ -48,6 +49,7 @@ import {
 import { QuestionAnswerList } from "./BookingDataPanel"
 
 interface QuotationPanelProps {
+  viewerRole?: DetailViewerRole | null
   booking: RawBookingRecord
   details: BookingDetailsDto | null
   pathname: string
@@ -105,7 +107,7 @@ function ActivityHistory({ items, timeZone }: { items: ActivityItem[]; timeZone:
   )
 }
 
-export function QuotationPanel({ booking, details, pathname, search }: QuotationPanelProps) {
+export function QuotationPanel({ booking, details, pathname, search, viewerRole }: QuotationPanelProps) {
   const t = useTranslations("bookings")
   const dt = useDetailT()
   const { formatMoney } = useCurrency()
@@ -116,9 +118,10 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
     recordedScheduleTimeZone(details, booking.scheduleTimeZone)
   )
 
+  const role = viewerRole || details?.viewerRole || "customer"
   const quotation = details?.quotation
   const versions: QuotationVersionDto[] = useMemo(() => {
-    if (Array.isArray(quotation?.versions) && quotation.versions.length > 0) return quotation.versions
+    if (Array.isArray(quotation?.versions)) return quotation.versions
     return (booking.quoteVersions || []).map((version) => ({
       ...version,
       quotationNumber: version.quotationNumber || booking.quotationNumber || null,
@@ -205,8 +208,8 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
 
   const history = useMemo(() => {
     const provided = dedupeActivity([...(quotation?.history || []), ...(quotation?.rfqHistory || [])])
-    if (provided.length > 0) return provided
-    const fallback = details?.activity?.items?.length
+    if (Array.isArray(quotation?.history) || Array.isArray(quotation?.rfqHistory)) return provided
+    const fallback = Array.isArray(details?.activity?.items)
       ? details.activity.items
       : buildLegacyActivity(booking)
     return sortActivity(
@@ -290,9 +293,11 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
             ) : null}
           </DetailField>
           <DetailField label={dt("fields.currency", "Currency")} empty={!quotation?.currency}>{quotation?.currency}</DetailField>
+          {role !== "customer" ? (
           <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={quotation?.totalAmountProfessional == null}>
             <MoneyText amount={quotation?.totalAmountProfessional} currency={quotation?.currency} formatMoney={formatMoney} />
           </DetailField>
+          ) : null}
           <DetailField label={dt("fields.versionCount", "Versions")}>
             {versions.length > 0 ? versions.length : <NotRecorded />}
           </DetailField>
@@ -436,6 +441,9 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
                 dt("quotation.actorNotRecorded", "actor not recorded")
               )}
             </DetailField>
+            <DetailField label={dt("fields.firstPossibleStart", "First possible start")} empty={!selected.firstPossibleStart}>
+              {formatCalendarDate(selected.firstPossibleStart, intl)}
+            </DetailField>
             <DetailField label={dt("fields.validUntil", "Valid until")} empty={!selected.validUntil}>
               {formatCalendarDate(selected.validUntil, intl) || selected.validUntil}
             </DetailField>
@@ -462,9 +470,11 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
             <DetailField label={dt("fields.bufferDuration", "Buffer")} empty={!durationLabel(selected.bufferDuration)}>
               <DurationText duration={selected.bufferDuration} />
             </DetailField>
+            {role !== "customer" ? (
             <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={selected.totalAmount == null}>
               <MoneyText amount={selected.totalAmount} currency={selected.currency} formatMoney={formatMoney} />
             </DetailField>
+            ) : null}
             <DetailField label={dt("fields.currency", "Currency")} empty={!selected.currency}>{selected.currency}</DetailField>
           </dl>
 
@@ -510,6 +520,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
             </div>
           ) : null}
 
+          {role !== "customer" ? (
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("quotation.pricingLines", "Pricing lines (professional net)")}</p>
             {Array.isArray(selected.pricingLines) && selected.pricingLines.length > 0 ? (
@@ -552,14 +563,17 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
               <div className="mt-1"><NotRecorded /></div>
             )}
           </div>
+          ) : null}
 
           {selected.customerTotals ? (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
               <p className="text-xs font-semibold text-blue-900">{dt("quotation.customerSnapshot", "Customer price recorded with this version")}</p>
               <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {role !== "customer" ? (
                 <DetailField label={dt("fields.professionalNet", "Professional net")} empty={selected.customerTotals.professionalNetAmount == null}>
                   <MoneyText amount={selected.customerTotals.professionalNetAmount} currency={selected.customerTotals.currency || selected.currency} formatMoney={formatMoney} />
                 </DetailField>
+                ) : null}
                 <DetailField label={dt("fields.customerNet", "Customer net")} empty={selected.customerTotals.customerNetAmount == null}>
                   <MoneyText amount={selected.customerTotals.customerNetAmount} currency={selected.customerTotals.currency || selected.currency} formatMoney={formatMoney} />
                 </DetailField>
@@ -575,9 +589,11 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
                 <DetailField label={dt("fields.totalWithVat", "Total incl. VAT")} empty={selected.customerTotals.totalWithVat == null && selected.customerTotals.totalAmount == null}>
                   <MoneyText amount={selected.customerTotals.totalWithVat ?? selected.customerTotals.totalAmount} currency={selected.customerTotals.currency || selected.currency} formatMoney={formatMoney} />
                 </DetailField>
+                {role !== "customer" ? (
                 <DetailField label={dt("fields.commission", "Commission")} empty={selected.customerTotals.commissionPercent == null}>
                   {selected.customerTotals.commissionPercent != null ? `${selected.customerTotals.commissionPercent}%` : null}
                 </DetailField>
+                ) : null}
                 <DetailField label={dt("fields.recordedAt", "Recorded at")} empty={!selected.customerTotals.recordedAt}>
                   {formatInstant(selected.customerTotals.recordedAt, intl, displayTimeZone.timeZone)}
                 </DetailField>
@@ -643,10 +659,13 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("quotation.milestones", "Payment milestones")}</p>
               <ul className="mt-1 space-y-1 text-xs text-gray-700">
-                {selected.milestones.map((milestone, index) => (
+                {[...selected.milestones].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((milestone, index) => (
                   <li key={`${milestone.title}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
                     <span>
-                      {milestone.title}
+                      <span className="font-medium">{dt("fields.milestoneOrder", "Order")}: {milestone.order ?? dt("notRecorded", "Not recorded")} · {milestone.title}</span>
+                      {milestone.description ? <span className="mt-1 block whitespace-pre-wrap">{milestone.description}</span> : null}
+                      <span className="mt-1 block">{dt("fields.milestoneStatus", "Status")}: <EnumText prefix="details.enums.milestoneStatus" value={milestone.status} /></span>
+                      <span className="mt-1 block">{dt("fields.customDueDate", "Due date")}: {formatCalendarDate(milestone.customDueDate, intl) || dt("notRecorded", "Not recorded")}</span>
                       {milestone.dueCondition ? <span className="ml-2 text-[10px] text-gray-500"><EnumText prefix="details.enums.dueCondition" value={milestone.dueCondition} /></span> : null}
                     </span>
                     <span className="tabular-nums">
@@ -677,9 +696,11 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
           description={dt("quotation.legacyDescription", "The old quote format is shown as stored. It has no version history.")}
         >
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={booking.quote.amount == null}>
-              <MoneyText amount={booking.quote.amount} currency={booking.quote.currency} formatMoney={formatMoney} />
-            </DetailField>
+            {role !== "customer" ? (
+              <DetailField label={dt("fields.professionalTotal", "Professional total (excl. commission)")} empty={booking.quote.amount == null}>
+                <MoneyText amount={booking.quote.amount} currency={booking.quote.currency} formatMoney={formatMoney} />
+              </DetailField>
+            ) : null}
             <DetailField label={dt("fields.currency", "Currency")} empty={!booking.quote.currency}>{booking.quote.currency}</DetailField>
             <DetailField label={dt("fields.validUntil", "Valid until")} empty={!booking.quote.validUntil}>
               {formatCalendarDate(booking.quote.validUntil, intl) || booking.quote.validUntil}
@@ -791,6 +812,7 @@ export function QuotationPanel({ booking, details, pathname, search }: Quotation
         title={dt("quotation.history", "RFQ & quotation history")}
         description={dt("quotation.historyDescription", "Recorded events with their stored actor and time; no inferred steps.")}
       >
+        <p className="text-xs text-amber-800">{dt("activity.coverageUnknown", "Historical coverage is unknown. Only surviving records are shown.")}</p>
         <ActivityHistory items={history} timeZone={displayTimeZone.timeZone} />
       </DetailCard>
     </div>
