@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire, register } from 'node:module'
 import { test } from 'node:test'
-import { componentHarness } from './helpers/componentHarness.mjs'
+import { componentHarness, elementText } from './helpers/componentHarness.mjs'
 register('./swc-loader.mjs', import.meta.url)
 const require = createRequire(import.meta.url)
 const React = await import('react')
@@ -333,4 +333,66 @@ test('the reset confirmation takes focus when it opens and returns it to the ope
 test('the confirmation dialog is focusable so it can receive focus', () => {
   const html = renderView({ pending: { target: 'disputes' } })
   assert.match(html, /<div[^>]*tabindex="-1"[^>]*data-testid="dashboard-reset-confirm"/)
+})
+
+test('the Undo button hands the resetAt on screen to the card', () => {
+  const h = componentHarness(cardFile, {
+    'next-intl': { useTranslations: () => translate, useLocale: () => 'en' },
+    sonner: { toast: { success() {}, error() {} } },
+    '@/lib/utils': { authFetch: async () => ({ ok: false, json: async () => ({}) }) },
+    '@/lib/admin/dashboardBaselines': helpers,
+  })
+  h.useComponent(h.exports.DashboardBaselineSettingsView)
+  const undone = []
+  h.render(viewProps({ onUndo: (key, expectedResetAt) => undone.push([key, expectedResetAt]) }))
+  const undoButton = h.findAll((node) => typeof node.props.onClick === 'function' && elementText(node).trim() === translate('settings.undo'))[0]
+  undoButton.props.onClick()
+  assert.deepEqual(undone, [['disputes', RESET_AT]])
+})
+
+test('undo sends the displayed resetAt; a BASELINE_CHANGED conflict reloads the baselines and says so', async () => {
+  const MOVED_AT = '2026-11-08T09:00:00.000Z'
+  const movedSnapshot = {
+    ...snapshot,
+    dashboards: snapshot.dashboards.map((d) => (d.key === 'disputes'
+      ? { ...d, resetAt: MOVED_AT, resetBy: { id: 'u2', name: 'Bruno Other' }, note: 'reset by Bruno', canUndo: true }
+      : d)),
+  }
+  const requests = []
+  const toasts = []
+  const response = (body, status = 200) => {
+    const make = () => ({ ok: status >= 200 && status < 300, status, json: async () => body, clone: make })
+    return make()
+  }
+  const authFetch = (url, init) =>
+    new Promise((resolve) => requests.push({ url: String(url), init, respond: (body, status) => resolve(response(body, status)) }))
+  const h = componentHarness(cardFile, {
+    'next-intl': { useTranslations: () => translate, useLocale: () => 'en' },
+    sonner: { toast: { success: (message) => toasts.push(['success', message]), error: (message) => toasts.push(['error', message]) } },
+    '@/lib/utils': { authFetch },
+    '@/lib/admin/dashboardBaselines': helpers,
+  })
+  h.render({ canManage: true })
+  await h.settle()
+  requests[0].respond({ success: true, data: snapshot })
+  await h.settle()
+
+  const view = () => h.findAll((node) => typeof node.props.onUndo === 'function')[0].props
+  view().onUndo('disputes', RESET_AT)
+  await h.settle()
+  const undoRequest = requests[1]
+  assert.match(undoRequest.url, /\/dashboard-baselines\/disputes\/undo$/)
+  assert.equal(undoRequest.init.method, 'POST')
+  assert.deepEqual(JSON.parse(undoRequest.init.body), { expectedResetAt: RESET_AT })
+
+  undoRequest.respond({ success: false, code: 'BASELINE_CHANGED', msg: 'changed', data: movedSnapshot }, 409)
+  await h.settle()
+  assert.match(requests[2].url, /\/api\/admin\/platform-settings\/dashboard-baselines$/, 'the baselines are reloaded')
+  requests[2].respond({ success: true, data: movedSnapshot })
+  await h.settle()
+
+  assert.equal(view().snapshot.dashboards.find((d) => d.key === 'disputes').resetAt, MOVED_AT, 'the list shows the current reset')
+  assert.equal(view().busy, false)
+  assert.deepEqual(toasts, [['error', 'This dashboard was reset again by someone else. Refreshed — review before undoing.']])
+  assert.equal(requests.length, 3, 'the conflicting undo was not retried')
 })

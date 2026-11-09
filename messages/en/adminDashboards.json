@@ -56,6 +56,7 @@
     "resetDone": "{dashboard} now counts from this moment.",
     "resetAllDone": "All booking dashboards now count from this moment.",
     "undoDone": "The previous baseline was restored for {dashboard}.",
-    "error": "Could not update the dashboards. Please try again."
+    "error": "Could not update the dashboards. Please try again.",
+    "undoBaselineChanged": "This dashboard was reset again by someone else. Refreshed — review before undoing."
   }
 }

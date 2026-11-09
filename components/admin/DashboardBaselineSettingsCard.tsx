@@ -51,7 +51,7 @@ type ViewProps = {
   onCancelReset: () => void
   onNoteChange: (value: string) => void
   onConfirmReset: () => void
-  onUndo: (key: DashboardBaselineKey) => void
+  onUndo: (key: DashboardBaselineKey, expectedResetAt: string | null) => void
   onRetry: () => void
 }
 
@@ -175,7 +175,7 @@ export function DashboardBaselineSettingsView({
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {view?.canUndo && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => onUndo(key)} disabled={busy}>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => onUndo(key, view.resetAt)} disabled={busy}>
                         {t('settings.undo')}
                       </Button>
                     )}
@@ -324,10 +324,24 @@ export default function DashboardBaselineSettingsCard({ canManage }: { canManage
     }
   }
 
-  const undo = async (key: DashboardBaselineKey) => {
+  const undo = async (key: DashboardBaselineKey, expectedResetAt: string | null) => {
     setBusy(true)
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${undoRequestPath(key)}`, { method: 'POST' })
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${undoRequestPath(key)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // The reset this admin is looking at. The server refuses the undo if it has moved on.
+        body: JSON.stringify({ expectedResetAt }),
+      })
+      const conflict = res.status === 409
+        ? await res.clone().json().catch(() => null) as { code?: unknown } | null
+        : null
+      if (conflict?.code === 'BASELINE_CHANGED') {
+        // Someone else reset this dashboard after this page loaded. Show the current state and do not undo.
+        await load()
+        toast.error(t('settings.undoBaselineChanged'))
+        return
+      }
       await applyResponse(res)
       toast.success(t('settings.undoDone', { dashboard: t(LABEL_KEY[key]) }))
     } catch {
@@ -358,7 +372,7 @@ export default function DashboardBaselineSettingsCard({ canManage }: { canManage
       }}
       onNoteChange={setNote}
       onConfirmReset={() => void confirmReset()}
-      onUndo={(key) => void undo(key)}
+      onUndo={(key, expectedResetAt) => void undo(key, expectedResetAt)}
       onRetry={() => void load()}
     />
   )

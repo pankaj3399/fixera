@@ -56,6 +56,7 @@
     "resetDone": "{dashboard} telt nu vanaf dit moment.",
     "resetAllDone": "Alle boekingsdashboards tellen nu vanaf dit moment.",
     "undoDone": "De vorige basislijn is hersteld voor {dashboard}.",
-    "error": "De dashboards konden niet worden bijgewerkt. Probeer het opnieuw."
+    "error": "De dashboards konden niet worden bijgewerkt. Probeer het opnieuw.",
+    "undoBaselineChanged": "Dit dashboard is door iemand anders opnieuw gereset. Vernieuwd — controleer het voordat je het ongedaan maakt."
   }
 }

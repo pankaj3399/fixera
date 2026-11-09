@@ -56,6 +56,7 @@
     "resetDone": "{dashboard} compte maintenant à partir de cet instant.",
     "resetAllDone": "Tous les tableaux de bord des réservations comptent maintenant à partir de cet instant.",
     "undoDone": "Le point de départ précédent a été rétabli pour {dashboard}.",
-    "error": "Impossible de mettre à jour les tableaux de bord. Veuillez réessayer."
+    "error": "Impossible de mettre à jour les tableaux de bord. Veuillez réessayer.",
+    "undoBaselineChanged": "Ce tableau de bord a de nouveau été réinitialisé par quelqu'un d'autre. Actualisé — vérifiez avant d'annuler."
   }
 }
