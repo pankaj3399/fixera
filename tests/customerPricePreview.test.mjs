@@ -24,6 +24,25 @@ test('customer previews are entity-keyed, batch and deduplicate, and read NaN un
   assert.equal(cache.ready(), true)
 })
 
+test('a large set of lookups is split into batches the server accepts (at most 50 per request)', async () => {
+  const { CUSTOMER_PRICE_BATCH_LIMIT } = await import('@/lib/customerPricePreview')
+  const batches = []
+  const cache = createCustomerPriceCache(async requests => { batches.push(requests.length); return requests.map(() => 1) })
+  assert.equal(CUSTOMER_PRICE_BATCH_LIMIT, 50)
+  for (let index = 0; index < 60; index++) cache.read(ref(index % 100))
+  for (let turn = 0; turn < 6; turn++) await settle()
+  assert.deepEqual(batches, [50, 10])
+  assert.equal(cache.ready(), true)
+})
+
+test('an out-of-range subproject index never requests a price', async () => {
+  const calls = []
+  const cache = createCustomerPriceCache(async requests => { calls.push(requests); return requests.map(() => 1) })
+  assert.ok(Number.isNaN(cache.read(ref(100))))
+  await settle()
+  assert.equal(calls.length, 0)
+})
+
 test('an invalid package reference never requests a price', async () => {
   const calls = []
   const cache = createCustomerPriceCache(async requests => { calls.push(requests); return requests.map(() => 1) })

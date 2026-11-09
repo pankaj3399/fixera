@@ -20,8 +20,13 @@ const refKey = (ref: PackagePriceRef) => JSON.stringify([
   [...(ref.selectedExtraOptions ?? [])].sort((a, b) => a - b),
 ])
 
+/** Matches the server's MAX_PREVIEW_REQUESTS: a larger batch is rejected whole, so it is split. */
+export const CUSTOMER_PRICE_BATCH_LIMIT = 50
+/** Matches the server's subproject index bound (0..99). */
+const MAX_SUBPROJECT_INDEX = 99
+
 const isValidRef = (ref: PackagePriceRef) => Boolean(ref.projectId)
-  && Number.isInteger(ref.subprojectIndex) && ref.subprojectIndex >= 0
+  && Number.isInteger(ref.subprojectIndex) && ref.subprojectIndex >= 0 && ref.subprojectIndex <= MAX_SUBPROJECT_INDEX
 
 /**
  * Shared cache for customer totals. A missing, pending or failed lookup reads as
@@ -41,7 +46,7 @@ export function createCustomerPriceCache(fetchPrices: (requests: PackagePriceRef
   const flush = async () => {
     scheduled = false
     if (!queued.size) return
-    const keys = [...queued].slice(0, 100)
+    const keys = [...queued].slice(0, CUSTOMER_PRICE_BATCH_LIMIT)
     keys.forEach(key => queued.delete(key))
     const batch = keys.map(key => entries.get(key)!.request)
     const currentGeneration = generation
