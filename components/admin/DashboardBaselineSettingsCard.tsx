@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 import { Loader2, RotateCcw } from 'lucide-react'
@@ -52,6 +52,7 @@ type ViewProps = {
   onNoteChange: (value: string) => void
   onConfirmReset: () => void
   onUndo: (key: DashboardBaselineKey) => void
+  onRetry: () => void
 }
 
 /**
@@ -72,8 +73,29 @@ export function DashboardBaselineSettingsView({
   onNoteChange,
   onConfirmReset,
   onUndo,
+  onRetry,
 }: ViewProps) {
   const t = useTranslations('adminDashboards')
+  const dialogRef = useRef<HTMLDivElement | null>(null)
+  // The control that opened the confirmation, so focus can return to it.
+  const returnFocusRef = useRef<{ focus?: () => void } | null>(null)
+
+  // WAI-ARIA alertdialog: move focus into the dialog when it opens, and give it
+  // back to the opening control when the dialog closes (cancel or confirm).
+  useEffect(() => {
+    if (!pending) return
+    if (!returnFocusRef.current && typeof document !== 'undefined') {
+      returnFocusRef.current = document.activeElement as { focus?: () => void } | null
+    }
+    dialogRef.current?.focus()
+  }, [pending])
+
+  useEffect(() => {
+    if (pending) return
+    const returnTo = returnFocusRef.current
+    returnFocusRef.current = null
+    returnTo?.focus?.()
+  }, [pending])
 
   const viewFor = (key: DashboardBaselineKey): DashboardBaselineView | undefined =>
     snapshot?.dashboards.find((d) => d.key === key)
@@ -129,7 +151,14 @@ export function DashboardBaselineSettingsView({
             {t('settings.loading')}
           </p>
         )}
-        {loadFailed && !loading && <p className="text-sm text-red-600">{t('settings.loadError')}</p>}
+        {loadFailed && !loading && (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-red-600">{t('settings.loadError')}</p>
+            <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={busy}>
+              {t('settings.retry')}
+            </Button>
+          </div>
+        )}
 
         {snapshot && (
           <ul className="divide-y rounded-md border" data-testid="dashboard-reset-list">
@@ -162,6 +191,8 @@ export function DashboardBaselineSettingsView({
 
         {pending && (
           <div
+            ref={dialogRef}
+            tabIndex={-1}
             role="alertdialog"
             aria-modal="false"
             aria-labelledby="dashboard-reset-title"
@@ -328,6 +359,7 @@ export default function DashboardBaselineSettingsCard({ canManage }: { canManage
       onNoteChange={setNote}
       onConfirmReset={() => void confirmReset()}
       onUndo={(key) => void undo(key)}
+      onRetry={() => void load()}
     />
   )
 }

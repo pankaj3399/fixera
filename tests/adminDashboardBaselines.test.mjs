@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire, register } from 'node:module'
 import { test } from 'node:test'
+import { componentHarness } from './helpers/componentHarness.mjs'
 register('./swc-loader.mjs', import.meta.url)
 const require = createRequire(import.meta.url)
 const React = await import('react')
@@ -56,6 +57,7 @@ const viewProps = (overrides = {}) => ({
   onNoteChange() {},
   onConfirmReset() {},
   onUndo() {},
+  onRetry() {},
   ...overrides,
 })
 
@@ -259,4 +261,76 @@ test('the reset section is mounted on platform settings for super admins only', 
   const source = read('app/(pages)/admin/settings/page.tsx')
   assert.match(source, /canManageDashboardBaselines\(user\)/)
   assert.match(source, /<DashboardBaselineSettingsCard canManage \/>/)
+})
+
+// Runtime checks through the component harness: hooks, effects and handlers run without a DOM.
+const messagesEn = JSON.parse(readFileSync(new URL('../messages/en/adminDashboards.json', import.meta.url), 'utf8'))
+const translate = (key, values = {}) => {
+  const value = key.split('.').reduce((node, part) => node?.[part], messagesEn)
+  return String(value ?? key).replace(/\{(\w+)\}/g, (_, name) => values[name] ?? '')
+}
+const cardFile = new URL('../components/admin/DashboardBaselineSettingsCard.tsx', import.meta.url)
+const cardHarness = (authFetch) =>
+  componentHarness(cardFile, {
+    'next-intl': { useTranslations: () => translate, useLocale: () => 'en' },
+    sonner: { toast: { success() {}, error() {} } },
+    '@/lib/utils': { authFetch },
+    '@/lib/admin/dashboardBaselines': helpers,
+  })
+const buttonLabelled = (h, label) =>
+  h.findAll((node) => typeof node.props.onClick === 'function' && elementText(node).trim() === label)[0]
+
+test('a failed baseline load offers a retry that asks the server again and then shows the list', async () => {
+  const requests = []
+  const authFetch = (url) =>
+    new Promise((resolve) => requests.push({ url: String(url), respond: (body, ok = true) => resolve({ ok, json: async () => body }) }))
+  const h = cardHarness(authFetch)
+  h.render({ canManage: true })
+  await h.settle()
+  requests[0].respond({}, false)
+  await h.settle()
+  // The container hands its state to the view as props; the view itself is not run here.
+  const view = () => h.findAll((node) => typeof node.props.onRetry === 'function')[0].props
+  assert.equal(view().loadFailed, true, 'a failed load is shown with a retry')
+
+  view().onRetry()
+  await h.settle()
+  assert.equal(requests.length, 2, 'retry sends a new baseline request')
+  requests[1].respond({ success: true, data: snapshot })
+  await h.settle()
+  assert.equal(view().loadFailed, false)
+  assert.equal(view().snapshot.dashboards.length, 4)
+})
+
+test('the reset confirmation takes focus when it opens and returns it to the opener when it closes', () => {
+  const focus = []
+  const opener = { focus: () => focus.push('opener') }
+  const dialog = { focus: () => focus.push('dialog') }
+  const previousDocument = globalThis.document
+  globalThis.document = { activeElement: opener }
+  try {
+    const h = componentHarness(cardFile, {
+      'next-intl': { useTranslations: () => translate, useLocale: () => 'en' },
+      sonner: { toast: { success() {}, error() {} } },
+      '@/lib/utils': { authFetch: async () => ({ ok: false, json: async () => ({}) }) },
+      '@/lib/admin/dashboardBaselines': helpers,
+    })
+    h.useComponent(h.exports.DashboardBaselineSettingsView)
+    h.render(viewProps({ pending: { target: 'cancellations' } }))
+    // React attaches the ref to the dialog on commit; the harness has no commit, so attach it here.
+    const dialogNode = h.findAll((node) => node.props['data-testid'] === 'dashboard-reset-confirm')[0]
+    dialogNode.props.ref.current = dialog
+    h.render(viewProps({ pending: { target: 'cancellations' } }))
+    assert.deepEqual(focus, ['dialog'], 'focus moves into the confirmation when it opens')
+
+    h.render(viewProps({ pending: null }))
+    assert.deepEqual(focus, ['dialog', 'opener'], 'closing the confirmation returns focus to the control that opened it')
+  } finally {
+    globalThis.document = previousDocument
+  }
+})
+
+test('the confirmation dialog is focusable so it can receive focus', () => {
+  const html = renderView({ pending: { target: 'disputes' } })
+  assert.match(html, /<div[^>]*tabindex="-1"[^>]*data-testid="dashboard-reset-confirm"/)
 })

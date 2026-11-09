@@ -31,6 +31,7 @@
     "undo": "Laatste reset ongedaan maken",
     "loading": "Basislijnen van dashboards laden…",
     "loadError": "De basislijnen van de dashboards konden niet worden geladen.",
+    "retry": "Opnieuw proberen",
     "notSetYet": "Nog niet gereset. Alle geschiedenis wordt geteld.",
     "countingSince": "Telt vanaf {date} · ingesteld door {name}",
     "countingSinceNoName": "Telt vanaf {date}",

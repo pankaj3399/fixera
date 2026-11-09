@@ -31,6 +31,7 @@
     "undo": "Annuler la dernière réinitialisation",
     "loading": "Chargement des points de départ des tableaux de bord…",
     "loadError": "Impossible de charger les points de départ des tableaux de bord.",
+    "retry": "Réessayer",
     "notSetYet": "Pas encore réinitialisé. Comptage de tout l'historique.",
     "countingSince": "Comptage depuis le {date} · défini par {name}",
     "countingSinceNoName": "Comptage depuis le {date}",

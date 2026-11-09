@@ -31,6 +31,7 @@
     "undo": "Undo last reset",
     "loading": "Loading dashboard baselines…",
     "loadError": "Could not load dashboard baselines.",
+    "retry": "Try again",
     "notSetYet": "Not reset yet. Counting all history.",
     "countingSince": "Counting since {date} · set by {name}",
     "countingSinceNoName": "Counting since {date}",
