@@ -5,6 +5,7 @@ import TeamSection from "@/components/about-page/TeamSection";
 import CTASection from "@/components/CTASection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
+import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
 import { publicGetCms } from "@/lib/cms/public";
 import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -67,6 +68,11 @@ export default async function AboutPage() {
                     {content.title}
                   </h2>
                 )}
+                <MachineTranslatedNote
+                  autoTranslated={content.autoTranslated}
+                  label={t("machineTranslatedNote")}
+                  className="mb-4"
+                />
                 <RichTextRenderer html={content.body} lang={servedContentLocale(content.locale)} />
               </div>
             </div>

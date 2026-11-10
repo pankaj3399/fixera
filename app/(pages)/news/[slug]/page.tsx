@@ -7,6 +7,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
+import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
 import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
 import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -117,6 +118,11 @@ export default async function NewsDetailPage({ params }: Props) {
           {authorName && <span>· {t("byAuthor", { author: authorName })}</span>}
         </div>
         <div className="mt-8">
+          <MachineTranslatedNote
+            autoTranslated={post.autoTranslated}
+            label={t("machineTranslatedNote")}
+            className="mb-4"
+          />
           <RichTextRenderer html={post.body} className="prose-lg" lang={servedContentLocale(post.locale)} />
         </div>
         <ArticleRelatedSections

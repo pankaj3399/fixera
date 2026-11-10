@@ -1,22 +1,27 @@
 import {
   CMS_CONTENT_LOCALES,
   cmsRefId,
+  cmsTranslationInFlight,
   normalizeCmsContentLocale,
   normalizeCmsTranslationResults,
   type CmsContent,
   type CmsContentLocale,
-  type CmsLocaleVariant,
+  type CmsLocaleTranslationState,
   type CmsTranslationCleanup,
+  type CmsTranslationErrorCode,
+  type CmsTranslationLocaleStatus,
   type CmsTranslationResult,
+  type CmsTranslationResultStatus,
   type CmsTranslationStatus,
 } from "@/lib/cms";
 import { canWriteAdminArea, hasAdminPermission, type AdminAccessUser } from "@/lib/adminRbac";
 
 /**
- * Admin-side state and copy for CMS auto-translation. The server performs the
- * translation inside the create/update request (backend contract T1) and
- * reports one result per target locale; this module only interprets those
- * results. It never invents a translation outcome.
+ * Admin-side state and copy for CMS auto-translation (backend contract v2,
+ * async). A save/retry returns immediate per-locale results (`pending` while
+ * queued) and the family's `CmsTranslationStatus`, which the UI polls until
+ * nothing is pending. This module only interprets what the server reported;
+ * it never invents a translation outcome.
  */
 
 export type CmsTranslationRole = "source" | "machine" | "manual";
@@ -54,18 +59,19 @@ export function cmsTranslationTargets(locale: unknown): string[] {
   return CMS_CONTENT_LOCALES.filter((code) => code !== from);
 }
 
-export const CMS_TRANSLATION_STATUS_LABELS: Record<CmsTranslationStatus, string> = {
+export const CMS_TRANSLATION_RESULT_LABELS: Record<CmsTranslationResultStatus, string> = {
   created: "Created",
   updated: "Updated",
   synced: "Up to date",
+  pending: "Queued",
   skipped_manual: "Manual kept",
   failed: "Failed",
   disabled: "Translator not configured",
 };
 
-export type CmsTranslationTone = "success" | "info" | "warning";
+export type CmsTranslationTone = "error" | "warning" | "info" | "success" | "neutral" | "progress";
 
-export function cmsTranslationStatusTone(status: CmsTranslationStatus): "error" | "warning" | "info" | "success" {
+export function cmsTranslationResultTone(status: CmsTranslationResultStatus): CmsTranslationTone {
   switch (status) {
     case "failed":
       return "error";
@@ -73,41 +79,140 @@ export function cmsTranslationStatusTone(status: CmsTranslationStatus): "error" 
       return "warning";
     case "skipped_manual":
       return "info";
+    case "pending":
+      return "progress";
     default:
       return "success";
   }
+}
+
+/** Badge for each per-locale state (contract v2 `LocaleTranslationState`). */
+export const CMS_LOCALE_STATE_BADGES: Record<CmsLocaleTranslationState, { label: string; tone: CmsTranslationTone }> = {
+  source: { label: "Original", tone: "neutral" },
+  pending: { label: "Translating…", tone: "progress" },
+  up_to_date: { label: "Up to date", tone: "success" },
+  stale: { label: "Out of date", tone: "warning" },
+  missing: { label: "Not translated", tone: "neutral" },
+  failed: { label: "Failed", tone: "error" },
+  manual: { label: "Manual", tone: "info" },
+  blocked: { label: "Blocked: unlinked page uses this slug", tone: "warning" },
+};
+
+export function cmsLocaleStateBadge(state: CmsLocaleTranslationState) {
+  return CMS_LOCALE_STATE_BADGES[state] ?? CMS_LOCALE_STATE_BADGES.failed;
 }
 
 export function cmsTranslationLocaleLabel(locale: string): string {
   return locale === "*" ? "All locales" : locale.toUpperCase();
 }
 
-function localeList(results: CmsTranslationResult[]): string {
+function localeList(results: Array<{ locale: string }>): string {
   return results.map((result) => (result.locale === "*" ? "all locales" : result.locale.toUpperCase())).join(", ");
 }
 
-/** True when a plain (non-force) retry can still change something. */
-export function hasRetryableCmsTranslations(results: CmsTranslationResult[]): boolean {
-  return results.some((result) => result.status === "failed" || result.status === "disabled");
+/**
+ * Errors a retry cannot fix (bad credentials, monthly quota used up): the UI
+ * hides Retry for them (contract v2 §5).
+ */
+export function isNonRetryableCmsTranslationError(code: CmsTranslationErrorCode | undefined): boolean {
+  return code === "auth" || code === "quota_exceeded";
+}
+
+/** The failure that blocks retries for the whole family, if any (auth/quota are provider-wide). */
+export function cmsTranslationRetryBlocker(
+  status: CmsTranslationStatus | undefined
+): (CmsTranslationResult & { at: string }) | undefined {
+  return status?.locales.find(
+    (entry) =>
+      entry.state === "failed" &&
+      entry.lastResult?.status === "failed" &&
+      isNonRetryableCmsTranslationError(entry.lastResult.errorCode)
+  )?.lastResult;
+}
+
+/** Locales a forced run may overwrite: linked manual translations only, never blocked docs. */
+export function cmsForceableLocales(status: CmsTranslationStatus | undefined): CmsContentLocale[] {
+  return (status?.locales ?? []).filter((entry) => entry.state === "manual").map((entry) => entry.locale);
+}
+
+export interface CmsLocaleRowActions {
+  /** A plain (non-force) re-run would create/refresh this locale. */
+  retry: boolean;
+  /** Overwrite this manual translation with machine text (per-locale force). */
+  force: boolean;
 }
 
 /**
- * The toast for a finished save or resync. `null` means "nothing extra to say"
- * (the regular "Draft saved"/"Published!" toast already covers it). The copy
- * says exactly what the server reported; a save is never presented as failed
+ * Per-row actions. Blocked rows never get any (not force-able); manual rows
+ * get a per-locale force; missing/stale/failed rows get Retry unless the
+ * failure is one a retry cannot fix. Nothing while a run is in flight or the
+ * translator is disabled.
+ */
+export function cmsLocaleRowActions(
+  entry: CmsTranslationLocaleStatus,
+  status: CmsTranslationStatus,
+  canManage: boolean
+): CmsLocaleRowActions {
+  const none = { retry: false, force: false };
+  if (!canManage || !status.enabled || cmsTranslationInFlight(status)) return none;
+  switch (entry.state) {
+    case "manual":
+      return { retry: false, force: true };
+    case "missing":
+    case "stale":
+      return { retry: !cmsTranslationRetryBlocker(status), force: false };
+    case "failed":
+      return {
+        retry: !isNonRetryableCmsTranslationError(entry.lastResult?.errorCode) && !cmsTranslationRetryBlocker(status),
+        force: false,
+      };
+    default:
+      return none;
+  }
+}
+
+export interface CmsTranslationActions {
+  /** Show the family-wide Retry/Resync button. */
+  retry: boolean;
+  /** Why Retry is hidden, when a provider-wide failure blocks it. */
+  retryBlockedBy?: CmsTranslationResult;
+  /** Manual locales the "Overwrite manual translations" action would force. */
+  forceLocales: CmsContentLocale[];
+}
+
+/**
+ * Family-wide actions. Without a status (lookup failed) only the plain resync
+ * is offered: forcing needs to know exactly which locales are manual.
+ */
+export function cmsTranslationActions(status: CmsTranslationStatus | undefined): CmsTranslationActions {
+  if (!status) return { retry: true, forceLocales: [] };
+  if (!status.enabled) return { retry: false, forceLocales: [] };
+  const blocker = cmsTranslationRetryBlocker(status);
+  return {
+    retry: !blocker,
+    ...(blocker ? { retryBlockedBy: blocker } : {}),
+    forceLocales: cmsForceableLocales(status),
+  };
+}
+
+/**
+ * Toast for a finished save or retry request (the run itself is still in the
+ * background). `null` means "nothing extra to say": the regular "Draft
+ * saved"/"Published!" toast covers it. A save is never presented as failed
  * because translation failed, and a skipped/disabled sync is never presented
  * as translated.
  */
 export function summarizeCmsTranslationOutcome(
   results: CmsTranslationResult[],
   options: { trigger: "save" | "retranslate"; force?: boolean; expectResults?: boolean }
-): { tone: CmsTranslationTone; message: string } | null {
-  const prefix = options.trigger === "save" ? "Content saved, but " : "";
+): { tone: Exclude<CmsTranslationTone, "neutral" | "progress" | "error">; message: string } | null {
+  const saved = options.trigger === "save" ? "Content saved. " : "";
   const failed = results.filter((result) => result.status === "failed");
   if (failed.length > 0) {
+    const prefix = options.trigger === "save" ? "Content saved, but " : "";
     return {
       tone: "warning",
-      message: `${prefix}${prefix ? "translation" : "Translation"} failed for ${localeList(failed)}. Your saved content is kept; use Retry translations.`,
+      message: `${prefix}${prefix ? "translation" : "Translation"} failed for ${localeList(failed)}. Your saved content is kept; see Translations.`,
     };
   }
   const disabled = results.filter((result) => result.status === "disabled");
@@ -115,13 +220,18 @@ export function summarizeCmsTranslationOutcome(
     return {
       tone: "info",
       message:
-        `${options.trigger === "save" ? "Content saved. " : ""}` +
-        `Automatic translation is not configured on the server, so ${localeList(disabled)} ${disabled.length === 1 ? "was" : "were"} not translated. Retry after it is configured.`,
+        `${saved}Automatic translation is not configured on the server, so ${localeList(disabled)} ` +
+        `${disabled.length === 1 ? "was" : "were"} not translated.`,
+    };
+  }
+  const pending = results.filter((result) => result.status === "pending");
+  if (pending.length > 0) {
+    return {
+      tone: "info",
+      message: `${saved}${options.force ? "Overwriting" : "Translating"} ${localeList(pending)} in the background…`,
     };
   }
   if (results.length === 0) {
-    // A source document always gets one result per target locale from a
-    // translation-capable server; silence means the feature is unavailable.
     if (options.trigger === "retranslate") {
       return { tone: "info", message: "The server returned no translation results for this document." };
     }
@@ -129,14 +239,25 @@ export function summarizeCmsTranslationOutcome(
       ? { tone: "info", message: "Content saved. The server did not report any automatic translation for this save." }
       : null;
   }
-  const manualKept = results.filter((result) => result.status === "skipped_manual");
   if (options.trigger === "retranslate") {
+    const manualKept = results.filter((result) => result.status === "skipped_manual");
     if (manualKept.length > 0 && !options.force) {
-      return { tone: "info", message: `Translations synced. Manual translations kept for ${localeList(manualKept)}.` };
+      return { tone: "info", message: `Translations are up to date. Manual translations kept for ${localeList(manualKept)}.` };
     }
-    return { tone: "success", message: options.force ? "Translations overwritten" : "Translations synced" };
+    return { tone: "success", message: "Translations are up to date" };
   }
   return null;
+}
+
+/** Toast once a background run that this screen started has settled. */
+export function summarizeCmsTranslationSettled(
+  status: CmsTranslationStatus
+): { tone: "success" | "warning"; message: string } {
+  const failed = status.locales.filter((entry) => entry.state === "failed");
+  if (failed.length > 0) {
+    return { tone: "warning", message: `Translation failed for ${localeList(failed)}. See Translations for details.` };
+  }
+  return { tone: "success", message: "Translations finished" };
 }
 
 export interface CmsTranslationPanelState {
@@ -170,103 +291,73 @@ export function cmsTranslationPanelAfterEdit(prev: CmsTranslationPanelState): Cm
   return { ...prev, stale: true };
 }
 
-/** Linked manual variants the explicit overwrite would replace. */
-export function manualCmsVariantLocales(
-  variants: CmsLocaleVariant[],
-  current: Pick<Partial<CmsContent>, "autoTranslated" | "translatedFrom" | "locale">
-): string[] {
-  const locales = variants
-    .filter((variant) => variant.relation === "linked" && !variant.autoTranslated)
-    .map((variant) => variant.locale);
-  // Forcing from a manual translation resyncs its origin, which overwrites
-  // this document too (the server never overwrites the origin itself).
-  if (cmsTranslationRole(current) === "manual") locales.push(normalizeCmsContentLocale(current.locale));
-  return Array.from(new Set(locales)).sort(
-    (a, b) => CMS_CONTENT_LOCALES.indexOf(a as never) - CMS_CONTENT_LOCALES.indexOf(b as never)
-  );
-}
-
 /**
- * A resync started from a translation runs from its origin; when it reports
- * this document's locale as created/updated, the server rewrote the text the
- * admin is looking at (a forced overwrite of a manual translation, or a
- * refreshed machine translation).
+ * After a run settles: true when the server rewrote the open document, which
+ * only happens to a translation (a machine refresh, or a forced overwrite of
+ * a manual one). Compared by `updatedAt`, so it holds however the run ended.
  */
-export function resyncRewroteCurrentDoc(
-  current: Pick<Partial<CmsContent>, "autoTranslated" | "translatedFrom" | "locale">,
-  results: CmsTranslationResult[]
+export function cmsStatusRewroteDoc(
+  status: CmsTranslationStatus,
+  doc: Pick<Partial<CmsContent>, "_id" | "autoTranslated" | "translatedFrom" | "updatedAt">
 ): boolean {
-  if (cmsTranslationRole(current) === "source") return false;
-  const locale = normalizeCmsContentLocale(current.locale);
-  return results.some(
-    (result) => result.locale === locale && (result.status === "updated" || result.status === "created")
-  );
+  if (cmsTranslationRole(doc) === "source" || !doc._id) return false;
+  const entry = status.locales.find((candidate) => candidate.document?._id === doc._id);
+  const serverUpdatedAt = entry?.document?.updatedAt;
+  return Boolean(serverUpdatedAt && doc.updatedAt && serverUpdatedAt !== doc.updatedAt);
 }
 
-/** True when the server reported that no translation provider is configured. */
-export function cmsAutoTranslateDisabled(results: CmsTranslationResult[]): boolean {
+/** True when translation is switched off on the server (status first, else a "disabled" result). */
+export function cmsAutoTranslateDisabled(
+  status: CmsTranslationStatus | undefined,
+  results: CmsTranslationResult[] = []
+): boolean {
+  if (status) return status.enabled === false;
   return results.some((result) => result.status === "disabled");
 }
 
-export type CmsLocaleRowKind = "current" | "original" | "machine" | "manual" | "unlinked" | "missing";
-
-/** One supported locale of a translation family, as the admin panel lists it. */
-export interface CmsLocaleRow {
-  locale: CmsContentLocale;
-  kind: CmsLocaleRowKind;
-  /** The other-locale document, when there is one. */
-  variant?: CmsLocaleVariant;
-  /** The last save/resync outcome reported for this locale, if any. */
-  result?: CmsTranslationResult;
-}
-
-function variantKind(variant: CmsLocaleVariant): CmsLocaleRowKind {
-  if (variant.relation === "origin") return "original";
-  if (variant.relation === "same-slug") return "unlinked";
-  return variant.autoTranslated ? "machine" : "manual";
-}
-
 /**
- * Every supported locale (en, nl, fr) with what exists for it: the open
- * document, its original, a machine or manual translation, an unlinked
- * same-slug document, or nothing yet. Each row carries the last reported
- * result for that locale, so status and coverage read as one list.
+ * Immediate results worth showing next to the status rows: failures (e.g. a
+ * slug conflict while moving translations, or a crash "*"). Pending/disabled
+ * results are already reflected by the status. Without a status, everything.
  */
-export function cmsLocaleRows(
-  currentLocale: unknown,
-  variants: CmsLocaleVariant[],
-  results: CmsTranslationResult[]
-): CmsLocaleRow[] {
-  const self = normalizeCmsContentLocale(currentLocale);
-  return CMS_CONTENT_LOCALES.map((locale) => {
-    const result = results.find((entry) => entry.locale === locale);
-    const base = result ? { result } : {};
-    if (locale === self) return { locale, kind: "current" as const, ...base };
-    const variant = variants.find((entry) => normalizeCmsContentLocale(entry.locale) === locale);
-    if (!variant) return { locale, kind: "missing" as const, ...base };
-    return { locale, kind: variantKind(variant), variant, ...base };
-  });
+export function cmsImmediateResultsToShow(
+  results: CmsTranslationResult[],
+  status: CmsTranslationStatus | undefined
+): CmsTranslationResult[] {
+  if (!status) return results;
+  return results.filter((result) => result.status === "failed");
 }
 
-/** Results that no locale row can show (a whole-sync crash "*", unknown codes). */
-export function unplacedCmsTranslationResults(results: CmsTranslationResult[]): CmsTranslationResult[] {
-  return results.filter((result) => !(CMS_CONTENT_LOCALES as readonly string[]).includes(result.locale));
+/** Status rows in CMS order, each marked when it is the open document. */
+export function cmsStatusRows(
+  status: CmsTranslationStatus,
+  currentId: string | undefined
+): Array<CmsTranslationLocaleStatus & { current: boolean }> {
+  return CMS_CONTENT_LOCALES.flatMap((locale) => {
+    const entry = status.locales.find((candidate) => candidate.locale === locale);
+    if (!entry) return [];
+    return [{ ...entry, current: Boolean(currentId && entry.document?._id === currentId) }];
+  });
 }
 
 /**
  * What deleting the open document does to its translations (backend: only an
  * original cascades; its machine translations are deleted, its linked manual
- * translations are kept and unlinked). Based on the known variants.
+ * translations are kept and unlinked). Unknown (null) without a status.
+ * Blocked same-slug docs are not linked, so they are never listed.
  */
 export function cmsDeleteImpact(
-  current: Pick<Partial<CmsContent>, "autoTranslated" | "translatedFrom">,
-  variants: CmsLocaleVariant[]
-): { machineLocales: string[]; manualLocales: string[] } {
+  current: Pick<Partial<CmsContent>, "_id" | "autoTranslated" | "translatedFrom">,
+  status: CmsTranslationStatus | undefined
+): { machineLocales: CmsContentLocale[]; manualLocales: CmsContentLocale[] } | null {
   if (cmsTranslationRole(current) !== "source") return { machineLocales: [], manualLocales: [] };
-  const linked = variants.filter((variant) => variant.relation === "linked");
+  if (!status || status.sourceId !== current._id) return null;
+  const linked = status.locales.filter(
+    (entry) => entry.state !== "source" && entry.document?.translatedFrom === status.sourceId
+  );
   return {
-    machineLocales: linked.filter((variant) => variant.autoTranslated).map((variant) => variant.locale),
-    manualLocales: linked.filter((variant) => !variant.autoTranslated).map((variant) => variant.locale),
+    machineLocales: linked.filter((entry) => entry.document?.autoTranslated).map((entry) => entry.locale),
+    manualLocales: linked.filter((entry) => !entry.document?.autoTranslated).map((entry) => entry.locale),
   };
 }
 

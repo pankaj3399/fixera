@@ -118,5 +118,6 @@
     "maybeLater": "Plus tard",
     "claimOffer": "Profiter de l'offre",
     "previewToast": "Aperçu affiché pendant {seconds} secondes"
-  }
+  },
+  "machineTranslatedNote": "Cette page a été traduite automatiquement ; la formulation peut donc être imparfaite."
 }

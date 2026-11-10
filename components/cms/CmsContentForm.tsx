@@ -21,13 +21,12 @@ import {
   adminCreateCmsWithTranslations,
   adminDeleteCms,
   adminGetCms,
-  adminListCmsLocaleVariants,
   adminListCmsServiceOptions,
   adminListFaqCategories,
   adminTranslateCms,
   adminUpdateCmsWithTranslations,
   CmsContent,
-  CmsLocaleVariant,
+  CmsContentLocale,
   CmsContentStatus,
   CmsContentType,
   CmsServiceOption,
@@ -37,10 +36,14 @@ import {
   CMS_TYPE_LABELS,
   CMS_TYPE_ORDER,
   FaqCategory,
+  type CmsTranslateOptions,
+  type CmsTranslationStatus,
   getPublicPathForCms,
   getPublicSlugPrefixForCms,
   normalizeCmsContentLocale,
+  normalizeCmsTranslationStatus,
   persistableCmsHtml,
+  revalidateCmsTranslationFamily,
   persistableCmsMediaUrl,
   slugify,
   withCmsLangParam,
@@ -59,20 +62,21 @@ import type { AdminAccessUser } from "@/lib/adminRbac";
 import {
   canManageCmsTranslations,
   cmsDeleteImpact,
+  cmsStatusRewroteDoc,
   cmsTranslationPanelAfterEdit,
   cmsTranslationPanelAfterRun,
   cmsTranslationRole,
   cmsTranslationTargets,
   INITIAL_CMS_TRANSLATION_PANEL,
-  manualCmsVariantLocales,
-  resyncRewroteCurrentDoc,
   stashCmsTranslationResults,
   summarizeCmsDeleteCleanup,
   summarizeCmsTranslationOutcome,
+  summarizeCmsTranslationSettled,
   takeStashedCmsTranslationResults,
   type CmsTranslationPanelState,
 } from "@/lib/cmsTranslationState";
 import CmsTranslationPanel from "./CmsTranslationPanel";
+import { useCmsTranslationStatus } from "./useCmsTranslationStatus";
 
 const RichTextEditor = dynamic(() => import("./RichTextEditor"), {
   ssr: false,
@@ -119,7 +123,17 @@ const EMPTY: Partial<CmsContent> = {
 };
 
 const KEPT_EDITS_AFTER_RESYNC =
-  "The server replaced this translation's text. Your unsaved edits are kept here; saving them makes it a manual translation again.";
+  "The server updated this translation. Your unsaved edits are kept here; saving them makes it a manual translation again.";
+
+function formFromDoc(doc: CmsContent): Partial<CmsContent> {
+  return {
+    ...doc,
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
+    seo: doc.seo || {},
+    coverImageAlt: doc.coverImageAlt || "",
+    activeCountries: Array.isArray(doc.activeCountries) ? doc.activeCountries : [],
+  };
+}
 
 function announceTranslationOutcome(outcome: ReturnType<typeof summarizeCmsTranslationOutcome>) {
   if (!outcome) return;
@@ -160,7 +174,8 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [translating, setTranslating] = useState(false);
-  const [showForceTranslateConfirm, setShowForceTranslateConfirm] = useState(false);
+  /** Manual locales the pending overwrite confirmation is about (null: dialog closed). */
+  const [forceLocales, setForceLocales] = useState<CmsContentLocale[] | null>(null);
   const [translationPanel, setTranslationPanel] =
     useState<CmsTranslationPanelState>(INITIAL_CMS_TRANSLATION_PANEL);
   /**
@@ -169,17 +184,54 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
    * to manual on the server even while the admin keeps typing.
    */
   const [savedDoc, setSavedDoc] = useState<CmsContent | undefined>(initial);
-  const [variants, setVariants] = useState<CmsLocaleVariant[]>([]);
-  const [variantsState, setVariantsState] = useState<"idle" | "loading" | "ready" | "error">(
-    mode === "edit" && initial?._id ? "loading" : "idle"
-  );
-  const [variantsSource, setVariantsSource] = useState<"server" | "slug-search" | undefined>();
-  const [variantsRefresh, setVariantsRefresh] = useState(0);
+  const savedDocRef = useRef(savedDoc);
+  savedDocRef.current = savedDoc;
   /** Monotonic form revision, so a retry/save finishing late can't claim fresh state. */
   const formRevision = useRef(0);
   const savedRevision = useRef(0);
   const actionLock = useRef<"save" | "delete" | "translate" | null>(null);
   const busy = saving || deleting || translating;
+  /** Toast the outcome of a background run that a save/retry on this screen queued. */
+  const announceSettled = useRef(false);
+
+  /**
+   * A background run this screen observed has finished: flush the public
+   * cache for the whole family (the save response came back before the new
+   * text existed) and, when the server rewrote this very translation, show
+   * the new text if nothing unsaved would be lost.
+   */
+  const handleTranslationSettled = async (settled: CmsTranslationStatus) => {
+    const doc = savedDocRef.current;
+    void revalidateCmsTranslationFamily(doc?.type, settled, [doc?.slug]);
+    if (announceSettled.current) {
+      announceSettled.current = false;
+      const outcome = summarizeCmsTranslationSettled(settled);
+      if (outcome.tone === "warning") toast.warning(outcome.message);
+      else toast.success(outcome.message);
+    }
+    if (!doc?._id || !cmsStatusRewroteDoc(settled, doc)) return;
+    if (formRevision.current !== savedRevision.current) {
+      toast.info(KEPT_EDITS_AFTER_RESYNC);
+      return;
+    }
+    const fresh = await adminGetCms(doc._id).catch(() => null);
+    if (!fresh) {
+      toast.info("The server updated this translation. Reload to see it.");
+    } else if (formRevision.current === savedRevision.current) {
+      setSavedDoc(fresh);
+      setForm(formFromDoc(fresh));
+      setRelatedItems(relatedItemsFromCms(fresh.relatedContent));
+    } else {
+      toast.info(KEPT_EDITS_AFTER_RESYNC);
+    }
+  };
+
+  const [initialTranslationStatus] = useState(() => normalizeCmsTranslationStatus(initial?.translationStatus));
+  const translation = useCmsTranslationStatus(
+    mode === "edit" ? initial?._id : undefined,
+    initialTranslationStatus,
+    handleTranslationSettled
+  );
   const translationRole = mode === "edit" && savedDoc ? cmsTranslationRole(savedDoc) : "source";
 
   // A create redirects here; show that save's per-locale results.
@@ -194,28 +246,6 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       })
     );
   }, [initial?._id]);
-
-  useEffect(() => {
-    if (mode !== "edit" || !savedDoc?._id) return;
-    let cancelled = false;
-    setVariantsState("loading");
-    adminListCmsLocaleVariants(savedDoc)
-      .then(({ variants: next, source }) => {
-        if (cancelled) return;
-        setVariants(next);
-        setVariantsSource(source);
-        setVariantsState("ready");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setVariantsState("error");
-      });
-    return () => {
-      cancelled = true;
-    };
-    // Reload after each save/resync (variantsRefresh), not on every savedDoc identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, savedDoc?._id, variantsRefresh]);
 
   useEffect(() => {
     const stubs = relatedItems.filter((item) => !item.slug);
@@ -364,12 +394,14 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         );
         router.push(`/admin/cms/${created._id}/edit`);
       } else if (initial?._id) {
-        const { content: updated, translations } = await adminUpdateCmsWithTranslations(
-          initial._id,
-          payload
-        );
+        const {
+          content: updated,
+          translations,
+          status: savedStatus,
+        } = await adminUpdateCmsWithTranslations(initial._id, payload);
         savedRevision.current = revisionAtSaveStart;
         setSavedDoc(updated);
+        savedDocRef.current = updated;
         // Results describe what was saved; edits typed during the request
         // (including a language change) keep them marked stale.
         setTranslationPanel(
@@ -378,19 +410,15 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             saved: revisionAtSaveStart,
           })
         );
-        setVariantsRefresh((n) => n + 1);
+        const queued = translations.some((result) => result.status === "pending");
+        announceSettled.current = queued;
+        translation.track(savedStatus, { expectWork: queued });
         // The saved status always applies (it drives publish state and the
         // "View live" link); other fields keep the revision guard so typing
         // during the request is never clobbered by the server echo.
         setForm((prev) => ({ ...prev, status: updated.status }));
         if (formRevision.current === revisionAtSaveStart) {
-          setForm({
-            ...updated,
-            tags: Array.isArray(updated.tags) ? updated.tags : [],
-            seo: updated.seo || {},
-            coverImageAlt: updated.coverImageAlt || "",
-            activeCountries: Array.isArray(updated.activeCountries) ? updated.activeCountries : [],
-          });
+          setForm(formFromDoc(updated));
           setRelatedItems(relatedItemsFromCms(updated.relatedContent));
         }
         toast.success(status === "published" ? "Published!" : "Draft saved");
@@ -409,50 +437,30 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
     }
   };
 
-  const runTranslate = async (force: boolean) => {
+  const runTranslate = async (options: CmsTranslateOptions = {}) => {
     if (actionLock.current || !initial?._id || !canManageTranslations) return;
+    const force = options.force === true;
     actionLock.current = "translate";
-    setShowForceTranslateConfirm(false);
+    setForceLocales(null);
     setTranslating(true);
     try {
       // Deliberately never touches `form`: unsaved edits survive any outcome,
-      // and a resync never masquerades as a content save.
-      const { translations } = await adminTranslateCms(initial._id, { force });
+      // and a retry never masquerades as a content save. If the run rewrites
+      // this translation, handleTranslationSettled reloads it (edit-guarded).
+      const { translations, status } = await adminTranslateCms(
+        initial._id,
+        force ? { force, locales: options.locales } : {}
+      );
       setTranslationPanel(
         cmsTranslationPanelAfterRun(translations, "retranslate", {
           current: formRevision.current,
           saved: savedRevision.current,
         })
       );
-      setVariantsRefresh((n) => n + 1);
-      announceTranslationOutcome(
-        summarizeCmsTranslationOutcome(translations, { trigger: "retranslate", force })
-      );
-      // From a translation, the resync runs from its origin and a forced one
-      // rewrites this very document on the server. Show the new server text
-      // only when nothing unsaved would be lost; otherwise keep the edits.
-      if (resyncRewroteCurrentDoc(savedDoc ?? {}, translations)) {
-        if (formRevision.current === savedRevision.current) {
-          const fresh = await adminGetCms(initial._id).catch(() => null);
-          if (!fresh) {
-            toast.info("The server replaced this translation's text. Reload to see it.");
-          } else if (formRevision.current === savedRevision.current) {
-            setSavedDoc(fresh);
-            setForm({
-              ...fresh,
-              tags: Array.isArray(fresh.tags) ? fresh.tags : [],
-              seo: fresh.seo || {},
-              coverImageAlt: fresh.coverImageAlt || "",
-              activeCountries: Array.isArray(fresh.activeCountries) ? fresh.activeCountries : [],
-            });
-            setRelatedItems(relatedItemsFromCms(fresh.relatedContent));
-          } else {
-            toast.info(KEPT_EDITS_AFTER_RESYNC);
-          }
-        } else {
-          toast.info(KEPT_EDITS_AFTER_RESYNC);
-        }
-      }
+      const queued = translations.some((result) => result.status === "pending");
+      announceSettled.current = queued;
+      translation.track(status, { expectWork: queued });
+      announceTranslationOutcome(summarizeCmsTranslationOutcome(translations, { trigger: "retranslate", force }));
     } catch (err) {
       toast.error(
         getErrorMessage(err, "Translation request failed. Your content and unsaved edits are unchanged.")
@@ -463,8 +471,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
     }
   };
 
-  const forceLocales = manualCmsVariantLocales(variants, savedDoc ?? {});
-  const deleteImpact = cmsDeleteImpact(savedDoc ?? {}, variants);
+  const deleteImpact = cmsDeleteImpact(savedDoc ?? {}, translation.status);
   const localeList = (codes: string[]) => codes.map((code) => code.toUpperCase()).join(", ");
 
   const remove = () => {
@@ -896,18 +903,21 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
               mode={mode}
               type={type}
               role={translationRole}
-              locale={savedDoc?.locale ?? formLocale}
+              currentId={savedDoc?._id}
               targets={cmsTranslationTargets(savedDoc?.locale ?? formLocale)}
               panel={translationPanel}
+              status={translation.status}
+              loadState={translation.loadState}
+              phase={translation.phase}
               saving={saving}
               translating={translating}
               busy={busy}
               canManage={canManageTranslations}
-              variants={variants}
-              variantsState={variantsState}
-              variantsSource={variantsSource}
-              onRetry={() => runTranslate(false)}
-              onForce={() => setShowForceTranslateConfirm(true)}
+              onRetry={() => runTranslate()}
+              onForce={(locales) => {
+                if (locales.length > 0) setForceLocales(locales);
+              }}
+              onRefresh={translation.refresh}
             />
           </GradientCard>
 
@@ -915,16 +925,12 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         </div>
       </div>
 
-      <Dialog open={showForceTranslateConfirm} onOpenChange={setShowForceTranslateConfirm}>
+      <Dialog open={forceLocales !== null} onOpenChange={(open) => (open ? null : setForceLocales(null))}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Overwrite manual translations?</DialogTitle>
             <DialogDescription>
-              {forceLocales.length > 0
-                ? `Machine translation will replace the manual text in ${localeList(forceLocales)}.`
-                : variantsState === "ready"
-                  ? "No linked manual translation is known, so this should behave like a normal resync."
-                  : "Machine translation will replace the manual text of every linked translation."}{" "}
+              {`Machine translation will replace the manual text in ${localeList(forceLocales ?? [])}.`}{" "}
               Unlinked documents that only share the slug are never overwritten. It uses the saved
               original, keeps your unsaved edits on this screen, and cannot be undone from here.
               Overwritten translations then follow the original&apos;s publication status.
@@ -933,15 +939,15 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
           <DialogFooter className="gap-2 sm:justify-end">
             <button
               type="button"
-              onClick={() => setShowForceTranslateConfirm(false)}
+              onClick={() => setForceLocales(null)}
               className="inline-flex items-center justify-center rounded-xl border border-pink-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={() => runTranslate(true)}
-              disabled={busy}
+              onClick={() => runTranslate({ force: true, locales: forceLocales ?? [] })}
+              disabled={busy || !forceLocales?.length}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200 transition hover:shadow-lg hover:shadow-rose-300 disabled:opacity-50"
             >
               <RefreshCw size={14} /> Overwrite translations
@@ -958,6 +964,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
               This cannot be undone. The item will be permanently removed.
             </DialogDescription>
             {translationRole === "source" &&
+            deleteImpact &&
             (deleteImpact.machineLocales.length > 0 || deleteImpact.manualLocales.length > 0) ? (
               <div
                 data-testid="cms-delete-translation-impact"
@@ -976,7 +983,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                   </p>
                 ) : null}
               </div>
-            ) : translationRole === "source" && variantsState !== "ready" ? (
+            ) : translationRole === "source" && !deleteImpact ? (
               <p className="text-xs text-amber-700">
                 Machine translations of this original are deleted with it; manual translations are kept.
               </p>

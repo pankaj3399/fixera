@@ -118,5 +118,6 @@
     "maybeLater": "Maybe later",
     "claimOffer": "Claim offer",
     "previewToast": "Showing preview for {seconds} seconds"
-  }
+  },
+  "machineTranslatedNote": "This page was translated automatically, so the wording may not be perfect."
 }

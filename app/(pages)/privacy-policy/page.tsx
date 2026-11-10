@@ -2,6 +2,7 @@ import { Shield } from "lucide-react";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
+import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
 import { publicGetCms } from "@/lib/cms/public";
 import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -62,7 +63,14 @@ export default async function PrivacyPolicyPage() {
         <div className="mt-10 rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-md shadow-rose-100">
           <div className="rounded-[calc(1.5rem-1.5px)] bg-white px-8 py-10">
             {content?.body ? (
-              <RichTextRenderer html={content.body} lang={servedContentLocale(content.locale)} />
+              <>
+                <MachineTranslatedNote
+                  autoTranslated={content.autoTranslated}
+                  label={t("machineTranslatedNote")}
+                  className="mb-4"
+                />
+                <RichTextRenderer html={content.body} lang={servedContentLocale(content.locale)} />
+              </>
             ) : (
               <div className="py-10 text-center">
                 <h2 className="text-xl font-semibold text-rose-900">{t("privacyPolicy.comingSoonTitle")}</h2>

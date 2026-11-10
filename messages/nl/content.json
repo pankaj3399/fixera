@@ -118,5 +118,6 @@
     "maybeLater": "Misschien later",
     "claimOffer": "Profiteer van de actie",
     "previewToast": "Voorbeeld wordt {seconds} seconden getoond"
-  }
+  },
+  "machineTranslatedNote": "Deze pagina is automatisch vertaald, dus de formulering is mogelijk niet perfect."
 }

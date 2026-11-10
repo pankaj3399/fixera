@@ -1,58 +1,50 @@
 "use client"
 
-import type { ReactNode } from "react";
 import { AlertTriangle, Eye, Languages, Loader2, Pencil, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   CMS_CONTENT_LOCALE_LABELS,
+  cmsTranslationInFlight,
   getPublicPathForCms,
   withCmsLangParam,
+  type CmsContentLocale,
   type CmsContentType,
-  type CmsLocaleVariant,
+  type CmsTranslationLocaleStatus,
   type CmsTranslationResult,
+  type CmsTranslationStatus,
 } from "@/lib/cms";
 import {
-  CMS_TRANSLATION_STATUS_LABELS,
+  CMS_TRANSLATION_RESULT_LABELS,
   cmsAutoTranslateDisabled,
-  cmsLocaleRows,
+  cmsImmediateResultsToShow,
+  cmsLocaleRowActions,
+  cmsLocaleStateBadge,
+  cmsStatusRows,
+  cmsTranslationActions,
   cmsTranslationLocaleLabel,
-  cmsTranslationStatusTone,
-  hasRetryableCmsTranslations,
-  unplacedCmsTranslationResults,
-  type CmsLocaleRow,
-  type CmsLocaleRowKind,
+  cmsTranslationResultTone,
   type CmsTranslationPanelState,
   type CmsTranslationRole,
+  type CmsTranslationTone,
 } from "@/lib/cmsTranslationState";
+import type { CmsTranslationLoadState, CmsTranslationPollPhase } from "./useCmsTranslationStatus";
 
-const TONE_CLASSES: Record<ReturnType<typeof cmsTranslationStatusTone>, string> = {
+const TONE_CLASSES: Record<CmsTranslationTone, string> = {
   error: "border-rose-200 bg-rose-50 text-rose-700",
   warning: "border-amber-200 bg-amber-50 text-amber-700",
   info: "border-sky-200 bg-sky-50 text-sky-700",
   success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  neutral: "border-gray-200 bg-gray-50 text-gray-600",
+  progress: "border-violet-200 bg-violet-50 text-violet-700",
 };
 
-const ROLE_LABELS: Record<CmsTranslationRole, string> = {
-  source: "Original",
-  machine: "Machine",
-  manual: "Manual",
-};
-
-const KIND_LABELS: Record<Exclude<CmsLocaleRowKind, "current">, string> = {
-  original: "Original",
-  machine: "Machine",
-  manual: "Manual",
-  unlinked: "Same slug, not linked",
-  missing: "Not translated",
-};
-
-const KIND_CLASSES: Record<CmsLocaleRowKind, string> = {
-  current: "bg-rose-100 text-rose-700",
-  original: "bg-rose-100 text-rose-700",
-  machine: "bg-sky-100 text-sky-700",
-  manual: "bg-amber-100 text-amber-800",
-  unlinked: "bg-gray-100 text-gray-600",
-  missing: "bg-gray-100 text-gray-500",
+const BADGE_CLASSES: Record<CmsTranslationTone, string> = {
+  error: "bg-rose-100 text-rose-700",
+  warning: "bg-amber-100 text-amber-800",
+  info: "bg-sky-100 text-sky-700",
+  success: "bg-emerald-100 text-emerald-700",
+  neutral: "bg-gray-100 text-gray-600",
+  progress: "bg-violet-100 text-violet-700",
 };
 
 export interface CmsTranslationPanelProps {
@@ -60,39 +52,54 @@ export interface CmsTranslationPanelProps {
   /** Content type, for the public "live" link of published language versions. */
   type?: CmsContentType;
   role: CmsTranslationRole;
-  /** Locale of the saved document (rows are listed around it). */
-  locale?: string;
-  /** Locales the server syncs into on save (source documents only). */
+  /** Id of the open document (marks "this page" in the rows). */
+  currentId?: string;
+  /** Locales the server translates a source into. */
   targets: string[];
+  /** Immediate results of the last save/retry request in this session. */
   panel: CmsTranslationPanelState;
-  /** A save is in flight (the server translates inside that request). */
+  /** The family's translation status (contract v2), polled while pending. */
+  status?: CmsTranslationStatus;
+  loadState: CmsTranslationLoadState;
+  phase: CmsTranslationPollPhase;
   saving: boolean;
   translating: boolean;
   busy: boolean;
   /** cms write access; without it the actions are hidden (backend enforces cms.manage). */
   canManage: boolean;
-  variants: CmsLocaleVariant[];
-  variantsState: "idle" | "loading" | "ready" | "error";
-  /** "slug-search" means manual variants under another slug may be missing. */
-  variantsSource?: "server" | "slug-search";
+  /** Plain re-run (creates missing, refreshes stale, retries failed; manual kept). */
   onRetry: () => void;
-  onForce: () => void;
+  /** Asks to overwrite these manual translations (the form confirms first). */
+  onForce: (locales: CmsContentLocale[]) => void;
+  /** Re-reads the status (after a timeout or a failed load). */
+  onRefresh: () => void;
 }
 
 function variantHref(id: string) {
   return `/admin/cms/${encodeURIComponent(id)}/edit`;
 }
 
-function ResultChip({ result, label }: { result: CmsTranslationResult; label: string }) {
+function formatAt(at: string | undefined): string | null {
+  if (!at) return null;
+  const date = new Date(at);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" });
+}
+
+function ResultChip({ result, label, at }: { result: CmsTranslationResult; label: string; at?: string }) {
+  const when = formatAt(at);
   return (
     <div
       data-translation-locale={result.locale}
       data-translation-status={result.status}
-      className={cn("mt-1 rounded-md border px-2 py-1", TONE_CLASSES[cmsTranslationStatusTone(result.status)])}
+      {...(result.errorCode ? { "data-translation-error": result.errorCode } : {})}
+      className={cn("mt-1 rounded-md border px-2 py-1", TONE_CLASSES[cmsTranslationResultTone(result.status)])}
     >
       <div className="flex items-center justify-between gap-2 font-medium">
         <span>{label}</span>
-        <span>{CMS_TRANSLATION_STATUS_LABELS[result.status]}</span>
+        <span>
+          {CMS_TRANSLATION_RESULT_LABELS[result.status]}
+          {when ? <span className="font-normal opacity-75"> · {when}</span> : null}
+        </span>
       </div>
       {result.error ? <p className="mt-0.5 break-words opacity-90">{result.error}</p> : null}
     </div>
@@ -100,99 +107,131 @@ function ResultChip({ result, label }: { result: CmsTranslationResult; label: st
 }
 
 /** Public URL of a published language version (same URL, language via ?lang=). */
-function liveHref(type: CmsContentType | undefined, variant: CmsLocaleVariant): string | null {
-  if (!type || variant.status !== "published" || !variant.slug) return null;
-  const path = getPublicPathForCms(type, variant.slug);
-  return path ? withCmsLangParam(path, variant.locale) : null;
+function liveHref(type: CmsContentType | undefined, locale: CmsContentLocale, doc: { slug: string; status: string }) {
+  if (!type || doc.status !== "published" || !doc.slug) return null;
+  const path = getPublicPathForCms(type, doc.slug);
+  return path ? withCmsLangParam(path, locale) : null;
 }
 
+const smallButton =
+  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition disabled:opacity-50";
+
 function LocaleRow({
-  row,
+  entry,
+  current,
+  status,
   type,
-  role,
-  variantsState,
+  canManage,
+  busy,
+  onRetry,
+  onForce,
 }: {
-  row: CmsLocaleRow;
+  entry: CmsTranslationLocaleStatus;
+  current: boolean;
+  status: CmsTranslationStatus;
   type?: CmsContentType;
-  role: CmsTranslationRole;
-  variantsState: CmsTranslationPanelProps["variantsState"];
+  canManage: boolean;
+  busy: boolean;
+  onRetry: () => void;
+  onForce: (locales: CmsContentLocale[]) => void;
 }) {
-  const label = row.kind === "current" ? `${ROLE_LABELS[role]} · this page` : KIND_LABELS[row.kind];
-  const pill = (
-    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", KIND_CLASSES[row.kind])}>{label}</span>
-  );
+  const badge = cmsLocaleStateBadge(entry.state);
+  const doc = entry.document;
+  const live = doc ? liveHref(type, entry.locale, doc) : null;
+  const actions = cmsLocaleRowActions(entry, status, canManage);
+  const name = CMS_CONTENT_LOCALE_LABELS[entry.locale];
+
   const head = (
     <span className="flex min-w-0 items-center gap-1.5">
-      <span className="font-semibold uppercase" title={CMS_CONTENT_LOCALE_LABELS[row.locale]}>
-        {row.locale}
+      <span className="font-semibold uppercase" title={name}>
+        {entry.locale}
       </span>
-      {row.variant ? <span className="truncate">{row.variant.title || row.variant.slug}</span> : null}
+      {doc ? <span className="truncate">{doc.title || doc.slug}</span> : null}
+      {current ? <span className="shrink-0 text-[10px] font-medium text-rose-500">· this page</span> : null}
     </span>
   );
 
-  let body: ReactNode;
-  if (row.variant) {
-    const live = liveHref(type, row.variant);
-    body = (
-      <div className="flex items-center justify-between gap-2">
-        <a
-          href={variantHref(row.variant._id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={`Edit the ${CMS_CONTENT_LOCALE_LABELS[row.locale]} version in a new tab (keeps your unsaved edits here)`}
-          className="flex min-w-0 flex-1 items-center justify-between gap-2 text-rose-700 hover:underline"
-        >
-          {head}
-          <span className="flex shrink-0 items-center gap-1.5 text-rose-500">
-            {pill}
-            <span className={row.variant.status === "published" ? "text-emerald-600" : ""}>{row.variant.status}</span>
-            <Pencil size={11} aria-hidden />
-          </span>
-        </a>
-        {live ? (
-          <a
-            href={live}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`View the live ${CMS_CONTENT_LOCALE_LABELS[row.locale]} page`}
-            title={`View the live ${CMS_CONTENT_LOCALE_LABELS[row.locale]} page`}
-            className="shrink-0 rounded p-0.5 text-rose-500 hover:bg-rose-100 hover:text-rose-700"
-          >
-            <Eye size={12} aria-hidden />
-          </a>
-        ) : null}
-      </div>
-    );
-  } else {
-    const pending = row.kind === "missing" && (variantsState === "loading" || variantsState === "idle");
-    const unknown = row.kind === "missing" && variantsState === "error";
-    body = (
-      <div className="flex items-center justify-between gap-2 text-rose-700">
-        {head}
-        <span className="flex shrink-0 items-center gap-1.5">
-          {pending ? (
-            <span className="text-rose-400">Loading…</span>
-          ) : unknown ? (
-            <span className="text-rose-400">Unknown</span>
-          ) : (
-            pill
-          )}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <li
-      data-locale-row={row.locale}
-      data-locale-kind={row.kind}
+      data-locale-row={entry.locale}
+      data-locale-state={entry.state}
       className={cn(
         "rounded-lg border px-3 py-1.5 text-[11px]",
-        row.kind === "current" ? "border-rose-200 bg-rose-50/60" : "border-pink-100"
+        current ? "border-rose-200 bg-rose-50/60" : "border-pink-100"
       )}
     >
-      {body}
-      {row.result ? <ResultChip result={row.result} label="Last run" /> : null}
+      <div className="flex items-center justify-between gap-2">
+        {doc && !current ? (
+          <a
+            href={variantHref(doc._id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Edit the ${name} version in a new tab (keeps your unsaved edits here)`}
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-rose-700 hover:underline"
+          >
+            {head}
+            <Pencil size={11} aria-hidden className="shrink-0 text-rose-400" />
+          </a>
+        ) : (
+          <span className="flex min-w-0 flex-1 text-rose-700">{head}</span>
+        )}
+        <span className="flex shrink-0 items-center gap-1.5">
+          <span
+            data-state-badge={entry.state}
+            className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", BADGE_CLASSES[badge.tone])}
+          >
+            {entry.state === "pending" ? <Loader2 className="mr-0.5 inline h-2.5 w-2.5 animate-spin" aria-hidden /> : null}
+            {badge.label}
+          </span>
+          {doc ? (
+            <span className={doc.status === "published" ? "text-emerald-600" : "text-rose-400"}>{doc.status}</span>
+          ) : null}
+          {live ? (
+            <a
+              href={live}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View the live ${name} page`}
+              title={`View the live ${name} page`}
+              className="rounded p-0.5 text-rose-500 hover:bg-rose-100 hover:text-rose-700"
+            >
+              <Eye size={12} aria-hidden />
+            </a>
+          ) : null}
+        </span>
+      </div>
+      {entry.state === "blocked" ? (
+        <p className="mt-0.5 text-[10px] text-amber-700">
+          Another {name} page with this slug is not linked to this original. It is never overwritten.
+        </p>
+      ) : null}
+      {entry.lastResult ? <ResultChip result={entry.lastResult} label="Last run" at={entry.lastResult.at} /> : null}
+      {actions.retry || actions.force ? (
+        <div className="mt-1 flex justify-end gap-1">
+          {actions.retry ? (
+            <button
+              type="button"
+              data-row-action="retry"
+              onClick={onRetry}
+              disabled={busy}
+              className={cn(smallButton, "text-rose-700 hover:bg-rose-100")}
+            >
+              <RefreshCw size={10} aria-hidden /> Retry
+            </button>
+          ) : null}
+          {actions.force ? (
+            <button
+              type="button"
+              data-row-action="force"
+              onClick={() => onForce([entry.locale])}
+              disabled={busy}
+              className={cn(smallButton, "text-amber-700 hover:bg-amber-100")}
+            >
+              Overwrite with machine translation…
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -201,25 +240,27 @@ export default function CmsTranslationPanel({
   mode,
   type,
   role,
-  locale,
+  currentId,
   targets,
   panel,
+  status,
+  loadState,
+  phase,
   saving,
   translating,
   busy,
   canManage,
-  variants,
-  variantsState,
-  variantsSource,
   onRetry,
   onForce,
+  onRefresh,
 }: CmsTranslationPanelProps) {
-  const inFlight = translating || (saving && role === "source");
+  const requesting = translating || (saving && role === "source");
+  const running = phase === "polling" || cmsTranslationInFlight(status);
   const targetLabel = targets.map((code) => code.toUpperCase()).join(", ");
-  const retryable = hasRetryableCmsTranslations(panel.results);
-  const disabled = cmsAutoTranslateDisabled(panel.results);
-  const rows = mode === "edit" ? cmsLocaleRows(locale, variants, panel.results) : [];
-  const unplaced = unplacedCmsTranslationResults(panel.results);
+  const disabled = cmsAutoTranslateDisabled(status, panel.results);
+  const immediate = cmsImmediateResultsToShow(panel.results, status);
+  const actions = cmsTranslationActions(status);
+  const actionsBusy = busy || running;
 
   return (
     <div className="p-6 space-y-3" data-testid="cms-translation-panel">
@@ -229,18 +270,18 @@ export default function CmsTranslationPanel({
 
       {role === "manual" ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
-          Manual translation. Saving the original or a normal resync never overwrites this text; only
-          the explicit overwrite below replaces it.
+          Manual translation. Saving the original or a normal retry never overwrites this text; only the
+          explicit overwrite replaces it.
         </p>
       ) : role === "machine" ? (
         <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-800">
           Machine translation. Saving your edits here turns it into a manual translation that automatic
-          syncs keep.
+          translation keeps.
         </p>
       ) : (
         <p className="text-[11px] leading-relaxed text-rose-400">
-          Automatic translation: each save of this original asks the server to translate it into{" "}
-          {targetLabel}. Manual translations are never overwritten without your confirmation.
+          Automatic translation: each save of this original translates it into {targetLabel} in the
+          background. Manual translations are never overwritten without your confirmation.
         </p>
       )}
 
@@ -253,35 +294,47 @@ export default function CmsTranslationPanel({
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             <strong className="font-semibold">Auto-translate is disabled on the server</strong> (no translation
-            provider key is configured). Your content was saved; the other languages were not created or
-            updated. Add them by hand, or retry once the provider is configured.
+            provider is configured). Saving works, but the other languages are not created or updated. Add them
+            by hand, or reload this page once the provider is configured.
           </span>
         </div>
       ) : null}
 
-      {inFlight ? (
+      {requesting ? (
         <p className="flex items-center gap-1.5 text-[11px] font-medium text-rose-600" role="status">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          {translating ? "Syncing translations…" : `Saving and translating into ${targetLabel}…`}
+          {translating ? "Requesting translation…" : "Saving…"}
+        </p>
+      ) : phase === "polling" && loadState === "ready" ? (
+        <p
+          className="flex items-center gap-1.5 text-[11px] font-medium text-violet-700"
+          role="status"
+          data-testid="cms-translation-polling"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Translating in the background. This updates automatically.
         </p>
       ) : null}
 
-      {panel.results.length > 0 ? (
-        <p className="text-[11px] font-medium text-rose-500">
-          {panel.source === "retranslate" ? "Last resync" : "Last save"}
-          {panel.stale ? " — content changed since, results may be out of date" : ""}
-        </p>
-      ) : mode === "edit" && role === "source" && !inFlight ? (
-        <p className="text-[11px] text-rose-400" data-testid="cms-translation-empty">
-          {panel.source
-            ? `The server reported no translation results for the last ${panel.source === "save" ? "save" : "resync"}; automatic translation may be unavailable on this server.`
-            : "No translation run in this session yet."}
-        </p>
+      {phase === "timed_out" ? (
+        <div
+          className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800"
+          data-testid="cms-translation-timeout"
+        >
+          <span>Still translating. Refresh later to see the result.</span>
+          <button type="button" onClick={onRefresh} className="shrink-0 font-semibold underline">
+            Check again
+          </button>
+        </div>
       ) : null}
 
-      {unplaced.length > 0 ? (
-        <div className="space-y-1 text-[11px]">
-          {unplaced.map((result) => (
+      {immediate.length > 0 ? (
+        <div className="space-y-1 text-[11px]" data-testid="cms-translation-immediate">
+          <p className="font-medium text-rose-500">
+            {panel.source === "retranslate" ? "Last retry" : "Last save"}
+            {panel.stale ? " — content changed since" : ""}
+          </p>
+          {immediate.map((result) => (
             <ResultChip
               key={`${result.locale}-${result.status}`}
               result={result}
@@ -294,18 +347,43 @@ export default function CmsTranslationPanel({
       {mode === "edit" ? (
         <div className="space-y-1.5" data-testid="cms-locale-variants">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Languages</p>
-          <ul className="space-y-1">
-            {rows.map((row) => (
-              <LocaleRow key={row.locale} row={row} type={type} role={role} variantsState={variantsState} />
-            ))}
-          </ul>
-          {variantsState === "error" ? (
-            <p className="text-[11px] text-rose-500">Couldn&apos;t load the other language versions.</p>
+          {status ? (
+            <ul className="space-y-1">
+              {cmsStatusRows(status, currentId).map((entry) => (
+                <LocaleRow
+                  key={entry.locale}
+                  entry={entry}
+                  current={entry.current}
+                  status={status}
+                  type={type}
+                  canManage={canManage}
+                  busy={busy}
+                  onRetry={onRetry}
+                  onForce={onForce}
+                />
+              ))}
+            </ul>
+          ) : loadState === "error" ? (
+            <div className="flex items-center justify-between gap-2 text-[11px] text-rose-500">
+              <span>Couldn&apos;t load the translation status.</span>
+              <button type="button" onClick={onRefresh} className="font-semibold underline">
+                Try again
+              </button>
+            </div>
+          ) : (
+            <p className="flex items-center gap-1.5 text-[11px] text-rose-400">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+            </p>
+          )}
+          {phase === "stopped" && status ? (
+            <p className="text-[11px] text-rose-500">
+              Couldn&apos;t refresh the translation status.{" "}
+              <button type="button" onClick={onRefresh} className="font-semibold underline">
+                Try again
+              </button>
+            </p>
           ) : null}
-          {variantsSource === "slug-search" && variantsState === "ready" ? (
-            <p className="text-[10px] text-rose-400">Found by slug; manual versions saved under another slug may not be listed.</p>
-          ) : null}
-          {panel.stale ? (
+          {panel.stale && role === "source" ? (
             <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Save to translate the latest changes.
@@ -316,31 +394,44 @@ export default function CmsTranslationPanel({
 
       {mode === "edit" && canManage ? (
         <div className="space-y-1.5">
-          <button
-            type="button"
-            onClick={onRetry}
-            disabled={busy}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-pink-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
-          >
-            {translating ? <Loader2 className="animate-spin" size={13} /> : <RefreshCw size={13} />}
-            {retryable ? "Retry translations" : role === "source" ? "Resync translations" : "Resync from original"}
-          </button>
-          <p className="text-[11px] leading-relaxed text-rose-400">
-            Uses the saved version{role === "source" ? "" : " of the original"}; unsaved edits on this screen are kept
-            and not sent. Manual translations are kept.
-          </p>
-          <button
-            type="button"
-            onClick={onForce}
-            disabled={busy}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
-          >
-            Overwrite manual translations…
-          </button>
+          {actions.retry ? (
+            <>
+              <button
+                type="button"
+                data-testid="cms-translation-retry"
+                onClick={onRetry}
+                disabled={actionsBusy}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-pink-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+              >
+                {translating ? <Loader2 className="animate-spin" size={13} /> : <RefreshCw size={13} />}
+                {role === "source" ? "Retry translations" : "Retry from original"}
+              </button>
+              <p className="text-[11px] leading-relaxed text-rose-400">
+                Uses the saved version{role === "source" ? "" : " of the original"}; unsaved edits on this screen are
+                kept and not sent. Manual translations are kept.
+              </p>
+            </>
+          ) : actions.retryBlockedBy ? (
+            <p className="text-[11px] leading-relaxed text-rose-600" data-testid="cms-translation-retry-blocked">
+              Retrying will not help until this is fixed on the server:{" "}
+              {actions.retryBlockedBy.error ?? "the translation service rejected the request."}
+            </p>
+          ) : null}
+          {actions.forceLocales.length > 0 ? (
+            <button
+              type="button"
+              data-testid="cms-translation-force"
+              onClick={() => onForce(actions.forceLocales)}
+              disabled={actionsBusy}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
+            >
+              Overwrite manual translations ({actions.forceLocales.map((code) => code.toUpperCase()).join(", ")})…
+            </button>
+          ) : null}
         </div>
       ) : mode === "create" ? (
         <p className="text-[11px] text-rose-400">
-          Translations into {targetLabel} are requested when you first save.
+          Translations into {targetLabel} start in the background when you first save.
         </p>
       ) : null}
     </div>
