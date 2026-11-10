@@ -50,7 +50,11 @@
     "previousPage": "Vorige pagina",
     "nextPage": "Volgende pagina",
     "pageOf": "Pagina {page} van {totalPages}",
-    "reviewCount": "{count, plural, one {# beoordeling} other {# beoordelingen}}"
+    "reviewCount": "{count, plural, one {# beoordeling} other {# beoordelingen}}",
+    "unavailableTitle": "We konden dit profiel niet laden",
+    "unavailableDescription": "Het profiel kon nu niet worden geladen. Probeer het opnieuw.",
+    "retry": "Opnieuw proberen",
+    "filterByProject": "Beoordelingen filteren op project"
   },
   "toast": {
     "loadFailed": "Kon het profiel van de vakman niet laden",

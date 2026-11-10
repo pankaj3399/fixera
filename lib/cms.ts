@@ -466,7 +466,18 @@ export async function publicListSitemapEntries(
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  const res = await fetch(`${API}/api/public/cms/sitemap${suffix}`, { cache: "no-store" });
+  // Cached by time like the other sitemap reads. Only a 200 is kept by the data cache, and a
+  // failure throws, so a failed page is never cached as an empty or partial list.
+  const res = await fetch(`${API}/api/public/cms/sitemap${suffix}`, {
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) {
+    throw new ApiRequestError("The CMS sitemap listing could not be read.", {
+      kind: "unavailable",
+      status: res.status,
+    });
+  }
   return parseJsonRequired<SitemapPage>(res);
 }
 
