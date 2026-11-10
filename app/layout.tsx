@@ -31,6 +31,7 @@ import {
 } from "@/components/marketing/site-announcements";
 import JsonLd from "@/components/seo/JsonLd";
 import DocumentLanguageSync from "@/components/locale/DocumentLanguageSync";
+import PrefixedLocaleLinks from "@/components/locale/PrefixedLocaleLinks";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
 import FCMLayoutWrapper from "@/components/notifications/FCMLayoutWrapper";
@@ -138,6 +139,7 @@ export default async function RootLayout({
           >
             <ServiceWorkerRegistrar />
             <DocumentLanguageSync />
+            <PrefixedLocaleLinks />
             <JsonLd
               data={[
                 organizationSchema(t("meta.siteDescription")),

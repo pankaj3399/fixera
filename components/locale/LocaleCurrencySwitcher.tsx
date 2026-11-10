@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { LOCALE_COOKIE, LOCALES, type Locale, isLocale } from "@/i18n/config";
 import { removeLangParam } from "@/i18n/localeResolution";
+import { switchLocaleInUrl } from "@/lib/seo/localeUrls";
 import {
   GEO_COUNTRY_COOKIE,
   GEO_LOCALE_COOKIE,
@@ -175,10 +176,19 @@ export default function LocaleCurrencySwitcher({
     setClientCookie(LOCALE_COOKIE, next);
     setLanguageOpen(false);
 
-    // `?lang=` wins over cookies in middleware. Drop it before navigating so
-    // the manual cookie actually takes effect, while keeping other params/hash.
     if (typeof window !== "undefined") {
       const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+      // A language-prefixed public page (`/nl/faq`) moves to the same page in the chosen
+      // language. The prefix is the language there, so the cookie alone would not change it.
+      const localizedTarget = switchLocaleInUrl(current, next);
+      if (localizedTarget) {
+        if (localizedTarget !== current) window.location.assign(localizedTarget);
+        return;
+      }
+
+      // `?lang=` wins over cookies in middleware. Drop it before navigating so
+      // the manual cookie actually takes effect, while keeping other params/hash.
       const cleaned = removeLangParam(current);
       if (cleaned !== current) {
         // A client-side replace keeps the old shared root layout (and its

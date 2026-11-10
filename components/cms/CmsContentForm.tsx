@@ -46,7 +46,7 @@ import {
   revalidateCmsTranslationFamily,
   persistableCmsMediaUrl,
   slugify,
-  withCmsLangParam,
+  cmsLiveUrl,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -312,7 +312,7 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const slugPrefix = getPublicSlugPrefixForCms(type);
   const publicPreviewPath = form.slug ? getPublicPathForCms(type, form.slug) : null;
   const publicPreviewHref = publicPreviewPath
-    ? withCmsLangParam(publicPreviewPath, normalizeCmsContentLocale(form.locale))
+    ? cmsLiveUrl(publicPreviewPath, normalizeCmsContentLocale(form.locale))
     : null;
   const formLocale = normalizeCmsContentLocale(form.locale);
   const coverRecommendation = COVER_RECOMMENDATIONS[type] ?? DEFAULT_COVER_RECOMMENDATION;

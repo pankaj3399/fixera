@@ -1,42 +1,26 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import JsonLd from "@/components/seo/JsonLd";
-import { breadcrumbSchema } from "@/lib/seo/jsonLd";
-import { buildMetadata } from "@/lib/seo/metadata";
-
-export const dynamic = "force-dynamic";
+import { breadcrumbSchema, serviceSchema } from "@/lib/seo/jsonLd";
+import { buildMetadata, noindexMetadata } from "@/lib/seo/metadata";
+import { getPublicProject } from "@/lib/server/publicEntities";
 
 interface Props {
   children: React.ReactNode;
   params: Promise<{ id: string }>;
 }
 
-interface ProjectData {
-  _id?: string;
-  title?: string;
-  description?: string;
-  coverImage?: string;
-  images?: string[];
-  professionalId?: { name?: string; businessInfo?: { companyName?: string } };
-}
-
-async function fetchProject(id: string): Promise<ProjectData | null> {
-  try {
-    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-    const res = await fetch(`${base}/api/public/projects/${encodeURIComponent(id)}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.project || data?.data || null;
-  } catch {
-    return null;
-  }
-}
+const SCHEMA_DESCRIPTION_LENGTH = 300;
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const t = await getTranslations("projects");
-  const project = await fetchProject(id);
   const safePath = `/projects/${encodeURIComponent(id)}`;
+  const lookup = await getPublicProject(id);
+  if (lookup.status === "not_found") {
+    return noindexMetadata(safePath, t("meta.projectTitle"));
+  }
+  const project = lookup.status === "found" ? lookup.data : null;
   if (!project) {
     return buildMetadata({
       title: t("meta.projectTitle"),
@@ -48,29 +32,52 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const description =
     (project.description && project.description.slice(0, 160)) ||
     t("meta.projectFallbackDescription", { title: title.toLowerCase() });
-  const image = project.coverImage || project.images?.[0];
+  // No project image here: buildMetadata declares 1200x630, which a project photo does not match.
   return buildMetadata({
     title,
     description,
     path: safePath,
-    image,
   });
 }
 
 export default async function ProjectLayout({ children, params }: Props) {
   const { id } = await params;
   const t = await getTranslations("projects");
-  const project = await fetchProject(id);
+  const lookup = await getPublicProject(id);
+  const project = lookup.status === "found" ? lookup.data : null;
   const safePath = `/projects/${encodeURIComponent(id)}`;
+  const title = project?.title || t("meta.projectTitle");
+
+  // There is no /projects index page, so the trail goes Home > project.
+  const schemas: Array<Record<string, unknown>> = [
+    breadcrumbSchema([
+      { name: t("meta.breadcrumbHome"), path: "/" },
+      { name: title, path: safePath },
+    ]),
+  ];
+
+  if (project) {
+    // Service schema for the project's scope. Prices are left out on purpose: the amount
+    // a customer sees depends on their pricing and currency, not on the public record.
+    // The professional is the provider when the record names one; otherwise no provider is claimed.
+    const pro = project.professionalId;
+    const providerName = pro?.username || pro?.name || pro?.businessInfo?.companyName;
+    schemas.push(
+      serviceSchema({
+        name: title,
+        description: project.description?.slice(0, SCHEMA_DESCRIPTION_LENGTH) || undefined,
+        path: safePath,
+        provider:
+          pro?._id && providerName
+            ? { name: providerName, path: `/professional/${encodeURIComponent(pro._id)}` }
+            : null,
+      }),
+    );
+  }
+
   return (
     <>
-      <JsonLd
-        data={breadcrumbSchema([
-          { name: t("meta.breadcrumbHome"), path: "/" },
-          { name: t("meta.breadcrumbProjects"), path: "/projects" },
-          { name: project?.title || t("meta.projectTitle"), path: safePath },
-        ])}
-      />
+      <JsonLd data={schemas} />
       {children}
     </>
   );

@@ -6,7 +6,7 @@ import {
   CMS_CONTENT_LOCALE_LABELS,
   cmsTranslationInFlight,
   getPublicPathForCms,
-  withCmsLangParam,
+  cmsLiveUrl,
   type CmsContentLocale,
   type CmsContentType,
   type CmsTranslationLocaleStatus,
@@ -106,11 +106,11 @@ function ResultChip({ result, label, at }: { result: CmsTranslationResult; label
   );
 }
 
-/** Public URL of a published language version (same URL, language via ?lang=). */
+/** Public URL of a published language version (`/nl/blog/x`; same slug in every language). */
 function liveHref(type: CmsContentType | undefined, locale: CmsContentLocale, doc: { slug: string; status: string }) {
   if (!type || doc.status !== "published" || !doc.slug) return null;
   const path = getPublicPathForCms(type, doc.slug);
-  return path ? withCmsLangParam(path, locale) : null;
+  return path ? cmsLiveUrl(path, locale) : null;
 }
 
 const smallButton =

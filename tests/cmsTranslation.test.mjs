@@ -798,8 +798,9 @@ test('rendered panel: a badge for every state, this-page marker, edit and live l
     ],
   } })
   assert.match(links, /href="\/admin\/cms\/nl1\/edit" target="_blank"/)
-  assert.match(links, /href="\/blog\/roof\?lang=nl"/, 'published version links to its live page')
-  assert.doesNotMatch(links, /\?lang=fr/, 'drafts have no live page')
+  assert.match(links, /href="\/nl\/blog\/roof"/, 'published version links to its language-prefixed live page')
+  assert.doesNotMatch(links, /href="\/fr\/blog\/roof"/, 'drafts have no live page')
+  assert.doesNotMatch(links, /\?lang=/, 'live links use the language prefix, not ?lang=')
   assert.match(links, /never overwritten without your confirmation/)
 })
 
@@ -1002,6 +1003,38 @@ test('public SEO: OpenGraph follows the served document locale (en fallback stay
     const code = readFileSync(new URL(`../app/(pages)/${page}/page.tsx`, import.meta.url), 'utf8')
     assert.match(code, /locale: servedContentLocale\((post|content\??)\.locale\)/, `${page} metadata locale`)
     assert.match(code, /lang=\{servedContentLocale\((post|content)\.locale\)\}/, `${page} body lang`)
-    assert.doesNotMatch(code, /languages:/, `${page} must not add hreflang alternates (one locale-free URL per page)`)
+    // Canonical and hreflang come from buildMetadata (main's locale URLs); pages must not override them.
+    assert.doesNotMatch(code, /languages:/, `${page} must not hand-roll hreflang alternates`)
   }
+})
+
+test('public SEO: CMS pages keep locale-prefixed canonical + hreflang, OpenGraph follows the served doc', async () => {
+  const { assembleMetadata } = await import('../lib/seo/metadataAssembly.ts')
+  const { servedContentLocale } = await import('../lib/seo/metadata.ts')
+  // /nl/blog/roof whose nl translation is missing: the backend served the en document.
+  const served = servedContentLocale('EN')
+  assert.equal(served, 'en')
+  assert.equal(servedContentLocale('de'), undefined, 'unknown locale defers to the request locale')
+  assert.equal(servedContentLocale(undefined), undefined)
+  const meta = assembleMetadata({ title: 'Roof', path: '/blog/roof', type: 'article', locale: served }, served, 'desc', 'nl')
+  assert.match(String(meta.alternates.canonical), /\/nl\/blog\/roof$/, 'canonical follows the URL prefix')
+  assert.deepEqual(Object.keys(meta.alternates.languages).sort(), ['en', 'fr', 'nl', 'x-default'])
+  assert.match(String(meta.alternates.languages.fr), /\/fr\/blog\/roof$/, 'same slug in every language')
+  assert.equal(meta.openGraph.locale, 'en_US', 'OpenGraph says what was served, not the URL language')
+  assert.equal(meta.openGraph.url, meta.alternates.canonical)
+  for (const path of ['/news/roof', '/pages/roof', '/privacy-policy', '/about']) {
+    const m = assembleMetadata({ path, locale: 'fr' }, 'fr', 'desc', 'fr')
+    assert.ok(m.alternates.languages, `${path} has hreflang`)
+    assert.equal(m.openGraph.locale, 'fr_BE')
+  }
+})
+
+test('admin live links use the language-prefixed public URL', () => {
+  assert.equal(cms.cmsLiveUrl('/blog/roof', 'nl'), '/nl/blog/roof')
+  assert.equal(cms.cmsLiveUrl('/pages/terms', 'FR'), '/fr/pages/terms')
+  assert.equal(cms.cmsLiveUrl('/privacy-policy', 'en'), '/en/privacy-policy')
+  assert.equal(cms.cmsLiveUrl('/faq#billing', 'fr'), '/fr/faq#billing')
+  assert.equal(cms.cmsLiveUrl('/services/roofing', 'nl'), '/nl/services/roofing')
+  assert.equal(cms.cmsLiveUrl('/not-localized/x/y', 'nl'), '/not-localized/x/y?lang=nl', 'no prefixed twin: ?lang= fallback')
+  assert.equal(cms.cmsLiveUrl('', 'nl'), '')
 })

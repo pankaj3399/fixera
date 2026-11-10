@@ -39,7 +39,8 @@ export const SITE_TAGLINE = "One Platform, Every Solution.";
  */
 export const SITE_DESCRIPTION =
   "Fixtract connects customers with verified professionals for any property service — from minor repairs to full renovations. Get the job done with quality and security guaranteed.";
-export const OG_DEFAULT_IMAGE = "/fixtract-logo.png";
+/** 1200×630 social card (public/og-default.png). Matches the dimensions declared in metadata. */
+export const OG_DEFAULT_IMAGE = "/og-default.png";
 
 export const absoluteUrl = (path: string): string => {
   if (!path) return siteUrl();

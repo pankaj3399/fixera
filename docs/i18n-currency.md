@@ -154,8 +154,10 @@ cookie is nl/fr. Admin can also pass `closeLabel` to `DialogContent`.
 
 `buildMetadata()` and the root layout derive OpenGraph `locale`/`alternateLocale`
 and the fallback description from the active request locale (`en_US`,
-`nl_BE`, `fr_BE`). Canonical URLs stay locale-free because language is a
-preference, not a route segment. `buildMetadata()` is async and is called from
+`nl_BE`, `fr_BE`). Public routes listed in `lib/seo/localeUrls.ts` also exist
+under a language prefix (`/nl/about`): a prefixed page canonicalises to itself,
+an unprefixed one to itself, and both list en/nl/fr plus x-default in
+`alternates.languages` (hreflang). `buildMetadata()` is async and is called from
 `generateMetadata()` functions; `noindexMetadata()` stays synchronous so admin
 and other static `metadata` exports keep working.
 
@@ -248,7 +250,7 @@ edits.
 
 The Translations panel shows one row per locale with its state badge, the last
 run result (the server's `error` text verbatim), an edit link (new tab) and a
-live `?lang=` link for published versions. `enabled: false` shows an
+live link for published versions (the language-prefixed URL, e.g. `/nl/blog/x`). `enabled: false` shows an
 "Auto-translate is disabled on the server" banner. `POST
 /api/admin/cms/:id/translate` takes `{ force, locales? }`: Retry sends
 `{ force: false }` (creates missing, refreshes stale, retries failed, keeps
@@ -265,7 +267,9 @@ Public pages show a small "machine translated" note
 (`content.machineTranslatedNote`, en/nl/fr) when the served document has
 `autoTranslated === true`.
 
-Public CMS pages keep one locale-free URL per page (no hreflang alternates);
+Public CMS pages use the same locale URLs as the rest of the site: CMS
+translations share one slug, so `/en|nl|fr/blog/x` are true twins and
+`buildMetadata()` gives them the prefixed canonical and hreflang alternates.
 `servedContentLocale()` sets the OpenGraph locale and the body's `lang` from
-the document actually served, so an English fallback on a nl/fr request is
-never labelled nl_BE/fr_BE.
+the document actually served, so an English fallback on `/nl/blog/x` is never
+labelled nl_BE.

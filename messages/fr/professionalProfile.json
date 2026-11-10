@@ -50,7 +50,11 @@
     "previousPage": "Page précédente",
     "nextPage": "Page suivante",
     "pageOf": "Page {page} sur {totalPages}",
-    "reviewCount": "{count, plural, one {# avis} other {# avis}}"
+    "reviewCount": "{count, plural, one {# avis} other {# avis}}",
+    "unavailableTitle": "Impossible de charger ce profil",
+    "unavailableDescription": "Le profil n'a pas pu être chargé pour le moment. Veuillez réessayer.",
+    "retry": "Réessayer",
+    "filterByProject": "Filtrer les avis par projet"
   },
   "toast": {
     "loadFailed": "Impossible de charger le profil du professionnel",

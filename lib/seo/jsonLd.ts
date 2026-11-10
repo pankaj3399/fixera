@@ -104,9 +104,21 @@ export interface ServiceSchemaInput {
   path: string;
   category?: string;
   image?: string;
+  /**
+   * Who provides the service. Omitted (undefined): the platform. A professional: that
+   * professional's name and profile URL. Null: the provider is not known, so no provider
+   * is claimed.
+   */
+  provider?: { name: string; path: string } | null;
 }
 
 export function serviceSchema(input: ServiceSchemaInput) {
+  const provider =
+    input.provider === undefined
+      ? { "@type": "Organization", name: SITE_NAME, url: siteUrl() }
+      : input.provider
+        ? { "@type": "Organization", name: input.provider.name, url: absoluteUrl(input.provider.path) }
+        : undefined;
   return {
     "@context": "https://schema.org",
     "@type": "Service",
@@ -115,7 +127,7 @@ export function serviceSchema(input: ServiceSchemaInput) {
     url: absoluteUrl(input.path),
     image: input.image ? absoluteUrl(input.image) : undefined,
     category: input.category,
-    provider: { "@type": "Organization", name: SITE_NAME, url: siteUrl() },
+    provider,
   };
 }
 

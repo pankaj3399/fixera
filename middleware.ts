@@ -22,6 +22,10 @@ import {
   isSupportedCurrency,
   type CurrencyCode,
 } from "@/lib/currency";
+import {
+  URL_LOCALE_REQUEST_HEADER,
+  resolveLocalizedRequest,
+} from "@/lib/seo/localeUrls";
 import { resolveRequestCountry } from "@/lib/i18n/autoConversion";
 import { loadAutoConversionState } from "@/lib/i18n/autoConversionLoader";
 import {
@@ -32,10 +36,15 @@ import {
 /**
  * Locale/currency resolution (Booking.com style, no i18n routing).
  *
- * Locale:   ?lang=xx  >  NEXT_LOCALE cookie  >  geo country (BE via
- *           Accept-Language then x-vercel-ip-country-region, CH via
+ * Locale:   /en|nl|fr prefix  >  ?lang=xx  >  NEXT_LOCALE cookie  >  geo country
+ *           (BE via Accept-Language then x-vercel-ip-country-region, CH via
  *           Accept-Language)  >  Accept-Language  >  en.
  * Currency: NEXT_CURRENCY cookie  >  geo country  >  EUR.
+ *
+ * Language-prefixed public pages (`/nl/about`) are rewritten to the existing route
+ * (`/about`) with the prefix locale forced. Only allowlisted public routes match
+ * (see lib/seo/localeUrls.ts), so private paths are never rewritten. A prefixed
+ * visit does not write the NEXT_LOCALE preference cookie: the path is the language.
  *
  * Auto-conversion roll-out (admin Platform settings, see
  * docs/i18n-currency.md): when configured, only visitors from an enabled
@@ -114,11 +123,13 @@ export async function middleware(request: NextRequest) {
     ? countryToLocale(country, { acceptLanguage, region })
     : firstPreferredLocale(acceptLanguage) ?? DEFAULT_LOCALE;
 
-  // --- Locale: explicit ?lang= wins (any environment, and is persisted) ---
+  // --- Locale: language prefix, then explicit ?lang= (persisted), cookie, geo ---
+  const localized = resolveLocalizedRequest(request.nextUrl.pathname);
   const queryLang = request.nextUrl.searchParams.get("lang");
   const manualLang = isLocale(queryLang) ? queryLang : undefined;
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
   const locale: Locale =
+    localized?.locale ??
     manualLang ??
     (isLocale(cookieLocale) ? cookieLocale : undefined) ??
     geoLocale;
@@ -135,6 +146,9 @@ export async function middleware(request: NextRequest) {
   // roll-out they must receive the default country's content. Never trust a
   // client-supplied value of our own header.
   requestHeaders.delete(CONTENT_COUNTRY_REQUEST_HEADER);
+  // Same for the language prefix: only this middleware decides it.
+  requestHeaders.delete(URL_LOCALE_REQUEST_HEADER);
+  if (localized) requestHeaders.set(URL_LOCALE_REQUEST_HEADER, localized.locale);
   if (country) {
     requestHeaders.set(CONTENT_COUNTRY_REQUEST_HEADER, country);
     // Kept for readers that still use the platform header. Whether the host
@@ -151,7 +165,15 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/admin/");
   requestHeaders.set(DOCUMENT_LOCALE_REQUEST_HEADER, isAdminPath ? "en" : locale);
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  let response: NextResponse;
+  if (localized) {
+    // Same route, prefix stripped. The browser keeps the prefixed URL.
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = localized.path;
+    response = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+  } else {
+    response = NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // Geo cookies persist only decisions taken from an authoritative config, so
   // an isolate that cannot reach the backend never overwrites them.
@@ -164,7 +186,7 @@ export async function middleware(request: NextRequest) {
     setCookieIfChanged(response, request, GEO_CURRENCY_COOKIE, geoCurrency, GEO_COOKIE_MAX_AGE);
   }
 
-  if (manualLang) {
+  if (manualLang && !localized) {
     setCookieIfChanged(response, request, LOCALE_COOKIE, manualLang, PREFERENCE_COOKIE_MAX_AGE);
   }
 

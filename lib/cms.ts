@@ -1,6 +1,7 @@
 import { authFetch, getAuthToken } from "@/lib/utils";
 import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
+import { keepLocaleInUrl } from "@/lib/seo/localeUrls";
 
 export type CmsContentType = "blog" | "news" | "faq" | "policy" | "landing";
 export type CmsContentStatus = "draft" | "published";
@@ -913,7 +914,18 @@ export async function publicListSitemapEntries(
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  const res = await fetch(`${API}/api/public/cms/sitemap${suffix}`, { cache: "no-store" });
+  // Cached by time like the other sitemap reads. Only a 200 is kept by the data cache, and a
+  // failure throws, so a failed page is never cached as an empty or partial list.
+  const res = await fetch(`${API}/api/public/cms/sitemap${suffix}`, {
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) {
+    throw new ApiRequestError("The CMS sitemap listing could not be read.", {
+      kind: "unavailable",
+      status: res.status,
+    });
+  }
   return parseJsonRequired<SitemapPage>(res);
 }
 
@@ -979,6 +991,19 @@ export function withCmsLangParam(path: string, locale: string): string {
   const query = params.toString();
   const hash = hashParts.length ? `#${hashParts.join("#")}` : "";
   return `${pathname}${query ? `?${query}` : ""}${hash}`;
+}
+
+/**
+ * Public URL of one language version, for admin "View live" links. A route with
+ * language-prefixed twins becomes `/nl/blog/x` (the URL that is indexed, and it
+ * does not overwrite the admin's own language cookie); anything else falls back
+ * to `?lang=`. CMS translations share one slug, so only the prefix changes.
+ */
+export function cmsLiveUrl(path: string, locale: string): string {
+  if (!path) return path;
+  const lang = normalizeCmsContentLocale(locale);
+  const prefixed = keepLocaleInUrl(path, lang);
+  return prefixed !== path ? prefixed : withCmsLangParam(path, lang);
 }
 
 export function getLandingServicePath(slug: string): string | null {
