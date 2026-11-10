@@ -27,7 +27,7 @@ const LOCALES = ['en', 'nl', 'fr']
 // ---------------------------------------------------------------------------
 // Fixture backend: a small in-memory model of the draft sync semantics.
 // ---------------------------------------------------------------------------
-function createFixtureBackend({ configured = true, failLocales = [] } = {}) {
+function createFixtureBackend({ configured = true, failLocales = [], localeVariants = false } = {}) {
   const docs = new Map()
   let seq = 0
   const calls = []
@@ -76,6 +76,24 @@ function createFixtureBackend({ configured = true, failLocales = [] } = {}) {
     return results
   }
 
+  // Mirrors backend loadCmsLocaleVariants: the family is the origin plus every
+  // doc translatedFrom it (never by slug), one per locale, never self/own locale.
+  function variantsOf(doc) {
+    const originId = doc.translatedFrom ?? doc._id
+    const seen = new Set([doc.locale])
+    const rows = [...docs.values()].filter(
+      (d) => d.type === doc.type && d._id !== doc._id && (d._id === originId || d.translatedFrom === originId)
+    )
+    rows.sort((a, b) => (a._id === originId ? -1 : b._id === originId ? 1 : 0))
+    const out = []
+    for (const d of rows) {
+      if (seen.has(d.locale)) continue
+      seen.add(d.locale)
+      out.push({ _id: d._id, locale: d.locale, slug: d.slug, title: d.title, status: d.status, autoTranslated: d.autoTranslated === true, ...(d.translatedFrom ? { translatedFrom: d.translatedFrom } : {}) })
+    }
+    return LOCALES.flatMap((l) => out.filter((v) => v.locale === l))
+  }
+
   async function fetchImpl(input, init = {}) {
     const url = String(input)
     const method = (init.method || 'GET').toUpperCase()
@@ -99,7 +117,25 @@ function createFixtureBackend({ configured = true, failLocales = [] } = {}) {
     if ((m = path.match(/^\/api\/admin\/cms\/(\w+)$/))) {
       const doc = docs.get(m[1])
       if (!doc) return json(404, { success: false, msg: 'Content not found' })
-      if (method === 'GET') return json(200, { success: true, data: { ...doc } })
+      if (method === 'GET') {
+        return json(200, { success: true, data: { ...doc, ...(localeVariants ? { localeVariants: variantsOf(doc) } : {}) } })
+      }
+      if (method === 'DELETE') {
+        docs.delete(doc._id)
+        let deleted = 0
+        let detached = 0
+        for (const d of [...docs.values()]) {
+          if (d.translatedFrom !== doc._id) continue
+          if (d.autoTranslated) {
+            docs.delete(d._id)
+            deleted += 1
+          } else {
+            delete d.translatedFrom
+            detached += 1
+          }
+        }
+        return json(200, { success: true, msg: 'Content deleted', translationCleanup: { deleted, detached } })
+      }
       if (method === 'PUT') {
         Object.assign(doc, body)
         if (doc.autoTranslated) doc.autoTranslated = false // admin edit demotes to manual
@@ -460,7 +496,8 @@ test('rendered panel: statuses, progress, retry wording, RBAC and variant links'
   })
   assert.match(disabled, /data-translation-locale="nl" data-translation-status="disabled"/)
   assert.match(disabled, /Translator not configured/)
-  assert.match(disabled, /Your content was saved; retry once it is/)
+  assert.match(disabled, /data-testid="cms-translation-disabled"/)
+  assert.match(disabled, /Auto-translate is disabled on the server/)
   assert.match(disabled, /Boom/)
   assert.match(disabled, /Retry translations/)
   assert.match(disabled, /Overwrite manual translations/)
@@ -478,6 +515,8 @@ test('rendered panel: statuses, progress, retry wording, RBAC and variant links'
   assert.doesNotMatch(readOnly, /Retry translations|Resync|Overwrite manual/)
 
   const links = renderPanel({
+    role: 'manual',
+    locale: 'nl',
     variants: [
       { _id: 'en1', locale: 'en', slug: 'roof', title: 'Roof', status: 'published', autoTranslated: false, relation: 'origin' },
       { _id: 'fr1', locale: 'fr', slug: 'toit', title: 'Toit', status: 'draft', autoTranslated: true, relation: 'linked' },
@@ -487,12 +526,12 @@ test('rendered panel: statuses, progress, retry wording, RBAC and variant links'
   assert.match(links, /href="\/admin\/cms\/en1\/edit" target="_blank"/)
   assert.match(links, /Original/)
   assert.match(links, /Machine/)
-  assert.match(links, /· draft/)
+  assert.match(links, />draft</)
   assert.match(links, /manual versions saved under another slug may not be listed/)
 
   const create = renderPanel({ mode: 'create' })
   assert.match(create, /requested when you first save/)
-  assert.doesNotMatch(create, /Other languages|Retry translations/)
+  assert.doesNotMatch(create, /cms-locale-variants|Retry translations/)
 })
 
 // Supplementary wiring check (source assertions, not behavior): the form uses
@@ -511,4 +550,148 @@ test('form wiring: resync writes the form only without unsaved edits; save keeps
   assert.match(src, /adminUpdateCmsWithTranslations\(\s*initial\._id,\s*payload\s*\)/)
   assert.match(src, /onClick=\{\(\) => runTranslate\(true\)\}/)
   assert.doesNotMatch(src, /setShowForceTranslateConfirm\(true\)[\s\S]{0,40}runTranslate\(true\)/)
+})
+
+// ---------------------------------------------------------------------------
+// Per-locale coverage, disabled state, delete cascade, cache flushes, SEO
+// ---------------------------------------------------------------------------
+test('locale rows: every supported locale once, current/original/machine/manual/unlinked/missing', () => {
+  const variants = [
+    { _id: 'en1', locale: 'en', slug: 'roof', title: 'Roof', status: 'published', autoTranslated: false, relation: 'origin' },
+    { _id: 'fr1', locale: 'fr', slug: 'toit', title: 'Toit', status: 'draft', autoTranslated: false, relation: 'linked' },
+  ]
+  const results = [{ locale: 'fr', status: 'skipped_manual' }, { locale: '*', status: 'failed', error: 'crash' }]
+  const rows = state.cmsLocaleRows('nl', variants, results)
+  assert.deepEqual(rows.map((r) => [r.locale, r.kind, r.variant?._id, r.result?.status]), [
+    ['en', 'original', 'en1', undefined],
+    ['nl', 'current', undefined, undefined],
+    ['fr', 'manual', 'fr1', 'skipped_manual'],
+  ])
+  assert.deepEqual(state.unplacedCmsTranslationResults(results), [{ locale: '*', status: 'failed', error: 'crash' }])
+
+  const source = state.cmsLocaleRows('en', [
+    { _id: 'nl1', locale: 'nl', slug: 'roof', title: 'Dak', status: 'draft', autoTranslated: true, relation: 'linked' },
+    { _id: 'x', locale: 'fr', slug: 'roof', title: 'Autre', status: 'draft', autoTranslated: false, relation: 'same-slug' },
+  ], [])
+  assert.deepEqual(source.map((r) => r.kind), ['current', 'machine', 'unlinked'])
+  assert.deepEqual(state.cmsLocaleRows('en', [], []).map((r) => r.kind), ['current', 'missing', 'missing'])
+})
+
+test('auto-translate disabled is detected only from a server "disabled" result', () => {
+  assert.equal(state.cmsAutoTranslateDisabled([{ locale: 'nl', status: 'disabled' }]), true)
+  assert.equal(state.cmsAutoTranslateDisabled([{ locale: 'nl', status: 'failed' }]), false)
+  assert.equal(state.cmsAutoTranslateDisabled([]), false)
+})
+
+test('rendered panel: per-locale rows, live links only for published versions, crash and disabled banner', () => {
+  const html = renderPanel({
+    type: 'blog',
+    locale: 'en',
+    variants: [
+      { _id: 'nl1', locale: 'nl', slug: 'roof', title: 'Dak', status: 'published', autoTranslated: true, relation: 'linked' },
+    ],
+    panel: { results: [{ locale: 'fr', status: 'disabled' }, { locale: '*', status: 'failed', error: 'Translation sync crashed' }], source: 'save', stale: false },
+  })
+  assert.match(html, /data-locale-row="en" data-locale-kind="current"/)
+  assert.match(html, /Original · this page/)
+  assert.match(html, /data-locale-row="nl" data-locale-kind="machine"/)
+  assert.match(html, /href="\/blog\/roof\?lang=nl"/, 'published variant links to its live page in its language')
+  assert.match(html, /data-locale-row="fr" data-locale-kind="missing"/)
+  assert.match(html, /Not translated/)
+  assert.match(html, /data-translation-locale="fr" data-translation-status="disabled"/)
+  assert.match(html, /data-translation-locale="\*" data-translation-status="failed"/)
+  assert.match(html, /All locales/)
+  assert.match(html, /Translation sync crashed/)
+  assert.match(html, /Auto-translate is disabled on the server/)
+
+  const draft = renderPanel({
+    type: 'blog',
+    locale: 'en',
+    variants: [{ _id: 'nl1', locale: 'nl', slug: 'roof', title: 'Dak', status: 'draft', autoTranslated: true, relation: 'linked' }],
+  })
+  assert.doesNotMatch(draft, /\?lang=nl/, 'drafts have no live page')
+  assert.doesNotMatch(draft, /cms-translation-disabled/)
+
+  const loading = renderPanel({ locale: 'en', variantsState: 'loading' })
+  assert.match(loading, /Loading…/)
+  assert.doesNotMatch(loading, /Not translated/, 'missing is never claimed before the variants load')
+  const failed = renderPanel({ locale: 'en', variantsState: 'error' })
+  assert.match(failed, /Couldn&#x27;t load the other language versions/)
+  assert.doesNotMatch(failed, /Not translated/)
+})
+
+test('delete impact: only an original cascades; machine deleted, manual kept', () => {
+  const variants = [
+    { _id: 'nl1', locale: 'nl', relation: 'linked', autoTranslated: true },
+    { _id: 'fr1', locale: 'fr', relation: 'linked', autoTranslated: false },
+    { _id: 'x', locale: 'fr', relation: 'same-slug', autoTranslated: true },
+  ]
+  assert.deepEqual(state.cmsDeleteImpact({}, variants), { machineLocales: ['nl'], manualLocales: ['fr'] })
+  assert.deepEqual(state.cmsDeleteImpact({ translatedFrom: 'en1' }, variants), { machineLocales: [], manualLocales: [] })
+  assert.equal(state.summarizeCmsDeleteCleanup({ deleted: 0, detached: 0 }), 'Deleted')
+  assert.equal(
+    state.summarizeCmsDeleteCleanup({ deleted: 2, detached: 1 }),
+    'Deleted with 2 machine translations. 1 manual translation kept and unlinked'
+  )
+  assert.deepEqual(cms.normalizeCmsTranslationCleanup({ deleted: -1, detached: '3' }), { deleted: 0, detached: 0 })
+  assert.deepEqual(cms.normalizeCmsTranslationCleanup(undefined), { deleted: 0, detached: 0 })
+})
+
+test('fixture: deleting an original reports the server cleanup and flushes the family slugs', async () => {
+  const backend = createFixtureBackend({ localeVariants: true })
+  await withFetch(backend.fetchImpl, async () => {
+    const { content } = await cms.adminCreateCmsWithTranslations(SOURCE)
+    const fr = [...backend.docs.values()].find((d) => d.locale === 'fr')
+    await cms.adminUpdateCmsWithTranslations(fr._id, { title: 'Toiture', slug: 'toiture' })
+
+    const { translationCleanup } = await cms.adminDeleteCms(content._id)
+    assert.deepEqual(translationCleanup, { deleted: 1, detached: 1 })
+    assert.equal(backend.docs.get(fr._id).title, 'Toiture', 'manual translation survives')
+    const flush = backend.calls.findLast((c) => c.url === '/api/cms/revalidate')
+    assert.deepEqual(flush.body, { type: 'blog', slugs: ['roof-repair', 'toiture'] })
+  })
+})
+
+test('fixture: resync from a manual translation under its own slug flushes the origin slug too', async () => {
+  const backend = createFixtureBackend({ localeVariants: true })
+  await withFetch(backend.fetchImpl, async () => {
+    await cms.adminCreateCmsWithTranslations(SOURCE)
+    const fr = [...backend.docs.values()].find((d) => d.locale === 'fr')
+    await cms.adminUpdateCmsWithTranslations(fr._id, { title: 'Toiture', slug: 'toiture' })
+    await cms.adminTranslateCms(fr._id)
+    const flush = backend.calls.findLast((c) => c.url === '/api/cms/revalidate')
+    assert.deepEqual(flush.body.slugs.sort(), ['roof-repair', 'toiture'])
+
+    const read = await cms.adminListCmsLocaleVariants(await cms.adminGetCms(fr._id))
+    assert.equal(read.source, 'server')
+    assert.deepEqual(read.variants.map((v) => [v.locale, v.relation]), [['en', 'origin'], ['nl', 'linked']])
+  })
+})
+
+test('cmsFamilySlugs: distinct, non-empty, own slug first', () => {
+  assert.deepEqual(
+    cms.cmsFamilySlugs({ slug: 'a', localeVariants: [{ slug: 'a' }, { slug: 'b' }, { slug: '' }, {}] }),
+    ['a', 'b']
+  )
+  assert.deepEqual(cms.cmsFamilySlugs({ slug: 'a' }), ['a'])
+})
+
+test('public SEO: OpenGraph follows the served document locale (en fallback stays en)', async () => {
+  // lib/seo/metadata imports next-intl/server; the helper is pure, so check its source contract.
+  const src = readFileSync(new URL('../lib/seo/metadata.ts', import.meta.url), 'utf8')
+  assert.match(src, /export function servedContentLocale/)
+  for (const page of ['blog/[slug]', 'news/[slug]', 'pages/[slug]', 'privacy-policy', 'about']) {
+    const code = readFileSync(new URL(`../app/(pages)/${page}/page.tsx`, import.meta.url), 'utf8')
+    assert.match(code, /locale: servedContentLocale\((post|content\??)\.locale\)/, `${page} metadata locale`)
+    assert.match(code, /lang=\{servedContentLocale\((post|content)\.locale\)\}/, `${page} body lang`)
+    assert.doesNotMatch(code, /languages:/, `${page} must not add hreflang alternates (one locale-free URL per page)`)
+  }
+})
+
+test('form wiring: delete dialog states the translation cascade and the toast uses server counts', () => {
+  const src = readFileSync(new URL('../components/cms/CmsContentForm.tsx', import.meta.url), 'utf8')
+  assert.match(src, /cmsDeleteImpact\(savedDoc \?\? \{\}, variants\)/)
+  assert.match(src, /data-testid="cms-delete-translation-impact"/)
+  assert.match(src, /toast\.success\(summarizeCmsDeleteCleanup\(translationCleanup\)\)/)
+  assert.match(src, /locale=\{savedDoc\?\.locale \?\? formLocale\}/)
 })

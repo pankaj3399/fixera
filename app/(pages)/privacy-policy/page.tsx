@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { publicGetCms } from "@/lib/cms/public";
-import { buildMetadata } from "@/lib/seo/metadata";
+import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 
@@ -26,6 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
       t("privacyPolicy.metaDescription"),
     path: content?.seo?.canonical || "/privacy-policy",
     noindex: content?.seo?.noindex,
+    locale: servedContentLocale(content?.locale),
   });
 }
 
@@ -61,7 +62,7 @@ export default async function PrivacyPolicyPage() {
         <div className="mt-10 rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-md shadow-rose-100">
           <div className="rounded-[calc(1.5rem-1.5px)] bg-white px-8 py-10">
             {content?.body ? (
-              <RichTextRenderer html={content.body} />
+              <RichTextRenderer html={content.body} lang={servedContentLocale(content.locale)} />
             ) : (
               <div className="py-10 text-center">
                 <h2 className="text-xl font-semibold text-rose-900">{t("privacyPolicy.comingSoonTitle")}</h2>

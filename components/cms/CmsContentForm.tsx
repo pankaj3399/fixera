@@ -58,6 +58,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { AdminAccessUser } from "@/lib/adminRbac";
 import {
   canManageCmsTranslations,
+  cmsDeleteImpact,
   cmsTranslationPanelAfterEdit,
   cmsTranslationPanelAfterRun,
   cmsTranslationRole,
@@ -66,6 +67,7 @@ import {
   manualCmsVariantLocales,
   resyncRewroteCurrentDoc,
   stashCmsTranslationResults,
+  summarizeCmsDeleteCleanup,
   summarizeCmsTranslationOutcome,
   takeStashedCmsTranslationResults,
   type CmsTranslationPanelState,
@@ -462,6 +464,8 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   };
 
   const forceLocales = manualCmsVariantLocales(variants, savedDoc ?? {});
+  const deleteImpact = cmsDeleteImpact(savedDoc ?? {}, variants);
+  const localeList = (codes: string[]) => codes.map((code) => code.toUpperCase()).join(", ");
 
   const remove = () => {
     if (!initial?._id || actionLock.current) return;
@@ -474,8 +478,8 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
     actionLock.current = "delete";
     setDeleting(true);
     try {
-      await adminDeleteCms(initial._id);
-      toast.success("Deleted");
+      const { translationCleanup } = await adminDeleteCms(initial._id);
+      toast.success(summarizeCmsDeleteCleanup(translationCleanup));
       router.push("/admin/cms");
     } catch (err) {
       toast.error(getErrorMessage(err, "Delete failed"));
@@ -890,7 +894,9 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
           <GradientCard>
             <CmsTranslationPanel
               mode={mode}
+              type={type}
               role={translationRole}
+              locale={savedDoc?.locale ?? formLocale}
               targets={cmsTranslationTargets(savedDoc?.locale ?? formLocale)}
               panel={translationPanel}
               saving={saving}
@@ -915,12 +921,13 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             <DialogTitle>Overwrite manual translations?</DialogTitle>
             <DialogDescription>
               {forceLocales.length > 0
-                ? `Machine translation will replace the manual text in ${forceLocales
-                    .map((code) => code.toUpperCase())
-                    .join(", ")}.`
-                : "Machine translation will replace any manual text in the other languages."}{" "}
-              It uses the saved original, keeps your unsaved edits on this screen, and cannot be
-              undone from here. Publication status is decided by the server.
+                ? `Machine translation will replace the manual text in ${localeList(forceLocales)}.`
+                : variantsState === "ready"
+                  ? "No linked manual translation is known, so this should behave like a normal resync."
+                  : "Machine translation will replace the manual text of every linked translation."}{" "}
+              Unlinked documents that only share the slug are never overwritten. It uses the saved
+              original, keeps your unsaved edits on this screen, and cannot be undone from here.
+              Overwritten translations then follow the original&apos;s publication status.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-end">
@@ -950,6 +957,30 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             <DialogDescription>
               This cannot be undone. The item will be permanently removed.
             </DialogDescription>
+            {translationRole === "source" &&
+            (deleteImpact.machineLocales.length > 0 || deleteImpact.manualLocales.length > 0) ? (
+              <div
+                data-testid="cms-delete-translation-impact"
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800"
+              >
+                {deleteImpact.machineLocales.length > 0 ? (
+                  <p>
+                    Its machine translations ({localeList(deleteImpact.machineLocales)}) are deleted with it,
+                    including published ones.
+                  </p>
+                ) : null}
+                {deleteImpact.manualLocales.length > 0 ? (
+                  <p>
+                    Manual translations ({localeList(deleteImpact.manualLocales)}) are kept and become
+                    independent pages.
+                  </p>
+                ) : null}
+              </div>
+            ) : translationRole === "source" && variantsState !== "ready" ? (
+              <p className="text-xs text-amber-700">
+                Machine translations of this original are deleted with it; manual translations are kept.
+              </p>
+            ) : null}
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-end">
             <button

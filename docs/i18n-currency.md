@@ -239,3 +239,22 @@ shows the locale and auto-translated/manual badge, filters by language, and
 scopes reserved policy/landing slots to their English source documents. "View
 live" appends `?lang=<document locale>` so the preview always opens in that
 document's language.
+
+The editor's Translations panel lists every locale (en, nl, fr) with what
+exists for it — this page, its original, a machine or manual translation, an
+unlinked same-slug document, or nothing yet — plus the last per-locale result.
+Each language version opens in a new tab for editing; published ones also get
+a live link (`?lang=`). The family comes from `localeVariants` on
+`GET /api/admin/cms/:id` (linked by `translatedFrom`); without it the panel
+falls back to a slug search and says so. A `disabled` result shows an
+"Auto-translate is disabled on the server" banner; the backend exposes no
+separate provider-status endpoint, so the state is known after a save or
+resync. Editing a machine translation turns it into a manual one (server-side).
+Deleting an original deletes its machine translations and keeps/unlinks manual
+ones (`translationCleanup` in the DELETE response); the confirm dialog and the
+toast say so. Saves, resyncs and deletes flush every slug of the family.
+
+Public CMS pages keep one locale-free URL per page (no hreflang alternates);
+`servedContentLocale()` sets the OpenGraph locale and the body's `lang` from
+the document actually served, so an English fallback on a nl/fr request is
+never labelled nl_BE/fr_BE.

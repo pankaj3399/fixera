@@ -4,7 +4,9 @@ import {
   normalizeCmsContentLocale,
   normalizeCmsTranslationResults,
   type CmsContent,
+  type CmsContentLocale,
   type CmsLocaleVariant,
+  type CmsTranslationCleanup,
   type CmsTranslationResult,
   type CmsTranslationStatus,
 } from "@/lib/cms";
@@ -199,6 +201,85 @@ export function resyncRewroteCurrentDoc(
   return results.some(
     (result) => result.locale === locale && (result.status === "updated" || result.status === "created")
   );
+}
+
+/** True when the server reported that no translation provider is configured. */
+export function cmsAutoTranslateDisabled(results: CmsTranslationResult[]): boolean {
+  return results.some((result) => result.status === "disabled");
+}
+
+export type CmsLocaleRowKind = "current" | "original" | "machine" | "manual" | "unlinked" | "missing";
+
+/** One supported locale of a translation family, as the admin panel lists it. */
+export interface CmsLocaleRow {
+  locale: CmsContentLocale;
+  kind: CmsLocaleRowKind;
+  /** The other-locale document, when there is one. */
+  variant?: CmsLocaleVariant;
+  /** The last save/resync outcome reported for this locale, if any. */
+  result?: CmsTranslationResult;
+}
+
+function variantKind(variant: CmsLocaleVariant): CmsLocaleRowKind {
+  if (variant.relation === "origin") return "original";
+  if (variant.relation === "same-slug") return "unlinked";
+  return variant.autoTranslated ? "machine" : "manual";
+}
+
+/**
+ * Every supported locale (en, nl, fr) with what exists for it: the open
+ * document, its original, a machine or manual translation, an unlinked
+ * same-slug document, or nothing yet. Each row carries the last reported
+ * result for that locale, so status and coverage read as one list.
+ */
+export function cmsLocaleRows(
+  currentLocale: unknown,
+  variants: CmsLocaleVariant[],
+  results: CmsTranslationResult[]
+): CmsLocaleRow[] {
+  const self = normalizeCmsContentLocale(currentLocale);
+  return CMS_CONTENT_LOCALES.map((locale) => {
+    const result = results.find((entry) => entry.locale === locale);
+    const base = result ? { result } : {};
+    if (locale === self) return { locale, kind: "current" as const, ...base };
+    const variant = variants.find((entry) => normalizeCmsContentLocale(entry.locale) === locale);
+    if (!variant) return { locale, kind: "missing" as const, ...base };
+    return { locale, kind: variantKind(variant), variant, ...base };
+  });
+}
+
+/** Results that no locale row can show (a whole-sync crash "*", unknown codes). */
+export function unplacedCmsTranslationResults(results: CmsTranslationResult[]): CmsTranslationResult[] {
+  return results.filter((result) => !(CMS_CONTENT_LOCALES as readonly string[]).includes(result.locale));
+}
+
+/**
+ * What deleting the open document does to its translations (backend: only an
+ * original cascades; its machine translations are deleted, its linked manual
+ * translations are kept and unlinked). Based on the known variants.
+ */
+export function cmsDeleteImpact(
+  current: Pick<Partial<CmsContent>, "autoTranslated" | "translatedFrom">,
+  variants: CmsLocaleVariant[]
+): { machineLocales: string[]; manualLocales: string[] } {
+  if (cmsTranslationRole(current) !== "source") return { machineLocales: [], manualLocales: [] };
+  const linked = variants.filter((variant) => variant.relation === "linked");
+  return {
+    machineLocales: linked.filter((variant) => variant.autoTranslated).map((variant) => variant.locale),
+    manualLocales: linked.filter((variant) => !variant.autoTranslated).map((variant) => variant.locale),
+  };
+}
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+/** Toast copy after a delete, from the server's own cleanup counts. */
+export function summarizeCmsDeleteCleanup(cleanup: CmsTranslationCleanup): string {
+  const parts = ["Deleted"];
+  if (cleanup.deleted > 0) parts[0] += ` with ${plural(cleanup.deleted, "machine translation")}`;
+  if (cleanup.detached > 0) {
+    parts.push(`${plural(cleanup.detached, "manual translation")} kept and unlinked`);
+  }
+  return parts.join(". ");
 }
 
 export interface StorageLike {

@@ -8,7 +8,7 @@ import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
-import { buildMetadata } from "@/lib/seo/metadata";
+import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { articleSchema, breadcrumbSchema } from "@/lib/seo/jsonLd";
 import { intlLocale } from "@/lib/i18n/format";
@@ -40,6 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     publishedTime: post.publishedAt,
     modifiedTime: post.updatedAt,
     authorName: cmsAuthorName(post),
+    locale: servedContentLocale(post.locale),
   });
 }
 
@@ -133,7 +134,7 @@ export default async function BlogDetailPage({ params }: Props) {
           </p>
         )}
         <div className="mt-8">
-          <RichTextRenderer html={post.body} className="prose-lg" />
+          <RichTextRenderer html={post.body} className="prose-lg" lang={servedContentLocale(post.locale)} />
         </div>
         <ArticleRelatedSections
           relatedServiceSlug={post.relatedServiceSlug}

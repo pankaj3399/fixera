@@ -3,11 +3,14 @@ import { cn } from "@/lib/utils";
 interface Props {
   html: string;
   className?: string;
+  /** Language of the content (a CMS document can be an English fallback on a nl/fr page). */
+  lang?: string;
 }
 
-export default function RichTextRenderer({ html, className }: Props) {
+export default function RichTextRenderer({ html, className, lang }: Props) {
   return (
     <div
+      lang={lang || undefined}
       className={cn(
         "prose prose-pink max-w-none",
         "prose-headings:text-rose-900 prose-headings:font-bold prose-headings:scroll-mt-24",

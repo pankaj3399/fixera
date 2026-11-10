@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { DEFAULT_LOCALE, LOCALES, OG_LOCALES, type Locale } from "@/i18n/config";
+import { DEFAULT_LOCALE, LOCALES, OG_LOCALES, isLocale, type Locale } from "@/i18n/config";
 import { SITE_NAME, SITE_DESCRIPTION, OG_DEFAULT_IMAGE, absoluteUrl, siteUrl } from "./site";
 
 export interface BuildMetadataInput {
@@ -101,6 +101,17 @@ export function noindexMetadata(path: string, title?: string): Metadata {
     DEFAULT_LOCALE,
     SITE_DESCRIPTION,
   );
+}
+
+/**
+ * Locale of the content actually served, for `buildMetadata({ locale })`. The
+ * public CMS falls back to the English document when a translation is missing,
+ * so a nl/fr request can receive en content: OpenGraph must then say en_US,
+ * not the visitor's language. Unknown values defer to the request locale.
+ */
+export function servedContentLocale(value: string | null | undefined): Locale | undefined {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : value;
+  return isLocale(normalized) ? normalized : undefined;
 }
 
 export { siteUrl };

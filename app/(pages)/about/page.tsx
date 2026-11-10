@@ -6,7 +6,7 @@ import CTASection from "@/components/CTASection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import { publicGetCms } from "@/lib/cms/public";
-import { buildMetadata } from "@/lib/seo/metadata";
+import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
@@ -38,6 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
     path: content?.seo?.canonical || "/about",
     image: content?.seo?.ogImage || content?.coverImage,
     noindex: content?.seo?.noindex,
+    locale: servedContentLocale(content?.locale),
   });
 }
 
@@ -66,7 +67,7 @@ export default async function AboutPage() {
                     {content.title}
                   </h2>
                 )}
-                <RichTextRenderer html={content.body} />
+                <RichTextRenderer html={content.body} lang={servedContentLocale(content.locale)} />
               </div>
             </div>
           </div>

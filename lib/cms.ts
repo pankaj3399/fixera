@@ -348,6 +348,8 @@ const API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 interface ParsedCmsEnvelope<T> {
   data: T | undefined;
   translations: CmsTranslationResult[];
+  /** The whole JSON body (undefined for 204), for other top-level fields. */
+  payload: Record<string, unknown> | undefined;
 }
 
 /**
@@ -356,7 +358,7 @@ interface ParsedCmsEnvelope<T> {
  * translations }`), and dropping it would hide translation failures.
  */
 async function parseCmsEnvelope<T>(res: Response): Promise<ParsedCmsEnvelope<T>> {
-  if (res.status === 204) return { data: undefined, translations: [] };
+  if (res.status === 204) return { data: undefined, translations: [], payload: undefined };
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     await res.text().catch(() => "");
@@ -374,6 +376,7 @@ async function parseCmsEnvelope<T>(res: Response): Promise<ParsedCmsEnvelope<T>>
   return {
     data: payload?.data as T | undefined,
     translations: normalizeCmsTranslationResults(payload?.translations),
+    payload: payload && typeof payload === "object" ? payload : undefined,
   };
 }
 
@@ -522,9 +525,12 @@ export async function adminTranslateCms(
   const { translations } = await parseCmsEnvelope<never>(res);
   // A resync creates/updates sibling documents outside the regular save path,
   // so flush the public cache too (best effort, same policy as save/delete).
+  // From a manual translation saved under its own slug, the sync runs from
+  // the origin, whose machine siblings live under the origin's slug: flush
+  // every slug of the family, not just this document's.
   try {
     const doc = await adminGetCms(id);
-    await revalidatePublicCms(doc.type, [doc.slug]);
+    await revalidatePublicCms(doc.type, cmsFamilySlugs(doc));
   } catch (error) {
     console.error("CMS cache revalidation failed after translate:", error);
   }
@@ -616,15 +622,46 @@ export async function adminListCmsLocaleVariants(
   return { variants: selectCmsLocaleVariants(doc, candidates), source: "slug-search" };
 }
 
-export async function adminDeleteCms(id: string): Promise<void> {
+/** Distinct slugs of a document and its known locale variants (cache flushes). */
+export function cmsFamilySlugs(
+  doc: Pick<CmsContent, "slug"> & { localeVariants?: Array<{ slug?: unknown }> }
+): string[] {
+  const slugs = [doc.slug, ...(doc.localeVariants ?? []).map((variant) => variant?.slug)];
+  return Array.from(
+    new Set(slugs.filter((slug): slug is string => typeof slug === "string" && slug.trim() !== ""))
+  );
+}
+
+/**
+ * What the server did to the translation family when a document was deleted
+ * (backend: machine translations of a deleted original are deleted, manual
+ * ones are kept and unlinked). Zeros when the server did not report it.
+ */
+export interface CmsTranslationCleanup {
+  deleted: number;
+  detached: number;
+}
+
+export function normalizeCmsTranslationCleanup(input: unknown): CmsTranslationCleanup {
+  const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  return { deleted: count(record.deleted), detached: count(record.detached) };
+}
+
+export async function adminDeleteCms(id: string): Promise<{ translationCleanup: CmsTranslationCleanup }> {
   const previous = await adminGetCms(id);
   const res = await authFetch(`${API}/api/admin/cms/${id}`, { method: "DELETE" });
-  await parseJson<void>(res);
+  const { payload } = await parseCmsEnvelope<never>(res);
+  const translationCleanup = normalizeCmsTranslationCleanup(payload?.translationCleanup);
+  // Deleting an original also deletes its machine translations (same slug as
+  // the original); flush every slug of the family.
   try {
-    await revalidatePublicCms(previous.type, [previous.slug]);
+    await revalidatePublicCms(previous.type, cmsFamilySlugs(previous));
   } catch (error) {
     console.error("CMS cache revalidation failed after delete:", error);
   }
+  return { translationCleanup };
 }
 
 export async function adminUploadCmsImage(file: File): Promise<{ url: string; key: string }> {
