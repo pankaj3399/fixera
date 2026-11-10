@@ -25,6 +25,9 @@ interface Preferences {
   promotions: Preference;
   system: Preference;
   marketingLocale?: string;
+  /** Server-computed display default; never written back implicitly. */
+  resolvedMarketingLocale?: string;
+  resolvedMarketingLocaleSource?: string;
 }
 
 /** Native language names for the marketing language fallback (never translated). */
@@ -98,7 +101,17 @@ async function fetchPrefs(): Promise<Preferences | null> {
     messages: { ...DEFAULT_PREFS.messages, ...data.messages },
     promotions: { ...DEFAULT_PREFS.promotions, ...data.promotions },
     system: { ...DEFAULT_PREFS.system, ...data.system },
-    marketingLocale: typeof data.marketingLocale === 'string' ? data.marketingLocale : DEFAULT_PREFS.marketingLocale,
+    // Explicit stored choice always wins; otherwise display the server
+    // resolved country default (e.g. NL -> nl). Display only — PATCH only
+    // fires on explicit user change and never writes the default back.
+    marketingLocale:
+      typeof data.marketingLocale === 'string'
+        ? data.marketingLocale
+        : typeof data.resolvedMarketingLocale === 'string'
+          ? data.resolvedMarketingLocale
+          : DEFAULT_PREFS.marketingLocale,
+    resolvedMarketingLocale: typeof data.resolvedMarketingLocale === 'string' ? data.resolvedMarketingLocale : undefined,
+    resolvedMarketingLocaleSource: typeof data.resolvedMarketingLocaleSource === 'string' ? data.resolvedMarketingLocaleSource : undefined,
   };
 }
 

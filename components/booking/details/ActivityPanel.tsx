@@ -17,10 +17,12 @@ import {
   groupActivityByDay,
   quotationVersionLabel,
   resolveActivityItems,
+  resolvePanelHourMode,
   recordedScheduleTimeZone,
 } from "@/lib/bookingDetails"
 import type { ActivityItem, BookingDetailsDto, DetailViewerRole, RawBookingRecord } from "@/types/bookingDetails"
-import { useAdminAccess } from "@/hooks/useAdminAccess"
+import { useAuth } from "@/contexts/AuthContext"
+import { canAccessAdminPage } from "@/lib/adminRbac"
 import {
   AttachmentLinks,
   DetailCard,
@@ -46,15 +48,22 @@ interface ActivityPanelProps {
 function ScheduleValue({
   schedule,
   intl,
+  hourMode,
 }: {
   schedule?: {
     scheduledStartDate?: string | null
     scheduledStartTime?: string | null
+    scheduledEndTime?: string | null
     scheduledExecutionEndDate?: string | null
     scheduledBufferEndDate?: string | null
     preferredStartDate?: string | null
   } | null
   intl: string
+  /**
+   * Wall times render only when positively hour mode. Unknown/omitted means
+   * date-only: showing a wrong time is worse than showing none.
+   */
+  hourMode?: boolean | null
 }) {
   if (!schedule) return <NotRecorded />
   // Fall back to the preferred date too: a schedule may record only that.
@@ -63,9 +72,17 @@ function ScheduleValue({
     schedule.scheduledStartDate ||
     schedule.preferredStartDate
   const end = formatCalendarDate(schedule.scheduledExecutionEndDate, intl) || schedule.scheduledExecutionEndDate
+  const startTime = schedule.scheduledStartTime
+  // Presence alone is not enough: only an explicit hour-mode signal shows
+  // wall times, since day-mode records must stay date-only.
+  const timeRange = hourMode === true
+    ? (startTime && schedule.scheduledEndTime
+      ? `${startTime}–${schedule.scheduledEndTime}`
+      : startTime)
+    : null
   const parts = [
     start,
-    schedule.scheduledStartTime,
+    timeRange,
     end ? `→ ${end}` : null,
     schedule.scheduledBufferEndDate ? `buffer → ${formatCalendarDate(schedule.scheduledBufferEndDate, intl) || schedule.scheduledBufferEndDate}` : null,
   ].filter(Boolean)
@@ -81,6 +98,7 @@ function ActivityEvent({
   claimAdminHref,
   disputeAdminHref,
   timeZone,
+  hourMode,
 }: {
   item: ActivityItem
   viewerRole: DetailViewerRole | null
@@ -89,6 +107,7 @@ function ActivityEvent({
   claimAdminHref: string | null
   disputeAdminHref: string | null
   timeZone: string
+  hourMode?: boolean | null
 }) {
   const t = useTranslations("bookings")
   const dt = useDetailT()
@@ -146,9 +165,10 @@ function ActivityEvent({
       : item.descriptionSource === "system"
       ? dt("activity.sourceSystem", "system")
       : item.descriptionSource
-  const claimHref = claimNumber && claimAdminHref
-    ? `/admin/warranty-claims?search=${encodeURIComponent(claimNumber)}`
-    : claimAdminHref
+  const claimId = item.metadata?.claimId || null
+  const claimHref = viewerRole === "admin"
+    ? claimNumber && claimAdminHref ? `/admin/warranty-claims?search=${encodeURIComponent(claimNumber)}` : null
+    : claimId && item.metadata?.participantCanOpen === true ? `/dashboard/warranty-claims?claimId=${encodeURIComponent(claimId)}` : null
 
   return (
     <li className="relative pl-7">
@@ -217,11 +237,31 @@ function ActivityEvent({
             <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div>
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.previousSchedule", "Original schedule")}</dt>
-                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.previousSchedule} intl={intl} /></dd>
+                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.previousSchedule} intl={intl} hourMode={hourMode} /></dd>
               </div>
               <div>
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.proposedSchedule", "New schedule")}</dt>
-                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.proposedSchedule} intl={intl} /></dd>
+                <dd className="mt-0.5 text-gray-800"><ScheduleValue schedule={item.metadata?.proposedSchedule} intl={intl} hourMode={hourMode} /></dd>
+              </div>
+            </dl>
+          ) : null}
+
+          {item.metadata?.schedule ? (
+            <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div>
+                <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.schedule", "Schedule")}</dt>
+                <dd className="mt-0.5 text-gray-800">
+                  <ScheduleValue
+                    schedule={{
+                      scheduledStartDate: item.metadata.schedule.startDate,
+                      scheduledStartTime: item.metadata.schedule.startTime,
+                      scheduledEndTime: item.metadata.schedule.endTime,
+                      scheduledExecutionEndDate: item.metadata.schedule.executionEndDate,
+                    }}
+                    intl={intl}
+                    hourMode={hourMode}
+                  />
+                </dd>
               </div>
             </dl>
           ) : null}
@@ -265,9 +305,9 @@ function ActivityEvent({
             </div>
           ) : null}
 
-          {claimNumber && viewerRole === "admin" && claimHref ? (
+          {claimHref ? (
             <a href={claimHref} className="inline-block text-[11px] text-slate-700 underline">
-              {dt("activity.openWarrantyAdmin", "Open warranty claim (admin)")}: {claimNumber}
+              {viewerRole === "admin" ? dt("activity.openWarrantyAdmin", "Open warranty claim (admin)") : dt("activity.openWarranty", "Open warranty claim")}: {claimNumber}
             </a>
           ) : null}
           {disputeType && viewerRole === "admin" && disputeAdminHref ? (
@@ -292,7 +332,7 @@ function ActivityEvent({
 export function ActivityPanel({ booking, details, viewerRole, pathname, search }: ActivityPanelProps) {
   const dt = useDetailT()
   const { intl } = useFormatLocale()
-  const { can } = useAdminAccess()
+  const { user } = useAuth()
   const role = viewerRole || "customer"
   const items = useMemo(() => resolveActivityItems(details, booking as never, role), [booking, details, role])
   const displayTimeZone = useDetailDisplayTimeZone(
@@ -307,11 +347,12 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
   const adminLinks = buildAdminDetailLinks({
     viewerRole,
     bookingId: booking._id,
+    // Same destination gates as the admin pages the links open.
     permissions: {
-      bookingsRead: can("bookings.read"),
-      disputesManage: can("disputes.manage"),
-      warrantyManage: can("warranty.manage"),
-      paymentsManage: can("payments.manage"),
+      bookingsRead: canAccessAdminPage(user, "/admin/bookings"),
+      disputesRead: canAccessAdminPage(user, "/admin/disputes"),
+      warrantyRead: canAccessAdminPage(user, "/admin/warranty-claims"),
+      paymentsRead: canAccessAdminPage(user, "/admin/payments"),
     },
     claimNumber: details?.warrantyClaims?.[0]?.claimNumber,
     hasDispute: Boolean(booking.dispute?.raisedAt || details?.extraCosts?.dispute),
@@ -329,6 +370,8 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
     : adminLinks
   const claimAdminHref = visibleAdminLinks.find((link) => link.key === "warranty")?.href || null
   const disputeAdminHref = visibleAdminLinks.find((link) => link.key === "disputes")?.href || null
+  // Hour-mode wall times render only with a positive signal (task 23a).
+  const hourMode = resolvePanelHourMode(booking, details)
 
   return (
     <div className="space-y-4">
@@ -337,10 +380,8 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
         description={dt("activity.descriptionLong", "Chronological, day-grouped events from recorded booking data. Expand an event for its details.")}
       >
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-          <ProvenanceBadge tone={activity?.complete === false ? "amber" : "emerald"}>
-            {activity?.complete === false
-              ? dt("activity.partial", "Some history may be unavailable")
-              : dt("activity.complete", "Recorded history")}
+          <ProvenanceBadge tone="amber">
+            {dt("activity.coverageUnknown", "Historical coverage is unknown. Only surviving records are shown.")}
           </ProvenanceBadge>
           <span>{dt("activity.eventCount", "{count} events", { count: items.length })}</span>
           {details?.meta?.legacy ? <ProvenanceBadge tone="amber">{dt("activity.legacy", "Legacy record")}</ProvenanceBadge> : null}
@@ -383,6 +424,7 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
                   claimAdminHref={claimAdminHref}
                   disputeAdminHref={disputeAdminHref}
                   timeZone={displayTimeZone.timeZone}
+                  hourMode={hourMode}
                 />
               ))}
             </ol>

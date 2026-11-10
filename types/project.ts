@@ -7,8 +7,12 @@ export interface ProjectProfessionalInput {
 
 export interface ProjectSubprojectPricing {
   type?: "fixed" | "unit" | "rfq"
+  /** Professional base amount. Only the owner and payments-authorized admins receive it. */
   amount?: number
   priceRange?: { min: number; max: number }
+  /** Customer-side amount (commission-inclusive, from the server) for every other viewer. */
+  customerAmount?: number
+  customerPriceRange?: { min: number; max: number }
   minOrderQuantity?: number
   unit?: string
   durationBasis?: 'per_booking' | 'per_unit'
@@ -156,7 +160,10 @@ export interface ProjectDto {
     _id?: string
     name: string
     description?: string
-    price: number
+    /** Professional base price. Withheld from customers. */
+    price?: number
+    /** Customer-side price (commission-inclusive, from the server). */
+    customerPrice?: number
   }>
   repeatBuyerDiscount?: {
     enabled: boolean
@@ -204,6 +211,8 @@ export interface ProjectDto {
     description: string
     type?: "condition" | "warning"
     additionalCost?: number
+    /** Customer-side add-on cost (commission-inclusive, from the server). */
+    customerAdditionalCost?: number
   }>
   faq: Array<{
     question: string

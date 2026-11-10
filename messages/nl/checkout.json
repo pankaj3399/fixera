@@ -61,6 +61,7 @@
     "executionEnds": "Uitvoering eindigt:",
     "projectCompletion": "Afronding project (incl. buffer):",
     "extraOptions": "Extra opties",
+    "agreedOptionsLocked": "Voor het wijzigen van opties in een overeengekomen prijs is een herziene offerte nodig.",
     "selectedOptionsTotal": "Totaal geselecteerde opties:",
     "additionalNotes": "Extra opmerkingen",
     "optional": "(optioneel)",
@@ -95,6 +96,7 @@
     "memberBenefitsApplied": "Voordelen van {tier}-lid toegepast",
     "originalServiceAmount": "Oorspronkelijk dienstbedrag:",
     "selectedOptions": "Geselecteerde opties:",
+    "referralDiscountLine": "Verwijzingskorting",
     "loyaltyDiscountLine": "Loyaliteitskorting ({percent}%):",
     "returningCustomerLine": "Korting terugkerende klant ({percent}%):",
     "pointsRedeemedLine": "Ingewisselde punten ({points} pt):",
@@ -130,7 +132,13 @@
     "preparationValue": "Voorbereiding: {duration}",
     "executionValue": "Uitvoering: {duration}",
     "bufferValue": "Buffer: {duration}",
-    "saving": "Opslaan..."
+    "saving": "Opslaan...",
+    "backToDetails": "Terug naar boekingsgegevens",
+    "previousToSchedule": "Vorige: boekingsinfo",
+    "fullPrice": "Volledige prijs",
+    "milestoneIncludesOptions": "Inclusief geselecteerde opties (volledig)",
+    "optionsFirstMilestoneNote": "Geselecteerde opties worden volledig bij de eerste mijlpaal in rekening gebracht, niet verdeeld over mijlpalen.",
+    "selectedOptionsInfo": "Geselecteerde opties (inbegrepen)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Betaling geslaagd",

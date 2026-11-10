@@ -13,34 +13,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Briefcase, Calendar, CheckCircle, Clock, CreditCard,
-  GitCompareArrows, Heart, Loader2, Package, Plus, Search, X,
+  CheckCircle, Clock, CreditCard,
+  GitCompareArrows, Loader2, Package, Plus, Search, X,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { getAuthToken } from "@/lib/utils"
-import StartChatButton from "@/components/chat/StartChatButton"
 import {
   type BookingStatus,
   getBookingStatusMeta,
-  getBookingTitle,
-  isProjectBooking,
   CUSTOMER_QUOTE_STATUSES,
   CUSTOMER_BOOKING_STATUSES,
   CUSTOMER_QUOTE_STATUS_FILTERS,
   CUSTOMER_BOOKING_STATUS_FILTERS,
+  customerBookingSummaryCounts,
+  statusFilterScope,
 } from "@/lib/dashboardBookingHelpers"
-import { getCustomerActionItems, type ActionItem, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
+import { readFacetCounts, readServerCount, statusOptionCount } from "@/lib/dashboardOverview"
+import { getCustomerActionItems, type ActionItem, type ActionNeededBooking, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
-import BookingTimelineBoard from "@/components/dashboard/BookingTimelineBoard"
+import SharedBookingsTable, { type SharedBookingRow } from "@/components/dashboard/SharedBookingsTable"
+import SharedQuotesTable from "@/components/dashboard/SharedQuotesTable"
 
-interface Booking {
-  _id: string
+type Booking = SharedBookingRow & {
   bookingType: "professional" | "project"
   status: BookingStatus
-  bookingNumber?: string
-  customer?: { _id: string; name?: string; email?: string; phone?: string; customerType?: string }
   rfqData?: {
     serviceType?: string
     description?: string
@@ -48,47 +46,12 @@ interface Booking {
     totalAmount?: number
     budget?: { min?: number; max?: number; currency?: string }
   }
-  scheduledStartDate?: string
-  scheduledBufferStartDate?: string
-  scheduledBufferEndDate?: string
-  scheduledEndDate?: string
-  scheduledExecutionEndDate?: string
-  scheduledStartTime?: string
-  scheduledEndTime?: string
-  createdAt?: string
-  project?: { _id: string; title?: string; category?: string; service?: string }
-  professional?: { _id: string; name?: string; username?: string; businessInfo?: { companyName?: string } }
-  payment?: { status?: string; currency?: string; amount?: number }
-  location?: { address?: string; city?: string; country?: string }
-  pricingSnapshot?: { totalAmount?: number }
-  milestonePayments?: Array<{ title?: string; status?: string; workStatus?: string; amount?: number }>
-  rescheduleRequest?: {
-    status?: "pending" | "accepted" | "declined"
-    reason?: string
-    note?: string
-    proposedSchedule?: {
-      scheduledStartDate?: string
-      scheduledExecutionEndDate?: string
-      scheduledBufferStartDate?: string
-      scheduledBufferEndDate?: string
-      scheduledStartTime?: string
-      scheduledEndTime?: string
-    }
-    previousSchedule?: {
-      scheduledStartDate?: string
-      scheduledExecutionEndDate?: string
-      scheduledBufferStartDate?: string
-      scheduledBufferEndDate?: string
-      scheduledStartTime?: string
-      scheduledEndTime?: string
-    }
-  }
-  warrantyCoverage?: {
-    duration?: { value?: number; unit?: "months" | "years" }
-    startsAt?: string
-    endsAt?: string
-    source?: "quote" | "project_subproject"
-  }
+  project?: { _id: string; title?: string; category?: string; service?: string } | null
+  professional?: { _id: string; name?: string; username?: string; businessInfo?: { companyName?: string } } | null
+  bookingSnapshot?: {
+    project?: { id?: string; title?: string }
+    selectedSubproject?: Record<string, unknown> | null
+  } | null
 }
 
 interface WarrantyClaimAction {
@@ -103,21 +66,6 @@ interface WarrantyDashboardAction {
   bookingId: string
   label: string
   severity: "warning" | "urgent"
-}
-
-const formatBudget = (
-  booking: Booking,
-  formatAmount: (amount: number, currency?: string | null) => string,
-): string | null => {
-  const budget = booking.rfqData?.budget
-  if (!budget || (budget.min == null && budget.max == null)) return null
-  const currency = budget.currency || "EUR"
-  if (budget.min != null && budget.max != null && budget.min !== budget.max) {
-    return `${formatAmount(budget.min, currency)} – ${formatAmount(budget.max, currency)}`
-  }
-  const value = budget.min ?? budget.max
-  if (value == null) return null
-  return formatAmount(value, currency)
 }
 
 const STATUS_KEYS = {
@@ -149,30 +97,61 @@ const CUSTOMER_ACTION_ITEM_KEYS = {
   reviewDispute: "customerDashboard.actionNeeded.reviewDispute",
 } as const satisfies Record<CustomerActionItemKey, string>
 
-const ACCENT_CLASSES = {
-  indigo: {
-    icon: "text-indigo-500",
-    border: "border-indigo-200",
-    hoverBorder: "hover:border-indigo-300",
-  },
-  blue: {
-    icon: "text-blue-500",
-    border: "border-blue-200",
-    hoverBorder: "hover:border-blue-300",
-  },
-  emerald: {
-    icon: "text-emerald-500",
-    border: "border-emerald-200",
-    hoverBorder: "hover:border-emerald-300",
-  },
-  teal: {
-    icon: "text-teal-500",
-    border: "border-teal-200",
-    hoverBorder: "hover:border-teal-300",
-  },
-} as const
+const PAGE_SIZE = 20
 
-type AccentKey = keyof typeof ACCENT_CLASSES
+interface ListState {
+  items: Booking[]
+  page: number
+  totalPages: number
+  /**
+   * Server totals and facets. null = unknown: not loaded yet, the last
+   * request failed, or a successful response did not include (or sent a
+   * malformed) total or facet. Unknown is shown as "—" (or no count), never
+   * as 0, and never as the previous query's numbers.
+   */
+  total: number | null
+  statusCounts: Record<string, number> | null
+  serviceCounts: Record<string, number> | null
+  /** Service filter options; kept on failure so the filter stays usable. */
+  distinctServices: string[]
+  /** Filters (not the page) of the query the totals and counts belong to. */
+  queryKey: string | null
+  /** Status filter of that query: the scope the summary figures are summed over. */
+  queryStatus: string | null
+  loading: boolean
+  error: string | null
+}
+
+/**
+ * A failed list keeps its requested page (Retry repeats it) and its service
+ * options, but its rows, pager, total and facet counts become unknown: they
+ * described an earlier query, not the one that failed.
+ */
+const failedListState = (prev: ListState, page: number, error: string): ListState => ({
+  ...prev,
+  items: [],
+  page,
+  totalPages: 1,
+  total: null,
+  statusCounts: null,
+  serviceCounts: null,
+  loading: false,
+  error,
+})
+
+const initialListState: ListState = {
+  items: [],
+  page: 1,
+  totalPages: 1,
+  total: null,
+  statusCounts: null,
+  serviceCounts: null,
+  distinctServices: [],
+  queryKey: null,
+  queryStatus: null,
+  loading: false,
+  error: null,
+}
 
 export default function CustomerDashboard() {
   const { user } = useAuth()
@@ -187,10 +166,12 @@ export default function CustomerDashboard() {
     return key ? t(key) : status
   }
 
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [quotes, setQuotes] = useState<ListState>(initialListState)
+  const [bookings, setBookings] = useState<ListState>(initialListState)
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
-  const [bookingsLoading, setBookingsLoading] = useState(false)
-  const [bookingsError, setBookingsError] = useState<string | null>(null)
+  const [actionBookings, setActionBookings] = useState<ActionNeededBooking[]>([])
+  const [actionsLoading, setActionsLoading] = useState(false)
+  const [actionsError, setActionsError] = useState<string | null>(null)
 
   // Filter state
   const [quoteSearch, setQuoteSearch] = useState("")
@@ -205,7 +186,9 @@ export default function CustomerDashboard() {
   const [addressFilter, setAddressFilter] = useState("")
   const [debouncedAddressFilter, setDebouncedAddressFilter] = useState("")
 
-  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set())
+  // Selected quotes keep their row data, so a comparison can span pages even
+  // though each page load replaces quotes.items.
+  const [selectedQuotes, setSelectedQuotes] = useState<Map<string, Booking>>(new Map())
   const [showComparison, setShowComparison] = useState(false)
   const comparisonCleanupRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -217,59 +200,140 @@ export default function CustomerDashboard() {
 
   // Debounce
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuoteSearch(quoteSearch), 500)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDebouncedQuoteSearch(quoteSearch), 500)
+    return () => clearTimeout(timer)
   }, [quoteSearch])
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedBookingSearch(bookingSearch), 500)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDebouncedBookingSearch(bookingSearch), 500)
+    return () => clearTimeout(timer)
   }, [bookingSearch])
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedAddressFilter(addressFilter), 500)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDebouncedAddressFilter(addressFilter), 500)
+    return () => clearTimeout(timer)
   }, [addressFilter])
 
-  const fetchAllBookings = useCallback(async () => {
-    setBookingsLoading(true)
-    setBookingsError(null)
+  // Per-list request counters: only the newest request for a list may write
+  // its rows, counts and pager (older, slower responses are discarded).
+  const latestListRequest = useRef({ quotes: 0, bookings: 0 })
+  const fetchList = useCallback(async (
+    kind: "quotes" | "bookings",
+    opts: { page: number; status: string; service: string; search: string; address: string },
+  ) => {
+    const setState = kind === "quotes" ? setQuotes : setBookings
+    const requestId = ++latestListRequest.current[kind]
+    const queryKey = JSON.stringify([opts.status, opts.service, opts.search.trim(), kind === "bookings" ? opts.address.trim() : ""])
+    // Another page of the same query keeps its totals while loading; a new
+    // filter makes them unknown until its own response arrives.
+    setState((prev) => (prev.queryKey === queryKey
+      ? { ...prev, loading: true, error: null }
+      : { ...prev, total: null, statusCounts: null, serviceCounts: null, queryKey, queryStatus: opts.status, loading: true, error: null }))
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
       if (token) headers['Authorization'] = `Bearer ${token}`
 
-      const allBookings: Booking[] = []
-      let page = 1
-      const limit = 50
+      const params = new URLSearchParams({
+        page: String(opts.page),
+        limit: String(PAGE_SIZE),
+      })
+      // "all" queries the tab's mode set; the awaiting-payment alias covers
+      // both accepted states server-side.
+      const modeStatuses = kind === "quotes" ? CUSTOMER_QUOTE_STATUSES : CUSTOMER_BOOKING_STATUSES
+      params.append("status", statusFilterScope(opts.status, modeStatuses).join(","))
+      if (opts.service !== "all") params.append("service", opts.service)
+      if (opts.search.trim()) params.append("search", opts.search.trim())
+      if (kind === "bookings" && opts.address.trim().length >= 2) params.append("addressFilter", opts.address.trim())
 
-      while (true) {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?page=${page}&limit=${limit}`,
-          { credentials: "include", headers }
-        )
-        const data = await response.json()
-        if (!response.ok || !data.success) {
-          setBookingsError(getErrorText(data, t("customerDashboard.loadFailed")))
-          return
-        }
-        const incoming = data.bookings || []
-        allBookings.push(...incoming)
-        const totalPages = data.pagination?.totalPages ?? 1
-        if (page >= totalPages || incoming.length < limit) break
-        page++
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params.toString()}`,
+        { credentials: "include", headers }
+      )
+      const data = await response.json()
+      if (requestId !== latestListRequest.current[kind]) return
+      if (!response.ok || !data.success) {
+        // Remember the page that failed, so Retry repeats that request.
+        setState((prev) => failedListState(prev, opts.page, getErrorText(data, t("customerDashboard.loadFailed"))))
+        return
       }
-
-      setBookings(allBookings)
-    } catch {
-      setBookingsError(t("customerDashboard.loadFailed"))
-    } finally {
-      setBookingsLoading(false)
+      if (kind === "quotes" && Array.isArray(data.bookings)) {
+        setSelectedQuotes(previous => {
+          const next = new Map(previous)
+          for (const booking of data.bookings as Booking[]) if (next.has(booking._id)) next.set(booking._id, booking)
+          return next
+        })
+      }
+      setState({
+        items: Array.isArray(data.bookings) ? data.bookings : [],
+        page: data.pagination?.page ?? opts.page,
+        totalPages: data.pagination?.totalPages ?? 1,
+        // A successful but partial response keeps what it lacks unknown:
+        // only an explicit finite count is a count (0 included).
+        total: readServerCount(data.pagination?.total),
+        statusCounts: readFacetCounts(data.statusCounts),
+        serviceCounts: readFacetCounts(data.serviceCounts),
+        distinctServices: Array.isArray(data.distinctServices) ? data.distinctServices : [],
+        queryKey,
+        queryStatus: opts.status,
+        loading: false,
+        error: null,
+      })
+    } catch (err) {
+      if (requestId !== latestListRequest.current[kind]) return
+      setState((prev) => failedListState(prev, opts.page, getErrorText(err, t("customerDashboard.loadFailed"))))
     }
   }, [getErrorText, t])
 
-  // Fetch all bookings via pagination
+  // Server-driven tab lists: every row on every page is reachable, counts
+  // come from the server facet (never page-derived).
   useEffect(() => {
-    void fetchAllBookings()
-  }, [fetchAllBookings])
+    void fetchList("quotes", { page: 1, status: quoteStatusFilter, service: quoteServiceFilter, search: debouncedQuoteSearch, address: "" })
+  }, [fetchList, quoteStatusFilter, quoteServiceFilter, debouncedQuoteSearch])
+
+  useEffect(() => {
+    void fetchList("bookings", { page: 1, status: bookingStatusFilter, service: bookingServiceFilter, search: debouncedBookingSearch, address: debouncedAddressFilter })
+  }, [fetchList, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter])
+
+  // Action-needed items resolve from a dedicated server query over
+  // action-relevant statuses so paging the main tabs never hides them.
+  const latestActionsRequest = useRef(0)
+  const loadActions = useCallback(async () => {
+    const requestId = ++latestActionsRequest.current
+    setActionsLoading(true)
+    setActionsError(null)
+    try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {}
+      if (token) headers.Authorization = `Bearer ${token}`
+      const all: ActionNeededBooking[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const params = new URLSearchParams({
+          page: String(page), limit: "50",
+          status: "rfq,quoted,quote_accepted,payment_pending,rescheduling_requested,professional_completed,dispute",
+        })
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/my-bookings?${params}`, { credentials: "include", headers })
+        const payload = await response.json()
+        if (requestId !== latestActionsRequest.current) return
+        if (!response.ok || !payload.success) throw payload
+        all.push(...(Array.isArray(payload.bookings) ? payload.bookings : []))
+        const pages = Number(payload.pagination?.totalPages)
+        totalPages = Number.isFinite(pages) ? Math.max(1, Math.floor(pages)) : 1
+        page++
+      } while (page <= totalPages)
+      setActionBookings(all)
+    } catch (err) {
+      if (requestId !== latestActionsRequest.current) return
+      setActionBookings([])
+      setActionsError(getErrorText(err, t("customerDashboard.loadFailed")))
+    } finally {
+      if (requestId === latestActionsRequest.current) setActionsLoading(false)
+    }
+  }, [getErrorText, t])
+  useEffect(() => {
+    void loadActions()
+    return () => { latestActionsRequest.current++ }
+  }, [loadActions])
 
   useEffect(() => {
     const loadClaims = async () => {
@@ -290,18 +354,8 @@ export default function CustomerDashboard() {
     void loadClaims()
   }, [])
 
-  // Split into quotes and bookings
-  const quoteBookings = useMemo(
-    () => bookings.filter(b => CUSTOMER_QUOTE_STATUSES.has(b.status)),
-    [bookings]
-  )
-  const activeBookings = useMemo(
-    () => bookings.filter(b => CUSTOMER_BOOKING_STATUSES.has(b.status)),
-    [bookings]
-  )
-
   // Action items
-  const actionItems = useMemo(() => getCustomerActionItems(bookings), [bookings])
+  const actionItems = useMemo(() => getCustomerActionItems(actionBookings), [actionBookings])
   const warrantyActionItems = useMemo<WarrantyDashboardAction[]>(() => {
     return warrantyClaims.reduce<WarrantyDashboardAction[]>((acc, claim) => {
       if (!claim.booking?._id) return acc
@@ -315,75 +369,41 @@ export default function CustomerDashboard() {
     }, [])
   }, [warrantyClaims, t])
 
-  // Unique services across all bookings
-  const allServices = useMemo(() => {
-    return Array.from(new Set(bookings.map(b => b.project?.service || b.rfqData?.serviceType).filter(Boolean))) as string[]
-  }, [bookings])
-
-  // Filtered quotes
-  const filteredQuotes = useMemo(() => {
-    return quoteBookings.filter(b => {
-      if (quoteStatusFilter !== "all" && b.status !== quoteStatusFilter) return false
-      if (quoteServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== quoteServiceFilter) return false
-      if (debouncedQuoteSearch) {
-        const term = debouncedQuoteSearch.toLowerCase()
-        const title = getBookingTitle(b, t("common.bookingFallback")).toLowerCase()
-        const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
-        const addr = (b.location?.address || "").toLowerCase()
-        const bNum = (b.bookingNumber || "").toLowerCase()
-        if (!title.includes(term) && !svc.includes(term) && !addr.includes(term) && !bNum.includes(term)) return false
-      }
-      return true
-    })
-  }, [quoteBookings, quoteStatusFilter, quoteServiceFilter, debouncedQuoteSearch, t])
-
-  // Filtered bookings
-  const filteredActiveBookings = useMemo(() => {
-    const addressTerm = debouncedAddressFilter.trim().toLowerCase()
-    return activeBookings.filter(b => {
-      if (bookingStatusFilter !== "all") {
-        const matchesAwaitingPayment =
-          bookingStatusFilter === "payment_pending" &&
-          (b.status === "payment_pending" || b.status === "quote_accepted")
-        if (!matchesAwaitingPayment && b.status !== bookingStatusFilter) return false
-      }
-      if (bookingServiceFilter !== "all" && (b.project?.service || b.rfqData?.serviceType) !== bookingServiceFilter) return false
-      if (debouncedBookingSearch) {
-        const term = debouncedBookingSearch.toLowerCase()
-        const title = getBookingTitle(b, t("common.bookingFallback")).toLowerCase()
-        const svc = (b.project?.service || b.rfqData?.serviceType || "").toLowerCase()
-        const bNum = (b.bookingNumber || "").toLowerCase()
-        if (!title.includes(term) && !svc.includes(term) && !bNum.includes(term)) return false
-      }
-      if (addressTerm) {
-        const addr = (b.location?.address || "").toLowerCase()
-        const city = (b.location?.city || "").toLowerCase()
-        const country = (b.location?.country || "").toLowerCase()
-        if (!addr.includes(addressTerm) && !city.includes(addressTerm) && !country.includes(addressTerm)) return false
-      }
-      return true
-    })
-  }, [activeBookings, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter, t])
-
-  const toggleQuoteSelection = useCallback((bookingId: string) => {
-    setSelectedQuoteIds(prev => {
-      const next = new Set(prev)
-      if (next.has(bookingId)) next.delete(bookingId)
-      else next.add(bookingId)
+  const toggleQuoteSelection = useCallback((booking: Booking) => {
+    setSelectedQuotes(prev => {
+      const next = new Map(prev)
+      if (next.has(booking._id)) next.delete(booking._id)
+      else next.set(booking._id, booking)
       return next
     })
   }, [])
 
   const comparisonBookings = useMemo(
-    () => filteredQuotes.filter(b => selectedQuoteIds.has(b._id)),
-    [filteredQuotes, selectedQuoteIds]
+    () => Array.from(selectedQuotes.values())
+      .map((b) => ({
+        _id: b._id,
+        professional: b.professional ?? undefined,
+        rfqData: b.rfqData,
+        status: b.status,
+      })),
+    [selectedQuotes]
   )
   const visibleSelectedCount = comparisonBookings.length
 
-  // Summary stats
-  const totalBookings = bookings.length
-  const totalActive = activeBookings.filter(b => !["completed", "cancelled", "refunded"].includes(b.status)).length
-  const totalCompleted = bookings.filter(b => b.status === "completed").length
+  // Summary stats from server totals (never page-derived). A figure whose
+  // inputs are unknown (first load, a failed list, or a response without
+  // them) shows "—", not 0. Active and completed are summed over the same
+  // status scope as the filtered total.
+  const UNKNOWN = "—"
+  const { active: summaryActive, completed: totalCompleted } = customerBookingSummaryCounts(bookings.statusCounts, bookings.queryStatus)
+  const summaryTotal = bookings.total != null && quotes.total != null ? bookings.total + quotes.total : null
+
+  const gotoQuotesPage = (page: number) => {
+    void fetchList("quotes", { page, status: quoteStatusFilter, service: quoteServiceFilter, search: debouncedQuoteSearch, address: "" })
+  }
+  const gotoBookingsPage = (page: number) => {
+    void fetchList("bookings", { page, status: bookingStatusFilter, service: bookingServiceFilter, search: debouncedBookingSearch, address: debouncedAddressFilter })
+  }
 
   const renderSearchFilters = (
     search: string,
@@ -395,6 +415,8 @@ export default function CustomerDashboard() {
     serviceFilter: string,
     setServiceFilter: (v: string) => void,
     placeholder: string,
+    services: string[],
+    counts: Record<string, number> | null,
   ) => (
     <div className="flex flex-col sm:flex-row gap-4 mb-4">
       <div className="relative flex-1">
@@ -411,12 +433,18 @@ export default function CustomerDashboard() {
       </div>
       <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[180px]">
+          <SelectTrigger className="w-full sm:w-[220px]">
             <SelectValue placeholder={t("customerDashboard.filters.filterByStatus")} />
           </SelectTrigger>
           <SelectContent>
             {statusOptions.map(opt => (
-              <SelectItem key={opt.id} value={opt.id}>{opt.id === "all" ? t("common.all") : statusLabel(opt.id)}</SelectItem>
+              <SelectItem key={opt.id} value={opt.id}>
+                {opt.id === "all"
+                  ? t("common.all")
+                  : counts
+                    ? `${statusLabel(opt.id)} (${statusOptionCount(counts, opt.id)})`
+                    : statusLabel(opt.id)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -426,7 +454,7 @@ export default function CustomerDashboard() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("common.allServices")}</SelectItem>
-            {allServices.map(svc => (
+            {services.map(svc => (
               <SelectItem key={svc} value={svc}>{svc}</SelectItem>
             ))}
           </SelectContent>
@@ -435,164 +463,35 @@ export default function CustomerDashboard() {
     </div>
   )
 
-  const renderBookingCard = (booking: Booking, colorAccent: string, opts?: { selectable?: boolean; selected?: boolean; onToggle?: () => void }) => {
-    const accent = ACCENT_CLASSES[(colorAccent as AccentKey)] ?? ACCENT_CLASSES.indigo
-    const isProject = isProjectBooking(booking)
-    const title = getBookingTitle(booking, t("common.bookingFallback"))
-    const { className: statusClasses } = getBookingStatusMeta(booking.status)
-    const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
-    const preferredStart = booking.rfqData?.preferredStartDate
-      ? new Date(booking.rfqData.preferredStartDate)
-      : booking.scheduledStartDate
-      ? new Date(booking.scheduledStartDate)
-      : null
-    const budgetLabel = formatBudget(booking, formatMoney)
-    const warrantyDurationValue = Number(booking.warrantyCoverage?.duration?.value || 0)
-    const warrantyEndsAtDate = booking.warrantyCoverage?.endsAt
-      ? new Date(booking.warrantyCoverage.endsAt)
-      : null
-    const hasWarrantyCoverage = warrantyDurationValue > 0 && !!warrantyEndsAtDate
-    const canOpenWarrantyClaim =
-      booking.status === "completed" &&
-      hasWarrantyCoverage &&
-      !!warrantyEndsAtDate &&
-      warrantyEndsAtDate.getTime() > Date.now()
-    const warrantyButtonTitle = !hasWarrantyCoverage
-      ? t("customerDashboard.warrantyNoCoverage")
-      : canOpenWarrantyClaim
-      ? t("customerDashboard.warrantyOpen")
-      : t("customerDashboard.warrantyExpired")
+  // A failed list keeps its filters mounted (rendered by the caller) and offers
+  // a retry of the same page; stale rows from the previous query stay hidden.
+  const renderListError = (message: string, retry: () => void) => (
+    <Card className="bg-rose-50 border border-rose-100">
+      <CardContent role="alert" className="flex flex-col gap-3 py-4 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
+        <span>{message}</span>
+        <Button variant="outline" size="sm" onClick={retry}>{t("common.retry")}</Button>
+      </CardContent>
+    </Card>
+  )
 
-    return (
-      <Card key={booking._id} className="bg-white/90 backdrop-blur shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2">
-              {opts?.selectable && (
-                <Checkbox
-                  checked={opts.selected}
-                  onCheckedChange={() => opts.onToggle?.()}
-                  className="mt-1 shrink-0"
-                  aria-label={t("customerDashboard.selectForComparison", { title })}
-                />
-              )}
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  {isProject ? (
-                    <Package className={`h-4 w-4 ${accent.icon}`} />
-                  ) : (
-                    <Briefcase className={`h-4 w-4 ${accent.icon}`} />
-                  )}
-                  <CardTitle className="text-base font-semibold text-gray-900">
-                    {title}
-                  </CardTitle>
-                </div>
-                <CardDescription className="text-xs text-gray-500">
-                  {isProject ? t("customerDashboard.projectBooking") : t("customerDashboard.professionalBooking")}
-                  {booking.rfqData?.serviceType && ` • ${booking.rfqData.serviceType}`}
-                </CardDescription>
-              </div>
-            </div>
-            <Badge
-              variant="outline"
-              className={`text-xs font-medium capitalize rounded-full px-2.5 py-1 ${statusClasses}`}
-            >
-              {statusLabel(booking.status)}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0 space-y-2 text-xs text-gray-700">
-          {preferredStart && (
-            <div className="flex items-center gap-2">
-              <Calendar className={`h-3 w-3 ${accent.icon}`} />
-              <span>
-                {t.rich("customerDashboard.start", {
-                  date: preferredStart.toLocaleDateString(intl),
-                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
-                })}
-              </span>
-            </div>
-          )}
-          {createdAt && (
-            <div className="flex items-center gap-2">
-              <Clock className="h-3 w-3 text-gray-400" />
-              <span>
-                {t.rich("customerDashboard.requestedOn", {
-                  date: createdAt.toLocaleDateString(intl),
-                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
-                })}
-              </span>
-            </div>
-          )}
-          {budgetLabel && (
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold">
-                €
-              </span>
-              <span>
-                {t.rich("customerDashboard.budget", {
-                  amount: budgetLabel,
-                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
-                })}
-              </span>
-            </div>
-          )}
-          {booking.status === "completed" && hasWarrantyCoverage && warrantyEndsAtDate && (
-            <div className="text-[11px] text-slate-600">
-              {t.rich("customerDashboard.warrantyUntil", {
-                date: warrantyEndsAtDate.toLocaleDateString(intl),
-                strong: (chunks) => <span className="font-medium">{chunks}</span>,
-              })}
-            </div>
-          )}
-          <div className="pt-2 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/bookings/${booking._id}`)}
-              className={`text-xs bg-white/80 ${accent.border} ${accent.hoverBorder}`}
-            >
-              {t("customerDashboard.viewDetails")}
-            </Button>
-            {booking.professional?._id && (
-              <StartChatButton
-                professionalId={booking.professional._id}
-                label={t("customerDashboard.chat")}
-                size="sm"
-                className={`text-xs bg-white/80 ${accent.border} ${accent.hoverBorder}`}
-              />
-            )}
-            {(booking.status === 'quote_accepted' || booking.status === 'payment_pending') && (
-              <Button
-                size="sm"
-                onClick={() => router.push(`/bookings/${booking._id}/payment`)}
-                className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <CreditCard className="h-3 w-3 mr-1" />
-                {t("customerDashboard.payNow")}
-              </Button>
-            )}
-            {booking.status === "completed" && hasWarrantyCoverage && (
-              <Button
-                variant="outline"
-                size="sm"
-                title={warrantyButtonTitle}
-                disabled={!canOpenWarrantyClaim}
-                onClick={() => router.push(`/bookings/${booking._id}?openWarrantyClaim=true`)}
-                className="text-xs"
-              >
-                {t("customerDashboard.openWarrantyClaim")}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+  const renderPager = (state: ListState, gotoPage: (page: number) => void) => (
+    state.totalPages > 1 && (
+      <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-gray-600">
+        <span>{t("common.pageOf", { page: state.page, total: state.totalPages })}</span>
+        <div className="space-x-2">
+          <Button variant="outline" size="sm" disabled={state.page <= 1 || state.loading} onClick={() => gotoPage(state.page - 1)}>
+            {t("common.previous")}
+          </Button>
+          <Button variant="outline" size="sm" disabled={state.page >= state.totalPages || state.loading} onClick={() => gotoPage(state.page + 1)}>
+            {t("common.next")}
+          </Button>
+        </div>
+      </div>
     )
-  }
+  )
 
   const renderActionItem = (item: ActionItem<CustomerActionItemKey>) => {
     const booking = item.booking
-    const title = getBookingTitle(booking, t("common.bookingFallback"))
     const actionLabelKey = CUSTOMER_ACTION_ITEM_KEYS[item.labelKey]
     const { className: statusClasses } = getBookingStatusMeta(booking.status)
     const severityClasses = item.severity === "urgent"
@@ -606,18 +505,7 @@ export default function CustomerDashboard() {
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              {isProjectBooking(booking) ? (
-                <Package className="h-4 w-4 text-indigo-500" />
-              ) : (
-                <Briefcase className="h-4 w-4 text-indigo-500" />
-              )}
-              <h3 className="font-semibold text-sm">{title}</h3>
-            </div>
-            <div className="text-xs text-gray-600 mb-2">
-              {booking.rfqData?.serviceType && <span>{booking.rfqData.serviceType} • </span>}
-              {booking.createdAt && <span>{new Date(booking.createdAt).toLocaleDateString(intl)}</span>}
-            </div>
+            <p className="mb-1 text-sm font-semibold">{booking.bookingNumber || booking._id}</p>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={`text-xs capitalize ${statusClasses}`}>
                 {statusLabel(booking.status)}
@@ -706,16 +594,13 @@ export default function CustomerDashboard() {
           <div className="w-full overflow-x-auto">
             <TabsList className="inline-flex h-auto min-w-full w-max p-1 bg-muted rounded-md">
               <TabsTrigger value="my_bookings" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                {t("customerDashboard.tabs.myBookings")} {activeBookings.length > 0 && `(${activeBookings.length})`}
+                {t("customerDashboard.tabs.myBookings")} {bookings.total != null && bookings.total > 0 && `(${bookings.total})`}
               </TabsTrigger>
               <TabsTrigger value="my_quotes" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                {t("customerDashboard.tabs.myQuotes")} {quoteBookings.length > 0 && `(${quoteBookings.length})`}
+                {t("customerDashboard.tabs.myQuotes")} {quotes.total != null && quotes.total > 0 && `(${quotes.total})`}
               </TabsTrigger>
               <TabsTrigger value="action_needed" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
                 {t("customerDashboard.tabs.actionNeeded")} {(actionItems.length + warrantyActionItems.length) > 0 && `(${actionItems.length + warrantyActionItems.length})`}
-              </TabsTrigger>
-              <TabsTrigger value="quick_actions" className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-1.5">
-                {t("customerDashboard.tabs.quickActions")}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -731,7 +616,7 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.totalHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-indigo-900">{totalBookings}</p>
+                  <p className="text-3xl font-semibold text-indigo-900">{summaryTotal ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
 
@@ -744,7 +629,7 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.activeHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-emerald-900">{totalActive}</p>
+                  <p className="text-3xl font-semibold text-emerald-900">{summaryActive ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
 
@@ -757,24 +642,20 @@ export default function CustomerDashboard() {
                   <CardDescription>{t("customerDashboard.stats.completedHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-semibold text-teal-900">{totalCompleted}</p>
+                  <p className="text-3xl font-semibold text-teal-900">{totalCompleted ?? UNKNOWN}</p>
                 </CardContent>
               </Card>
             </div>
 
-            {bookingsLoading && renderLoadingSkeleton()}
-            {!bookingsLoading && bookingsError && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
-              </Card>
-            )}
-            {!bookingsLoading && !bookingsError && (
-              <>
+            {bookings.loading && renderLoadingSkeleton()}
+            <>
                 {renderSearchFilters(
                   bookingSearch, setBookingSearch, debouncedBookingSearch,
                   bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
                   bookingServiceFilter, setBookingServiceFilter,
-                  t("customerDashboard.filters.searchBookings")
+                  t("customerDashboard.filters.searchBookings"),
+                  bookings.distinctServices,
+                  bookings.statusCounts,
                 )}
                 <div className="flex flex-col sm:flex-row gap-2 mb-4">
                   <div className="relative flex-1">
@@ -800,37 +681,42 @@ export default function CustomerDashboard() {
                     />
                   </div>
                 </div>
-                {filteredActiveBookings.length > 0 && (
-                  <BookingTimelineBoard bookings={filteredActiveBookings} viewerRole="customer" />
+                {!bookings.loading && bookings.error && renderListError(bookings.error, () => gotoBookingsPage(bookings.page))}
+                {!bookings.loading && !bookings.error && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
+                {!bookings.loading && !bookings.error && bookings.items.length > 0 && (
+                  <>
+                    <SharedBookingsTable
+                      bookings={bookings.items}
+                      viewerRole="customer"
+                      formatMoney={formatMoney}
+                      intl={intl}
+                      statusLabel={statusLabel}
+                      invoiceLabel={t("customerDashboard.invoice")}
+                      downloadLabel={t("customerDashboard.download")}
+                      chatLabel={t("customerDashboard.chat")}
+                      warrantyLabel={t("customerDashboard.openWarrantyClaim")}
+                      payNowLabel={t("customerDashboard.payNow")}
+                      viewLabel={t("customerDashboard.viewDetails")}
+                    />
+                  </>
                 )}
-                {filteredActiveBookings.length === 0 && (
-                  renderEmptyState(t("customerDashboard.emptyBookings"))
-                )}
-                {filteredActiveBookings.length > 0 && (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {filteredActiveBookings.map(b => renderBookingCard(b, "emerald"))}
-                  </div>
-                )}
-              </>
-            )}
+                {!bookings.error && renderPager(bookings, gotoBookingsPage)}
+            </>
           </TabsContent>
 
           <TabsContent value="my_quotes" className="space-y-6">
-            {bookingsLoading && renderLoadingSkeleton()}
-            {!bookingsLoading && bookingsError && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
-              </Card>
-            )}
-            {!bookingsLoading && !bookingsError && (
-              <>
+            {quotes.loading && renderLoadingSkeleton()}
+            <>
                 {renderSearchFilters(
                   quoteSearch, setQuoteSearch, debouncedQuoteSearch,
                   quoteStatusFilter, setQuoteStatusFilter, CUSTOMER_QUOTE_STATUS_FILTERS,
                   quoteServiceFilter, setQuoteServiceFilter,
-                  t("customerDashboard.filters.searchQuotes")
+                  t("customerDashboard.filters.searchQuotes"),
+                  quotes.distinctServices,
+                  quotes.statusCounts,
                 )}
-                {visibleSelectedCount >= 2 && (
+                {!quotes.loading && quotes.error && renderListError(quotes.error, () => gotoQuotesPage(quotes.page))}
+                {!quotes.loading && !quotes.error && visibleSelectedCount >= 2 && (
                   <div className="flex items-center gap-3">
                     <Button
                       size="sm"
@@ -842,63 +728,52 @@ export default function CustomerDashboard() {
                     </Button>
                   </div>
                 )}
-                {filteredQuotes.length === 0 && (
-                  renderEmptyState(t("customerDashboard.emptyQuotes"))
+                {!quotes.loading && !quotes.error && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
+                {!quotes.loading && !quotes.error && quotes.items.length > 0 && (
+                  <>
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {quotes.items.map((booking) => (
+                        <label key={booking._id} className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Checkbox
+                            checked={selectedQuotes.has(booking._id)}
+                            onCheckedChange={() => toggleQuoteSelection(booking)}
+                            aria-label={t("customerDashboard.selectForComparison", { title: booking.bookingNumber || booking._id })}
+                          />
+                          {booking.bookingNumber || booking._id}
+                        </label>
+                      ))}
+                    </div>
+                    <SharedQuotesTable
+                      bookings={quotes.items}
+                      viewerRole="customer"
+                      formatMoney={formatMoney}
+                      intl={intl}
+                      statusLabel={statusLabel}
+                      chatLabel={t("customerDashboard.chat")}
+                      acceptPayLabel={t("customerDashboard.acceptPay")}
+                      viewLabel={t("customerDashboard.viewDetails")}
+                    />
+                  </>
                 )}
-                {filteredQuotes.length > 0 && (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {filteredQuotes.map(b => renderBookingCard(b, "indigo", {
-                      selectable: true,
-                      selected: selectedQuoteIds.has(b._id),
-                      onToggle: () => toggleQuoteSelection(b._id),
-                    }))}
-                  </div>
-                )}
-              </>
-            )}
-          </TabsContent>
-
-          <TabsContent value="quick_actions" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("customerDashboard.tabs.quickActions")}</CardTitle>
-                <CardDescription>{t("customerDashboard.quickActionsDescription")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Button onClick={() => router.push("/")} className="flex w-full items-center justify-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    {t("customerDashboard.quickActionBook")}
-                  </Button>
-                  <Button variant="outline" onClick={() => router.push("/dashboard/benefits")} className="flex w-full items-center justify-center gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    {t("customerDashboard.quickActionBenefits")}
-                  </Button>
-                  <Button variant="outline" onClick={() => router.push("/dashboard/favorites")} className="flex w-full items-center justify-center gap-2">
-                    <Heart className="h-4 w-4" />
-                    {t("customerDashboard.quickActionFavorites")}
-                  </Button>
-                  <Button variant="outline" onClick={() => router.push("/profile")} className="flex w-full items-center justify-center gap-2">
-                    <Briefcase className="h-4 w-4" />
-                    {t("customerDashboard.quickActionProfile")}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                {!quotes.error && renderPager(quotes, gotoQuotesPage)}
+            </>
           </TabsContent>
 
           {/* Action Needed Tab */}
           <TabsContent value="action_needed" className="space-y-4">
-            {bookingsLoading && renderLoadingSkeleton()}
-            {!bookingsLoading && bookingsError && (
-              <Card className="bg-rose-50 border border-rose-100">
-                <CardContent role="alert" className="py-4 text-sm text-rose-700">{bookingsError}</CardContent>
+            {actionsLoading && renderLoadingSkeleton()}
+            {!actionsLoading && actionsError && (
+              <Card className="border-rose-200 bg-rose-50">
+                <CardContent role="alert" className="flex items-center justify-between gap-3 py-4 text-sm text-rose-700">
+                  <span>{actionsError}</span>
+                  <Button variant="outline" size="sm" onClick={() => void loadActions()}>{t("common.retry")}</Button>
+                </CardContent>
               </Card>
             )}
-            {!bookingsLoading && !bookingsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
+            {!actionsLoading && !actionsError && actionItems.length === 0 && warrantyActionItems.length === 0 && (
               renderEmptyState(t("customerDashboard.emptyActions"))
             )}
-            {!bookingsLoading && !bookingsError && (actionItems.length > 0 || warrantyActionItems.length > 0) && (
+            {!actionsLoading && (actionItems.length > 0 || warrantyActionItems.length > 0) && (
               <div className="space-y-3">
                 {actionItems.map(renderActionItem)}
                 {warrantyActionItems.map((item) => (
@@ -924,7 +799,7 @@ export default function CustomerDashboard() {
               setShowComparison(open)
               if (!open) {
                 if (comparisonCleanupRef.current) clearTimeout(comparisonCleanupRef.current)
-                comparisonCleanupRef.current = setTimeout(() => setSelectedQuoteIds(new Set()), 300)
+                comparisonCleanupRef.current = setTimeout(() => setSelectedQuotes(new Map()), 300)
               }
             }}
             bookings={comparisonBookings}

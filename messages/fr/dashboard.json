@@ -61,6 +61,8 @@
     "rfqItem2": "Envoie des rappels aux professionnels qui n'ont pas soumis de devis depuis 2 jours ouvrables ou plus",
     "rfqItem3": "Signale les devis dont la date de validité est dépassée",
     "notificationsButton": "Lancer les rappels de notification",
+    "warrantyAria": "Aide sur les vérifications de garantie",
+    "rfqAria": "Aide sur les vérifications des demandes de devis",
     "notificationsAria": "Que fait « Lancer les rappels de notification » ?",
     "notificationsItem1": "Envoie un rappel après 3 jours pour les RFQ, les replanifications, les remboursements, les clôtures et les réservations non démarrées",
     "notificationsItem2": "Rappels d'avis à 10 et 20 jours ; chat non lu après 24 h",
@@ -358,6 +360,20 @@
       "customer": "Client : {name}",
       "quote": "Devis",
       "warrantyAction": "Action de garantie pour la réservation {bookingId}"
+    },
+    "summary": {
+      "pendingBookings": "Réservations en cours",
+      "pendingBookingsHint": "En attente de réalisation ou de versement",
+      "finishedBookings": "Réservations terminées",
+      "finishedBookingsHint": "Réservations terminées",
+      "earnings": "Gains",
+      "earningsHint": "Versements reçus pour les réservations terminées",
+      "pendingEarnings": "Gains en attente",
+      "reviews": "Avis",
+      "reviewsHint": "Note moyenne des clients",
+      "reviewsCount": "{count, plural, one {# avis} other {# avis}}",
+      "noReviews": "Aucun avis pour le moment",
+      "loadFailed": "Impossible de charger le résumé."
     }
   },
   "actionNeeded": {
@@ -426,6 +442,30 @@
       "benefits": "Avantages",
       "noBenefits": "Aucun avantage supplémentaire configuré pour l'instant.",
       "referralPerformance": "Performance des parrainages"
+    },
+    "savings": {
+      "title": "Vos économies",
+      "subtitle": "Argent économisé grâce aux remises sur la plateforme.",
+      "recordedSavings": "Économies enregistrées",
+      "recurring": "Remise client fidèle",
+      "loyalty": "Remise de fidélité",
+      "discountCode": "Codes de réduction",
+      "points": "Points échangés",
+      "referral": "Remise de parrainage",
+      "referralUnknown": "Non enregistré séparément",
+      "noSavingsYet": "Aucune économie enregistrée pour le moment — vos remises apparaîtront ici.",
+      "loadFailed": "Impossible de charger vos économies pour le moment. Veuillez réessayer plus tard.",
+      "unknownCoverage": "{count, plural, one {# réservation réglée est} other {# réservations réglées sont}} antérieure(s) aux relevés de remises : le total est donc une borne basse.",
+      "excludedUncertain": "{count, plural, one {# réservation est} other {# réservations sont}} exclue(s) (remboursement partiel ou litige : aucune répartition exacte enregistrée).",
+      "bookingsCount": "{count, plural, one {# réservation réglée} other {# réservations réglées}}"
+    },
+    "wallet": {
+      "title": "Comment fonctionne le portefeuille de points",
+      "bodyCustomer": "Vous gagnez des points Fixtract à chaque réservation et les utilisez lors du paiement pour une remise immédiate. Votre solde est affiché ci-dessus et les totaux des économies enregistrées ci-dessous, regroupés par devise et type de remise.",
+      "bodyProfessional": "Votre solde de points et votre progression de niveau sont affichés ici. Dépenser des points pour accélérer la progression de niveau n’est pas encore possible dans l’application web.",
+      "balanceLink": "Voir le solde",
+      "historyLink": "Voir l'historique des économies",
+      "benefitsLink": "Voir les avantages"
     }
   },
   "disputes": {
@@ -480,7 +520,11 @@
       "professional": "Professionnel",
       "amount": "Montant",
       "status": "Statut",
-      "date": "Date"
+      "date": "Date",
+      "search": "Rechercher n° de réservation, professionnel…",
+      "filterService": "Filtrer par service",
+      "allServices": "Tous les services",
+      "unknownDate": "—"
     },
     "status": {
       "all": "Tous les statuts",
@@ -517,7 +561,10 @@
       "allTime": "Depuis le début",
       "recentTransactions": "Transactions récentes",
       "noTransactions": "Aucune transaction pour l'instant",
-      "noTransactionsDescription": "Les transactions apparaîtront ici dès que vous aurez terminé des réservations"
+      "noTransactionsDescription": "Les transactions apparaîtront ici dès que vous aurez terminé des réservations",
+      "pendingBookingsCount": "{count, plural, one {# versement en attente} other {# versements en attente}}",
+      "transferPending": "Virement en attente",
+      "transferFailed": "Virement échoué"
     }
   },
   "warranty": {
@@ -575,6 +622,9 @@
       "professional2": "Utilisez la page de détail de la réservation pour envoyer des propositions, marquer les réparations comme résolues et suivre les confirmations.",
       "customer1": "Ouvrez la réservation concernée pour consulter les détails de la réclamation, les mises à jour des propositions et l'avancement de la réparation.",
       "customer2": "Utilisez la page de réservation pour accepter ou refuser les propositions, confirmer les résolutions ou escalader si le problème persiste."
-    }
+    },
+    "search": "Rechercher n° de dossier ou de réservation…",
+    "filterService": "Filtrer par service",
+    "allServices": "Tous les services"
   }
 }

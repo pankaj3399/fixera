@@ -1,7 +1,7 @@
 'use client'
 
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {   ArrowLeft, CheckCircle, Clock, Shield, Smartphone, AtSign } from "lucide-react"
 import { toast } from "sonner"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
+import {
+  SIGNUP_OTP_RESEND_COOLDOWN_SECONDS,
+  otpResendDeadline,
+  otpResendStateAt,
+} from "@/lib/auth/signupOtpCooldown"
 
 interface DualVerificationProps {
   email: string;
@@ -51,37 +56,43 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
     phoneLoading: false,
     emailResendLoading: false,
     phoneResendLoading: false,
-    emailResendDisabled: true,
-    phoneResendDisabled: true,
-    emailResendTime: 60,
-    phoneResendTime: 60
+    emailResendDisabled: false,
+    phoneResendDisabled: false,
+    emailResendTime: 0,
+    phoneResendTime: 0
   });
 
-  // Countdown timers for resend buttons
+  // Countdown timers for resend buttons. Each channel keeps a wall-clock
+  // deadline; ticks only recompute the remaining seconds from it, so a
+  // throttled interval in a hidden tab cannot stretch the cooldown.
+  const emailResendDeadlineRef = useRef<number | null>(null);
+  const phoneResendDeadlineRef = useRef<number | null>(null);
   useEffect(() => {
-    const emailTimer = setInterval(() => {
-      setVerificationState(prev => {
-        if (prev.emailResendTime > 0) {
-          return { ...prev, emailResendTime: prev.emailResendTime - 1 };
-        } else {
-          return { ...prev, emailResendDisabled: false };
-        }
-      });
-    }, 1000);
-
-    const phoneTimer = setInterval(() => {
-      setVerificationState(prev => {
-        if (prev.phoneResendTime > 0) {
-          return { ...prev, phoneResendTime: prev.phoneResendTime - 1 };
-        } else {
-          return { ...prev, phoneResendDisabled: false };
-        }
-      });
-    }, 1000);
-
+    // Returning to onboarding does not imply another OTP was sent.
+    // Successful resend handlers establish their own channel's deadline.
+    const tick = () => {
+      const email = otpResendStateAt(emailResendDeadlineRef.current);
+      const phone = otpResendStateAt(phoneResendDeadlineRef.current);
+      setVerificationState(prev => (
+        prev.emailResendTime === email.remainingSeconds
+        && prev.emailResendDisabled === email.disabled
+        && prev.phoneResendTime === phone.remainingSeconds
+        && prev.phoneResendDisabled === phone.disabled
+      )
+        ? prev
+        : {
+          ...prev,
+          emailResendTime: email.remainingSeconds,
+          emailResendDisabled: email.disabled,
+          phoneResendTime: phone.remainingSeconds,
+          phoneResendDisabled: phone.disabled,
+        });
+    };
+    const timer = setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
     return () => {
-      clearInterval(emailTimer);
-      clearInterval(phoneTimer);
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
     };
   }, []);
 
@@ -111,10 +122,11 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       
       if (data.success) {
         toast.success(t("dualVerification.emailCodeSentToast"));
+        emailResendDeadlineRef.current = otpResendDeadline();
         setVerificationState(prev => ({ 
           ...prev, 
           emailResendDisabled: true, 
-          emailResendTime: 60 
+          emailResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS
         }));
       } else {
         toast.error(getErrorText(data, t("dualVerification.emailCodeSendFailed")));
@@ -142,10 +154,11 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       
       if (data.success) {
         toast.success(t("dualVerification.phoneCodeSentToast"));
+        phoneResendDeadlineRef.current = otpResendDeadline();
         setVerificationState(prev => ({ 
           ...prev, 
           phoneResendDisabled: true, 
-          phoneResendTime: 60 
+          phoneResendTime: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS
         }));
       } else {
         toast.error(getErrorText(data, t("dualVerification.phoneCodeSendFailed")));

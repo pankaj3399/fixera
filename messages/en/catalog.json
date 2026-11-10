@@ -26,7 +26,9 @@
     "errorMessage": "Unable to load professionals. Please try again later.",
     "toastError": "Failed to load professionals",
     "emptyTitle": "No Professionals Found",
-    "emptyDescription": "We currently don't have any professionals in this category. Check back soon or explore other categories."
+    "emptyDescription": "We currently don't have any professionals in this category. Check back soon or explore other categories.",
+    "servicesTitle": "Services in {category}",
+    "servicesDescription": "Browse all {category} services and choose the one you need."
   },
   "servicesLayout": {
     "metaTitle": "Services",

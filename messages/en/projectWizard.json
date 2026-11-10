@@ -154,7 +154,7 @@
       "description": "Upload up to 4 images to showcase your work (optional)",
       "dropzone": "Click to upload or drag and drop images here",
       "hint": "PNG, JPG, WebP up to 5MB each (max 4 images)",
-      "guide": "Up to 4 images, 5 MiB each. JPEG, PNG, WebP, GIF, or SVG. Landscape 4:3 around 1200 × 900 px is recommended; thumbnails crop to fill. No minimum dimensions.",
+      "guide": "Up to 4 images, 5 MiB each. JPEG, PNG or WebP. Landscape 4:3 around 1200 × 900 px is recommended; thumbnails crop to fill. No minimum dimensions.",
       "choose": "Choose Files",
       "alt": "Project {index}",
       "mainImage": "Main image",
@@ -181,7 +181,13 @@
       "oneVideoOnly": "Maximum 1 video allowed",
       "videoFormat": "Only MP4, MOV, and AVI video formats are allowed",
       "videoTooLarge": "Video file is too large. Maximum size is 50MB",
-      "mediaReadFailed": "This file could not be read. Please choose it again."
+      "imageFormat": "File {file} is not a JPEG, PNG or WebP image",
+      "mediaUploadFailed": "{file} could not be uploaded. Please try again.",
+      "mediaUploadTooLarge": "{file} is too large to upload. Please choose a smaller file.",
+      "waitForUploads": "Please wait until your images and video have finished uploading."
+    },
+    "media": {
+      "uploading": "{count, plural, one {Uploading # file…} other {Uploading # files…}}"
     }
   },
   "step2": {
@@ -269,7 +275,11 @@
       "executionLabel": "Execution Duration *",
       "intakeTitle": "Intake Meeting Duration",
       "durationLabel": "Duration *",
-      "intakeBufferLabel": "Buffer (optional)"
+      "intakeBufferLabel": "Buffer (optional)",
+      "determinedByCustomer": "Determined by customer",
+      "determinedByCustomerHint": "The customer chooses the number of hours when booking. Those hours are the execution duration and block the calendar.",
+      "executionPerUnitLabel": "Execution Duration per {unit} *",
+      "executionPerUnitHint": "Time needed for one {unit}. The quantity the customer books multiplies it to calculate the execution duration and block the calendar."
     },
     "summary": {
       "title": "Package Summary",
@@ -294,7 +304,8 @@
       "durationTo": "- {max} {unit}",
       "durationValue": "{value} {unit}",
       "totalFixed": "Total fixed price packages: {total}",
-      "customerSeesTotal": "(Customer sees: {price})"
+      "customerSeesTotal": "(Customer sees: {price})",
+      "durationPerUnit": "{value} {unit} per {pricingUnit}"
     },
     "toast": {
       "maxSubprojects": "Maximum 5 subprojects allowed",

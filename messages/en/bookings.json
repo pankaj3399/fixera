@@ -157,7 +157,11 @@
     "subtitle": "See all the information about this booking.",
     "defaultTitle": "Booking",
     "typeProject": "Project booking",
-    "typeProfessional": "Professional booking"
+    "typeProfessional": "Professional booking",
+    "titleRfq": "RFQ",
+    "subtitleRfq": "Review this quotation request and respond with a quotation.",
+    "defaultTitleRfq": "Quotation request",
+    "typeRfq": "Quotation request"
   },
   "toasts": {
     "attachmentUploaded": "Attachment uploaded",
@@ -336,7 +340,9 @@
       "rejected": "Quotation rejected. The professional will be notified.",
       "respondFailed": "Failed to respond to quotation"
     },
-    "currentPreviewNote": "Current payment preview using today's checkout pricing. The recorded quotation is in the Quotation tab."
+    "currentPreviewNote": "Current payment preview using today's checkout pricing. The recorded quotation is in the Quotation tab.",
+    "viewingPinnedVersion": "Viewing pinned version v{version}. Accept & Pay always uses the current valid version.",
+    "backToCurrentVersion": "Back to current version"
   },
   "loyalty": {
     "member": "{level} Member",
@@ -387,7 +393,9 @@
       "updateFailed": "Failed to update milestone.",
       "updateFailedRetry": "Failed to update milestone. Please try again."
     },
-    "currentPreviewNote": "Current checkout preview. Recorded ledger amounts are in the Payments tab."
+    "currentPreviewNote": "Current checkout preview. Recorded ledger amounts are in the Payments tab.",
+    "optionsIncluded": "Includes selected options",
+    "optionsFirstNote": "Selected options are charged in full with the first milestone, not split across milestones."
   },
   "work": {
     "readyToStartTitle": "Ready to Start Work",
@@ -438,22 +446,21 @@
     "label": "Extra Costs",
     "total": "Total Extra Costs",
     "totalLabel": "Total Extra Costs:",
-    "unitAdjustmentName": "Unit-based adjustment",
-    "unitDetail": "(estimated: {estimated}, actual: {actual})",
-    "subtotal": "Subtotal (incl. {percent}% platform fee)",
+    "unitAdjustmentName": "Quantity adjustment ({unit})",
+    "unitDetail": "(estimated: {estimated} {unit}, actual: {actual} {unit})",
+    "subtotal": "Subtotal",
     "loyaltyLine": "{level} loyalty ({percentage}%)",
     "vat": "VAT",
     "payBeforeConfirmTitle": "Pay extra costs before final confirmation",
     "payBeforeConfirmDescription": "Once this payment succeeds, the booking will be finalized automatically.",
     "paymentSucceeded": "Extra cost payment succeeded. Finalizing the booking now. If the page does not refresh, use the confirm button again.",
-    "addUnit": "+ Unit Adj.",
+    "addUnit": "+ {unit} adj.",
     "addCondition": "+ Condition",
     "addOption": "+ Option",
     "addOther": "+ Other",
-    "unitsFallback": "Units",
     "estimatedUnits": "Estimated {unit}",
     "actualUnits": "Actual {unit}",
-    "unitPrice": "Unit Price",
+    "unitPrice": "Price per {unit}",
     "conditionLabel": "Condition (select from project)",
     "selectCondition": "Select a condition",
     "noConditions": "No project conditions available",
@@ -477,6 +484,28 @@
       "noSubproject": "Cannot add a unit adjustment: no subproject is selected for this booking.",
       "notUnitPriced": "Cannot add a unit adjustment: this subproject is not priced per unit.",
       "unitPriceMissing": "Cannot add a unit adjustment: the unit price is not set."
+    },
+    "unitNames": {
+      "one": {
+        "hour": "hour",
+        "day": "day",
+        "meter": "metre",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "room",
+        "piece": "piece",
+        "unit": "unit"
+      },
+      "other": {
+        "hour": "hours",
+        "day": "days",
+        "meter": "metres",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "rooms",
+        "piece": "pieces",
+        "unit": "units"
+      }
     }
   },
   "review": {
@@ -554,7 +583,15 @@
       "confirmResolutionFailed": "Failed to confirm resolution",
       "escalated": "Claim escalated to admin.",
       "escalateFailed": "Failed to escalate claim"
-    }
+    },
+    "proposalDeclineTitle": "Decline proposal",
+    "proposalDeclineDescription": "Tell the professional why this proposal does not work for you. Your clarification is sent with the response and the claim is escalated.",
+    "clarificationLabel": "Clarification",
+    "clarificationPlaceholder": "Explain what is missing or wrong with the proposed solution...",
+    "clarificationRequired": "Please add a short clarification before declining.",
+    "clarificationTooLong": "Please keep your clarification to 1,000 characters or fewer.",
+    "clarificationLimit": "{count} / 1,000 characters (excluding surrounding spaces)",
+    "confirmDecline": "Decline proposal"
   },
   "dispute": {
     "dialogDescription": "Raise a dispute for admin review.",
@@ -671,7 +708,8 @@
       "booking": "Booking",
       "quotation": "Quotation",
       "payments": "Payments",
-      "activity": "Activity"
+      "activity": "Activity",
+      "bookingRfq": "Quotation request"
     },
     "fields": {
       "unknown": "Unknown",
@@ -770,6 +808,7 @@
       "repeatBuyer": "Repeat buyer discount",
       "pointsDiscount": "Points discount",
       "codeDiscount": "Discount code",
+      "referralDiscount": "Referral discount",
       "totalDiscount": "Total discount",
       "status": "Status",
       "workStatus": "Work",
@@ -786,7 +825,18 @@
       "paymentAtCheckout": "Paid at checkout",
       "extraCostsProfessional": "Completion extras (professional amount)",
       "professionalNet": "Professional net",
-      "amountBeforeDiscounts": "Amount before discounts"
+      "amountBeforeDiscounts": "Amount before discounts",
+      "firstPossibleStart": "First possible start",
+      "priceModel": "Price model",
+      "professionalLevel": "Professional level",
+      "publicTags": "Public tags",
+      "tagVerified": "Verified",
+      "tagOurChoice": "Our choice",
+      "currentProfessionalMetadata": "Level and public tags are from the current profile.",
+      "milestoneOrder": "Order",
+      "milestoneStatus": "Status",
+      "customDueDate": "Due date",
+      "quoteDate": "Quote date"
     },
     "parties": {
       "customer": "Customer",
@@ -1039,7 +1089,8 @@
       "transferAmount": "Transfer amount",
       "transferAttemptedAt": "Transfer attempted",
       "extraCostTransferStatus": "Extra-cost payout transfer",
-      "peppolStatusLabel": "Peppol status:"
+      "peppolStatusLabel": "Peppol status:",
+      "refundPending": "Refund pending — funds have not been returned"
     },
     "activity": {
       "deletedActor": "Deleted user",
@@ -1060,6 +1111,7 @@
       "descriptionSource": "Source: {source}",
       "previousSchedule": "Original schedule",
       "proposedSchedule": "New schedule",
+      "schedule": "Schedule",
       "amounts": "Recorded amounts",
       "attachments": "Attachments",
       "openQuotation": "Open quotation version",
@@ -1131,25 +1183,27 @@
         "cancellation_countered": "Cancellation counter-offer",
         "cancellation_escalated": "Cancellation escalated",
         "refund_issued": "Refund issued",
-        "admin_status_changed": "Status changed by administrator"
+        "admin_status_changed": "Status changed by administrator",
+        "refund_pending": "Refund pending"
       },
       "sourceUser": "user",
       "sourceAdmin": "administrator",
       "sourceSystem": "system",
       "qualityNotes": {
-        "undated_quote_version": "A quotation version has no recorded creation time and is omitted from the timeline.",
+        "undated_quote_version": "Stored without a date; shown in the undated group.",
         "quote_actor_not_recorded": "A quotation version has no recorded actor.",
         "legacy_quote_actor_missing": "A legacy quotation has no recorded actor.",
-        "undated_refund": "A refund has no recorded date and is omitted from the timeline.",
+        "undated_refund": "Stored without a date; shown in the undated group.",
         "refund_vat_split_not_recorded": "At least one refund has no recorded VAT/net split.",
-        "undated_extra_costs": "Completion extras have no recorded declaration time.",
-        "undated_reschedule": "A reschedule request has no recorded date.",
-        "undated_cancellation_request": "A cancellation request has no recorded date.",
-        "undated_warranty_claim": "A warranty claim has no recorded opening date.",
-        "post_booking_timestamp_not_recorded": "Post-booking answers have no recorded submission time.",
-        "undated_status_history": "A status change has no recorded timestamp.",
+        "undated_extra_costs": "Stored without a date; shown in the undated group.",
+        "undated_reschedule": "Stored without a date; shown in the undated group.",
+        "undated_cancellation_request": "Stored without a date; shown in the undated group.",
+        "undated_warranty_claim": "Stored without a date; shown in the undated group.",
+        "post_booking_timestamp_not_recorded": "Stored without a date; shown in the undated group.",
+        "undated_status_history": "Stored without a date; shown in the undated group.",
         "legacy_attachment_owner_not_recorded": "A legacy attachment has no recorded owner, so access could not be verified.",
-        "attachment_unavailable_for_legacy_record": "A legacy attachment is unavailable because ownership was not recorded."
+        "attachment_unavailable_for_legacy_record": "A legacy attachment is unavailable because ownership was not recorded.",
+        "historical_coverage_unknown": "Historical coverage is unknown. Only surviving records are shown."
       },
       "amountKinds": {
         "net": "Net",
@@ -1164,7 +1218,9 @@
       },
       "previousStatus": "Previous status",
       "newStatus": "New status",
-      "recordedInEnglish": "language recorded as English"
+      "recordedInEnglish": "language recorded as English",
+      "coverageUnknown": "Historical coverage is unknown. Only surviving records are shown.",
+      "openWarranty": "Open warranty claim"
     },
     "notices": {
       "termsSnapshotNotRecorded": "Booking-time terms were not recorded for this legacy booking. Current project data is shown separately.",
@@ -1190,7 +1246,9 @@
       "pricingType": {
         "fixed": "Fixed price",
         "unit": "Unit price",
-        "rfq": "Request quote"
+        "rfq": "Request quote",
+        "hour": "Per hour",
+        "day": "Per day"
       },
       "captureSource": {
         "booking_creation": "Booking creation",
@@ -1272,12 +1330,77 @@
         "sent": "Sent",
         "failed": "Failed",
         "skipped": "Skipped"
+      },
+      "milestoneStatus": {
+        "pending": "Pending",
+        "invoiced": "Invoiced",
+        "paid": "Paid",
+        "overdue": "Overdue"
       }
     },
     "currencyNotRecorded": "currency not recorded",
     "timeZone": {
       "recorded": "Record timestamps use the booking time zone: {zone}.",
       "viewer": "No booking time zone was recorded; record timestamps use your browser time zone: {zone}."
+    }
+  },
+  "cancellationRequest": {
+    "title": "Cancellation request",
+    "requestedBy": "Requested by",
+    "customerFallback": "Customer",
+    "professionalFallback": "Professional",
+    "role": {
+      "customer": "customer",
+      "professional": "professional"
+    },
+    "category": "Category",
+    "reason": "Reason",
+    "professionalNote": "Professional note: {note}",
+    "counterOffer": "Counter offer",
+    "responseDeadline": "Please respond before {date}",
+    "refundAmount": "Refund amount",
+    "denyReason": "Denial reason",
+    "approve": "Approve cancellation",
+    "reject": "Reject request",
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "negotiating": "Negotiating",
+      "escalated": "Escalated",
+      "approved": "Approved",
+      "denied": "Denied"
+    },
+    "toasts": {
+      "respondFailed": "Failed to respond to the cancellation request.",
+      "approved": "Cancellation approved and refund issued.",
+      "rejected": "Cancellation request rejected."
+    },
+    "adminNote": "Admin note: {note}"
+  },
+  "rescheduleRequest": {
+    "title": "Reschedule request",
+    "requestedTitle": "Requested {date}",
+    "dateNotRecorded": "date not recorded",
+    "actorNotRecorded": "actor not recorded",
+    "unknownRequester": "Unknown",
+    "requestedBy": "Requested by",
+    "reason": "Reason",
+    "noReason": "No reason recorded",
+    "responseNote": "Response: {note}",
+    "previousSchedule": "Original schedule",
+    "proposedSchedule": "New schedule",
+    "disputedNotice": "This request was disputed and can no longer be accepted or declined.",
+    "noActionAvailable": "No action is available for this request.",
+    "historyTitle": "Earlier requests",
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "disputed": "Disputed",
+      "auto_cancelled": "Auto-cancelled"
+    },
+    "toasts": {
+      "disputed": "This rescheduling request was disputed and can no longer be accepted or declined."
     }
   }
 }

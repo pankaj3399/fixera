@@ -4,6 +4,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
+import { effectiveExecutionDuration, packageDurationMode } from '@/lib/packageDuration';
+import {
+  addExecutionHours,
+  advanceWorkingDays as advanceWorkingDaysWithin,
+  maxWorkingWindowHours,
+  withBookingQuantity,
+  workingHoursForDay,
+} from '@/lib/bookingSchedule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,11 +47,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
-import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing';
+import { computeCustomerPriceWithRepeatBuyerDiscount, customerPriceGateOpen, packageRequiresCustomerPrice } from '@/lib/projectPricing';
+import { customerPackageTotal } from '@/lib/customerPricing';
 import { getAuthToken } from '@/lib/utils';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
 import { trackBeginCheckout, trackCompleteRfq, trackEvent } from '@/lib/analytics';
+import { hasEnoughFreeWorkingTime } from '@/lib/calendar/dayAvailability';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -272,8 +282,8 @@ export default function ProjectBookingForm({
   onBack,
   selectedSubprojectIndex,
 }: ProjectBookingFormProps) {
-  const { customerPrice, commissionPercent, loyaltyLoaded } = useCustomerPricing();
-  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
+  const { customerPrice, customerPackagePrice: fetchPackageCustomerTotal, pricingReady, pricingError, retryPricing, loyaltyLoaded } = useCustomerPricing();
+  const customerPricingReady = pricingReady && loyaltyLoaded;
   const router = useRouter();
   const { user } = useAuth();
   const t = useTranslations('projectBooking');
@@ -285,7 +295,7 @@ export default function ProjectBookingForm({
   // nothing is converted — only formatted in the active locale.
   const formatAmount = useCallback(
     (amount?: number | null) =>
-      typeof amount === 'number' ? formatMoney(amount) : null,
+      typeof amount === 'number' ? formatMoney(amount) : '…',
     [formatMoney]
   );
 
@@ -369,7 +379,6 @@ export default function ProjectBookingForm({
   const [professionalTimezone, setProfessionalTimezone] =
     useState<string>('UTC');
   const [viewerTimeZone, setViewerTimeZone] = useState<string>('UTC');
-  const PARTIAL_BLOCK_THRESHOLD_HOURS = 4;
 
   // Form state
   const [selectedPackageIndex, setSelectedPackageIndex] = useState<
@@ -561,10 +570,21 @@ export default function ProjectBookingForm({
         ? 1
         : undefined;
 
+  // Execution the booking occupies, as the backend schedules it: an hourly
+  // unit package lasts the booked hours, a per-unit package scales its unit
+  // duration by the booked quantity, anything else keeps its stored duration.
+  const bookedExecution = useMemo(
+    () => effectiveExecutionDuration<AnyExecutionDuration>(
+      selectedPackage,
+      project.executionDuration,
+      isUnitPricing ? estimatedUsage : 1,
+    ),
+    [selectedPackage, project.executionDuration, isUnitPricing, estimatedUsage],
+  );
+
   // Derive mode from execution duration unit (replaces root-level timeMode)
   const projectMode: 'hours' | 'days' =
-    selectedPackage?.executionDuration?.unit ||
-    project.executionDuration?.unit ||
+    bookedExecution?.unit ||
     'days';
   const professionalTz = normalizeTimezone(professionalTimezone);
   // Formats DayPicker/local Date objects in local timezone (date-only value from the picker).
@@ -811,6 +831,7 @@ export default function ProjectBookingForm({
     blockedDates,
     professionalAvailability,
     selectedPackage,
+    bookedExecution,
     selectedTime,
   ]);
 
@@ -835,7 +856,7 @@ export default function ProjectBookingForm({
         if (typeof selectedPackageIndex === 'number') {
           url += `&subprojectIndex=${selectedPackageIndex}`;
         }
-        if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
+        url = withBookingQuantity(url, isUnitPricing, estimatedUsage);
         const res = await fetch(url, { signal: controller.signal });
         if (!isCurrent()) return;
         if (!res.ok) {
@@ -882,7 +903,7 @@ export default function ProjectBookingForm({
       if (typeof selectedPackageIndex === 'number') {
         url += `&subprojectIndex=${selectedPackageIndex}`;
       }
-      if (isUnitPricing) url += `&quantity=${encodeURIComponent(String(estimatedUsage))}`;
+      url = withBookingQuantity(url, isUnitPricing, estimatedUsage);
       if (startTime) {
         url += `&startTime=${startTime}`;
       }
@@ -946,7 +967,7 @@ export default function ProjectBookingForm({
       if (typeof packageIndex === 'number') {
         url += `?subprojectIndex=${packageIndex}`;
       }
-      if (isUnitPricing) url += `${url.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
+      url = withBookingQuantity(url, isUnitPricing, estimatedUsage);
       const response = await fetch(url);
       const data: AvailabilityResponse = await response.json();
 
@@ -1030,7 +1051,7 @@ export default function ProjectBookingForm({
       if (typeof packageIndex === 'number') {
         endpoint += `?subprojectIndex=${packageIndex}`;
       }
-      if (isUnitPricing) endpoint += `${endpoint.includes('?') ? '&' : '?'}quantity=${encodeURIComponent(String(estimatedUsage))}`;
+      endpoint = withBookingQuantity(endpoint, isUnitPricing, estimatedUsage);
 
       const response = await fetch(endpoint);
       const data: ScheduleProposalsResponse = await response.json();
@@ -1130,35 +1151,14 @@ export default function ProjectBookingForm({
     return Math.ceil(convertDurationToDays(buffer));
   };
 
-  const advanceWorkingDays = (startDate: Date, workingDays: number) => {
-    if (workingDays <= 0) {
-      return startDate;
-    }
-    if (workingDays === 1) {
-      return startDate;
-    }
-
-    let cursor = startDate;
-    let countedDays = 0;
-
-    // First, check if startDate itself is a working day and count it
-    const startStr = toLocalDateKey(startDate);
-    if (isProfessionalWorkingDay(startDate) && !isDateBlocked(startStr)) {
-      countedDays = 1;
-    }
-
-    // Now find remaining working days
-    while (countedDays < workingDays) {
-      cursor = addDays(cursor, 1);
-      const cursorStr = toLocalDateKey(cursor);
-
-      if (isProfessionalWorkingDay(cursor) && !isDateBlocked(cursorStr)) {
-        countedDays++;
-      }
-    }
-
-    return cursor;
-  };
+  // Null when no completion date exists within the search horizon (for
+  // example, the professional is unavailable every day).
+  const advanceWorkingDays = (startDate: Date, workingDays: number): Date | null =>
+    advanceWorkingDaysWithin(
+      startDate,
+      workingDays,
+      (day) => isProfessionalWorkingDay(day) && !isDateBlocked(toLocalDateKey(day)),
+    );
 
   // Check if a date is a weekend (Saturday or Sunday)
   const isWeekend = useCallback((date: Date): boolean => {
@@ -1265,17 +1265,11 @@ export default function ProjectBookingForm({
       dayAvailability = professionalAvailability[dayName];
     }
 
-    if (!dayAvailability || !dayAvailability.available) return defaultHours;
-
-    return {
-      startTime: dayAvailability.startTime || '09:00',
-      endTime: dayAvailability.endTime || '17:00',
-    };
+    return workingHoursForDay(dayAvailability);
   }, [professionalAvailability, professionalTz, toLocalDateKey]);
 
   const getExecutionDurationHours = (): number => {
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     if (!executionSource) {
       return 0;
@@ -1431,13 +1425,9 @@ export default function ProjectBookingForm({
     date: Date,
     intervals: Array<{ start: Date; end: Date }>
   ) => {
-    if (intervals.length === 0) {
-      return false;
-    }
-
-    const { blockedHours } = computeBlockedHoursForIntervals(date, intervals);
-    // Block the day if 4 or more hours are blocked (matches backend logic)
-    return blockedHours >= PARTIAL_BLOCK_THRESHOLD_HOURS;
+    // A day needs at least MIN_FREE_WORKING_HOURS free inside its working
+    // schedule (matches the backend engine); short schedules count too.
+    return !hasEnoughFreeWorkingTime(computeBlockedHoursForIntervals(date, intervals));
   };
 
   const windowOverlapsBlockedRanges = (
@@ -1646,7 +1636,7 @@ export default function ProjectBookingForm({
     const blockedIntervals = getBlockedIntervalsForDate(date);
     const buffer = getBufferDuration();
 
-    // NOTE: For hours mode, we do NOT use shouldBlockDayForIntervals (4-hour threshold)
+    // NOTE: For hours mode, we do NOT use shouldBlockDayForIntervals (3-free-hour day rule)
     // because we want customers to be able to book any remaining available slots
     // The per-slot overlap check below handles blocking individual time slots
 
@@ -1736,8 +1726,7 @@ export default function ProjectBookingForm({
     if (!startTime) return '';
 
     // Get execution duration in hours
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     let executionHours = 0;
     if (executionSource) {
@@ -1772,8 +1761,7 @@ export default function ProjectBookingForm({
     const endTime = calculateEndTime(startTime);
 
     // Get execution duration
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
 
     const durationLabel =
       executionSource && typeof executionSource.value === 'number'
@@ -1824,11 +1812,11 @@ export default function ProjectBookingForm({
 
   const executionDaysForBlocking = useMemo(() => {
     if (projectMode !== 'days') return 0;
-    const executionSource = selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource = bookedExecution;
     const preferRange = selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const days = Math.ceil(convertDurationToDays(executionSource, preferRange));
     return Number.isFinite(days) && days > 0 ? days : 0;
-  }, [projectMode, selectedPackage, project.executionDuration]);
+  }, [projectMode, selectedPackage, bookedExecution]);
 
   const isExecutionWindowBlockedForStart = (startDate: Date): boolean => {
     if (executionDaysForBlocking <= 1) return false;
@@ -1912,7 +1900,7 @@ export default function ProjectBookingForm({
         dateObj,
         intervals
       );
-      const blockedByRanges = blockedHours >= PARTIAL_BLOCK_THRESHOLD_HOURS;
+      const blockedByRanges = !hasEnoughFreeWorkingTime({ blockedHours, workingHours });
       const finalBlocked = explicitBlocked || blockedByRanges;
 
       return {
@@ -1952,7 +1940,6 @@ export default function ProjectBookingForm({
     professionalAvailability,
     professionalTz,
     blockedDates,
-    PARTIAL_BLOCK_THRESHOLD_HOURS,
     project._id,
   ]);
 
@@ -1961,10 +1948,12 @@ export default function ProjectBookingForm({
       Date | { from: Date; to: Date } | ((date: Date) => boolean)
     > = [];
 
-    // For days mode, use a function matcher that applies the 4-hour threshold
-    // instead of disabling entire ranges
+    // For days mode, use a function matcher that applies the 3-free-hour day
+    // rule (lib/calendar/dayAvailability) instead of disabling entire ranges
     if (projectMode !== 'hours') {
-      // Create a function matcher that checks each day using the 4-hour threshold
+      // Server blockedDates already apply the same rule (backend
+      // MIN_FREE_HOURS_FOR_DAY_AVAILABILITY); the interval check covers the
+      // blocked ranges the client knows about.
       const rangeBlockMatcher = (date: Date) => {
         const dateKey = toLocalDateKey(date);
         if (blockedDates.blockedDates.includes(dateKey)) {
@@ -2050,8 +2039,7 @@ export default function ProjectBookingForm({
   const calculateCompletionDate = (includeBuffer = false): Date | null => {
     if (!selectedDate) return null;
 
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
     const preferRange =
       selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const executionDays = Math.ceil(
@@ -2064,7 +2052,7 @@ export default function ProjectBookingForm({
         ? advanceWorkingDays(startingPoint, executionDays)
         : startingPoint;
 
-    if (!includeBuffer) {
+    if (!completionWithoutBuffer || !includeBuffer) {
       return completionWithoutBuffer;
     }
 
@@ -2090,8 +2078,7 @@ export default function ProjectBookingForm({
     const [hours, minutes] = selectedTime.split(':').map(Number);
     const startDate = parseISO(selectedDate);
     startDate.setHours(hours, minutes, 0, 0);
-    const executionEnd = new Date(startDate);
-    executionEnd.setHours(executionEnd.getHours() + executionHours);
+    const executionEnd = addExecutionHours(startDate, executionHours);
 
     if (!includeBuffer) {
       return executionEnd;
@@ -2115,6 +2102,7 @@ export default function ProjectBookingForm({
 
     const bufferStart = addDays(startOfDay(executionEnd), 1);
     const bufferEndDate = advanceWorkingDays(bufferStart, bufferDays);
+    if (!bufferEndDate) return null;
     const { endTime } = getWorkingHoursForDate(bufferEndDate);
     const [endHour, endMin] = endTime.split(':').map(Number);
     const completion = new Date(bufferEndDate);
@@ -2139,6 +2127,31 @@ export default function ProjectBookingForm({
   const handleVatAnswerChange = (fieldName: string, value: VatAnswer['value']) => {
     setVatAnswers(prev => ({ ...prev, [fieldName]: { fieldName, value } }));
   };
+
+  // Prune stale VAT answers when the fetched question list changes: answers
+  // for removed questions are never submitted, even if the project id (and
+  // any cached config) is unchanged.
+  const vatQuestionKeys = JSON.stringify(
+    (project.vatManagement?.reducedVatQuestions || []).map((question) => question.fieldName).sort(),
+  );
+  useEffect(() => {
+    const allowed = new Set(
+      (JSON.parse(vatQuestionKeys) as unknown[]).filter(
+        (fieldName): fieldName is string => typeof fieldName === 'string',
+      ),
+    );
+    setVatAnswers((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length === 0) return prev;
+      if (keys.every((key) => allowed.has(key))) return prev;
+      const pruned: Record<string, VatAnswer> = {};
+      for (const key of keys) {
+        if (allowed.has(key)) pruned[key] = prev[key];
+      }
+      return pruned;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vatQuestionKeys]);
 
   const handleRFQAttachmentUpload = async (index: number, file: File | null) => {
     if (!file) return;
@@ -2241,6 +2254,16 @@ export default function ProjectBookingForm({
       if (minOrderQuantity && estimatedUsage < minOrderQuantity) {
         toast.error(t('toasts.minOrderQuantity', { min: minOrderQuantity }));
         return false;
+      }
+
+      // Customer-set hours: more hours than the longest working day leave no
+      // bookable slot on any date, so say so here instead of an empty calendar.
+      if (packageDurationMode(selectedPackage.pricing) === 'customer_hours') {
+        const maxHours = maxWorkingWindowHours(professionalAvailability);
+        if (estimatedUsage > maxHours) {
+          toast.error(t('toasts.maxHoursPerWorkingDay', { max: maxHours }));
+          return false;
+        }
       }
     }
 
@@ -2368,7 +2391,7 @@ export default function ProjectBookingForm({
       return;
     }
 
-    if (shouldPayAtCheckoutFlow && !customerPricingReady) {
+    if (!priceGateOpen) {
       toast.error(t('toasts.finalizingPricing'));
       return;
     }
@@ -2423,8 +2446,8 @@ export default function ProjectBookingForm({
       const totalPrice = finalDisplayTotal;
       const isRfqPackage = selectedPackage.pricing.type === 'rfq';
       const hasValidPackageAmount =
-        typeof selectedPackage.pricing.amount === 'number' &&
-        selectedPackage.pricing.amount >= 0;
+        typeof selectedPackage.pricing.customerAmount === 'number' &&
+        selectedPackage.pricing.customerAmount >= 0;
       const shouldPayAtCheckout =
         !isRfqPackage &&
         hasValidPackageAmount &&
@@ -2685,7 +2708,7 @@ export default function ProjectBookingForm({
     packageUnitCount = getClampedPackageUnitCount()
   ): number | null => {
     const currentPackage = selectedPackage;
-    const amount = currentPackage?.pricing.amount;
+    const amount = currentPackage?.pricing.customerAmount;
     if (
       !currentPackage ||
       amount == null ||
@@ -2697,7 +2720,7 @@ export default function ProjectBookingForm({
     const multiplier = shouldCollectUsage(currentPackage.pricing.type)
       ? packageUnitCount
       : 1;
-    return multiplier * amount;
+    return customerPackageTotal(amount, currentPackage.pricing.type, multiplier);
   };
 
   const calculateTotal = (
@@ -2711,16 +2734,16 @@ export default function ProjectBookingForm({
         total += packagePrice;
       } else if (
         selectedPackage.pricing.type === 'fixed' &&
-        selectedPackage.pricing.amount
+        selectedPackage.pricing.customerAmount
       ) {
-        total += selectedPackage.pricing.amount;
+        total += selectedPackage.pricing.customerAmount;
       }
     }
 
     selectedExtraOptions.forEach((idx) => {
       const option = project.extraOptions[idx];
       if (option) {
-        total += option.price;
+        total += option.customerPrice ?? Number.NaN;
       }
     });
 
@@ -2735,26 +2758,32 @@ export default function ProjectBookingForm({
       customerPrice,
     }).customerAmount;
   const selectedPackageUnitPricing = computeCustomerPriceWithRepeatBuyerDiscount({
-    amount: selectedPackage?.pricing.amount,
+    amount: selectedPackage?.pricing.customerAmount,
     customerPrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
-  // Unit packages are charged as units x the unit price shown, in cents.
-  const packageUnitPricing =
-    selectedPackage && shouldCollectUsage(selectedPackage.pricing.type)
-      ? { pricingType: 'unit', unitAmount: selectedPackage.pricing.amount, quantity: packageUnitCount }
-      : undefined;
-  const customerPackagePrice = (amount: number) => customerPrice(amount, packageUnitPricing);
   const packagePricing = computeCustomerPriceWithRepeatBuyerDiscount({
     amount: getEffectivePackagePrice(packageUnitCount),
-    customerPrice: customerPackagePrice,
+    customerPrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
+  // The grand total is the server's customer total for the package and its selected options,
+  // the same arithmetic as checkout. RFQ packages have no server price, so only options count.
+  const customerGrandTotal = !selectedPackage
+    ? 0
+    : isRfqPackage
+      ? selectedExtraOptions.reduce((sum, idx) => sum + (project.extraOptions[idx]?.customerPrice ?? Number.NaN), 0)
+      : fetchPackageCustomerTotal({
+          projectId: String(project._id),
+          subprojectIndex: selectedPackageIndex ?? -1,
+          estimatedUsage: shouldCollectUsage(selectedPackage.pricing.type) ? packageUnitCount : undefined,
+          selectedExtraOptions: [...selectedExtraOptions],
+        });
   const totalPricing = computeCustomerPriceWithRepeatBuyerDiscount({
-    amount: calculateTotal(packageUnitCount),
-    customerPrice: customerPackagePrice,
+    amount: customerGrandTotal,
+    customerPrice,
     eligible: repeatBuyerEligible,
     repeatBuyerDiscount: project.repeatBuyerDiscount,
   });
@@ -2784,7 +2813,7 @@ export default function ProjectBookingForm({
   const baseDisplayTotal =
     typeof displayTotalPrice === 'number'
       ? displayTotalPrice
-      : calculateTotal(packageUnitCount);
+      : NaN;
   const repeatBuyerDiscountAmount =
     discountedDisplayTotalPrice != null && discountedDisplayTotalPrice < baseDisplayTotal
       ? +(baseDisplayTotal - discountedDisplayTotalPrice).toFixed(2)
@@ -2798,10 +2827,18 @@ export default function ProjectBookingForm({
   const shouldPayAtCheckoutFlow =
     Boolean(selectedPackage) &&
     selectedPackage?.pricing.type !== 'rfq' &&
-    typeof selectedPackage?.pricing.amount === 'number' &&
-    selectedPackage.pricing.amount >= 0 &&
-    finalDisplayTotal > 0 &&
+    typeof selectedPackage?.pricing.customerAmount === 'number' &&
+    selectedPackage.pricing.customerAmount >= 0 &&
+    calculateTotal(packageUnitCount) > 0 &&
     !vatNeedsRfqReview;
+  // Fixed and unit packages (including ones sent for VAT review) need the server's customer price before
+  // they are submitted. RFQ packages have no price and are never gated.
+  const priceRequired = packageRequiresCustomerPrice(selectedPackage?.pricing.type);
+  const priceGateOpen = customerPriceGateOpen({
+    requiresPrice: priceRequired,
+    pricingReady: customerPricingReady,
+    customerAmount: totalPricing.customerAmount,
+  });
   const finalStepLabel = shouldPayAtCheckoutFlow
     ? t('steps.reviewAndPay')
     : t('steps.reviewAndSubmitRfq');
@@ -2903,8 +2940,7 @@ export default function ProjectBookingForm({
       return null;
     }
 
-    const executionSource: AnyExecutionDuration | undefined =
-      selectedPackage?.executionDuration || project.executionDuration;
+    const executionSource: AnyExecutionDuration | undefined = bookedExecution;
     const preferRange =
       selectedPackage?.pricing.type === 'rfq' ? 'max' : undefined;
     const executionDays = Math.ceil(
@@ -2941,8 +2977,7 @@ export default function ProjectBookingForm({
     projectMode,
     selectedDate,
     professionalAvailability,
-    selectedPackage?.executionDuration,
-    project.executionDuration,
+    bookedExecution,
     selectedPackage?.pricing.type,
     scheduleWindowCompletionDate,
     professionalTz,
@@ -2996,7 +3031,7 @@ export default function ProjectBookingForm({
   })();
 
   const shouldShowUsageBreakdown = Boolean(
-    selectedPackage?.pricing.amount &&
+    selectedPackage?.pricing.customerAmount &&
     shouldCollectUsage(selectedPackage.pricing.type)
   );
 
@@ -3274,7 +3309,7 @@ export default function ProjectBookingForm({
                           </div>
                           <div className='text-right'>
                             {selectedPackage.pricing.type === 'fixed' &&
-                              selectedPackage.pricing.amount && (
+                              selectedPackage.pricing.customerAmount && (
                                 <div className='text-2xl font-bold text-blue-600'>
                                   {!customerPricingReady ? (
                                     <span className='inline-block h-7 w-24 animate-pulse rounded bg-gray-200' aria-label={t('common.loadingPrice')} />
@@ -3286,18 +3321,18 @@ export default function ProjectBookingForm({
                                       <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                     </div>
                                   ) : (
-                                    formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)
+                                    formatAmount(displayPackagePrice)
                                   )}
                                 </div>
                               )}
                             {selectedPackage.pricing.type === 'unit' &&
-                              selectedPackage.pricing.amount && (
+                              selectedPackage.pricing.customerAmount && (
                                 <div>
                                   <p className='text-2xl font-bold text-blue-600'>
                                     {hasSelectedPackageUnitDiscount
                                       ? formatAmount(discountedSelectedPackageUnitPrice)
                                       : formatAmount(
-                                        displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                                        displaySelectedPackageUnitPrice
                                       )}
                                     <span className='text-sm font-normal text-gray-500 ml-1'>
                                       /{getUnitLabelText(project.priceModel)}
@@ -3351,7 +3386,7 @@ export default function ProjectBookingForm({
                               className='text-lg'
                             />
 
-                            {selectedPackage.pricing.unit?.toLowerCase().match(/^(h|hr|hrs|hour|hours|hur)$/) && !selectedPackage.executionDuration?.value ? (
+                            {packageDurationMode(selectedPackage.pricing) === 'customer_hours' ? (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>{t('package.hoursDeterminedByCustomer')}</span>
                             ) : project.priceModel && (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>
@@ -3369,7 +3404,7 @@ export default function ProjectBookingForm({
                         </div>
 
                         {selectedPackage.pricing.type !== 'rfq' &&
-                          selectedPackage.pricing.amount && (
+                          selectedPackage.pricing.customerAmount && (
                             <div className='bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 space-y-2'>
                               <p className='text-sm text-gray-600'>
                                 {t('package.estimatedPrice')}
@@ -3385,15 +3420,14 @@ export default function ProjectBookingForm({
                                     <span>{formatAmount(discountedDisplayPackagePrice)}</span>
                                   </div>
                                 ) : (
-                                  formatAmount(displayPackagePrice ?? getEffectivePackagePrice() ?? 0)
+                                  formatAmount(displayPackagePrice)
                                 )}
                               </div>
                               <p className='text-sm text-gray-500'>
                                 {packageUnitCount}{' '}
                                 {getUnitLabelText(project.priceModel)} x{' '}
                                 {formatAmount(
-                                  displayPackageBreakdownUnitPrice ??
-                                    selectedPackage.pricing.amount
+                                  displayPackageBreakdownUnitPrice
                                 )}
                                 /{getUnitLabelText(project.priceModel)}
                               </p>
@@ -3905,6 +3939,12 @@ export default function ProjectBookingForm({
                               onCheckedChange={() =>
                                 handleExtraOptionToggle(idx)
                               }
+                              // Stop the click from bubbling to the card's
+                              // onClick: without this the checkbox fires both
+                              // handlers (checked-change + bubbled click) and
+                              // toggles twice = net no-op. Keyboard
+                              // operation is unaffected (no click event).
+                              onClick={(e) => e.stopPropagation()}
                               className='mt-1'
                             />
                             <div className='flex-1'>
@@ -3922,7 +3962,7 @@ export default function ProjectBookingForm({
                                 <div className='text-right flex-shrink-0'>
                                   <p className='font-bold text-blue-600'>
                                     +{formatAmount(
-                                      getCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.customerPrice)
                                     )}
                                   </p>
                                 </div>
@@ -3974,7 +4014,7 @@ export default function ProjectBookingForm({
                                   </span>
                                   <span className='font-semibold text-green-600'>
                                     +{formatAmount(
-                                      getCustomerDisplayAmount(option.price) ?? option.price
+                                      getCustomerDisplayAmount(option.customerPrice)
                                     )}
                                   </span>
                                 </div>
@@ -4041,8 +4081,7 @@ export default function ProjectBookingForm({
                               unit: getUnitLabelText(project.priceModel),
                               price:
                                 formatAmount(
-                                  displayPackageBreakdownUnitPrice ??
-                                    selectedPackage.pricing.amount
+                                  displayPackageBreakdownUnitPrice
                                 ) ?? '',
                             })}
                           </p>
@@ -4361,20 +4400,20 @@ export default function ProjectBookingForm({
                       </p>
                       <div className='text-sm text-gray-700 mt-2'>
                         {selectedPackage.pricing.type === 'fixed' &&
-                          selectedPackage.pricing.amount && (
+                          selectedPackage.pricing.customerAmount && (
                             <span className='font-semibold text-blue-600'>
                               {hasDisplayPackageDiscount
                                 ? formatAmount(discountedDisplayPackagePrice)
-                                : formatAmount(displayPackagePrice ?? selectedPackage.pricing.amount)}
+                                : formatAmount(displayPackagePrice)}
                             </span>
                           )}
                         {selectedPackage.pricing.type === 'unit' &&
-                          selectedPackage.pricing.amount && (
+                          selectedPackage.pricing.customerAmount && (
                             <span className='font-semibold text-blue-600'>
                               {hasSelectedPackageUnitDiscount
                                 ? formatAmount(discountedSelectedPackageUnitPrice)
                                 : formatAmount(
-                                  displaySelectedPackageUnitPrice ?? selectedPackage.pricing.amount
+                                  displaySelectedPackageUnitPrice
                                 )}
                               <span className='text-xs font-normal text-gray-500 ml-1'>
                                 /{getUnitLabelText(project.priceModel)}
@@ -4622,8 +4661,7 @@ export default function ProjectBookingForm({
                             unit: getUnitLabelText(project.priceModel),
                             price:
                               formatAmount(
-                                displayPackageBreakdownUnitPrice ??
-                                  selectedPackage.pricing.amount
+                                displayPackageBreakdownUnitPrice
                               ) ?? '',
                           })}
                         </p>
@@ -4660,7 +4698,7 @@ export default function ProjectBookingForm({
                                 </div>
                                 <span className='font-semibold text-green-600 ml-4 flex-shrink-0'>
                                   +{formatAmount(
-                                    getCustomerDisplayAmount(option.price) ?? option.price
+                                    getCustomerDisplayAmount(option.customerPrice)
                                   )}
                                 </span>
                               </div>
@@ -4868,9 +4906,16 @@ export default function ProjectBookingForm({
               {t('common.nextStep')}
             </Button>
           ) : (
+            <div className='flex flex-wrap items-center justify-end gap-3'>
+              {priceRequired && pricingError ? (
+                <>
+                  <p className='text-sm text-red-600'>{t('pricingUnavailable')}</p>
+                  <Button variant='outline' onClick={retryPricing}>{t('retryPricing')}</Button>
+                </>
+              ) : null}
             <Button
               onClick={handleSubmit}
-              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || (shouldPayAtCheckoutFlow && !customerPricingReady)}
+              disabled={loading || isOutsideServiceArea || uploadingQuestionIndexes.size > 0 || uploadingRfqAttachment || !priceGateOpen}
               className='bg-blue-600 hover:bg-blue-700'
             >
               {loading ? (
@@ -4882,6 +4927,7 @@ export default function ProjectBookingForm({
                 finalActionLabel
               )}
             </Button>
+            </div>
           )}
         </div>
       </div>

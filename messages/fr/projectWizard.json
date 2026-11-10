@@ -154,7 +154,7 @@
       "description": "Téléversez jusqu'à 4 images pour mettre votre travail en valeur (facultatif)",
       "dropzone": "Cliquez pour téléverser ou glissez vos images ici",
       "hint": "PNG, JPG, WebP jusqu'à 5 Mo chacune (max. 4 images)",
-      "guide": "Jusqu'à 4 images, 5 Mio chacune. JPEG, PNG, WebP, GIF ou SVG. Le format paysage 4:3 autour de 1 200 × 900 px est recommandé ; les vignettes sont recadrées. Aucune dimension minimale.",
+      "guide": "Jusqu'à 4 images, 5 Mio chacune. JPEG, PNG ou WebP. Le format paysage 4:3 autour de 1 200 × 900 px est recommandé ; les vignettes sont recadrées. Aucune dimension minimale.",
       "choose": "Choisir des fichiers",
       "alt": "Projet {index}",
       "mainImage": "Image principale",
@@ -181,7 +181,13 @@
       "oneVideoOnly": "Maximum 1 vidéo autorisée",
       "videoFormat": "Seuls les formats vidéo MP4, MOV et AVI sont autorisés",
       "videoTooLarge": "La vidéo est trop volumineuse. La taille maximale est de 50 Mo",
-      "mediaReadFailed": "Ce fichier n’a pas pu être lu. Veuillez le sélectionner à nouveau."
+      "imageFormat": "Le fichier {file} n'est pas une image JPEG, PNG ou WebP",
+      "mediaUploadFailed": "{file} n'a pas pu être téléversé. Veuillez réessayer.",
+      "mediaUploadTooLarge": "{file} est trop volumineux pour être téléversé. Choisissez un fichier plus petit.",
+      "waitForUploads": "Veuillez attendre la fin du téléversement de vos images et de votre vidéo."
+    },
+    "media": {
+      "uploading": "{count, plural, one {Téléversement de # fichier…} other {Téléversement de # fichiers…}}"
     }
   },
   "step2": {
@@ -269,7 +275,11 @@
       "executionLabel": "Durée d'exécution *",
       "intakeTitle": "Durée de la visite sur place",
       "durationLabel": "Durée *",
-      "intakeBufferLabel": "Tampon (facultatif)"
+      "intakeBufferLabel": "Tampon (facultatif)",
+      "determinedByCustomer": "Déterminée par le client",
+      "determinedByCustomerHint": "Le client choisit le nombre d’heures lors de la réservation. Ces heures constituent la durée d’exécution et bloquent le calendrier.",
+      "executionPerUnitLabel": "Durée d’exécution par {unit} *",
+      "executionPerUnitHint": "Temps nécessaire pour un(e) {unit}. La quantité réservée par le client le multiplie pour calculer la durée d’exécution et bloquer le calendrier."
     },
     "summary": {
       "title": "Récapitulatif des forfaits",
@@ -294,7 +304,8 @@
       "durationTo": "- {max} {unit}",
       "durationValue": "{value} {unit}",
       "totalFixed": "Total des forfaits à prix fixe : {total}",
-      "customerSeesTotal": "(Le client voit : {price})"
+      "customerSeesTotal": "(Le client voit : {price})",
+      "durationPerUnit": "{value} {unit} par {pricingUnit}"
     },
     "toast": {
       "maxSubprojects": "Maximum 5 sous-projets autorisés",

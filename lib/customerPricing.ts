@@ -87,3 +87,14 @@ export const commissionedExtraCostTotal = (
   }
   return roundMoney(costs.reduce((sum, cost) => sum + commissionedExtraCost(cost, commissionPercent), 0))
 }
+
+/**
+ * Customer total of a package from its server-provided customer amount: a fixed
+ * package is charged once; a unit package is charged as quantity x the customer
+ * unit price in whole cents (the server's withCommissionPerUnit).
+ */
+export const customerPackageTotal = (
+  customerAmount: number,
+  pricingType: string | undefined,
+  quantity = 1,
+): number => (pricingType === 'unit' ? roundMoney(customerAmount * quantity) : customerAmount)

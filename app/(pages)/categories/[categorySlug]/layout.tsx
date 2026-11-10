@@ -1,63 +1,74 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound, permanentRedirect } from "next/navigation";
+import { cache } from "react";
 import { getTranslations } from "next-intl/server";
 import { serviceCategories } from "@/data/content";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
+import { getServiceCategories } from "@/lib/server/serviceCategories";
+import { readContentCountry } from "@/lib/geo/contentCountryHeader";
+import { resolveCategoryRoute, type CategoryLayoutMatch } from "@/lib/catalog/categoryLayoutLookup";
+import { CatalogCountryProvider } from "@/components/catalog/CatalogCountryContext";
+
+const categoryNameKeys = {
+  "interior-services": "names.categories.interior-services.name",
+  "exterior-structural": "names.categories.exterior-structural.name",
+  "outdoor-garden": "names.categories.outdoor-garden.name",
+} as const;
 
 interface Props {
   children: React.ReactNode;
   params: Promise<{ categorySlug: string }>;
 }
 
-/** Catalog categories with translated copy in the `catalog` namespace. */
-const TRANSLATED_CATEGORY_SLUGS = [
-  "interior-services",
-  "exterior-structural",
-  "outdoor-garden",
-] as const;
+/**
+ * Live catalog results authorize redirects/404s; the static outage fallback
+ * preserves the route so its client can retry. Metadata and layout share
+ * one request-scoped lookup.
+ */
+/** One content country per request, shared by the server lookup and the client page. */
+const resolveContentCountry = cache(async (): Promise<string> => readContentCountry(await headers()) ?? "BE");
 
-function isTranslatedCategorySlug(
-  slug: string
-): slug is (typeof TRANSLATED_CATEGORY_SLUGS)[number] {
-  return (TRANSLATED_CATEGORY_SLUGS as readonly string[]).includes(slug);
-}
+const resolveCategory = cache(async (categorySlug: string): Promise<CategoryLayoutMatch> => {
+  const country = await resolveContentCountry();
+  const route = resolveCategoryRoute(categorySlug, serviceCategories, await getServiceCategories(country));
+  if (route.kind === "redirect") permanentRedirect(route.to);
+  if (route.kind === "not_found") notFound();
+  return route.category;
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ categorySlug: string }> }): Promise<Metadata> {
   const { categorySlug } = await params;
   const t = await getTranslations("catalog");
-  const cat = serviceCategories.find((c) => c.slug === categorySlug);
-  if (!cat) notFound();
-  const translated = isTranslatedCategorySlug(categorySlug);
-  const name = translated ? t(`names.categories.${categorySlug}.name`) : cat.name;
+  const cat = await resolveCategory(categorySlug);
+  const nameKey = categoryNameKeys[cat.slug as keyof typeof categoryNameKeys];
+  const categoryName = nameKey ? t(nameKey) : cat.name;
   return buildMetadata({
-    title: name,
-    description: translated
-      ? t(`names.categories.${categorySlug}.description`)
-      : cat.description || t("categoryLayout.fallbackDescription", { category: name.toLowerCase() }),
-    path: `/categories/${categorySlug}`,
+    title: categoryName,
+    description: t("categoryLayout.fallbackDescription", { category: categoryName.toLowerCase() }),
+    path: `/categories/${cat.slug}`,
   });
 }
 
 export default async function CategoryLayout({ children, params }: Props) {
   const { categorySlug } = await params;
   const t = await getTranslations("catalog");
-  const cat = serviceCategories.find((c) => c.slug === categorySlug);
-  if (!cat) notFound();
-  const categoryName = isTranslatedCategorySlug(categorySlug)
-    ? t(`names.categories.${categorySlug}.name`)
-    : cat.name;
+  const cat = await resolveCategory(categorySlug);
+  const country = await resolveContentCountry();
+  const nameKey = categoryNameKeys[cat.slug as keyof typeof categoryNameKeys];
+  const categoryName = nameKey ? t(nameKey) : cat.name;
   return (
-    <>
+    <CatalogCountryProvider country={country}>
       <JsonLd
         data={breadcrumbSchema([
           { name: t("breadcrumbs.home"), path: "/" },
           { name: t("breadcrumbs.categories"), path: "/categories" },
-          { name: categoryName, path: `/categories/${categorySlug}` },
+          { name: categoryName, path: `/categories/${cat.slug}` },
         ])}
       />
       {children}
-    </>
+    </CatalogCountryProvider>
   );
 }

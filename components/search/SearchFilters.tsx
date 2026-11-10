@@ -9,17 +9,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Filter, X, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { Filter, X, ChevronDown, ChevronUp, Star, Search } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatSearchDateDraft, isSearchDateRangeValid, parseSearchDateDraft } from '@/lib/search/dateDraft';
 import LocationAutocomplete, { type LocationData } from '@/components/search/LocationAutocomplete';
 import {
   PROFESSIONAL_LEVELS,
   ADMIN_TAG_PRESETS,
-  getLevelColor,
   getAdminTagStyle,
   formatAdminTagLabel,
 } from '@/lib/professionalLevel';
+import TierBadge from '@/components/dashboard/TierBadge';
+import { useTierColors } from '@/lib/tierColors';
 
 export type SortOption = 'relevant' | 'price_low' | 'price_high' | 'newest' | 'availability' | 'popularity';
 
@@ -144,6 +145,7 @@ const SearchFilters = ({
 }: SearchFiltersProps) => {
   const t = useTranslations('search');
   const { currency, rates } = useCurrency();
+  const { levelColor } = useTierColors();
   const priceCurrency = currency === 'EUR' || rates?.[currency] ? currency : 'EUR';
   // Use dynamic filter options if provided, otherwise fall back to hardcoded values
   const servicesList = filterOptions?.services || COMMON_SERVICES;
@@ -168,6 +170,7 @@ const SearchFilters = ({
   });
   const [dateDraft, setDateDraft] = useState({ from: formatSearchDateDraft(filters.startDateFrom), to: formatSearchDateDraft(filters.startDateTo) });
   const [dateError, setDateError] = useState('');
+  const [keywordDraft, setKeywordDraft] = useState(filters.query);
   const minPriceValue = filters.priceMin === '' ? undefined : Number(filters.priceMin);
   const maxPriceValue = filters.priceMax === '' ? undefined : Number(filters.priceMax);
   const priceBoundsInvalid = [minPriceValue, maxPriceValue].some((value) => value !== undefined && (!Number.isFinite(value) || value < 0)) || (minPriceValue !== undefined && maxPriceValue !== undefined && minPriceValue > maxPriceValue);
@@ -175,6 +178,19 @@ const SearchFilters = ({
     setDateDraft({ from: formatSearchDateDraft(filters.startDateFrom), to: formatSearchDateDraft(filters.startDateTo) });
     if (!filters.startDateFrom && !filters.startDateTo) setDateError('');
   }, [filters.startDateFrom, filters.startDateTo, resetVersion]);
+  useEffect(() => {
+    setKeywordDraft(filters.query);
+  }, [filters.query, resetVersion]);
+
+  const commitKeyword = () => {
+    if (keywordDraft.trim() === filters.query) return;
+    onFilterChange('query', keywordDraft.trim());
+  };
+
+  const clearKeyword = () => {
+    setKeywordDraft('');
+    onFilterChange('query', '');
+  };
 
   const commitDate = (side: 'from' | 'to') => {
     const parsed = parseSearchDateDraft(dateDraft[side]);
@@ -323,6 +339,44 @@ const SearchFilters = ({
         </Button>
       </div>
 
+      {/* Service / keyword search */}
+      <div className="space-y-2 border-b pb-4">
+        <Label htmlFor="keyword" className="text-sm font-semibold text-gray-900">
+          {t('filters.keyword')}
+        </Label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Input
+              id="keyword"
+              type="text"
+              value={keywordDraft}
+              onChange={(e) => setKeywordDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+                e.preventDefault();
+                commitKeyword();
+              }}
+              placeholder={t('filters.keywordPlaceholder')}
+              className="pr-8"
+            />
+            {keywordDraft && (
+              <button
+                type="button"
+                onClick={clearKeyword}
+                aria-label={t('filters.clearKeyword')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <Button type="button" onClick={commitKeyword} aria-label={t('filters.keywordSearch')}>
+            <Search className="w-4 h-4 mr-1" />
+            {t('filters.keywordSearch')}
+          </Button>
+        </div>
+      </div>
+
       {/* Sort By */}
       <div className="space-y-2 border-b pb-4 order-last">
         <Label htmlFor="sortBy" className="text-sm font-semibold text-gray-900">
@@ -447,7 +501,7 @@ const SearchFilters = ({
                   htmlFor={`level-${level}`}
                   className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                 >
-                  {renderOptionContent(<Badge variant="secondary" className={`font-medium ${getLevelColor(level)}`}>{professionalLevelLabel(level)}</Badge>, facets?.professionalLevels?.[level] || 0)}
+                  {renderOptionContent(<TierBadge level={professionalLevelLabel(level)} color={levelColor(level)} className="font-medium" />, facets?.professionalLevels?.[level] || 0)}
                 </Label>
               </div>
             ))}

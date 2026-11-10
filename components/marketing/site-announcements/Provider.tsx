@@ -20,6 +20,7 @@ import {
   isAnnouncementDismissed,
 } from "@/lib/marketing/siteAnnouncements/dismissStorage";
 import { trackPromoClick } from "@/lib/marketing/siteAnnouncements/analytics";
+import { recordAnnouncementEvent } from "@/lib/marketing/siteAnnouncements/events";
 import type { SiteAnnouncement } from "@/lib/marketing/siteAnnouncements/types";
 import {
   AnnouncementsContext,
@@ -120,19 +121,30 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
     };
   }, [skip]);
 
-  const hide = useCallback((announcement: SiteAnnouncement) => {
+  const hideForSession = useCallback((announcement: SiteAnnouncement) => {
     if (announcement.dismissible) dismissAnnouncement(announcement);
     setHiddenIds((prev) =>
       new Set(prev).add(`${announcement._id}:${announcement.updatedAt}`),
     );
   }, []);
 
+  /** Visitor closed the announcement (close button, "maybe later", Esc, outside click). */
+  const hide = useCallback(
+    (announcement: SiteAnnouncement) => {
+      // Non-dismissible offers only close as an acknowledgement, not a dismissal.
+      if (announcement.dismissible) recordAnnouncementEvent(announcement, "dismissal");
+      hideForSession(announcement);
+    },
+    [hideForSession],
+  );
+
   const onCta = useCallback(
     (announcement: SiteAnnouncement) => {
-      hide(announcement);
+      recordAnnouncementEvent(announcement, "click");
+      hideForSession(announcement);
       if (consent.analyticsOk) trackPromoClick(announcement);
     },
-    [consent.analyticsOk, hide],
+    [consent.analyticsOk, hideForSession],
   );
 
   const announcementsValue = useMemo<AnnouncementsCtx>(() => {

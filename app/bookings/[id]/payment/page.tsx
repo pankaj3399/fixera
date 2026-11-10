@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { StripeProvider } from '@/components/stripe/StripeProvider';
@@ -25,9 +26,12 @@ import {
   calculateMilestoneGrossAmounts,
   calculateQuoteVersionVatTotals,
 } from '@/lib/vatPricing';
+import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVersion';
+import { milestoneDisplayAmount } from '@/lib/booking/milestoneDisplay';
 import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
+  milestoneIndex?: number;
   stripeClientSecret?: string;
   currency?: string;
   netAmount?: number;
@@ -56,6 +60,7 @@ interface BookingPayment {
     pointsRedeemed?: number;
     pointsDiscountAmount?: number;
     codeDiscountAmount?: number;
+    referralDiscountAmount?: number;
     codeLabel?: string;
     totalDiscount?: number;
     originalAmount?: number;
@@ -73,6 +78,7 @@ interface BookingProfessional {
   username?: string;
   businessInfo?: {
     companyName?: string;
+    timezone?: string;
   };
 }
 
@@ -113,6 +119,8 @@ interface Booking {
   payment?: BookingPayment;
   quote?: BookingQuote;
   rfqDetails?: BookingRfqDetails;
+  rfqData?: { additionalNotes?: string };
+  scheduleTimeZone?: string;
   professional?: BookingProfessional;
   project?: BookingProject;
   scheduledStartDate?: string;
@@ -125,6 +133,9 @@ interface Booking {
   currentQuoteVersion?: number;
   selectedExtraOptions?: Array<{ extraOptionId: string; bookedPrice: number } | number>;
   checkoutSnapshot?: {
+    /** Customer totals (checkout arithmetic). Null for professionals. */
+    customerPackageTotal?: number | null;
+    customerTotal?: number | null;
     pricingType?: string;
     unitAmount?: number;
     quantity?: number;
@@ -207,8 +218,8 @@ export default function BookingPaymentPage() {
   const getErrorText = useErrorMessage();
   const { formatMoney, currency: displayCurrency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
-  const { commissionPercent, customerPrice, loyalty, loyaltyLoaded, originalPrice } = useCustomerPricing();
-  const customerPricingReady = commissionPercent != null && loyaltyLoaded;
+  const { customerPrice, loyalty, loyaltyLoaded, originalPrice, pricingReady } = useCustomerPricing();
+  const customerPricingReady = pricingReady && loyaltyLoaded;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -240,14 +251,20 @@ export default function BookingPaymentPage() {
   const [loadingWorkingHours, setLoadingWorkingHours] = useState(false);
   const [professionalTimezone, setProfessionalTimezone] = useState('UTC');
   const [showCalendar, setShowCalendar] = useState(false);
+  // Task 19b: recorded per-milestone customer charges from the booking-details
+  // charge plan (options in full on the first milestone). Same endpoint as the
+  // booking page returns it alongside the booking.
+  const [recordedMilestonePlan, setRecordedMilestonePlan] = useState<Array<{
+    expectedCustomerCharge?: number | null;
+    customerChargeTotalWithVat?: number | null;
+    includesSelectedOptions?: boolean | null;
+  }> | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
   const getCurrentQuoteVersion = useCallback((b: Booking | null): QuoteVersion | null => {
     if (!b?.quoteVersions?.length) return null;
-    return b.currentQuoteVersion != null
-      ? b.quoteVersions.find(v => v.version === b.currentQuoteVersion) ?? b.quoteVersions[b.quoteVersions.length - 1] ?? null
-      : b.quoteVersions[b.quoteVersions.length - 1] ?? null;
+    return resolveAuthoritativeQuoteVersion(b.quoteVersions, b.currentQuoteVersion);
   }, []);
 
   const currentQuoteVersion = useMemo(() => getCurrentQuoteVersion(booking), [booking, getCurrentQuoteVersion]);
@@ -277,10 +294,14 @@ export default function BookingPaymentPage() {
   }, [currentQuoteVersion, booking?.milestonePayments, customerPricingReady, customerPrice, hasUsableQuoteTotal, t]);
 
   const getMilestoneDisplayAmount = useCallback((index: number, netAmount: number) => {
-    const grossAmount = milestoneGrossAmounts[index];
-    if (grossAmount != null && grossAmount > 0) return grossAmount;
-    return customerPrice(netAmount);
-  }, [milestoneGrossAmounts, customerPrice]);
+    return milestoneDisplayAmount({
+      index,
+      recorded: recordedMilestonePlan?.[index],
+      payment: booking?.payment,
+      preview: customerPricingReady ? milestoneGrossAmounts[index] : null,
+      fallback: customerPricingReady ? customerPrice(netAmount) : null,
+    });
+  }, [recordedMilestonePlan, booking?.payment, milestoneGrossAmounts, customerPrice, customerPricingReady]);
 
   const getQuotedDurations = (b: Booking | null) => {
     const version = getCurrentQuoteVersion(b);
@@ -631,7 +652,7 @@ export default function BookingPaymentPage() {
           scheduledStartTime:
             scheduleMode === 'hours' ? selectedStartTime || undefined : undefined,
           additionalNotes: additionalNotes || undefined,
-          selectedExtraOptions,
+          selectedExtraOptions: optionsLocked ? undefined : selectedExtraOptions,
         }),
       });
       const data = await response.json();
@@ -787,6 +808,16 @@ export default function BookingPaymentPage() {
 
       const bookingInfo = bookingData.booking as Booking; // Backend returns { success, booking }
       setBooking(bookingInfo);
+      const plan = (bookingData as { details?: { payments?: { milestones?: Array<{
+        expectedCustomerCharge?: number | null;
+    customerChargeTotalWithVat?: number | null;
+        includesSelectedOptions?: boolean | null;
+      }> } } }).details?.payments?.milestones;
+      setRecordedMilestonePlan(
+        Array.isArray(plan) && bookingInfo?.milestonePayments && plan.length === bookingInfo.milestonePayments.length
+          ? plan
+          : null
+      );
       setSelectedExtraOptions(storedExtrasToIndexes(bookingInfo?.selectedExtraOptions, bookingInfo?.project?.extraOptions));
       setLoading(false);
 
@@ -950,10 +981,14 @@ export default function BookingPaymentPage() {
     const price = typeof persisted?.bookedPrice === 'number' ? persisted.bookedPrice : (opt?.price || 0);
     return sum + price;
   }, 0);
+  const persistedOptionsBaseTotal = (booking?.selectedExtraOptions ?? []).reduce<number>((sum, option) => {
+    if (typeof option === 'number') return sum + (booking?.project?.extraOptions?.[option]?.customerPrice ?? Number.NaN);
+    return sum + (option.bookedPrice || 0);
+  }, 0);
   const quoteAmount = Number(booking?.quote?.amount || 0);
   const snapshot = booking?.checkoutSnapshot;
   const extrasIncludedInQuote = (() => {
-    if (breakdownOptionsBaseTotal <= 0) return false;
+    if (persistedOptionsBaseTotal <= 0) return false;
     if (
       snapshot &&
       Number(snapshot.extraOptionsTotal) > 0 &&
@@ -966,8 +1001,9 @@ export default function BookingPaymentPage() {
     if (Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - baseSubtotal) < 0.02) {
       return false;
     }
-    return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + breakdownOptionsBaseTotal)) < 0.02;
+    return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + persistedOptionsBaseTotal)) < 0.02;
   })();
+  const optionsLocked = Boolean(booking?.quoteVersions?.length || extrasIncludedInQuote);
   const breakdownBaseTotal = extrasIncludedInQuote
     ? quoteAmount
     : quoteAmount + breakdownOptionsBaseTotal;
@@ -975,7 +1011,6 @@ export default function BookingPaymentPage() {
     breakdownBaseTotal > 0 && breakdownOptionsBaseTotal > 0
       ? +((originalServiceAmount * breakdownOptionsBaseTotal) / breakdownBaseTotal).toFixed(2)
       : 0;
-  const serviceOnlyAmount = +(originalServiceAmount - commissionedOptionsAmount).toFixed(2);
 
   if (loading) {
     return (
@@ -1034,13 +1069,21 @@ export default function BookingPaymentPage() {
         Boolean(scheduleWindow));
     const projectExtraOptions = booking?.project?.extraOptions || [];
     const selectedOptionTotal = selectedExtraOptions.reduce(
-      (sum, optionIndex) => sum + (projectExtraOptions[optionIndex]?.price || 0),
+      (sum, optionIndex) => sum + (projectExtraOptions[optionIndex]?.customerPrice ?? Number.NaN),
       0
     );
 
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
+          <div className="mb-4">
+            <Link
+              href={`/bookings/${bookingId}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+            >
+              <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
+            </Link>
+          </div>
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="bg-blue-600 px-6 py-4">
               <h1 className="text-2xl font-bold text-white">{t('paymentPage.completeBooking')}</h1>
@@ -1073,7 +1116,7 @@ export default function BookingPaymentPage() {
                   <span className="font-medium text-gray-900">
                     {customerPricingReady
                       ? formatMoney(
-                          currentQuoteTotals?.total ?? customerPrice(booking?.quote?.amount ?? 0, booking?.checkoutSnapshot),
+                          currentQuoteTotals?.total ?? customerPrice(booking?.checkoutSnapshot?.customerPackageTotal ?? Number.NaN),
                           booking?.quote?.currency?.toUpperCase() || 'EUR'
                         )
                       : '...'}
@@ -1095,20 +1138,34 @@ export default function BookingPaymentPage() {
                         : t('paymentPage.milestones')}
                     </p>
                     <div className="space-y-1">
-                      {booking.milestonePayments.map((m, i) => (
+                      {booking.milestonePayments.map((m, i) => {
+                        const displayAmount = getMilestoneDisplayAmount(i, m.amount ?? 0);
+                        return (
                         <div key={i} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{m.title || t('paymentPage.milestoneFallback', { number: i + 1 })}</span>
+                          <span className="text-gray-600">
+                            {m.title || t('paymentPage.milestoneFallback', { number: i + 1 })}
+                            {recordedMilestonePlan?.[i]?.includesSelectedOptions ? (
+                              <span className="ml-1 text-[11px] text-blue-700">
+                                · {t('paymentPage.milestoneIncludesOptions')}
+                              </span>
+                            ) : null}
+                          </span>
                           <span className="text-gray-900">
-                            {customerPricingReady
+                            {displayAmount != null
                               ? formatMoney(
-                                  getMilestoneDisplayAmount(i, m.amount ?? 0),
+                                  displayAmount,
                                   booking?.quote?.currency?.toUpperCase() || 'EUR'
                                 )
                               : '...'}
                           </span>
                         </div>
-                      ))}
+                      )})}
                     </div>
+                    {recordedMilestonePlan?.some((entry) => entry?.includesSelectedOptions) ? (
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        {t('paymentPage.optionsFirstMilestoneNote')}
+                      </p>
+                    ) : null}
                   </div>
                 )}
                 {(typeof booking?.project?.minResources === 'number' || typeof booking?.project?.minOverlapPercentage === 'number') && (
@@ -1124,9 +1181,9 @@ export default function BookingPaymentPage() {
                     </p>
                   </div>
                 )}
-                {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.quote?.amount != null && customerPricingReady && (() => {
-                  const baseWithCommission = originalPrice(booking.quote.amount, booking.checkoutSnapshot);
-                  const afterLoyalty = customerPrice(booking.quote.amount, booking.checkoutSnapshot);
+                {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.checkoutSnapshot?.customerPackageTotal != null && customerPricingReady && (() => {
+                  const baseWithCommission = originalPrice(booking.checkoutSnapshot.customerPackageTotal);
+                  const afterLoyalty = customerPrice(booking.checkoutSnapshot.customerPackageTotal);
                   const saving = Math.max(0, +(baseWithCommission - afterLoyalty).toFixed(2));
                   const currency = booking?.quote?.currency?.toUpperCase() || 'EUR';
                   return (
@@ -1403,6 +1460,7 @@ export default function BookingPaymentPage() {
                 {projectExtraOptions.length > 0 && (
                   <div className="rounded-lg border border-gray-200 p-4">
                     <h3 className="text-sm font-semibold text-gray-900 mb-2">{t('paymentPage.extraOptions')}</h3>
+                    {optionsLocked && <p className="mb-3 text-xs text-gray-600">{t('paymentPage.agreedOptionsLocked')}</p>}
                     <div className="space-y-2">
                       {projectExtraOptions.map((option, index) => {
                         const selected = selectedExtraOptions.includes(index);
@@ -1422,12 +1480,13 @@ export default function BookingPaymentPage() {
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-gray-900">
                                 {customerPricingReady
-                                  ? formatMoney(customerPrice(option.price || 0), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                                  ? formatMoney(customerPrice(option.customerPrice ?? Number.NaN), booking?.quote?.currency?.toUpperCase() || 'EUR')
                                   : '...'}
                               </span>
                               <input
                                 type="checkbox"
                                 checked={selected}
+                                disabled={optionsLocked}
                                 onChange={() => toggleExtraOption(index)}
                               />
                             </div>
@@ -1502,6 +1561,38 @@ export default function BookingPaymentPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Link
+            href={`/bookings/${bookingId}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+          >
+            <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
+          </Link>
+          {['quote_accepted', 'payment_pending'].includes(booking?.status || '') &&
+            !booking?.milestonePayments?.some(milestone => milestone.status === 'paid') && (
+            <button
+              type="button"
+              onClick={() => {
+                if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = null;
+                setAdditionalNotes(booking?.rfqData?.additionalNotes || '');
+                setClientSecret('');
+                setError('');
+                setSelectedStartDate(booking?.scheduledStartDate ? formatInTimeZone(parseISO(booking.scheduledStartDate), booking.scheduleTimeZone || booking.professional?.businessInfo?.timezone || professionalTimezone, 'yyyy-MM-dd') : '');
+                setValidatedScheduleSelectionKey('');
+                setScheduleWindow(null);
+                setSelectedStartTime(booking?.scheduledStartTime || '');
+                setScheduleStep(true);
+                void loadScheduleProposals(booking);
+                void loadAvailability(booking);
+                void loadWorkingHours(booking);
+              }}
+              className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+            >
+              <span aria-hidden="true">←</span> {t('paymentPage.previousToSchedule')}
+            </button>
+          )}
+        </div>
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           {/* Header */}
           <div className="bg-blue-600 px-6 py-4">
@@ -1609,7 +1700,7 @@ export default function BookingPaymentPage() {
               </div>
             )}
 
-            {discountInfo?.loyaltyTier && (
+            {discountInfo?.loyaltyTier && (discountInfo.loyaltyAmount ?? 0) > 0 && (
               <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="text-sm font-medium text-amber-900">
                   {t('paymentPage.memberBenefitsApplied', { tier: discountInfo.loyaltyTier })}
@@ -1617,19 +1708,21 @@ export default function BookingPaymentPage() {
               </div>
             )}
             <div className="space-y-2">
+              {/* Task 25a: the base line shows the full price; discounts are
+                  separate lines below. The options share is informational. */}
               {(hasDiscountBreakdown || commissionedOptionsAmount > 0) && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">{t('paymentPage.originalServiceAmount')}</span>
+                  <span className="text-gray-600">{t('paymentPage.fullPrice')}</span>
                   <span className="text-gray-900">
-                    {formatMoney(serviceOnlyAmount, paymentCurrency)}
+                    {formatMoney(originalServiceAmount, paymentCurrency)}
                   </span>
                 </div>
               )}
 
               {commissionedOptionsAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">{t('paymentPage.selectedOptions')}</span>
-                  <span className="text-gray-900">
+                  <span className="text-gray-600">{t('paymentPage.selectedOptionsInfo')}</span>
+                  <span className="text-sm text-gray-500">
                     {formatMoney(commissionedOptionsAmount, paymentCurrency)}
                   </span>
                 </div>
@@ -1657,13 +1750,22 @@ export default function BookingPaymentPage() {
                 </div>
               )}
 
-              {(discountInfo?.pointsRedeemed ?? 0) > 0 && (
+              {(discountInfo?.pointsDiscountAmount ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">
                     {t('paymentPage.pointsRedeemedLine', { points: discountInfo?.pointsRedeemed ?? 0 })}
                   </span>
                   <span className="text-green-700">
                     -{formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
+                  </span>
+                </div>
+              )}
+
+              {(discountInfo?.referralDiscountAmount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{t('paymentPage.referralDiscountLine')}</span>
+                  <span className="text-green-700">
+                    -{formatMoney(discountInfo?.referralDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}

@@ -61,6 +61,8 @@
     "rfqItem2": "Stuurt herinneringen naar vakmensen die al 2+ werkdagen geen offerte hebben ingediend",
     "rfqItem3": "Markeert offertes die hun geldigheidsdatum hebben overschreden",
     "notificationsButton": "Herinneringsmeldingen uitvoeren",
+    "warrantyAria": "Hulp bij garantiecontroles",
+    "rfqAria": "Hulp bij offerteaanvraagcontroles",
     "notificationsAria": "Wat doet Herinneringsmeldingen uitvoeren?",
     "notificationsItem1": "Stuurt na 3 dagen een duwtje voor RFQ's, herplanningen, terugbetalingen, afrondingen en boekingen die nog niet zijn gestart",
     "notificationsItem2": "Herinneringen voor beoordelingen na 10 en 20 dagen; ongelezen chat na 24 uur",
@@ -358,6 +360,20 @@
       "customer": "Klant: {name}",
       "quote": "Offerte",
       "warrantyAction": "Garantieactie voor boeking {bookingId}"
+    },
+    "summary": {
+      "pendingBookings": "Openstaande boekingen",
+      "pendingBookingsHint": "Wachten op afronding of uitbetaling",
+      "finishedBookings": "Afgeronde boekingen",
+      "finishedBookingsHint": "Voltooide boekingen",
+      "earnings": "Inkomsten",
+      "earningsHint": "Ontvangen uitbetalingen van voltooide boekingen",
+      "pendingEarnings": "Openstaande inkomsten",
+      "reviews": "Beoordelingen",
+      "reviewsHint": "Gemiddelde klantbeoordeling",
+      "reviewsCount": "{count, plural, one {# beoordeling} other {# beoordelingen}}",
+      "noReviews": "Nog geen beoordelingen",
+      "loadFailed": "Samenvatting kon niet worden geladen."
     }
   },
   "actionNeeded": {
@@ -426,6 +442,30 @@
       "benefits": "Voordelen",
       "noBenefits": "Er zijn nog geen extra voordelen ingesteld.",
       "referralPerformance": "Prestaties van doorverwijzingen"
+    },
+    "savings": {
+      "title": "Jouw besparingen",
+      "subtitle": "Geld bespaard via kortingen op het platform.",
+      "recordedSavings": "Geregistreerde besparingen",
+      "recurring": "Korting voor terugkerende klant",
+      "loyalty": "Loyaliteitskorting",
+      "discountCode": "Kortingscodes",
+      "points": "Ingewisselde punten",
+      "referral": "Verwijzingskorting",
+      "referralUnknown": "Niet afzonderlijk geregistreerd",
+      "noSavingsYet": "Nog geen geregistreerde besparingen — gebruikte kortingen verschijnen hier.",
+      "loadFailed": "We konden je besparingen nu niet laden. Probeer het later opnieuw.",
+      "unknownCoverage": "{count, plural, one {# afgeronde boeking is} other {# afgeronde boekingen zijn}} van vóór de kortingsregistratie, dus het totaal is een ondergrens.",
+      "excludedUncertain": "{count, plural, one {# boeking is} other {# boekingen zijn}} uitgesloten (gedeeltelijke terugbetaling of geschil: geen exacte kortingstoewijzing geregistreerd).",
+      "bookingsCount": "{count, plural, one {# afgeronde boeking} other {# afgeronde boekingen}}"
+    },
+    "wallet": {
+      "title": "Hoe de puntenportemonnee werkt",
+      "bodyCustomer": "Je spaart Fixtract-punten bij elke boeking en wisselt ze bij het afrekenen in voor directe korting. Je saldo zie je hierboven. Hieronder staan je geregistreerde besparingstotalen, gegroepeerd per valuta en kortingstype.",
+      "bodyProfessional": "Hier zie je je puntensaldo en niveauvoortgang. Punten uitgeven voor een niveauboost is momenteel niet mogelijk in de webapp.",
+      "balanceLink": "Bekijk saldo",
+      "historyLink": "Bekijk besparingsgeschiedenis",
+      "benefitsLink": "Bekijk voordelen"
     }
   },
   "disputes": {
@@ -480,7 +520,11 @@
       "professional": "Vakman",
       "amount": "Bedrag",
       "status": "Status",
-      "date": "Datum"
+      "date": "Datum",
+      "search": "Zoeken op boekingsnr., vakman…",
+      "filterService": "Filteren op dienst",
+      "allServices": "Alle diensten",
+      "unknownDate": "—"
     },
     "status": {
       "all": "Alle statussen",
@@ -517,7 +561,10 @@
       "allTime": "Sinds het begin",
       "recentTransactions": "Recente transacties",
       "noTransactions": "Nog geen transacties",
-      "noTransactionsDescription": "Transacties verschijnen hier zodra je boekingen afrondt"
+      "noTransactionsDescription": "Transacties verschijnen hier zodra je boekingen afrondt",
+      "pendingBookingsCount": "{count, plural, one {# openstaande uitbetaling} other {# openstaande uitbetalingen}}",
+      "transferPending": "Overboeking in behandeling",
+      "transferFailed": "Overboeking mislukt"
     }
   },
   "warranty": {
@@ -575,6 +622,9 @@
       "professional2": "Gebruik de boekingsdetailpagina om voorstellen te versturen, herstellingen als opgelost te markeren en bevestigingen op te volgen.",
       "customer1": "Open de bijbehorende boeking om claimdetails, voorstellen en de voortgang van de herstelling te bekijken.",
       "customer2": "Gebruik de boekingspagina om voorstellen te accepteren of af te wijzen, oplossingen te bevestigen of te escaleren als het probleem blijft bestaan."
-    }
+    },
+    "search": "Zoeken op claim- of boekingsnr.…",
+    "filterService": "Filteren op dienst",
+    "allServices": "Alle diensten"
   }
 }

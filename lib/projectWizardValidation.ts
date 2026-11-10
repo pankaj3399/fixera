@@ -1,6 +1,7 @@
 import type { useTranslations } from 'next-intl'
 
 import { parseFlexibleNumber } from '@/lib/numberInput'
+import { packageDurationMode } from '@/lib/packageDuration'
 
 /**
  * Translator for the `projectWizard` namespace. Validators live outside React,
@@ -61,6 +62,8 @@ type SubprojectSnapshot = {
     type?: "fixed" | "unit" | "rfq" | string
     amount?: number
     priceRange?: { min?: number; max?: number }
+    unit?: string
+    durationBasis?: "per_booking" | "per_unit"
   }
   errors?: { priceRange?: string; executionDurationRange?: string }
   included?: Array<{ name?: string }>
@@ -242,7 +245,8 @@ export function collectSubprojectErrors(
     if (sub.pricing.amount == null || sub.pricing.amount <= 0) {
       errors.push(t('validation.pricePositive', { package: label }))
     }
-    if (!sub.executionDuration?.value || sub.executionDuration.value <= 0) {
+    // Hourly unit packages: the customer's booked hours are the duration.
+    if (packageDurationMode(sub.pricing) !== 'customer_hours' && (!sub.executionDuration?.value || sub.executionDuration.value <= 0)) {
       errors.push(t('validation.executionDurationRequired', { package: label }))
     }
   }

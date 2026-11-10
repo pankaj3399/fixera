@@ -3,6 +3,8 @@
 import { useEffect, type ReactNode } from "react";
 import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
+import { whenDocumentVisible } from "@/lib/marketing/siteAnnouncements/visibility";
+import { recordAnnouncementEvent } from "@/lib/marketing/siteAnnouncements/events";
 import { useAnnouncementsCtx } from "./context";
 import { AnnouncementTopBar } from "./TopBar";
 import { useActiveTopBar } from "./useActiveTopBar";
@@ -23,10 +25,20 @@ export function SiteHeaderStack({ children }: { children: ReactNode }) {
 
 export function SiteHeaderSpacer() {
   const { bar } = useActiveTopBar();
+  const height = bar ? `calc(${NAV_HEIGHT} + ${BANNER_HEIGHT})` : NAV_HEIGHT;
+  useEffect(() => {
+    // Shared header-stack token: full-viewport surfaces (chat) subtract the
+    // real fixed-header height instead of a hardcoded 64px, so the composer
+    // stays visible with or without an announcement banner.
+    document.documentElement.style.setProperty("--header-offset", height);
+    return () => {
+      document.documentElement.style.removeProperty("--header-offset");
+    };
+  }, [height]);
   return (
     <div
       className="shrink-0"
-      style={{ height: bar ? `calc(${NAV_HEIGHT} + ${BANNER_HEIGHT})` : NAV_HEIGHT }}
+      style={{ height }}
       aria-hidden
     />
   );
@@ -36,6 +48,12 @@ export function SiteAnnouncementBanner() {
   const { onCta, topBar } = useAnnouncementsCtx();
   const { bar, isPreview } = useActiveTopBar();
   const analyticsOk = useAnalyticsConsentFlag();
+
+  // The top bar persists across client navigation: one impression per page load.
+  useEffect(() => {
+    if (!topBar || isPreview) return;
+    return whenDocumentVisible(() => recordAnnouncementEvent(topBar, "impression"));
+  }, [topBar, isPreview]);
 
   useEffect(() => {
     if (!analyticsOk || !topBar || isPreview) return;

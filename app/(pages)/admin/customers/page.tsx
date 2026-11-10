@@ -27,6 +27,8 @@ import {
 } from "@/lib/adminAnonymize"
 import { startAdminSupportChat } from "@/lib/admin-chat-utils"
 import { toast } from "sonner"
+import TierBadge from "@/components/dashboard/TierBadge"
+import { useTierColors } from "@/lib/tierColors"
 
 interface CustomerRow {
   _id: string
@@ -45,6 +47,7 @@ interface CustomerRow {
 export default function AdminCustomersPage() {
   const { user } = useAuth()
   const router = useRouter()
+  const { tierColor } = useTierColors()
   const [rows, setRows] = useState<CustomerRow[]>([])
   const [search, setSearch] = useState("")
   const [country, setCountry] = useState("all")
@@ -284,7 +287,7 @@ export default function AdminCustomersPage() {
                     </>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                    <Badge variant="outline">{row.loyaltyLevel || "Bronze"}</Badge>
+                    <TierBadge level={row.loyaltyLevel || "Bronze"} color={tierColor(row.loyaltyLevel || "Bronze")} />
                     <Badge variant="outline">{row.points || 0} pts</Badge>
                     <Badge variant="outline">EUR {(row.moneySpent || 0).toLocaleString()}</Badge>
                     <Badge variant="outline">{row.accountStatus || "active"}</Badge>

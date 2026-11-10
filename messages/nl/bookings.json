@@ -157,7 +157,11 @@
     "subtitle": "Bekijk alle informatie over deze boeking.",
     "defaultTitle": "Boeking",
     "typeProject": "Projectboeking",
-    "typeProfessional": "Boeking bij een vakman"
+    "typeProfessional": "Boeking bij een vakman",
+    "titleRfq": "RFQ",
+    "subtitleRfq": "Bekijk deze offerteaanvraag en reageer met een offerte.",
+    "defaultTitleRfq": "Offerteaanvraag",
+    "typeRfq": "Offerteaanvraag"
   },
   "toasts": {
     "attachmentUploaded": "Bijlage geüpload",
@@ -336,7 +340,9 @@
       "rejected": "Offerte afgewezen. De vakman krijgt hiervan bericht.",
       "respondFailed": "Reageren op de offerte is mislukt"
     },
-    "currentPreviewNote": "Huidig betalingsoverzicht met de huidige afrekenprijzen. De vastgelegde offerte staat in het tabblad Offerte."
+    "currentPreviewNote": "Huidig betalingsoverzicht met de huidige afrekenprijzen. De vastgelegde offerte staat in het tabblad Offerte.",
+    "viewingPinnedVersion": "Vastgezette versie v{version} wordt weergegeven. Accepteren en betalen gebruikt altijd de huidige geldige versie.",
+    "backToCurrentVersion": "Terug naar huidige versie"
   },
   "loyalty": {
     "member": "{level}-lid",
@@ -387,7 +393,9 @@
       "updateFailed": "Mijlpaal bijwerken is mislukt.",
       "updateFailedRetry": "Mijlpaal bijwerken is mislukt. Probeer het opnieuw."
     },
-    "currentPreviewNote": "Huidig afrekenoverzicht. Vastgelegde grootboekbedragen staan in het tabblad Betalingen."
+    "currentPreviewNote": "Huidig afrekenoverzicht. Vastgelegde grootboekbedragen staan in het tabblad Betalingen.",
+    "optionsIncluded": "Inclusief geselecteerde opties",
+    "optionsFirstNote": "Geselecteerde opties worden volledig bij de eerste mijlpaal in rekening gebracht, niet verdeeld over mijlpalen."
   },
   "work": {
     "readyToStartTitle": "Klaar om te starten",
@@ -438,22 +446,21 @@
     "label": "Meerkosten",
     "total": "Totaal meerkosten",
     "totalLabel": "Totaal meerkosten:",
-    "unitAdjustmentName": "Aanpassing op basis van eenheden",
-    "unitDetail": "(geschat: {estimated}, werkelijk: {actual})",
-    "subtotal": "Subtotaal (incl. {percent}% platformvergoeding)",
+    "unitAdjustmentName": "Aanpassing aantal ({unit})",
+    "unitDetail": "(geschat: {estimated} {unit}, werkelijk: {actual} {unit})",
+    "subtotal": "Subtotaal",
     "loyaltyLine": "{level}-loyaliteit ({percentage}%)",
     "vat": "Btw",
     "payBeforeConfirmTitle": "Betaal de meerkosten vóór de definitieve bevestiging",
     "payBeforeConfirmDescription": "Zodra deze betaling is gelukt, wordt de boeking automatisch afgerond.",
     "paymentSucceeded": "Betaling van de meerkosten is gelukt. De boeking wordt nu afgerond. Als de pagina niet vernieuwt, gebruik dan opnieuw de bevestigknop.",
-    "addUnit": "+ Eenheid",
+    "addUnit": "+ Aanp. {unit}",
     "addCondition": "+ Voorwaarde",
     "addOption": "+ Optie",
     "addOther": "+ Overige",
-    "unitsFallback": "eenheden",
     "estimatedUnits": "Geschat aantal {unit}",
     "actualUnits": "Werkelijk aantal {unit}",
-    "unitPrice": "Prijs per eenheid",
+    "unitPrice": "Prijs per {unit}",
     "conditionLabel": "Voorwaarde (kies uit project)",
     "selectCondition": "Selecteer een voorwaarde",
     "noConditions": "Geen projectvoorwaarden beschikbaar",
@@ -477,6 +484,28 @@
       "noSubproject": "Kan geen eenheidsaanpassing toevoegen: er is geen subproject geselecteerd voor deze boeking.",
       "notUnitPriced": "Kan geen eenheidsaanpassing toevoegen: dit subproject heeft geen prijs per eenheid.",
       "unitPriceMissing": "Kan geen eenheidsaanpassing toevoegen: de prijs per eenheid is niet ingesteld."
+    },
+    "unitNames": {
+      "one": {
+        "hour": "uur",
+        "day": "dag",
+        "meter": "meter",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "kamer",
+        "piece": "stuk",
+        "unit": "eenheid"
+      },
+      "other": {
+        "hour": "uren",
+        "day": "dagen",
+        "meter": "meter",
+        "m2": "m²",
+        "m3": "m³",
+        "room": "kamers",
+        "piece": "stuks",
+        "unit": "eenheden"
+      }
     }
   },
   "review": {
@@ -554,7 +583,15 @@
       "confirmResolutionFailed": "Oplossing bevestigen is mislukt",
       "escalated": "Claim geëscaleerd naar beheerder.",
       "escalateFailed": "Claim escaleren is mislukt"
-    }
+    },
+    "proposalDeclineTitle": "Voorstel afwijzen",
+    "proposalDeclineDescription": "Vertel de professional waarom dit voorstel niet werkt voor jou. Je toelichting wordt meegestuurd en de claim wordt geëscaleerd.",
+    "clarificationLabel": "Toelichting",
+    "clarificationPlaceholder": "Leg uit wat er ontbreekt of mis is met de voorgestelde oplossing...",
+    "clarificationRequired": "Voeg een korte toelichting toe voordat je afwijst.",
+    "clarificationTooLong": "Beperk je toelichting tot maximaal 1.000 tekens.",
+    "clarificationLimit": "{count} / 1.000 tekens (zonder spaties aan het begin en einde)",
+    "confirmDecline": "Voorstel afwijzen"
   },
   "dispute": {
     "dialogDescription": "Dien een geschil in voor beoordeling door een beheerder.",
@@ -671,7 +708,8 @@
       "booking": "Boeking",
       "quotation": "Offerte",
       "payments": "Betalingen",
-      "activity": "Activiteit"
+      "activity": "Activiteit",
+      "bookingRfq": "Offerteaanvraag"
     },
     "fields": {
       "unknown": "Onbekend",
@@ -770,6 +808,7 @@
       "repeatBuyer": "Korting terugkerende koper",
       "pointsDiscount": "Puntenkorting",
       "codeDiscount": "Kortingscode",
+      "referralDiscount": "Verwijzingskorting",
       "totalDiscount": "Totale korting",
       "status": "Status",
       "workStatus": "Werk",
@@ -786,7 +825,18 @@
       "paymentAtCheckout": "Betaald bij afrekenen",
       "extraCostsProfessional": "Meerwerk bij oplevering (professioneel bedrag)",
       "professionalNet": "Professioneel netto",
-      "amountBeforeDiscounts": "Bedrag vóór kortingen"
+      "amountBeforeDiscounts": "Bedrag vóór kortingen",
+      "firstPossibleStart": "Eerst mogelijke start",
+      "priceModel": "Prijsmodel",
+      "professionalLevel": "Niveau van de professional",
+      "publicTags": "Openbare labels",
+      "tagVerified": "Geverifieerd",
+      "tagOurChoice": "Onze keuze",
+      "currentProfessionalMetadata": "Het niveau en de openbare labels komen uit het huidige profiel.",
+      "milestoneOrder": "Volgorde",
+      "milestoneStatus": "Status",
+      "customDueDate": "Vervaldatum",
+      "quoteDate": "Offertedatum"
     },
     "parties": {
       "customer": "Klant",
@@ -1039,7 +1089,8 @@
       "transferAmount": "Uitbetalingsbedrag",
       "transferAttemptedAt": "Uitbetaling geprobeerd",
       "extraCostTransferStatus": "Uitbetaling meerwerk",
-      "peppolStatusLabel": "Peppolstatus:"
+      "peppolStatusLabel": "Peppolstatus:",
+      "refundPending": "Terugbetaling in afwachting — het geld is nog niet teruggestort"
     },
     "activity": {
       "deletedActor": "Verwijderde gebruiker",
@@ -1060,6 +1111,7 @@
       "descriptionSource": "Bron: {source}",
       "previousSchedule": "Oorspronkelijke planning",
       "proposedSchedule": "Nieuwe planning",
+      "schedule": "Planning",
       "amounts": "Vastgelegde bedragen",
       "attachments": "Bijlagen",
       "openQuotation": "Offerteversie openen",
@@ -1131,25 +1183,27 @@
         "cancellation_countered": "Tegenbod op annulering",
         "cancellation_escalated": "Annulering geëscaleerd",
         "refund_issued": "Terugbetaling uitgevoerd",
-        "admin_status_changed": "Status gewijzigd door beheerder"
+        "admin_status_changed": "Status gewijzigd door beheerder",
+        "refund_pending": "Terugbetaling in afwachting"
       },
       "sourceUser": "gebruiker",
       "sourceAdmin": "beheerder",
       "sourceSystem": "systeem",
       "qualityNotes": {
-        "undated_quote_version": "Een offerteversie heeft geen vastgelegd aanmaaktijdstip en staat niet in de tijdlijn.",
+        "undated_quote_version": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "quote_actor_not_recorded": "Een offerteversie heeft geen vastgelegde actor.",
         "legacy_quote_actor_missing": "Een oude offerte heeft geen vastgelegde actor.",
-        "undated_refund": "Een terugbetaling heeft geen vastgelegde datum en staat niet in de tijdlijn.",
+        "undated_refund": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "refund_vat_split_not_recorded": "Voor minstens één terugbetaling zijn btw en netto niet vastgelegd.",
-        "undated_extra_costs": "Voor meerwerk bij oplevering is geen vastgelegd aanmeldtijdstip.",
-        "undated_reschedule": "Een herplanningsverzoek heeft geen vastgelegde datum.",
-        "undated_cancellation_request": "Een annuleringsverzoek heeft geen vastgelegde datum.",
-        "undated_warranty_claim": "Een garantieclaim heeft geen vastgelegde openingsdatum.",
-        "post_booking_timestamp_not_recorded": "Voor antwoorden na de boeking is geen vastgelegd indientijdstip.",
-        "undated_status_history": "Een statuswijziging heeft geen vastgelegd tijdstip.",
+        "undated_extra_costs": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_reschedule": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_cancellation_request": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_warranty_claim": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "post_booking_timestamp_not_recorded": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
+        "undated_status_history": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "legacy_attachment_owner_not_recorded": "Een oude bijlage heeft geen vastgelegde eigenaar, dus toegang kon niet worden gecontroleerd.",
-        "attachment_unavailable_for_legacy_record": "Een oude bijlage is niet beschikbaar omdat het eigenaarschap niet is vastgelegd."
+        "attachment_unavailable_for_legacy_record": "Een oude bijlage is niet beschikbaar omdat het eigenaarschap niet is vastgelegd.",
+        "historical_coverage_unknown": "De volledigheid van de geschiedenis is onbekend. Alleen bewaarde gegevens worden getoond."
       },
       "amountKinds": {
         "net": "Netto",
@@ -1164,7 +1218,9 @@
       },
       "previousStatus": "Vorige status",
       "newStatus": "Nieuwe status",
-      "recordedInEnglish": "taal vastgelegd als Engels"
+      "recordedInEnglish": "taal vastgelegd als Engels",
+      "coverageUnknown": "De volledigheid van de geschiedenis is onbekend. Alleen bewaarde gegevens worden getoond.",
+      "openWarranty": "Garantieclaim openen"
     },
     "notices": {
       "termsSnapshotNotRecorded": "De voorwaarden bij boeking zijn niet vastgelegd voor deze verouderde boeking. Huidige projectgegevens worden apart getoond.",
@@ -1190,7 +1246,9 @@
       "pricingType": {
         "fixed": "Vaste prijs",
         "unit": "Prijs per eenheid",
-        "rfq": "Offerte aanvragen"
+        "rfq": "Offerte aanvragen",
+        "hour": "Per uur",
+        "day": "Per dag"
       },
       "captureSource": {
         "booking_creation": "Bij boeking",
@@ -1272,12 +1330,77 @@
         "sent": "Verzonden",
         "failed": "Mislukt",
         "skipped": "Overgeslagen"
+      },
+      "milestoneStatus": {
+        "pending": "In afwachting",
+        "invoiced": "Gefactureerd",
+        "paid": "Betaald",
+        "overdue": "Achterstallig"
       }
     },
     "currencyNotRecorded": "valuta niet vastgelegd",
     "timeZone": {
       "recorded": "Tijdstempels gebruiken de vastgelegde boekingszone: {zone}.",
       "viewer": "Er is geen boekingszone vastgelegd; tijdstempels gebruiken de tijdzone van je browser: {zone}."
+    }
+  },
+  "cancellationRequest": {
+    "title": "Annuleringsverzoek",
+    "requestedBy": "Aangevraagd door",
+    "customerFallback": "Klant",
+    "professionalFallback": "Professional",
+    "role": {
+      "customer": "klant",
+      "professional": "professional"
+    },
+    "category": "Categorie",
+    "reason": "Reden",
+    "professionalNote": "Opmerking professional: {note}",
+    "counterOffer": "Tegenbod",
+    "responseDeadline": "Reageer vóór {date}",
+    "refundAmount": "Terugbetalingsbedrag",
+    "denyReason": "Reden voor afwijzing",
+    "approve": "Annulering goedkeuren",
+    "reject": "Verzoek afwijzen",
+    "status": {
+      "pending": "In afwachting",
+      "processing": "In behandeling",
+      "negotiating": "Onderhandeling",
+      "escalated": "Geëscaleerd",
+      "approved": "Goedgekeurd",
+      "denied": "Geweigerd"
+    },
+    "toasts": {
+      "respondFailed": "Reageren op het annuleringsverzoek is mislukt.",
+      "approved": "Annulering goedgekeurd en terugbetaling uitgevoerd.",
+      "rejected": "Annuleringsverzoek afgewezen."
+    },
+    "adminNote": "Beheerdersnotitie: {note}"
+  },
+  "rescheduleRequest": {
+    "title": "Verzoek tot verzetten",
+    "requestedTitle": "Aangevraagd {date}",
+    "dateNotRecorded": "datum niet geregistreerd",
+    "actorNotRecorded": "aanvrager niet geregistreerd",
+    "unknownRequester": "Onbekend",
+    "requestedBy": "Aangevraagd door",
+    "reason": "Reden",
+    "noReason": "Geen reden opgegeven",
+    "responseNote": "Reactie: {note}",
+    "previousSchedule": "Oorspronkelijke planning",
+    "proposedSchedule": "Nieuwe planning",
+    "disputedNotice": "Dit verzoek is betwist en kan niet meer worden geaccepteerd of afgewezen.",
+    "noActionAvailable": "Er is geen actie beschikbaar voor dit verzoek.",
+    "historyTitle": "Eerdere verzoeken",
+    "status": {
+      "pending": "In afwachting",
+      "accepted": "Geaccepteerd",
+      "declined": "Afgewezen",
+      "disputed": "Betwist",
+      "auto_cancelled": "Automatisch geannuleerd"
+    },
+    "toasts": {
+      "disputed": "Dit verzetverzoek is betwist en kan niet meer worden geaccepteerd of afgewezen."
     }
   }
 }

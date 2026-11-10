@@ -435,7 +435,7 @@ function PaymentRecordCard({
         </div>
       ) : null}
 
-      {record.discount ? (
+      {(record.discount?.totalDiscount ?? 0) > 0 && record.discount ? (
         <div className="mt-3">
           <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("payments.discounts", "Discounts and coupons (recorded)")}</p>
           <dl className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -458,6 +458,11 @@ function PaymentRecordCard({
                 {record.discount.pointsRedeemed != null ? <span className="ml-1 text-[11px] text-gray-500">({record.discount.pointsRedeemed} pts)</span> : null}
               </span>
             </DetailField>
+            {(record.discount.referralDiscountAmount ?? 0) > 0 ? (
+              <DetailField label={dt("fields.referralDiscount", "Referral discount")}>
+                <MoneyText amount={record.discount.referralDiscountAmount} currency={currency} formatMoney={formatMoney} />
+              </DetailField>
+            ) : null}
             <DetailField label={dt("fields.codeDiscount", "Discount code")} empty={record.discount.codeDiscountAmount == null}>
               <span>
                 <MoneyText amount={record.discount.codeDiscountAmount} currency={currency} formatMoney={formatMoney} />
@@ -1020,8 +1025,8 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
                       <p className="text-sm font-semibold tabular-nums">
                         <MoneyText amount={refund.amount} currency={refundCurrency} formatMoney={formatMoney} />
                       </p>
-                      <ProvenanceBadge tone={refund.status === "recorded" ? "emerald" : "amber"}>
-                        {refund.status ? <StatusText value={refund.status} /> : dt("payments.recorded", "recorded")}
+                      <ProvenanceBadge tone={refund.status === "recorded" && refund.cashReturned !== false ? "emerald" : "amber"}>
+                        {refund.cashReturned === false ? dt("payments.refundPending", "Refund pending — funds have not been returned") : refund.status ? <StatusText value={refund.status} /> : dt("payments.recorded", "recorded")}
                       </ProvenanceBadge>
                       {refund.kind ? (
                         <ProvenanceBadge tone={refund.kind === "extra_cost" ? "blue" : "slate"}>

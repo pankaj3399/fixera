@@ -61,6 +61,7 @@
     "executionEnds": "Fin de l'exécution :",
     "projectCompletion": "Fin du projet (marge incl.) :",
     "extraOptions": "Options supplémentaires",
+    "agreedOptionsLocked": "La modification des options incluses dans un prix convenu nécessite un devis révisé.",
     "selectedOptionsTotal": "Total des options sélectionnées :",
     "additionalNotes": "Remarques supplémentaires",
     "optional": "(facultatif)",
@@ -95,6 +96,7 @@
     "memberBenefitsApplied": "Avantages membre {tier} appliqués",
     "originalServiceAmount": "Montant initial du service :",
     "selectedOptions": "Options sélectionnées :",
+    "referralDiscountLine": "Réduction de parrainage",
     "loyaltyDiscountLine": "Remise fidélité ({percent} %) :",
     "returningCustomerLine": "Remise client fidèle ({percent} %) :",
     "pointsRedeemedLine": "Points utilisés ({points} pts) :",
@@ -130,7 +132,13 @@
     "preparationValue": "Préparation : {duration}",
     "executionValue": "Exécution : {duration}",
     "bufferValue": "Marge : {duration}",
-    "saving": "Enregistrement..."
+    "saving": "Enregistrement...",
+    "backToDetails": "Retour aux détails de la réservation",
+    "previousToSchedule": "Précédent : infos de réservation",
+    "fullPrice": "Prix total",
+    "milestoneIncludesOptions": "Inclut les options sélectionnées (en totalité)",
+    "optionsFirstMilestoneNote": "Les options sélectionnées sont facturées en totalité avec le premier jalon, et non réparties sur les jalons.",
+    "selectedOptionsInfo": "Options sélectionnées (incluses)"
   },
   "paymentSuccess": {
     "paymentSuccessful": "Paiement réussi",

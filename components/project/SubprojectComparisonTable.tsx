@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -75,10 +75,23 @@ export default function SubprojectComparisonTable({
   onContactProfessional
 }: SubprojectComparisonTableProps) {
   const t = useTranslations('projects')
+  const packageTabContainerRef = useRef<HTMLDivElement | null>(null)
+  const packageTabsRef = useRef<Array<HTMLButtonElement | null>>([])
+  useEffect(() => {
+    const container = packageTabContainerRef.current
+    const tab = packageTabsRef.current[selectedIndex]
+    if (!container || !tab) return
+    const containerBounds = container.getBoundingClientRect()
+    const tabBounds = tab.getBoundingClientRect()
+    const offset = tabBounds.left < containerBounds.left
+      ? tabBounds.left - containerBounds.left
+      : tabBounds.right > containerBounds.right ? tabBounds.right - containerBounds.right : 0
+    if (offset) container.scrollBy({ left: offset })
+  }, [selectedIndex])
   const tWizard = useTranslations('projectWizard')
   const { formatPrice } = useCurrency()
-  const { customerPrice, originalPrice, loyalty, commissionPercent, loyaltyLoaded } = useCustomerPricing()
-  const isPricingReady = commissionPercent != null && loyaltyLoaded
+  const { customerPrice, originalPrice, loyalty, pricingReady, loyaltyLoaded } = useCustomerPricing()
+  const isPricingReady = pricingReady && loyaltyLoaded
 
   const unitSuffixLabel = (value: string) => {
     const key = UNIT_SUFFIX_KEYS[value.toLowerCase() as keyof typeof UNIT_SUFFIX_KEYS]
@@ -86,7 +99,7 @@ export default function SubprojectComparisonTable({
   }
 
   const formatAmount = (value?: number | null) =>
-    value == null ? null : formatPrice(value)
+    value == null ? '…' : formatPrice(value)
 
   const formatDuration = (duration?: { value?: number; unit: 'hours' | 'days' }): string => {
     if (!duration || duration.value == null) return t('common.na')
@@ -216,7 +229,7 @@ export default function SubprojectComparisonTable({
     return null;
   }
 
-  const currentPricing = getCustomerPricing(currentSubproject.pricing.amount)
+  const currentPricing = getCustomerPricing(currentSubproject.pricing.customerAmount)
   const currentCustomerAmount = currentPricing.customerAmount
   const currentDiscountedAmount = currentPricing.discountedAmount
   const hasCurrentDiscount =
@@ -231,8 +244,8 @@ export default function SubprojectComparisonTable({
     minProjectCustomerAmount != null &&
     minProjectDiscountedAmount != null &&
     minProjectDiscountedAmount < minProjectCustomerAmount
-  const minRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.min)
-  const maxRangePricing = getCustomerPricing(currentSubproject.pricing.priceRange?.max)
+  const minRangePricing = getCustomerPricing(currentSubproject.pricing.customerPriceRange?.min)
+  const maxRangePricing = getCustomerPricing(currentSubproject.pricing.customerPriceRange?.max)
   const minRangeCustomerAmount = minRangePricing.customerAmount
   const minRangeDiscountedAmount = minRangePricing.discountedAmount
   const maxRangeCustomerAmount = maxRangePricing.customerAmount
@@ -251,30 +264,35 @@ export default function SubprojectComparisonTable({
       <Card className="border-2 border-blue-600 shadow-lg">
         <CardContent className="p-0">
           {/* Tab Navigation */}
-          <div className="border-b border-gray-200">
-            <div className="flex">
+          <div className="relative border-b border-gray-200">
+            {subprojects.length > 1 && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-10 w-5 bg-gradient-to-l from-white to-transparent" />}
+            <div ref={packageTabContainerRef} className="flex overflow-x-auto">
               {subprojects.map((subproject, index) => (
                 <button
                   key={index}
+                  ref={node => { packageTabsRef.current[index] = node }}
                   onClick={() => onSelectIndex(index)}
-                  className={`flex-1 px-6 py-4 text-center font-semibold text-base transition-all relative ${selectedIndex === index
+                  className={`flex-1 min-w-[120px] px-3 sm:px-6 py-4 flex flex-col items-center justify-end gap-1 text-center font-semibold text-base transition-all ${selectedIndex === index
                     ? 'text-gray-900 border-b-2 border-gray-900'
                     : 'text-gray-500 hover:text-gray-700'
                     }`}
+                  title={subproject.name}
                 >
-                  {subproject.name}
+                  {/* The badge sits in flow above the label (labels stay bottom-aligned
+                      across tabs), so it can never cover a long name on a narrow tab. */}
                   {index === 1 && subprojects.length === 3 && (
-                    <span className="absolute -top-2 right-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
+                    <span className="whitespace-nowrap bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
                       {t('comparison.popular')}
                     </span>
                   )}
+                  <span className="block max-w-full whitespace-normal break-words">{subproject.name}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Package Content */}
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             {/* Package Header */}
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">{currentSubproject.name}</h3>
@@ -298,7 +316,7 @@ export default function SubprojectComparisonTable({
                             <span>{formatAmount(currentDiscountedAmount)}</span>
                           </span>
                         ) : (
-                          formatAmount(currentCustomerAmount ?? currentSubproject.pricing.amount)
+                          formatAmount(currentCustomerAmount)
                         )}
                         {priceModel && !isSuffixlessPriceModel(priceModel) && (
                           <span className="text-lg font-normal text-gray-500 ml-2">
@@ -315,7 +333,7 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(currentDiscountedAmount)}</span>
                         </span>
                       ) : (
-                        formatAmount(currentCustomerAmount ?? currentSubproject.pricing.amount)
+                        formatAmount(currentCustomerAmount)
                       )
                     )}
                   </div>
@@ -329,11 +347,11 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(minProjectDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatAmount(minProjectCustomerAmount ?? currentSubproject.pricing.minProjectValue)
+                        formatAmount(minProjectCustomerAmount)
                       )}
                     </p>
                   )}
-                  {isPricingReady && effectivePricingType(currentSubproject) === 'rfq' && currentSubproject.pricing.priceRange && (
+                  {isPricingReady && effectivePricingType(currentSubproject) === 'rfq' && currentSubproject.pricing.customerPriceRange && (
                     <p className="text-sm text-gray-500 mt-2">
                       {t('comparison.estimatedRange')} {hasMinRangeDiscount ? (
                         <>
@@ -343,7 +361,7 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(minRangeDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatAmount(minRangeCustomerAmount ?? currentSubproject.pricing.priceRange.min)
+                        formatAmount(minRangeCustomerAmount)
                       )}{" "}
                       -{" "}
                       {hasMaxRangeDiscount ? (
@@ -354,7 +372,7 @@ export default function SubprojectComparisonTable({
                           <span>{formatAmount(maxRangeDiscountedAmount)}</span>
                         </>
                       ) : (
-                        formatAmount(maxRangeCustomerAmount ?? currentSubproject.pricing.priceRange.max)
+                        formatAmount(maxRangeCustomerAmount)
                       )}
                     </p>
                   )}

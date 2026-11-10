@@ -1,25 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  isKeyedFlagOn,
+  raiseKeyedFlag,
+  syncKeyedFlag,
+  type KeyedFlag,
+} from "@/lib/marketing/siteAnnouncements/revealState";
 
 /**
  * Arms after `armAfterMs`, then fires once on desktop mouse-leave-top
  * or mobile upward-scroll near the top. Resets when `enabled` becomes false
- * or when the optional page-view key changes.
+ * or when the optional page-view key changes; the reset is visible in the
+ * same render as the change, so a trigger from the previous page never
+ * carries over (no flash, no impression before this page's exit gesture).
  */
 export function useExitIntent(
   enabled: boolean,
   armAfterMs: number,
   resetKey: string | null = null,
 ): boolean {
-  const [triggered, setTriggered] = useState(false);
+  const key = enabled ? `exit:${resetKey ?? ""}` : null;
+  const [state, setState] = useState<KeyedFlag>({ key, on: false });
+  const current = syncKeyedFlag(state, key);
+  // Adjust state while rendering (React re-renders before committing).
+  if (current !== state) setState(current);
 
   useEffect(() => {
-    if (!enabled) {
-      setTriggered(false);
-      return;
-    }
-    setTriggered(false);
+    if (!key) return;
+    const trigger = () => setState((prev) => raiseKeyedFlag(prev, key));
 
     let armed = false;
     const armTimer = window.setTimeout(() => {
@@ -31,7 +40,7 @@ export function useExitIntent(
     const onMouseOut = (event: MouseEvent) => {
       if (!armed) return;
       if (event.clientY <= 0 && event.relatedTarget === null) {
-        setTriggered(true);
+        trigger();
       }
     };
 
@@ -41,7 +50,7 @@ export function useExitIntent(
       const y = window.scrollY;
       const scrollingUp = y < lastScrollY;
       lastScrollY = y;
-      if (scrollingUp && y < 80) setTriggered(true);
+      if (scrollingUp && y < 80) trigger();
     };
 
     document.addEventListener("mouseout", onMouseOut);
@@ -52,7 +61,7 @@ export function useExitIntent(
       document.removeEventListener("mouseout", onMouseOut);
       window.removeEventListener("scroll", onScroll);
     };
-  }, [enabled, armAfterMs, resetKey]);
+  }, [key, armAfterMs]);
 
-  return triggered;
+  return isKeyedFlagOn(current, key);
 }

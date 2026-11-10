@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/contexts/AuthContext"
@@ -50,6 +50,10 @@ export default function DashboardDisputesPage() {
 
   const [items, setItems] = useState<DisputeRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const requestRef = useRef<AbortController | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -59,28 +63,33 @@ export default function DashboardDisputesPage() {
   }, [user, loading, router, pathname])
 
   const fetchDisputes = useCallback(async () => {
+    requestRef.current?.abort()
+    const controller = new AbortController()
+    requestRef.current = controller
     setIsLoading(true)
+    setLoadFailed(false)
+    setItems([])
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine`)
-      if (!res.ok) {
-        toast.error(t("disputes.loadFailed"))
-        return
-      }
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine?page=${page}&limit=20`, { signal: controller.signal })
+      if (!res.ok) throw new Error('Disputes request failed')
       const json = await res.json()
-      if (json.success) {
-        setItems(json.data?.items || [])
-      } else {
+      if (controller.signal.aborted) return
+      if (!json.success) throw new Error('Disputes request failed')
+      setItems(json.data?.items || [])
+      setTotalPages(json.data?.pagination?.totalPages || 0)
+    } catch {
+      if (!controller.signal.aborted) {
+        setLoadFailed(true)
         toast.error(t("disputes.loadFailed"))
       }
-    } catch {
-      toast.error(t("disputes.loadFailed"))
     } finally {
-      setIsLoading(false)
+      if (!controller.signal.aborted) setIsLoading(false)
     }
-  }, [t])
+  }, [t, page])
 
   useEffect(() => {
-    if (user) fetchDisputes()
+    if (user) void fetchDisputes()
+    return () => requestRef.current?.abort()
   }, [user, fetchDisputes])
 
   if (loading || !user) return null
@@ -111,6 +120,7 @@ export default function DashboardDisputesPage() {
               </div>
             )
           }
+          if (loadFailed) return <p role="alert" className="text-sm text-red-700">{t("disputes.loadFailed")}</p>
           if (filteredItems.length === 0) {
             return (
               <Card>
@@ -182,6 +192,13 @@ export default function DashboardDisputesPage() {
           </div>
           )
         })()}
+        <div className="flex items-center justify-between gap-3" aria-live="polite">
+          <span className="text-sm text-gray-500">{t("common.pageOf", { page, total: Math.max(1, totalPages) })}</span>
+          <div className="flex gap-2">
+            <Button variant="outline" disabled={isLoading || page <= 1} onClick={() => setPage(p => p - 1)}>{t("common.previous")}</Button>
+            <Button variant="outline" disabled={isLoading || page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common.next")}</Button>
+          </div>
+        </div>
       </div>
     </div>
   )

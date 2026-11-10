@@ -34,18 +34,18 @@ const HeroSection = async ({
   const t = await getTranslations('home')
 
   return (
-    <section id="hero" className="pt-8 pb-16 bg-gradient-to-br from-blue-50 via-white to-purple-50 relative overflow-hidden">
+    <section id="hero" className="pt-4 sm:pt-6 pb-10 bg-gradient-to-br from-blue-50 via-white to-purple-50 relative overflow-hidden">
       <div className="absolute inset-0 opacity-5" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234F46E5' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
       }} />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <Badge className="mb-4 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 border-blue-200 px-6 py-2 text-base font-medium">
+          <Badge className="mb-3 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 border-blue-200 px-6 py-1.5 text-base font-medium">
             {t('hero.badge')}
           </Badge>
 
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold mb-4 leading-[1.1] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 leading-[1.1] tracking-tight">
             <span className="bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent">
               {t('hero.titleTop')}
             </span>
@@ -55,7 +55,7 @@ const HeroSection = async ({
             </span>
           </h1>
 
-          <p className="text-xl sm:text-2xl text-gray-600 mb-8 max-w-4xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-gray-600 mb-6 max-w-4xl mx-auto leading-relaxed">
             {t('hero.description')}
           </p>
 
@@ -63,7 +63,7 @@ const HeroSection = async ({
 
           <PopularProjectsCarousel projects={popularProjects} />
 
-          <div className="mt-10 pt-16 border-t border-gray-200">
+          <div className="mt-8 pt-10 border-t border-gray-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
               {heroBenefits.map((benefit) => {
                 const Icon = benefitIcons[benefit.icon]

@@ -2,10 +2,12 @@
 
 import { apiErrorFromBody } from '@/lib/apiErrors';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -60,6 +62,8 @@ function usePaymentStatusLabel() {
       case 'partially_refunded': return t('payments.status.partiallyRefunded');
       case 'failed': return t('payments.status.failed');
       case 'expired': return t('payments.status.expired');
+      case 'transfer_pending': return t('payments.professional.transferPending');
+      case 'transfer_failed': return t('payments.professional.transferFailed');
       default: return status.replace(/_/g, ' ');
     }
   };
@@ -107,10 +111,12 @@ interface CustomerPaymentSummary {
 // ─── Professional types (existing) ──────────────────────────────────────────
 
 interface PaymentStats {
-  totalEarnings: number;
-  pendingEarnings: number;
+  totalEarnings: number | null;
+  pendingEarnings: number | null;
   completedBookings: number;
+  pendingBookings?: number;
   currency: string;
+  totalsByCurrency?: Array<{ currency: string; totalEarnings: number; pendingEarnings: number; completedBookings: number; pendingBookings: number }>;
 }
 
 interface AccountStatus {
@@ -125,7 +131,8 @@ interface AccountStatus {
 
 interface Transaction {
   _id: string;
-  date: string;
+  date: string | null;
+  bookingId?: string | null;
   bookingNumber: string;
   status: string;
   currency: string;
@@ -167,7 +174,6 @@ export default function PaymentsDashboard() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function CustomerPaymentsView() {
-  const router = useRouter();
   const t = useTranslations('dashboard');
   const getErrorText = useErrorMessage();
   const { intl } = useFormatLocale();
@@ -175,14 +181,27 @@ function CustomerPaymentsView() {
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
-  const [summary, setSummary] = useState<CustomerPaymentSummary>({ totalPaid: 0, inEscrow: 0, refunded: 0 });
+  const [summary, setSummary] = useState<CustomerPaymentSummary | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState<'all' | PaymentStatus>('all');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [serviceFilter, setServiceFilter] = useState('all');
+  const [services, setServices] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Only the latest request may write rows/summary/pages: a slower response
+  // for an older filter must never overwrite the current query's results.
+  const latestPaymentsRequest = useRef(0);
   const fetchPayments = useCallback(async () => {
+    const requestId = ++latestPaymentsRequest.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -190,6 +209,8 @@ function CustomerPaymentsView() {
       params.set('page', String(page));
       params.set('limit', '20');
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
+      if (serviceFilter !== 'all') params.set('service', serviceFilter);
 
       const response = await fetch(`${API_URL}/api/bookings/my-payments?${params.toString()}`, {
         credentials: 'include',
@@ -199,16 +220,39 @@ function CustomerPaymentsView() {
       if (!response.ok || !payload.success) {
         throw apiErrorFromBody(payload, t('payments.loadFailed'), { status: response.status });
       }
+      if (requestId !== latestPaymentsRequest.current) return;
 
       setPayments(payload.data.payments);
       setSummary(payload.data.summary);
       setTotalPages(payload.data.pagination.totalPages || 1);
     } catch (err) {
+      if (requestId !== latestPaymentsRequest.current) return;
+      setPayments([]);
+      setSummary(null);
+      setTotalPages(1);
       setError(getErrorText(err, t('payments.loadFailed')));
     } finally {
-      setIsLoading(false);
+      if (requestId === latestPaymentsRequest.current) setIsLoading(false);
     }
-  }, [API_URL, getErrorText, page, statusFilter, t]);
+  }, [API_URL, getErrorText, page, statusFilter, debouncedSearch, serviceFilter, t]);
+
+  // Service options resolve from the customer's own bookings facet.
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/bookings/my-bookings?page=1&limit=1`, {
+          credentials: 'include',
+        });
+        const payload = await response.json();
+        if (response.ok && payload.success && Array.isArray(payload.distinctServices)) {
+          setServices(payload.distinctServices);
+        }
+      } catch {
+        // non-blocking
+      }
+    };
+    void loadServices();
+  }, [API_URL]);
 
   useEffect(() => {
     fetchPayments();
@@ -237,7 +281,7 @@ function CustomerPaymentsView() {
             <CardHeader className="pb-2">
               <CardDescription>{t('payments.summary.totalPaid')}</CardDescription>
               <CardTitle className="text-2xl">
-                {formatMoney(summary.totalPaid)}
+                {summary ? formatMoney(summary.totalPaid) : "—"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-500">{t('payments.summary.completedPayments')}</CardContent>
@@ -246,7 +290,7 @@ function CustomerPaymentsView() {
             <CardHeader className="pb-2">
               <CardDescription>{t('payments.summary.inEscrow')}</CardDescription>
               <CardTitle className="text-2xl">
-                {formatMoney(summary.inEscrow)}
+                {summary ? formatMoney(summary.inEscrow) : "—"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-500">{t('payments.summary.awaitingCompletion')}</CardContent>
@@ -255,7 +299,7 @@ function CustomerPaymentsView() {
             <CardHeader className="pb-2">
               <CardDescription>{t('payments.summary.refunded')}</CardDescription>
               <CardTitle className="text-2xl">
-                {formatMoney(summary.refunded)}
+                {summary ? formatMoney(summary.refunded) : "—"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-500">{t('payments.summary.totalRefunded')}</CardContent>
@@ -267,18 +311,40 @@ function CustomerPaymentsView() {
           <CardHeader>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <CardTitle>{t('payments.table.title')}</CardTitle>
-              <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val as 'all' | PaymentStatus); setPage(1); }}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder={t('common.filterStatus')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(option.key)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="relative">
+                  <Input
+                    aria-label={t('payments.table.search')}
+                    placeholder={t('payments.table.search')}
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                    className="w-64 pl-3 pr-3"
+                  />
+                </div>
+                <Select value={serviceFilter} onValueChange={(val) => { setServiceFilter(val); setPage(1); }}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder={t('payments.table.filterService')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('payments.table.allServices')}</SelectItem>
+                    {services.map((svc) => (
+                      <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val as 'all' | PaymentStatus); setPage(1); }}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder={t('common.filterStatus')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.key)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             {error && <p role="alert" className="text-sm text-rose-600 mt-2">{error}</p>}
           </CardHeader>
@@ -315,17 +381,21 @@ function CustomerPaymentsView() {
                     {payments.map((payment) => (
                       <tr
                         key={payment._id}
-                        className={`hover:bg-slate-50/60 ${payment.booking?._id ? 'cursor-pointer' : ''}`}
-                        onClick={() => {
-                          if (payment.booking?._id) {
-                            router.push(`/bookings/${payment.booking._id}`);
-                          }
-                        }}
+                        className="hover:bg-slate-50/60"
                       >
                         <td className="px-4 py-4">
-                          <div className="font-medium text-gray-900">
-                            {payment.bookingNumber || payment.booking?.bookingNumber || '---'}
-                          </div>
+                          {payment.booking?._id ? (
+                            <Link
+                              href={`/bookings/${payment.booking._id}`}
+                              className="font-medium text-indigo-700 hover:underline"
+                            >
+                              {payment.bookingNumber || payment.booking?.bookingNumber || '---'}
+                            </Link>
+                          ) : (
+                            <div className="font-medium text-gray-900">
+                              {payment.bookingNumber || payment.booking?.bookingNumber || '---'}
+                            </div>
+                          )}
                           <div className="text-xs text-gray-500 capitalize">
                             {payment.booking?.bookingType || t('common.notAvailable')}
                           </div>
@@ -356,10 +426,10 @@ function CustomerPaymentsView() {
               <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-gray-600">
                 <span>{t('common.pageOf', { page, total: totalPages })}</span>
                 <div className="space-x-2">
-                  <Button variant="outline" size="sm" disabled={page === 1 || isLoading} onClick={() => setPage(p => Math.max(p - 1, 1))}>
+                  <Button variant="outline" size="sm" disabled={page === 1 || isLoading || search !== debouncedSearch} onClick={() => setPage(p => Math.max(p - 1, 1))}>
                     {t('common.previous')}
                   </Button>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading} onClick={() => setPage(p => p + 1)}>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading || search !== debouncedSearch} onClick={() => setPage(p => p + 1)}>
                     {t('common.next')}
                   </Button>
                 </div>
@@ -391,12 +461,63 @@ function ProfessionalPaymentsView() {
     currency: 'EUR',
   });
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [txPage, setTxPage] = useState(1);
+  const [txTotalPages, setTxTotalPages] = useState(1);
+  const [txStatusFilter, setTxStatusFilter] = useState('all');
+  // Starts true: until the first response arrives nothing is known, so the
+  // "no transactions yet" state must not render.
+  const [txLoading, setTxLoading] = useState(true);
+  const [txSearch, setTxSearch] = useState('');
+  const [txDebouncedSearch, setTxDebouncedSearch] = useState('');
+  const [txError, setTxError] = useState(false);
+  // Bumped by the error's Refresh button to repeat the request that failed
+  // (same page, status and search).
+  const [txReloadKey, setTxReloadKey] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => { setTxDebouncedSearch(txSearch); setTxPage(1); }, 300);
+    return () => clearTimeout(timer);
+  }, [txSearch]);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
   useEffect(() => {
     loadPaymentData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadTransactions = useCallback(async (page: number, status: string, q: string, signal: AbortSignal) => {
+    setTxLoading(true);
+    setTxError(false);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      if (status !== 'all') params.set('status', status);
+      if (q.trim()) params.set('q', q.trim());
+      const transactionsResponse = await fetch(`${API_URL}/api/professional/transactions?${params.toString()}`, {
+        credentials: 'include', signal,
+      });
+
+      if (!transactionsResponse.ok) throw new Error("Transactions request failed");
+      const transactionsData = await transactionsResponse.json();
+      if (signal.aborted) return;
+      // An ok response with success:false is a failure too: the catch clears
+      // the previous rows so the table never shows another filter's results.
+      if (!transactionsData.success) throw new Error("Transactions request failed");
+      setRecentTransactions(transactionsData.data);
+      setTxTotalPages(transactionsData.pagination?.totalPages || 1);
+      setTxPage(Math.min(transactionsData.pagination?.page || page, Math.max(1, transactionsData.pagination?.totalPages || 1)));
+    } catch {
+      // Keep the requested page (Refresh repeats it) but drop the rows and the
+      // page count: both belonged to an earlier query.
+      if (!signal.aborted) { setRecentTransactions([]); setTxTotalPages(1); setTxError(true); }
+    } finally {
+      if (!signal.aborted) setTxLoading(false);
+    }
+  }, [API_URL]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadTransactions(txPage, txStatusFilter, txDebouncedSearch, controller.signal);
+    return () => controller.abort();
+  }, [txPage, txStatusFilter, txDebouncedSearch, txReloadKey, loadTransactions]);
 
   const loadPaymentData = async () => {
     setCheckingAccount(true);
@@ -435,24 +556,12 @@ function ProfessionalPaymentsView() {
         console.log('Stats endpoint not available yet');
       }
 
-      try {
-        const transactionsResponse = await fetch(`${API_URL}/api/professional/transactions?limit=10`, {
-          credentials: 'include',
-        });
-
-        if (transactionsResponse.ok) {
-          const transactionsData = await transactionsResponse.json();
-          if (transactionsData.success) {
-            setRecentTransactions(transactionsData.data);
-          }
-        }
-      } catch {
-        console.log('Transactions endpoint not available yet');
-      }
     } finally {
       setCheckingAccount(false);
     }
   };
+
+  // Transactions load through the paged effect below (page + status filter).
 
   const handleSetupStripe = () => {
     router.push('/professional/stripe/setup');
@@ -587,7 +696,11 @@ function ProfessionalPaymentsView() {
                 </svg>
               </div>
               <p className="text-3xl font-bold text-gray-900">
-                {formatMoney(stats.totalEarnings, stats.currency)}
+                {stats.totalEarnings != null
+                  ? formatMoney(stats.totalEarnings, stats.currency === 'MULTI' ? undefined : stats.currency)
+                  : (stats.totalsByCurrency?.length
+                    ? stats.totalsByCurrency.map((bucket) => formatMoney(bucket.totalEarnings, bucket.currency)).join(' + ')
+                    : '—')}
               </p>
               <p className="text-sm text-gray-500 mt-1">
                 {t('payments.professional.fromCompletedBookings', { count: stats.completedBookings })}
@@ -602,10 +715,16 @@ function ProfessionalPaymentsView() {
                 </svg>
               </div>
               <p className="text-3xl font-bold text-gray-900">
-                {formatMoney(stats.pendingEarnings, stats.currency)}
+                {stats.pendingEarnings != null
+                  ? formatMoney(stats.pendingEarnings, stats.currency === 'MULTI' ? undefined : stats.currency)
+                  : (stats.totalsByCurrency?.length
+                    ? stats.totalsByCurrency.map((bucket) => formatMoney(bucket.pendingEarnings, bucket.currency)).join(' + ')
+                    : '—')}
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                {t('payments.professional.fromActiveBookings')}
+                {stats.pendingBookings != null
+                  ? t('payments.professional.pendingBookingsCount', { count: stats.pendingBookings })
+                  : t('payments.professional.fromActiveBookings')}
               </p>
             </div>
 
@@ -626,9 +745,56 @@ function ProfessionalPaymentsView() {
           </div>
 
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('payments.professional.recentTransactions')}</h2>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">{t('payments.professional.recentTransactions')}</h2>
+              <Input
+                aria-label={t('payments.table.search')}
+                placeholder={t('payments.table.search')}
+                value={txSearch}
+                onChange={e => setTxSearch(e.target.value)}
+                className="md:max-w-sm"
+              />
+              <Select value={txStatusFilter} onValueChange={(val) => { setTxStatusFilter(val); setTxPage(1); }}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder={t('common.filterStatus')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('payments.status.all')}</SelectItem>
+                  <SelectItem value="pending">{t('payments.status.pending')}</SelectItem>
+                  <SelectItem value="authorized">{t('payments.status.authorized')}</SelectItem>
+                  <SelectItem value="completed">{t('payments.status.completed')}</SelectItem>
+                  <SelectItem value="transfer_pending">{t('payments.professional.transferPending')}</SelectItem>
+                  <SelectItem value="transfer_failed">{t('payments.professional.transferFailed')}</SelectItem>
+                  <SelectItem value="refunded">{t('payments.status.refunded')}</SelectItem>
+                  <SelectItem value="failed">{t('payments.status.failed')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            {recentTransactions.length === 0 ? (
+            {txError && (
+              <div role="alert" className="flex items-center justify-between gap-3 text-sm text-red-600">
+                <p>{t('payments.loadFailed')}</p>
+                <Button variant="outline" size="sm" onClick={() => setTxReloadKey(k => k + 1)}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> {t('common.refresh')}
+                </Button>
+              </div>
+            )}
+            {txError ? null : txLoading ? (
+              // The previous query's rows are hidden until this one answers.
+              <div className="space-y-3 py-2" aria-busy="true">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex gap-4 py-3">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                ))}
+              </div>
+            ) : recentTransactions.length === 0 && (txStatusFilter !== 'all' || txDebouncedSearch.trim()) ? (
+              // A filter or search matched nothing; the professional may still have transactions.
+              <p className="py-8 text-center text-sm text-gray-500">{t('payments.table.empty')}</p>
+            ) : recentTransactions.length === 0 ? (
               <div className="text-center py-8">
                 <svg className="mx-auto h-12 w-12 text-gray-400" aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -659,10 +825,19 @@ function ProfessionalPaymentsView() {
                     {recentTransactions.map((transaction) => (
                       <tr key={transaction._id} className="hover:bg-gray-50">
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(transaction.date).toLocaleDateString(intl)}
+                          {transaction.date ? new Date(transaction.date).toLocaleDateString(intl) : t('payments.table.unknownDate')}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          #{transaction.bookingNumber}
+                          {transaction.bookingId ? (
+                            <Link
+                              href={`/bookings/${transaction.bookingId}`}
+                              className="font-medium text-indigo-700 hover:underline"
+                            >
+                              #{transaction.bookingNumber}
+                            </Link>
+                          ) : (
+                            <>#{transaction.bookingNumber}</>
+                          )}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -680,6 +855,19 @@ function ProfessionalPaymentsView() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {!txError && !txLoading && txTotalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-gray-600">
+                <span>{t('common.pageOf', { page: txPage, total: txTotalPages })}</span>
+                <div className="space-x-2">
+                  <Button variant="outline" size="sm" disabled={txPage === 1 || txLoading} onClick={() => setTxPage(p => Math.max(p - 1, 1))}>
+                    {t('common.previous')}
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={txPage >= txTotalPages || txLoading} onClick={() => setTxPage(p => p + 1)}>
+                    {t('common.next')}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

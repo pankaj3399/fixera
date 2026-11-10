@@ -1,5 +1,8 @@
 'use client'
 
+import { BookingDetailsTabs } from "@/components/booking/details/BookingDetailsTabs"
+import type { BookingDetailsDto, RawBookingRecord } from "@/types/bookingDetails"
+
 import { messageFromApiBody } from '@/lib/apiErrors';
 
 import { useCallback, useEffect, useState } from "react"
@@ -88,6 +91,7 @@ interface CancellationRequestDoc {
 }
 
 interface BookingDetailPayload {
+  details?: BookingDetailsDto | null
   booking: BookingDoc
   payment: { refunds?: Refund[]; status?: string; totalWithVat?: number; currency?: string } | null
   cancellationRequests: CancellationRequestDoc[]
@@ -261,6 +265,7 @@ export default function AdminBookingDetailPage() {
           <Card><CardContent className="py-12 text-center text-gray-500">Booking not found</CardContent></Card>
         ) : (
           <>
+            <BookingDetailsTabs booking={data.booking as RawBookingRecord} details={data.details || null} viewerRole="admin" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">

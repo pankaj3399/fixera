@@ -370,7 +370,10 @@ function SearchPageContent() {
           }
         }
       }
-      setResults(data.results ?? []);
+      // The backend sorts globally before pagination for every `sortBy`
+      // value, including `relevant` (the default) — rely on server order so
+      // ranking stays consistent across pages.
+      setResults((data.results ?? []) as SearchResult[]);
       setProjectFacets(searchType === 'projects' ? data.facets ?? null : null);
       setPagination((prev) => data.pagination ?? prev);
       trackProjectSearch({

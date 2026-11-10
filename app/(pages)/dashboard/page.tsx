@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, Play, Loader2, Info, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon, Link2, MessageSquare, Megaphone } from "lucide-react"
+import { User, Mail, Phone, Shield, Calendar, Crown, Settings, TrendingUp, Users, Award, CheckCircle, XCircle, Clock, AlertTriangle, Plus, Briefcase, Package, CreditCard, FileText, Star, Gift, MessageSquareWarning, EyeOff, Heart, LifeBuoy, Ticket, BarChart3, Ban, AlertOctagon, Link2, MessageSquare, Megaphone } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,12 +14,16 @@ import Link from "next/link"
 import { getAuthToken } from "@/lib/utils"
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard"
 import FavoritesWidget from "@/components/dashboard/FavoritesWidget"
+import BackgroundChecksPanel, { useBackgroundCheckState } from "@/components/admin/BackgroundChecksPanel"
+import BenefitsProgramCard from "@/components/dashboard/BenefitsProgramCard"
 import { type BookingStatus, getBookingStatusMeta, getBookingTitle, isProjectBooking } from "@/lib/dashboardBookingHelpers"
 import { getProfessionalActionItems, type ProfessionalActionItemKey } from "@/lib/actionNeededHelpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { useAdminAccess } from "@/hooks/useAdminAccess"
 import { ADMIN_ROLE_LABELS, type AdminRole } from "@/lib/adminRbac"
+import { visibleAdminNavigation } from "@/lib/admin/navigation"
+import { AdminShell } from "@/components/admin/navigation/AdminShell"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
@@ -135,25 +139,6 @@ interface WarrantyDashboardAction {
   severity: "warning" | "urgent"
 }
 
-const ADMIN_TOOL_LABELS = {
-  emailCampaigns: "adminTools.emailCampaigns",
-  cms: "adminTools.cmsContent",
-  announcements: "adminTools.siteAnnouncements",
-  supportChat: "adminTools.supportChat",
-  customers: "adminTools.customers",
-  bookings: "adminTools.bookings",
-  disputes: "adminTools.disputes",
-  cancellationRequests: "adminTools.cancellationRequests",
-  warrantyClaims: "adminTools.warrantyClaims",
-  supportTickets: "adminTools.supportTickets",
-  discountCodes: "adminTools.discountCodes",
-  referrals: "adminTools.referrals",
-  backlinks: "adminTools.backlinks",
-  favorites: "adminTools.favorites",
-  kpi: "adminTools.kpiReports",
-  auditLogs: "adminTools.auditLogs",
-  emailLogs: "adminTools.emailLogs",
-} as const
 
 
 export default function DashboardPage() {
@@ -208,15 +193,25 @@ export default function DashboardPage() {
   const [approvalStats, setApprovalStats] = useState<ApprovalStats | null>(null)
   const [projectStats, setProjectStats] = useState<ProjectStats | null>(null)
   const [warrantyAnalytics, setWarrantyAnalytics] = useState<WarrantyAnalytics | null>(null)
-  const [isRunningWarrantyCheck, setIsRunningWarrantyCheck] = useState(false)
-  const [isRunningRfqCheck, setIsRunningRfqCheck] = useState(false)
-  const [isRunningNotifReminders, setIsRunningNotifReminders] = useState(false)
-  const [isRunningAutoAccept, setIsRunningAutoAccept] = useState(false)
   const [isRecalculatingProfessionalLevels, setIsRecalculatingProfessionalLevels] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
+  const [paymentSummary, setPaymentSummary] = useState<{
+    totalEarnings: number | null
+    pendingEarnings: number | null
+    completedBookings: number
+    pendingBookings: number
+    reviewCount: number
+    avgRating: number | null
+    currency: string
+    totalsByCurrency: Array<{ currency: string; totalEarnings: number; pendingEarnings: number; completedBookings: number; pendingBookings: number }>
+  } | null>(null)
+  // Starts loading: the professional cards render a skeleton, not "—"/"No
+  // reviews yet", before the summary effect runs. Other roles never render them.
+  const [paymentSummaryLoading, setPaymentSummaryLoading] = useState(true)
+  const [paymentSummaryError, setPaymentSummaryError] = useState<string | null>(null)
   const [warrantyClaims, setWarrantyClaims] = useState<WarrantyClaimAction[]>([])
   const [warrantyClaimsLoading, setWarrantyClaimsLoading] = useState(false)
   const [warrantyClaimsError, setWarrantyClaimsError] = useState<string | null>(null)
@@ -228,25 +223,11 @@ export default function DashboardPage() {
   const canManageServices = can('services.manage')
   const canManagePayments = can('payments.manage')
   const canRunMaintenance = can('maintenance.run')
-  const adminToolLinks = ([
-    { path: '/admin/campaigns', key: 'emailCampaigns' },
-    { path: '/admin/cms', key: 'cms' },
-    { path: '/admin/site-announcements', key: 'announcements' },
-    { path: '/admin/chat', key: 'supportChat' },
-    { path: '/admin/customers', key: 'customers' },
-    { path: '/admin/bookings', key: 'bookings' },
-    { path: '/admin/disputes', key: 'disputes' },
-    { path: '/admin/cancellation-requests', key: 'cancellationRequests' },
-    { path: '/admin/warranty-claims', key: 'warrantyClaims' },
-    { path: '/admin/support', key: 'supportTickets' },
-    { path: '/admin/discount-codes', key: 'discountCodes' },
-    { path: '/admin/referral', key: 'referrals' },
-    { path: '/admin/backlinks', key: 'backlinks' },
-    { path: '/admin/favorites', key: 'favorites' },
-    { path: '/admin/kpi', key: 'kpi' },
-    { path: '/admin/audit-logs', key: 'auditLogs' },
-    { path: '/admin/email-logs', key: 'emailLogs' },
-  ] as const).filter(({ path }) => canAccessPath(path))
+  const backgroundCheckState = useBackgroundCheckState()
+  // The admin menu in document order (same config and gate as the admin
+  // sidebar); the Tools tab lists it grouped, only what this admin may open.
+  const adminDirectory = user?.role === 'admin' ? visibleAdminNavigation(user) : []
+  const adminToolLinks = adminDirectory.flatMap((group) => group.items)
   const defaultAdminTab = canViewAdminOverview
     ? 'overview'
     : canManageServices
@@ -339,6 +320,41 @@ export default function DashboardPage() {
     }
 
     fetchBookings()
+  }, [user, isAuthenticated, getErrorText, t])
+
+  useEffect(() => {
+    if (!user || !isAuthenticated || user.role !== "professional") return
+    const controller = new AbortController()
+    const loadSummary = async () => {
+      setPaymentSummaryLoading(true)
+      setPaymentSummaryError(null)
+      // A failed refetch must not leave the previous figures beside the error.
+      setPaymentSummary(null)
+      try {
+        const token = getAuthToken()
+        const headers: Record<string, string> = {}
+        if (token) headers.Authorization = `Bearer ${token}`
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/professional/payment-stats`,
+          { credentials: "include", headers, signal: controller.signal },
+        )
+        const payload = await response.json()
+        if (controller.signal.aborted) return
+        if (response.ok && payload.success) {
+          setPaymentSummary(payload.data)
+        } else if (!controller.signal.aborted) {
+          setPaymentSummaryError(getErrorText(apiErrorFromBody(payload, t("professional.summary.loadFailed"), { status: response.status }), t("professional.summary.loadFailed")))
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        if (error instanceof DOMException && error.name === "AbortError") return
+        setPaymentSummaryError(getErrorText(error, t("professional.summary.loadFailed")))
+      } finally {
+        if (!controller.signal.aborted) setPaymentSummaryLoading(false)
+      }
+    }
+    void loadSummary()
+    return () => controller.abort()
   }, [user, isAuthenticated, getErrorText, t])
 
   useEffect(() => {
@@ -446,76 +462,6 @@ export default function DashboardPage() {
     }
   }, [fetchAdminData, user?.role])
 
-  const runSchedulerCheck = async (type: 'warranty' | 'rfq' | 'notif' | 'autoaccept') => {
-    if (!canRunMaintenance) {
-      toast.error(t('errors.maintenanceForbidden'))
-      return
-    }
-    const loadingMap = {
-      warranty: setIsRunningWarrantyCheck,
-      rfq: setIsRunningRfqCheck,
-      notif: setIsRunningNotifReminders,
-      autoaccept: setIsRunningAutoAccept,
-    } as const
-    const endpointMap = {
-      warranty: 'run-warranty-checks',
-      rfq: 'run-rfq-checks',
-      notif: 'run-notification-reminders',
-      autoaccept: 'run-completion-auto-accept',
-    } as const
-    const jobLabel = t(`maintenance.jobs.${type}`)
-    const setLoading = loadingMap[type]
-    const endpoint = endpointMap[type]
-    setLoading(true)
-    try {
-      const token = getAuthToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (token) headers.Authorization = `Bearer ${token}`
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/${endpoint}`,
-        { method: 'POST', credentials: 'include', headers }
-      )
-      const payload = await response.json()
-      if (!response.ok || !payload.success) {
-        throw apiErrorFromBody(payload, t('errors.runChecksFailed', { job: jobLabel }), { status: response.status })
-      }
-      const d = payload.data || {}
-      if (type === 'warranty') {
-        const parts: string[] = []
-        if (d.escalated) parts.push(t('maintenance.toast.escalated', { count: d.escalated }))
-        if (d.closed) parts.push(t('maintenance.toast.autoClosed', { count: d.closed }))
-        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
-        toast.success(parts.length ? t('maintenance.toast.warrantySummary', { details: parts.join(', ') }) : t('maintenance.toast.warrantyNone'))
-      } else if (type === 'rfq') {
-        const parts: string[] = []
-        if (d.cancelled) parts.push(t('maintenance.toast.cancelled', { count: d.cancelled }))
-        if (d.remindersSent) parts.push(t('maintenance.toast.remindersSent', { count: d.remindersSent }))
-        if (d.expiredQuotationsFound) parts.push(t('maintenance.toast.expiredQuotations', { count: d.expiredQuotationsFound }))
-        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
-        toast.success(parts.length ? t('maintenance.toast.rfqSummary', { details: parts.join(', ') }) : t('maintenance.toast.rfqNone'))
-      } else if (type === 'notif') {
-        const parts: string[] = []
-        for (const [key, val] of Object.entries(d)) {
-          if (key === 'errors') continue
-          if (typeof val === 'number' && val > 0) parts.push(`${key}: ${val}`)
-        }
-        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
-        toast.success(parts.length ? t('maintenance.toast.remindersSummary', { details: parts.join(', ') }) : t('maintenance.toast.remindersNone'))
-      } else {
-        const parts: string[] = []
-        if (d.autoAccepted) parts.push(t('maintenance.toast.autoAccepted', { count: d.autoAccepted }))
-        if (d.skipped) parts.push(t('maintenance.toast.skipped', { count: d.skipped }))
-        if (d.errors?.length) parts.push(t('maintenance.toast.errors', { count: d.errors.length }))
-        toast.success(parts.length ? t('maintenance.toast.autoAcceptSummary', { details: parts.join(', ') }) : t('maintenance.toast.autoAcceptNone'))
-      }
-      await fetchAdminData()
-    } catch (err) {
-      toast.error(getErrorText(err, t('errors.runChecksFailed', { job: jobLabel })))
-    } finally {
-      setLoading(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
@@ -575,6 +521,7 @@ export default function DashboardPage() {
 
   if (user?.role === 'admin') {
     return (
+      <AdminShell>
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.96),_rgba(238,242,255,0.92)_38%,_rgba(224,231,255,0.88)_100%)] p-4">
         <div className="max-w-7xl mx-auto pt-20">
           <div className="mb-8 flex items-center justify-between">
@@ -1264,135 +1211,7 @@ export default function DashboardPage() {
               </Card>
               )}
 
-              {canRunMaintenance && (
-              <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50 to-blue-100 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl xl:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Play className="h-5 w-5 text-indigo-500" />
-                    {t("maintenance.title")}
-                  </CardTitle>
-                  <CardDescription>{t("maintenance.description")}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
-                  <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1 flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      onClick={() => runSchedulerCheck('warranty')}
-                      disabled={isRunningWarrantyCheck}
-                      className="flex-1 border-rose-300 text-rose-700 hover:bg-rose-50"
-                    >
-                      {isRunningWarrantyCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      {t("maintenance.warrantyButton")}
-                    </Button>
-                    <div className="relative group">
-                      <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                      <div className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
-                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
-                        <ul className="space-y-1 list-disc pl-3">
-                          <li>{t("maintenance.warrantyItem1")}</li>
-                          <li>{t("maintenance.warrantyItem2")}</li>
-                        </ul>
-                        <p className="mt-2 text-slate-400">{t("maintenance.safeOverdue")}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex-1 flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      onClick={() => runSchedulerCheck('rfq')}
-                      disabled={isRunningRfqCheck}
-                      className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50"
-                    >
-                      {isRunningRfqCheck ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      {t("maintenance.rfqButton")}
-                    </Button>
-                    <div className="relative group">
-                      <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                      <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg">
-                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
-                        <ul className="space-y-1 list-disc pl-3">
-                          <li>{t("maintenance.rfqItem1")}</li>
-                          <li>{t("maintenance.rfqItem2")}</li>
-                          <li>{t("maintenance.rfqItem3")}</li>
-                        </ul>
-                        <p className="mt-2 text-slate-400">{t("maintenance.safeOverdue")}</p>
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1 flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      onClick={() => runSchedulerCheck('notif')}
-                      disabled={isRunningNotifReminders}
-                      className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
-                    >
-                      {isRunningNotifReminders ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      {t("maintenance.notificationsButton")}
-                    </Button>
-                    <div className="relative group">
-                      <button
-                        type="button"
-                        aria-label={t("maintenance.notificationsAria")}
-                        aria-describedby="notif-reminders-help"
-                        className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                      >
-                        <Info className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                      <div
-                        id="notif-reminders-help"
-                        role="tooltip"
-                        className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
-                      >
-                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
-                        <ul className="space-y-1 list-disc pl-3">
-                          <li>{t("maintenance.notificationsItem1")}</li>
-                          <li>{t("maintenance.notificationsItem2")}</li>
-                          <li>{t("maintenance.notificationsItem3")}</li>
-                        </ul>
-                        <p className="mt-2 text-slate-400">{t("maintenance.safeTracking")}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex-1 flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      onClick={() => runSchedulerCheck('autoaccept')}
-                      disabled={isRunningAutoAccept}
-                      className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                    >
-                      {isRunningAutoAccept ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                      {t("maintenance.autoAcceptButton")}
-                    </Button>
-                    <div className="relative group">
-                      <button
-                        type="button"
-                        aria-label={t("maintenance.autoAcceptAria")}
-                        aria-describedby="completion-autoaccept-help"
-                        className="inline-flex rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                      >
-                        <Info className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                      <div
-                        id="completion-autoaccept-help"
-                        role="tooltip"
-                        className="absolute right-0 top-6 z-50 hidden group-hover:block group-focus-within:block w-72 rounded-lg border bg-white p-3 text-xs text-slate-600 shadow-lg"
-                      >
-                        <p className="font-semibold text-slate-800 mb-1">{t("maintenance.whatDoesThisDo")}</p>
-                        <ul className="space-y-1 list-disc pl-3">
-                          <li>{t("maintenance.autoAcceptItem1")}</li>
-                          <li>{t("maintenance.autoAcceptItem2")}</li>
-                        </ul>
-                        <p className="mt-2 text-slate-400">{t("maintenance.safeEligible")}</p>
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                </CardContent>
-              </Card>
-              )}
+              {canRunMaintenance && <BackgroundChecksPanel onCompleted={fetchAdminData} runningState={backgroundCheckState} />}
               </div>
             </TabsContent>
             )}
@@ -1718,11 +1537,36 @@ export default function DashboardPage() {
                     <CardTitle>{t("admin.tools.title")}</CardTitle>
                     <CardDescription>{t("admin.tools.description")}</CardDescription>
                   </CardHeader>
-                  <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {adminToolLinks.map((tool) => (
-                      <Button key={tool.path} variant="outline" onClick={() => openAdmin(tool.path)}>
-                        {t(ADMIN_TOOL_LABELS[tool.key])}
-                      </Button>
+                  <CardContent className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                    {adminDirectory.map((group) => (
+                      <section key={group.id} aria-labelledby={`admin-tools-${group.id}`} className="space-y-2">
+                        <h3 id={`admin-tools-${group.id}`} className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          {group.label}
+                        </h3>
+                        <ul className="space-y-2">
+                          {group.items.map((item) => (
+                            <li key={item.id} className="space-y-1">
+                              <Button variant="outline" className="w-full justify-start" onClick={() => openAdmin(item.href)}>
+                                {item.label}
+                              </Button>
+                              {item.children && item.children.length > 0 && (
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 pl-3 text-xs">
+                                  {item.children.map((child) => (
+                                    <button
+                                      key={child.id}
+                                      type="button"
+                                      onClick={() => openAdmin(child.href)}
+                                      className="rounded text-indigo-700 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                    >
+                                      {child.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
                     ))}
                   </CardContent>
                 </Card>
@@ -1732,6 +1576,7 @@ export default function DashboardPage() {
           </Tabs>
         </div>
       </div>
+      </AdminShell>
     )
   }
 
@@ -1751,6 +1596,89 @@ export default function DashboardPage() {
           </div>
 
           <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="bg-white/80 backdrop-blur border border-amber-100 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-amber-900 text-base">
+                  <Clock className="h-5 w-5 text-amber-500" />
+                  {t("professional.summary.pendingBookings")}
+                </CardTitle>
+                <CardDescription>{t("professional.summary.pendingBookingsHint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentSummaryLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <p className="text-3xl font-semibold text-amber-900">{paymentSummary?.pendingBookings ?? "—"}</p>
+                    <p className="mt-1 text-sm text-amber-700">
+                      {t("professional.summary.pendingEarnings")}:{" "}
+                      {paymentSummary && paymentSummary.pendingEarnings != null
+                        ? formatMoney(paymentSummary.pendingEarnings, paymentSummary.currency === "MULTI" ? undefined : paymentSummary.currency)
+                        : paymentSummary?.totalsByCurrency?.length
+                          ? paymentSummary.totalsByCurrency.map((bucket) => formatMoney(bucket.pendingEarnings, bucket.currency)).join(" + ")
+                          : "—"}
+                    </p>
+                  </>
+                )}
+                {paymentSummaryError && <p role="alert" className="mt-1 text-xs text-rose-600">{paymentSummaryError}</p>}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/80 backdrop-blur border border-emerald-100 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-emerald-900 text-base">
+                  <CheckCircle className="h-5 w-5 text-emerald-500" />
+                  {t("professional.summary.finishedBookings")}
+                </CardTitle>
+                <CardDescription>{t("professional.summary.finishedBookingsHint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentSummaryLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <p className="text-3xl font-semibold text-emerald-900">{paymentSummary?.completedBookings ?? "—"}</p>
+                    <p className="mt-1 text-sm text-emerald-700">
+                      {t("professional.summary.earnings")}:{" "}
+                      {paymentSummary && paymentSummary.totalEarnings != null
+                        ? formatMoney(paymentSummary.totalEarnings, paymentSummary.currency === "MULTI" ? undefined : paymentSummary.currency)
+                        : paymentSummary?.totalsByCurrency?.length
+                          ? paymentSummary.totalsByCurrency.map((bucket) => formatMoney(bucket.totalEarnings, bucket.currency)).join(" + ")
+                          : "—"}
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/80 backdrop-blur border border-yellow-100 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-yellow-900 text-base">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  {t("professional.summary.reviews")}
+                </CardTitle>
+                <CardDescription>{t("professional.summary.reviewsHint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {paymentSummaryLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : !paymentSummary ? (
+                  // The summary failed to load: unknown, not "no reviews".
+                  <p className="text-3xl font-semibold text-yellow-900">—</p>
+                ) : paymentSummary.avgRating != null ? (
+                  <>
+                    <p className="text-3xl font-semibold text-yellow-900">{paymentSummary.avgRating.toFixed(1)}</p>
+                    <p className="mt-1 text-sm text-yellow-700">
+                      {t("professional.summary.reviewsCount", { count: paymentSummary.reviewCount })}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500">{t("professional.summary.noReviews")}</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <BenefitsProgramCard />
             <FavoritesWidget />
           </div>
 

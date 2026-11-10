@@ -8,11 +8,13 @@ import {
   durationLabel,
   formatCalendarDate,
   formatInstant,
+  formatScheduleTimeRange,
   isStandardVatQuestionLabel,
   mergeQuestionAnswers,
   vatAnswerFieldLabelKey,
   vatAnswerValueKey,
   recordedScheduleTimeZone,
+  resolvePanelHourMode,
 } from "@/lib/bookingDetails"
 import type {
   BookingDetailsDto,
@@ -128,6 +130,8 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
     recordedScheduleTimeZone(details, booking.scheduleTimeZone)
   )
 
+  // Professional base amounts are withheld from customers. Customers see the customer total instead.
+  const role = details?.viewerRole || "customer"
   const snapshot = details?.bookingSnapshot
   const wizard = details?.wizard
   const snapshotRecorded = Boolean(snapshot?.immutable || snapshot?.capturedAt)
@@ -155,11 +159,21 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
     ? {
         scheduledStartDate: scheduleSelection.startDate,
         scheduledStartTime: scheduleSelection.startTime,
+        scheduledEndTime: scheduleSelection.endTime,
         scheduledExecutionEndDate: scheduleSelection.executionEndDate,
         scheduledBufferEndDate: scheduleSelection.bufferEndDate,
         timeZone: scheduleSelection.timeZone,
         timeZoneRecorded: Boolean(scheduleSelection.timeZone),
       }
+    : null
+  // Hour mode (23a): recorded start AND end time only when positively hour
+  // mode; day mode and unknown mode stay date-only.
+  const hourMode = resolvePanelHourMode(booking, details)
+  const scheduleTimeRange = hourMode
+    ? formatScheduleTimeRange(
+        schedule?.scheduledStartTime || booking.scheduledStartTime || null,
+        schedule?.scheduledEndTime || booking.scheduledEndTime || null
+      )
     : null
   const recordedScheduleZone =
     schedule?.timeZoneRecorded === false
@@ -268,9 +282,11 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
                 {subproject.description ? <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">{subproject.description}</p> : null}
                 <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <DetailField label={dt("fields.pricingType", "Pricing")} empty={!subproject.pricing?.type}><EnumText prefix="details.enums.pricingType" value={subproject.pricing?.type} /></DetailField>
+                  {role !== "customer" ? (
                   <DetailField label={dt("fields.basePrice", "Base amount")} empty={subproject.pricing?.amount == null}>
                     <MoneyText amount={subproject.pricing?.amount} currency={snapshotCurrency} formatMoney={formatMoney} />
                   </DetailField>
+                  ) : null}
                   <DetailField
                     label={dt("fields.priceRange", "Price range")}
                     empty={subproject.pricing?.priceRange?.min == null && subproject.pricing?.priceRange?.max == null}
@@ -429,9 +445,11 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
                   <DetailField label={dt("fields.projectTitle", "Project")} empty={!booking.project?.title}>{booking.project?.title}</DetailField>
                   <DetailField label={dt("fields.selectedSubproject", "Selected package")} empty={!liveSubproject?.name}>{liveSubproject?.name}</DetailField>
                   <DetailField label={dt("fields.pricingType", "Pricing")} empty={!liveSubproject?.pricing?.type}><EnumText prefix="details.enums.pricingType" value={liveSubproject?.pricing?.type} /></DetailField>
+                  {role !== "customer" ? (
                   <DetailField label={dt("fields.basePrice", "Base amount")} empty={liveSubproject?.pricing?.amount == null}>
                     <MoneyText amount={liveSubproject?.pricing?.amount} currency={null} formatMoney={formatMoney} />
                   </DetailField>
+                  ) : null}
                 </dl>
               </div>
             ) : null}
@@ -452,9 +470,11 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
               <DetailField label={dt("fields.pricingType", "Pricing")} empty={!(snapshot?.checkoutSnapshot?.pricingType || booking.checkoutSnapshot?.pricingType)}>
                 <EnumText prefix="details.enums.pricingType" value={snapshot?.checkoutSnapshot?.pricingType || booking.checkoutSnapshot?.pricingType} />
               </DetailField>
+              {role !== "customer" ? (
               <DetailField label={dt("fields.unitPrice", "Unit price")} empty={(snapshot?.checkoutSnapshot?.unitAmount ?? booking.checkoutSnapshot?.unitAmount) == null}>
                 <MoneyText amount={snapshot?.checkoutSnapshot?.unitAmount ?? booking.checkoutSnapshot?.unitAmount} currency={checkoutCurrency} formatMoney={formatMoney} />
               </DetailField>
+              ) : null}
               <DetailField label={dt("fields.quantity", "Quantity")} empty={(snapshot?.checkoutSnapshot?.quantity ?? booking.checkoutSnapshot?.quantity) == null}>
                 {snapshot?.checkoutSnapshot?.quantity ?? booking.checkoutSnapshot?.quantity}
                 {(snapshot?.checkoutSnapshot?.unit || booking.checkoutSnapshot?.unit) ? (
@@ -464,6 +484,8 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
                   </>
                 ) : null}
               </DetailField>
+              {role !== "customer" ? (
+              <>
               <DetailField label={dt("fields.baseSubtotal", "Base subtotal")} empty={(snapshot?.checkoutSnapshot?.baseSubtotal ?? booking.checkoutSnapshot?.baseSubtotal) == null}>
                 <MoneyText amount={snapshot?.checkoutSnapshot?.baseSubtotal ?? booking.checkoutSnapshot?.baseSubtotal} currency={checkoutCurrency} formatMoney={formatMoney} />
               </DetailField>
@@ -473,6 +495,12 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
               <DetailField label={dt("fields.totalAmount", "Total amount")} empty={(snapshot?.checkoutSnapshot?.totalAmount ?? booking.checkoutSnapshot?.totalAmount) == null}>
                 <MoneyText amount={snapshot?.checkoutSnapshot?.totalAmount ?? booking.checkoutSnapshot?.totalAmount} currency={checkoutCurrency} formatMoney={formatMoney} />
               </DetailField>
+              </>
+              ) : (
+              <DetailField label={dt("fields.totalAmount", "Total amount")} empty={(snapshot?.checkoutSnapshot?.customerTotal ?? booking.checkoutSnapshot?.customerTotal) == null}>
+                <MoneyText amount={snapshot?.checkoutSnapshot?.customerTotal ?? booking.checkoutSnapshot?.customerTotal} currency={checkoutCurrency} formatMoney={formatMoney} />
+              </DetailField>
+              )}
               <DetailField label={dt("fields.currency", "Currency")} empty={!checkoutCurrency}>{checkoutCurrency}</DetailField>
             </dl>
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -564,7 +592,7 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
             {formatCalendarDate(schedule?.scheduledStartDate || booking.scheduledStartDate, intl) ||
               schedule?.scheduledStartDate ||
               booking.scheduledStartDate}
-            {schedule?.scheduledStartTime || booking.scheduledStartTime ? ` ${schedule?.scheduledStartTime || booking.scheduledStartTime}` : ""}
+            {scheduleTimeRange ? ` ${scheduleTimeRange}` : ""}
           </DetailField>
           <DetailField label={dt("fields.scheduledExecutionEnd", "Scheduled execution end")} empty={!schedule?.scheduledExecutionEndDate && !booking.scheduledExecutionEndDate}>
             {formatCalendarDate(schedule?.scheduledExecutionEndDate || booking.scheduledExecutionEndDate, intl) ||
@@ -626,11 +654,11 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
                     <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div>
                         <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.previousSchedule", "Original schedule")}</dt>
-                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.previousSchedule} intl={intl} timeZone={entry.timeZone} /></dd>
+                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.previousSchedule} intl={intl} timeZone={entry.timeZone} hourMode={hourMode} /></dd>
                       </div>
                       <div>
                         <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("activity.proposedSchedule", "New schedule")}</dt>
-                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.proposedSchedule} intl={intl} timeZone={entry.timeZone} /></dd>
+                        <dd className="mt-0.5 text-gray-800"><ScheduleSummary schedule={entry.proposedSchedule} intl={intl} timeZone={entry.timeZone} hourMode={hourMode} /></dd>
                       </div>
                     </dl>
                   ) : null}

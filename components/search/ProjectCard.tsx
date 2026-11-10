@@ -7,11 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, ArrowRight, Clock, ChevronLeft, ChevronRight, Calendar, Star } from 'lucide-react';
 import { isQualityCertificate, getCertificateGradient, formatPriceModelLabel } from '@/lib/projectHighlights';
 import { formatUtcViewerLabel, formatWindowUtcViewer, getViewerTimezone } from '@/lib/timezoneDisplay';
-import { getLevelColor, getAdminTagStyle, formatAdminTagLabel } from '@/lib/professionalLevel';
+import { getAdminTagStyle, formatAdminTagLabel } from '@/lib/professionalLevel';
+import TierBadge from '@/components/dashboard/TierBadge';
+import { useTierColors } from '@/lib/tierColors';
 import type { PublicProfessionalDto } from '@/types/project';
 import FavoriteButton from '@/components/favorites/FavoriteButton';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
+import PackageDurationLabel from '@/components/search/PackageDurationLabel';
 
 const PRICE_MODEL_KEYS = {
   fixed: 'priceModels.fixed',
@@ -73,8 +76,8 @@ interface ProjectCardProps {
     };
     pricing?: {
       type: 'fixed' | 'unit' | 'rfq';
-      amount?: number;
-      priceRange?: { min: number; max: number };
+      customerAmount?: number;
+      customerPriceRange?: { min: number; max: number };
     };
     priceModel?: string;
     certifications?: Array<{
@@ -93,11 +96,14 @@ interface ProjectCardProps {
       description: string;
       pricing: {
         type: 'fixed' | 'unit' | 'rfq';
-        amount?: number;
-        priceRange?: { min: number; max: number };
+        customerAmount?: number;
+        customerPriceRange?: { min: number; max: number };
+        unit?: string;
+        durationBasis?: 'per_booking' | 'per_unit';
       };
+      // Customer-set hourly packages store no value: the customer picks the hours.
       executionDuration?: {
-        value: number;
+        value?: number;
         unit: 'hours' | 'days';
       };
       warrantyPeriod?: {
@@ -127,6 +133,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
   const t = useTranslations('search');
   const { formatPrice } = useCurrency();
   const { intl } = useFormatLocale();
+  const { levelColor } = useTierColors();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerTimeZone, setViewerTimeZone] = useState('UTC');
   const formatAmount = (value: number) => formatPrice(customerPrice(value));
@@ -167,7 +174,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
   const firstAvailableWindowLabels = formatWindowUtcViewer(project.firstAvailableWindow, viewerTimeZone);
 
   const getProjectDuration = () => {
-    if (project.executionDuration) {
+    if (project.executionDuration && Number.isFinite(project.executionDuration.value)) {
       const exec = project.executionDuration;
       const buffer = project.bufferDuration;
       // The unit message already renders the full "<count> <unit>" label, so
@@ -179,8 +186,8 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     return null;
   };
 
-  const renderSubprojectPrice = (pricing: { type: string; amount?: number; priceRange?: { min: number; max: number } }) => {
-    const amount = pricing.amount;
+  const renderSubprojectPrice = (pricing: { type: string; customerAmount?: number; customerPriceRange?: { min: number; max: number } }) => {
+    const amount = pricing.customerAmount;
 
     if (pricing.type === 'fixed' && amount != null && Number.isFinite(amount)) {
       if (hasDiscount(amount)) {
@@ -196,11 +203,11 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
     if (pricing.type === 'unit') {
       const perUnit = perUnitSuffix();
       if (
-        pricing.priceRange &&
-        Number.isFinite(pricing.priceRange.min) &&
-        Number.isFinite(pricing.priceRange.max)
+        pricing.customerPriceRange &&
+        Number.isFinite(pricing.customerPriceRange.min) &&
+        Number.isFinite(pricing.customerPriceRange.max)
       ) {
-        return `${formatAmount(pricing.priceRange.min)}-${formatAmount(pricing.priceRange.max)}${perUnit}`;
+        return `${formatAmount(pricing.customerPriceRange.min)}-${formatAmount(pricing.customerPriceRange.max)}${perUnit}`;
       }
       if (amount != null && Number.isFinite(amount)) {
         if (hasDiscount(amount)) {
@@ -399,11 +406,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                   <div className="flex-1 min-w-0 mr-2">
                     <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
                     <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-gray-500">
-                      {subproject.executionDuration && (
-                        <span>
-                          {t(subproject.executionDuration.unit === 'days' ? 'units.days' : 'units.hours', { count: subproject.executionDuration.value })}
-                        </span>
-                      )}
+                      <PackageDurationLabel subproject={subproject} />
                       {subproject.warrantyPeriod && (
                         <span>
                           {t('projectCard.warranty', {
@@ -459,11 +462,13 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
                     {professionalName}
                   </p>
                   {professional?.professionalLevel && (
-                    <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${getLevelColor(professional.professionalLevel)}`}>
-                      {PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
+                    <TierBadge
+                      level={PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS]
                         ? t(PROFESSIONAL_LEVEL_KEYS[professional.professionalLevel.toLowerCase() as keyof typeof PROFESSIONAL_LEVEL_KEYS])
                         : professional.professionalLevel}
-                    </Badge>
+                      color={levelColor(professional.professionalLevel)}
+                      className="text-[9px] px-1.5 py-0"
+                    />
                   )}
                   {(professional?.adminTags || []).slice(0, 2).map((tag) => (
                     <Badge
