@@ -231,6 +231,15 @@ export default function BookingPaymentPage() {
   const [appliedDiscountCode, setAppliedDiscountCode] = useState<string | null>(null);
   const [applyingCode, setApplyingCode] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
+  // FT3 #12: wallet points redeemed on this checkout. The amount the customer
+  // asked for (on the booking page via ?points=N, or here) is re-sent with
+  // every payment-intent request, together with any applied code, because
+  // the backend recreates the intent when either one changes.
+  const requestedPointsRef = useRef(0);
+  const [pointsBalance, setPointsBalance] = useState<{ points: number; isEnabled: boolean; minRedemptionPoints: number; conversionRate: number } | null>(null);
+  const [pointsInput, setPointsInput] = useState('');
+  const [applyingPoints, setApplyingPoints] = useState(false);
+  const [pointsError, setPointsError] = useState<string | null>(null);
   const [paymentRetryAttempt, setPaymentRetryAttempt] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [scheduleStep, setScheduleStep] = useState(false);
@@ -683,7 +692,7 @@ export default function BookingPaymentPage() {
     }
   };
 
-  const ensurePaymentIntent = useCallback(async (currentBookingId: string, currentBooking: Booking | null, discountCode?: string): Promise<{ ok: boolean; errorMessage?: string; booking?: Booking | null }> => {
+  const ensurePaymentIntent = useCallback(async (currentBookingId: string, currentBooking: Booking | null, discountCode?: string, pointsToRedeem: number = requestedPointsRef.current): Promise<{ ok: boolean; errorMessage?: string; booking?: Booking | null }> => {
     setInitializingPayment(true);
     let previousClientSecret = '';
     setClientSecret((prev) => {
@@ -700,7 +709,10 @@ export default function BookingPaymentPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(discountCode !== undefined ? { discountCode } : {}),
+        body: JSON.stringify({
+          ...(discountCode !== undefined ? { discountCode } : {}),
+          ...(pointsToRedeem > 0 ? { pointsToRedeem } : {}),
+        }),
       });
       const contentType = response.headers.get('content-type') || '';
       const isJson = contentType.includes('application/json');
@@ -765,7 +777,7 @@ export default function BookingPaymentPage() {
     if (!bookingId) return;
     setApplyingCode(true);
     setCodeError(null);
-    const result = await ensurePaymentIntent(bookingId, booking, code);
+    const result = await ensurePaymentIntent(bookingId, booking, code, requestedPointsRef.current);
     if (!result.ok) {
       setCodeError(getErrorText(result.errorMessage, t('paymentPage.discount.unableToApply')));
       setApplyingCode(false);
@@ -794,6 +806,80 @@ export default function BookingPaymentPage() {
     }
     setApplyingCode(false);
   }, [bookingId, booking, ensurePaymentIntent, getErrorText, t]);
+
+  // The code currently on the intent, re-sent when points change so a points
+  // update never drops an applied code.
+  const currentCodeLabel = (): string | undefined => booking?.payment?.discount?.codeLabel || undefined;
+
+  const handleApplyPoints = useCallback(async () => {
+    if (!bookingId || !pointsBalance) return;
+    const requested = Number(pointsInput);
+    const max = pointsBalance.points;
+    if (!Number.isInteger(requested) || requested < pointsBalance.minRedemptionPoints || requested > max) {
+      setPointsError(t('paymentPage.points.invalidAmount', { min: pointsBalance.minRedemptionPoints, max }));
+      return;
+    }
+    setApplyingPoints(true);
+    setPointsError(null);
+    const previous = requestedPointsRef.current;
+    requestedPointsRef.current = requested;
+    const result = await ensurePaymentIntent(bookingId, booking, currentCodeLabel(), requested);
+    if (!result.ok) {
+      requestedPointsRef.current = previous;
+      setPointsError(getErrorText(result.errorMessage, t('paymentPage.points.unableToApply')));
+    } else if (!((result.booking?.payment?.discount?.pointsRedeemed ?? 0) > 0)) {
+      requestedPointsRef.current = previous;
+      setPointsError(t('paymentPage.points.notApplied'));
+    } else {
+      setPointsInput('');
+    }
+    setApplyingPoints(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId, booking, pointsBalance, pointsInput, ensurePaymentIntent, getErrorText, t]);
+
+  const handleRemovePoints = useCallback(async () => {
+    if (!bookingId) return;
+    setApplyingPoints(true);
+    setPointsError(null);
+    requestedPointsRef.current = 0;
+    const result = await ensurePaymentIntent(bookingId, booking, currentCodeLabel(), 0);
+    if (!result.ok) {
+      setPointsError(getErrorText(result.errorMessage, t('paymentPage.points.unableToRemove')));
+    }
+    setApplyingPoints(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId, booking, ensurePaymentIntent, getErrorText, t]);
+
+  // Points chosen on the booking page arrive as ?points=N (whole, positive).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = new URLSearchParams(window.location.search).get('points');
+    const parsed = raw && /^\d{1,7}$/.test(raw) ? Number(raw) : 0;
+    if (parsed > 0) requestedPointsRef.current = parsed;
+  }, []);
+
+  // Customer wallet: whether points can be redeemed here, and how many.
+  useEffect(() => {
+    let cancelled = false;
+    const loadPoints = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/user/points/balance`, { credentials: 'include' });
+        const payload = await response.json().catch(() => null);
+        if (cancelled || !response.ok || !payload?.success || !payload.data) return;
+        const data = payload.data;
+        setPointsBalance({
+          points: Math.max(0, Math.floor(Number(data.points) || 0)),
+          isEnabled: data.isEnabled !== false,
+          minRedemptionPoints: Math.max(1, Math.floor(Number(data.minRedemptionPoints) || 1)),
+          conversionRate: Number(data.conversionRate) > 0 ? Number(data.conversionRate) : 1,
+        });
+      } catch {
+        // Non-blocking: checkout works without the wallet.
+      }
+    };
+    void loadPoints();
+    return () => { cancelled = true; };
+  }, [API_URL]);
 
   const loadBookingPaymentDetails = useCallback(async (currentBookingId: string, attempt = 1) => {
     if (retryTimeoutRef.current) {
@@ -1718,6 +1804,67 @@ export default function BookingPaymentPage() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {booking?.payment?.status !== 'authorized' && booking?.payment?.status !== 'completed'
+              && pointsBalance?.isEnabled
+              && ((discountInfo?.pointsRedeemed ?? 0) > 0 || pointsBalance.points >= pointsBalance.minRedemptionPoints) && (
+              <div className="mb-4 rounded-md border border-purple-200 bg-purple-50 px-3 py-3" data-testid="checkout-points">
+                <p className="text-sm font-medium text-purple-900">{t('paymentPage.points.title')}</p>
+                <p className="text-xs text-purple-700 mt-0.5">
+                  {t('paymentPage.points.available', {
+                    points: pointsBalance.points,
+                    value: formatMoney(pointsBalance.points * pointsBalance.conversionRate, paymentCurrency),
+                  })}
+                </p>
+                {(discountInfo?.pointsRedeemed ?? 0) > 0 ? (
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-sm text-gray-900">
+                      {t('paymentPage.points.applied', {
+                        points: discountInfo?.pointsRedeemed ?? 0,
+                        amount: formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency),
+                      })}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRemovePoints}
+                      disabled={applyingPoints || initializingPayment}
+                      className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+                    >
+                      {t('paymentPage.remove')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex gap-2">
+                    <label htmlFor="checkout-points-input" className="sr-only">{t('paymentPage.points.inputLabel')}</label>
+                    <input
+                      id="checkout-points-input"
+                      type="number"
+                      inputMode="numeric"
+                      min={pointsBalance.minRedemptionPoints}
+                      max={pointsBalance.points}
+                      step={1}
+                      value={pointsInput}
+                      onChange={(e) => {
+                        setPointsInput(e.target.value);
+                        if (pointsError) setPointsError(null);
+                      }}
+                      placeholder={t('paymentPage.points.placeholder', { max: pointsBalance.points })}
+                      disabled={applyingPoints || initializingPayment}
+                      className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900 disabled:bg-gray-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyPoints}
+                      disabled={applyingPoints || initializingPayment || !pointsInput.trim()}
+                      className="rounded-md bg-purple-700 px-4 py-2 text-sm font-medium text-white hover:bg-purple-800 disabled:opacity-50"
+                    >
+                      {applyingPoints ? t('paymentPage.points.applying') : t('paymentPage.points.apply')}
+                    </button>
+                  </div>
+                )}
+                {pointsError && <p className="mt-2 text-sm text-red-600" role="alert">{pointsError}</p>}
               </div>
             )}
 

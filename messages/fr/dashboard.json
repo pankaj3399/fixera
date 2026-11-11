@@ -464,10 +464,20 @@
     "wallet": {
       "title": "Comment fonctionne le portefeuille de points",
       "bodyCustomer": "Vous gagnez des points Fixtract à chaque réservation et les utilisez lors du paiement pour une remise immédiate. Votre solde est affiché ci-dessus et les totaux des économies enregistrées ci-dessous, regroupés par devise et type de remise.",
-      "bodyProfessional": "Votre solde de points et votre progression de niveau sont affichés ici. Dépenser des points pour accélérer la progression de niveau n’est pas encore possible dans l’application web.",
+      "bodyProfessional": "Vous gagnez des points Fixtract à chaque réservation terminée. Dépensez-les ici en crédits de réservation qui comptent pour votre prochain niveau.",
       "balanceLink": "Voir le solde",
       "historyLink": "Voir l'historique des économies",
-      "benefitsLink": "Voir les avantages"
+      "benefitsLink": "Voir les avantages",
+      "boost": {
+        "label": "Points à dépenser",
+        "hint": "{ratio} points = 1 crédit de réservation pour votre prochain niveau.",
+        "action": "Booster mon niveau",
+        "working": "Boost en cours…",
+        "success": "{credits, plural, one {# crédit de réservation ajouté} other {# crédits de réservation ajoutés}} à votre progression de niveau.",
+        "levelUp": "Niveau passé à {level} !",
+        "invalid": "Saisissez un multiple de {ratio} points, dans la limite de votre solde.",
+        "failed": "Nous n'avons pas pu booster votre niveau. Veuillez réessayer."
+      }
     }
   },
   "disputes": {

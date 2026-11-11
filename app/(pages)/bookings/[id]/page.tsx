@@ -1675,7 +1675,8 @@ function BookingDetailContent() {
       if (response.ok && data?.success) {
         if (action === 'accepted') {
           toast.success(t("quotation.toasts.accepted"))
-          router.push(`/bookings/${bookingId}/payment`)
+          // FT3 #12: the points chosen here are redeemed at checkout.
+          router.push(`/bookings/${bookingId}/payment${pointsToRedeem > 0 ? `?points=${Math.floor(pointsToRedeem)}` : ''}`)
         } else {
           toast.success(t("quotation.toasts.rejected"))
           setQuoteRejectionReason('')
@@ -1902,7 +1903,8 @@ function BookingDetailContent() {
       if (response.ok && data?.success) {
         if (action === "accept") {
           toast.success(t("quote.toasts.accepted"))
-          router.push(`/bookings/${bookingId}/payment`)
+          // FT3 #12: the points chosen here are redeemed at checkout.
+          router.push(`/bookings/${bookingId}/payment${pointsToRedeem > 0 ? `?points=${Math.floor(pointsToRedeem)}` : ''}`)
         } else {
           toast.success(t("quote.toasts.rejected"))
           await refreshBooking()

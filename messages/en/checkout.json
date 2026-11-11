@@ -138,7 +138,20 @@
     "fullPrice": "Full price",
     "milestoneIncludesOptions": "Includes selected options in full",
     "optionsFirstMilestoneNote": "Selected options are charged in full with the first milestone, not split across milestones.",
-    "selectedOptionsInfo": "Selected options (included)"
+    "selectedOptionsInfo": "Selected options (included)",
+    "points": {
+      "title": "Use your Fixtract points",
+      "available": "{points} points available (worth {value})",
+      "applied": "{points} points applied: -{amount}",
+      "inputLabel": "Points to use",
+      "placeholder": "Up to {max}",
+      "apply": "Use points",
+      "applying": "Applying…",
+      "invalidAmount": "Enter a whole number of points between {min} and {max}.",
+      "notApplied": "These points could not be applied to this payment.",
+      "unableToApply": "We couldn't apply your points. Please try again.",
+      "unableToRemove": "We couldn't remove your points. Please try again."
+    }
   },
   "paymentSuccess": {
     "paymentSuccessful": "Payment successful",

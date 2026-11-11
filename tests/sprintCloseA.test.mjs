@@ -139,3 +139,26 @@ test('FT3 #19a: the payment page shows the quotation-recorded saving for quotati
   const version = { customerTotals: { customerNetAmount: 236.02, vatAmount: 49.56, totalWithVat: 285.58, discount: { totalDiscountWithVat: 16.92 } } }
   assert.equal(recordedQuotationPricing(version).saving, 16.92)
 })
+
+test('FT3 #12: customers redeem points at checkout and professionals spend them on level credits', () => {
+  const payment = read('app/bookings/[id]/payment/page.tsx')
+  // Points travel with every payment-intent request, next to any code.
+  assert.match(payment, /\.\.\.\(pointsToRedeem > 0 \? \{ pointsToRedeem \} : \{\}\)/)
+  assert.match(payment, /ensurePaymentIntent\(bookingId, booking, code, requestedPointsRef\.current\)/)
+  assert.match(payment, /ensurePaymentIntent\(bookingId, booking, currentCodeLabel\(\), requested\)/)
+  assert.match(payment, /\/api\/user\/points\/balance/)
+  assert.match(payment, /data-testid="checkout-points"/)
+  // Points chosen on the booking page reach checkout.
+  const bookingPage = read('app/(pages)/bookings/[id]/page.tsx')
+  assert.equal((bookingPage.match(/\/payment\$\{pointsToRedeem > 0 \? `\?points=\$\{Math\.floor\(pointsToRedeem\)\}` : ''\}/g) || []).length, 2)
+  const benefits = read('app/(pages)/dashboard/benefits/page.tsx')
+  assert.match(benefits, /\/api\/user\/professional-level\/boost/)
+  assert.match(benefits, /professionalData\?\.points\?\.points/)
+  for (const locale of ['en', 'nl', 'fr']) {
+    const checkout = JSON.parse(read(`messages/${locale}/checkout.json`)).paymentPage.points
+    assert.ok(checkout.title && checkout.applied && checkout.invalidAmount, `${locale} checkout points strings`)
+    const wallet = JSON.parse(read(`messages/${locale}/dashboard.json`)).benefits.wallet
+    assert.ok(wallet.boost.action && wallet.boost.success, `${locale} boost strings`)
+    assert.doesNotMatch(wallet.bodyProfessional, /not currently available|niet mogelijk|pas encore possible/)
+  }
+})

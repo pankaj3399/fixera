@@ -138,7 +138,20 @@
     "fullPrice": "Volledige prijs",
     "milestoneIncludesOptions": "Inclusief geselecteerde opties (volledig)",
     "optionsFirstMilestoneNote": "Geselecteerde opties worden volledig bij de eerste mijlpaal in rekening gebracht, niet verdeeld over mijlpalen.",
-    "selectedOptionsInfo": "Geselecteerde opties (inbegrepen)"
+    "selectedOptionsInfo": "Geselecteerde opties (inbegrepen)",
+    "points": {
+      "title": "Gebruik je Fixtract-punten",
+      "available": "{points} punten beschikbaar (waarde {value})",
+      "applied": "{points} punten toegepast: -{amount}",
+      "inputLabel": "Te gebruiken punten",
+      "placeholder": "Tot {max}",
+      "apply": "Punten gebruiken",
+      "applying": "Bezig met toepassen…",
+      "invalidAmount": "Voer een heel aantal punten in tussen {min} en {max}.",
+      "notApplied": "Deze punten konden niet worden toegepast op deze betaling.",
+      "unableToApply": "We konden je punten niet toepassen. Probeer het opnieuw.",
+      "unableToRemove": "We konden je punten niet verwijderen. Probeer het opnieuw."
+    }
   },
   "paymentSuccess": {
     "paymentSuccessful": "Betaling geslaagd",

@@ -64,10 +64,14 @@ type ProfessionalBenefitsResponse = {
     }
   }
   points?: {
+    /** The API field; `balance` is kept for older responses. */
+    points?: number
     balance?: number
     euroValue?: number
     expiryDate?: string
   }
+  /** FT3 #12: points per booking credit at the professional's current level. */
+  pointsBoostRatio?: number
 }
 
 type SavingsSummaryResponse = {
@@ -132,6 +136,10 @@ export default function BenefitsPage() {
   const [pageLoading, setPageLoading] = useState(true)
   const [customerData, setCustomerData] = useState<CustomerBenefitsResponse | null>(null)
   const [professionalData, setProfessionalData] = useState<ProfessionalBenefitsResponse | null>(null)
+  // FT3 #12: professionals spend points on booking credits toward their level.
+  const [boostInput, setBoostInput] = useState("")
+  const [boosting, setBoosting] = useState(false)
+  const [boostMessage, setBoostMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null)
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
   const [savingsData, setSavingsData] = useState<SavingsSummaryResponse | null>(null)
   // Savings load independently of the page skeleton: a failed load shows its
@@ -169,6 +177,42 @@ export default function BenefitsPage() {
       console.error("Failed to refresh benefits summary:", error)
     }
   }, [user])
+
+  const handleBoostLevel = useCallback(async (available: number, ratio: number) => {
+    const requested = Number(boostInput)
+    if (!Number.isInteger(requested) || requested < ratio || requested > available || requested % ratio !== 0) {
+      setBoostMessage({ tone: "error", text: t("benefits.wallet.boost.invalid", { ratio }) })
+      return
+    }
+    setBoosting(true)
+    setBoostMessage(null)
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/professional-level/boost`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...benefitsAuthHeaders() },
+        body: JSON.stringify({ pointsToSpend: requested }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok || !payload?.success) {
+        setBoostMessage({ tone: "error", text: t("benefits.wallet.boost.failed") })
+        return
+      }
+      const result = payload.data || {}
+      setBoostMessage({
+        tone: "ok",
+        text: result.levelChanged && result.newLevel
+          ? t("benefits.wallet.boost.levelUp", { level: result.newLevel })
+          : t("benefits.wallet.boost.success", { credits: Number(result.boostedBookings) || 0 }),
+      })
+      setBoostInput("")
+      await refreshBenefitsSummary()
+    } catch {
+      setBoostMessage({ tone: "error", text: t("benefits.wallet.boost.failed") })
+    } finally {
+      setBoosting(false)
+    }
+  }, [boostInput, refreshBenefitsSummary, t])
 
   useEffect(() => {
     if (!user || (user.role !== "customer" && user.role !== "professional")) {
@@ -296,9 +340,10 @@ export default function BenefitsPage() {
     : professionalData?.level?.nextLevel?.progress ?? 0
   // FT3 #14a: a level set by the Fixtract team is not "the top level".
   const manualCustomerLevel = isCustomer && customerData?.loyaltyStatus?.levelSource === 'manual'
+  // The balance endpoint returns `points`; `balance` is a legacy name.
   const points = isCustomer
-    ? customerData?.points?.balance ?? user?.points ?? 0
-    : professionalData?.points?.balance ?? user?.points ?? 0
+    ? (customerData?.points as { points?: number; balance?: number } | undefined)?.points ?? customerData?.points?.balance ?? user?.points ?? 0
+    : professionalData?.points?.points ?? professionalData?.points?.balance ?? user?.points ?? 0
   const rewardValue = isCustomer
     ? customerData?.points?.euroValue ?? 0
     : professionalData?.points?.euroValue ?? 0
@@ -442,6 +487,44 @@ export default function BenefitsPage() {
                 <a href="#wallet-benefits">{t("benefits.wallet.benefitsLink")}</a>
               </Button>
             </div>
+            {!isCustomer && (() => {
+              const ratio = Math.max(1, Math.floor(professionalData?.pointsBoostRatio ?? 100))
+              return (
+                <div className="mt-4 space-y-2" data-testid="points-boost">
+                  <label htmlFor="points-boost-input" className="block text-sm font-medium text-slate-800">
+                    {t("benefits.wallet.boost.label")}
+                  </label>
+                  <p className="text-xs text-slate-600">{t("benefits.wallet.boost.hint", { ratio })}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      id="points-boost-input"
+                      type="number"
+                      inputMode="numeric"
+                      min={ratio}
+                      max={points}
+                      step={ratio}
+                      value={boostInput}
+                      onChange={(e) => { setBoostInput(e.target.value); setBoostMessage(null) }}
+                      disabled={boosting || points < ratio}
+                      className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => void handleBoostLevel(points, ratio)}
+                      disabled={boosting || points < ratio || !boostInput.trim()}
+                    >
+                      {boosting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {boosting ? t("benefits.wallet.boost.working") : t("benefits.wallet.boost.action")}
+                    </Button>
+                  </div>
+                  {boostMessage && (
+                    <p role={boostMessage.tone === "error" ? "alert" : "status"} className={boostMessage.tone === "error" ? "text-sm text-rose-600" : "text-sm text-emerald-700"}>
+                      {boostMessage.text}
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
           </CardContent>
         </Card>
 
