@@ -138,7 +138,20 @@
     "fullPrice": "Prix total",
     "milestoneIncludesOptions": "Inclut les options sélectionnées (en totalité)",
     "optionsFirstMilestoneNote": "Les options sélectionnées sont facturées en totalité avec le premier jalon, et non réparties sur les jalons.",
-    "selectedOptionsInfo": "Options sélectionnées (incluses)"
+    "selectedOptionsInfo": "Options sélectionnées (incluses)",
+    "points": {
+      "title": "Utilisez vos points Fixtract",
+      "available": "{points} points disponibles (valeur {value})",
+      "applied": "{points} points appliqués : -{amount}",
+      "inputLabel": "Points à utiliser",
+      "placeholder": "Jusqu'à {max}",
+      "apply": "Utiliser les points",
+      "applying": "Application…",
+      "invalidAmount": "Saisissez un nombre entier de points entre {min} et {max}.",
+      "notApplied": "Ces points n'ont pas pu être appliqués à ce paiement.",
+      "unableToApply": "Nous n'avons pas pu appliquer vos points. Veuillez réessayer.",
+      "unableToRemove": "Nous n'avons pas pu retirer vos points. Veuillez réessayer."
+    }
   },
   "paymentSuccess": {
     "paymentSuccessful": "Paiement réussi",

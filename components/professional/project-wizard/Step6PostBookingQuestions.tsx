@@ -47,13 +47,9 @@ interface Step6Props {
 
 // Common post-booking questions by service category
 const POST_BOOKING_QUESTION_TEMPLATES: Record<string, Array<Omit<IPostBookingQuestion, 'id'>>> = {
+  // FT1 #9: no scheduling/contact-medium templates: the start date is chosen
+  // in the booking flow and Fixtract is the only contact channel.
   'plumber': [
-    {
-      question: 'What is the best time to contact you to schedule the work?',
-      type: 'multiple_choice' as const,
-      options: ['Morning (8-12)', 'Afternoon (12-17)', 'Evening (17-20)', 'Flexible'],
-      isRequired: true
-    },
     {
       question: 'Are there any access restrictions we should know about?',
       type: 'text' as const,

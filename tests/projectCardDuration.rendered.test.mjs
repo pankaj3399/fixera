@@ -86,8 +86,10 @@ test('package duration display mirrors the duration mode', () => {
   assert.deepEqual(packageDurationDisplay({ ...hourly, executionDuration: { value: 5, unit: 'days' } }), { kind: 'customer_hours' })
   assert.deepEqual(packageDurationDisplay(perM2), { kind: 'duration', value: 0.5, unit: 'days' })
   assert.deepEqual(packageDurationDisplay(fixed), { kind: 'duration', value: 3, unit: 'hours' })
-  // Legacy hour-unit package without a basis keeps its stored duration.
-  assert.deepEqual(packageDurationDisplay({ pricing: { type: 'unit', unit: 'hour' }, executionDuration: { value: 2, unit: 'hours' } }), { kind: 'duration', value: 2, unit: 'hours' })
+  // FT1 6A: a legacy hour-unit package without a basis is determined by the customer too.
+  assert.deepEqual(packageDurationDisplay({ pricing: { type: 'unit', unit: 'hour' }, executionDuration: { value: 2, unit: 'hours' } }), { kind: 'customer_hours' })
+  // A legacy non-hour unit package keeps its stored (per-booking) duration.
+  assert.deepEqual(packageDurationDisplay({ pricing: { type: 'unit', unit: 'm²' }, executionDuration: { value: 2, unit: 'days' } }), { kind: 'duration', value: 2, unit: 'days' })
   for (const value of [undefined, null, Number.NaN, Infinity, '3']) {
     assert.equal(packageDurationDisplay({ pricing: { type: 'fixed' }, executionDuration: { value, unit: 'hours' } }), null, String(value))
   }

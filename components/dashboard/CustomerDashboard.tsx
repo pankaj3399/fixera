@@ -30,7 +30,7 @@ import {
   customerBookingSummaryCounts,
   statusFilterScope,
 } from "@/lib/dashboardBookingHelpers"
-import { readFacetCounts, readServerCount, statusOptionCount } from "@/lib/dashboardOverview"
+import { facetCount, readFacetCounts, readServerCount, statusOptionCount } from "@/lib/dashboardOverview"
 import { getCustomerActionItems, type ActionItem, type ActionNeededBooking, type CustomerActionItemKey } from "@/lib/actionNeededHelpers"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import SharedBookingsTable, { type SharedBookingRow } from "@/components/dashboard/SharedBookingsTable"
@@ -417,6 +417,7 @@ export default function CustomerDashboard() {
     placeholder: string,
     services: string[],
     counts: Record<string, number> | null,
+    serviceCounts: Record<string, number> | null,
   ) => (
     <div className="flex flex-col sm:flex-row gap-4 mb-4">
       <div className="relative flex-1">
@@ -455,7 +456,7 @@ export default function CustomerDashboard() {
           <SelectContent>
             <SelectItem value="all">{t("common.allServices")}</SelectItem>
             {services.map(svc => (
-              <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+              <SelectItem key={svc} value={svc}>{serviceCounts ? `${svc} (${facetCount(serviceCounts, svc)})` : svc}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -656,6 +657,7 @@ export default function CustomerDashboard() {
                   t("customerDashboard.filters.searchBookings"),
                   bookings.distinctServices,
                   bookings.statusCounts,
+                  bookings.serviceCounts,
                 )}
                 <div className="flex flex-col sm:flex-row gap-2 mb-4">
                   <div className="relative flex-1">
@@ -714,6 +716,7 @@ export default function CustomerDashboard() {
                   t("customerDashboard.filters.searchQuotes"),
                   quotes.distinctServices,
                   quotes.statusCounts,
+                  quotes.serviceCounts,
                 )}
                 {!quotes.loading && quotes.error && renderListError(quotes.error, () => gotoQuotesPage(quotes.page))}
                 {!quotes.loading && !quotes.error && visibleSelectedCount >= 2 && (

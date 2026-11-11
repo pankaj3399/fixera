@@ -476,7 +476,21 @@
     "colActions": "Snelle acties",
     "colDetails": "Details",
     "bookingsTableLabel": "Boekingen",
-    "quotesTableLabel": "Offertes"
+    "quotesTableLabel": "Offertes",
+    "priceModels": {
+      "fixed": "Vaste prijs",
+      "unit": "Per eenheid",
+      "rfq": "Offerte op aanvraag",
+      "hour": "Per uur",
+      "day": "Per dag",
+      "meter": "Per meter",
+      "m2": "Per m²",
+      "room": "Per kamer"
+    },
+    "durationUnits": {
+      "hours": "{count, plural, one {# uur} other {# uur}}",
+      "days": "{count, plural, one {# dag} other {# dagen}}"
+    }
   },
   "levelUp": {
     "customerTitle": "Niveau omhoog!",

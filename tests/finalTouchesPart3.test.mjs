@@ -123,11 +123,11 @@ test('search page wires relevance sort, preserves backend result order, and conn
   assert.match(disputes, /Showing \{visibleDisputes\.length\}/)
 
   const employeeAvailability = readFileSync(new URL('../components/EmployeeAvailability.tsx', import.meta.url), 'utf8')
-  assert.match(employeeAvailability, /bookingCalendarEventType\(range\.status\)/)
+  assert.match(employeeAvailability, /bookingCalendarEventType\(range\.status[,)]/)
   assert.match(employeeAvailability, /status\?: string/)
 
   const teamManagement = readFileSync(new URL('../components/TeamManagement.tsx', import.meta.url), 'utf8')
-  assert.match(teamManagement, /bookingCalendarEventType\(range\.status\)/)
+  assert.match(teamManagement, /bookingCalendarEventType\(range\.status[,)]/)
   assert.match(teamManagement, /status\?: string/)
 
   const professionalProject = readFileSync(new URL('../app/(pages)/professional/projects/[id]/page.tsx', import.meta.url), 'utf8')
@@ -145,6 +145,6 @@ test('search page wires relevance sort, preserves backend result order, and conn
   assert.match(calendar, /eventTitles\.bookingCompleted/)
 
   const profile = readFileSync(new URL('../app/(pages)/profile/page.tsx', import.meta.url), 'utf8')
-  assert.match(profile, /bookingCalendarEventType\(booking\?\.status\)/)
+  assert.match(profile, /bookingCalendarEventType\(booking\?\.status[,)]/)
   assert.doesNotMatch(profile, /!\['completed', 'cancelled', 'refunded'\]/)
 })

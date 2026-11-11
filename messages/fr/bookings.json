@@ -586,6 +586,8 @@
     },
     "proposalDeclineTitle": "Refuser la proposition",
     "proposalDeclineDescription": "Expliquez au professionnel pourquoi cette proposition ne vous convient pas. Votre clarification est envoyée avec la réponse et le dossier est escaladé.",
+    "resolutionDeclineTitle": "Refuser la résolution",
+    "resolutionDeclineDescription": "Expliquez pourquoi la résolution ne règle pas le problème. La réclamation est transmise à l'équipe Fixtract avec votre explication.",
     "clarificationLabel": "Clarification",
     "clarificationPlaceholder": "Expliquez ce qui manque ou ne convient pas dans la solution proposée...",
     "clarificationRequired": "Veuillez ajouter une courte clarification avant de refuser.",

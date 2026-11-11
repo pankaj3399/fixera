@@ -38,10 +38,12 @@ import { toast } from 'sonner';
 import { useCommissionRate } from '@/hooks/useCommissionRate';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import {
+  isLegacyPerBookingUnitPackage,
   packageDurationMode,
   pricingTypeChangeUpdates,
   withChosenDurationBasis,
   withOptionPricingUnit,
+  withPerUnitDurationBasis,
   type RetainedPerUnitDuration,
 } from '@/lib/packageDuration';
 import {
@@ -2234,6 +2236,27 @@ const Step2Subprojects = forwardRef<Step2Ref, Step2Props>(function Step2Subproje
                             <p className='text-xs text-gray-500 mt-1'>
                               {t('step2.timing.executionPerUnitHint', { unit: unitDisplay(subproject.pricing.unit || unitLabel) })}
                             </p>
+                          )}
+                          {/* FT1 6C: a legacy unit package saved without a duration basis keeps
+                              one duration for the whole booking; ask the professional to set it
+                              per unit instead of multiplying it silently. */}
+                          {isLegacyPerBookingUnitPackage(subproject.pricing) && (
+                            <div
+                              role='status'
+                              data-testid={`legacy-duration-basis-${subproject.id}`}
+                              className='mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900'
+                            >
+                              <p>{t('step2.timing.legacyPerBookingNotice', { unit: unitDisplay(subproject.pricing.unit || unitLabel) })}</p>
+                              <Button
+                                type='button'
+                                size='sm'
+                                variant='outline'
+                                className='mt-2'
+                                onClick={() => updateSubproject(subproject.id, { pricing: withPerUnitDurationBasis(subproject.pricing) })}
+                              >
+                                {t('step2.timing.legacyPerBookingAction', { unit: unitDisplay(subproject.pricing.unit || unitLabel) })}
+                              </Button>
+                            </div>
                           )}
                         </div>
                         )}

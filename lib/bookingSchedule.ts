@@ -48,6 +48,27 @@ export function maxWorkingWindowHours(
   return finite.length ? Math.max(...finite) : 0
 }
 
+/**
+ * Longest working day (hours) exactly as the backend schedule engine computes
+ * it (`getLongestWorkingDayHours`): unavailable weekdays are skipped instead
+ * of falling back to 09:00–17:00. 0 when there is no working day. Quantity
+ * hours above it are booked in day mode (FT1 6B).
+ */
+export function longestWorkingDayHours(
+  availability: Partial<Record<(typeof WEEKDAYS)[number], DayAvailability>> | null | undefined,
+): number {
+  let longest = 0
+  for (const weekday of WEEKDAYS) {
+    const day = availability?.[weekday]
+    if (!day || day.available === false) continue
+    const start = minutesOf(day.startTime || DEFAULT_WORKING_HOURS.startTime)
+    const end = minutesOf(day.endTime || DEFAULT_WORKING_HOURS.endTime)
+    const hours = (end - start) / 60
+    if (Number.isFinite(hours) && hours > longest) longest = hours
+  }
+  return longest
+}
+
 /** End of an execution that starts at `start` and lasts `hours`, fractions included. */
 export function addExecutionHours(start: Date, hours: number): Date {
   const end = new Date(start)

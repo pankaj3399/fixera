@@ -586,6 +586,8 @@
     },
     "proposalDeclineTitle": "Voorstel afwijzen",
     "proposalDeclineDescription": "Vertel de professional waarom dit voorstel niet werkt voor jou. Je toelichting wordt meegestuurd en de claim wordt geëscaleerd.",
+    "resolutionDeclineTitle": "Oplossing weigeren",
+    "resolutionDeclineDescription": "Leg uit waarom de oplossing het probleem niet verhelpt. De claim wordt samen met je uitleg doorgestuurd naar het Fixtract-team.",
     "clarificationLabel": "Toelichting",
     "clarificationPlaceholder": "Leg uit wat er ontbreekt of mis is met de voorgestelde oplossing...",
     "clarificationRequired": "Voeg een korte toelichting toe voordat je afwijst.",

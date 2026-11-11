@@ -279,7 +279,9 @@
       "determinedByCustomer": "Bepaald door de klant",
       "determinedByCustomerHint": "De klant kiest het aantal uren bij het boeken. Die uren zijn de uitvoeringsduur en blokkeren de agenda.",
       "executionPerUnitLabel": "Uitvoeringsduur per {unit} *",
-      "executionPerUnitHint": "Benodigde tijd voor één {unit}. De hoeveelheid die de klant boekt, vermenigvuldigt deze tijd om de uitvoeringsduur te berekenen en de agenda te blokkeren."
+      "executionPerUnitHint": "Benodigde tijd voor één {unit}. De hoeveelheid die de klant boekt, vermenigvuldigt deze tijd om de uitvoeringsduur te berekenen en de agenda te blokkeren.",
+      "legacyPerBookingNotice": "Dit pakket werd opgeslagen voordat een duur per {unit} kon worden ingesteld, dus deze duur geldt nog voor de hele boeking, ongeacht de hoeveelheid die de klant boekt. Stel de uitvoeringsduur per {unit} in zodat boekingen de juiste tijd blokkeren.",
+      "legacyPerBookingAction": "Duur per {unit} gebruiken"
     },
     "summary": {
       "title": "Overzicht van de pakketten",

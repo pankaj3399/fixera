@@ -7,7 +7,10 @@ register('./swc-loader.mjs', import.meta.url)
 const {
   effectiveExecutionDuration,
   isHourUnit,
+  isLegacyPerBookingUnitPackage,
   packageDurationMode,
+  scheduledExecutionDuration,
+  withPerUnitDurationBasis,
   pricingTypeChangeUpdates,
   withChosenDurationBasis,
   withOptionPricingUnit,
@@ -20,7 +23,7 @@ const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'u
 const messages = (locale) => JSON.parse(source(`messages/${locale}/projectWizard.json`))
 const t = (key) => key
 
-test('duration mode mirrors the backend: hourly per-unit is customer-determined, other units scale, legacy stays per booking', () => {
+test('duration mode mirrors the backend: hourly unit pricing is customer-determined, other units scale, legacy stays per booking', () => {
   for (const unit of ['h', 'hr', 'hrs', 'hour', 'Hours', 'HUR']) {
     assert.equal(isHourUnit(unit), true, unit)
     assert.equal(packageDurationMode({ type: 'unit', unit, durationBasis: 'per_unit' }), 'customer_hours', unit)
@@ -28,8 +31,12 @@ test('duration mode mirrors the backend: hourly per-unit is customer-determined,
   for (const unit of ['m²', 'm2', 'day', 'room', 'window']) {
     assert.equal(packageDurationMode({ type: 'unit', unit, durationBasis: 'per_unit' }), 'per_unit', unit)
   }
-  // Saved before the duration basis existed: the backend keeps one booking-wide duration.
-  assert.equal(packageDurationMode({ type: 'unit', unit: 'hour' }), 'per_booking')
+  // FT1 6A: an hour unit is always customer-determined, also for legacy
+  // packages saved without (or with another) duration basis.
+  assert.equal(packageDurationMode({ type: 'unit', unit: 'hour' }), 'customer_hours')
+  assert.equal(packageDurationMode({ type: 'unit', unit: 'hours', durationBasis: 'per_booking' }), 'customer_hours')
+  // Other legacy units keep one booking-wide duration.
+  assert.equal(packageDurationMode({ type: 'unit', unit: 'm²' }), 'per_booking')
   assert.equal(packageDurationMode({ type: 'unit', unit: 'm²', durationBasis: 'per_booking' }), 'per_booking')
   assert.equal(packageDurationMode({ type: 'fixed', unit: 'hour', durationBasis: 'per_unit' }), 'per_booking')
   assert.equal(packageDurationMode(undefined), 'per_booking')
@@ -79,8 +86,9 @@ test('wizard validation does not ask a duration for hourly packages but still do
   assert.deepEqual(collectSubprojectErrors(hourly, 0, t), [])
   const perM2 = { ...base, pricing: { type: 'unit', amount: 50, unit: 'm²', durationBasis: 'per_unit' }, executionDuration: { unit: 'days' } }
   assert.deepEqual(collectSubprojectErrors(perM2, 0, t), ['validation.executionDurationRequired'])
+  // FT1 6A: a legacy hour package (no basis) is customer-determined too.
   const legacyHourly = { ...base, pricing: { type: 'unit', amount: 50, unit: 'hour' }, executionDuration: { unit: 'hours' } }
-  assert.deepEqual(collectSubprojectErrors(legacyHourly, 0, t), ['validation.executionDurationRequired'])
+  assert.deepEqual(collectSubprojectErrors(legacyHourly, 0, t), [])
 })
 
 test('wizard wiring: new and re-typed packages get a basis; hourly shows "determined by customer"; per-unit is labelled', () => {
@@ -98,7 +106,7 @@ test('wizard wiring: new and re-typed packages get a basis; hourly shows "determ
 test('booking form uses the booked-quantity duration everywhere it times or blocks the calendar', () => {
   const form = source('components/project/ProjectBookingForm.tsx')
   assert.doesNotMatch(form, /selectedPackage\?\.executionDuration \|\| project\.executionDuration/)
-  assert.match(form, /effectiveExecutionDuration<AnyExecutionDuration>\(\s*selectedPackage,\s*project\.executionDuration,\s*isUnitPricing \? estimatedUsage : 1,/)
+  assert.match(form, /scheduledExecutionDuration<AnyExecutionDuration>\(\s*selectedPackage,\s*project\.executionDuration,\s*isUnitPricing \? estimatedUsage : 1,/)
   assert.ok((form.match(/= bookedExecution;/g) || []).length >= 6)
 })
 
@@ -223,9 +231,13 @@ test('remount: per m² 0.5 days → Step 1 hourly → Step 1 back to per m² res
 
 test('remount: legacy and fixed packages keep their behaviour; fixed → unit still clears', () => {
   const legacy = { pricing: { type: 'unit', unit: 'm²', amount: 5 }, executionDuration: { value: 4, unit: 'days' } }
-  const [mountedLegacy] = mountStep2([legacy], 'hour')
+  const [mountedLegacy] = mountStep2([legacy], 'm²')
   assert.equal(packageDurationMode(mountedLegacy.pricing), 'per_booking')
   assert.deepEqual(mountedLegacy.executionDuration, { value: 4, unit: 'days' })
+  // FT1 6A: moved to an hourly option it becomes customer-determined.
+  const [legacyHourly] = mountStep2([legacy], 'hour')
+  assert.equal(packageDurationMode(legacyHourly.pricing), 'customer_hours')
+  assert.deepEqual(legacyHourly.executionDuration, { value: undefined, unit: 'hours' })
   const fixed = { pricing: { type: 'fixed', unit: 'm²', amount: 900 }, executionDuration: { value: 3, unit: 'days' } }
   const [mountedFixed] = mountStep2([fixed], 'm²')
   assert.equal(mountedFixed.pricing.unit, undefined)
@@ -237,4 +249,51 @@ test('remount: legacy and fixed packages keep their behaviour; fixed → unit st
   assert.equal(withOptionPricingUnit(stable, 'm²', 'unit'), stable)
   assert.equal(withOptionPricingUnit(fixed, undefined, 'unit').pricing.unit, undefined)
   assert.equal(withOptionPricingUnit(mountedFixed, undefined, 'unit'), mountedFixed)
+})
+
+test('FT1 6A: a legacy hour package without a duration basis books the customer hours', () => {
+  const legacy = { pricing: { type: 'unit', unit: 'hour' }, executionDuration: { value: 2, unit: 'days' } }
+  assert.deepEqual(effectiveExecutionDuration(legacy, undefined, 6), { value: 6, unit: 'hours', range: undefined })
+  assert.equal(isLegacyPerBookingUnitPackage(legacy.pricing), false, 'no per-unit notice for hours')
+})
+
+test('FT1 6B: quantity hours above the longest working day are scheduled in days', () => {
+  const hourly = { pricing: { type: 'unit', unit: 'hour', durationBasis: 'per_unit' }, executionDuration: { unit: 'hours' } }
+  assert.deepEqual(scheduledExecutionDuration(hourly, undefined, 16, 8), { value: 2, unit: 'days', range: undefined })
+  assert.deepEqual(scheduledExecutionDuration(hourly, undefined, 17, 8), { value: 3, unit: 'days', range: undefined })
+  assert.deepEqual(scheduledExecutionDuration(hourly, undefined, 8, 8), { value: 8, unit: 'hours', range: undefined }, 'a full day stays hour mode')
+  assert.deepEqual(scheduledExecutionDuration(hourly, undefined, 4, 8), { value: 4, unit: 'hours', range: undefined })
+  assert.deepEqual(scheduledExecutionDuration(hourly, undefined, 16, 0), { value: 16, unit: 'hours', range: undefined }, 'no working day: unchanged')
+  const perM2 = { pricing: { type: 'unit', unit: 'm²', durationBasis: 'per_unit' }, executionDuration: { value: 0.5, unit: 'hours' } }
+  assert.deepEqual(scheduledExecutionDuration(perM2, undefined, 40, 8), { value: 3, unit: 'days', range: undefined })
+  assert.deepEqual(scheduledExecutionDuration(perM2, undefined, 10, 8), { value: 5, unit: 'hours' })
+  // Fixed packages and legacy per-booking units are not quantity-derived.
+  const fixed = { pricing: { type: 'fixed' }, executionDuration: { value: 12, unit: 'hours' } }
+  assert.deepEqual(scheduledExecutionDuration(fixed, undefined, 1, 8), { value: 12, unit: 'hours' })
+  const legacy = { pricing: { type: 'unit', unit: 'm²' }, executionDuration: { value: 12, unit: 'hours' } }
+  assert.deepEqual(scheduledExecutionDuration(legacy, undefined, 1000, 8), { value: 12, unit: 'hours' })
+})
+
+test('FT1 6C: legacy non-hour unit packages get a per-unit notice with a one-click fix', () => {
+  assert.equal(isLegacyPerBookingUnitPackage({ type: 'unit', unit: 'm²' }), true)
+  assert.equal(isLegacyPerBookingUnitPackage({ type: 'unit', unit: 'm²', durationBasis: 'per_booking' }), true)
+  assert.equal(isLegacyPerBookingUnitPackage({ type: 'unit', unit: 'm²', durationBasis: 'per_unit' }), false)
+  assert.equal(isLegacyPerBookingUnitPackage({ type: 'unit', unit: 'hour' }), false)
+  assert.equal(isLegacyPerBookingUnitPackage({ type: 'fixed' }), false)
+  const fixedUp = withPerUnitDurationBasis({ type: 'unit', unit: 'm²', amount: 5 })
+  assert.deepEqual(fixedUp, { type: 'unit', unit: 'm²', amount: 5, durationBasis: 'per_unit' })
+  assert.equal(packageDurationMode(fixedUp), 'per_unit')
+
+  const step2 = source('components/professional/project-wizard/Step2Subprojects.tsx')
+  assert.match(step2, /\{isLegacyPerBookingUnitPackage\(subproject\.pricing\) && \(/)
+  assert.match(step2, /onClick=\{\(\) => updateSubproject\(subproject\.id, \{ pricing: withPerUnitDurationBasis\(subproject\.pricing\) \}\)\}/)
+  assert.match(step2, /t\('step2\.timing\.legacyPerBookingNotice'/)
+  assert.match(step2, /t\('step2\.timing\.legacyPerBookingAction'/)
+  for (const locale of ['en', 'nl', 'fr']) {
+    const timing = messages(locale).step2.timing
+    for (const key of ['legacyPerBookingNotice', 'legacyPerBookingAction']) {
+      assert.equal(typeof timing[key], 'string', `${locale} ${key}`)
+      assert.match(timing[key], /\{unit\}/, `${locale} ${key} names the unit`)
+    }
+  }
 })

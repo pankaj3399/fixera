@@ -3,7 +3,7 @@
 import { apiErrorFromBody } from '@/lib/apiErrors'
 
 import { Suspense } from 'react'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
@@ -48,6 +48,7 @@ import {
   collectStep1ComponentErrors,
   collectStepErrors,
   getStep1DataSignature,
+  wizardStepCompletion,
   parseProjectSaveError,
   WIZARD_STEP_TITLES,
   type Step1ValidationContext,
@@ -363,6 +364,11 @@ function ProjectCreateContent() {
 
   const [stepValidation, setStepValidation] = useState<boolean[]>(new Array(8).fill(false))
   const [visitedSteps, setVisitedSteps] = useState<boolean[]>([true, false, false, false, false, false, false, false])
+  // FT1 #10: steps shown as done, derived from the saved data of reached steps.
+  const completedSteps = useMemo(
+    () => wizardStepCompletion(stepValidation, visitedSteps, projectData, tWizard),
+    [stepValidation, visitedSteps, projectData, tWizard],
+  )
   const [step1ValidationContext, setStep1ValidationContext] = useState<Step1ValidationContext | null>(null)
   const canCreateProjects = user?.professionalStatus === 'approved'
 
@@ -503,7 +509,9 @@ function ProjectCreateContent() {
         })
         setStep1HydrationKey(key => key + 1)
         setCurrentStep(project.currentStep || 1)
-        setVisitedSteps(prev => prev.map((visited, index) => visited || index === (project.currentStep || 1) - 1))
+        // FT1 #10: a reopened draft has been through every step up to the
+        // one it reopens on, so those steps can show as done.
+        setVisitedSteps(prev => prev.map((visited, index) => visited || index <= (project.currentStep || 1) - 1))
         setProjectLoad({ status: 'loaded', projectId })
       }
 
@@ -1268,7 +1276,7 @@ function ProjectCreateContent() {
       isLoading={isLoading}
       isEditing={!!projectId}
       projectStatus={projectData.status}
-      stepValidation={stepValidation}
+      stepValidation={completedSteps}
       visitedSteps={visitedSteps}
     >
       {renderCurrentStep()}

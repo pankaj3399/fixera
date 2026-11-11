@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { useTranslations } from "next-intl"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { Badge } from "@/components/ui/badge"
+import ProfessionalLevelTag from "@/components/dashboard/ProfessionalLevelTag"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import {
@@ -439,7 +440,7 @@ export function PartyCard({
         )}
         {role === "professional" ? (
           <>
-            <DetailField label={dt("fields.professionalLevel", "Professional level")} empty={!party.professionalLevel}>{party.professionalLevel}</DetailField>
+            <DetailField label={dt("fields.professionalLevel", "Professional level")} empty={!party.professionalLevel}><ProfessionalLevelTag level={party.professionalLevel} /></DetailField>
             <DetailField label={dt("fields.publicTags", "Public tags")} empty={!party.publicTags?.length}>
               {party.publicTags?.map(tag => <span key={tag} className="mr-2">{dt(tag.toLowerCase() === "verified" ? "fields.tagVerified" : "fields.tagOurChoice", tag)}</span>)}
             </DetailField>

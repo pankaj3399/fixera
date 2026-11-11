@@ -18,6 +18,7 @@ import { AlertTriangle, ArrowLeft, CalendarClock, Loader2, RefreshCw, ShieldChec
 import { type WarrantyClaimStatus, STATUS_OPTIONS, STATUS_STYLES } from "@/lib/warrantyClaim"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
+import { facetCount, readFacetCounts } from "@/lib/dashboardOverview"
 
 interface ClaimRecord {
   _id: string
@@ -141,6 +142,9 @@ function WarrantyClaimsContent() {
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [serviceFilter, setServiceFilter] = useState("all")
   const [services, setServices] = useState<string[]>([])
+  // FT2 #10a: per-option counts from the server; null = unknown (no number shown).
+  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null)
+  const [serviceCounts, setServiceCounts] = useState<Record<string, number> | null>(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   // null = unknown (not loaded yet, or the last request failed); never shown as 0.
@@ -259,6 +263,8 @@ function WarrantyClaimsContent() {
       }
 
       const data = payload.data || {}
+      setStatusCounts(readFacetCounts(data.statusCounts))
+      setServiceCounts(readFacetCounts(data.serviceCounts))
       const nextClaims = Array.isArray(data.claims) ? data.claims : []
       // The highlighted claim is only injected when no search/service filter
       // is active: those filters run server-side and may exclude it.
@@ -281,6 +287,8 @@ function WarrantyClaimsContent() {
       setClaims([])
       setTotalPages(1)
       setTotalClaims(null)
+      setStatusCounts(null)
+      setServiceCounts(null)
       setError(getErrorText(err, t("warranty.loadClaimsFailed")))
     } finally {
       // An aborted request was superseded; its replacement owns the flag.
@@ -412,7 +420,7 @@ function WarrantyClaimsContent() {
                   <SelectContent>
                     <SelectItem value="all">{t("warranty.allServices")}</SelectItem>
                     {services.map((svc) => (
-                      <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                      <SelectItem key={svc} value={svc}>{serviceCounts ? `${svc} (${facetCount(serviceCounts, svc)})` : svc}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -430,6 +438,7 @@ function WarrantyClaimsContent() {
                     {STATUS_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {t(WARRANTY_STATUS_KEYS[option.value] ?? "warranty.status.all")}
+                        {option.value !== "all" && statusCounts ? ` (${facetCount(statusCounts, option.value)})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
