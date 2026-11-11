@@ -70,3 +70,13 @@ test('FT1 #3/#8: a detailed project is fitted under the copy endpoint body limit
   const small = { kind: 'title', locale: 'en', context: { service: 'Plumbing', description: 'Replace the shower.', keywords: ['shower'] } }
   assert.deepEqual(JSON.parse(JSON.stringify(fitProjectCopyRequest(small))), small)
 })
+
+test('FT3 #14a: a manual customer level reads as set by Fixtract, not as the top level', () => {
+  const src = read('app/(pages)/dashboard/benefits/page.tsx')
+  assert.match(src, /levelSource === 'manual'/)
+  assert.match(src, /manualCustomerLevel\s*\?\s*t\("benefits\.manualLevelTitle"\)/)
+  for (const locale of ['en', 'nl', 'fr']) {
+    const benefits = JSON.parse(read(`messages/${locale}/dashboard.json`)).benefits
+    assert.ok(benefits.manualLevelTitle && benefits.manualLevelDescription, `${locale} manual level strings`)
+  }
+})

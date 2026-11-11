@@ -27,6 +27,8 @@ type CustomerBenefitsResponse = {
     nextLevel?: string | null
     amountToNextTier?: number | null
     progress?: number | null
+    /** 'manual': set by an admin override, so there is no spend-based progression. */
+    levelSource?: 'manual' | 'spend'
   }
   points?: {
     balance?: number
@@ -292,6 +294,8 @@ export default function BenefitsPage() {
   const progress = isCustomer
     ? customerData?.loyaltyStatus?.progress ?? 0
     : professionalData?.level?.nextLevel?.progress ?? 0
+  // FT3 #14a: a level set by the Fixtract team is not "the top level".
+  const manualCustomerLevel = isCustomer && customerData?.loyaltyStatus?.levelSource === 'manual'
   const points = isCustomer
     ? customerData?.points?.balance ?? user?.points ?? 0
     : professionalData?.points?.balance ?? user?.points ?? 0
@@ -519,16 +523,20 @@ export default function BenefitsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-indigo-600" />
-              {t("benefits.progressTitle", { level: nextLevel || t("benefits.topLevel") })}
+              {manualCustomerLevel
+                ? t("benefits.manualLevelTitle")
+                : t("benefits.progressTitle", { level: nextLevel || t("benefits.topLevel") })}
             </CardTitle>
             <CardDescription>
-              {nextLevel
+              {manualCustomerLevel
+                ? t("benefits.manualLevelDescription")
+                : nextLevel
                 ? t("benefits.progressDescription", { progress, level: nextLevel })
                 : t("benefits.topLevelReached")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Progress value={progress} />
+            {!manualCustomerLevel && <Progress value={progress} />}
             {isCustomer && customerData?.loyaltyStatus?.amountToNextTier != null && nextLevel && (
               <p className="text-sm text-slate-600">
                 {t("benefits.spendMore", { amount: formatMoney(customerData.loyaltyStatus.amountToNextTier), level: nextLevel })}

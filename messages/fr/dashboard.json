@@ -429,6 +429,8 @@
     "topLevel": "votre niveau le plus élevé",
     "progressDescription": "Vous êtes à {progress} % du chemin vers {level}.",
     "topLevelReached": "Vous êtes déjà au niveau configuré le plus élevé.",
+    "manualLevelTitle": "Votre niveau a été défini par Fixtract",
+    "manualLevelDescription": "Votre niveau a été défini par l'équipe Fixtract et ne change pas selon vos dépenses.",
     "spendMore": "Dépensez encore {amount} pour débloquer {level}.",
     "highlights": {
       "badge": "Badge : {badge}",

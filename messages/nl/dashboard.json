@@ -429,6 +429,8 @@
     "topLevel": "je hoogste niveau",
     "progressDescription": "Je bent {progress}% op weg naar {level}.",
     "topLevelReached": "Je zit al op het hoogste ingestelde niveau.",
+    "manualLevelTitle": "Je niveau is ingesteld door Fixtract",
+    "manualLevelDescription": "Je niveau is ingesteld door het Fixtract-team en verandert niet met je uitgaven.",
     "spendMore": "Besteed nog {amount} om {level} te ontgrendelen.",
     "highlights": {
       "badge": "Badge: {badge}",
