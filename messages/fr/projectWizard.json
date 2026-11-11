@@ -279,7 +279,9 @@
       "determinedByCustomer": "Déterminée par le client",
       "determinedByCustomerHint": "Le client choisit le nombre d’heures lors de la réservation. Ces heures constituent la durée d’exécution et bloquent le calendrier.",
       "executionPerUnitLabel": "Durée d’exécution par {unit} *",
-      "executionPerUnitHint": "Temps nécessaire pour un(e) {unit}. La quantité réservée par le client le multiplie pour calculer la durée d’exécution et bloquer le calendrier."
+      "executionPerUnitHint": "Temps nécessaire pour un(e) {unit}. La quantité réservée par le client le multiplie pour calculer la durée d’exécution et bloquer le calendrier.",
+      "legacyPerBookingNotice": "Ce forfait a été enregistré avant que la durée puisse être définie par {unit} : cette durée s'applique donc encore à toute la réservation, quelle que soit la quantité réservée par le client. Définissez la durée d'exécution par {unit} afin que les réservations bloquent le bon temps.",
+      "legacyPerBookingAction": "Utiliser une durée par {unit}"
     },
     "summary": {
       "title": "Récapitulatif des forfaits",

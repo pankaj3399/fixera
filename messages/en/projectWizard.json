@@ -279,7 +279,9 @@
       "determinedByCustomer": "Determined by customer",
       "determinedByCustomerHint": "The customer chooses the number of hours when booking. Those hours are the execution duration and block the calendar.",
       "executionPerUnitLabel": "Execution Duration per {unit} *",
-      "executionPerUnitHint": "Time needed for one {unit}. The quantity the customer books multiplies it to calculate the execution duration and block the calendar."
+      "executionPerUnitHint": "Time needed for one {unit}. The quantity the customer books multiplies it to calculate the execution duration and block the calendar.",
+      "legacyPerBookingNotice": "This package was saved before durations could be set per {unit}, so this duration still applies to the whole booking, whatever quantity the customer books. Set the execution duration per {unit} so bookings block the right time.",
+      "legacyPerBookingAction": "Use a duration per {unit}"
     },
     "summary": {
       "title": "Package Summary",
