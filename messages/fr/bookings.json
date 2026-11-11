@@ -836,7 +836,8 @@
       "milestoneOrder": "Ordre",
       "milestoneStatus": "Statut",
       "customDueDate": "Date d’échéance",
-      "quoteDate": "Date du devis"
+      "quoteDate": "Date du devis",
+      "extraCostsCustomer": "Frais supplémentaires à la fin (votre prix, HTVA)"
     },
     "parties": {
       "customer": "Client",
@@ -852,7 +853,8 @@
       "city": "Ville",
       "country": "Pays",
       "timeZone": "Fuseau horaire",
-      "postalCode": "Code postal"
+      "postalCode": "Code postal",
+      "viewProfile": "Voir le profil"
     },
     "overview": {
       "schedule": "Planning",
@@ -1220,7 +1222,9 @@
       "newStatus": "Nouveau statut",
       "recordedInEnglish": "langue enregistrée comme anglais",
       "coverageUnknown": "La couverture historique est inconnue. Seuls les enregistrements conservés sont affichés.",
-      "openWarranty": "Ouvrir la demande de garantie"
+      "openWarranty": "Ouvrir la demande de garantie",
+      "coverageComplete": "Historique complet : chaque changement de statut a été enregistré au moment même.",
+      "coveragePartial": "Les changements récents ont été enregistrés au moment même ; l'historique plus ancien est reconstitué à partir des données conservées."
     },
     "notices": {
       "termsSnapshotNotRecorded": "Les conditions au moment de la réservation n'ont pas été enregistrées pour cette ancienne réservation. Les données actuelles du projet sont affichées séparément.",
@@ -1239,7 +1243,8 @@
       "checkoutSnapshotIncomplete": "L'instantané de paiement est incomplet ; les valeurs manquantes ne sont pas recalculées.",
       "attachmentUnavailable": "Cette pièce jointe n'est pas disponible avec votre accès.",
       "paymentCurrencyNotRecorded": "Ce paiement n'a pas de devise enregistrée ; aucun montant n'est converti ni supposé.",
-      "quoteServiceLocationNotRecorded": "L'adresse de service n'a pas été enregistrée avec cette version du devis."
+      "quoteServiceLocationNotRecorded": "L'adresse de service n'a pas été enregistrée avec cette version du devis.",
+      "refundVatSplitDerived": "Les montants TVA et nets de ce remboursement sont calculés au prorata de la TVA du paiement d'origine."
     },
     "detailsUnavailable": "L'enregistrement détaillé normalisé n'a pas été renvoyé. Seuls les champs de réservation enregistrés sont affichés ; les valeurs historiques manquantes ne sont pas reconstruites.",
     "enums": {

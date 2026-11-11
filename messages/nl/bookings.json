@@ -836,7 +836,8 @@
       "milestoneOrder": "Volgorde",
       "milestoneStatus": "Status",
       "customDueDate": "Vervaldatum",
-      "quoteDate": "Offertedatum"
+      "quoteDate": "Offertedatum",
+      "extraCostsCustomer": "Extra kosten bij oplevering (jouw prijs, excl. btw)"
     },
     "parties": {
       "customer": "Klant",
@@ -852,7 +853,8 @@
       "city": "Stad",
       "country": "Land",
       "timeZone": "Tijdzone",
-      "postalCode": "Postcode"
+      "postalCode": "Postcode",
+      "viewProfile": "Profiel bekijken"
     },
     "overview": {
       "schedule": "Planning",
@@ -1220,7 +1222,9 @@
       "newStatus": "Nieuwe status",
       "recordedInEnglish": "taal vastgelegd als Engels",
       "coverageUnknown": "De volledigheid van de geschiedenis is onbekend. Alleen bewaarde gegevens worden getoond.",
-      "openWarranty": "Garantieclaim openen"
+      "openWarranty": "Garantieclaim openen",
+      "coverageComplete": "Volledige historiek: elke statuswijziging is vastgelegd op het moment zelf.",
+      "coveragePartial": "Recente wijzigingen zijn vastgelegd op het moment zelf; oudere historiek is opgebouwd uit bewaarde gegevens."
     },
     "notices": {
       "termsSnapshotNotRecorded": "De voorwaarden bij boeking zijn niet vastgelegd voor deze verouderde boeking. Huidige projectgegevens worden apart getoond.",
@@ -1239,7 +1243,8 @@
       "checkoutSnapshotIncomplete": "De afrekenmomentopname is onvolledig; ontbrekende waarden worden niet herberekend.",
       "attachmentUnavailable": "Deze bijlage is niet beschikbaar met jouw toegang.",
       "paymentCurrencyNotRecorded": "Deze betaling heeft geen vastgelegde valuta; er wordt niets omgerekend of aangenomen.",
-      "quoteServiceLocationNotRecorded": "Het serviceadres is niet vastgelegd bij deze offerteversie."
+      "quoteServiceLocationNotRecorded": "Het serviceadres is niet vastgelegd bij deze offerteversie.",
+      "refundVatSplitDerived": "De btw- en nettobedragen van deze terugbetaling zijn pro rata berekend op basis van de btw van de oorspronkelijke betaling."
     },
     "detailsUnavailable": "Het genormaliseerde detailrecord is niet ontvangen. Alleen opgeslagen boekingsvelden worden getoond; ontbrekende historische waarden worden niet gereconstrueerd.",
     "enums": {
