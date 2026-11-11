@@ -146,7 +146,7 @@ export default function HeroSearchForm({
       </div>
 
       {popularServices.length > 0 && (
-        <div className="mt-6 text-center">
+        <div className="mt-4 text-center">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <p className="text-gray-600 text-sm">{t('search.popular')}</p>
             <div className="flex flex-wrap justify-center gap-2">

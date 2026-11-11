@@ -162,3 +162,10 @@ test('FT3 #12: customers redeem points at checkout and professionals spend them 
     assert.doesNotMatch(wallet.bodyProfessional, /not currently available|niet mogelijk|pas encore possible/)
   }
 })
+
+test('FT2 #1a: the hero headline is one line from lg up and the hero spacing stays compact', () => {
+  const hero = read('components/HeroSection.tsx')
+  assert.match(hero, /<br className="lg:hidden" \/>/)
+  assert.doesNotMatch(hero, /lg:text-6xl/)
+  assert.match(read('components/PopularProjectsCarousel.tsx'), /className="mt-4 max-w-5xl mx-auto text-left"/)
+})
