@@ -154,6 +154,7 @@ test('FT3 #12: customers redeem points at checkout and professionals spend them 
   const benefits = read('app/(pages)/dashboard/benefits/page.tsx')
   assert.match(benefits, /\/api\/user\/professional-level\/boost/)
   assert.match(benefits, /professionalData\?\.points\?\.points/)
+  assert.match(benefits, /result\.leveledUp && result\.newLevel/)
   for (const locale of ['en', 'nl', 'fr']) {
     const checkout = JSON.parse(read(`messages/${locale}/checkout.json`)).paymentPage.points
     assert.ok(checkout.title && checkout.applied && checkout.invalidAmount, `${locale} checkout points strings`)

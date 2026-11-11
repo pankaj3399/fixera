@@ -201,7 +201,8 @@ export default function BenefitsPage() {
       const result = payload.data || {}
       setBoostMessage({
         tone: "ok",
-        text: result.levelChanged && result.newLevel
+        // Only an upward change is a level-up (a recalculation can also lower it).
+        text: result.leveledUp && result.newLevel
           ? t("benefits.wallet.boost.levelUp", { level: result.newLevel })
           : t("benefits.wallet.boost.success", { credits: Number(result.boostedBookings) || 0 }),
       })
