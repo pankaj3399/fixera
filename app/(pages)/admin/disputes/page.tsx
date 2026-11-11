@@ -12,7 +12,7 @@ import {
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { authFetch, getAuthToken } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
@@ -26,6 +26,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, CheckCircle, Loader2, MessageSquare, Paperclip, RefreshCw, Scale, Shield, Upload, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import DashboardBaselineIndicator from "@/components/admin/DashboardBaselineIndicator"
+import {
+  buildHistoryToggleHref,
+  historyQuery,
+  isShowAllHistory,
+  parseDashboardBaselineInfo,
+  type DashboardBaselineInfo,
+} from "@/lib/admin/dashboardBaselines"
 import { type WarrantyClaimStatus, STATUS_LABELS as WARRANTY_STATUS_LABELS } from "@/lib/warrantyClaim"
 
 const WARRANTY_STATUS_VALUES: WarrantyClaimStatus[] = [
@@ -195,6 +203,12 @@ const isValidHttpUrl = (url: string): boolean => {
 export default function AdminDisputesPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // Counting-since baseline: ?history=all shows the full history for this view.
+  const showAll = isShowAllHistory(searchParams)
+  const baselineToggleHref = buildHistoryToggleHref(pathname, searchParams, showAll)
+  const [baselineInfo, setBaselineInfo] = useState<DashboardBaselineInfo | null>(null)
 
   const [disputes, setDisputes] = useState<DisputeBooking[]>([])
   // Separate warranty/refund queue preview (backend sends it on page 1 only).
@@ -204,6 +218,16 @@ export default function AdminDisputesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<DisputeFilter>('all')
   const [page, setPage] = useState(1)
+  // Switching the history mode starts this queue again on page 1.
+  const [pagedHistoryMode, setPagedHistoryMode] = useState(showAll)
+  if (pagedHistoryMode !== showAll) {
+    setPagedHistoryMode(showAll)
+    setPage(1)
+  }
+  // Latest request ids: a response only lands if no newer request has started,
+  // so an older page, filter or history mode cannot overwrite the current view.
+  const disputesRequestRef = useRef(0)
+  const analyticsRequestRef = useRef(0)
   const [totalPages, setTotalPages] = useState(1)
 
   const [selectedDispute, setSelectedDispute] = useState<DisputeBooking | null>(null)
@@ -271,14 +295,18 @@ export default function AdminDisputesPage() {
   }, [user, loading, router])
 
   const fetchDisputes = useCallback(async () => {
+    const requestId = ++disputesRequestRef.current
     setIsLoading(true)
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: '20' })
       if (statusFilter !== 'all') params.set('status', statusFilter)
 
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes?${params}`)
+      const history = historyQuery(showAll)
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes?${params}${history ? `&${history}` : ''}`)
       const json = await res.json()
+      if (requestId !== disputesRequestRef.current) return
       if (json.success) {
+        setBaselineInfo(parseDashboardBaselineInfo(json.data?.baseline))
         const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
         const external = Array.isArray(json.data?.externalDisputes) ? json.data.externalDisputes : []
         // Booking disputes and the separate warranty/refund queues are kept
@@ -289,21 +317,28 @@ export default function AdminDisputesPage() {
         setTotalPages(Number(json.data?.pagination?.pages) || 1)
       }
     } catch {
+      if (requestId !== disputesRequestRef.current) return
       toast.error('Failed to load disputes')
     } finally {
-      setIsLoading(false)
+      if (requestId === disputesRequestRef.current) setIsLoading(false)
     }
-  }, [page, statusFilter])
+  }, [page, statusFilter, showAll])
 
   const fetchAnalytics = useCallback(async () => {
+    const requestId = ++analyticsRequestRef.current
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes/analytics`)
+      const history = historyQuery(showAll)
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes/analytics${history ? `?${history}` : ''}`)
       const json = await res.json()
-      if (json.success) setAnalytics(json.data)
+      if (requestId !== analyticsRequestRef.current) return
+      if (json.success) {
+        setAnalytics(json.data)
+        setBaselineInfo((current) => parseDashboardBaselineInfo(json.data?.baseline) ?? current)
+      }
     } catch {
       // silent
     }
-  }, [])
+  }, [showAll])
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -787,6 +822,8 @@ export default function AdminDisputesPage() {
             Refresh
           </Button>
         </div>
+
+        <DashboardBaselineIndicator baseline={baselineInfo} toggleHref={baselineToggleHref} />
 
         {analytics && <BookingDisputeCards analytics={analytics} />}
 

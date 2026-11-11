@@ -3,7 +3,14 @@
 import { messageFromApiBody } from '@/lib/apiErrors';
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import DashboardBaselineIndicator from "@/components/admin/DashboardBaselineIndicator"
+import {
+  buildHistoryToggleHref,
+  isShowAllHistory,
+  parseDashboardBaselineInfo,
+  type DashboardBaselineInfo,
+} from "@/lib/admin/dashboardBaselines"
 import {
   type CancellationStatusFilter,
   cancellationRequestsSearch,
@@ -60,6 +67,11 @@ export default function AdminCancellationRequestsPage() {
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const searchParams = useSearchParams()
+  const pathname = usePathname()
+  // Counting-since baseline: ?history=all shows the full history for this queue.
+  const showAll = isShowAllHistory(searchParams)
+  const baselineToggleHref = buildHistoryToggleHref(pathname, searchParams, showAll)
+  const [baselineInfo, setBaselineInfo] = useState<DashboardBaselineInfo | null>(null)
   // `?status=escalated` is the dispute page's link to this queue; without a
   // valid value the default view stays `pending`. Client navigation keeps this
   // page mounted, so the filter follows later query changes too (e.g. the plain
@@ -67,6 +79,12 @@ export default function AdminCancellationRequestsPage() {
   const statusQuery = searchParams.get('status')
   const [filterState, setFilterState] = useState(() => cancellationStatusFilterStateFromQuery(statusQuery))
   const [page, setPage] = useState(1)
+  // Switching the history mode starts this queue again on page 1.
+  const [pagedHistoryMode, setPagedHistoryMode] = useState(showAll)
+  if (pagedHistoryMode !== showAll) {
+    setPagedHistoryMode(showAll)
+    setPage(1)
+  }
   const syncedFilterState = syncCancellationStatusFilterState(filterState, statusQuery)
   if (syncedFilterState !== filterState) {
     // Adjust state during render (React's pattern for state derived from a changing input).
@@ -103,12 +121,14 @@ export default function AdminCancellationRequestsPage() {
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() })
       if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (showAll) params.set('history', 'all')
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/cancellation-requests?${params}`)
       const json = await res.json()
       if (latestFetchIdRef.current !== fetchId) return
       if (json.success) {
         setItems(json.data.items)
         setTotal(json.data.total)
+        setBaselineInfo(parseDashboardBaselineInfo(json.data.baseline))
       } else {
         toast.error('Failed to load cancellation requests')
       }
@@ -120,7 +140,7 @@ export default function AdminCancellationRequestsPage() {
         setIsLoading(false)
       }
     }
-  }, [page, statusFilter])
+  }, [page, statusFilter, showAll])
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -195,6 +215,7 @@ export default function AdminCancellationRequestsPage() {
               Cancellation Requests
             </h1>
             <p className="text-sm text-gray-500 mt-1">Review and approve customer/professional cancellation requests</p>
+            <DashboardBaselineIndicator baseline={baselineInfo} toggleHref={baselineToggleHref} />
           </div>
           <Button variant="outline" size="sm" onClick={fetchRequests}>
             <RefreshCw className="h-4 w-4 mr-2" />

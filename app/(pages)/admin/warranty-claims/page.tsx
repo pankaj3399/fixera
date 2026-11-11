@@ -2,8 +2,16 @@
 
 import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
 
-import { useCallback, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import DashboardBaselineIndicator from "@/components/admin/DashboardBaselineIndicator"
+import {
+  buildHistoryToggleHref,
+  historyQuery,
+  isShowAllHistory,
+  parseDashboardBaselineInfo,
+  type DashboardBaselineInfo,
+} from "@/lib/admin/dashboardBaselines"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -88,6 +96,12 @@ const formatDate = (value?: string) => {
 export default function AdminWarrantyClaimsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // Counting-since baseline: ?history=all shows the full history for this view.
+  const showAll = isShowAllHistory(searchParams)
+  const baselineToggleHref = buildHistoryToggleHref(pathname, searchParams, showAll)
+  const [baselineInfo, setBaselineInfo] = useState<DashboardBaselineInfo | null>(null)
 
   const [claims, setClaims] = useState<WarrantyClaimRecord[]>([])
   const [analytics, setAnalytics] = useState<WarrantyAnalytics | null>(null)
@@ -98,6 +112,16 @@ export default function AdminWarrantyClaimsPage() {
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [page, setPage] = useState(1)
+  // Switching the history mode starts the claims queue again on page 1.
+  const [pagedHistoryMode, setPagedHistoryMode] = useState(showAll)
+  if (pagedHistoryMode !== showAll) {
+    setPagedHistoryMode(showAll)
+    setPage(1)
+  }
+  // Latest request ids: a response only lands if no newer request has started
+  // (Refresh, close, filters, or a history-mode switch).
+  const analyticsRequestRef = useRef(0)
+  const claimsRequestRef = useRef(0)
   const [totalPages, setTotalPages] = useState(1)
   const [totalClaims, setTotalClaims] = useState(0)
   const [closingClaimId, setClosingClaimId] = useState<string | null>(null)
@@ -128,31 +152,37 @@ export default function AdminWarrantyClaimsPage() {
 
   const fetchAnalytics = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || user?.role !== "admin") return
+    const requestId = ++analyticsRequestRef.current
     setIsLoadingAnalytics(true)
     try {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
+      const history = historyQuery(showAll)
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics${history ? `?${history}` : ""}`,
         { credentials: "include", headers, signal }
       )
       const payload = await response.json()
       if (!response.ok || !payload.success) {
         throw new Error(messageFromApiBody(payload, "Failed to load warranty analytics"))
       }
+      if (requestId !== analyticsRequestRef.current) return
       setAnalytics(payload.data || null)
+      setBaselineInfo(parseDashboardBaselineInfo(payload.data?.baseline))
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
+      if (requestId !== analyticsRequestRef.current) return
       console.error("[ADMIN][WARRANTY] analytics fetch failed", err)
       setError(getErrorMessage(err, "Failed to load warranty analytics"))
     } finally {
-      setIsLoadingAnalytics(false)
+      if (requestId === analyticsRequestRef.current) setIsLoadingAnalytics(false)
     }
-  }, [isAuthenticated, user?.role])
+  }, [isAuthenticated, showAll, user?.role])
 
   const fetchClaims = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || user?.role !== "admin") return
+    const requestId = ++claimsRequestRef.current
     setIsLoadingClaims(true)
     setError(null)
     try {
@@ -164,6 +194,7 @@ export default function AdminWarrantyClaimsPage() {
       params.set("limit", "20")
       if (statusFilter !== "all") params.set("status", statusFilter)
       if (searchQuery) params.set("search", searchQuery)
+      if (showAll) params.set("history", "all")
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/list?${params.toString()}`,
@@ -174,21 +205,24 @@ export default function AdminWarrantyClaimsPage() {
         throw new Error(messageFromApiBody(payload, "Failed to load warranty claims"))
       }
 
+      if (requestId !== claimsRequestRef.current) return
       const data = payload.data || {}
+      setBaselineInfo(parseDashboardBaselineInfo(data.baseline))
       setClaims(Array.isArray(data.claims) ? data.claims : [])
       setTotalPages(data.pagination?.totalPages || 1)
       setTotalClaims(data.pagination?.total || 0)
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
+      if (requestId !== claimsRequestRef.current) return
       console.error("[ADMIN][WARRANTY] claims fetch failed", err)
       setClaims([])
       setTotalPages(1)
       setTotalClaims(0)
       setError(getErrorMessage(err, "Failed to load warranty claims"))
     } finally {
-      setIsLoadingClaims(false)
+      if (requestId === claimsRequestRef.current) setIsLoadingClaims(false)
     }
-  }, [isAuthenticated, page, searchQuery, statusFilter, user?.role])
+  }, [isAuthenticated, page, searchQuery, showAll, statusFilter, user?.role])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -294,6 +328,7 @@ export default function AdminWarrantyClaimsPage() {
             <p className="text-slate-600">
               Monitor claims, escalations, and resolution quality in one place.
             </p>
+            <DashboardBaselineIndicator baseline={baselineInfo} toggleHref={baselineToggleHref} />
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
