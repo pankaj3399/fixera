@@ -645,7 +645,7 @@ export default function ChatWidget() {
 
   const handleSend = async ({ text, files }: { text: string; files: File[] }) => {
     if (!selectedConversationId) {
-      throw new Error("No conversation selected");
+      throw new Error(t("toasts.selectConversationFirst"));
     }
     if (isSupportReadOnly) {
       throw new Error(supportReadOnlyNotice);

@@ -4791,7 +4791,7 @@ function BookingDetailContent() {
         )}
 
         {!error && booking && (
-          <section id="booking-details" aria-label="Booking details" className="scroll-mt-24">
+          <section id="booking-details" aria-label={t("details.sectionLabel")} className="scroll-mt-24">
             <BookingDetailsTabs booking={booking} details={details} viewerRole={viewerRole} />
           </section>
         )}

@@ -1347,7 +1347,8 @@
     "timeZone": {
       "recorded": "Les horodatages utilisent le fuseau horaire enregistré de la réservation : {zone}.",
       "viewer": "Aucun fuseau horaire de réservation n'a été enregistré ; les horodatages utilisent le fuseau horaire de votre navigateur : {zone}."
-    }
+    },
+    "sectionLabel": "Détails de la réservation"
   },
   "cancellationRequest": {
     "title": "Demande d'annulation",

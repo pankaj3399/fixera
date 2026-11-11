@@ -452,3 +452,14 @@ test('HTTP status is authoritative over conflicting codes', () => {
     nl.unavailable,
   )
 })
+
+test('mongoose default validator text never reaches users; the new generic bodies are localized', () => {
+  assert.equal(safeUserMessage('Path `email` is required.'), undefined)
+  assert.equal(safeUserMessage('`bogus` is not a valid enum value for path `status`.'), undefined)
+  assert.equal(safeUserMessage('Name is required'), 'Name is required')
+  const body = { success: false, msg: 'One of the values has an invalid format. Check your input and try again.', code: 'VALIDATION', field: 'amount' }
+  // Generic validation copy is never shown verbatim: the caller's localized
+  // contextual fallback is used, else the localized validation message.
+  assert.equal(getErrorMessage({ response: { status: 400, data: body } }, 'Contextuele fout', nl), 'Contextuele fout')
+  assert.equal(getErrorMessage({ response: { status: 400, data: body } }, '', nl), nl.validation)
+})

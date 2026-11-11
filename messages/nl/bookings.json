@@ -1347,7 +1347,8 @@
     "timeZone": {
       "recorded": "Tijdstempels gebruiken de vastgelegde boekingszone: {zone}.",
       "viewer": "Er is geen boekingszone vastgelegd; tijdstempels gebruiken de tijdzone van je browser: {zone}."
-    }
+    },
+    "sectionLabel": "Boekingsgegevens"
   },
   "cancellationRequest": {
     "title": "Annuleringsverzoek",

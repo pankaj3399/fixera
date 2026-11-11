@@ -1347,7 +1347,8 @@
     "timeZone": {
       "recorded": "Record timestamps use the booking time zone: {zone}.",
       "viewer": "No booking time zone was recorded; record timestamps use your browser time zone: {zone}."
-    }
+    },
+    "sectionLabel": "Booking details"
   },
   "cancellationRequest": {
     "title": "Cancellation request",
