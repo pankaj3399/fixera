@@ -19,6 +19,7 @@ import {
   formatAnnouncementMarketDate,
   frequencyLabel,
   localeLabel,
+  translatedLocaleCodes,
   SELECT_TRIGGER_CLASS,
   STATUS_FILTER_OPTIONS,
   TYPE_FILTER_OPTIONS,
@@ -136,6 +137,9 @@ export function AnnouncementsCard({
                         : "All countries"}
                       {" · "}
                       {localeLabel(item.locale)}
+                      {translatedLocaleCodes(item).length
+                        ? ` → ${translatedLocaleCodes(item).join(", ")}`
+                        : ""}
                       {item.discountCode ? ` · code ${item.discountCode}` : ""}
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs text-slate-500 sm:grid-cols-3 lg:grid-cols-6">

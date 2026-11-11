@@ -98,6 +98,15 @@ export function localeLabel(locale: string): string {
   return LOCALE_OPTIONS.find((l) => l.value === locale)?.label ?? locale;
 }
 
+/** Upper-case locale codes that have a stored translation, e.g. ["NL", "FR"]. */
+export function translatedLocaleCodes(a: Pick<AdminSiteAnnouncement, "translations" | "locale">): string[] {
+  const source = (a.locale || "en").split("-")[0];
+  return Object.entries(a.translations ?? {})
+    .filter(([locale, value]) => locale !== source && Boolean(value?.title))
+    .map(([locale]) => locale.toUpperCase())
+    .sort();
+}
+
 export function frequencyLabel(frequency: AnnouncementFrequency): string {
   return FREQUENCY_OPTIONS.find((option) => option.value === frequency)?.label ?? frequency;
 }
@@ -130,6 +139,8 @@ export function toAnnouncementScheduleIso(value: string, isEnd: boolean): string
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
 export type AdminSiteAnnouncement = LiveSiteAnnouncement & {
+  /** Per-locale translations (auto or manual); absent on untranslated announcements. */
+  translations?: Partial<Record<string, { title?: string; mode?: "machine" | "manual" }>>;
   isActive: boolean;
   priority: number;
   createdAt: string;
