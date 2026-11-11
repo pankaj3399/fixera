@@ -586,6 +586,8 @@
     },
     "proposalDeclineTitle": "Decline proposal",
     "proposalDeclineDescription": "Tell the professional why this proposal does not work for you. Your clarification is sent with the response and the claim is escalated.",
+    "resolutionDeclineTitle": "Decline the resolution",
+    "resolutionDeclineDescription": "Explain why the resolution does not solve the problem. The claim is escalated to the Fixtract team together with your explanation.",
     "clarificationLabel": "Clarification",
     "clarificationPlaceholder": "Explain what is missing or wrong with the proposed solution...",
     "clarificationRequired": "Please add a short clarification before declining.",

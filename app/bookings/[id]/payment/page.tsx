@@ -28,6 +28,7 @@ import {
 } from '@/lib/vatPricing';
 import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVersion';
 import { milestoneDisplayAmount } from '@/lib/booking/milestoneDisplay';
+import { recordedQuotationPricing } from '@/lib/booking/quotationPricing';
 import type { QuotationPricingLine } from '@/types/quotation';
 
 interface BookingPayment {
@@ -268,6 +269,16 @@ export default function BookingPaymentPage() {
   }, []);
 
   const currentQuoteVersion = useMemo(() => getCurrentQuoteVersion(booking), [booking, getCurrentQuoteVersion]);
+  // FT3 #19a: a quotation booking shows the saving recorded on the quotation
+  // (VAT-inclusive, all quote-time discounts), the same figure as the
+  // quotation email and the booking page, never a live loyalty estimate.
+  const isQuotationBooking = Boolean(booking?.quoteVersions?.length);
+  const recordedQuoteSaving = useMemo(
+    () => (isQuotationBooking
+      ? recordedQuotationPricing(currentQuoteVersion as Parameters<typeof recordedQuotationPricing>[0])?.saving ?? null
+      : null),
+    [isQuotationBooking, currentQuoteVersion],
+  );
   const hasUsableQuoteTotal = useMemo(() => {
     const total = Number(currentQuoteVersion?.totalAmount);
     return Number.isFinite(total) && total > 0;
@@ -1181,7 +1192,17 @@ export default function BookingPaymentPage() {
                     </p>
                   </div>
                 )}
-                {loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.checkoutSnapshot?.customerPackageTotal != null && customerPricingReady && (() => {
+                {isQuotationBooking && recordedQuoteSaving != null && recordedQuoteSaving > 0 && (
+                  <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                    <p className="text-xs text-amber-800" data-testid="quotation-recorded-saving">
+                      {t.rich('paymentPage.savingWithAmount', {
+                        amount: formatMoney(recordedQuoteSaving, booking?.quote?.currency?.toUpperCase() || 'EUR'),
+                        strong: (chunks) => <strong>{chunks}</strong>,
+                      })}
+                    </p>
+                  </div>
+                )}
+                {!isQuotationBooking && loyaltyLoaded && loyalty && loyalty.percentage > 0 && booking?.checkoutSnapshot?.customerPackageTotal != null && customerPricingReady && (() => {
                   const baseWithCommission = originalPrice(booking.checkoutSnapshot.customerPackageTotal);
                   const afterLoyalty = customerPrice(booking.checkoutSnapshot.customerPackageTotal);
                   const saving = Math.max(0, +(baseWithCommission - afterLoyalty).toFixed(2));
@@ -1207,7 +1228,7 @@ export default function BookingPaymentPage() {
                     </div>
                   );
                 })()}
-                {(!loyaltyLoaded || !loyalty || loyalty.percentage <= 0) && (
+                {!isQuotationBooking && (!loyaltyLoaded || !loyalty || loyalty.percentage <= 0) && (
                   <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                     <p className="text-xs text-amber-800">
                       {t.rich('paymentPage.memberSavings', {

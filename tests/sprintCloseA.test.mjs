@@ -113,3 +113,29 @@ test('FT1 #9: no post-booking template asks for a start date, a contact time or 
     assert.doesNotMatch(question, /best time to contact|contact you|start date|preferred start|when .*start|WhatsApp|phone or email/i)
   }
 })
+
+test('FT3 #16: declining the final warranty resolution opens the clarification dialog before escalating', () => {
+  const src = read('app/(pages)/bookings/[id]/page.tsx')
+  // The resolved-state decline button no longer escalates directly.
+  assert.doesNotMatch(src, /onClick=\{\(\) =>\s*handleEscalateWarrantyClaim\("Customer declined final warranty resolution"\)\s*\}/)
+  assert.match(src, /setDeclineDialogMode\("resolution"\)/)
+  // The clarification is validated (3–1000) and sent as the escalation note.
+  assert.match(src, /handleEscalateWarrantyClaim\("Customer declined final warranty resolution", text\)/)
+  assert.match(src, /\.\.\.\(note \? \{ note \} : \{\}\)/)
+  for (const locale of ['en', 'nl', 'fr']) {
+    const warranty = JSON.parse(read(`messages/${locale}/bookings.json`)).warranty
+    assert.ok(warranty.resolutionDeclineTitle && warranty.resolutionDeclineDescription, `${locale} resolution decline strings`)
+  }
+})
+
+test('FT3 #19a: the payment page shows the quotation-recorded saving for quotation bookings', async () => {
+  const src = read('app/bookings/[id]/payment/page.tsx')
+  assert.match(src, /recordedQuotationPricing\(currentQuoteVersion/)
+  assert.match(src, /data-testid="quotation-recorded-saving"/)
+  // The live loyalty estimate is not shown for quotation bookings.
+  assert.match(src, /\{!isQuotationBooking && loyaltyLoaded && loyalty/)
+  assert.match(src, /\{!isQuotationBooking && \(!loyaltyLoaded/)
+  const { recordedQuotationPricing } = await import('../lib/booking/quotationPricing.ts')
+  const version = { customerTotals: { customerNetAmount: 236.02, vatAmount: 49.56, totalWithVat: 285.58, discount: { totalDiscountWithVat: 16.92 } } }
+  assert.equal(recordedQuotationPricing(version).saving, 16.92)
+})

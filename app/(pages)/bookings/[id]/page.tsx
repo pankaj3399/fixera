@@ -1298,6 +1298,9 @@ function BookingDetailContent() {
   const [showProposalDeclineDialog, setShowProposalDeclineDialog] = useState(false)
   const [proposalDeclineClarification, setProposalDeclineClarification] = useState("")
   const [proposalDeclineError, setProposalDeclineError] = useState<string | null>(null)
+  // FT3 #16: the same clarification dialog serves declining a proposal and
+  // declining the final resolution (which escalates the claim).
+  const [declineDialogMode, setDeclineDialogMode] = useState<"proposal" | "resolution">("proposal")
   const handleRespondToWarrantyProposal = async (action: "accept" | "decline", clarification?: string) => {
     if (!warrantyClaim?._id) return
     // Task 16: declining a warranty proposal requires a clarification.
@@ -1413,20 +1416,39 @@ function BookingDetailContent() {
     }
   }
 
-  const handleEscalateWarrantyClaim = async (reason = "Manual escalation requested") => {
+  const handleEscalateWarrantyClaim = async (reason = "Manual escalation requested", note?: string) => {
     if (!warrantyClaim?._id) return
     setWarrantyActionLoading(true)
     try {
       const data = await callWarrantyAction(`${warrantyClaim._id}/escalate`, {
         reason,
+        ...(note ? { note } : {}),
       })
       setWarrantyClaim(data.claim || null)
+      setShowProposalDeclineDialog(false)
+      setProposalDeclineClarification("")
+      setProposalDeclineError(null)
       toast.success(t("warranty.toasts.escalated"))
     } catch (err) {
       toast.error(getErrorText(err, t("warranty.toasts.escalateFailed")))
     } finally {
       setWarrantyActionLoading(false)
     }
+  }
+
+  // FT3 #16: declining the final resolution needs the same clarification
+  // (3–1000 characters) as declining a proposal before it escalates.
+  const handleDeclineWarrantyResolution = async (clarification: string) => {
+    const text = clarification.trim()
+    if (text.length > 1000) {
+      setProposalDeclineError(t("warranty.clarificationTooLong"))
+      return
+    }
+    if (text.length < 3) {
+      setProposalDeclineError(t("warranty.clarificationRequired"))
+      return
+    }
+    await handleEscalateWarrantyClaim("Customer declined final warranty resolution", text)
   }
 
   const handleSubmitPostBookingAnswers = async () => {
@@ -4513,6 +4535,7 @@ function BookingDetailContent() {
                               size="sm"
                               variant="outline"
                               onClick={() => {
+                                setDeclineDialogMode("proposal")
                                 setProposalDeclineClarification("")
                                 setProposalDeclineError(null)
                                 setShowProposalDeclineDialog(true)
@@ -4577,9 +4600,12 @@ function BookingDetailContent() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() =>
-                                handleEscalateWarrantyClaim("Customer declined final warranty resolution")
-                              }
+                              onClick={() => {
+                                setDeclineDialogMode("resolution")
+                                setProposalDeclineClarification("")
+                                setProposalDeclineError(null)
+                                setShowProposalDeclineDialog(true)
+                              }}
                               disabled={warrantyActionLoading}
                               className="border-rose-300 text-rose-700"
                             >
@@ -4733,9 +4759,9 @@ function BookingDetailContent() {
                 }}>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>{t("warranty.proposalDeclineTitle")}</DialogTitle>
+                      <DialogTitle>{declineDialogMode === "resolution" ? t("warranty.resolutionDeclineTitle") : t("warranty.proposalDeclineTitle")}</DialogTitle>
                       <DialogDescription>
-                        {t("warranty.proposalDeclineDescription")}
+                        {declineDialogMode === "resolution" ? t("warranty.resolutionDeclineDescription") : t("warranty.proposalDeclineDescription")}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
@@ -4773,7 +4799,9 @@ function BookingDetailContent() {
                           {t("common.cancel")}
                         </Button>
                         <Button
-                          onClick={() => handleRespondToWarrantyProposal("decline", proposalDeclineClarification)}
+                          onClick={() => declineDialogMode === "resolution"
+                            ? handleDeclineWarrantyResolution(proposalDeclineClarification)
+                            : handleRespondToWarrantyProposal("decline", proposalDeclineClarification)}
                           disabled={warrantyActionLoading || !proposalDeclineClarification.trim() || proposalDeclineClarification.trim().length > 1000}
                           className="bg-rose-600 hover:bg-rose-700 text-white"
                         >
