@@ -17,7 +17,12 @@ export interface SiteAnnouncement {
   ctaUrl?: string;
   discountCode?: string;
   activeCountries: string[];
+  /** Language of the served text (the visitor's language when translated). */
   locale: string;
+  /** Language the admin wrote the announcement in. */
+  sourceLocale?: string;
+  /** True when the text is a translation of the source. */
+  translated?: boolean;
   frequency: AnnouncementFrequency;
   delaySeconds: number;
   dismissible: boolean;

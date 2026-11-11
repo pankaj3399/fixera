@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { hasConsented, CONSENT_EVENT } from "@/lib/consent";
 import { PREVIEW_DURATION_MS, shouldSkipAnnouncements } from "@/lib/marketing/siteAnnouncements/constants";
@@ -31,6 +31,7 @@ import {
 
 export function SiteAnnouncementsProvider({ children }: { children: ReactNode }) {
   const t = useTranslations("content");
+  const uiLocale = useLocale();
   const pathname = usePathname();
   const skip = shouldSkipAnnouncements(pathname);
 
@@ -91,9 +92,10 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
       activeController = controller;
       const timeout = window.setTimeout(() => controller.abort(), 15_000);
       try {
-        const announcements = await fetchPublicSiteAnnouncements({
-          signal: controller.signal,
-        });
+        const announcements = await fetchPublicSiteAnnouncements(
+          { signal: controller.signal },
+          uiLocale,
+        );
         if (!controller.signal.aborted) setItems(announcements);
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -119,7 +121,7 @@ export function SiteAnnouncementsProvider({ children }: { children: ReactNode })
       window.clearInterval(refreshTimer);
       window.clearInterval(clockTimer);
     };
-  }, [skip]);
+  }, [skip, uiLocale]);
 
   const hideForSession = useCallback((announcement: SiteAnnouncement) => {
     if (announcement.dismissible) dismissAnnouncement(announcement);
