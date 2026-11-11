@@ -80,3 +80,36 @@ test('FT3 #14a: a manual customer level reads as set by Fixtract, not as the top
     assert.ok(benefits.manualLevelTitle && benefits.manualLevelDescription, `${locale} manual level strings`)
   }
 })
+
+test('FT1 #10: reached wizard steps whose saved data is valid show as done; invalidated or unreached ones do not', async () => {
+  const { wizardStepCompletion } = await import('../lib/projectWizardValidation.ts')
+  const t = (key) => key
+  const step1Done = {
+    category: 'Interior', service: 'Painting', title: 'Interior wall painting for apartments in Ghent',
+    description: 'd'.repeat(120), priceModel: 'fixed',
+    distance: { address: 'Main street 1, Ghent', maxKmRange: 20 }, resources: ['pro-1'],
+    customerPresence: 'not_required', extraOptions: [], termsConditions: [],
+  }
+  const reopened = [true, true, true, false, false, false, false, false]
+  const marks = wizardStepCompletion(new Array(8).fill(false), reopened, step1Done, t)
+  assert.equal(marks[0], true, 'step 1 done on a reopened draft without revisiting it')
+  assert.equal(marks[2], true, 'step 3 done (customer presence set)')
+  assert.equal(marks[4], false, 'an unreached step is never marked')
+  // Editing step 1 into an invalid state removes its mark.
+  assert.equal(wizardStepCompletion(new Array(8).fill(false), reopened, { ...step1Done, title: 'Too short' }, t)[0], false)
+  // Review step keeps the page's submit-readiness result.
+  assert.equal(wizardStepCompletion([false, false, false, false, false, false, false, true], reopened, step1Done, t)[7], true)
+  const page = read('app/(pages)/projects/create/page.tsx')
+  assert.match(page, /index <= \(project\.currentStep \|\| 1\) - 1/)
+  assert.match(page, /stepValidation=\{completedSteps\}/)
+})
+
+test('FT1 #9: no post-booking template asks for a start date, a contact time or a contact medium', () => {
+  const src = read('components/professional/project-wizard/Step6PostBookingQuestions.tsx')
+  const templates = src.slice(src.indexOf('POST_BOOKING_QUESTION_TEMPLATES'), src.indexOf('\n}\n', src.indexOf('POST_BOOKING_QUESTION_TEMPLATES')))
+  const questions = [...templates.matchAll(/question:\s*'([^']*)'/g)].map((m) => m[1])
+  assert.ok(questions.length > 0)
+  for (const question of questions) {
+    assert.doesNotMatch(question, /best time to contact|contact you|start date|preferred start|when .*start|WhatsApp|phone or email/i)
+  }
+})
