@@ -249,3 +249,12 @@ test('quote table translates the execution duration unit with plurals', () => {
   assert.match(en, />2 days</)
   assert.doesNotMatch(nl, />3 days</)
 })
+test('FT3 #14b: the professional level renders as a coloured tier tag in both tables', () => {
+  const booking = { _id: 'b1', status: 'completed', professional: { _id: 'p1', name: 'Piet', professionalLevel: 'Expert' } }
+  for (const Component of [SharedBookingsTable]) {
+    const html = renderIn('en', Component, booking, 'customer')
+    assert.match(html, /style="background-color:#[0-9A-Fa-f]{6};border-color:#[0-9A-Fa-f]{6};color:#(?:000000|FFFFFF)"[^>]*>Expert</)
+  }
+  const quote = renderIn('en', SharedQuotesTable, { ...booking, status: 'quoted', currentQuoteVersion: 1, quoteVersions: [{ version: 1, totalAmount: 100, currency: 'EUR' }] }, 'customer')
+  assert.match(quote, /background-color:#[0-9A-Fa-f]{6}[^>]*>Expert</)
+})

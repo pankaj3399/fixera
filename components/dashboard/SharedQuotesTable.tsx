@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import StartChatButton from "@/components/chat/StartChatButton"
 import ProfessionalTableTags from "./ProfessionalTableTags"
+import ProfessionalLevelTag from "./ProfessionalLevelTag"
 import { useSharedTableText } from "./sharedTableText"
 import { getBookingStatusMeta } from "@/lib/dashboardBookingHelpers"
 import {
@@ -203,7 +204,7 @@ export default function SharedQuotesTable({
                       <span className="text-gray-700">{DASH}</span>
                     )}
                     {booking.professional?.professionalLevel && (
-                      <div className="mt-0.5 text-gray-500">{booking.professional.professionalLevel}</div>
+                      <div className="mt-0.5"><ProfessionalLevelTag level={booking.professional.professionalLevel} className="text-[10px]" /></div>
                     )}
                     <ProfessionalTableTags tags={booking.professional?.adminTags} />
                   </td>

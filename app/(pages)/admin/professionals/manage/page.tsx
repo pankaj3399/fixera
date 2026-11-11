@@ -4,6 +4,7 @@ import { messageFromApiBody } from '@/lib/apiErrors';
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
+import ProfessionalLevelTag from "@/components/dashboard/ProfessionalLevelTag"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -333,7 +334,7 @@ export default function AdminProfessionalManagementPage() {
                     </>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                    <Badge variant="outline">{row.professionalLevel || "New"}</Badge>
+                    <ProfessionalLevelTag level={row.professionalLevel || "New"} />
                     <Badge variant="outline">{row.points || 0} pts</Badge>
                     <Badge variant="outline">EUR {(row.moneyEarned || 0).toLocaleString()}</Badge>
                     <Badge variant="outline">{row.accountStatus || "active"}</Badge>
