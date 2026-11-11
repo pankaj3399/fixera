@@ -92,6 +92,8 @@ function hooks() {
   }
 }
 
+const REAL_PURE_MODULES = { '@/lib/dashboardOverview': dashboardOverview }
+
 function loadComponent(file, mocks, exportName = 'default') {
   const { code } = transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
     filename: file, jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
@@ -99,6 +101,8 @@ function loadComponent(file, mocks, exportName = 'default') {
   const exports = {}
   new Function('require', 'exports', code)(name => {
     if (name in mocks) return mocks[name]
+    // Pure helper modules (no I/O, no React) resolve to the real code.
+    if (name in REAL_PURE_MODULES) return REAL_PURE_MODULES[name]
     if (name.startsWith('@/')) throw new Error(`unmocked import ${name}`)
     return require(name)
   }, exports)
@@ -1302,7 +1306,9 @@ test('professional payments: a pending or failed query never shows the previous 
 
     // A status change while the old query is shown: the old rows and its
     // 3-page pager disappear until the filtered query answers.
-    findAll(render(), node => node.type === Select && node.props.value === 'all')[0].props.onValueChange('refunded')
+    // The status filter (it offers the transfer_* states); the service filter sits next to it.
+    findAll(render(), node => node.type === Select && node.props.value === 'all'
+      && findAll(node, child => child.props?.value === 'transfer_pending').length > 0)[0].props.onValueChange('refunded')
     await step()
     const filtered = txRequests.at(-1)
     assert.match(filtered.url, /page=1&limit=20&status=refunded/)
