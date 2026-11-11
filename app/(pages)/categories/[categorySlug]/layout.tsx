@@ -10,7 +10,7 @@ import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 import { getServiceCategories } from "@/lib/server/serviceCategories";
 import { readContentCountry } from "@/lib/geo/contentCountryHeader";
 import { resolveCategoryRoute, type CategoryLayoutMatch } from "@/lib/catalog/categoryLayoutLookup";
-import { CatalogCountryProvider } from "@/components/catalog/CatalogCountryContext";
+import { CatalogCountryProvider, type InitialCatalogCategory } from "@/components/catalog/CatalogCountryContext";
 import { isLocale } from "@/i18n/config";
 import { URL_LOCALE_REQUEST_HEADER, localizedPath } from "@/lib/seo/localeUrls";
 
@@ -42,9 +42,11 @@ async function redirectTarget(to: string): Promise<string> {
   return isLocale(urlLocale) ? localizedPath(urlLocale, to) : to;
 }
 
+/** One live catalog read per request, shared by route resolution and the page's initial data. */
+const loadLiveCategories = cache(async () => getServiceCategories(await resolveContentCountry()));
+
 const resolveCategory = cache(async (categorySlug: string): Promise<CategoryLayoutMatch> => {
-  const country = await resolveContentCountry();
-  const route = resolveCategoryRoute(categorySlug, serviceCategories, await getServiceCategories(country));
+  const route = resolveCategoryRoute(categorySlug, serviceCategories, await loadLiveCategories());
   if (route.kind === "redirect") permanentRedirect(await redirectTarget(route.to));
   if (route.kind === "not_found") notFound();
   return route.category;
@@ -63,15 +65,29 @@ export async function generateMetadata({ params }: { params: Promise<{ categoryS
   });
 }
 
+/** The live category with its services (null on the static outage fallback). */
+async function initialCategoryFor(slug: string): Promise<InitialCatalogCategory | null> {
+  const live = (await loadLiveCategories()).find((category) => category.slug === slug && !category.isFallback);
+  if (!live) return null;
+  return {
+    name: live.name,
+    slug: live.slug,
+    services: (live.services || [])
+      .filter((service) => typeof service?.slug === "string" && typeof service?.name === "string")
+      .map((service) => ({ name: service.name, slug: service.slug })),
+  };
+}
+
 export default async function CategoryLayout({ children, params }: Props) {
   const { categorySlug } = await params;
   const t = await getTranslations("catalog");
   const cat = await resolveCategory(categorySlug);
   const country = await resolveContentCountry();
+  const initialCategory = await initialCategoryFor(cat.slug);
   const nameKey = categoryNameKeys[cat.slug as keyof typeof categoryNameKeys];
   const categoryName = nameKey ? t(nameKey) : cat.name;
   return (
-    <CatalogCountryProvider country={country}>
+    <CatalogCountryProvider country={country} initialCategory={initialCategory}>
       <JsonLd
         data={breadcrumbSchema([
           { name: t("breadcrumbs.home"), path: "/" },

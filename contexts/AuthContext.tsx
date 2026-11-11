@@ -434,7 +434,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
-        toast.success('Login successful!')
+        toast.success(tAuth('toasts.loginSuccess'))
 
         if (!options?.skipRedirect) {
           if (mustCompleteProfessionalAccessFlow(data.user)) {
@@ -490,11 +490,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
-        toast.success('Account created successfully!')
+        toast.success(tAuth('toasts.accountCreated'))
         
         if (data.welcomeEmailSent) {
           setTimeout(() => {
-            toast.success('📧 Welcome email sent! Check your inbox to get started.', {
+            toast.success(`📧 ${tAuth('toasts.welcomeEmailSent')}`, {
               duration: 4000,
             })
           }, 1000)
@@ -535,10 +535,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // never contain a target whose request did not land, and they are the
       // only way back to its status check.
       pruneAnonymizeRecoveryStorageForLogout(sessionStorage)
-      toast.success('Logged out successfully')
+      toast.success(tAuth('toasts.loggedOut'))
       router.push('/login')
     }
-  }, [router])
+  }, [router, tAuth])
 
   // Middleware-like logic for route protection
   const handleRouteProtection = async (currentUser: User | null) => {
@@ -656,7 +656,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .then((r) => r.json())
         .then((json) => {
           if (json?.success && json.data?.favorited) {
-            toast.success('Added to your favorites')
+            toast.success(tAuth('toasts.favoriteAdded'))
           }
         })
         .catch(() => {
@@ -665,7 +665,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // bad JSON; ignore
     }
-  }, [user?._id, user?.role])
+  }, [user?._id, user?.role, tAuth])
 
   useEffect(() => {
     if (!user || user.role !== 'professional' || !user.idExpirationDate) {

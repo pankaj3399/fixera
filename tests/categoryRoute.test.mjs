@@ -51,7 +51,7 @@ test('F6: the layout reads the first-party content-country header before the pla
 
 test('layout consults the live catalog, redirects or 404s on the server', () => {
   const layout = readFileSync(new URL('../app/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), 'utf8')
-  assert.match(layout, /getServiceCategories\(country\)/)
+  assert.match(layout, /getServiceCategories\(await resolveContentCountry\(\)\)/)
   assert.match(layout, /readContentCountry\(await headers\(\)\)/)
   assert.match(layout, /if \(route\.kind === "redirect"\) permanentRedirect\(await redirectTarget\(route\.to\)\);/)
   assert.match(layout, /if \(route\.kind === "not_found"\) notFound\(\);/)
@@ -65,8 +65,10 @@ test('the category page fetches with the country the server layout validated aga
   const page = readFileSync(new URL('../app/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), 'utf8')
   // One request-scoped country feeds both the server lookup and the provider.
   assert.match(layout, /const resolveContentCountry = cache\(async \(\): Promise<string> => readContentCountry\(await headers\(\)\) \?\? "BE"\);/)
-  assert.match(layout, /const country = await resolveContentCountry\(\);\n  const route = resolveCategoryRoute/)
-  assert.match(layout, /<CatalogCountryProvider country=\{country\}>/)
+  // The route lookup and the page's initial data share one cached live catalog read.
+  assert.match(layout, /const loadLiveCategories = cache\(async \(\) => getServiceCategories\(await resolveContentCountry\(\)\)\);/)
+  assert.match(layout, /resolveCategoryRoute\(categorySlug, serviceCategories, await loadLiveCategories\(\)\)/)
+  assert.match(layout, /<CatalogCountryProvider country=\{country\} initialCategory=\{initialCategory\}>/)
   // The mounted page test covers the country preference; refetch when it changes.
   assert.match(page, /\[rawSlug, router, t, reloadToken, serverCountry\]/)
 })

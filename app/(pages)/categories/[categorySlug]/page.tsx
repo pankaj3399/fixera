@@ -16,7 +16,7 @@ import {
   type CatalogCategoryItem,
 } from '@/lib/catalog/resolveCategory';
 import { GEO_COUNTRY_COOKIE } from '@/lib/marketing/siteAnnouncements/constants';
-import { useCatalogCountry } from '@/components/catalog/CatalogCountryContext';
+import { useCatalogCountry, useInitialCatalogCategory } from '@/components/catalog/CatalogCountryContext';
 
 /** Catalog categories with translated copy in the `catalog` namespace. */
 const TRANSLATED_CATEGORY_SLUGS = [
@@ -54,13 +54,20 @@ export default function CategoryPage() {
   // The layout's server-selected country, so both catalog lookups agree.
   const serverCountry = useCatalogCountry();
 
-  const [category, setCategory] = useState<CatalogCategoryItem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Server-resolved live category for this exact slug: rendered in the server
+  // HTML (crawlable), no client fetch needed.
+  const serverCategory = useInitialCatalogCategory();
+  const initialCategory =
+    serverCategory && serverCategory.slug === rawSlug ? (serverCategory as CatalogCategoryItem) : null;
+
+  const [category, setCategory] = useState<CatalogCategoryItem | null>(initialCategory);
+  const [isLoading, setIsLoading] = useState(!initialCategory);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (!rawSlug) return;
+    if (initialCategory && reloadToken === 0) return;
     const controller = new AbortController();
     const load = async () => {
       setIsLoading(true);
@@ -105,6 +112,8 @@ export default function CategoryPage() {
     };
     void load();
     return () => controller.abort();
+    // initialCategory is derived from the same server props as rawSlug.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawSlug, router, t, reloadToken, serverCountry]);
 
   const displayCategoryName = category

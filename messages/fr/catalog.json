@@ -55,7 +55,10 @@
     "comingSoon": "Bientôt disponible",
     "comingSoonDescription": "Nous finalisons cette page. En attendant, découvrez les autres services disponibles sur Fixtract ou contactez-nous : nous vous aiderons à trouver le bon professionnel.",
     "contactUs": "Nous contacter",
-    "backHome": "← Retour à l'accueil"
+    "backHome": "← Retour à l'accueil",
+    "findProsHeading": "Professionnels pour {service}",
+    "findProsBody": "Comparez des professionnels vérifiés pour {service} près de chez vous : avis, niveaux, prix et disponibilités.",
+    "findProsCta": "Trouver des professionnels"
   },
   "levels": {
     "topRated": "Très bien noté",

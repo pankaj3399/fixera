@@ -838,7 +838,8 @@
       "milestoneOrder": "Order",
       "milestoneStatus": "Status",
       "customDueDate": "Due date",
-      "quoteDate": "Quote date"
+      "quoteDate": "Quote date",
+      "extraCostsCustomer": "Completion extras (your price, excl. VAT)"
     },
     "parties": {
       "customer": "Customer",
@@ -854,7 +855,8 @@
       "city": "City",
       "country": "Country",
       "timeZone": "Time zone",
-      "postalCode": "Postal code"
+      "postalCode": "Postal code",
+      "viewProfile": "View profile"
     },
     "overview": {
       "schedule": "Schedule",
@@ -1222,7 +1224,9 @@
       "newStatus": "New status",
       "recordedInEnglish": "language recorded as English",
       "coverageUnknown": "Historical coverage is unknown. Only surviving records are shown.",
-      "openWarranty": "Open warranty claim"
+      "openWarranty": "Open warranty claim",
+      "coverageComplete": "Complete history: every status change was recorded as it happened.",
+      "coveragePartial": "Recent changes were recorded as they happened; older history is rebuilt from surviving records."
     },
     "notices": {
       "termsSnapshotNotRecorded": "Booking-time terms were not recorded for this legacy booking. Current project data is shown separately.",
@@ -1241,7 +1245,8 @@
       "checkoutSnapshotIncomplete": "The checkout snapshot is incomplete; missing values are not recalculated.",
       "attachmentUnavailable": "This attachment is not available with your access.",
       "paymentCurrencyNotRecorded": "This payment has no recorded currency; no amount is converted or assumed.",
-      "quoteServiceLocationNotRecorded": "The service address was not recorded with this quotation version."
+      "quoteServiceLocationNotRecorded": "The service address was not recorded with this quotation version.",
+      "refundVatSplitDerived": "VAT and net amounts for this refund are calculated pro rata from the VAT of the original payment."
     },
     "detailsUnavailable": "The normalized detail record was not returned. Only stored booking fields are shown; missing historical values are not reconstructed.",
     "enums": {
@@ -1344,7 +1349,8 @@
     "timeZone": {
       "recorded": "Record timestamps use the booking time zone: {zone}.",
       "viewer": "No booking time zone was recorded; record timestamps use your browser time zone: {zone}."
-    }
+    },
+    "sectionLabel": "Booking details"
   },
   "cancellationRequest": {
     "title": "Cancellation request",

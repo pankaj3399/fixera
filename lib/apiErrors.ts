@@ -125,6 +125,10 @@ const TECHNICAL_MESSAGE_RES: RegExp[] = [
   /^internal server error\b/i,
   /^\d{3}\s*[:\-]\s*/,
   /^\d{3}\s+(?:bad request|unauthorized|forbidden|not found|conflict|too many requests|internal server error|bad gateway|service unavailable|gateway timeout)\b/i,
+  // Mongoose built-in validator text (schema paths/enums), never user copy.
+  /\bPath `[^`]*`/,
+  /`[^`]*` is not a valid enum value\b/i,
+  /\bvalidator failed for path\b/i,
   // Object/stringification accidents.
   /^\s*(?:undefined|null|nan|\[object object\])\s*$/i,
   /^\s*[{[][\s\S]*[}\]]\s*$/,
@@ -162,6 +166,7 @@ const GENERIC_SERVER_MESSAGES = new Set([
   ...[
     'The request could not be processed. Check the details and try again.',
     'Some fields are invalid. Check the highlighted fields and try again.',
+    'One of the values has an invalid format. Check your input and try again.',
     'The request body is not valid JSON.',
     'The request uses an unsupported content encoding.',
     'The request was interrupted. Please try again.',

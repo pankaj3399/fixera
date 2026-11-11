@@ -129,6 +129,8 @@ const overviewPanel = (allowedPaths) => loadComponent('../components/booking/det
   'lucide-react': ui,
   '@/contexts/AuthContext': { useAuth: () => ({ user: { role: 'admin', adminPermissionLevels: {} } }) },
   '@/lib/adminRbac': { canAccessAdminPage: (_user, pathname) => allowedPaths.includes(pathname) },
+  'next/link': { __esModule: true, default: ({ href, children, ...rest }) => React.createElement('a', { href, ...rest }, children) },
+  '@/lib/dashboardOverview': { projectHref: (id) => `/projects/${id}`, professionalHref: (id) => `/professional/${id}` },
   // Stub the card so the test reads the exact links the overview passes down.
   './AdminReferencesCard': { AdminReferencesCard: ({ links }) => React.createElement('ul', null,
     links.map(link => React.createElement('li', { key: link.key, 'data-key': link.key }, link.key))) },
