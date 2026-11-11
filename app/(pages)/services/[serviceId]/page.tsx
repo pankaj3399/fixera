@@ -2,12 +2,8 @@ import React, { cache, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
-import { getLocale, getTranslations } from 'next-intl/server';
-import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from '@/components/ui/separator';
-import { Star, Heart, Award, ChevronRight, Sparkles, Hammer, ArrowRight, Mail } from 'lucide-react';
-import { professionalsForService } from '@/data/content';
+import { getTranslations } from 'next-intl/server';
+import { ChevronRight, Sparkles, Hammer, ArrowRight, Mail } from 'lucide-react';
 import {
   TRANSLATED_CATEGORY_SLUGS,
   findServiceMeta,
@@ -16,7 +12,6 @@ import {
   navServiceNameKey,
 } from '@/lib/services/serviceNames';
 import { Button } from '@/components/ui/button';
-import ProfessionalFilters from '@/components/ProfessionalFilters';
 import JsonLd from '@/components/seo/JsonLd';
 import { breadcrumbSchema, serviceSchema } from '@/lib/seo/jsonLd';
 import { buildMetadata } from '@/lib/seo/metadata';
@@ -32,10 +27,6 @@ import ServiceTableOfContents from '@/components/services/ServiceTableOfContents
 import ServiceViewTracker from '@/components/services/ServiceViewTracker';
 import { extractTocAndAddIds } from '@/lib/cms/toc';
 import { getServiceCoverImage } from '@/lib/serviceCovers';
-import { intlLocale } from '@/lib/i18n/format';
-import { getActiveCurrency } from '@/lib/currency/server';
-import { getExchangeRates } from '@/lib/currency/rates';
-import { formatPrice } from '@/lib/currency/convert';
 
 export const revalidate = 21600;
 
@@ -49,20 +40,7 @@ type Props = {
   }>;
 };
 
-const LEVEL_KEYS = {
-  'Top Rated': 'levels.topRated',
-  'Level 1': 'levels.level1',
-  'Level 2': 'levels.level2',
-} as const;
 
-const FALLBACK_PROFESSIONAL_TITLE_KEYS = {
-  'prof-1': 'fallbackProfessionals.titles.prof-1',
-  'prof-2': 'fallbackProfessionals.titles.prof-2',
-  'prof-3': 'fallbackProfessionals.titles.prof-3',
-  'prof-4': 'fallbackProfessionals.titles.prof-4',
-  'prof-5': 'fallbackProfessionals.titles.prof-5',
-  'prof-6': 'fallbackProfessionals.titles.prof-6',
-} as const;
 
 function relatedCatalogName(landing: CmsContent | null): string | undefined {
   const related = landing?.relatedServices;
@@ -142,60 +120,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
-const ProfessionalCard = ({
-  professional,
-  title,
-  priceLabel,
-  levelLabel,
-  startingAtLabel,
-}: {
-  professional: (typeof professionalsForService)[0];
-  title: string;
-  priceLabel: string;
-  levelLabel: string;
-  startingAtLabel: string;
-}) => {
-  return (
-    <Card className="group overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col w-full">
-      <div className="relative aspect-[4/3] w-full">
-        <Image
-          src={professional.image}
-          alt={title}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-        />
-        <Button variant="ghost" size="icon" className="absolute top-2 right-2 bg-white/70 backdrop-blur-sm hover:bg-white rounded-full">
-          <Heart className="w-5 h-5 text-gray-700" />
-        </Button>
-      </div>
-      <CardContent className="p-4 flex flex-col flex-grow">
-        <div className="flex items-center space-x-3 mb-3">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={professional.avatar} alt={professional.name} />
-            <AvatarFallback>{professional.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="font-semibold text-base leading-tight">{professional.name}</p>
-            <p className="text-xs text-blue-600 font-medium flex items-center gap-1"><Award className="w-3 h-3" />{levelLabel}</p>
-          </div>
-        </div>
-        <p className="text-base text-gray-800 group-hover:text-blue-600 transition-colors flex-grow">
-          {title}
-        </p>
-        <div className="flex items-center gap-1 mt-3">
-          <Star className="w-4 h-4 text-yellow-400 fill-current" />
-          <span className="font-bold text-gray-700">{professional.rating}</span>
-          <span className="text-sm text-gray-500">({professional.reviews})</span>
-        </div>
-      </CardContent>
-      <div className="p-4 border-t flex items-center justify-between">
-        <span className="text-xs text-gray-500 font-semibold tracking-wider">{startingAtLabel}</span>
-        <p className="text-xl font-bold text-gray-900">{priceLabel}</p>
-      </div>
-    </Card>
-  );
-};
 
 async function ServicePopularProjects({
   heading,
@@ -228,12 +152,9 @@ export default async function Page({ params }: Props) {
 
   const { serviceId } = await params;
   const t = await getTranslations('catalog');
-  const locale = await getLocale();
-  const priceLocale = intlLocale(locale);
 
   const landing = await fetchServiceLanding(serviceId);
   const meta = findServiceMeta(serviceId);
-  const startingAtLabel = t('startingAt');
 
   const navNameKey = meta ? navServiceNameKey(meta) : undefined;
   const metaDisplayName = meta
@@ -389,8 +310,6 @@ export default async function Page({ params }: Props) {
 
   const serviceName = metaDisplayName || meta.name;
   const safePath = `/services/${encodeURIComponent(serviceId)}`;
-  const currency = await getActiveCurrency();
-  const rates = (await getExchangeRates())?.rates ?? null;
 
   return (
     <div className="bg-white">
@@ -441,29 +360,24 @@ export default async function Page({ params }: Props) {
         queryName={meta.name}
       />
 
+      {/* Real professionals only: the former sample cards were fabricated
+          profiles on an indexable page. Search lists actual professionals. */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 md:pt-20 pb-16">
-        <ProfessionalFilters resultsCount={professionalsForService.length} />
-        <Separator className="mb-8" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {professionalsForService.map(professional => {
-            const levelKey = LEVEL_KEYS[professional.level as keyof typeof LEVEL_KEYS]
-            const titleKey = FALLBACK_PROFESSIONAL_TITLE_KEYS[professional.id as keyof typeof FALLBACK_PROFESSIONAL_TITLE_KEYS]
-            return (
-              <ProfessionalCard
-                key={professional.id}
-                professional={professional}
-                title={titleKey ? t(titleKey) : professional.title}
-                levelLabel={levelKey ? t(levelKey) : professional.level}
-                startingAtLabel={startingAtLabel}
-                priceLabel={formatPrice(professional.startingPrice, {
-                  locale: priceLocale,
-                  currency,
-                  rates,
-                })}
-              />
-            )
-          })}
-        </div>
+        <section className="rounded-2xl border border-gray-200 bg-gray-50 px-6 py-10 text-center">
+          <h2 className="text-2xl font-bold text-gray-900">
+            {t('servicePage.findProsHeading', { service: serviceName })}
+          </h2>
+          <p className="mx-auto mt-2 max-w-2xl text-gray-600">
+            {t('servicePage.findProsBody', { service: serviceName.toLowerCase() })}
+          </p>
+          <Link
+            href={`/search?${new URLSearchParams({ type: 'professionals', q: serviceName }).toString()}`}
+            className="mt-6 inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            {t('servicePage.findProsCta')}
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </Link>
+        </section>
       </main>
     </div>
   );
