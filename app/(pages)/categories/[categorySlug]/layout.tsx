@@ -42,9 +42,11 @@ async function redirectTarget(to: string): Promise<string> {
   return isLocale(urlLocale) ? localizedPath(urlLocale, to) : to;
 }
 
+/** One live catalog read per request, shared by route resolution and the page's initial data. */
+const loadLiveCategories = cache(async () => getServiceCategories(await resolveContentCountry()));
+
 const resolveCategory = cache(async (categorySlug: string): Promise<CategoryLayoutMatch> => {
-  const country = await resolveContentCountry();
-  const route = resolveCategoryRoute(categorySlug, serviceCategories, await getServiceCategories(country));
+  const route = resolveCategoryRoute(categorySlug, serviceCategories, await loadLiveCategories());
   if (route.kind === "redirect") permanentRedirect(await redirectTarget(route.to));
   if (route.kind === "not_found") notFound();
   return route.category;
@@ -65,8 +67,7 @@ export async function generateMetadata({ params }: { params: Promise<{ categoryS
 
 /** The live category with its services (null on the static outage fallback). */
 async function initialCategoryFor(slug: string): Promise<InitialCatalogCategory | null> {
-  const country = await resolveContentCountry();
-  const live = (await getServiceCategories(country)).find((category) => category.slug === slug && !category.isFallback);
+  const live = (await loadLiveCategories()).find((category) => category.slug === slug && !category.isFallback);
   if (!live) return null;
   return {
     name: live.name,
