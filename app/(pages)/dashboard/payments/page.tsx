@@ -17,6 +17,7 @@ import { useTranslations } from 'next-intl';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
+import { facetCount, readFacetCounts } from '@/lib/dashboardOverview';
 
 // ─── Shared types ───────────────────────────────────────────────────────────
 
@@ -50,6 +51,10 @@ const STATUS_OPTIONS: { key: PaymentStatusLabelKey; value: 'all' | PaymentStatus
   { key: 'payments.status.refunded', value: 'refunded' },
   { key: 'payments.status.failed', value: 'failed' },
 ];
+
+/** "Label (n)" when the server sent counts for this facet; the bare label when they are unknown. */
+const withFacetCount = (label: string, counts: Record<string, number> | null, key: string) =>
+  counts ? `${label} (${facetCount(counts, key)})` : label;
 
 function usePaymentStatusLabel() {
   const t = useTranslations('dashboard');
@@ -189,6 +194,9 @@ function CustomerPaymentsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [services, setServices] = useState<string[]>([]);
+  // FT2 #10a: per-option counts from the server; null = unknown (no number shown).
+  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
+  const [serviceCounts, setServiceCounts] = useState<Record<string, number> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -225,11 +233,15 @@ function CustomerPaymentsView() {
       setPayments(payload.data.payments);
       setSummary(payload.data.summary);
       setTotalPages(payload.data.pagination.totalPages || 1);
+      setStatusCounts(readFacetCounts(payload.data.statusCounts));
+      setServiceCounts(readFacetCounts(payload.data.serviceCounts));
     } catch (err) {
       if (requestId !== latestPaymentsRequest.current) return;
       setPayments([]);
       setSummary(null);
       setTotalPages(1);
+      setStatusCounts(null);
+      setServiceCounts(null);
       setError(getErrorText(err, t('payments.loadFailed')));
     } finally {
       if (requestId === latestPaymentsRequest.current) setIsLoading(false);
@@ -328,7 +340,7 @@ function CustomerPaymentsView() {
                   <SelectContent>
                     <SelectItem value="all">{t('payments.table.allServices')}</SelectItem>
                     {services.map((svc) => (
-                      <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                      <SelectItem key={svc} value={svc}>{withFacetCount(svc, serviceCounts, svc)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -339,7 +351,7 @@ function CustomerPaymentsView() {
                   <SelectContent>
                     {STATUS_OPTIONS.map(option => (
                       <SelectItem key={option.value} value={option.value}>
-                        {t(option.key)}
+                        {option.value === 'all' ? t(option.key) : withFacetCount(t(option.key), statusCounts, option.value)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -464,6 +476,11 @@ function ProfessionalPaymentsView() {
   const [txPage, setTxPage] = useState(1);
   const [txTotalPages, setTxTotalPages] = useState(1);
   const [txStatusFilter, setTxStatusFilter] = useState('all');
+  // FT2 #10b service filter and FT2 #10a per-option counts (null = unknown).
+  const [txServiceFilter, setTxServiceFilter] = useState('all');
+  const [txServices, setTxServices] = useState<string[]>([]);
+  const [txStatusCounts, setTxStatusCounts] = useState<Record<string, number> | null>(null);
+  const [txServiceCounts, setTxServiceCounts] = useState<Record<string, number> | null>(null);
   // Starts true: until the first response arrives nothing is known, so the
   // "no transactions yet" state must not render.
   const [txLoading, setTxLoading] = useState(true);
@@ -484,12 +501,13 @@ function ProfessionalPaymentsView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadTransactions = useCallback(async (page: number, status: string, q: string, signal: AbortSignal) => {
+  const loadTransactions = useCallback(async (page: number, status: string, q: string, service: string, signal: AbortSignal) => {
     setTxLoading(true);
     setTxError(false);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (status !== 'all') params.set('status', status);
+      if (service !== 'all') params.set('service', service);
       if (q.trim()) params.set('q', q.trim());
       const transactionsResponse = await fetch(`${API_URL}/api/professional/transactions?${params.toString()}`, {
         credentials: 'include', signal,
@@ -503,11 +521,19 @@ function ProfessionalPaymentsView() {
       if (!transactionsData.success) throw new Error("Transactions request failed");
       setRecentTransactions(transactionsData.data);
       setTxTotalPages(transactionsData.pagination?.totalPages || 1);
+      setTxStatusCounts(readFacetCounts(transactionsData.statusCounts));
+      setTxServiceCounts(readFacetCounts(transactionsData.serviceCounts));
+      if (Array.isArray(transactionsData.services)) {
+        setTxServices(transactionsData.services.filter((svc: unknown): svc is string => typeof svc === 'string' && svc.length > 0));
+      }
       setTxPage(Math.min(transactionsData.pagination?.page || page, Math.max(1, transactionsData.pagination?.totalPages || 1)));
     } catch {
       // Keep the requested page (Refresh repeats it) but drop the rows and the
       // page count: both belonged to an earlier query.
-      if (!signal.aborted) { setRecentTransactions([]); setTxTotalPages(1); setTxError(true); }
+      if (!signal.aborted) {
+        setRecentTransactions([]); setTxTotalPages(1); setTxError(true);
+        setTxStatusCounts(null); setTxServiceCounts(null);
+      }
     } finally {
       if (!signal.aborted) setTxLoading(false);
     }
@@ -515,9 +541,9 @@ function ProfessionalPaymentsView() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadTransactions(txPage, txStatusFilter, txDebouncedSearch, controller.signal);
+    void loadTransactions(txPage, txStatusFilter, txDebouncedSearch, txServiceFilter, controller.signal);
     return () => controller.abort();
-  }, [txPage, txStatusFilter, txDebouncedSearch, txReloadKey, loadTransactions]);
+  }, [txPage, txStatusFilter, txDebouncedSearch, txServiceFilter, txReloadKey, loadTransactions]);
 
   const loadPaymentData = async () => {
     setCheckingAccount(true);
@@ -754,19 +780,30 @@ function ProfessionalPaymentsView() {
                 onChange={e => setTxSearch(e.target.value)}
                 className="md:max-w-sm"
               />
+              <Select value={txServiceFilter} onValueChange={(val) => { setTxServiceFilter(val); setTxPage(1); }}>
+                <SelectTrigger className="w-48" aria-label={t('payments.table.filterService')}>
+                  <SelectValue placeholder={t('payments.table.filterService')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('payments.table.allServices')}</SelectItem>
+                  {txServices.map((svc) => (
+                    <SelectItem key={svc} value={svc}>{withFacetCount(svc, txServiceCounts, svc)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={txStatusFilter} onValueChange={(val) => { setTxStatusFilter(val); setTxPage(1); }}>
                 <SelectTrigger className="w-56">
                   <SelectValue placeholder={t('common.filterStatus')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t('payments.status.all')}</SelectItem>
-                  <SelectItem value="pending">{t('payments.status.pending')}</SelectItem>
-                  <SelectItem value="authorized">{t('payments.status.authorized')}</SelectItem>
-                  <SelectItem value="completed">{t('payments.status.completed')}</SelectItem>
-                  <SelectItem value="transfer_pending">{t('payments.professional.transferPending')}</SelectItem>
-                  <SelectItem value="transfer_failed">{t('payments.professional.transferFailed')}</SelectItem>
-                  <SelectItem value="refunded">{t('payments.status.refunded')}</SelectItem>
-                  <SelectItem value="failed">{t('payments.status.failed')}</SelectItem>
+                  <SelectItem value="pending">{withFacetCount(t('payments.status.pending'), txStatusCounts, 'pending')}</SelectItem>
+                  <SelectItem value="authorized">{withFacetCount(t('payments.status.authorized'), txStatusCounts, 'authorized')}</SelectItem>
+                  <SelectItem value="completed">{withFacetCount(t('payments.status.completed'), txStatusCounts, 'completed')}</SelectItem>
+                  <SelectItem value="transfer_pending">{withFacetCount(t('payments.professional.transferPending'), txStatusCounts, 'transfer_pending')}</SelectItem>
+                  <SelectItem value="transfer_failed">{withFacetCount(t('payments.professional.transferFailed'), txStatusCounts, 'transfer_failed')}</SelectItem>
+                  <SelectItem value="refunded">{withFacetCount(t('payments.status.refunded'), txStatusCounts, 'refunded')}</SelectItem>
+                  <SelectItem value="failed">{withFacetCount(t('payments.status.failed'), txStatusCounts, 'failed')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -791,7 +828,7 @@ function ProfessionalPaymentsView() {
                   </div>
                 ))}
               </div>
-            ) : recentTransactions.length === 0 && (txStatusFilter !== 'all' || txDebouncedSearch.trim()) ? (
+            ) : recentTransactions.length === 0 && (txStatusFilter !== 'all' || txServiceFilter !== 'all' || txDebouncedSearch.trim()) ? (
               // A filter or search matched nothing; the professional may still have transactions.
               <p className="py-8 text-center text-sm text-gray-500">{t('payments.table.empty')}</p>
             ) : recentTransactions.length === 0 ? (

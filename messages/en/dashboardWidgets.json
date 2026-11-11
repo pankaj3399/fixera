@@ -476,7 +476,21 @@
     "colActions": "Quick actions",
     "colDetails": "Details",
     "bookingsTableLabel": "Bookings",
-    "quotesTableLabel": "Quotations"
+    "quotesTableLabel": "Quotations",
+    "priceModels": {
+      "fixed": "Fixed Price",
+      "unit": "Unit Based",
+      "rfq": "Request for Quote",
+      "hour": "Per Hour",
+      "day": "Per Day",
+      "meter": "Per Metre",
+      "m2": "Per m²",
+      "room": "Per Room"
+    },
+    "durationUnits": {
+      "hours": "{count, plural, one {# hour} other {# hours}}",
+      "days": "{count, plural, one {# day} other {# days}}"
+    }
   },
   "levelUp": {
     "customerTitle": "Level up!",

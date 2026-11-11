@@ -101,10 +101,13 @@ function quotePriceOf(booking: QuoteRowBooking) {
   return { amount: null, currency: null, source: "not_recorded" as const }
 }
 
-function durationLabel(value: { value?: number; unit?: string } | string | null | undefined): string {
+function durationLabel(
+  value: { value?: number; unit?: string } | string | null | undefined,
+  formatDuration: (value: number, unit: string | null | undefined) => string,
+): string {
   if (!value) return DASH
   if (typeof value === "string") return value || DASH
-  if (typeof value.value === "number") return `${value.value} ${value.unit || ""}`.trim()
+  if (typeof value.value === "number") return formatDuration(value.value, value.unit)
   return DASH
 }
 
@@ -215,7 +218,7 @@ export default function SharedQuotesTable({
                 <td className="px-3 py-3 text-gray-700">
                   {formatUnknownDate(firstStart, intl)}
                 </td>
-                <td className="px-3 py-3 text-gray-700">{durationLabel(duration)}</td>
+                <td className="px-3 py-3 text-gray-700">{durationLabel(duration, th.formatDuration)}</td>
                 <td className="px-3 py-3">
                   <span className="font-semibold text-gray-900">{formatOverviewMoney(quotePriceOf(booking), formatMoney)}</span>
                 </td>

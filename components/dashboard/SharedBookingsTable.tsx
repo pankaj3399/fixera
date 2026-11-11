@@ -337,7 +337,7 @@ export default function SharedBookingsTable({
                 <td className="px-3 py-3 text-gray-700">
                   {formatUnknownDate(booking.actualStartDate, intl)} / {formatUnknownDate(booking.actualEndDate, intl)}
                 </td>
-                <td className="px-3 py-3 text-gray-700">{booking.priceModel || DASH}</td>
+                <td className="px-3 py-3 text-gray-700">{th.formatPriceModel(booking.priceModel) || DASH}</td>
                 <td className="px-3 py-3">
                   <span className="font-semibold text-gray-900">{formatOverviewMoney(paidPriceOf(booking), formatMoney)}</span>
                   {addition.source === "recorded" && addition.amount != null && addition.amount !== 0 && (

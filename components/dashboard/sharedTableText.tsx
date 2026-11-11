@@ -35,5 +35,33 @@ export function useSharedTableText() {
     details: t("tables.colDetails"),
     bookingsTableLabel: t("tables.bookingsTableLabel"),
     quotesTableLabel: t("tables.quotesTableLabel"),
+    /** Recorded price-model token (fixed, unit, rfq, m2…) in the viewer's language; unknown free text stays as recorded. */
+    formatPriceModel: (value: string | null | undefined): string | null => {
+      const key = tablePriceModelKey(value)
+      return key ? t(`tables.priceModels.${key}`) : value || null
+    },
+    /** "3 days" / "3 dagen" / "3 jours"; an unrecognised unit stays as recorded. */
+    formatDuration: (value: number, unit: string | null | undefined): string => {
+      const key = tableDurationUnitKey(unit)
+      return key ? t(`tables.durationUnits.${key}`, { count: value }) : `${value} ${unit || ""}`.trim()
+    },
   }
+}
+
+const TABLE_PRICE_MODELS = ["fixed", "unit", "rfq", "hour", "day", "meter", "m2", "room"] as const
+
+export function tablePriceModelKey(value: string | null | undefined): (typeof TABLE_PRICE_MODELS)[number] | null {
+  if (typeof value !== "string") return null
+  const normalized = value.trim().toLowerCase()
+  return (TABLE_PRICE_MODELS as readonly string[]).includes(normalized)
+    ? (normalized as (typeof TABLE_PRICE_MODELS)[number])
+    : null
+}
+
+export function tableDurationUnitKey(unit: string | null | undefined): "hours" | "days" | null {
+  if (typeof unit !== "string") return null
+  const normalized = unit.trim().toLowerCase()
+  if (["h", "hr", "hrs", "hour", "hours"].includes(normalized)) return "hours"
+  if (["d", "day", "days"].includes(normalized)) return "days"
+  return null
 }
