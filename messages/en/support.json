@@ -142,7 +142,7 @@
     "refreshSlots": "Refresh times",
     "slotRequired": "Choose a time for the meeting.",
     "slotTaken": "That time was just booked. Choose another slot.",
-    "reservedNote": "Your 30-minute slot is reserved when you submit this request. Support adds the meeting link and emails it to you.",
+    "reservedNote": "Your 30-minute slot is reserved when you submit this request. The meeting link is added to your request and emailed to you with the time, right away when support has one ready, otherwise as soon as support adds it.",
     "wasWhen": "Was scheduled for {date}",
     "noScheduledTime": "No meeting time was scheduled.",
     "noReservedTime": "No meeting time is reserved.",
@@ -167,7 +167,11 @@
     "cancelEmailFailed": "Meeting cancelled, but the cancellation email could not be sent.",
     "legacyPreferred": "Preferred times: {times}",
     "legacyResponse": "Support response: {response}",
-    "legacyReadOnly": "This earlier meeting request is read-only."
+    "legacyReadOnly": "This earlier meeting request is read-only.",
+    "createdConfirmed": "Meeting {ticketNumber} is confirmed. The meeting link is in your request.",
+    "createdConfirmedGeneric": "Meeting confirmed. The meeting link is in your request.",
+    "confirmedEmailSent": "Confirmation email with the time and meeting link sent.",
+    "confirmedEmailFailed": "Your meeting is confirmed and the link is shown here, but the confirmation email could not be sent."
   },
   "chat": {
     "emptyTitle": "No support conversation yet",
@@ -188,5 +192,37 @@
     "readOnlyChecking": "Checking whether support chat is available…",
     "readOnlyUnavailable": "We couldn't check support chat availability. Replying is disabled.",
     "recheck": "Check again"
+  },
+  "adminMeetingLink": {
+    "title": "Your default meeting link",
+    "description": "Save your Zoom personal room, Microsoft Teams link or another https meeting link once. It is added to every support meeting booked with you as soon as the professional submits it, and emailed to them with the time.",
+    "label": "Default meeting link",
+    "placeholder": "https://zoom.us/j/…",
+    "save": "Save link",
+    "saving": "Saving…",
+    "clear": "Remove link",
+    "saved": "Default meeting link saved.",
+    "cleared": "Default meeting link removed.",
+    "loading": "Loading your meeting link…",
+    "loadFailed": "Your meeting link settings could not be loaded.",
+    "saveFailed": "Your meeting link could not be saved.",
+    "retry": "Retry",
+    "current": "Saved link · {provider}",
+    "provider": {
+      "zoom": "Zoom",
+      "teams": "Microsoft Teams",
+      "other": "Other"
+    },
+    "missingHint": "You have no default meeting link. Meetings booked with you stay pending until you add a link to each one.",
+    "notReceivingHint": "Professionals cannot book meetings with you yet. Save your availability in your profile to receive support meetings.",
+    "overrideNote": "You can still replace the link on any individual meeting.",
+    "ticketDefaultBadge": "Default link of the assigned admin",
+    "errors": {
+      "required": "Enter a meeting link, or use Remove link.",
+      "invalid": "Enter a complete meeting link starting with https://.",
+      "https": "The meeting link must start with https://.",
+      "credentials": "Meeting links cannot contain a username or password.",
+      "length": "The meeting link must be 500 characters or fewer."
+    }
   }
 }

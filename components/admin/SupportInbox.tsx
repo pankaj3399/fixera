@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ApiRequestError, getErrorMessage } from "@/lib/apiErrors";
 import { useAdminAccess } from "@/hooks/useAdminAccess";
+import { SupportMeetingLinkSourceNote } from "@/components/admin/SupportMeetingLinkSettings";
 import { adminSupportItemMatchesFilters } from "@/lib/support/adminFilters";
 import {
   adminAddSupportNote,
@@ -1249,6 +1250,7 @@ function AdminSupportCard({
                     <ExternalLink size={12} aria-hidden />
                     Open meeting link
                   </a>
+                  <SupportMeetingLinkSourceNote linkSource={meeting.linkSource} />
                   {meeting.linkUpdatedAt ? (
                     <p className="text-slate-500">
                       Link last updated: {formatAdminDate(meeting.linkUpdatedAt)}

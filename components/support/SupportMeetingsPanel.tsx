@@ -27,6 +27,7 @@ import {
   canCancelSupportMeeting,
   supportMeetingJoinUrl,
   supportMeetingPhase,
+  supportMeetingSubmitOutcome,
 } from "@/lib/support/meetingState";
 import SupportRequestFields, {
   type SupportFieldErrors,
@@ -99,6 +100,9 @@ export default function SupportMeetingsPanel({
   const [acknowledgements, setAcknowledgements] = useState<
     Record<string, boolean | null>
   >({});
+  // Items confirmed on submit (assigned admin's default link): their email is
+  // the confirmation with time + link, not the "link follows" acknowledgement.
+  const [confirmedOnSubmit, setConfirmedOnSubmit] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -200,23 +204,34 @@ export default function SupportMeetingsPanel({
           : current,
       );
       setAcknowledgements((current) => ({ ...current, [itemKey]: emailSent }));
+      const confirmed = supportMeetingSubmitOutcome(item.meeting) === "confirmed";
+      setConfirmedOnSubmit((current) => ({ ...current, [itemKey]: confirmed }));
       resetForm();
       setSlotRefreshKey((value) => value + 1);
       // A page-one list request started before creation would otherwise
       // overwrite the prepended item with a stale snapshot.
       retry();
       const number = item.ticketNumber;
-      toast.success(
-        number
-          ? t("meeting.created", { ticketNumber: number })
-          : t("meeting.createdGeneric"),
-      );
-      if (emailSent === false) {
-        toast.warning(
+      if (confirmed) {
+        toast.success(
           number
-            ? t("meeting.ackFailed", { ticketNumber: number })
-            : t("meeting.ackFailedGeneric"),
+            ? t("meeting.createdConfirmed", { ticketNumber: number })
+            : t("meeting.createdConfirmedGeneric"),
         );
+        if (emailSent === false) toast.warning(t("meeting.confirmedEmailFailed"));
+      } else {
+        toast.success(
+          number
+            ? t("meeting.created", { ticketNumber: number })
+            : t("meeting.createdGeneric"),
+        );
+        if (emailSent === false) {
+          toast.warning(
+            number
+              ? t("meeting.ackFailed", { ticketNumber: number })
+              : t("meeting.ackFailedGeneric"),
+          );
+        }
       }
     } catch (error) {
       const code = error instanceof ApiRequestError ? error.code : undefined;
@@ -385,6 +400,7 @@ export default function SupportMeetingsPanel({
                 item={item}
                 viewerTimeZone={viewerTimeZone}
                 emailSent={acknowledgements[item._id || item.id] ?? null}
+                confirmedOnSubmit={confirmedOnSubmit[item._id || item.id] === true}
                 onUpdated={updateItem}
                 onSlotsChanged={() => setSlotRefreshKey((value) => value + 1)}
               />
@@ -414,12 +430,14 @@ function MeetingCard({
   item,
   viewerTimeZone,
   emailSent,
+  confirmedOnSubmit = false,
   onUpdated,
   onSlotsChanged,
 }: {
   item: SupportItem;
   viewerTimeZone: string;
   emailSent: boolean | null;
+  confirmedOnSubmit?: boolean;
   onUpdated: (item: SupportItem) => void;
   onSlotsChanged: () => void;
 }) {
@@ -602,8 +620,12 @@ function MeetingCard({
         <SupportAttachmentLink attachment={item.attachment} />
         <SupportEmailNotice
           emailSent={emailSent}
-          sentLabel={t("meeting.ackEmailSent")}
-          failedLabel={t("meeting.ackEmailFailed")}
+          sentLabel={
+            confirmedOnSubmit ? t("meeting.confirmedEmailSent") : t("meeting.ackEmailSent")
+          }
+          failedLabel={
+            confirmedOnSubmit ? t("meeting.confirmedEmailFailed") : t("meeting.ackEmailFailed")
+          }
         />
 
         {legacy ? (

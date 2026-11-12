@@ -161,13 +161,17 @@
     "ackFailedGeneric": "Rendez-vous enregistré et créneau réservé, mais l'e-mail d'accusé de réception n'a pas pu être envoyé.",
     "ackEmailSent": "E-mail d'accusé de réception envoyé. Le lien de réunion suivra séparément.",
     "ackEmailFailed": "Rendez-vous enregistré et créneau réservé, mais l'e-mail d'accusé de réception n'a pas pu être envoyé.",
-    "reservedNote": "Votre créneau de 30 minutes est réservé dès l'envoi de cette demande. L'assistance ajoute le lien de réunion et vous l'envoie par e-mail.",
+    "reservedNote": "Votre créneau de 30 minutes est réservé dès l'envoi de cette demande. Le lien de réunion est ajouté à votre demande et vous est envoyé par e-mail avec l'heure : immédiatement si l'assistance en a un, sinon dès que l'assistance l'ajoute.",
     "noReservedTime": "Aucune heure de rendez-vous n'est réservée.",
     "reservedWhen": "Créneau réservé : {date}",
     "awaitingLink": "Créneau réservé — en attente de l'ajout du lien de réunion par l'assistance.",
     "assignedTo": "Contact d'assistance : {name}",
     "linkMissing": "Ce rendez-vous est marqué comme planifié, mais aucun lien de réunion n'est enregistré. Contactez l'assistance.",
-    "cancelEmailFailed": "Rendez-vous annulé, mais l'e-mail d'annulation n'a pas pu être envoyé."
+    "cancelEmailFailed": "Rendez-vous annulé, mais l'e-mail d'annulation n'a pas pu être envoyé.",
+    "createdConfirmed": "La réunion {ticketNumber} est confirmée. Le lien de réunion figure dans votre demande.",
+    "createdConfirmedGeneric": "Réunion confirmée. Le lien de réunion figure dans votre demande.",
+    "confirmedEmailSent": "E-mail de confirmation avec l'heure et le lien de réunion envoyé.",
+    "confirmedEmailFailed": "Votre réunion est confirmée et le lien est affiché ici, mais l'e-mail de confirmation n'a pas pu être envoyé."
   },
   "chat": {
     "emptyTitle": "Aucune conversation d'assistance pour le moment",
@@ -188,5 +192,37 @@
     "readOnlyChecking": "Vérification de la disponibilité du chat d'assistance…",
     "readOnlyUnavailable": "Nous n'avons pas pu vérifier la disponibilité du chat d'assistance. Les réponses sont désactivées.",
     "recheck": "Vérifier à nouveau"
+  },
+  "adminMeetingLink": {
+    "title": "Votre lien de réunion par défaut",
+    "description": "Enregistrez une seule fois votre salle personnelle Zoom, votre lien Microsoft Teams ou un autre lien de réunion https. Il est ajouté à chaque réunion d'assistance réservée avec vous dès que le professionnel l'envoie, et lui est envoyé par e-mail avec l'heure.",
+    "label": "Lien de réunion par défaut",
+    "placeholder": "https://zoom.us/j/…",
+    "save": "Enregistrer le lien",
+    "saving": "Enregistrement…",
+    "clear": "Supprimer le lien",
+    "saved": "Lien de réunion par défaut enregistré.",
+    "cleared": "Lien de réunion par défaut supprimé.",
+    "loading": "Chargement de votre lien de réunion…",
+    "loadFailed": "Les paramètres de votre lien de réunion n'ont pas pu être chargés.",
+    "saveFailed": "Votre lien de réunion n'a pas pu être enregistré.",
+    "retry": "Réessayer",
+    "current": "Lien enregistré · {provider}",
+    "provider": {
+      "zoom": "Zoom",
+      "teams": "Microsoft Teams",
+      "other": "Autre"
+    },
+    "missingHint": "Vous n'avez pas de lien de réunion par défaut. Les réunions réservées avec vous restent en attente jusqu'à ce que vous ajoutiez un lien à chacune.",
+    "notReceivingHint": "Les professionnels ne peuvent pas encore réserver de réunion avec vous. Enregistrez vos disponibilités dans votre profil pour recevoir des réunions d'assistance.",
+    "overrideNote": "Vous pouvez toujours remplacer le lien de chaque réunion.",
+    "ticketDefaultBadge": "Lien par défaut de l'administrateur assigné",
+    "errors": {
+      "required": "Saisissez un lien de réunion, ou utilisez Supprimer le lien.",
+      "invalid": "Saisissez un lien de réunion complet commençant par https://.",
+      "https": "Le lien de réunion doit commencer par https://.",
+      "credentials": "Les liens de réunion ne peuvent pas contenir de nom d'utilisateur ni de mot de passe.",
+      "length": "Le lien de réunion doit contenir 500 caractères au maximum."
+    }
   }
 }
