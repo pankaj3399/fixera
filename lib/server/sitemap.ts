@@ -4,6 +4,8 @@ import { absoluteUrl } from "@/lib/seo/site";
 import { localeAlternateUrls, localizedPath } from "@/lib/seo/localeUrls";
 import { publicListSitemapEntries, type CmsContentType } from "@/lib/cms";
 import { serviceCategories } from "@/data/content";
+import { fetchLiveServiceCategories } from "@/lib/catalog/liveServiceCategories";
+import { CATALOG_HOME_COUNTRY } from "@/lib/catalog/resolveCategory";
 import {
   SITEMAP_ENTITY_CHUNK_SIZE,
   SITEMAP_ENTITY_MAX_CHUNKS,
@@ -60,6 +62,13 @@ const STATIC_ROUTES: Array<{ path: string; changeFrequency: Entry["changeFrequen
   { path: "/professionals", changeFrequency: "daily", priority: 0.7 },
   { path: "/join", changeFrequency: "monthly", priority: 0.6 },
 ];
+
+/**
+ * Crawlers have no content country, so category URLs come from the platform's home
+ * catalog (the category route's default country).
+ */
+const SITEMAP_CATALOG_COUNTRY = CATALOG_HOME_COUNTRY;
+const SITEMAP_CATALOG_TIMEOUT_MS = 10_000;
 
 const STATIC_ROUTE_PATHS = new Set<string>(STATIC_ROUTES.map((r) => r.path));
 
@@ -143,7 +152,7 @@ function dedupeByUrl(entries: Sitemap): Sitemap {
 /**
  * Every content path, once, in a fixed order. Static routes, service and category pages
  * and CMS pages share this list, so the content files can be chunked by path count.
- * Throws when the CMS listing cannot be read: a partial list must never be cached.
+ * Throws when the CMS listing or the live catalog cannot be read: a partial list must never be cached.
  */
 async function loadContentPaths(): Promise<ContentPath[]> {
   const byPath = new Map<string, ContentPath>();
@@ -157,8 +166,14 @@ async function loadContentPaths(): Promise<ContentPath[]> {
   for (const r of STATIC_ROUTES) {
     add(r.path, { changeFrequency: r.changeFrequency, priority: r.priority });
   }
+  // Category pages exist only for live catalog slugs (the static marketing slugs in
+  // data/content redirect to /services), so they come from the same live catalog the
+  // category route resolves against. A failed read throws like a failed CMS read.
+  for (const cat of await fetchLiveServiceCategories(SITEMAP_CATALOG_COUNTRY, SITEMAP_CATALOG_TIMEOUT_MS)) {
+    add(`/categories/${encodeURIComponent(cat.slug)}`, { changeFrequency: "weekly", priority: 0.6 });
+  }
+  // Static service landing pages render for every id (CMS content or the static copy).
   for (const cat of serviceCategories) {
-    add(`/categories/${cat.slug}`, { changeFrequency: "weekly", priority: 0.6 });
     for (const sub of cat.subCategories || []) {
       for (const svc of sub.services || []) {
         add(`/services/${svc.id}`, { changeFrequency: "weekly", priority: 0.7 });
@@ -209,7 +224,7 @@ export async function planSitemapFiles(): Promise<SitemapPlan> {
   } catch (err) {
     complete = false;
     console.error(
-      "[sitemap] CMS fetch failed; static, service and CMS files are left out of the sitemap index until the next request. event=sitemap.cms.fetch_failure",
+      "[sitemap] CMS or catalog fetch failed; static, service and CMS files are left out of the sitemap index until the next request. event=sitemap.cms.fetch_failure",
       err,
     );
   }
@@ -244,7 +259,7 @@ async function contentFile(index: number): Promise<Sitemap> {
     paths = await loadContentPaths();
   } catch (err) {
     console.error(
-      "[sitemap] CMS fetch failed; this content file is not served, so no partial sitemap is cached. event=sitemap.cms.fetch_failure",
+      "[sitemap] CMS or catalog fetch failed; this content file is not served, so no partial sitemap is cached. event=sitemap.cms.fetch_failure",
       err,
     );
     throw err;

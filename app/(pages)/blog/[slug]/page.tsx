@@ -1,4 +1,4 @@
-import Image from "next/image";
+import CoverImage from "@/components/cms/CoverImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
@@ -84,9 +84,10 @@ export default async function BlogDetailPage({ params }: Props) {
       </div>
 
       {post.coverImage && (
-        <div className="mx-auto mt-4 max-w-5xl px-6">
+        // Hidden (no empty frame) when the cover file is missing and CoverImage renders nothing.
+        <div className="mx-auto mt-4 hidden max-w-5xl px-6 has-[img]:block">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <Image
+            <CoverImage
               src={post.coverImage}
               alt={cmsCoverAlt(post)}
               width={1280}

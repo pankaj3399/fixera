@@ -22,7 +22,7 @@ const ProfessionalsHero = () => {
 
   return (
     <section className="relative bg-gray-900 text-white pt-32  pb-28 overflow-hidden">
-      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-10 [mask-image:linear-gradient(to_bottom,white,rgba(255,255,255,0))]"></div>
+      <div className="absolute inset-0 bg-grid-pattern opacity-10 [mask-image:linear-gradient(to_bottom,white,rgba(255,255,255,0))]"></div>
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
           {t('prosPage.hero.title')}

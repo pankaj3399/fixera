@@ -28,7 +28,7 @@ const CTASection = async () => {
 
   return (
     <section id="cta" className="py-24 bg-gray-50 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-5"></div>
+      <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">

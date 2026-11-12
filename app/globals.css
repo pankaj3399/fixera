@@ -2,6 +2,15 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
+/* Decorative grid lines drawn in the text colour (no image request). */
+@utility bg-grid-pattern {
+  background-image:
+    linear-gradient(to right, currentColor 1px, transparent 1px),
+    linear-gradient(to bottom, currentColor 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

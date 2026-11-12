@@ -226,6 +226,10 @@ function entityBackend(totals, { failCount = [] } = {}) {
         data: { type, items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasMore: start + count < total } },
       })
     }
+    if (url.pathname === '/api/service-categories/active') {
+      // The live catalog the category pages resolve against.
+      return json([{ name: 'Interior', slug: 'interior', services: [{ name: 'Painting', slug: 'painting' }] }])
+    }
     if (url.pathname === '/api/public/cms/sitemap') {
       // An empty CMS listing: the content file holds the static pages only.
       return json({ success: true, data: { items: [], pagination: { page: 1, limit: 1000, total: 0, totalPages: 0, hasMore: false } } })
@@ -298,6 +302,8 @@ test('static file lists every page in every language with alternates and no dead
     assert.ok(list.includes('https://example.test/en'))
     assert.ok(list.includes('https://example.test/nl/services'))
     assert.ok(list.includes('https://example.test/fr/professionals'))
+    assert.ok(list.includes('https://example.test/nl/categories/interior'), 'live catalog category listed')
+    assert.ok(!list.some((url) => url.endsWith('/categories/interior-services')), 'no static marketing category slug')
     assert.ok(!list.includes('https://example.test/nl/search'))
     for (const dead of ['categories', 'projects', 'search']) {
       assert.ok(!list.some((url) => url.endsWith(`/${dead}`)), `${dead} must not be listed`)

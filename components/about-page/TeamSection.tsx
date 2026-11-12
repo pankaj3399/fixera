@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 import { teamMembers } from '@/data/content';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from '@/components/ui/card';
 
 /** Role labels live in the `content` namespace, in the same order as the data. */
@@ -25,7 +25,6 @@ const TeamSection = () => {
               <Card key={member.name} className="text-center border-0 shadow-lg hover:shadow-xl transition-shadow">
                 <CardContent className="p-6">
                   <Avatar className="w-32 h-32 mx-auto mb-4 ring-4 ring-blue-100">
-                    <AvatarImage src={member.image} alt={member.name} />
                     <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                   </Avatar>
                   <h3 className="text-xl font-semibold text-gray-900">{member.name}</h3>

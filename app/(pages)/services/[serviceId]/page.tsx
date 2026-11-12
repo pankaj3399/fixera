@@ -19,6 +19,7 @@ import { CmsContent, cmsCoverAlt, humanizeCmsSlug } from '@/lib/cms';
 import { publicGetCms, publicListCms } from '@/lib/cms/public';
 import RichTextRenderer from '@/components/cms/RichTextRenderer';
 import BlogCard from '@/components/cms/BlogCard';
+import CoverImage from '@/components/cms/CoverImage';
 import PopularProjectsCarousel from '@/components/PopularProjectsCarousel';
 import { PopularProjectsCarouselSkeleton } from '@/components/home/PopularProjectsCarouselSkeleton';
 import ServiceLandingSearch from '@/components/services/ServiceLandingSearch';
@@ -186,9 +187,10 @@ export default async function Page({ params }: Props) {
             { name: landing.title, path: safePath },
           ])}
         />
-        <div className="relative h-[28rem] md:h-[32rem] w-full">
-          <Image
+        <div className="relative h-[28rem] md:h-[32rem] w-full bg-gray-800">
+          <CoverImage
             src={coverSrc}
+            fallbackSrc={getServiceCoverImage(serviceId, meta?.categorySlug)}
             alt={landing.coverImage ? cmsCoverAlt(landing) : (landing.title || humanizeCmsSlug(serviceId))}
             fill
             className="object-cover"
