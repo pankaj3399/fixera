@@ -38,6 +38,8 @@ export interface ChatConversation {
   lastMessageAt?: string;
   lastMessagePreview?: string;
   lastMessageSenderId?: string;
+  /** Sent when the preview reads like the close notice: "system" only for the real notice. */
+  lastMessageSenderRole?: "customer" | "professional" | "system" | "admin";
   customerUnreadCount: number;
   professionalUnreadCount: number;
   createdAt: string;

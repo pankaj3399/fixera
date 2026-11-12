@@ -59,3 +59,32 @@ test('the chat thread shows the close notice translated and in the viewer local 
   assert.match(en, /Chat closed on [^<]*2026[^<]*02:35/)
   assert.doesNotMatch(en, /00:35 UTC/)
 })
+
+// Any participant could send "Chat closed on 1 Jan 2026, 00:00 UTC" and the
+// other side's conversation list showed the translated "Chat closed" preview.
+// The list now applies the thread's check: only the system message counts.
+test('the conversation list shows the closed preview only for the system close notice', async () => {
+  const ChatList = (await import('@/components/chat/ChatList')).default
+  const spoof = 'Chat closed on 1 Jan 2026, 00:00 UTC'
+  const conversation = (lastMessageSenderRole) => ({
+    _id: 'c1', type: 'direct', initiatedBy: 'customer1', status: 'active', starredBy: [], archivedBy: [], labels: [],
+    customerUnreadCount: 0, professionalUnreadCount: 0, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    lastMessagePreview: spoof, lastMessageSenderId: 'customer1', lastMessageSenderRole,
+    customerId: { _id: 'customer1', name: 'Customer One', email: 'customer@example.com' },
+    professionalId: { _id: 'pro1', name: 'Pro One', email: 'pro@example.com' },
+  })
+  const render = (row) => renderToStaticMarkup(
+    React.createElement(NextIntlClientProvider, { locale: 'nl', timeZone: 'UTC', messages: { chat: chatMessages('nl') } },
+      React.createElement(currency.CurrencyProvider, { initialCurrency: 'EUR', initialRates: { EUR: 1 }, refreshRates: false },
+        React.createElement(ChatList, {
+          conversations: [row], selectedConversationId: null, currentUserRole: 'professional', currentUserId: 'pro1',
+          filter: 'all', userLabels: [], onSelect() {}, onFilterChange() {}, onToggleStar() {}, onToggleArchive() {},
+          onAddLabel() {}, onRemoveLabel() {},
+        }))))
+  for (const role of [undefined, 'customer', 'admin']) {
+    const html = render(conversation(role))
+    assert.match(html, /Chat closed on 1 Jan 2026, 00:00 UTC/, String(role))
+    assert.doesNotMatch(html, /Chat gesloten/, String(role))
+  }
+  assert.match(render(conversation('system')), /Chat gesloten/)
+})

@@ -104,10 +104,26 @@ const countryNameVariants = (value: string): string[] => {
 }
 
 /**
+ * Whole-segment forms of an address segment: the segment itself and, for a
+ * combined "postcode city" / "city postcode" segment, each leading and trailing
+ * run of its words ("2000 Antwerpen" also stands for "2000" and "Antwerpen").
+ */
+const segmentForms = (segment: string): string[] => {
+  const words = addressWords(segment).split(" ").filter(Boolean)
+  const forms = [words.join(" ")]
+  for (let k = 1; k < words.length; k += 1) forms.push(words.slice(0, k).join(" "), words.slice(k).join(" "))
+  return forms
+}
+
+/**
  * One-line service address. A Google-formatted street address ("Meir 1, 2000
  * Antwerpen, Belgium") already names the city, postcode and country, and older
  * bookings stored the profile address with those parts appended again; each
- * part is shown once, in its first position.
+ * part is shown once, in its first position. A part is dropped only when it
+ * matches a whole segment already added after the street (case, accents and
+ * spacing ignored; "BE" matches "Belgium"), never because the street name
+ * contains the same word ("Rue de Namur 12" in Namur). Mirrors the backend's
+ * joinAddress (fixera-server src/utils/bookingDetails/overviewRows.ts).
  */
 export function joinServiceAddress(location: unknown): string | null {
   const record = asRecord(location)
@@ -119,11 +135,13 @@ export function joinServiceAddress(location: unknown): string | null {
     record.country,
   ]
   const kept: string[] = []
+  const seen = new Set<string>()
   for (const segment of segments) {
     if (typeof segment !== "string" || !segment.trim()) continue
-    const haystack = ` ${addressWords(kept.join(" "))} `
     const variants = [segment, ...countryNameVariants(segment)].map(addressWords).filter(Boolean)
-    if (variants.length === 0 || variants.some((variant) => haystack.includes(` ${variant} `))) continue
+    if (variants.length === 0 || variants.some((variant) => seen.has(variant))) continue
+    // The first kept segment is the street; only later segments name the city, postcode or country.
+    if (kept.length > 0) for (const form of segmentForms(segment)) seen.add(form)
     kept.push(segment.trim())
   }
   return kept.length > 0 ? kept.join(", ") : null

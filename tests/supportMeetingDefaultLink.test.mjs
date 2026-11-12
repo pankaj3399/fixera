@@ -15,9 +15,6 @@ function harness({ canWriteSupport = true, loaded, onUpdate } = {}) {
   const toasts = []
   const updates = []
   const h = componentHarness(settingsFile, {
-    'next-intl': {
-      useTranslations: () => (key, values) => (values ? `${key}:${JSON.stringify(values)}` : key),
-    },
     sonner: {
       toast: {
         success: (message) => toasts.push(['success', message]),
@@ -25,7 +22,7 @@ function harness({ canWriteSupport = true, loaded, onUpdate } = {}) {
       },
     },
     '@/hooks/useAdminAccess': { useAdminAccess: () => ({ canWriteSupport }) },
-    '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_error, fallback) => fallback },
+    '@/lib/apiErrors': { getErrorMessage: (_error, fallback) => fallback },
     '@/lib/support': {
       adminGetSupportMeetingLinkSettings: async () => loaded,
       adminUpdateSupportMeetingLinkSettings: async (value) => {
@@ -56,17 +53,17 @@ test('settings card warns when the admin has no default link and saves a valid h
   await h.settle()
 
   assert.equal(byTestId(h, 'support-meeting-link-missing').length, 1)
-  assert.match(elementText(byTestId(h, 'support-meeting-link-missing')[0]), /missingHint/)
-  assert.equal(button(h, 'clear'), undefined)
-  assert.equal(button(h, 'save').props.disabled, true)
+  assert.match(elementText(byTestId(h, 'support-meeting-link-missing')[0]), /You have no default meeting link/)
+  assert.equal(button(h, 'Remove link'), undefined)
+  assert.equal(button(h, 'Save link').props.disabled, true)
 
-  // Invalid input is rejected client-side with a translated message.
+  // Invalid input is rejected client-side with an English message.
   input(h).props.onChange({ target: { value: 'http://zoom.us/j/1' } })
   await h.settle()
   await submit(h)
   assert.deepEqual(updates, [])
   assert.equal(input(h).props['aria-invalid'], true)
-  assert.match(elementText(h.findAll((n) => n.props.role === 'alert')[0]), /errors\.https/)
+  assert.match(elementText(h.findAll((n) => n.props.role === 'alert')[0]), /^The meeting link must start with https:\/\/\.$/)
 
   input(h).props.onChange({ target: { value: ` ${ZOOM} ` } })
   await h.settle()
@@ -74,14 +71,10 @@ test('settings card warns when the admin has no default link and saves a valid h
   await submit(h)
 
   assert.deepEqual(updates, [` ${ZOOM} `])
-  assert.deepEqual(toasts, [['success', 'saved']])
+  assert.deepEqual(toasts, [['success', 'Default meeting link saved.']])
   assert.equal(byTestId(h, 'support-meeting-link-missing').length, 0)
   assert.equal(input(h).props.value, ZOOM)
-  assert.ok(h.findAll((n) => elementText(n).startsWith('current:')).length > 0)
-  assert.match(
-    h.findAll((n) => typeof n.props.children === 'string' && n.props.children.startsWith('current:'))[0].props.children,
-    /provider\.zoom/,
-  )
+  assert.ok(h.findAll((n) => elementText(n) === 'Saved link · Zoom').length > 0)
   h.unmount()
 })
 
@@ -94,14 +87,14 @@ test('settings card clears an existing link and flags admins who cannot receive 
   await h.settle()
 
   assert.equal(byTestId(h, 'support-meeting-link-missing').length, 0)
-  assert.ok(h.findAll((n) => elementText(n) === 'notReceivingHint').length > 0)
+  assert.ok(h.findAll((n) => /^\s*Professionals cannot book meetings with you yet/.test(elementText(n))).length > 0)
   // Unchanged value cannot be re-saved; removing is explicit.
-  assert.equal(button(h, 'save').props.disabled, true)
-  button(h, 'clear').props.onClick()
+  assert.equal(button(h, 'Save link').props.disabled, true)
+  button(h, 'Remove link').props.onClick()
   await h.settle()
 
   assert.deepEqual(updates, [''])
-  assert.deepEqual(toasts, [['success', 'cleared']])
+  assert.deepEqual(toasts, [['success', 'Default meeting link removed.']])
   assert.equal(byTestId(h, 'support-meeting-link-missing').length, 1)
   h.unmount()
 })
@@ -109,10 +102,9 @@ test('settings card clears an existing link and flags admins who cannot receive 
 test('settings card is hidden for admins without support write access', async () => {
   let loadedCalls = 0
   const h = componentHarness(settingsFile, {
-    'next-intl': { useTranslations: () => (key) => key },
     sonner: { toast: { success() {}, error() {} } },
     '@/hooks/useAdminAccess': { useAdminAccess: () => ({ canWriteSupport: false }) },
-    '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_e, f) => f },
+    '@/lib/apiErrors': { getErrorMessage: (_e, f) => f },
     '@/lib/support': {
       adminGetSupportMeetingLinkSettings: async () => { loadedCalls += 1; return null },
       adminUpdateSupportMeetingLinkSettings: async () => null,
@@ -126,15 +118,14 @@ test('settings card is hidden for admins without support write access', async ()
 
 test('ticket display marks a link that came from the assigned admin default', () => {
   const h = componentHarness(settingsFile, {
-    'next-intl': { useTranslations: () => (key) => key },
     sonner: { toast: {} },
     '@/hooks/useAdminAccess': { useAdminAccess: () => ({ canWriteSupport: true }) },
-    '@/lib/i18n/useErrorMessage': { useErrorMessage: () => () => '' },
+    '@/lib/apiErrors': { getErrorMessage: () => '' },
     '@/lib/support': {},
     '@/lib/support/validation': { validateSupportMeetingLink },
   })
   h.useComponent(h.exports.SupportMeetingLinkSourceNote)
-  assert.match(elementText(h.render({ linkSource: 'admin_default' })), /ticketDefaultBadge/)
+  assert.match(elementText(h.render({ linkSource: 'admin_default' })), /Default link of the assigned admin/)
   assert.equal(h.render({ linkSource: 'manual' }), null)
   assert.equal(h.render({ linkSource: null }), null)
 
@@ -142,6 +133,15 @@ test('ticket display marks a link that came from the assigned admin default', ()
   assert.match(inbox, /<SupportMeetingLinkSourceNote linkSource=\{meeting\.linkSource\} \/>/)
   const page = readFileSync(new URL('../app/(pages)/admin/support/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /<SupportMeetingLinkSettings \/>/)
+})
+
+// The admin UI is English-only: an admin with a nl/fr locale cookie saw this
+// card and the ticket badge in Dutch/French inside the English inbox. The
+// harness provides no next-intl, so a locale-following import would fail above.
+test('the admin meeting-link card and ticket badge are English regardless of the visitor locale', () => {
+  const source = readFileSync(settingsFile, 'utf8')
+  assert.doesNotMatch(source, /from "(next-intl|@\/lib\/i18n\/useErrorMessage)"/)
+  assert.match(source, /getErrorMessage\(error, "Your meeting link could not be saved\."\)/)
 })
 
 test('a meeting confirmed on submit shows the confirmation copy, a pending one the acknowledgement', () => {

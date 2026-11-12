@@ -48,3 +48,14 @@ test('the booking overview passes the normalised price model to its enum label',
   const source = readFileSync(new URL('../components/booking/details/OverviewPanel.tsx', import.meta.url), 'utf8')
   assert.match(source, /prefix="details\.enums\.pricingType" value=\{priceModelKey\(details\?\.booking\?\.priceModel\) \?\? details\?\.booking\?\.priceModel\}/)
 })
+
+// The legacy service option "Total price or m² of material" was labelled
+// "Fixed price"; text naming more than one model is now shown as recorded.
+// Same cases as fixera-server's normalizePriceModel test.
+test('a price model text naming several models has no single translated token', () => {
+  for (const [text, key] of [
+    ['Fixed Price', 'fixed'], ['Price per hour', 'hour'], ['m2', 'm2'], ['Price per square metre', 'm2'],
+    ['Total price or m² of material', null], ['Total price or m² of material or per hour', null], ['Something bespoke', null],
+  ]) assert.equal(priceModelKey(text), key, text)
+  assert.equal(tablePriceModelKey('Total price or m² of material'), null)
+})

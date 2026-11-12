@@ -20,6 +20,16 @@ test('the service address shows each part once', () => {
   assert.equal(joinServiceAddress(null), null)
 })
 
+// A city or postcode that only appears inside the street name was dropped,
+// also from the profile address the wizard sends with the booking.
+test('a city or postal code inside the street name is kept', () => {
+  assert.equal(joinServiceAddress({ address: 'Rue de Namur 12', city: 'Namur', postalCode: '5000', country: 'BE' }), 'Rue de Namur 12, Namur, 5000, BE')
+  assert.equal(joinServiceAddress({ address: 'Kerkstraat 1000', city: 'Brussel', postalCode: '1000', country: 'BE' }), 'Kerkstraat 1000, Brussel, 1000, BE')
+  // Repeats of a later segment are still dropped, whitespace and case ignored.
+  assert.equal(joinServiceAddress({ address: 'Rue de Namur 12, 5000  NAMUR', city: 'Namur', postalCode: '5000', country: 'BE' }), 'Rue de Namur 12, 5000  NAMUR, BE')
+  assert.equal(joinServiceAddress({ address: 'Meir 1, Antwerpen', city: ' antwerpen ', postalCode: '2000', country: 'Belgium' }), 'Meir 1, Antwerpen, 2000, Belgium')
+})
+
 test('the booking wizard builds the profile service address with the same join', () => {
   const source = readFileSync(new URL('../components/project/ProjectBookingForm.tsx', import.meta.url), 'utf8')
   assert.match(source, /const profileAddress = useMemo\(\(\) => joinServiceAddress\(user\?\.location\) \?\? ''/)
