@@ -5,6 +5,10 @@ export type ApiErrorBody = {
   error?: string | { message?: string; code?: string };
   code?: string;
   field?: 'email' | 'phone' | 'name' | string;
+  /** Stable catalog key of the message (sent with an explicit Accept-Language). */
+  messageKey?: string;
+  /** English source copy when `msg`/`message` was localized by the API. */
+  messageEn?: string;
   status?: number;
   statusCode?: number;
 };
@@ -35,6 +39,8 @@ export type ErrorMessages = Partial<Record<ApiErrorKind, string>>;
 
 type ErrorDetails = {
   message?: string;
+  /** English source of a localized server message (classification only). */
+  sourceMessage?: string;
   status?: number;
   code?: string;
   kind?: ApiErrorKind;
@@ -50,10 +56,21 @@ export class ApiRequestError extends Error {
    * server copy unless it is explicitly carried here.
    */
   readonly serverMessage?: string;
+  /**
+   * English source of `serverMessage` when the API localized it (nl/fr).
+   * Used for classification and stable matching, never displayed.
+   */
+  readonly serverMessageEn?: string;
 
   constructor(
     message: string,
-    options: { kind?: ApiErrorKind; status?: number; code?: string; serverMessage?: string } = {},
+    options: {
+      kind?: ApiErrorKind;
+      status?: number;
+      code?: string;
+      serverMessage?: string;
+      serverMessageEn?: string;
+    } = {},
   ) {
     super(message);
     this.name = 'ApiRequestError';
@@ -61,6 +78,7 @@ export class ApiRequestError extends Error {
     this.status = options.status;
     this.code = options.code;
     this.serverMessage = options.serverMessage;
+    this.serverMessageEn = options.serverMessageEn;
   }
 }
 
@@ -236,7 +254,7 @@ function asFiniteStatus(value: unknown): number | undefined {
   return Number.isInteger(n) && n >= 400 && n <= 599 ? n : undefined;
 }
 
-function bodyDetails(body: unknown): { message?: string; code?: string; status?: number } {
+function bodyDetails(body: unknown): { message?: string; sourceMessage?: string; code?: string; status?: number } {
   const record = asRecord(body);
   if (!record) return {};
 
@@ -268,8 +286,13 @@ function bodyDetails(body: unknown): { message?: string; code?: string; status?:
       .join(' ');
   }
 
+  // The API localizes `msg`/`message` by Accept-Language and then carries the
+  // English copy in `messageEn`; classification keeps working on English.
+  const sourceMessage = message ? asTrimmedString(record.messageEn) : undefined;
+
   return {
     message,
+    ...(sourceMessage ? { sourceMessage } : {}),
     code,
     status: asFiniteStatus(record.status) ?? asFiniteStatus(record.statusCode),
   };
@@ -279,6 +302,7 @@ function detailsFrom(error: unknown): ErrorDetails {
   if (error instanceof ApiRequestError) {
     return {
       message: error.serverMessage,
+      sourceMessage: error.serverMessageEn,
       status: error.status,
       code: error.code,
       // A default-constructed 'unknown' kind means "no explicit kind": let the
@@ -306,6 +330,7 @@ function detailsFrom(error: unknown): ErrorDetails {
       // The envelope message is more specific than Axios' "Request failed with
       // status code …" wrapper, and is sanitized by the caller either way.
       message: bodyInfo.message ?? asTrimmedString(record.message),
+      sourceMessage: bodyInfo.message ? bodyInfo.sourceMessage : undefined,
       status: asFiniteStatus(record.status) ?? asFiniteStatus(record.statusCode) ?? asFiniteStatus(response?.status) ?? bodyInfo.status,
       code: typeof record.code === 'string' ? record.code : bodyInfo.code,
     };
@@ -320,6 +345,9 @@ function detailsFrom(error: unknown): ErrorDetails {
   const nested = bodyDetails(record);
   return {
     message: response ? bodyInfo.message ?? nested.message : nested.message ?? bodyInfo.message,
+    sourceMessage: response
+      ? (bodyInfo.message ? bodyInfo.sourceMessage : nested.sourceMessage)
+      : (nested.message ? nested.sourceMessage : bodyInfo.sourceMessage),
     status:
       asFiniteStatus(record.status) ??
       asFiniteStatus(record.statusCode) ??
@@ -413,7 +441,7 @@ export function isTransportError(error: unknown): boolean {
   // message that merely mentions a network word.
   if (typeof error === 'string') return false;
   const details = detailsFrom(error);
-  return isNetworkError(error, details.message);
+  return isNetworkError(error, details.sourceMessage ?? details.message);
 }
 
 export type ClassifiedApiError = {
@@ -441,8 +469,12 @@ function genericServerMessageKind(message?: string): ApiErrorKind | undefined {
 
 export function classifyApiError(error: unknown): ClassifiedApiError {
   const details = detailsFrom(error);
-  const safeMessage = safeUserMessage(details.message);
-  const status = details.status ?? inferredStatusFromMessage(details.message);
+  // Classify on the English source copy; show the (possibly localized) copy.
+  const source = details.sourceMessage ?? details.message;
+  const safeMessage = details.sourceMessage
+    ? safeUserMessage(details.sourceMessage) && safeUserMessage(details.message)
+    : safeUserMessage(details.message);
+  const status = details.status ?? inferredStatusFromMessage(source);
 
   if (isAbortError(error)) return { kind: 'canceled', status, code: details.code };
   if (isTimeoutError(error) || (status === 408 || status === 504)) {
@@ -451,7 +483,7 @@ export function classifyApiError(error: unknown): ClassifiedApiError {
 
   // A truncated/empty/HTML body or an already-consumed stream is a malformed
   // response, not server copy and not a raw browser parser error.
-  if (isParserError(error, details.message)) {
+  if (isParserError(error, source)) {
     return { kind: 'invalidResponse', status, code: details.code };
   }
 
@@ -463,7 +495,7 @@ export function classifyApiError(error: unknown): ClassifiedApiError {
 
   if (byStatus && byStatus !== 'unknown') {
     return {
-      kind: authSubkind(byStatus, details.message),
+      kind: authSubkind(byStatus, source),
       status,
       code: details.code,
       message: safeMessage,
@@ -472,19 +504,19 @@ export function classifyApiError(error: unknown): ClassifiedApiError {
 
   if (byCode) {
     return {
-      kind: authSubkind(byCode, details.message),
+      kind: authSubkind(byCode, source),
       status,
       code: details.code,
       message: safeMessage,
     };
   }
 
-  if (isNetworkError(error, details.message)) {
+  if (isNetworkError(error, source)) {
     return { kind: 'network', status, code: details.code };
   }
 
   return {
-    kind: details.kind ?? byStatus ?? genericServerMessageKind(details.message) ?? 'unknown',
+    kind: details.kind ?? byStatus ?? genericServerMessageKind(source) ?? 'unknown',
     status,
     code: details.code,
     message: safeMessage,
@@ -559,6 +591,7 @@ export function apiErrorFromBody(
     status: options.status ?? details.status,
     code: details.code,
     serverMessage: details.message,
+    serverMessageEn: details.sourceMessage,
   });
 }
 

@@ -60,10 +60,12 @@ export function supportChatBlockReasonFromError(
   const candidate = (error || {}) as {
     status?: unknown;
     serverMessage?: unknown;
+    serverMessageEn?: unknown;
     message?: unknown;
   };
   if (candidate.status !== 403) return null;
-  const message = `${candidate.serverMessage || ""} ${candidate.message || ""}`.toLowerCase();
+  // Match on the English source when the API localized its copy.
+  const message = `${candidate.serverMessageEn || candidate.serverMessage || ""} ${candidate.message || ""}`.toLowerCase();
   // Only support-access 403s may block composing. Other 403s (e.g. an
   // attachment rejected by its own rule) must keep their own error.
   if (!message.includes("support")) return null;

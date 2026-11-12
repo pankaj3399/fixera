@@ -456,7 +456,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         return true
       } else {
-        const serverMessage = typeof data?.msg === 'string' ? data.msg : ''
+        // `messageEn` carries the English copy when the API localized `msg`.
+        const serverMessage =
+          typeof data?.messageEn === 'string' ? data.messageEn : typeof data?.msg === 'string' ? data.msg : ''
         toast.error(
           /invalid (?:email|password|credentials)|incorrect (?:email|password)/i.test(serverMessage)
             ? tAuth('login.invalidCredentials')
