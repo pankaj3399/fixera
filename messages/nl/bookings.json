@@ -1197,6 +1197,7 @@
         "undated_quote_version": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "quote_actor_not_recorded": "Een offerteversie heeft geen vastgelegde actor.",
         "legacy_quote_actor_missing": "Een oude offerte heeft geen vastgelegde actor.",
+        "rfq_submission_actor_not_recorded": "De offerteaanvraag heeft geen vastgelegde indiener.",
         "undated_refund": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "refund_vat_split_not_recorded": "Voor minstens één terugbetaling zijn btw en netto niet vastgelegd.",
         "undated_extra_costs": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
@@ -1255,7 +1256,10 @@
         "unit": "Prijs per eenheid",
         "rfq": "Offerte aanvragen",
         "hour": "Per uur",
-        "day": "Per dag"
+        "day": "Per dag",
+        "meter": "Per meter",
+        "m2": "Per m²",
+        "room": "Per kamer"
       },
       "captureSource": {
         "booking_creation": "Bij boeking",

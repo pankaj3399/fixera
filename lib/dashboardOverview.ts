@@ -87,12 +87,46 @@ export function resolveSnapshotTitles(booking: unknown): {
   }
 }
 
+const addressWords = (text: string) =>
+  text.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim()
+
+/** "BE" also reads as Belgium / België / Belgique when the address already names the country. */
+const countryNameVariants = (value: string): string[] => {
+  if (!/^[A-Za-z]{2}$/.test(value.trim())) return []
+  return ["en", "nl", "fr", "de"].flatMap((locale) => {
+    try {
+      const name = new Intl.DisplayNames([locale], { type: "region" }).of(value.trim().toUpperCase())
+      return name ? [name] : []
+    } catch {
+      return []
+    }
+  })
+}
+
+/**
+ * One-line service address. A Google-formatted street address ("Meir 1, 2000
+ * Antwerpen, Belgium") already names the city, postcode and country, and older
+ * bookings stored the profile address with those parts appended again; each
+ * part is shown once, in its first position.
+ */
 export function joinServiceAddress(location: unknown): string | null {
   const record = asRecord(location)
   if (!record) return null
-  const parts = [record.address, record.city, record.postalCode, record.country]
-    .filter((part): part is string => typeof part === "string" && Boolean(part.trim()))
-  return parts.length > 0 ? parts.join(", ") : null
+  const segments = [
+    ...(typeof record.address === "string" ? record.address.split(",") : []),
+    record.city,
+    record.postalCode,
+    record.country,
+  ]
+  const kept: string[] = []
+  for (const segment of segments) {
+    if (typeof segment !== "string" || !segment.trim()) continue
+    const haystack = ` ${addressWords(kept.join(" "))} `
+    const variants = [segment, ...countryNameVariants(segment)].map(addressWords).filter(Boolean)
+    if (variants.length === 0 || variants.some((variant) => haystack.includes(` ${variant} `))) continue
+    kept.push(segment.trim())
+  }
+  return kept.length > 0 ? kept.join(", ") : null
 }
 
 /**

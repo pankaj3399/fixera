@@ -54,6 +54,8 @@ import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
 import { trackBeginCheckout, trackCompleteRfq, trackEvent } from '@/lib/analytics';
 import { hasEnoughFreeWorkingTime } from '@/lib/calendar/dayAvailability';
+import { calendarDateFromKey, calendarDateKey } from '@/lib/calendar/calendarDateKey';
+import { joinServiceAddress } from '@/lib/dashboardOverview';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -604,7 +606,7 @@ export default function ProjectBookingForm({
   // Formats DayPicker/local Date objects in local timezone (date-only value from the picker).
   // Contrast with toLocalDateKeyFromInstant which uses professionalTz for real UTC instants.
   const toLocalDateKey = useCallback(
-    (date: Date) => format(date, 'yyyy-MM-dd'),
+    (date: Date) => calendarDateKey(date),
     []
   );
   // Instant key (treat Date as a real UTC instant from the backend)
@@ -1350,7 +1352,7 @@ export default function ProjectBookingForm({
           return;
         }
 
-        rangeEnd = adjustRangeEndForMidnightUtc(rangeEnd, date, tz, dayEnd);
+        rangeEnd = adjustRangeEndForMidnightUtc(rangeEnd, dayStart, tz, dayEnd);
 
         if (rangeEnd <= dayStart || rangeStart >= dayEnd) {
           return;
@@ -1380,7 +1382,8 @@ export default function ProjectBookingForm({
   ) => {
     const { startTime, endTime } = getWorkingHoursForDate(date);
     const dateStr = toLocalDateKey(date);
-    const dayEnd = addDays(fromProfessionalDateKey(dateStr), 1);
+    const dayStart = fromProfessionalDateKey(dateStr);
+    const dayEnd = addDays(dayStart, 1);
     const tz = professionalTz;
     const workingStart = fromZonedTime(`${dateStr}T${startTime}:00`, tz);
     const workingEnd = fromZonedTime(`${dateStr}T${endTime}:00`, tz);
@@ -1396,7 +1399,7 @@ export default function ProjectBookingForm({
       .map((interval) => {
         const intervalEnd = adjustRangeEndForMidnightUtc(
           interval.end,
-          date,
+          dayStart,
           tz,
           dayEnd
         ).getTime();
@@ -1497,7 +1500,7 @@ export default function ProjectBookingForm({
 
     while (remainingMinutes > 0 && iterations < maxIterations) {
       iterations += 1;
-      const dayStart = fromProfessionalDateKey(toLocalDateKey(cursor));
+      const dayStart = startOfDay(cursor);
       if (isBufferDayBlocked(dayStart)) {
         cursor = addDays(dayStart, 1);
         continue;
@@ -1857,7 +1860,7 @@ export default function ProjectBookingForm({
   const isDateBlocked = (dateString: string): boolean => {
     let dateObj: Date;
     try {
-      dateObj = fromProfessionalDateKey(dateString);
+      dateObj = calendarDateFromKey(dateString);
     } catch {
       return true;
     }
@@ -1908,7 +1911,7 @@ export default function ProjectBookingForm({
     debugSignatureRef.current = signature;
 
     const debugSummary = debugDateKeys.map((dateKey) => {
-      const dateObj = fromProfessionalDateKey(dateKey);
+      const dateObj = calendarDateFromKey(dateKey);
       const isWorking = isProfessionalWorkingDay(dateObj);
       const explicitBlocked = blockedDates.blockedDates.includes(dateKey);
       const intervals = getBlockedIntervalsForDate(dateObj);
@@ -2007,7 +2010,7 @@ export default function ProjectBookingForm({
       : toLocalDateKey(earliest);
     debugLog?.('[getMinDate] Starting from:', earliestKey);
 
-    let checkDate = fromProfessionalDateKey(earliestKey);
+    let checkDate = calendarDateFromKey(earliestKey);
 
     for (let i = 0; i < 120; i++) {
       const isWorkingDay = isProfessionalWorkingDay(checkDate);
@@ -3050,16 +3053,9 @@ export default function ProjectBookingForm({
     typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null;
   const customerLon =
     typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null;
-  const profileAddress = useMemo(() => {
-    if (!user?.location) return '';
-    const parts = [
-      user.location.address,
-      user.location.city,
-      user.location.postalCode,
-      user.location.country,
-    ].filter(Boolean);
-    return parts.join(', ');
-  }, [user]);
+  // A Google-formatted profile address already contains city, postcode and
+  // country; join each part once.
+  const profileAddress = useMemo(() => joinServiceAddress(user?.location) ?? '', [user]);
   const hasProfileAddress = Boolean(profileAddress);
   const confirmedAddress = useMemo(
     () => (useProfileAddress ? profileAddress : manualAddress.trim()),

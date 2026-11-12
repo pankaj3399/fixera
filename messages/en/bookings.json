@@ -1197,6 +1197,7 @@
         "undated_quote_version": "Stored without a date; shown in the undated group.",
         "quote_actor_not_recorded": "A quotation version has no recorded actor.",
         "legacy_quote_actor_missing": "A legacy quotation has no recorded actor.",
+        "rfq_submission_actor_not_recorded": "The quotation request has no recorded submitter.",
         "undated_refund": "Stored without a date; shown in the undated group.",
         "refund_vat_split_not_recorded": "At least one refund has no recorded VAT/net split.",
         "undated_extra_costs": "Stored without a date; shown in the undated group.",
@@ -1255,7 +1256,10 @@
         "unit": "Unit price",
         "rfq": "Request quote",
         "hour": "Per hour",
-        "day": "Per day"
+        "day": "Per day",
+        "meter": "Per metre",
+        "m2": "Per m²",
+        "room": "Per room"
       },
       "captureSource": {
         "booking_creation": "Booking creation",

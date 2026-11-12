@@ -30,5 +30,12 @@
     "server": "Something went wrong on our side. Please try again.",
     "unavailable": "This service is temporarily unavailable. Please try again shortly.",
     "invalidResponse": "We could not complete that request. Please try again."
+  },
+  "notFound": {
+    "metaTitle": "Page not found",
+    "title": "We couldn't find this page",
+    "description": "The page you are looking for does not exist or has been moved. Check the address, or continue from the home page.",
+    "home": "Back to home",
+    "browseServices": "Browse services"
   }
 }

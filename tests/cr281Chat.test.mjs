@@ -24,6 +24,7 @@ for (const staleFails of [false, true]) test(`admin reload ignores a stale same-
     '@/hooks/useAdminUnreadCount': { setAdminActiveConversationId() {}, markAdminConversationSeen() {} },
     '@/lib/anonymizedUsers': { isAnonymizedIdentity: () => false },
     '@/components/admin/AdminSupportInfoPanel': { default: () => null },
+    '@/lib/chat/closeNotice': { isChatClosedNotice: () => false, formatChatClosedAt: () => null },
     sonner: { toast: { error: message => errors.push(message) } },
   })
   const Inner = Page().props.children.type

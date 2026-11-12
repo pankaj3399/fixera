@@ -1197,6 +1197,7 @@
         "undated_quote_version": "Conservé sans date ; affiché dans le groupe sans date.",
         "quote_actor_not_recorded": "Une version de devis n'a pas d'acteur enregistré.",
         "legacy_quote_actor_missing": "Un ancien devis n'a pas d'acteur enregistré.",
+        "rfq_submission_actor_not_recorded": "La demande de devis n'a pas d'auteur enregistré.",
         "undated_refund": "Conservé sans date ; affiché dans le groupe sans date.",
         "refund_vat_split_not_recorded": "Au moins un remboursement n'a pas de répartition TVA/net enregistrée.",
         "undated_extra_costs": "Conservé sans date ; affiché dans le groupe sans date.",
@@ -1255,7 +1256,10 @@
         "unit": "Prix à l'unité",
         "rfq": "Demander un devis",
         "hour": "À l'heure",
-        "day": "À la journée"
+        "day": "À la journée",
+        "meter": "Par mètre",
+        "m2": "Par m²",
+        "room": "Par pièce"
       },
       "captureSource": {
         "booking_creation": "Lors de la réservation",

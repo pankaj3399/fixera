@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { isChatClosedNoticeText } from "@/lib/chat/closeNotice";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Star, Archive, Tag, MoreVertical, X, UserX } from "lucide-react";
@@ -302,7 +303,9 @@ export default function ChatList({
                           <p className="mt-0.5 truncate text-xs text-gray-600">
                             {isRedactedPlaceholderText(conversation.lastMessagePreview)
                               ? t("common.messageDeleted")
-                              : conversation.lastMessagePreview}
+                              : isChatClosedNoticeText(conversation.lastMessagePreview)
+                                ? t("thread.chatClosed")
+                                : conversation.lastMessagePreview}
                           </p>
                         )}
                         {myLabels.length > 0 && (

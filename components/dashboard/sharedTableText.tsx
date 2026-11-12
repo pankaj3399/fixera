@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslations } from "next-intl"
+import { priceModelKey, type PriceModelKey } from "@/lib/priceModel"
 
 /**
  * Shared bookings/quotations table headers from the dashboardWidgets
@@ -48,14 +49,8 @@ export function useSharedTableText() {
   }
 }
 
-const TABLE_PRICE_MODELS = ["fixed", "unit", "rfq", "hour", "day", "meter", "m2", "room"] as const
-
-export function tablePriceModelKey(value: string | null | undefined): (typeof TABLE_PRICE_MODELS)[number] | null {
-  if (typeof value !== "string") return null
-  const normalized = value.trim().toLowerCase()
-  return (TABLE_PRICE_MODELS as readonly string[]).includes(normalized)
-    ? (normalized as (typeof TABLE_PRICE_MODELS)[number])
-    : null
+export function tablePriceModelKey(value: string | null | undefined): PriceModelKey | null {
+  return priceModelKey(value)
 }
 
 export function tableDurationUnitKey(unit: string | null | undefined): "hours" | "days" | null {

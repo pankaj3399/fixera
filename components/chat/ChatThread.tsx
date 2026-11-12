@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { formatChatClosedAt, isChatClosedNotice } from "@/lib/chat/closeNotice";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 import { cn, getAuthToken } from "@/lib/utils";
 import { FileText, Download, Star, MessageSquare, Loader2, Reply, Flag, ShieldCheck, ArrowRight, UserX } from "lucide-react";
@@ -573,7 +574,9 @@ export default function ChatThread({ messages, currentUserId, currentUserRole, c
                   <p className="text-sm whitespace-pre-wrap">
                     {isRedactedPlaceholderText(message.text)
                       ? t("common.messageDeleted")
-                      : message.text}
+                      : isChatClosedNotice(message) && formatChatClosedAt(message.createdAt, intl)
+                        ? t("thread.chatClosedOn", { date: formatChatClosedAt(message.createdAt, intl) as string })
+                        : message.text}
                   </p>
                 )}
 

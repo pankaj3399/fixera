@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import Link from "next/link"
 import { professionalHref, projectHref } from "@/lib/dashboardOverview"
+import { priceModelKey } from "@/lib/priceModel"
 import { useTranslations } from "next-intl"
 import { Badge } from "@/components/ui/badge"
 import { CreditCard, FileText, Package, ShieldCheck, User } from "lucide-react"
@@ -286,7 +287,7 @@ export function OverviewPanel({
               : booking.bookingType}
           </DetailField>
           <DetailField label={dt("fields.priceModel", "Price model")} empty={!details?.booking?.priceModel}>
-            <EnumText prefix="details.enums.pricingType" value={details?.booking?.priceModel} />
+            <EnumText prefix="details.enums.pricingType" value={priceModelKey(details?.booking?.priceModel) ?? details?.booking?.priceModel} />
           </DetailField>
           <DetailField label={dt("fields.serviceType", "Service type")} empty={!serviceType}>{serviceType}</DetailField>
           <DetailField label={dt("fields.category", "Category")} empty={!category}>{category}</DetailField>

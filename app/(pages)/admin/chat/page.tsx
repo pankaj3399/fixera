@@ -16,6 +16,7 @@ import { Loader2, RefreshCw, Send, Lock, MessageSquare, Search } from "lucide-re
 import { toast } from "sonner"
 import AdminSupportInfoPanel from "@/components/admin/AdminSupportInfoPanel"
 import { isAnonymizedIdentity } from "@/lib/anonymizedUsers"
+import { formatChatClosedAt, isChatClosedNotice } from "@/lib/chat/closeNotice"
 
 interface AdminConversation {
   _id: string
@@ -491,7 +492,9 @@ function AdminChatInner() {
                           return (
                             <div key={m._id} className="flex justify-center">
                               <p className="max-w-[90%] rounded-full bg-gray-100 px-3 py-1 text-center text-xs text-gray-600">
-                                {m.text}
+                                {isChatClosedNotice(m) && formatChatClosedAt(m.createdAt, "en-GB")
+                                  ? `Chat closed on ${formatChatClosedAt(m.createdAt, "en-GB")}`
+                                  : m.text}
                                 <span className="mt-0.5 block text-[10px] text-gray-400">
                                   {new Date(m.createdAt).toLocaleString()}
                                 </span>

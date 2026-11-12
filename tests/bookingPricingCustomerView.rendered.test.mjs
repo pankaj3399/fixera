@@ -10,6 +10,7 @@ register('./swc-loader.mjs', import.meta.url)
 const currency = await import('@/contexts/CurrencyContext')
 const { CurrencyProvider } = currency
 const detailsLib = await import('@/lib/bookingDetails')
+const priceModelLib = await import('@/lib/priceModel')
 const primitives = await import('@/components/booking/details/DetailPrimitives')
 const localeLib = await import('@/lib/i18n/useFormatLocale')
 const intl = await import('next-intl')
@@ -131,6 +132,7 @@ const overviewPanel = (allowedPaths) => loadComponent('../components/booking/det
   '@/lib/adminRbac': { canAccessAdminPage: (_user, pathname) => allowedPaths.includes(pathname) },
   'next/link': { __esModule: true, default: ({ href, children, ...rest }) => React.createElement('a', { href, ...rest }, children) },
   '@/lib/dashboardOverview': { projectHref: (id) => `/projects/${id}`, professionalHref: (id) => `/professional/${id}` },
+  '@/lib/priceModel': priceModelLib,
   // Stub the card so the test reads the exact links the overview passes down.
   './AdminReferencesCard': { AdminReferencesCard: ({ links }) => React.createElement('ul', null,
     links.map(link => React.createElement('li', { key: link.key, 'data-key': link.key }, link.key))) },
