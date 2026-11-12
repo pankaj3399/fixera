@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import SupportInbox from "@/components/admin/SupportInbox";
+import SupportMeetingLinkSettings from "@/components/admin/SupportMeetingLinkSettings";
 
 export default function AdminSupportPage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -39,6 +40,10 @@ export default function AdminSupportPage() {
               Tickets and meetings from customers and professionals.
             </p>
           </div>
+        </div>
+
+        <div className="mt-6">
+          <SupportMeetingLinkSettings />
         </div>
 
         <div className="mt-6">

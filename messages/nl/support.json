@@ -142,7 +142,7 @@
     "refreshSlots": "Tijden vernieuwen",
     "slotRequired": "Kies een tijd voor de afspraak.",
     "slotTaken": "Die tijd is net geboekt. Kies een ander tijdslot.",
-    "reservedNote": "Je tijdslot van 30 minuten wordt gereserveerd zodra je deze aanvraag verstuurt. Support voegt de vergaderlink toe en mailt die naar je.",
+    "reservedNote": "Je tijdslot van 30 minuten wordt gereserveerd zodra je deze aanvraag verstuurt. De vergaderlink wordt aan je aanvraag toegevoegd en samen met het tijdstip naar je gemaild: meteen als support er een klaar heeft, anders zodra support hem toevoegt.",
     "wasWhen": "Was gepland voor {date}",
     "noScheduledTime": "Er was geen afspraaktijd gepland.",
     "noReservedTime": "Er is geen afspraaktijd gereserveerd.",
@@ -167,7 +167,11 @@
     "cancelEmailFailed": "Afspraak geannuleerd, maar de annuleringsmail kon niet worden verzonden.",
     "legacyPreferred": "Voorkeurstijden: {times}",
     "legacyResponse": "Reactie van support: {response}",
-    "legacyReadOnly": "Dit eerdere afspraakverzoek is alleen-lezen."
+    "legacyReadOnly": "Dit eerdere afspraakverzoek is alleen-lezen.",
+    "createdConfirmed": "Gesprek {ticketNumber} is bevestigd. De vergaderlink staat in je aanvraag.",
+    "createdConfirmedGeneric": "Gesprek bevestigd. De vergaderlink staat in je aanvraag.",
+    "confirmedEmailSent": "Bevestigingsmail met het tijdstip en de vergaderlink verstuurd.",
+    "confirmedEmailFailed": "Je gesprek is bevestigd en de link staat hier, maar de bevestigingsmail kon niet worden verstuurd."
   },
   "chat": {
     "emptyTitle": "Nog geen supportgesprek",
@@ -188,5 +192,37 @@
     "readOnlyChecking": "Controleren of supportchat beschikbaar is…",
     "readOnlyUnavailable": "We konden de beschikbaarheid van supportchat niet controleren. Antwoorden is uitgeschakeld.",
     "recheck": "Opnieuw controleren"
+  },
+  "adminMeetingLink": {
+    "title": "Je standaard vergaderlink",
+    "description": "Sla één keer je persoonlijke Zoom-ruimte, Microsoft Teams-link of een andere https-vergaderlink op. Die wordt toegevoegd aan elk supportgesprek dat bij jou geboekt wordt, zodra de professional het verstuurt, en samen met het tijdstip naar hem of haar gemaild.",
+    "label": "Standaard vergaderlink",
+    "placeholder": "https://zoom.us/j/…",
+    "save": "Link opslaan",
+    "saving": "Opslaan…",
+    "clear": "Link verwijderen",
+    "saved": "Standaard vergaderlink opgeslagen.",
+    "cleared": "Standaard vergaderlink verwijderd.",
+    "loading": "Je vergaderlink wordt geladen…",
+    "loadFailed": "Je instellingen voor de vergaderlink konden niet worden geladen.",
+    "saveFailed": "Je vergaderlink kon niet worden opgeslagen.",
+    "retry": "Opnieuw proberen",
+    "current": "Opgeslagen link · {provider}",
+    "provider": {
+      "zoom": "Zoom",
+      "teams": "Microsoft Teams",
+      "other": "Andere"
+    },
+    "missingHint": "Je hebt geen standaard vergaderlink. Gesprekken die bij jou geboekt worden, blijven in afwachting tot je bij elk gesprek een link toevoegt.",
+    "notReceivingHint": "Professionals kunnen nog geen gesprekken bij jou boeken. Sla je beschikbaarheid op in je profiel om supportgesprekken te ontvangen.",
+    "overrideNote": "Je kunt de link bij elk afzonderlijk gesprek nog steeds vervangen.",
+    "ticketDefaultBadge": "Standaardlink van de toegewezen beheerder",
+    "errors": {
+      "required": "Vul een vergaderlink in, of gebruik Link verwijderen.",
+      "invalid": "Vul een volledige vergaderlink in die begint met https://.",
+      "https": "De vergaderlink moet beginnen met https://.",
+      "credentials": "Vergaderlinks mogen geen gebruikersnaam of wachtwoord bevatten.",
+      "length": "De vergaderlink mag maximaal 500 tekens lang zijn."
+    }
   }
 }
