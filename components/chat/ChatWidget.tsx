@@ -355,8 +355,11 @@ export default function ChatWidget() {
         }
         if (open) toast.error(t("toasts.loadMessagesFailed"));
       } finally {
+        // Whichever request is the latest settles the loading state. A
+        // background poll can supersede the initial (busy) load — the poll
+        // hook runs immediately on enable — and then the busy call's result
+        // is discarded, so the poll must clear the skeleton it replaced.
         if (
-          busy &&
           session === chatSessionRef.current &&
           generation === messageRequestGenerationRef.current
         ) {
@@ -645,7 +648,7 @@ export default function ChatWidget() {
 
   const handleSend = async ({ text, files }: { text: string; files: File[] }) => {
     if (!selectedConversationId) {
-      throw new Error("No conversation selected");
+      throw new Error(t("toasts.selectConversationFirst"));
     }
     if (isSupportReadOnly) {
       throw new Error(supportReadOnlyNotice);

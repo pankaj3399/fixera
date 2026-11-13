@@ -2,13 +2,15 @@
  * How a package's execution duration relates to the quantity the customer
  * books. Mirrors the backend `getProjectDurations` (scheduleEngine.ts):
  *
- * - `customer_hours`: unit pricing with an hour unit and a per-unit duration
- *   basis. The professional sets no duration; the hours the customer books are
- *   the execution duration.
- * - `per_unit`: unit pricing with any other unit. The professional sets the
- *   duration of one unit and the booked quantity multiplies it.
- * - `per_booking`: fixed/RFQ pricing, and legacy unit packages saved without a
- *   duration basis. One duration applies to the whole booking.
+ * - `customer_hours`: unit pricing with an hour unit, whatever the stored
+ *   duration basis (legacy packages saved without one included: the
+ *   professional cannot know the hours in advance). The professional sets no
+ *   duration; the hours the customer books are the execution duration.
+ * - `per_unit`: unit pricing with any other unit and a per-unit duration
+ *   basis. The professional sets the duration of one unit and the booked
+ *   quantity multiplies it.
+ * - `per_booking`: fixed/RFQ pricing, and legacy non-hour unit packages saved
+ *   without a duration basis. One duration applies to the whole booking.
  */
 
 export type PackageDurationMode = 'customer_hours' | 'per_unit' | 'per_booking'
@@ -28,8 +30,46 @@ export const isHourUnit = (unit: unknown): boolean =>
   typeof unit === 'string' && HOUR_UNIT.test(unit.toLowerCase())
 
 export function packageDurationMode(pricing: PricingLike): PackageDurationMode {
-  if (pricing?.type !== 'unit' || pricing.durationBasis !== 'per_unit') return 'per_booking'
-  return isHourUnit(pricing.unit) ? 'customer_hours' : 'per_unit'
+  if (pricing?.type !== 'unit') return 'per_booking'
+  if (isHourUnit(pricing.unit)) return 'customer_hours'
+  return pricing.durationBasis === 'per_unit' ? 'per_unit' : 'per_booking'
+}
+
+/**
+ * A legacy non-hour unit package saved before the duration basis existed. Its
+ * stored duration still applies to the whole booking (auto-multiplying could
+ * turn "2 days" into 2000 days), so the wizard asks the professional to switch
+ * it to a per-unit duration and review the value.
+ */
+export function isLegacyPerBookingUnitPackage(pricing: PricingLike): boolean {
+  return pricing?.type === 'unit' && !isHourUnit(pricing.unit) && pricing.durationBasis !== 'per_unit'
+}
+
+/** The pricing after the professional confirms a per-unit execution duration. */
+export function withPerUnitDurationBasis<T extends { durationBasis?: string }>(pricing: T): T {
+  return { ...pricing, durationBasis: 'per_unit' }
+}
+
+/**
+ * Execution the schedule engine plans for `quantity` booked units: the
+ * effective duration, and (FT1 6B, mirroring the backend
+ * `applyWorkingDayExecutionMode`) a quantity-derived execution in hours longer
+ * than the professional's longest working day planned in DAY mode as
+ * ceil(hours / longest day) working days. Shorter executions keep hour mode.
+ */
+export function scheduledExecutionDuration<D extends DurationLike>(
+  pkg: { pricing?: PricingLike; executionDuration?: D } | undefined | null,
+  fallback: D | undefined,
+  quantity: number,
+  longestWorkingDayHours: number,
+): D | undefined {
+  const effective = effectiveExecutionDuration(pkg, fallback, quantity)
+  const mode = packageDurationMode(pkg?.pricing)
+  if (mode !== 'customer_hours' && mode !== 'per_unit') return effective
+  if (!effective || effective.unit !== 'hours' || typeof effective.value !== 'number') return effective
+  if (!(longestWorkingDayHours > 0) || !(effective.value > longestWorkingDayHours)) return effective
+  const days = Math.max(1, Math.ceil(Math.round((effective.value / longestWorkingDayHours) * 1e6) / 1e6))
+  return { ...effective, value: days, unit: 'days', range: undefined } as D
 }
 
 /**

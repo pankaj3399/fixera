@@ -119,7 +119,10 @@ export interface BookingOverviewDto {
     refundedTotal?: number | null;
   } | null;
   extraCosts?: {
+    /** Professional amount; not sent to customers. */
     total?: number | null;
+    /** Customer amount (commission included, excl. VAT); not sent to professionals. */
+    customerTotal?: number | null;
     currency?: string | null;
     currencySource?: string;
     status?: string | null;
@@ -664,6 +667,8 @@ export interface RefundDto {
   netAmount?: number | null;
   vatRate?: number | null;
   vatSplitRecorded?: boolean;
+  /** VAT/net computed pro rata from the refunded payment's recorded VAT. */
+  vatSplitDerived?: boolean;
   kind?: "booking" | "extra_cost" | string;
   cancellationRequestId?: string | null;
   /** Admin + payments.read only; renderers must not display these. */
@@ -864,7 +869,11 @@ export interface ActivityItem {
 }
 
 export interface BookingActivityDto {
-  coverage?: { status: "unknown"; source: "surviving_records"; appendOnlyArchive: false };
+  coverage?: {
+    status: "complete" | "partial" | "unknown";
+    source: "append_only_archive" | "surviving_records";
+    appendOnlyArchive: boolean;
+  };
   order?: "asc";
   items?: ActivityItem[];
   generatedAt?: string | null;

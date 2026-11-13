@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ArrowUpRight, Calendar } from "lucide-react";
 import { CmsContent, cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
+import CoverImage from "@/components/cms/CoverImage";
 import { intlLocale } from "@/lib/i18n/format";
 
 interface Props {
@@ -22,8 +22,9 @@ export default async function BlogCard({ item, basePath }: Props) {
     >
       <article className="flex h-full flex-col overflow-hidden rounded-[calc(1.5rem-1.5px)] bg-white">
         {item.coverImage && (
-          <div className="relative aspect-[16/9] overflow-hidden">
-            <Image
+          // The gradient is the placeholder when the cover file is missing.
+          <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-rose-100 via-pink-50 to-orange-100">
+            <CoverImage
               src={item.coverImage}
               alt={cmsCoverAlt(item)}
               fill

@@ -30,5 +30,12 @@
     "server": "Er ging iets mis aan onze kant. Probeer het opnieuw.",
     "unavailable": "Deze dienst is tijdelijk niet beschikbaar. Probeer het binnenkort opnieuw.",
     "invalidResponse": "We konden die aanvraag niet afronden. Probeer het opnieuw."
+  },
+  "notFound": {
+    "metaTitle": "Pagina niet gevonden",
+    "title": "We konden deze pagina niet vinden",
+    "description": "De pagina die je zoekt bestaat niet of is verplaatst. Controleer het adres of ga verder vanaf de startpagina.",
+    "home": "Terug naar home",
+    "browseServices": "Bekijk diensten"
   }
 }

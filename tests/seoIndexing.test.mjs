@@ -20,13 +20,23 @@ const { GET: sitemapIndex } = await import('../app/sitemap.xml/route.ts')
 
 const readSource = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8')
 
-/** Stubs global fetch; `handler` returns a Response (or throws) for each request. */
-function stubFetch(handler) {
+/** Live catalog shape of GET /api/service-categories/active (the category route's source). */
+const LIVE_CATALOG = [
+  { name: 'Interior', slug: 'interior', services: [{ name: 'Painting', slug: 'painting' }] },
+  { name: 'Small tasks', slug: 'small-tasks', services: [] },
+]
+
+/**
+ * Stubs global fetch; `handler` returns a Response (or throws) for each request. The live
+ * catalog read is answered with `catalog` unless it is null (then `handler` gets it too).
+ */
+function stubFetch(handler, { catalog = LIVE_CATALOG } = {}) {
   const original = globalThis.fetch
   const calls = []
   globalThis.fetch = async (input, init) => {
     const url = String(input)
     calls.push({ url, init })
+    if (catalog !== null && url.includes('/api/service-categories/active')) return json(catalog)
     return handler(url, init)
   }
   return {
@@ -414,4 +424,91 @@ test('home and categories use the shared metadata helper and no dead breadcrumbs
   const category = readSource('../app/(pages)/categories/[categorySlug]/layout.tsx')
   assert.doesNotMatch(category, /path: "\/categories"\s*\}/)
   assert.match(category, /breadcrumbs\.services/)
+})
+
+test('category URLs come from the live catalog the category route resolves against, never the static marketing slugs', async () => {
+  const { resolveCategoryRoute } = await import('../lib/catalog/categoryLayoutLookup.ts')
+  const { serviceCategories: staticCategories } = await import('../data/content.ts')
+  const stub = stubFetch((url) => {
+    if (url.includes('/api/public/cms/sitemap')) return cmsPage([], 1, 0)
+    return entityPage(url.includes('type=project') ? 'project' : 'professional')
+  })
+  try {
+    const entries = await sitemap({ id: 0 })
+    const urls = entries.map((entry) => entry.url)
+    const catalogCall = stub.calls.find((call) => call.url.includes('/api/service-categories/active'))
+    assert.ok(catalogCall, 'the sitemap reads the live catalog')
+    assert.equal(new URL(catalogCall.url).searchParams.get('country'), 'BE', 'the platform home catalog')
+
+    for (const stale of ['interior-services', 'exterior-structural', 'outdoor-garden']) {
+      assert.ok(!urls.some((url) => url.endsWith(`/categories/${stale}`)), `${stale} must not be listed`)
+    }
+    const categoryUrls = urls.filter((url) => url.includes('/categories/'))
+    assert.deepEqual(categoryUrls.sort(), [
+      'https://example.test/en/categories/interior',
+      'https://example.test/en/categories/small-tasks',
+      'https://example.test/fr/categories/interior',
+      'https://example.test/fr/categories/small-tasks',
+      'https://example.test/nl/categories/interior',
+      'https://example.test/nl/categories/small-tasks',
+    ])
+    // Every listed slug renders (200) instead of redirecting or 404ing.
+    for (const url of categoryUrls) {
+      const slug = url.split('/categories/')[1]
+      assert.equal(resolveCategoryRoute(slug, staticCategories, LIVE_CATALOG).kind, 'category', url)
+    }
+    // hreflang alternates: the same set on each language version, pointing at the live slug.
+    const interior = entries.filter((entry) => entry.url.endsWith('/categories/interior'))
+    assert.equal(interior.length, 3)
+    for (const entry of interior) {
+      assert.deepEqual(entry.alternates.languages, {
+        en: 'https://example.test/en/categories/interior',
+        nl: 'https://example.test/nl/categories/interior',
+        fr: 'https://example.test/fr/categories/interior',
+        'x-default': 'https://example.test/categories/interior',
+      })
+    }
+  } finally {
+    stub.restore()
+  }
+})
+
+test('a failed live catalog read fails the content file and leaves the index incomplete', async () => {
+  const originalError = console.error
+  console.error = () => {}
+  const stub = stubFetch((url) => {
+    if (url.includes('/api/service-categories/active')) return json({ success: false }, 503)
+    if (url.includes('/api/public/cms/sitemap')) return cmsPage([], 1, 0)
+    return entityPage(url.includes('type=project') ? 'project' : 'professional')
+  }, { catalog: null })
+  try {
+    const plan = await sitemapPlan.planSitemapFiles()
+    assert.equal(plan.complete, false)
+    assert.ok(!plan.files.some((file) => file.id === 0))
+    await assert.rejects(sitemap({ id: 0 }), /Service categories request failed \(503\)/)
+  } finally {
+    stub.restore()
+    console.error = originalError
+  }
+})
+
+test('an empty live catalog lists no category pages but keeps the rest of the content file', async () => {
+  const stub = stubFetch((url) => {
+    if (url.includes('/api/public/cms/sitemap')) return cmsPage([], 1, 0)
+    return entityPage(url.includes('type=project') ? 'project' : 'professional')
+  }, { catalog: [] })
+  try {
+    const urls = (await sitemap({ id: 0 })).map((entry) => entry.url)
+    assert.ok(!urls.some((url) => url.includes('/categories/')))
+    assert.ok(urls.includes('https://example.test/en/services'))
+  } finally {
+    stub.restore()
+  }
+})
+
+test('llms.txt carries no static catalog slugs', () => {
+  const body = buildLlmsTxt()
+  for (const stale of ['interior-services', 'exterior-structural', 'outdoor-garden']) {
+    assert.doesNotMatch(body, new RegExp(stale))
+  }
 })

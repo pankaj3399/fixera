@@ -20,7 +20,8 @@ function layoutHarness(categories, slug, urlLocale = null) {
   const redirects = []
   const t = key => key === 'names.categories.outdoor-garden.name' ? 'Extérieur et jardin' : key
   const exports = moduleWithMocks(new URL('../app/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), {
-    react: { cache: fn => fn },
+    // Mirrors React's per-request cache: one call per distinct argument list.
+    react: { cache: fn => { const memo = new Map(); return (...args) => { const key = JSON.stringify(args); if (!memo.has(key)) memo.set(key, fn(...args)); return memo.get(key) } } },
     'next/headers': { headers: async () => ({ get: name => name === 'x-fixera-content-country' ? 'NL' : name === 'x-fixera-url-locale' ? urlLocale : null }) },
     '@/i18n/config': { isLocale: value => ['en', 'nl', 'fr'].includes(value) },
     '@/lib/seo/localeUrls': {
@@ -36,7 +37,7 @@ function layoutHarness(categories, slug, urlLocale = null) {
     '@/lib/server/serviceCategories': { getServiceCategories: async country => { countries.push(country); return categories } },
     '@/lib/geo/contentCountryHeader': { readContentCountry: headers => headers.get('x-fixera-content-country') },
     '@/lib/catalog/categoryLayoutLookup': categoryLookup,
-    '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
+    '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
   })
   return { exports, countries, redirects, props: { children: 'category body', params: Promise.resolve({ categorySlug: slug }) } }
 }
@@ -87,7 +88,7 @@ test('malformed array or services responses reach the retry UI and recover witho
         sonner: { toast: { error() {} } },
         '@/lib/catalog/resolveCategory': categoryResolver,
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
       })
       ui.render(); await ui.settle()
       assert.match(elementText(ui.render()), /servicesPage.errorMessage/)
@@ -222,7 +223,7 @@ test('category page fetches the server-selected BE catalog for an nl-NL browser 
         sonner: { toast: { error() {} } },
         '@/lib/catalog/resolveCategory': categoryResolver,
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => serverCountry },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => serverCountry, useInitialCatalogCategory: () => null },
       })
       ui.render(); await ui.settle()
       assert.match(urls[0], new RegExp(`country=${expected}$`), `server country ${serverCountry}`)

@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  RefreshCw,
   Save,
   Send,
   Tag,
@@ -17,13 +18,15 @@ import {
   X,
 } from "lucide-react";
 import {
-  adminCreateCms,
+  adminCreateCmsWithTranslations,
   adminDeleteCms,
   adminGetCms,
   adminListCmsServiceOptions,
   adminListFaqCategories,
-  adminUpdateCms,
+  adminTranslateCms,
+  adminUpdateCmsWithTranslations,
   CmsContent,
+  CmsContentLocale,
   CmsContentStatus,
   CmsContentType,
   CmsServiceOption,
@@ -33,13 +36,17 @@ import {
   CMS_TYPE_LABELS,
   CMS_TYPE_ORDER,
   FaqCategory,
+  type CmsTranslateOptions,
+  type CmsTranslationStatus,
   getPublicPathForCms,
   getPublicSlugPrefixForCms,
   normalizeCmsContentLocale,
+  normalizeCmsTranslationStatus,
   persistableCmsHtml,
+  revalidateCmsTranslationFamily,
   persistableCmsMediaUrl,
   slugify,
-  withCmsLangParam,
+  cmsLiveUrl,
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -50,6 +57,26 @@ import RelatedContentPicker, { relatedItemsFromCms } from "./RelatedContentPicke
 import { EU_COUNTRIES } from "@/lib/countries";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
+import type { AdminAccessUser } from "@/lib/adminRbac";
+import {
+  canManageCmsTranslations,
+  cmsDeleteImpact,
+  cmsStatusRewroteDoc,
+  cmsTranslationPanelAfterEdit,
+  cmsTranslationPanelAfterRun,
+  cmsTranslationRole,
+  cmsTranslationTargets,
+  INITIAL_CMS_TRANSLATION_PANEL,
+  stashCmsTranslationResults,
+  summarizeCmsDeleteCleanup,
+  summarizeCmsTranslationOutcome,
+  summarizeCmsTranslationSettled,
+  takeStashedCmsTranslationResults,
+  type CmsTranslationPanelState,
+} from "@/lib/cmsTranslationState";
+import CmsTranslationPanel from "./CmsTranslationPanel";
+import { useCmsTranslationStatus } from "./useCmsTranslationStatus";
 
 const RichTextEditor = dynamic(() => import("./RichTextEditor"), {
   ssr: false,
@@ -95,8 +122,30 @@ const EMPTY: Partial<CmsContent> = {
   activeCountries: [],
 };
 
+const KEPT_EDITS_AFTER_RESYNC =
+  "The server updated this translation. Your unsaved edits are kept here; saving them makes it a manual translation again.";
+
+function formFromDoc(doc: CmsContent): Partial<CmsContent> {
+  return {
+    ...doc,
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
+    seo: doc.seo || {},
+    coverImageAlt: doc.coverImageAlt || "",
+    activeCountries: Array.isArray(doc.activeCountries) ? doc.activeCountries : [],
+  };
+}
+
+function announceTranslationOutcome(outcome: ReturnType<typeof summarizeCmsTranslationOutcome>) {
+  if (!outcome) return;
+  if (outcome.tone === "warning") toast.warning(outcome.message);
+  else if (outcome.tone === "success") toast.success(outcome.message);
+  else toast.info(outcome.message);
+}
+
 export default function CmsContentForm({ mode, initial, lockedType, initialSlug, initialTitle }: Props) {
   const router = useRouter();
+  const { user } = useAuth();
+  const canManageTranslations = canManageCmsTranslations(user as AdminAccessUser | null);
   const [form, setForm] = useState<Partial<CmsContent>>(() => {
     if (initial) {
       return {
@@ -124,11 +173,79 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  /** Manual locales the pending overwrite confirmation is about (null: dialog closed). */
+  const [forceLocales, setForceLocales] = useState<CmsContentLocale[] | null>(null);
+  const [translationPanel, setTranslationPanel] =
+    useState<CmsTranslationPanelState>(INITIAL_CMS_TRANSLATION_PANEL);
+  /**
+   * The last server copy of this document. Translation role and variant links
+   * follow it (not the unsaved form): saving a machine translation demotes it
+   * to manual on the server even while the admin keeps typing.
+   */
+  const [savedDoc, setSavedDoc] = useState<CmsContent | undefined>(initial);
+  const savedDocRef = useRef(savedDoc);
+  savedDocRef.current = savedDoc;
   /** Monotonic form revision, so a retry/save finishing late can't claim fresh state. */
   const formRevision = useRef(0);
   const savedRevision = useRef(0);
-  const actionLock = useRef<"save" | "delete" | null>(null);
-  const busy = saving || deleting;
+  const actionLock = useRef<"save" | "delete" | "translate" | null>(null);
+  const busy = saving || deleting || translating;
+  /** Toast the outcome of a background run that a save/retry on this screen queued. */
+  const announceSettled = useRef(false);
+
+  /**
+   * A background run this screen observed has finished: flush the public
+   * cache for the whole family (the save response came back before the new
+   * text existed) and, when the server rewrote this very translation, show
+   * the new text if nothing unsaved would be lost.
+   */
+  const handleTranslationSettled = async (settled: CmsTranslationStatus) => {
+    const doc = savedDocRef.current;
+    void revalidateCmsTranslationFamily(doc?.type, settled, [doc?.slug]);
+    if (announceSettled.current) {
+      announceSettled.current = false;
+      const outcome = summarizeCmsTranslationSettled(settled);
+      if (outcome.tone === "warning") toast.warning(outcome.message);
+      else toast.success(outcome.message);
+    }
+    if (!doc?._id || !cmsStatusRewroteDoc(settled, doc)) return;
+    if (formRevision.current !== savedRevision.current) {
+      toast.info(KEPT_EDITS_AFTER_RESYNC);
+      return;
+    }
+    const fresh = await adminGetCms(doc._id).catch(() => null);
+    if (!fresh) {
+      toast.info("The server updated this translation. Reload to see it.");
+    } else if (formRevision.current === savedRevision.current) {
+      setSavedDoc(fresh);
+      setForm(formFromDoc(fresh));
+      setRelatedItems(relatedItemsFromCms(fresh.relatedContent));
+    } else {
+      toast.info(KEPT_EDITS_AFTER_RESYNC);
+    }
+  };
+
+  const [initialTranslationStatus] = useState(() => normalizeCmsTranslationStatus(initial?.translationStatus));
+  const translation = useCmsTranslationStatus(
+    mode === "edit" ? initial?._id : undefined,
+    initialTranslationStatus,
+    handleTranslationSettled
+  );
+  const translationRole = mode === "edit" && savedDoc ? cmsTranslationRole(savedDoc) : "source";
+
+  // A create redirects here; show that save's per-locale results.
+  useEffect(() => {
+    if (!initial?._id) return;
+    const results = takeStashedCmsTranslationResults(initial._id);
+    if (!results.length) return;
+    setTranslationPanel(
+      cmsTranslationPanelAfterRun(results, "save", {
+        current: formRevision.current,
+        saved: savedRevision.current,
+      })
+    );
+  }, [initial?._id]);
 
   useEffect(() => {
     const stubs = relatedItems.filter((item) => !item.slug);
@@ -195,13 +312,14 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
   const slugPrefix = getPublicSlugPrefixForCms(type);
   const publicPreviewPath = form.slug ? getPublicPathForCms(type, form.slug) : null;
   const publicPreviewHref = publicPreviewPath
-    ? withCmsLangParam(publicPreviewPath, normalizeCmsContentLocale(form.locale))
+    ? cmsLiveUrl(publicPreviewPath, normalizeCmsContentLocale(form.locale))
     : null;
   const formLocale = normalizeCmsContentLocale(form.locale);
   const coverRecommendation = COVER_RECOMMENDATIONS[type] ?? DEFAULT_COVER_RECOMMENDATION;
 
   const markFormChanged = () => {
     formRevision.current += 1;
+    setTranslationPanel(cmsTranslationPanelAfterEdit);
   };
 
   const update = (patch: Partial<CmsContent>) => {
@@ -265,27 +383,51 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
         activeCountries: supportsCountryTargeting ? form.activeCountries || [] : [],
       };
       if (mode === "create") {
-        const created = await adminCreateCms(payload);
+        const { content: created, translations } = await adminCreateCmsWithTranslations(payload);
+        stashCmsTranslationResults(created._id, translations);
         toast.success(status === "published" ? "Published!" : "Draft saved");
+        announceTranslationOutcome(
+          summarizeCmsTranslationOutcome(translations, {
+            trigger: "save",
+            expectResults: cmsTranslationRole(created) === "source",
+          })
+        );
         router.push(`/admin/cms/${created._id}/edit`);
       } else if (initial?._id) {
-        const updated = await adminUpdateCms(initial._id, payload);
+        const {
+          content: updated,
+          translations,
+          status: savedStatus,
+        } = await adminUpdateCmsWithTranslations(initial._id, payload);
         savedRevision.current = revisionAtSaveStart;
+        setSavedDoc(updated);
+        savedDocRef.current = updated;
+        // Results describe what was saved; edits typed during the request
+        // (including a language change) keep them marked stale.
+        setTranslationPanel(
+          cmsTranslationPanelAfterRun(translations, "save", {
+            current: formRevision.current,
+            saved: revisionAtSaveStart,
+          })
+        );
+        const queued = translations.some((result) => result.status === "pending");
+        announceSettled.current = queued;
+        translation.track(savedStatus, { expectWork: queued });
         // The saved status always applies (it drives publish state and the
         // "View live" link); other fields keep the revision guard so typing
         // during the request is never clobbered by the server echo.
         setForm((prev) => ({ ...prev, status: updated.status }));
         if (formRevision.current === revisionAtSaveStart) {
-          setForm({
-            ...updated,
-            tags: Array.isArray(updated.tags) ? updated.tags : [],
-            seo: updated.seo || {},
-            coverImageAlt: updated.coverImageAlt || "",
-            activeCountries: Array.isArray(updated.activeCountries) ? updated.activeCountries : [],
-          });
+          setForm(formFromDoc(updated));
           setRelatedItems(relatedItemsFromCms(updated.relatedContent));
         }
         toast.success(status === "published" ? "Published!" : "Draft saved");
+        announceTranslationOutcome(
+          summarizeCmsTranslationOutcome(translations, {
+            trigger: "save",
+            expectResults: cmsTranslationRole(updated) === "source",
+          })
+        );
       }
     } catch (err) {
       toast.error(getErrorMessage(err, "Save failed"));
@@ -294,6 +436,43 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
       setSaving(false);
     }
   };
+
+  const runTranslate = async (options: CmsTranslateOptions = {}) => {
+    if (actionLock.current || !initial?._id || !canManageTranslations) return;
+    const force = options.force === true;
+    actionLock.current = "translate";
+    setForceLocales(null);
+    setTranslating(true);
+    try {
+      // Deliberately never touches `form`: unsaved edits survive any outcome,
+      // and a retry never masquerades as a content save. If the run rewrites
+      // this translation, handleTranslationSettled reloads it (edit-guarded).
+      const { translations, status } = await adminTranslateCms(
+        initial._id,
+        force ? { force, locales: options.locales } : {}
+      );
+      setTranslationPanel(
+        cmsTranslationPanelAfterRun(translations, "retranslate", {
+          current: formRevision.current,
+          saved: savedRevision.current,
+        })
+      );
+      const queued = translations.some((result) => result.status === "pending");
+      announceSettled.current = queued;
+      translation.track(status, { expectWork: queued });
+      announceTranslationOutcome(summarizeCmsTranslationOutcome(translations, { trigger: "retranslate", force }));
+    } catch (err) {
+      toast.error(
+        getErrorMessage(err, "Translation request failed. Your content and unsaved edits are unchanged.")
+      );
+    } finally {
+      actionLock.current = null;
+      setTranslating(false);
+    }
+  };
+
+  const deleteImpact = cmsDeleteImpact(savedDoc ?? {}, translation.status);
+  const localeList = (codes: string[]) => codes.map((code) => code.toUpperCase()).join(", ");
 
   const remove = () => {
     if (!initial?._id || actionLock.current) return;
@@ -306,8 +485,8 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
     actionLock.current = "delete";
     setDeleting(true);
     try {
-      await adminDeleteCms(initial._id);
-      toast.success("Deleted");
+      const { translationCleanup } = await adminDeleteCms(initial._id);
+      toast.success(summarizeCmsDeleteCleanup(translationCleanup));
       router.push("/admin/cms");
     } catch (err) {
       toast.error(getErrorMessage(err, "Delete failed"));
@@ -391,6 +570,16 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                   <p className="text-xs text-rose-500">
                     {CMS_TYPE_LABELS[type]} · {form.status} · {CMS_CONTENT_LOCALE_LABELS[formLocale]} ({formLocale})
                   </p>
+                  {translationRole !== "source" ? (
+                    <span
+                      className={cn(
+                        "mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                        translationRole === "machine" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"
+                      )}
+                    >
+                      {translationRole === "machine" ? "Auto-translated" : "Manual translation"}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -678,8 +867,8 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
                 ))}
               </select>
               <p className="text-[11px] text-rose-400">
-                English is the source language. Saving an original syncs the other supported
-                languages automatically.
+                English is the usual source language. Saving an original requests automatic
+                translation into the other languages; see Translations for the server&apos;s result.
               </p>
             </div>
           </GradientCard>
@@ -709,9 +898,63 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             </div>
           </GradientCard>
 
+          <GradientCard>
+            <CmsTranslationPanel
+              mode={mode}
+              type={type}
+              role={translationRole}
+              currentId={savedDoc?._id}
+              targets={cmsTranslationTargets(savedDoc?.locale ?? formLocale)}
+              panel={translationPanel}
+              status={translation.status}
+              loadState={translation.loadState}
+              phase={translation.phase}
+              saving={saving}
+              translating={translating}
+              busy={busy}
+              canManage={canManageTranslations}
+              onRetry={() => runTranslate()}
+              onForce={(locales) => {
+                if (locales.length > 0) setForceLocales(locales);
+              }}
+              onRefresh={translation.refresh}
+            />
+          </GradientCard>
+
 
         </div>
       </div>
+
+      <Dialog open={forceLocales !== null} onOpenChange={(open) => (open ? null : setForceLocales(null))}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Overwrite manual translations?</DialogTitle>
+            <DialogDescription>
+              {`Machine translation will replace the manual text in ${localeList(forceLocales ?? [])}.`}{" "}
+              Unlinked documents that only share the slug are never overwritten. It uses the saved
+              original, keeps your unsaved edits on this screen, and cannot be undone from here.
+              Overwritten translations then follow the original&apos;s publication status.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setForceLocales(null)}
+              className="inline-flex items-center justify-center rounded-xl border border-pink-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => runTranslate({ force: true, locales: forceLocales ?? [] })}
+              disabled={busy || !forceLocales?.length}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-rose-200 transition hover:shadow-lg hover:shadow-rose-300 disabled:opacity-50"
+            >
+              <RefreshCw size={14} /> Overwrite translations
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent className="sm:max-w-md">
@@ -720,6 +963,31 @@ export default function CmsContentForm({ mode, initial, lockedType, initialSlug,
             <DialogDescription>
               This cannot be undone. The item will be permanently removed.
             </DialogDescription>
+            {translationRole === "source" &&
+            deleteImpact &&
+            (deleteImpact.machineLocales.length > 0 || deleteImpact.manualLocales.length > 0) ? (
+              <div
+                data-testid="cms-delete-translation-impact"
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800"
+              >
+                {deleteImpact.machineLocales.length > 0 ? (
+                  <p>
+                    Its machine translations ({localeList(deleteImpact.machineLocales)}) are deleted with it,
+                    including published ones.
+                  </p>
+                ) : null}
+                {deleteImpact.manualLocales.length > 0 ? (
+                  <p>
+                    Manual translations ({localeList(deleteImpact.manualLocales)}) are kept and become
+                    independent pages.
+                  </p>
+                ) : null}
+              </div>
+            ) : translationRole === "source" && !deleteImpact ? (
+              <p className="text-xs text-amber-700">
+                Machine translations of this original are deleted with it; manual translations are kept.
+              </p>
+            ) : null}
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-end">
             <button

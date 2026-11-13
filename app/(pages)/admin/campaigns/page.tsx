@@ -28,6 +28,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { CampaignHeaderActions } from "@/components/admin/marketing/CampaignHeaderActions";
+import {
+  campaignAutoTranslateTargets,
+  hasTranslatableSource,
+  mergeCampaignTranslations,
+  requestCampaignAutoTranslate,
+  targetsWithExistingContent,
+} from "@/lib/admin/campaignAutoTranslate";
 import { LeadImportDialog } from "@/components/admin/marketing/LeadImportDialog";
 import {
   MARKETING_AUDIENCE_TYPES,
@@ -41,6 +48,7 @@ import {
   campaignAudienceValidation,
   campaignTypeLabel,
   campaignRoleLocked,
+  errMessage,
   formatDate,
   invitationFooterCopy,
   marketingCountryOptions,
@@ -221,6 +229,7 @@ export default function AdminCampaignsPage() {
   const [invalidAudienceType, setInvalidAudienceType] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocaleTab, setActiveLocaleTab] = useState<Locale>("en");
+  const [autoTranslating, setAutoTranslating] = useState(false);
   const [languages, setLanguages] = useState<LanguageOption[]>(() => normalizeLanguages([]));
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
@@ -815,6 +824,49 @@ export default function AdminCampaignsPage() {
   }
 
   const activeContent = form.content[activeLocaleTab] || emptyContent();
+  const autoTranslateTargets = campaignAutoTranslateTargets(form.locales, activeLocaleTab);
+
+  const autoTranslateDraft = async () => {
+    const source = form.content[activeLocaleTab];
+    if (!hasTranslatableSource(source)) {
+      toast.error("Write a subject and inline HTML body in this language first (Brevo templates can't be auto-translated).");
+      return;
+    }
+    if (autoTranslateTargets.length === 0) {
+      toast.error("Select at least one other audience language to translate into.");
+      return;
+    }
+    const overwrite = targetsWithExistingContent(form.content, autoTranslateTargets);
+    if (
+      overwrite.length > 0 &&
+      !window.confirm(
+        `Replace the current ${overwrite.map((l) => l.toUpperCase()).join(", ")} content with a translation of ${activeLocaleTab.toUpperCase()}?`,
+      )
+    ) {
+      return;
+    }
+    setAutoTranslating(true);
+    try {
+      const outcomes = await requestCampaignAutoTranslate({
+        sourceLocale: activeLocaleTab,
+        targetLocales: autoTranslateTargets,
+        content: source!,
+      });
+      setForm((current) => ({ ...current, content: mergeCampaignTranslations(current.content, outcomes) }));
+      const done = outcomes.filter((o) => o.status === "translated").map((o) => o.locale.toUpperCase());
+      const failed = outcomes.filter((o) => o.status === "failed");
+      if (done.length) {
+        toast.success(`Filled ${done.join(", ")} from ${activeLocaleTab.toUpperCase()}. Review the wording, then save the draft.`);
+      }
+      for (const failure of failed) {
+        toast.error(`${failure.locale.toUpperCase()}: ${failure.status === "failed" && failure.error ? failure.error : "translation failed"}`);
+      }
+    } catch (error) {
+      toast.error(errMessage(error, "Auto-translation failed"));
+    } finally {
+      setAutoTranslating(false);
+    }
+  };
   const editorLocaleOptions = Array.from(
     new Map(
       [
@@ -1330,6 +1382,27 @@ export default function AdminCampaignsPage() {
                   {form.content[language.code]?.subject ? " ✓" : ""}
                 </button>
               ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-3 py-2">
+              <p className="text-xs text-muted-foreground">
+                Auto-translate fills {autoTranslateTargets.length ? autoTranslateTargets.map((l) => l.toUpperCase()).join(", ") : "the other draft languages"} from{" "}
+                {activeLocaleTab.toUpperCase()} (subject, preview text and HTML body; merge tags such as {"{{ contact.FIRSTNAME }}"} are kept).
+                Nothing is saved or sent.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={
+                  autoTranslating ||
+                  autoTranslateTargets.length === 0 ||
+                  !hasTranslatableSource(form.content[activeLocaleTab])
+                }
+                onClick={() => void autoTranslateDraft()}
+              >
+                {autoTranslating ? "Translating…" : `Auto-translate from ${activeLocaleTab.toUpperCase()}`}
+              </Button>
             </div>
 
             <div className="space-y-3">

@@ -586,6 +586,8 @@
     },
     "proposalDeclineTitle": "Decline proposal",
     "proposalDeclineDescription": "Tell the professional why this proposal does not work for you. Your clarification is sent with the response and the claim is escalated.",
+    "resolutionDeclineTitle": "Decline the resolution",
+    "resolutionDeclineDescription": "Explain why the resolution does not solve the problem. The claim is escalated to the Fixtract team together with your explanation.",
     "clarificationLabel": "Clarification",
     "clarificationPlaceholder": "Explain what is missing or wrong with the proposed solution...",
     "clarificationRequired": "Please add a short clarification before declining.",
@@ -836,7 +838,8 @@
       "milestoneOrder": "Order",
       "milestoneStatus": "Status",
       "customDueDate": "Due date",
-      "quoteDate": "Quote date"
+      "quoteDate": "Quote date",
+      "extraCostsCustomer": "Completion extras (your price, excl. VAT)"
     },
     "parties": {
       "customer": "Customer",
@@ -852,7 +855,8 @@
       "city": "City",
       "country": "Country",
       "timeZone": "Time zone",
-      "postalCode": "Postal code"
+      "postalCode": "Postal code",
+      "viewProfile": "View profile"
     },
     "overview": {
       "schedule": "Schedule",
@@ -1193,6 +1197,7 @@
         "undated_quote_version": "Stored without a date; shown in the undated group.",
         "quote_actor_not_recorded": "A quotation version has no recorded actor.",
         "legacy_quote_actor_missing": "A legacy quotation has no recorded actor.",
+        "rfq_submission_actor_not_recorded": "The quotation request has no recorded submitter.",
         "undated_refund": "Stored without a date; shown in the undated group.",
         "refund_vat_split_not_recorded": "At least one refund has no recorded VAT/net split.",
         "undated_extra_costs": "Stored without a date; shown in the undated group.",
@@ -1220,7 +1225,9 @@
       "newStatus": "New status",
       "recordedInEnglish": "language recorded as English",
       "coverageUnknown": "Historical coverage is unknown. Only surviving records are shown.",
-      "openWarranty": "Open warranty claim"
+      "openWarranty": "Open warranty claim",
+      "coverageComplete": "Complete history: every status change was recorded as it happened.",
+      "coveragePartial": "Recent changes were recorded as they happened; older history is rebuilt from surviving records."
     },
     "notices": {
       "termsSnapshotNotRecorded": "Booking-time terms were not recorded for this legacy booking. Current project data is shown separately.",
@@ -1239,7 +1246,8 @@
       "checkoutSnapshotIncomplete": "The checkout snapshot is incomplete; missing values are not recalculated.",
       "attachmentUnavailable": "This attachment is not available with your access.",
       "paymentCurrencyNotRecorded": "This payment has no recorded currency; no amount is converted or assumed.",
-      "quoteServiceLocationNotRecorded": "The service address was not recorded with this quotation version."
+      "quoteServiceLocationNotRecorded": "The service address was not recorded with this quotation version.",
+      "refundVatSplitDerived": "VAT and net amounts for this refund are calculated pro rata from the VAT of the original payment."
     },
     "detailsUnavailable": "The normalized detail record was not returned. Only stored booking fields are shown; missing historical values are not reconstructed.",
     "enums": {
@@ -1248,7 +1256,10 @@
         "unit": "Unit price",
         "rfq": "Request quote",
         "hour": "Per hour",
-        "day": "Per day"
+        "day": "Per day",
+        "meter": "Per metre",
+        "m2": "Per m²",
+        "room": "Per room"
       },
       "captureSource": {
         "booking_creation": "Booking creation",
@@ -1342,7 +1353,8 @@
     "timeZone": {
       "recorded": "Record timestamps use the booking time zone: {zone}.",
       "viewer": "No booking time zone was recorded; record timestamps use your browser time zone: {zone}."
-    }
+    },
+    "sectionLabel": "Booking details"
   },
   "cancellationRequest": {
     "title": "Cancellation request",

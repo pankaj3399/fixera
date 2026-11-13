@@ -5,7 +5,8 @@ import { getTranslations } from "next-intl/server";
 import { publicGetCms } from "@/lib/cms/public";
 import { cmsCoverAlt } from "@/lib/cms";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
-import { buildMetadata } from "@/lib/seo/metadata";
+import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
+import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 
@@ -30,6 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     path: content.seo?.canonical || `/pages/${content.slug}`,
     image: content.seo?.ogImage || content.coverImage,
     noindex: content.seo?.noindex,
+    locale: servedContentLocale(content.locale),
   });
 }
 
@@ -70,7 +72,12 @@ export default async function GenericCmsPage({ params }: Props) {
         </h1>
         {content.excerpt && <p className="mt-4 text-lg text-rose-600/80">{content.excerpt}</p>}
         <div className="mt-8">
-          <RichTextRenderer html={content.body} />
+          <MachineTranslatedNote
+            autoTranslated={content.autoTranslated}
+            label={t("machineTranslatedNote")}
+            className="mb-4"
+          />
+          <RichTextRenderer html={content.body} lang={servedContentLocale(content.locale)} />
         </div>
       </div>
     </div>

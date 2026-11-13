@@ -31,6 +31,7 @@ import {
 } from "@/components/marketing/site-announcements";
 import JsonLd from "@/components/seo/JsonLd";
 import DocumentLanguageSync from "@/components/locale/DocumentLanguageSync";
+import BackendLocaleHeader from "@/components/locale/BackendLocaleHeader";
 import PrefixedLocaleLinks from "@/components/locale/PrefixedLocaleLinks";
 import { organizationSchema, websiteSchema } from "@/lib/seo/jsonLd";
 import { SITE_NAME, OG_DEFAULT_IMAGE, siteUrl, absoluteUrl } from "@/lib/seo/site";
@@ -139,6 +140,7 @@ export default async function RootLayout({
           >
             <ServiceWorkerRegistrar />
             <DocumentLanguageSync />
+            <BackendLocaleHeader />
             <PrefixedLocaleLinks />
             <JsonLd
               data={[

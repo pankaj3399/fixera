@@ -124,7 +124,9 @@
     },
     "openClaimDetails": "Claimdetails openen",
     "warrantyClaimUpdate": "Update garantieclaim",
-    "openWarrantyPage": "Garantiepagina openen"
+    "openWarrantyPage": "Garantiepagina openen",
+    "chatClosedOn": "Chat gesloten op {date}",
+    "chatClosed": "Chat gesloten"
   },
   "report": {
     "title": "Bericht rapporteren",

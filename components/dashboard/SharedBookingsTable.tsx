@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import StartChatButton from "@/components/chat/StartChatButton"
 import ProfessionalTableTags from "./ProfessionalTableTags"
+import ProfessionalLevelTag from "./ProfessionalLevelTag"
 import { useSharedTableText } from "./sharedTableText"
 import { getBookingStatusMeta } from "@/lib/dashboardBookingHelpers"
 import {
@@ -323,7 +324,7 @@ export default function SharedBookingsTable({
                       <span className="text-gray-700">{DASH}</span>
                     )}
                     {booking.professional?.professionalLevel && (
-                      <div className="mt-0.5 text-gray-500">{booking.professional.professionalLevel}</div>
+                      <div className="mt-0.5"><ProfessionalLevelTag level={booking.professional.professionalLevel} className="text-[10px]" /></div>
                     )}
                     <ProfessionalTableTags tags={booking.professional?.adminTags} />
                   </td>
@@ -337,7 +338,7 @@ export default function SharedBookingsTable({
                 <td className="px-3 py-3 text-gray-700">
                   {formatUnknownDate(booking.actualStartDate, intl)} / {formatUnknownDate(booking.actualEndDate, intl)}
                 </td>
-                <td className="px-3 py-3 text-gray-700">{booking.priceModel || DASH}</td>
+                <td className="px-3 py-3 text-gray-700">{th.formatPriceModel(booking.priceModel) || DASH}</td>
                 <td className="px-3 py-3">
                   <span className="font-semibold text-gray-900">{formatOverviewMoney(paidPriceOf(booking), formatMoney)}</span>
                   {addition.source === "recorded" && addition.amount != null && addition.amount !== 0 && (

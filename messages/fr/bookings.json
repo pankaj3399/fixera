@@ -586,6 +586,8 @@
     },
     "proposalDeclineTitle": "Refuser la proposition",
     "proposalDeclineDescription": "Expliquez au professionnel pourquoi cette proposition ne vous convient pas. Votre clarification est envoyée avec la réponse et le dossier est escaladé.",
+    "resolutionDeclineTitle": "Refuser la résolution",
+    "resolutionDeclineDescription": "Expliquez pourquoi la résolution ne règle pas le problème. La réclamation est transmise à l'équipe Fixtract avec votre explication.",
     "clarificationLabel": "Clarification",
     "clarificationPlaceholder": "Expliquez ce qui manque ou ne convient pas dans la solution proposée...",
     "clarificationRequired": "Veuillez ajouter une courte clarification avant de refuser.",
@@ -836,7 +838,8 @@
       "milestoneOrder": "Ordre",
       "milestoneStatus": "Statut",
       "customDueDate": "Date d’échéance",
-      "quoteDate": "Date du devis"
+      "quoteDate": "Date du devis",
+      "extraCostsCustomer": "Frais supplémentaires à la fin (votre prix, HTVA)"
     },
     "parties": {
       "customer": "Client",
@@ -852,7 +855,8 @@
       "city": "Ville",
       "country": "Pays",
       "timeZone": "Fuseau horaire",
-      "postalCode": "Code postal"
+      "postalCode": "Code postal",
+      "viewProfile": "Voir le profil"
     },
     "overview": {
       "schedule": "Planning",
@@ -1193,6 +1197,7 @@
         "undated_quote_version": "Conservé sans date ; affiché dans le groupe sans date.",
         "quote_actor_not_recorded": "Une version de devis n'a pas d'acteur enregistré.",
         "legacy_quote_actor_missing": "Un ancien devis n'a pas d'acteur enregistré.",
+        "rfq_submission_actor_not_recorded": "La demande de devis n'a pas d'auteur enregistré.",
         "undated_refund": "Conservé sans date ; affiché dans le groupe sans date.",
         "refund_vat_split_not_recorded": "Au moins un remboursement n'a pas de répartition TVA/net enregistrée.",
         "undated_extra_costs": "Conservé sans date ; affiché dans le groupe sans date.",
@@ -1220,7 +1225,9 @@
       "newStatus": "Nouveau statut",
       "recordedInEnglish": "langue enregistrée comme anglais",
       "coverageUnknown": "La couverture historique est inconnue. Seuls les enregistrements conservés sont affichés.",
-      "openWarranty": "Ouvrir la demande de garantie"
+      "openWarranty": "Ouvrir la demande de garantie",
+      "coverageComplete": "Historique complet : chaque changement de statut a été enregistré au moment même.",
+      "coveragePartial": "Les changements récents ont été enregistrés au moment même ; l'historique plus ancien est reconstitué à partir des données conservées."
     },
     "notices": {
       "termsSnapshotNotRecorded": "Les conditions au moment de la réservation n'ont pas été enregistrées pour cette ancienne réservation. Les données actuelles du projet sont affichées séparément.",
@@ -1239,7 +1246,8 @@
       "checkoutSnapshotIncomplete": "L'instantané de paiement est incomplet ; les valeurs manquantes ne sont pas recalculées.",
       "attachmentUnavailable": "Cette pièce jointe n'est pas disponible avec votre accès.",
       "paymentCurrencyNotRecorded": "Ce paiement n'a pas de devise enregistrée ; aucun montant n'est converti ni supposé.",
-      "quoteServiceLocationNotRecorded": "L'adresse de service n'a pas été enregistrée avec cette version du devis."
+      "quoteServiceLocationNotRecorded": "L'adresse de service n'a pas été enregistrée avec cette version du devis.",
+      "refundVatSplitDerived": "Les montants TVA et nets de ce remboursement sont calculés au prorata de la TVA du paiement d'origine."
     },
     "detailsUnavailable": "L'enregistrement détaillé normalisé n'a pas été renvoyé. Seuls les champs de réservation enregistrés sont affichés ; les valeurs historiques manquantes ne sont pas reconstruites.",
     "enums": {
@@ -1248,7 +1256,10 @@
         "unit": "Prix à l'unité",
         "rfq": "Demander un devis",
         "hour": "À l'heure",
-        "day": "À la journée"
+        "day": "À la journée",
+        "meter": "Par mètre",
+        "m2": "Par m²",
+        "room": "Par pièce"
       },
       "captureSource": {
         "booking_creation": "Lors de la réservation",
@@ -1342,7 +1353,8 @@
     "timeZone": {
       "recorded": "Les horodatages utilisent le fuseau horaire enregistré de la réservation : {zone}.",
       "viewer": "Aucun fuseau horaire de réservation n'a été enregistré ; les horodatages utilisent le fuseau horaire de votre navigateur : {zone}."
-    }
+    },
+    "sectionLabel": "Détails de la réservation"
   },
   "cancellationRequest": {
     "title": "Demande d'annulation",

@@ -30,5 +30,12 @@
     "server": "Une erreur s'est produite de notre côté. Veuillez réessayer.",
     "unavailable": "Ce service est temporairement indisponible. Veuillez réessayer dans un instant.",
     "invalidResponse": "Nous n'avons pas pu terminer cette demande. Veuillez réessayer."
+  },
+  "notFound": {
+    "metaTitle": "Page introuvable",
+    "title": "Nous n'avons pas trouvé cette page",
+    "description": "La page que vous cherchez n'existe pas ou a été déplacée. Vérifiez l'adresse ou continuez depuis la page d'accueil.",
+    "home": "Retour à l'accueil",
+    "browseServices": "Voir les services"
   }
 }

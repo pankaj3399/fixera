@@ -1,9 +1,22 @@
 "use client";
 
+import { GLOBAL_ERROR_COPY, resolveGlobalErrorLocale, type GlobalErrorLocale } from "@/lib/i18n/globalErrorLocale";
+
 /**
  * Last-resort fallback when the root layout itself fails. Kept dependency-free
- * and English-only because the i18n provider is not available at this level.
+ * because the i18n provider is not available at this level: the copy comes
+ * from a tiny inline en/nl/fr map, picked from the visitor's locale cookie,
+ * the URL prefix, then the browser language.
  */
+function currentLocale(): GlobalErrorLocale {
+  if (typeof window === "undefined") return "en";
+  return resolveGlobalErrorLocale({
+    cookie: document.cookie,
+    pathname: window.location.pathname,
+    languages: navigator.languages,
+  });
+}
+
 export default function GlobalError({
   error,
   reset,
@@ -11,8 +24,10 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const locale = currentLocale();
+  const copy = GLOBAL_ERROR_COPY[locale];
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body style={{ fontFamily: "system-ui, sans-serif", margin: 0 }}>
         <main
           style={{
@@ -36,9 +51,9 @@ export default function GlobalError({
               textAlign: "center",
             }}
           >
-            <h1 style={{ fontSize: "18px", margin: 0 }}>Something went wrong</h1>
+            <h1 style={{ fontSize: "18px", margin: 0 }}>{copy.title}</h1>
             <p style={{ fontSize: "14px", color: "#4b5563", marginTop: "8px" }}>
-              The page could not be loaded. Please try again.
+              {copy.body}
             </p>
             <button
               type="button"
@@ -54,11 +69,11 @@ export default function GlobalError({
                 cursor: "pointer",
               }}
             >
-              Try again
+              {copy.retry}
             </button>
             {error.digest ? (
               <p style={{ fontSize: "11px", color: "#9ca3af", marginTop: "16px" }}>
-                Reference: {error.digest}
+                {copy.reference}: {error.digest}
               </p>
             ) : null}
           </div>

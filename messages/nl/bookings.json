@@ -586,6 +586,8 @@
     },
     "proposalDeclineTitle": "Voorstel afwijzen",
     "proposalDeclineDescription": "Vertel de professional waarom dit voorstel niet werkt voor jou. Je toelichting wordt meegestuurd en de claim wordt geëscaleerd.",
+    "resolutionDeclineTitle": "Oplossing weigeren",
+    "resolutionDeclineDescription": "Leg uit waarom de oplossing het probleem niet verhelpt. De claim wordt samen met je uitleg doorgestuurd naar het Fixtract-team.",
     "clarificationLabel": "Toelichting",
     "clarificationPlaceholder": "Leg uit wat er ontbreekt of mis is met de voorgestelde oplossing...",
     "clarificationRequired": "Voeg een korte toelichting toe voordat je afwijst.",
@@ -836,7 +838,8 @@
       "milestoneOrder": "Volgorde",
       "milestoneStatus": "Status",
       "customDueDate": "Vervaldatum",
-      "quoteDate": "Offertedatum"
+      "quoteDate": "Offertedatum",
+      "extraCostsCustomer": "Extra kosten bij oplevering (jouw prijs, excl. btw)"
     },
     "parties": {
       "customer": "Klant",
@@ -852,7 +855,8 @@
       "city": "Stad",
       "country": "Land",
       "timeZone": "Tijdzone",
-      "postalCode": "Postcode"
+      "postalCode": "Postcode",
+      "viewProfile": "Profiel bekijken"
     },
     "overview": {
       "schedule": "Planning",
@@ -1193,6 +1197,7 @@
         "undated_quote_version": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "quote_actor_not_recorded": "Een offerteversie heeft geen vastgelegde actor.",
         "legacy_quote_actor_missing": "Een oude offerte heeft geen vastgelegde actor.",
+        "rfq_submission_actor_not_recorded": "De offerteaanvraag heeft geen vastgelegde indiener.",
         "undated_refund": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
         "refund_vat_split_not_recorded": "Voor minstens één terugbetaling zijn btw en netto niet vastgelegd.",
         "undated_extra_costs": "Zonder datum bewaard; weergegeven in de groep zonder datum.",
@@ -1220,7 +1225,9 @@
       "newStatus": "Nieuwe status",
       "recordedInEnglish": "taal vastgelegd als Engels",
       "coverageUnknown": "De volledigheid van de geschiedenis is onbekend. Alleen bewaarde gegevens worden getoond.",
-      "openWarranty": "Garantieclaim openen"
+      "openWarranty": "Garantieclaim openen",
+      "coverageComplete": "Volledige historiek: elke statuswijziging is vastgelegd op het moment zelf.",
+      "coveragePartial": "Recente wijzigingen zijn vastgelegd op het moment zelf; oudere historiek is opgebouwd uit bewaarde gegevens."
     },
     "notices": {
       "termsSnapshotNotRecorded": "De voorwaarden bij boeking zijn niet vastgelegd voor deze verouderde boeking. Huidige projectgegevens worden apart getoond.",
@@ -1239,7 +1246,8 @@
       "checkoutSnapshotIncomplete": "De afrekenmomentopname is onvolledig; ontbrekende waarden worden niet herberekend.",
       "attachmentUnavailable": "Deze bijlage is niet beschikbaar met jouw toegang.",
       "paymentCurrencyNotRecorded": "Deze betaling heeft geen vastgelegde valuta; er wordt niets omgerekend of aangenomen.",
-      "quoteServiceLocationNotRecorded": "Het serviceadres is niet vastgelegd bij deze offerteversie."
+      "quoteServiceLocationNotRecorded": "Het serviceadres is niet vastgelegd bij deze offerteversie.",
+      "refundVatSplitDerived": "De btw- en nettobedragen van deze terugbetaling zijn pro rata berekend op basis van de btw van de oorspronkelijke betaling."
     },
     "detailsUnavailable": "Het genormaliseerde detailrecord is niet ontvangen. Alleen opgeslagen boekingsvelden worden getoond; ontbrekende historische waarden worden niet gereconstrueerd.",
     "enums": {
@@ -1248,7 +1256,10 @@
         "unit": "Prijs per eenheid",
         "rfq": "Offerte aanvragen",
         "hour": "Per uur",
-        "day": "Per dag"
+        "day": "Per dag",
+        "meter": "Per meter",
+        "m2": "Per m²",
+        "room": "Per kamer"
       },
       "captureSource": {
         "booking_creation": "Bij boeking",
@@ -1342,7 +1353,8 @@
     "timeZone": {
       "recorded": "Tijdstempels gebruiken de vastgelegde boekingszone: {zone}.",
       "viewer": "Er is geen boekingszone vastgelegd; tijdstempels gebruiken de tijdzone van je browser: {zone}."
-    }
+    },
+    "sectionLabel": "Boekingsgegevens"
   },
   "cancellationRequest": {
     "title": "Annuleringsverzoek",

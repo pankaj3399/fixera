@@ -25,6 +25,7 @@ import {
 import {
   URL_LOCALE_REQUEST_HEADER,
   resolveLocalizedRequest,
+  splitLocalePrefix,
 } from "@/lib/seo/localeUrls";
 import { resolveRequestCountry } from "@/lib/i18n/autoConversion";
 import { loadAutoConversionState } from "@/lib/i18n/autoConversionLoader";
@@ -125,11 +126,14 @@ export async function middleware(request: NextRequest) {
 
   // --- Locale: language prefix, then explicit ?lang= (persisted), cookie, geo ---
   const localized = resolveLocalizedRequest(request.nextUrl.pathname);
+  // A prefixed path that is not a public route (`/nl/login`, `/fr/missing`) is not
+  // rewritten and always ends on the 404 page; the prefix still names its language.
+  const urlPrefixLocale = localized?.locale ?? splitLocalePrefix(request.nextUrl.pathname)?.locale;
   const queryLang = request.nextUrl.searchParams.get("lang");
   const manualLang = isLocale(queryLang) ? queryLang : undefined;
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
   const locale: Locale =
-    localized?.locale ??
+    urlPrefixLocale ??
     manualLang ??
     (isLocale(cookieLocale) ? cookieLocale : undefined) ??
     geoLocale;
@@ -186,7 +190,7 @@ export async function middleware(request: NextRequest) {
     setCookieIfChanged(response, request, GEO_CURRENCY_COOKIE, geoCurrency, GEO_COOKIE_MAX_AGE);
   }
 
-  if (manualLang && !localized) {
+  if (manualLang && !urlPrefixLocale) {
     setCookieIfChanged(response, request, LOCALE_COOKIE, manualLang, PREFERENCE_COOKIE_MAX_AGE);
   }
 

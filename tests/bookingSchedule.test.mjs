@@ -6,6 +6,7 @@ import {
   COMPLETION_SEARCH_DAYS,
   addExecutionHours,
   advanceWorkingDays,
+  longestWorkingDayHours,
   maxWorkingWindowHours,
   withBookingQuantity,
   workingHoursForDay,
@@ -57,16 +58,27 @@ test('customer-hours maximum is the largest window of the seven weekdays, fallba
   assert.equal(maxWorkingWindowHours({ ...shortWeek, sunday: { available: false } }), 8)
 })
 
-test('step 1 rejects customer hours above the longest working day, with the maximum in all locales', () => {
+test('FT1 6B: customer hours above the longest working day are booked in day mode, not rejected', () => {
+  assert.doesNotMatch(FORM, /toasts\.maxHoursPerWorkingDay/, 'step 1 no longer blocks long hour quantities')
+  assert.doesNotMatch(FORM, /maxWorkingWindowHours/)
+  // The booked execution goes through the same working-day rule as the engine.
   assert.match(
     FORM,
-    /if \(packageDurationMode\(selectedPackage\.pricing\) === 'customer_hours'\) \{\s*const maxHours = maxWorkingWindowHours\(professionalAvailability\);\s*if \(estimatedUsage > maxHours\) \{\s*toast\.error\(t\('toasts\.maxHoursPerWorkingDay', \{ max: maxHours \}\)\);\s*return false;/,
+    /scheduledExecutionDuration<AnyExecutionDuration>\(\s*selectedPackage,\s*project\.executionDuration,\s*isUnitPricing \? estimatedUsage : 1,\s*longestWorkingDayHours\(professionalAvailability\),\s*\)/,
   )
-  const expected = { en: 'Maximum is 8 hours per working day.', nl: 'Maximaal 8 uur per werkdag.', fr: 'Maximum 8 heures par jour ouvré.' }
-  for (const locale of ['en', 'nl', 'fr']) {
-    const template = messages(locale).toasts.maxHoursPerWorkingDay
-    assert.equal(new IntlMessageFormat(template, locale).format({ max: 8 }), expected[locale], locale)
-  }
+  // The engine's mode wins while its proposals match the package and quantity.
+  assert.match(FORM, /\(proposals\?\.mode && proposalsKey === currentProposalsKey \? proposals\.mode : undefined\) \|\|\s*bookedExecution\?\.unit \|\|\s*'days'/)
+  assert.match(FORM, /setProposals\(data\.proposals\);\s*setProposalsKey\(requestKey\);/)
+})
+
+test('longest working day mirrors the backend: unavailable weekdays do not count', () => {
+  const shortWeek = Object.fromEntries(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].map((day) => [day, { available: true, startTime: '09:00', endTime: '15:00' }]))
+  // maxWorkingWindowHours treats an unavailable day as 09:00–17:00; the engine skips it.
+  assert.equal(longestWorkingDayHours({ ...shortWeek, saturday: { available: false }, sunday: { available: false } }), 6)
+  assert.equal(longestWorkingDayHours({ ...shortWeek, monday: { available: true, startTime: '08:00', endTime: '18:00' } }), 10)
+  assert.equal(longestWorkingDayHours({ monday: { available: true } }), 8, 'missing times use 09:00–17:00')
+  assert.equal(longestWorkingDayHours({ monday: { available: false } }), 0)
+  assert.equal(longestWorkingDayHours(null), 0)
 })
 
 test('completion search is bounded: no workable day returns null instead of looping forever', () => {
@@ -120,5 +132,5 @@ test('all four scheduling requests carry the booked quantity', () => {
 
 test('the customer-hours hint follows the duration mode exactly', () => {
   assert.match(FORM, /\{packageDurationMode\(selectedPackage\.pricing\) === 'customer_hours' \? \(\s*<span[^>]*>\{t\('package\.hoursDeterminedByCustomer'\)\}/)
-  assert.doesNotMatch(FORM, /isHourUnit\(selectedPackage\.pricing\.unit\)/, 'legacy hour packages are per booking, not customer-set')
+  assert.doesNotMatch(FORM, /isHourUnit\(selectedPackage\.pricing\.unit\)/, 'the duration mode decides, not the unit alone')
 })

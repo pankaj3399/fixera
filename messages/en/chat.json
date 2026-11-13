@@ -124,7 +124,9 @@
     },
     "openClaimDetails": "Open claim details",
     "warrantyClaimUpdate": "Warranty Claim Update",
-    "openWarrantyPage": "Open warranty page"
+    "openWarrantyPage": "Open warranty page",
+    "chatClosedOn": "Chat closed on {date}",
+    "chatClosed": "Chat closed"
   },
   "report": {
     "title": "Report Message",

@@ -380,9 +380,19 @@ export function ActivityPanel({ booking, details, viewerRole, pathname, search }
         description={dt("activity.descriptionLong", "Chronological, day-grouped events from recorded booking data. Expand an event for its details.")}
       >
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-          <ProvenanceBadge tone="amber">
-            {dt("activity.coverageUnknown", "Historical coverage is unknown. Only surviving records are shown.")}
-          </ProvenanceBadge>
+          {activity?.coverage?.status === "complete" ? (
+            <ProvenanceBadge>
+              {dt("activity.coverageComplete", "Complete history: every status change was recorded as it happened.")}
+            </ProvenanceBadge>
+          ) : activity?.coverage?.status === "partial" ? (
+            <ProvenanceBadge tone="amber">
+              {dt("activity.coveragePartial", "Recent changes were recorded as they happened; older history is rebuilt from surviving records.")}
+            </ProvenanceBadge>
+          ) : (
+            <ProvenanceBadge tone="amber">
+              {dt("activity.coverageUnknown", "Historical coverage is unknown. Only surviving records are shown.")}
+            </ProvenanceBadge>
+          )}
           <span>{dt("activity.eventCount", "{count} events", { count: items.length })}</span>
           {details?.meta?.legacy ? <ProvenanceBadge tone="amber">{dt("activity.legacy", "Legacy record")}</ProvenanceBadge> : null}
         </div>

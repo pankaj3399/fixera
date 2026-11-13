@@ -109,7 +109,9 @@ export default function PasswordChange({ className }: PasswordChangeProps) {
         setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' })
         setErrors({ currentPassword: '', newPassword: '', confirmPassword: '' })
       } else {
-        if (typeof data.msg === 'string' && data.msg.includes('Current password is incorrect')) {
+        // `messageEn` carries the English copy when the API localized `msg`.
+        const serverMessage = typeof data.messageEn === 'string' ? data.messageEn : data.msg
+        if (typeof serverMessage === 'string' && serverMessage.includes('Current password is incorrect')) {
           setErrors(prev => ({ ...prev, currentPassword: t('passwordChange.currentIncorrect') }))
         } else {
           toast.error(getErrorText(data, t('passwordChange.failed')))

@@ -76,6 +76,8 @@ export interface SupportMeetingDto {
   linkActive?: boolean;
   linkAddedAt?: string | null;
   linkUpdatedAt?: string | null;
+  /** `admin_default` when the assigned admin's saved link was applied on submit. */
+  linkSource?: "admin_default" | "manual" | null;
   confirmationEmailSentAt?: string | null;
   assignedAdminName: string | null;
   cancellationReason: string | null;
@@ -651,4 +653,43 @@ export async function adminSetSupportChatEnabled(
     res,
     "Failed to update the support chat setting.",
   )).data;
+}
+
+export type SupportMeetingLinkProvider = "zoom" | "teams" | "other";
+
+/** The signed-in admin's default meeting link, applied to meetings on submit. */
+export interface SupportMeetingLinkSettings {
+  meetingLink: string | null;
+  provider: SupportMeetingLinkProvider | null;
+  updatedAt: string | null;
+  /** True when this admin's availability is offered to professionals. */
+  receivesMeetings: boolean;
+}
+
+export const SUPPORT_MEETING_LINK_SETTINGS_PATH =
+  "/api/admin/support/meeting-link-settings";
+
+export async function adminGetSupportMeetingLinkSettings(
+  signal?: AbortSignal,
+): Promise<SupportMeetingLinkSettings> {
+  return requestData<SupportMeetingLinkSettings>(
+    `${API}${SUPPORT_MEETING_LINK_SETTINGS_PATH}`,
+    "Failed to load your meeting link settings.",
+    { signal },
+  );
+}
+
+/** Save (or clear with an empty string) the admin's default meeting link. */
+export async function adminUpdateSupportMeetingLinkSettings(
+  meetingLink: string,
+): Promise<SupportMeetingLinkSettings> {
+  return requestData<SupportMeetingLinkSettings>(
+    `${API}${SUPPORT_MEETING_LINK_SETTINGS_PATH}`,
+    "Failed to save your meeting link.",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingLink: meetingLink.trim() }),
+    },
+  );
 }

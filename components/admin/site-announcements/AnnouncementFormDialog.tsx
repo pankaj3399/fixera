@@ -32,6 +32,7 @@ import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { AnnouncementTranslationsPanel } from "./AnnouncementTranslationsPanel";
 
 function FormField({
   children,
@@ -262,6 +263,18 @@ function AnnouncementFormDialogBody({
               />
             </FormField>
           )}
+
+          {editingId ? (
+            <AnnouncementTranslationsPanel
+              announcementId={editingId}
+              showCta={form.type !== "top_bar"}
+            />
+          ) : (
+            <p className="text-xs text-slate-500">
+              Write the text once in the source language. After saving, it is machine-translated into
+              English, Dutch and French; you can review and edit each translation here.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-4 px-6 py-6 md:overflow-y-auto">
@@ -282,7 +295,7 @@ function AnnouncementFormDialogBody({
               />
             </FormField>
             <FormField>
-              <FormFieldLabel htmlFor="announcement-locale">Language</FormFieldLabel>
+              <FormFieldLabel htmlFor="announcement-locale">Source language</FormFieldLabel>
               <Select value={form.locale} onValueChange={(locale) => patch({ locale })}>
                 <SelectTrigger id="announcement-locale" className={SELECT_TRIGGER_CLASS}>
                   <SelectValue />

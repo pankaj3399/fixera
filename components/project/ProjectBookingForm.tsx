@@ -4,11 +4,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage';
-import { effectiveExecutionDuration, packageDurationMode } from '@/lib/packageDuration';
+import { packageDurationMode, scheduledExecutionDuration } from '@/lib/packageDuration';
 import {
   addExecutionHours,
   advanceWorkingDays as advanceWorkingDaysWithin,
-  maxWorkingWindowHours,
+  longestWorkingDayHours,
   withBookingQuantity,
   workingHoursForDay,
 } from '@/lib/bookingSchedule';
@@ -54,6 +54,8 @@ import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import type { PublicProjectDto } from '@/types/project';
 import { trackBeginCheckout, trackCompleteRfq, trackEvent } from '@/lib/analytics';
 import { hasEnoughFreeWorkingTime } from '@/lib/calendar/dayAvailability';
+import { calendarDateFromKey, calendarDateKey } from '@/lib/calendar/calendarDateKey';
+import { joinServiceAddress } from '@/lib/dashboardOverview';
 
 // Get unit label from priceModel (e.g., "m² of floor surface" ? "m²")
 const getUnitLabel = (priceModel?: string): string => {
@@ -253,6 +255,10 @@ const hasDurationRange = (
   range: { min?: number; max?: number };
 } => Boolean(duration && 'range' in duration && duration.range);
 
+/** Identifies one package + quantity schedule request (see proposalsKey). */
+const scheduleRequestKey = (packageIndex: number | null | undefined, isUnitPricing: boolean, quantity: number) =>
+  `${typeof packageIndex === 'number' ? packageIndex : ''}:${isUnitPricing ? quantity : ''}`;
+
 const convertDurationToDays = (
   duration?: AnyExecutionDuration,
   preferRange?: 'min' | 'max'
@@ -374,6 +380,9 @@ export default function ProjectBookingForm({
   const [proposals, setProposals] = useState<
     ScheduleProposalsResponse['proposals'] | null
   >(null);
+  // Package/quantity the stored proposals were fetched for, so their engine
+  // mode is only trusted while it still matches the form (FT1 6B).
+  const [proposalsKey, setProposalsKey] = useState('');
   const [professionalAvailability, setProfessionalAvailability] =
     useState<ProfessionalAvailability | null>(null);
   const [professionalTimezone, setProfessionalTimezone] =
@@ -573,24 +582,31 @@ export default function ProjectBookingForm({
   // Execution the booking occupies, as the backend schedules it: an hourly
   // unit package lasts the booked hours, a per-unit package scales its unit
   // duration by the booked quantity, anything else keeps its stored duration.
+  // Quantity hours longer than the professional's longest working day are
+  // booked in day mode (FT1 6B), so the customer picks a start date only.
   const bookedExecution = useMemo(
-    () => effectiveExecutionDuration<AnyExecutionDuration>(
+    () => scheduledExecutionDuration<AnyExecutionDuration>(
       selectedPackage,
       project.executionDuration,
       isUnitPricing ? estimatedUsage : 1,
+      longestWorkingDayHours(professionalAvailability),
     ),
-    [selectedPackage, project.executionDuration, isUnitPricing, estimatedUsage],
+    [selectedPackage, project.executionDuration, isUnitPricing, estimatedUsage, professionalAvailability],
   );
 
-  // Derive mode from execution duration unit (replaces root-level timeMode)
+  // The schedule engine's mode for the current package and quantity when its
+  // proposals are loaded; otherwise the same rule mirrored from the execution
+  // unit (replaces root-level timeMode).
+  const currentProposalsKey = scheduleRequestKey(selectedPackageIndex, isUnitPricing, estimatedUsage);
   const projectMode: 'hours' | 'days' =
+    (proposals?.mode && proposalsKey === currentProposalsKey ? proposals.mode : undefined) ||
     bookedExecution?.unit ||
     'days';
   const professionalTz = normalizeTimezone(professionalTimezone);
   // Formats DayPicker/local Date objects in local timezone (date-only value from the picker).
   // Contrast with toLocalDateKeyFromInstant which uses professionalTz for real UTC instants.
   const toLocalDateKey = useCallback(
-    (date: Date) => format(date, 'yyyy-MM-dd'),
+    (date: Date) => calendarDateKey(date),
     []
   );
   // Instant key (treat Date as a real UTC instant from the backend)
@@ -1046,6 +1062,7 @@ export default function ProjectBookingForm({
 
   const fetchScheduleProposals = async (packageIndex?: number) => {
     const requestId = ++proposalsRequestRef.current;
+    const requestKey = scheduleRequestKey(packageIndex, isUnitPricing, estimatedUsage);
     try {
       let endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/schedule-proposals`;
       if (typeof packageIndex === 'number') {
@@ -1075,6 +1092,7 @@ export default function ProjectBookingForm({
       if (requestId !== proposalsRequestRef.current) return;
       if (data.success && data.proposals) {
         setProposals(data.proposals);
+        setProposalsKey(requestKey);
       }
     } catch (error) {
       debugError?.('Error fetching schedule proposals:', error);
@@ -1334,7 +1352,7 @@ export default function ProjectBookingForm({
           return;
         }
 
-        rangeEnd = adjustRangeEndForMidnightUtc(rangeEnd, date, tz, dayEnd);
+        rangeEnd = adjustRangeEndForMidnightUtc(rangeEnd, dayStart, tz, dayEnd);
 
         if (rangeEnd <= dayStart || rangeStart >= dayEnd) {
           return;
@@ -1364,7 +1382,8 @@ export default function ProjectBookingForm({
   ) => {
     const { startTime, endTime } = getWorkingHoursForDate(date);
     const dateStr = toLocalDateKey(date);
-    const dayEnd = addDays(fromProfessionalDateKey(dateStr), 1);
+    const dayStart = fromProfessionalDateKey(dateStr);
+    const dayEnd = addDays(dayStart, 1);
     const tz = professionalTz;
     const workingStart = fromZonedTime(`${dateStr}T${startTime}:00`, tz);
     const workingEnd = fromZonedTime(`${dateStr}T${endTime}:00`, tz);
@@ -1380,7 +1399,7 @@ export default function ProjectBookingForm({
       .map((interval) => {
         const intervalEnd = adjustRangeEndForMidnightUtc(
           interval.end,
-          date,
+          dayStart,
           tz,
           dayEnd
         ).getTime();
@@ -1481,7 +1500,7 @@ export default function ProjectBookingForm({
 
     while (remainingMinutes > 0 && iterations < maxIterations) {
       iterations += 1;
-      const dayStart = fromProfessionalDateKey(toLocalDateKey(cursor));
+      const dayStart = startOfDay(cursor);
       if (isBufferDayBlocked(dayStart)) {
         cursor = addDays(dayStart, 1);
         continue;
@@ -1841,7 +1860,7 @@ export default function ProjectBookingForm({
   const isDateBlocked = (dateString: string): boolean => {
     let dateObj: Date;
     try {
-      dateObj = fromProfessionalDateKey(dateString);
+      dateObj = calendarDateFromKey(dateString);
     } catch {
       return true;
     }
@@ -1892,7 +1911,7 @@ export default function ProjectBookingForm({
     debugSignatureRef.current = signature;
 
     const debugSummary = debugDateKeys.map((dateKey) => {
-      const dateObj = fromProfessionalDateKey(dateKey);
+      const dateObj = calendarDateFromKey(dateKey);
       const isWorking = isProfessionalWorkingDay(dateObj);
       const explicitBlocked = blockedDates.blockedDates.includes(dateKey);
       const intervals = getBlockedIntervalsForDate(dateObj);
@@ -1991,7 +2010,7 @@ export default function ProjectBookingForm({
       : toLocalDateKey(earliest);
     debugLog?.('[getMinDate] Starting from:', earliestKey);
 
-    let checkDate = fromProfessionalDateKey(earliestKey);
+    let checkDate = calendarDateFromKey(earliestKey);
 
     for (let i = 0; i < 120; i++) {
       const isWorkingDay = isProfessionalWorkingDay(checkDate);
@@ -2256,15 +2275,9 @@ export default function ProjectBookingForm({
         return false;
       }
 
-      // Customer-set hours: more hours than the longest working day leave no
-      // bookable slot on any date, so say so here instead of an empty calendar.
-      if (packageDurationMode(selectedPackage.pricing) === 'customer_hours') {
-        const maxHours = maxWorkingWindowHours(professionalAvailability);
-        if (estimatedUsage > maxHours) {
-          toast.error(t('toasts.maxHoursPerWorkingDay', { max: maxHours }));
-          return false;
-        }
-      }
+      // Customer-set hours longer than the longest working day are not an
+      // error: they are booked in day mode (FT1 6B) and step 2 asks for a
+      // start date instead of a start time.
     }
 
     if (currentStep === 2) {
@@ -3040,16 +3053,9 @@ export default function ProjectBookingForm({
     typeof userCoordinates?.[1] === 'number' ? userCoordinates[1] : null;
   const customerLon =
     typeof userCoordinates?.[0] === 'number' ? userCoordinates[0] : null;
-  const profileAddress = useMemo(() => {
-    if (!user?.location) return '';
-    const parts = [
-      user.location.address,
-      user.location.city,
-      user.location.postalCode,
-      user.location.country,
-    ].filter(Boolean);
-    return parts.join(', ');
-  }, [user]);
+  // A Google-formatted profile address already contains city, postcode and
+  // country; join each part once.
+  const profileAddress = useMemo(() => joinServiceAddress(user?.location) ?? '', [user]);
   const hasProfileAddress = Boolean(profileAddress);
   const confirmedAddress = useMemo(
     () => (useProfileAddress ? profileAddress : manualAddress.trim()),

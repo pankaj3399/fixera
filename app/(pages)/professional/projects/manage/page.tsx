@@ -39,7 +39,7 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import ProjectCard from "@/components/dashboard/ProjectCard"
-import { priceTokenKey } from "@/lib/dashboardOverview"
+import { facetCount, priceTokenKey, readFacetCounts } from "@/lib/dashboardOverview"
 
 interface Project {
   _id: string
@@ -211,6 +211,8 @@ export default function ManageProjectsPage() {
   const [projectCounts, setProjectCounts] = useState(() => ({ ...DEFAULT_PROJECT_COUNTS }))
   const [activeTab, setActiveTab] = useState<TabValue>('all')
   const [allServices, setAllServices] = useState<string[]>([])
+  // FT2 #10a: per-service counts from the server; null = unknown (no number shown).
+  const [serviceCounts, setServiceCounts] = useState<Record<string, number> | null>(null)
   const canCreateProjects = user?.professionalStatus === 'approved'
 
   const formatProjectStatusLabel = (status: Project['status']) =>
@@ -388,6 +390,7 @@ export default function ManageProjectsPage() {
           }
           fetchedProjects = responseData.items
           responseCounts = responseData.counts
+          setServiceCounts(readFacetCounts(responseData.serviceCounts))
           setTotalPages(responseData.meta.pages || 1)
           setTotalProjects(responseData.meta.total || responseData.items.length)
           setCurrentPage(Math.min(responseData.meta.page || 1, Math.max(1, responseData.meta.pages || 1)))
@@ -453,7 +456,7 @@ export default function ManageProjectsPage() {
         setProjects([])
         setTotalPages(1)
         setTotalProjects(0)
-        setProjectCounts({ ...DEFAULT_PROJECT_COUNTS })
+        setProjectCounts({ ...DEFAULT_PROJECT_COUNTS }); setServiceCounts(null)
       }
     } catch (error) {
       if (!isCurrent()) return
@@ -462,7 +465,7 @@ export default function ManageProjectsPage() {
       setProjects([])
       setTotalPages(1)
       setTotalProjects(0)
-      setProjectCounts({ ...DEFAULT_PROJECT_COUNTS })
+      setProjectCounts({ ...DEFAULT_PROJECT_COUNTS }); setServiceCounts(null)
     } finally {
       if (isCurrent()) setIsLoading(false)
     }
@@ -982,7 +985,7 @@ export default function ManageProjectsPage() {
                 <SelectContent>
                   <SelectItem value="all">{t('manage.allServices')}</SelectItem>
                   {uniqueServices.map(svc => (
-                    <SelectItem key={svc} value={svc}>{svc}</SelectItem>
+                    <SelectItem key={svc} value={svc}>{serviceCounts ? `${svc} (${facetCount(serviceCounts, svc)})` : svc}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

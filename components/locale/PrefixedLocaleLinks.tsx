@@ -32,14 +32,17 @@ export default function PrefixedLocaleLinks() {
       // Same page (a hash or a tab change on this URL): the page handles it.
       if (url.pathname === pathname && url.search === search) return;
 
+      // preventDefault alone stops next/link's client-side navigation (it skips
+      // defaultPrevented clicks after running its onClick). The click must keep
+      // propagating so the link's own handlers still run, e.g. announcement CTA
+      // click counters (sent with keepalive, so they survive the navigation).
       event.preventDefault();
-      event.stopPropagation();
       window.location.assign(
         keepLocaleInUrl(`${url.pathname}${url.search}${url.hash}`, current.locale),
       );
     };
 
-    // Capture on window, so the click never reaches the framework's link handler.
+    // Capture on window, so the default is prevented before the framework's link handler runs.
     window.addEventListener("click", onClick, true);
     return () => window.removeEventListener("click", onClick, true);
   }, []);

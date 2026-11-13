@@ -44,7 +44,7 @@ import { listSupportAvailability } from "@/lib/support"
 import { supportCalendarDisplayEvents, supportCalendarWarning } from "@/lib/support/calendar"
 import { resolveSupportTimeZone, supportDateWindow } from "@/lib/support/dates"
 import { getScheduleWindow, getVisibleScheduleDays } from "@/lib/scheduleUtils"
-import { bookingCalendarEventType } from "@/lib/calendar/bookingEvents"
+import { bookingCalendarEventType, isRetainedPartialRefundBooking } from "@/lib/calendar/bookingEvents"
 
 
 function normalizeCountryCode(raw: string): string {
@@ -652,6 +652,8 @@ function ProfileContent() {
           scheduledBufferStartDate?: string | Date | null
           scheduledBufferEndDate?: string | Date | null
           status?: string
+          refundPreservesPastPlanning?: boolean
+          payment?: { status?: string } | null
           resourcePlan?: { resourceId?: string | { _id?: string }; days?: (string | Date)[] }[]
           location?: {
             address?: string
@@ -673,7 +675,7 @@ function ProfileContent() {
         const activeBookings = (result.bookings || []).filter((booking: BookingData) =>
           booking?.scheduledStartDate &&
           (booking?.scheduledExecutionEndDate || booking?.scheduledBufferEndDate) &&
-          bookingCalendarEventType(booking?.status) !== null
+          bookingCalendarEventType(booking?.status, { retainedAfterRefund: isRetainedPartialRefundBooking(booking) }) !== null
         )
 
         const events: CalendarEvent[] = []
@@ -688,10 +690,14 @@ function ProfileContent() {
             : undefined
           // Blue = pending bookings; in-progress work renders indigo and
           // completed bookings render emerald (see bookingCalendarEventType).
-          const bookingEventType = bookingCalendarEventType(booking?.status) ?? 'booking'
+          // A started booking cancelled by a partial refund keeps only its
+          // retained past planned days (never its whole window or buffer).
+          const retainedAfterRefund = isRetainedPartialRefundBooking(booking)
+          const bookingEventType = bookingCalendarEventType(booking?.status, { retainedAfterRefund }) ?? 'booking'
 
           const plan = Array.isArray(booking.resourcePlan) ? booking.resourcePlan : []
           const hasPlan = plan.some((entry) => Array.isArray(entry?.days) && entry.days.length > 0)
+          if (retainedAfterRefund && !hasPlan) return
 
           if (hasPlan) {
             const entry = plan.find(

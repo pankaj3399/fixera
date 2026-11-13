@@ -55,7 +55,10 @@
     "comingSoon": "Binnenkort beschikbaar",
     "comingSoonDescription": "We werken nog aan deze pagina. Bekijk ondertussen de andere diensten op Fixtract of neem contact op, dan helpen we je de juiste vakman te vinden.",
     "contactUs": "Contacteer ons",
-    "backHome": "← Terug naar de homepage"
+    "backHome": "← Terug naar de homepage",
+    "findProsHeading": "Vakmensen voor {service}",
+    "findProsBody": "Vergelijk geverifieerde vakmensen voor {service} bij jou in de buurt: reviews, niveaus, prijzen en beschikbaarheid.",
+    "findProsCta": "Vakmensen zoeken"
   },
   "levels": {
     "topRated": "Top beoordeeld",

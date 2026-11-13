@@ -55,7 +55,10 @@
     "comingSoon": "Coming soon",
     "comingSoonDescription": "We're putting the finishing touches on this page. In the meantime, explore the other services available on Fixtract or get in touch and we'll help you find the right professional.",
     "contactUs": "Contact us",
-    "backHome": "← Back to homepage"
+    "backHome": "← Back to homepage",
+    "findProsHeading": "Professionals for {service}",
+    "findProsBody": "Compare verified professionals for {service} near you: reviews, levels, prices and availability.",
+    "findProsCta": "Find professionals"
   },
   "levels": {
     "topRated": "Top Rated",

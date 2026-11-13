@@ -1,4 +1,4 @@
-import Image from "next/image";
+import CoverImage from "@/components/cms/CoverImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
@@ -7,8 +7,9 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
 import { fetchCmsPostWithError } from "@/lib/cms/public";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
+import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
 import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
-import { buildMetadata } from "@/lib/seo/metadata";
+import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
 import { articleSchema, breadcrumbSchema } from "@/lib/seo/jsonLd";
 import { intlLocale } from "@/lib/i18n/format";
@@ -40,6 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     publishedTime: post.publishedAt,
     modifiedTime: post.updatedAt,
     authorName: cmsAuthorName(post),
+    locale: servedContentLocale(post.locale),
   });
 }
 
@@ -82,9 +84,10 @@ export default async function BlogDetailPage({ params }: Props) {
       </div>
 
       {post.coverImage && (
-        <div className="mx-auto mt-4 max-w-5xl px-6">
+        // Hidden (no empty frame) when the cover file is missing and CoverImage renders nothing.
+        <div className="mx-auto mt-4 hidden max-w-5xl px-6 has-[img]:block">
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
-            <Image
+            <CoverImage
               src={post.coverImage}
               alt={cmsCoverAlt(post)}
               width={1280}
@@ -133,7 +136,12 @@ export default async function BlogDetailPage({ params }: Props) {
           </p>
         )}
         <div className="mt-8">
-          <RichTextRenderer html={post.body} className="prose-lg" />
+          <MachineTranslatedNote
+            autoTranslated={post.autoTranslated}
+            label={t("machineTranslatedNote")}
+            className="mb-4"
+          />
+          <RichTextRenderer html={post.body} className="prose-lg" lang={servedContentLocale(post.locale)} />
         </div>
         <ArticleRelatedSections
           relatedServiceSlug={post.relatedServiceSlug}

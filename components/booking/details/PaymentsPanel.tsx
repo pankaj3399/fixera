@@ -1056,7 +1056,9 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
                       <NotRecorded label={dt("payments.justificationNotRecorded", "Justification not recorded")} />
                     )}
                   </div>
-                  {refund.vatSplitRecorded === false || (refund.noticeCodes || []).includes("REFUND_VAT_SPLIT_NOT_RECORDED") ? (
+                  {refund.vatSplitDerived ? (
+                    <NoticeList notices={[{ code: "REFUND_VAT_SPLIT_DERIVED", severity: "info", entity: "refund" }]} />
+                  ) : refund.vatSplitRecorded === false || (refund.noticeCodes || []).includes("REFUND_VAT_SPLIT_NOT_RECORDED") ? (
                     <NoticeList notices={[{ code: "REFUND_VAT_SPLIT_NOT_RECORDED", severity: "info", entity: "refund" }]} />
                   ) : null}
                 </li>

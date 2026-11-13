@@ -23,7 +23,8 @@ function render(Component, booking, viewerRole) {
 test('booking table renders a recorded model, refund, and public professional tags', () => {
   const booking = { _id: 'b1', status: 'completed', priceModel: 'unit', professional: { _id: 'p1', name: 'Piet', professionalLevel: 'Level 2', adminTags: ['verified', 'our choice'] }, payment: { professionalPayout: 80, refundAmount: 20, currency: 'EUR' } }
   const pro = render(SharedBookingsTable, booking, 'professional')
-  assert.match(pro, />unit</)
+  // FT2 #13: the recorded token renders as a translated label.
+  assert.match(pro, />Unit Based</)
   assert.match(pro, /EUR 20.00/)
   const customer = render(SharedBookingsTable, booking, 'customer')
   assert.match(customer, /Verified/)
@@ -223,4 +224,37 @@ test('professional payout column uses the recorded aggregate refund before the c
 })
 test('the authoritative overview can explicitly record a base-price credit without an extra charge', () => {
   assert.deepEqual(completionAdditionOf({ _id: 'b1', status: 'completed', overview: { completionAddition: { amount: -30, currency: 'EUR', source: 'recorded' } } }), { amount: -30, currency: 'EUR', source: 'recorded' })
+})
+
+// FT2 #13/#14: recorded price-model tokens and duration units render in the
+// viewer's language (nl/fr), never as the raw English token.
+const localeMessages = (locale) => Object.fromEntries(['auth', 'dashboardWidgets', 'search'].map(name => [name, JSON.parse(readFileSync(new URL(`../messages/${locale}/${name}.json`, import.meta.url), 'utf8'))]))
+function renderIn(locale, Component, booking, viewerRole) {
+  return renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router },
+    React.createElement(NextIntlClientProvider, { locale, timeZone: 'UTC', messages: localeMessages(locale) },
+      React.createElement(AuthProvider, null, React.createElement(Component, { ...props, viewerRole, bookings: [booking] })))))
+}
+test('booking table translates the price model per locale and keeps unknown free text', () => {
+  assert.match(renderIn('nl', SharedBookingsTable, { _id: 'b1', status: 'completed', priceModel: 'fixed' }, 'customer'), />Vaste prijs</)
+  assert.match(renderIn('fr', SharedBookingsTable, { _id: 'b1', status: 'completed', priceModel: 'rfq' }, 'customer'), />Devis sur demande</)
+  assert.match(renderIn('nl', SharedBookingsTable, { _id: 'b1', status: 'completed', priceModel: 'Custom model' }, 'customer'), />Custom model</)
+})
+test('quote table translates the execution duration unit with plurals', () => {
+  const quote = (duration) => ({ _id: 'b1', status: 'quoted', currentQuoteVersion: 1, quoteVersions: [{ version: 1, totalAmount: 100, currency: 'EUR', executionDuration: duration }] })
+  const nl = renderIn('nl', SharedQuotesTable, quote({ value: 3, unit: 'days' }), 'customer')
+  const fr = renderIn('fr', SharedQuotesTable, quote({ value: 1, unit: 'hours' }), 'customer')
+  const en = renderIn('en', SharedQuotesTable, quote({ value: 2, unit: 'days' }), 'customer')
+  assert.match(nl, />3 dagen</)
+  assert.match(fr, />1 heure</)
+  assert.match(en, />2 days</)
+  assert.doesNotMatch(nl, />3 days</)
+})
+test('FT3 #14b: the professional level renders as a coloured tier tag in both tables', () => {
+  const booking = { _id: 'b1', status: 'completed', professional: { _id: 'p1', name: 'Piet', professionalLevel: 'Expert' } }
+  for (const Component of [SharedBookingsTable]) {
+    const html = renderIn('en', Component, booking, 'customer')
+    assert.match(html, /style="background-color:#[0-9A-Fa-f]{6};border-color:#[0-9A-Fa-f]{6};color:#(?:000000|FFFFFF)"[^>]*>Expert</)
+  }
+  const quote = renderIn('en', SharedQuotesTable, { ...booking, status: 'quoted', currentQuoteVersion: 1, quoteVersions: [{ version: 1, totalAmount: 100, currency: 'EUR' }] }, 'customer')
+  assert.match(quote, /background-color:#[0-9A-Fa-f]{6}[^>]*>Expert</)
 })

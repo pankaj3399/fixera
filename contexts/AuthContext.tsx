@@ -11,6 +11,14 @@ import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY } from '@/lib/constan
 import { getMigratedItem, removeMigratedItem } from '@/lib/storageMigration'
 import { pruneAnonymizeRecoveryStorageForLogout } from '@/lib/anonymizeRecoveryStorage'
 import { resolvePostAuthRedirect } from '@/lib/auth/redirectResolver'
+import {
+  getAllowedRoles,
+  hasRoleAccess,
+  isAuthRoute,
+  isProfessionalOnboardingRoute,
+  isProtectedRoute,
+  isPublicRoute,
+} from '@/lib/auth/routeAccess'
 
 interface User {
   _id: string
@@ -177,48 +185,6 @@ interface SignupData {
   marketingOptIn: boolean
 }
 
-// Route Configuration
-const ROUTE_CONFIG = {
-  // Public routes - accessible to everyone
-  PUBLIC: [
-    '/',
-    '/about',
-    '/privacy-policy',
-    '/professionals',
-    '/services',
-    '/search',
-    '/categories',
-  ],
-
-  // Auth routes - only accessible when NOT authenticated
-  AUTH: [
-    '/login',
-    '/register',
-    '/join',
-    '/forgot-password',
-    '/reset-password',
-    '/signup',
-    '/admin/accept-invite',
-  ],
-
-  // Protected routes - require authentication (any role)
-  PROTECTED: [
-    '/dashboard',
-    '/profile',
-    '/bookings',
-    '/chat',
-    '/support',
-  ],
-
-  // Role-based routes - require specific roles
-  ROLE_BASED: {
-    admin: ['/admin'],
-    professional: ['/professional', '/projects/create', '/professional/onboarding'],
-    employee: ['/professional'],
-  } as Record<string, string[]>
-  // Note: /professional covers /professional/earnings, /professional/projects/*, etc.
-}
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const useAuth = () => {
@@ -227,45 +193,6 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
-}
-
-// Helper functions for route checking
-const isPublicRoute = (pathname: string): boolean => {
-  // Check standard public routes
-  const isStandardPublic = ROUTE_CONFIG.PUBLIC.some(route =>
-    pathname === route || pathname.startsWith(route + '/')
-  )
-  if (isStandardPublic) return true
-
-  // Special case: /projects/[id] is public for viewing (but NOT /projects/create)
-  if (pathname.startsWith('/projects/') && !pathname.startsWith('/projects/create')) {
-    return true
-  }
-
-  // Special case: /professional/[id] is a public profile page
-  // Match /professional/<objectId> but NOT /professional/projects, /professional/onboarding, etc.
-  const professionalProfileMatch = pathname.match(/^\/professional\/([a-f0-9]{24})$/)
-  if (professionalProfileMatch) {
-    return true
-  }
-
-  return false
-}
-
-const isAuthRoute = (pathname: string): boolean => {
-  return ROUTE_CONFIG.AUTH.some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  )
-}
-
-const isProtectedRoute = (pathname: string): boolean => {
-  return ROUTE_CONFIG.PROTECTED.some(route => 
-    pathname.startsWith(route)
-  )
-}
-
-const isProfessionalOnboardingRoute = (pathname: string): boolean => {
-  return pathname.startsWith('/professional/onboarding') || pathname.startsWith('/professional/stripe')
 }
 
 const isProfessionalVerified = (user: User | null): boolean =>
@@ -289,37 +216,6 @@ const mustCompleteProfessionalAccessFlow = (user: User | null): boolean =>
     user?.role === 'professional' &&
     (!isProfessionalVerified(user) || !isProfessionalOnboardingComplete(user))
   )
-
-// Returns all roles that have access to this route
-const getAllowedRoles = (pathname: string): string[] => {
-  // /professional/[objectId] is a public profile page — not role-restricted
-  if (/^\/professional\/[a-f0-9]{24}$/.test(pathname)) {
-    return []
-  }
-
-  const allowedRoles: string[] = []
-  for (const [role, routes] of Object.entries(ROUTE_CONFIG.ROLE_BASED)) {
-    const hasAccess = routes.some(route => pathname.startsWith(route))
-    if (hasAccess) {
-      allowedRoles.push(role)
-    }
-  }
-  return allowedRoles
-}
-
-// Check if a user's role has access to the route
-const hasRoleAccess = (userRole: string, pathname: string): boolean => {
-  // Admin has access to everything
-  if (userRole === 'admin') return true
-
-  const allowedRoles = getAllowedRoles(pathname)
-
-  // If no role restrictions, anyone authenticated can access
-  if (allowedRoles.length === 0) return true
-
-  // Check if user's role is in the allowed list
-  return allowedRoles.includes(userRole)
-}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
@@ -434,7 +330,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
-        toast.success('Login successful!')
+        toast.success(tAuth('toasts.loginSuccess'))
 
         if (!options?.skipRedirect) {
           if (mustCompleteProfessionalAccessFlow(data.user)) {
@@ -456,7 +352,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         return true
       } else {
-        const serverMessage = typeof data?.msg === 'string' ? data.msg : ''
+        // `messageEn` carries the English copy when the API localized `msg`.
+        const serverMessage =
+          typeof data?.messageEn === 'string' ? data.messageEn : typeof data?.msg === 'string' ? data.msg : ''
         toast.error(
           /invalid (?:email|password|credentials)|incorrect (?:email|password)/i.test(serverMessage)
             ? tAuth('login.invalidCredentials')
@@ -490,11 +388,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false)
         setUser(data.user)
         setAuthToken(data.token)
-        toast.success('Account created successfully!')
+        toast.success(tAuth('toasts.accountCreated'))
         
         if (data.welcomeEmailSent) {
           setTimeout(() => {
-            toast.success('📧 Welcome email sent! Check your inbox to get started.', {
+            toast.success(`📧 ${tAuth('toasts.welcomeEmailSent')}`, {
               duration: 4000,
             })
           }, 1000)
@@ -535,10 +433,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // never contain a target whose request did not land, and they are the
       // only way back to its status check.
       pruneAnonymizeRecoveryStorageForLogout(sessionStorage)
-      toast.success('Logged out successfully')
+      toast.success(tAuth('toasts.loggedOut'))
       router.push('/login')
     }
-  }, [router])
+  }, [router, tAuth])
 
   // Middleware-like logic for route protection
   const handleRouteProtection = async (currentUser: User | null) => {
@@ -656,7 +554,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .then((r) => r.json())
         .then((json) => {
           if (json?.success && json.data?.favorited) {
-            toast.success('Added to your favorites')
+            toast.success(tAuth('toasts.favoriteAdded'))
           }
         })
         .catch(() => {
@@ -665,7 +563,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // bad JSON; ignore
     }
-  }, [user?._id, user?.role])
+  }, [user?._id, user?.role, tAuth])
 
   useEffect(() => {
     if (!user || user.role !== 'professional' || !user.idExpirationDate) {

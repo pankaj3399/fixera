@@ -83,6 +83,7 @@ interface Employee {
     endDate: string;
     reason?: string;
     status?: string;
+    retainedAfterRefund?: boolean;
     bookingId?: string;
     bookingNumber?: string;
     customerName?: string;
@@ -577,7 +578,8 @@ export default function EmployeeManagement() {
       }
       // Status-derived colour: pending renders blue, in-progress indigo,
       // completed emerald. Ranges without a status fall back to pending blue.
-      const bookingType = bookingCalendarEventType(range.status)
+      // Past days a started booking kept after a partial refund stay visible.
+      const bookingType = bookingCalendarEventType(range.status, { retainedAfterRefund: range.retainedAfterRefund })
       if (!bookingType) return
       events.push({
         id: `booking-${range.bookingId || index}`,

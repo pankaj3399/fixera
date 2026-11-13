@@ -1,6 +1,7 @@
 import { authFetch, getAuthToken } from "@/lib/utils";
 import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
+import { keepLocaleInUrl } from "@/lib/seo/localeUrls";
 
 export type CmsContentType = "blog" | "news" | "faq" | "policy" | "landing";
 export type CmsContentStatus = "draft" | "published";
@@ -21,6 +22,251 @@ export function normalizeCmsContentLocale(value: unknown): CmsContentLocale {
   return (CMS_CONTENT_LOCALES as readonly string[]).includes(normalized)
     ? (normalized as CmsContentLocale)
     : "en";
+}
+
+/**
+ * CMS auto-translation types: backend contract v2 (async). A save or retry
+ * returns immediate per-locale results (`pending` while the background run
+ * translates) plus a `CmsTranslationStatus` the admin UI polls until nothing
+ * is pending. See docs/i18n-currency.md.
+ */
+
+/** Outcome of one sync step for one target locale. */
+export type CmsTranslationResultStatus =
+  | "created"
+  | "updated"
+  | "synced"
+  | "pending"
+  | "skipped_manual"
+  | "failed"
+  | "disabled";
+
+export type CmsTranslationErrorCode =
+  | "rate_limited"
+  | "quota_exceeded"
+  | "auth"
+  | "timeout"
+  | "provider_error"
+  | "budget_exceeded"
+  | "slug_conflict"
+  | "changed_during_run"
+  | "interrupted"
+  | "internal";
+
+export interface CmsTranslationResult {
+  /** Target locale, or "*" when the whole sync crashed. */
+  locale: CmsContentLocale | "*";
+  status: CmsTranslationResultStatus;
+  /** Only when status is "failed". */
+  errorCode?: CmsTranslationErrorCode;
+  /** Admin-safe sentence from the server; shown verbatim. */
+  error?: string;
+}
+
+/** Per-target-locale state the admin badges show. */
+export type CmsLocaleTranslationState =
+  | "source"
+  | "pending"
+  | "up_to_date"
+  | "stale"
+  | "missing"
+  | "failed"
+  | "manual"
+  | "blocked";
+
+export interface CmsTranslationLocaleDocument {
+  _id: string;
+  slug: string;
+  title: string;
+  status: CmsContentStatus;
+  autoTranslated: boolean;
+  translatedFrom?: string;
+  updatedAt?: string;
+}
+
+export interface CmsTranslationLocaleStatus {
+  locale: CmsContentLocale;
+  state: CmsLocaleTranslationState;
+  /** The doc occupying this locale, if any. */
+  document?: CmsTranslationLocaleDocument;
+  /** Last background run outcome for this locale. */
+  lastResult?: CmsTranslationResult & { at: string };
+}
+
+/** `GET /api/admin/cms/:id/translations` (and `translationStatus` on admin reads/saves). */
+export interface CmsTranslationStatus {
+  /** Translator configured on the server. */
+  enabled: boolean;
+  /** The origin doc (for a translation: its source). */
+  sourceId: string;
+  sourceLocale: CmsContentLocale;
+  /** A background run holds the lease right now. */
+  running: boolean;
+  /** A run was requested and not yet picked up. */
+  queued: boolean;
+  lastRunAt?: string;
+  /** All 3 locales in CMS order (the source as state "source"). */
+  locales: CmsTranslationLocaleStatus[];
+}
+
+export interface CmsSaveResult {
+  content: CmsContent;
+  translations: CmsTranslationResult[];
+  /** `data.translationStatus`; undefined when the server could not load it. */
+  status?: CmsTranslationStatus;
+}
+
+const CMS_TRANSLATION_RESULT_STATUSES: readonly CmsTranslationResultStatus[] = [
+  "created",
+  "updated",
+  "synced",
+  "pending",
+  "skipped_manual",
+  "failed",
+  "disabled",
+];
+
+const CMS_TRANSLATION_ERROR_CODES: readonly CmsTranslationErrorCode[] = [
+  "rate_limited",
+  "quota_exceeded",
+  "auth",
+  "timeout",
+  "provider_error",
+  "budget_exceeded",
+  "slug_conflict",
+  "changed_during_run",
+  "interrupted",
+  "internal",
+];
+
+export const CMS_LOCALE_TRANSLATION_STATES: readonly CmsLocaleTranslationState[] = [
+  "source",
+  "pending",
+  "up_to_date",
+  "stale",
+  "missing",
+  "failed",
+  "manual",
+  "blocked",
+];
+
+export function isCmsTranslationResultStatus(value: unknown): value is CmsTranslationResultStatus {
+  return (CMS_TRANSLATION_RESULT_STATUSES as readonly unknown[]).includes(value);
+}
+
+function isCmsContentLocale(value: unknown): value is CmsContentLocale {
+  return (CMS_CONTENT_LOCALES as readonly unknown[]).includes(value);
+}
+
+function normalizeCmsTranslationResult(raw: unknown): CmsTranslationResult | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const rawLocale = typeof record.locale === "string" ? record.locale.trim().toLowerCase() : "";
+  // A missing or unknown locale is reported as the whole sync ("*"), never dropped.
+  const locale = isCmsContentLocale(rawLocale) ? rawLocale : "*";
+  const status = isCmsTranslationResultStatus(record.status) ? record.status : "failed";
+  const errorCode =
+    status === "failed" && (CMS_TRANSLATION_ERROR_CODES as readonly unknown[]).includes(record.errorCode)
+      ? (record.errorCode as CmsTranslationErrorCode)
+      : undefined;
+  const error =
+    typeof record.error === "string" && record.error.trim()
+      ? record.error.trim()
+      : status === "failed" && record.status !== "failed"
+        ? "Unexpected translation response"
+        : undefined;
+  return { locale, status, ...(errorCode ? { errorCode } : {}), ...(error ? { error } : {}) };
+}
+
+/**
+ * Defensive parser for the top-level `translations` array in save/translate
+ * envelopes. An unknown status is reported as `failed` (never dropped, never
+ * upgraded to success), and a missing locale means the whole sync ("*").
+ */
+export function normalizeCmsTranslationResults(input: unknown): CmsTranslationResult[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((raw) => {
+    const result = normalizeCmsTranslationResult(raw);
+    return result ? [result] : [];
+  });
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function normalizeLocaleStatus(raw: unknown): CmsTranslationLocaleStatus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  if (!isCmsContentLocale(record.locale)) return null;
+  // An unknown state is not claimed as anything good: treat it as failed.
+  const state = (CMS_LOCALE_TRANSLATION_STATES as readonly unknown[]).includes(record.state)
+    ? (record.state as CmsLocaleTranslationState)
+    : "failed";
+  const entry: CmsTranslationLocaleStatus = { locale: record.locale, state };
+  const doc = record.document;
+  if (doc && typeof doc === "object" && typeof (doc as Record<string, unknown>)._id === "string") {
+    const d = doc as Record<string, unknown>;
+    entry.document = {
+      _id: d._id as string,
+      slug: typeof d.slug === "string" ? d.slug : "",
+      title: typeof d.title === "string" ? d.title : "",
+      status: d.status === "published" ? "published" : "draft",
+      autoTranslated: d.autoTranslated === true,
+      ...(optionalString(d.translatedFrom) ? { translatedFrom: d.translatedFrom as string } : {}),
+      ...(optionalString(d.updatedAt) ? { updatedAt: d.updatedAt as string } : {}),
+    };
+  }
+  const last = normalizeCmsTranslationResult(record.lastResult);
+  if (last) {
+    const at = optionalString((record.lastResult as Record<string, unknown>).at) ?? "";
+    entry.lastResult = { ...last, at };
+  }
+  return entry;
+}
+
+/**
+ * Defensive parser for a `TranslationStatus` payload. Returns undefined when
+ * the input is not one (so the UI says "unknown" instead of inventing state).
+ */
+export function normalizeCmsTranslationStatus(input: unknown): CmsTranslationStatus | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const record = input as Record<string, unknown>;
+  if (!Array.isArray(record.locales) || typeof record.sourceId !== "string") return undefined;
+  const byLocale = new Map<CmsContentLocale, CmsTranslationLocaleStatus>();
+  for (const raw of record.locales) {
+    const entry = normalizeLocaleStatus(raw);
+    if (entry && !byLocale.has(entry.locale)) byLocale.set(entry.locale, entry);
+  }
+  return {
+    // Only an explicit `true` counts as enabled; anything else shows the banner.
+    enabled: record.enabled === true,
+    sourceId: record.sourceId,
+    sourceLocale: normalizeCmsContentLocale(record.sourceLocale),
+    running: record.running === true,
+    queued: record.queued === true,
+    ...(optionalString(record.lastRunAt) ? { lastRunAt: record.lastRunAt as string } : {}),
+    locales: CMS_CONTENT_LOCALES.flatMap((locale) => {
+      const entry = byLocale.get(locale);
+      return entry ? [entry] : [];
+    }),
+  };
+}
+
+/** True while a background run is queued/running or any locale is pending (contract §2). */
+export function cmsTranslationInFlight(status: CmsTranslationStatus | undefined): boolean {
+  if (!status) return false;
+  return status.running || status.queued || status.locales.some((entry) => entry.state === "pending");
+}
+
+/** Id of the referenced CMS document (populated object or raw id). */
+export function cmsRefId(
+  value: CmsContent["translatedFrom"] | null | undefined
+): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value === "object" && typeof value._id === "string") return value._id || undefined;
+  return undefined;
 }
 
 export const CMS_TYPE_LABELS: Record<CmsContentType, string> = {
@@ -79,9 +325,35 @@ export interface CmsContent {
   relatedServiceSlug?: string;
   /** ISO 3166-1 alpha-2 codes; empty = visible in all countries */
   activeCountries?: string[];
+  /** True when this document was generated by the server translation sync. */
+  autoTranslated?: boolean;
+  /** Source document id when this document is a translation (machine or manual). */
+  translatedFrom?: string | { _id: string; title?: string; slug?: string; locale?: string };
+  /** Hash of the translatable source fields used to detect stale translations. */
+  sourceHash?: string;
+  /** Other-locale members of the translation family, by `translatedFrom` link (admin reads). */
+  localeVariants?: CmsLocaleVariant[];
+  /**
+   * Admin reads/saves (contract v2): the family's translation status, raw from
+   * the server (omitted if its lookup failed). Read it through
+   * `normalizeCmsTranslationStatus`.
+   */
+  translationStatus?: unknown;
   viewCount?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+/** One other-locale document of a translation group, as shown in admin links. */
+export interface CmsLocaleVariant {
+  _id: string;
+  locale: string;
+  slug: string;
+  title: string;
+  status: CmsContentStatus;
+  autoTranslated: boolean;
+  translatedFrom?: string;
+  updatedAt?: string;
 }
 
 export interface CmsUpsertPayload {
@@ -250,8 +522,20 @@ export interface CmsListResponse {
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
-async function parseJson<T>(res: Response): Promise<T | undefined> {
-  if (res.status === 204) return undefined;
+interface ParsedCmsEnvelope<T> {
+  data: T | undefined;
+  translations: CmsTranslationResult[];
+  /** The whole JSON body (undefined for 204), for other top-level fields. */
+  payload: Record<string, unknown> | undefined;
+}
+
+/**
+ * Reads the whole API envelope instead of only `data`: CMS saves attach the
+ * per-locale translation outcome at the top level (`{ success, data,
+ * translations }`), and dropping it would hide translation failures.
+ */
+async function parseCmsEnvelope<T>(res: Response): Promise<ParsedCmsEnvelope<T>> {
+  if (res.status === 204) return { data: undefined, translations: [], payload: undefined };
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     await res.text().catch(() => "");
@@ -260,13 +544,21 @@ async function parseJson<T>(res: Response): Promise<T | undefined> {
       status: res.status,
     });
   }
-  const data = await res.json();
-  if (!res.ok || data?.success === false) {
-    throw apiErrorFromBody(data, "The request could not be completed. Please try again.", {
+  const payload = await res.json();
+  if (!res.ok || payload?.success === false) {
+    throw apiErrorFromBody(payload, "The request could not be completed. Please try again.", {
       status: res.status,
     });
   }
-  return data.data as T;
+  return {
+    data: payload?.data as T | undefined,
+    translations: normalizeCmsTranslationResults(payload?.translations),
+    payload: payload && typeof payload === "object" ? payload : undefined,
+  };
+}
+
+async function parseJson<T>(res: Response): Promise<T | undefined> {
+  return (await parseCmsEnvelope<T>(res)).data;
 }
 
 async function parseJsonRequired<T>(res: Response): Promise<T> {
@@ -328,46 +620,202 @@ export async function adminGetCms(id: string): Promise<CmsContent> {
   return parseJsonRequired<CmsContent>(res);
 }
 
-export async function adminCreateCms(payload: CmsUpsertPayload): Promise<CmsContent> {
+/**
+ * Creates content and returns the server's per-locale translation outcome.
+ * `content` is exactly what adminCreateCms returns.
+ */
+export async function adminCreateCmsWithTranslations(
+  payload: CmsUpsertPayload
+): Promise<CmsSaveResult> {
   const res = await authFetch(`${API}/api/admin/cms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const created = await parseJsonRequired<CmsContent>(res);
+  const { data: created, translations } = await parseCmsEnvelope<CmsContent>(res);
+  if (!created || typeof created !== "object") {
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
+  }
   try {
     await revalidatePublicCms(created.type, [created.slug]);
   } catch (error) {
     console.error("CMS cache revalidation failed after create:", error);
   }
-  return created;
+  return { content: created, translations, status: normalizeCmsTranslationStatus(created.translationStatus) };
 }
 
-export async function adminUpdateCms(id: string, payload: CmsUpsertPayload): Promise<CmsContent> {
+export async function adminCreateCms(payload: CmsUpsertPayload): Promise<CmsContent> {
+  return (await adminCreateCmsWithTranslations(payload)).content;
+}
+
+/**
+ * Updates content and returns the server's per-locale translation outcome,
+ * including slug-move conflicts and manual-translation protection.
+ */
+export async function adminUpdateCmsWithTranslations(
+  id: string,
+  payload: CmsUpsertPayload
+): Promise<CmsSaveResult> {
   const previous = await adminGetCms(id);
   const res = await authFetch(`${API}/api/admin/cms/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const updated = await parseJsonRequired<CmsContent>(res);
+  const { data: updated, translations } = await parseCmsEnvelope<CmsContent>(res);
+  if (!updated || typeof updated !== "object") {
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
+  }
   try {
     await revalidatePublicCms(updated.type, [previous.slug, updated.slug]);
   } catch (error) {
     console.error("CMS cache revalidation failed after update:", error);
   }
-  return updated;
+  return { content: updated, translations, status: normalizeCmsTranslationStatus(updated.translationStatus) };
 }
 
-export async function adminDeleteCms(id: string): Promise<void> {
+export async function adminUpdateCms(id: string, payload: CmsUpsertPayload): Promise<CmsContent> {
+  return (await adminUpdateCmsWithTranslations(id, payload)).content;
+}
+
+export interface CmsTranslateOptions {
+  /** Also replace linked manual translations with machine text (needs explicit confirmation). */
+  force?: boolean;
+  /** Limits which manual translations a force replaces (default: all target locales). */
+  locales?: CmsContentLocale[];
+}
+
+/** Request body for `POST /:id/translate`: `locales` only travels with a force. */
+export function cmsTranslateRequestBody(options: CmsTranslateOptions = {}): {
+  force: boolean;
+  locales?: CmsContentLocale[];
+} {
+  const force = options.force === true;
+  if (!force || !options.locales) return { force };
+  const locales = CMS_CONTENT_LOCALES.filter((locale) => options.locales?.includes(locale));
+  return { force, locales };
+}
+
+/**
+ * Queues a server translation run for the document's family (contract v2
+ * §3). Returns the immediate per-locale results (`pending` for locales that
+ * need text) and the family status to poll from. Nothing is translated yet
+ * when this resolves, so the public cache is flushed after polling settles
+ * (see `revalidateCmsTranslationFamily`), not here.
+ */
+export async function adminTranslateCms(
+  id: string,
+  options: CmsTranslateOptions = {}
+): Promise<{ translations: CmsTranslationResult[]; status?: CmsTranslationStatus }> {
+  const res = await authFetch(`${API}/api/admin/cms/${id}/translate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cmsTranslateRequestBody(options)),
+  });
+  const { data, translations } = await parseCmsEnvelope<unknown>(res);
+  return { translations, status: normalizeCmsTranslationStatus(data) };
+}
+
+/**
+ * `GET /api/admin/cms/:id/translations`. `:id` may be the source or any of its
+ * translations. Throws ApiRequestError (with `status`) on 4xx/5xx.
+ */
+export async function adminGetCmsTranslationStatus(
+  id: string,
+  init: { signal?: AbortSignal } = {}
+): Promise<CmsTranslationStatus> {
+  const res = await authFetch(`${API}/api/admin/cms/${id}/translations`, { signal: init.signal });
+  const { data } = await parseCmsEnvelope<unknown>(res);
+  const status = normalizeCmsTranslationStatus(data);
+  if (!status) {
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
+  }
+  return status;
+}
+
+/** Distinct slugs of every document in a translation status (cache flushes). */
+export function cmsTranslationStatusSlugs(status: CmsTranslationStatus | undefined): string[] {
+  const slugs = (status?.locales ?? []).map((entry) => entry.document?.slug);
+  return Array.from(
+    new Set(slugs.filter((slug): slug is string => typeof slug === "string" && slug.trim() !== ""))
+  );
+}
+
+/**
+ * Flushes the public cache for a translation family once its background run
+ * settled, so nl/fr pages show the new text instead of waiting for the
+ * revalidate window (contract v2 §4). Best effort: never throws.
+ */
+export async function revalidateCmsTranslationFamily(
+  type: CmsContentType | undefined,
+  status: CmsTranslationStatus | undefined,
+  extraSlugs: Array<string | undefined> = []
+): Promise<void> {
+  const slugs = Array.from(new Set([...cmsTranslationStatusSlugs(status), ...extraSlugs.filter(Boolean)]));
+  if (!type || slugs.length === 0) return;
+  try {
+    await revalidatePublicCms(type, slugs);
+  } catch (error) {
+    console.error("CMS cache revalidation failed after translation:", error);
+  }
+}
+
+/**
+ * Distinct slugs of a document's translation family (cache flushes): its own
+ * slug, its `localeVariants` and every doc in its `translationStatus`.
+ */
+export function cmsFamilySlugs(
+  doc: Pick<CmsContent, "slug"> & { localeVariants?: Array<{ slug?: unknown }>; translationStatus?: unknown }
+): string[] {
+  const slugs = [
+    doc.slug,
+    ...(doc.localeVariants ?? []).map((variant) => variant?.slug),
+    ...cmsTranslationStatusSlugs(normalizeCmsTranslationStatus(doc.translationStatus)),
+  ];
+  return Array.from(
+    new Set(slugs.filter((slug): slug is string => typeof slug === "string" && slug.trim() !== ""))
+  );
+}
+
+/**
+ * What the server did to the translation family when a document was deleted
+ * (backend: machine translations of a deleted original are deleted, manual
+ * ones are kept and unlinked). Zeros when the server did not report it.
+ */
+export interface CmsTranslationCleanup {
+  deleted: number;
+  detached: number;
+}
+
+export function normalizeCmsTranslationCleanup(input: unknown): CmsTranslationCleanup {
+  const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  return { deleted: count(record.deleted), detached: count(record.detached) };
+}
+
+export async function adminDeleteCms(id: string): Promise<{ translationCleanup: CmsTranslationCleanup }> {
   const previous = await adminGetCms(id);
   const res = await authFetch(`${API}/api/admin/cms/${id}`, { method: "DELETE" });
-  await parseJson<void>(res);
+  const { payload } = await parseCmsEnvelope<never>(res);
+  const translationCleanup = normalizeCmsTranslationCleanup(payload?.translationCleanup);
+  // Deleting an original also deletes its machine translations (same slug as
+  // the original); flush every slug of the family.
   try {
-    await revalidatePublicCms(previous.type, [previous.slug]);
+    await revalidatePublicCms(previous.type, cmsFamilySlugs(previous));
   } catch (error) {
     console.error("CMS cache revalidation failed after delete:", error);
   }
+  return { translationCleanup };
 }
 
 export async function adminUploadCmsImage(file: File): Promise<{ url: string; key: string }> {
@@ -543,6 +991,19 @@ export function withCmsLangParam(path: string, locale: string): string {
   const query = params.toString();
   const hash = hashParts.length ? `#${hashParts.join("#")}` : "";
   return `${pathname}${query ? `?${query}` : ""}${hash}`;
+}
+
+/**
+ * Public URL of one language version, for admin "View live" links. A route with
+ * language-prefixed twins becomes `/nl/blog/x` (the URL that is indexed, and it
+ * does not overwrite the admin's own language cookie); anything else falls back
+ * to `?lang=`. CMS translations share one slug, so only the prefix changes.
+ */
+export function cmsLiveUrl(path: string, locale: string): string {
+  if (!path) return path;
+  const lang = normalizeCmsContentLocale(locale);
+  const prefixed = keepLocaleInUrl(path, lang);
+  return prefixed !== path ? prefixed : withCmsLangParam(path, lang);
 }
 
 export function getLandingServicePath(slug: string): string | null {

@@ -1564,6 +1564,7 @@ const NOTICE_KEYS: Record<string, string> = {
   POST_BOOKING_TIMESTAMP_NOT_RECORDED: "postBookingTimestampNotRecorded",
   SCHEDULE_TIMEZONE_NOT_RECORDED: "scheduleTimeZoneNotRecorded",
   REFUND_VAT_SPLIT_NOT_RECORDED: "refundVatSplitNotRecorded",
+  REFUND_VAT_SPLIT_DERIVED: "refundVatSplitDerived",
   REFUND_BREAKDOWN_INCOMPLETE: "refundBreakdownIncomplete",
   PAYMENT_ROW_MISSING: "paymentRowMissing",
   PAYMENT_CURRENCY_NOT_RECORDED: "paymentCurrencyNotRecorded",

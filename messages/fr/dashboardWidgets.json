@@ -476,7 +476,21 @@
     "colActions": "Actions rapides",
     "colDetails": "Détails",
     "bookingsTableLabel": "Réservations",
-    "quotesTableLabel": "Devis"
+    "quotesTableLabel": "Devis",
+    "priceModels": {
+      "fixed": "Prix fixe",
+      "unit": "À l'unité",
+      "rfq": "Devis sur demande",
+      "hour": "Par heure",
+      "day": "Par jour",
+      "meter": "Par mètre",
+      "m2": "Par m²",
+      "room": "Par pièce"
+    },
+    "durationUnits": {
+      "hours": "{count, plural, one {# heure} other {# heures}}",
+      "days": "{count, plural, one {# jour} other {# jours}}"
+    }
   },
   "levelUp": {
     "customerTitle": "Niveau supérieur !",

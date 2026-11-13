@@ -154,8 +154,10 @@ cookie is nl/fr. Admin can also pass `closeLabel` to `DialogContent`.
 
 `buildMetadata()` and the root layout derive OpenGraph `locale`/`alternateLocale`
 and the fallback description from the active request locale (`en_US`,
-`nl_BE`, `fr_BE`). Canonical URLs stay locale-free because language is a
-preference, not a route segment. `buildMetadata()` is async and is called from
+`nl_BE`, `fr_BE`). Public routes listed in `lib/seo/localeUrls.ts` also exist
+under a language prefix (`/nl/about`): a prefixed page canonicalises to itself,
+an unprefixed one to itself, and both list en/nl/fr plus x-default in
+`alternates.languages` (hreflang). `buildMetadata()` is async and is called from
 `generateMetadata()` functions; `noindexMetadata()` stays synchronous so admin
 and other static `metadata` exports keep working.
 
@@ -221,21 +223,53 @@ missing. The locale is part of the fetch URL, i.e. part of Next's cache key.
 Revalidation tags stay locale-agnostic so a single admin save flushes all
 locales (`app/api/cms/revalidate`).
 
-The admin CMS stays English and supports exactly `en`, `nl`, `fr`. Saving an
-original returns `{ success, data, translations }`; `lib/cms.ts` parses the
-whole envelope (`adminCreateCmsWithTranslations` /
-`adminUpdateCmsWithTranslations`) while the older `adminCreateCms` /
-`adminUpdateCms` still return just the saved document. Translation results are
-typed per locale: `created`, `updated`, `synced`, `skipped_manual`, `failed`,
-`disabled` (Azure key missing). The editor keeps content-save success separate
-from translation failures and never reloads the form after a retry, so unsaved
-edits survive.
+The admin CMS stays English and supports exactly `en`, `nl`, `fr`.
+Translation is asynchronous (backend contract v2): saving an original returns
+`{ success, data, translations }` right away, before any text is translated.
+`translations` holds the immediate per-locale results (`pending` for locales
+the background run will translate, `synced`, `skipped_manual`, `failed` with an
+`errorCode`, `disabled` when no provider is configured) and
+`data.translationStatus` holds the family status. `lib/cms.ts` parses the whole
+envelope (`adminCreateCmsWithTranslations` / `adminUpdateCmsWithTranslations`
+return `{ content, translations, status }`); the older `adminCreateCms` /
+`adminUpdateCms` still return just the saved document. The editor keeps
+content-save success separate from translation failures.
 
-`POST /api/admin/cms/:id/translate` with `{ force: boolean }` returns
-`{ success, translations }` (no `data`). Normal retries use `force: false` and
-keep manual translations; overwriting manual text requires `force: true` and an
-explicit confirmation dialog. Retries revalidate the public CMS cache. The list
-shows the locale and auto-translated/manual badge, filters by language, and
-scopes reserved policy/landing slots to their English source documents. "View
-live" appends `?lang=<document locale>` so the preview always opens in that
-document's language.
+The family status (`GET /api/admin/cms/:id/translations`, also embedded in
+`GET /api/admin/cms/:id` as `translationStatus`) lists en/nl/fr with a state
+per locale (`source`, `pending`, `up_to_date`, `stale`, `missing`, `failed`,
+`manual`, `blocked`), the document occupying it and its last run result. The
+editor polls it every 2 s while a run is queued/running or any locale is
+`pending` (`lib/cmsTranslationPoller.ts`): one request at a time, paused while
+the tab is hidden, stopped on unmount or on a 4xx, and after ~2 minutes it
+shows "Still translating. Refresh later" with a "Check again" button. Once a
+run it observed settles, it flushes the public cache for every slug of the
+family (the save response came back before the new text existed) and, if the
+server rewrote the open translation, reloads it only when there are no unsaved
+edits.
+
+The Translations panel shows one row per locale with its state badge, the last
+run result (the server's `error` text verbatim), an edit link (new tab) and a
+live link for published versions (the language-prefixed URL, e.g. `/nl/blog/x`). `enabled: false` shows an
+"Auto-translate is disabled on the server" banner. `POST
+/api/admin/cms/:id/translate` takes `{ force, locales? }`: Retry sends
+`{ force: false }` (creates missing, refreshes stale, retries failed, keeps
+manual translations); overwriting manual text needs a confirmation and sends
+`{ force: true, locales }` with only `manual` locales (per row or all of them),
+never `blocked` ones. Retry is hidden for `auth` and `quota_exceeded` failures,
+which retrying cannot fix. Editing a machine translation turns it into a manual
+one (server-side). Deleting an original deletes its machine translations and
+keeps/unlinks manual ones (`translationCleanup` in the DELETE response); the
+confirm dialog and the toast say so. Creating a linked manual translation from
+scratch is not possible from the UI.
+
+Public pages show a small "machine translated" note
+(`content.machineTranslatedNote`, en/nl/fr) when the served document has
+`autoTranslated === true`.
+
+Public CMS pages use the same locale URLs as the rest of the site: CMS
+translations share one slug, so `/en|nl|fr/blog/x` are true twins and
+`buildMetadata()` gives them the prefixed canonical and hreflang alternates.
+`servedContentLocale()` sets the OpenGraph locale and the body's `lang` from
+the document actually served, so an English fallback on `/nl/blog/x` is never
+labelled nl_BE.

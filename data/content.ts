@@ -313,8 +313,7 @@ export const successStories = [
     location: 'Berlin, Germany',
     growth: '+150% Income',
     story: 'Fixtract doubled my client base in just 6 months. The platform handles all the admin, so I can focus on quality work.',
-    avatarInitial: 'TM',
-    image: '/images/success-1.jpg' 
+    avatarInitial: 'TM'
   },
   {
     name: 'Elena Rodriguez',
@@ -322,8 +321,7 @@ export const successStories = [
     location: 'Barcelona, Spain',
     growth: '+200% Projects',
     story: 'I now work with clients across 3 countries. The variety and scale of projects I get through Fixtract is incredible.',
-    avatarInitial: 'ER',
-    image: '/images/success-2.jpg'
+    avatarInitial: 'ER'
   },
   {
     name: 'Marco Visser',
@@ -331,8 +329,7 @@ export const successStories = [
     location: 'Rotterdam, Netherlands',
     growth: 'Grew to a team of 10',
     story: 'I started as a solo contractor. Fixtract\'s tools made it effortless to manage a growing team and bigger projects.',
-    avatarInitial: 'MV',
-    image: '/images/success-3.jpg'
+    avatarInitial: 'MV'
   }
 ];
 
@@ -544,10 +541,10 @@ export const companyTimeline = [
 ];
 
 export const teamMembers = [
-  { name: 'Alex Weber', role: 'Founder & CEO', image: '/images/team-1.jpg' },
-  { name: 'Jasmine Kaur', role: 'Head of Operations', image: '/images/team-2.jpg' },
-  { name: 'Leo Van Dijk', role: 'Lead Product Designer', image: '/images/team-3.jpg' },
-  { name: 'Sofia Rossi', role: 'Head of Professional Relations', image: '/images/team-4.jpg' },
+  { name: 'Alex Weber', role: 'Founder & CEO' },
+  { name: 'Jasmine Kaur', role: 'Head of Operations' },
+  { name: 'Leo Van Dijk', role: 'Lead Product Designer' },
+  { name: 'Sofia Rossi', role: 'Head of Professional Relations' },
 ];
 
 export const professionalsForService = [
@@ -560,7 +557,6 @@ export const professionalsForService = [
     reviews: 288,
     startingPrice: 250,
     image: '/images/prof-1.jpg',
-    avatar: '/images/team-2.jpg',
   },
   {
     id: 'prof-2',
@@ -571,7 +567,6 @@ export const professionalsForService = [
     reviews: 152,
     startingPrice: 180,
     image: '/images/prof-2.jpg',
-    avatar: '/images/team-1.jpg',
   },
   {
     id: 'prof-3',
@@ -582,7 +577,6 @@ export const professionalsForService = [
     reviews: 94,
     startingPrice: 220,
     image: '/images/prof-3.jpg',
-    avatar: '/images/team-3.jpg',
   },
   {
     id: 'prof-4',
@@ -593,7 +587,6 @@ export const professionalsForService = [
     reviews: 45,
     startingPrice: 300,
     image: '/images/prof-4.jpg',
-    avatar: '/images/team-4.jpg',
   },
     {
     id: 'prof-5',
@@ -604,7 +597,6 @@ export const professionalsForService = [
     reviews: 310,
     startingPrice: 800,
     image: '/images/prof-5.jpg',
-    avatar: '/images/team-3.jpg',
   },
     {
     id: 'prof-6',
@@ -615,6 +607,5 @@ export const professionalsForService = [
     reviews: 120,
     startingPrice: 200,
     image: '/images/prof-6.jpg',
-    avatar: '/images/team-1.jpg',
   },
 ];

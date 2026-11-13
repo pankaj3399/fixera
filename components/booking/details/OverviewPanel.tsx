@@ -1,6 +1,9 @@
 "use client"
 
 import { useMemo } from "react"
+import Link from "next/link"
+import { professionalHref, projectHref } from "@/lib/dashboardOverview"
+import { priceModelKey } from "@/lib/priceModel"
 import { useTranslations } from "next-intl"
 import { Badge } from "@/components/ui/badge"
 import { CreditCard, FileText, Package, ShieldCheck, User } from "lucide-react"
@@ -122,6 +125,10 @@ export function OverviewPanel({
     extraCosts && "total" in extraCosts
       ? (extraCosts.total as number | null | undefined)
       : (extraCosts as { totalProfessionalAmount?: number | null } | null | undefined)?.totalProfessionalAmount
+  const extraCostsCustomerTotal =
+    extraCosts && "customerTotal" in extraCosts
+      ? (extraCosts.customerTotal as number | null | undefined) ?? null
+      : (extraCosts as { totalCustomerAmount?: number | null } | null | undefined)?.totalCustomerAmount ?? null
   const warranty = overview?.warranty || booking.warrantyCoverage
 
   const snapshotRecorded = Boolean(snapshot?.immutable || snapshot?.capturedAt)
@@ -229,13 +236,31 @@ export function OverviewPanel({
     service: booking.project.service,
   } : null)
 
+  // Card bullet: project title links to the project page; the professional to
+  // their public profile (not for anonymized/deleted accounts).
+  const linkedProjectId = (() => {
+    const raw = (booking.project as { _id?: unknown } | null | undefined)?._id ?? liveProject?.id ?? null
+    return typeof raw === "string" && /^[a-f0-9]{24}$/i.test(raw) ? raw : null
+  })()
+  const linkedProfessionalId = (() => {
+    const pro = booking.professional as { _id?: unknown; isAnonymized?: boolean; deletedAt?: unknown } | null | undefined
+    if (!pro || pro.isAnonymized || pro.deletedAt) return null
+    return typeof pro._id === "string" && /^[a-f0-9]{24}$/i.test(pro._id) ? pro._id : null
+  })()
+
   return (
     <div className="space-y-4">
       <DetailCard
         title={
           <span className="flex flex-wrap items-center gap-2">
             <Package className="h-4 w-4 text-indigo-500" />
-            {title}
+            {linkedProjectId ? (
+              <Link href={projectHref(linkedProjectId)} className="hover:underline">
+                {title}
+              </Link>
+            ) : (
+              title
+            )}
             <Badge
               variant="outline"
               className={`rounded-full px-2 py-0.5 text-[10px] capitalize ${
@@ -262,7 +287,7 @@ export function OverviewPanel({
               : booking.bookingType}
           </DetailField>
           <DetailField label={dt("fields.priceModel", "Price model")} empty={!details?.booking?.priceModel}>
-            <EnumText prefix="details.enums.pricingType" value={details?.booking?.priceModel} />
+            <EnumText prefix="details.enums.pricingType" value={priceModelKey(details?.booking?.priceModel) ?? details?.booking?.priceModel} />
           </DetailField>
           <DetailField label={dt("fields.serviceType", "Service type")} empty={!serviceType}>{serviceType}</DetailField>
           <DetailField label={dt("fields.category", "Category")} empty={!category}>{category}</DetailField>
@@ -515,13 +540,20 @@ export function OverviewPanel({
             <DetailField label={dt("fields.warrantySource", "Warranty source")} empty={!warranty?.source}>
               <EnumText prefix="details.enums.warrantySource" value={warranty?.source} />
             </DetailField>
-            <DetailField label={dt("fields.extraCostsProfessional", "Completion extras (professional amount)")} empty={(extraCostsTotal ?? booking.extraCostTotal) == null}>
-              <MoneyText
-                amount={(extraCostsTotal ?? booking.extraCostTotal) as number | null | undefined}
-                currency={extraCostsCurrency}
-                formatMoney={formatMoney}
-              />
-            </DetailField>
+            {viewerRole !== "customer" ? (
+              <DetailField label={dt("fields.extraCostsProfessional", "Completion extras (professional amount)")} empty={(extraCostsTotal ?? booking.extraCostTotal) == null}>
+                <MoneyText
+                  amount={(extraCostsTotal ?? booking.extraCostTotal) as number | null | undefined}
+                  currency={extraCostsCurrency}
+                  formatMoney={formatMoney}
+                />
+              </DetailField>
+            ) : null}
+            {viewerRole !== "professional" ? (
+              <DetailField label={dt("fields.extraCostsCustomer", "Completion extras (your price, excl. VAT)")} empty={extraCostsCustomerTotal == null}>
+                <MoneyText amount={extraCostsCustomerTotal} currency={extraCostsCurrency} formatMoney={formatMoney} />
+              </DetailField>
+            ) : null}
             <DetailField label={dt("fields.extraCostsStatus", "Completion extras status")} empty={!extraCosts?.status && !booking.extraCostStatus}>
               <StatusText value={extraCosts?.status || booking.extraCostStatus} />
             </DetailField>
@@ -572,6 +604,14 @@ export function OverviewPanel({
             <span className="flex items-center gap-2">
               <Package className="h-4 w-4 text-slate-600" />
               {dt("parties.professional", "Professional")}
+              {linkedProfessionalId && viewerRole !== "professional" ? (
+                <Link
+                  href={professionalHref(linkedProfessionalId)}
+                  className="text-xs font-normal text-indigo-600 hover:underline"
+                >
+                  {dt("parties.viewProfile", "View profile")}
+                </Link>
+              ) : null}
             </span>
           }
           party={parties?.professional || (booking.professional ? {

@@ -66,6 +66,17 @@ export function supportMeetingPhase(
   return null;
 }
 
+/**
+ * Copy for the professional right after submit. The assigned admin's default
+ * link confirms the meeting at once (the email carries time + link); without
+ * one the slot is only reserved and the acknowledgement says the link follows.
+ */
+export function supportMeetingSubmitOutcome(
+  meeting: MeetingPhaseInput | null | undefined,
+): "confirmed" | "reserved" {
+  return supportMeetingPhase(meeting) === "confirmed" ? "confirmed" : "reserved";
+}
+
 /** Join URL only for a confirmed meeting with a validated real HTTPS link. */
 export function supportMeetingJoinUrl(
   meeting: Pick<

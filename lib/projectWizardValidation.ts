@@ -443,3 +443,25 @@ export function parseProjectSaveError(
   const pathMatch = blob.match(/subprojects|faq|rfq|postBooking|extraOptions|termsConditions|title|description|distance|service/i)
   return { messages, step: pathMatch ? mapBackendFieldToStep(pathMatch[0]) : null }
 }
+
+/**
+ * FT1 #10: which wizard steps show as done (green check). A step is done when
+ * the professional has reached it (visited, or before the step a saved draft
+ * reopens on) and its saved data currently passes that step's checks, so a
+ * reopened draft marks its finished steps immediately and a step that later
+ * edits invalidate loses its mark. Step 8 (review) keeps the page's own
+ * submit-readiness result.
+ */
+export function wizardStepCompletion(
+  stepValidation: boolean[],
+  visitedSteps: boolean[],
+  data: WizardProjectSnapshot,
+  t: WizardTranslator,
+): boolean[] {
+  return Array.from({ length: 8 }, (_, index) => {
+    const step = index + 1
+    if (step === 8) return Boolean(stepValidation[index])
+    if (!visitedSteps[index]) return false
+    return collectStepErrors(step, data, t).length === 0
+  })
+}
