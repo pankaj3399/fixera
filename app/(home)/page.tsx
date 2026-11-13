@@ -7,6 +7,7 @@ import CTASection from '@/components/CTASection'
 import ProfessionalsSection from '@/components/ProfessionalsSection'
 import { getPopularProjects, getPopularServices } from '@/lib/server/popular'
 import { buildMetadata } from '@/lib/seo/metadata'
+import { normalizePopularProjectsQuery } from '@/lib/popularProject'
 
 export const revalidate = 21600
 
@@ -23,10 +24,12 @@ export async function generateMetadata(): Promise<Metadata> {
   })
 }
 
+const POPULAR_PROJECTS_QUERY = normalizePopularProjectsQuery({ limit: 10 })
+
 export default async function Home() {
   const [popularServices, popularProjects] = await Promise.all([
     getPopularServices(5),
-    getPopularProjects({ limit: 10 }),
+    getPopularProjects(POPULAR_PROJECTS_QUERY),
   ])
 
   return (
@@ -34,6 +37,7 @@ export default async function Home() {
       <HeroSection
         popularServices={popularServices}
         popularProjects={popularProjects}
+        popularProjectsQuery={POPULAR_PROJECTS_QUERY}
       />
       <HowItWorksSection />
       <FeaturesSection />

@@ -4,6 +4,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema, serviceSchema } from "@/lib/seo/jsonLd";
 import { buildMetadata, noindexMetadata } from "@/lib/seo/metadata";
 import { getPublicProject } from "@/lib/server/publicEntities";
+import ScopedIntlProvider from "@/components/i18n/ScopedIntlProvider";
 
 interface Props {
   children: React.ReactNode;
@@ -76,9 +77,9 @@ export default async function ProjectLayout({ children, params }: Props) {
   }
 
   return (
-    <>
+    <ScopedIntlProvider scope="projectDetail">
       <JsonLd data={schemas} />
       {children}
-    </>
+    </ScopedIntlProvider>
   );
 }
