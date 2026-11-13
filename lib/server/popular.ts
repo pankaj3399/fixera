@@ -1,7 +1,13 @@
 import "server-only";
 
 import { cache } from "react";
-import type { PopularProject } from "@/lib/popularProject";
+import { unstable_cache } from "next/cache";
+import {
+  normalizePopularProjectsQuery,
+  popularProjectsPath,
+  withoutInlineImages,
+  type PopularProject,
+} from "@/lib/popularProject";
 import { PUBLIC_CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 
 const POPULAR_TIMEOUT_MS = 4_000;
@@ -99,31 +105,70 @@ export const getPopularServices = cache(async function getPopularServices(limit 
     .slice(0, capped);
 });
 
+/**
+ * Fetches straight from the backend (no-store) and throws on any failure, so
+ * only good results reach the unstable_cache entry below.
+ */
+async function fetchPopularProjectsFresh(path: string): Promise<PopularProject[]> {
+  const base = backendUrl();
+  if (!base) return [];
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), POPULAR_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${base}${path}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`popular fetch returned non-ok (${response.status})`);
+    }
+    const data: unknown = await response.json();
+    if (!data || typeof data !== "object") return [];
+    const projects = (data as { projects?: unknown }).projects;
+    if (!Array.isArray(projects)) return [];
+    return projects.flatMap((item) => {
+      const project = toPopularProject(item);
+      return project ? [withoutInlineImages(project)] : [];
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Popular projects for server-rendered carousels. Some records carry inline
+ * base64 `data:` images (hundreds of KB each); caching the raw response made
+ * every home render read a ~700 KB Data Cache entry and ship it in the HTML.
+ * The trimmed list is cached instead (same 6h revalidate, same tags, so
+ * /api/cms/revalidate and tag revalidation still purge it), and the carousel
+ * fetches the dropped images in the browser.
+ */
 const getPopularProjectsCached = cache(async function getPopularProjectsCached(
   limit: number,
   service: string,
 ): Promise<PopularProject[]> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (service) params.set("service", service);
-
-  const data = await fetchJson(`/api/search/popular-projects?${params.toString()}`, [
+  const path = popularProjectsPath({ limit, service });
+  const cacheTags = [
     PUBLIC_CACHE_TAGS.popularProjects,
     ...(service ? [`${PUBLIC_CACHE_TAGS.popularProjects}:${service}`] : []),
-  ]);
-  if (!data || typeof data !== "object") return [];
-  const projects = (data as { projects?: unknown }).projects;
-  if (!Array.isArray(projects)) return [];
-  return projects.flatMap((item) => {
-    const project = toPopularProject(item);
-    return project ? [project] : [];
-  });
+  ];
+  try {
+    return await unstable_cache(
+      () => fetchPopularProjectsFresh(path),
+      ["popular-projects-trimmed", path],
+      { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: cacheTags },
+    )();
+  } catch (error) {
+    console.error("popular fetch failed", { path, cacheTags, error });
+    return [];
+  }
 });
 
 export async function getPopularProjects(options?: {
   limit?: number;
   service?: string;
 }): Promise<PopularProject[]> {
-  const limit = Math.min(Math.max(options?.limit ?? 10, 1), 20);
-  const service = options?.service?.trim() ?? "";
+  const { limit, service } = normalizePopularProjectsQuery(options);
   return getPopularProjectsCached(limit, service);
 }

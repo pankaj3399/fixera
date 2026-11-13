@@ -7,20 +7,25 @@ import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, MapPin, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import type { PopularProject } from '@/lib/popularProject';
+import type { PopularProject, PopularProjectsQuery } from '@/lib/popularProject';
+import { useDeferredPopularImages } from '@/components/home/useDeferredPopularImages';
 
 export type { PopularProject };
 
 interface PopularProjectsCarouselProps {
   projects: PopularProject[];
   heading?: string;
+  /** The query `projects` came from; lets the browser load images the server left out. */
+  imageQuery?: PopularProjectsQuery;
 }
 
 const PopularProjectsCarousel = ({
-  projects,
+  projects: serverProjects,
   heading,
+  imageQuery,
 }: PopularProjectsCarouselProps) => {
   const t = useTranslations('home');
+  const projects = useDeferredPopularImages(serverProjects, imageQuery);
   const { formatPrice } = useCurrency();
   const headingText = heading ?? t('popularProjects.heading');
   const [canScrollLeft, setCanScrollLeft] = useState(false);
