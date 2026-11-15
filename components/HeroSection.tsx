@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { ShieldCheck, Clock, Star, CreditCard } from 'lucide-react'
 import HeroSearchForm from './HeroSearchForm'
 import PopularProjectsCarousel from './PopularProjectsCarousel'
-import type { PopularProject } from '@/lib/popularProject'
+import type { PopularProject, PopularProjectsQuery } from '@/lib/popularProject'
 
 const benefitIcons = {
   ShieldCheck,
@@ -27,9 +27,11 @@ const heroBenefits = [
 const HeroSection = async ({
   popularServices,
   popularProjects,
+  popularProjectsQuery,
 }: {
   popularServices: string[]
   popularProjects: PopularProject[]
+  popularProjectsQuery?: PopularProjectsQuery
 }) => {
   const t = await getTranslations('home')
 
@@ -63,7 +65,7 @@ const HeroSection = async ({
 
           <HeroSearchForm popularServices={popularServices} />
 
-          <PopularProjectsCarousel projects={popularProjects} />
+          <PopularProjectsCarousel projects={popularProjects} imageQuery={popularProjectsQuery} />
 
           <div className="mt-8 pt-10 border-t border-gray-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">

@@ -4,6 +4,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema, localBusinessSchema } from "@/lib/seo/jsonLd";
 import { buildMetadata, noindexMetadata } from "@/lib/seo/metadata";
 import { getPublicProfessional } from "@/lib/server/publicEntities";
+import ScopedIntlProvider from "@/components/i18n/ScopedIntlProvider";
 
 interface Props {
   children: React.ReactNode;
@@ -74,9 +75,9 @@ export default async function ProfessionalLayout({ children, params }: Props) {
   }
 
   return (
-    <>
+    <ScopedIntlProvider scope="professionalProfile">
       <JsonLd data={schemas} />
       {children}
-    </>
+    </ScopedIntlProvider>
   );
 }

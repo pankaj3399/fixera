@@ -12,6 +12,7 @@ import {
   OG_LOCALES,
   isLocale,
 } from "@/i18n/config";
+import { ROOT_CLIENT_NAMESPACES, pickMessages } from "@/i18n/clientNamespaces";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { getActiveCurrency } from "@/lib/currency/server";
 import { getExchangeRates } from "@/lib/currency/rates";
@@ -133,7 +134,12 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        {/* Only what the root layout renders; route layouts add their own
+            namespaces with <ScopedIntlProvider> (i18n/clientNamespaces.ts). */}
+        <NextIntlClientProvider
+          locale={locale}
+          messages={pickMessages(messages, ROOT_CLIENT_NAMESPACES)}
+        >
           <CurrencyProvider
             initialCurrency={currency}
             initialRates={exchangeRates?.rates ?? null}

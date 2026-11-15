@@ -24,6 +24,7 @@ import PopularProjectsCarousel from '@/components/PopularProjectsCarousel';
 import { PopularProjectsCarouselSkeleton } from '@/components/home/PopularProjectsCarouselSkeleton';
 import ServiceLandingSearch from '@/components/services/ServiceLandingSearch';
 import { getPopularProjects } from '@/lib/server/popular';
+import { normalizePopularProjectsQuery } from '@/lib/popularProject';
 import ServiceTableOfContents from '@/components/services/ServiceTableOfContents';
 import ServiceViewTracker from '@/components/services/ServiceViewTracker';
 import { extractTocAndAddIds } from '@/lib/cms/toc';
@@ -129,8 +130,9 @@ async function ServicePopularProjects({
   heading: string
   queryName: string
 }) {
-  const projects = await getPopularProjects({ service: queryName, limit: 10 });
-  return <PopularProjectsCarousel projects={projects} heading={heading} />;
+  const query = normalizePopularProjectsQuery({ service: queryName, limit: 10 });
+  const projects = await getPopularProjects(query);
+  return <PopularProjectsCarousel projects={projects} heading={heading} imageQuery={query} />;
 }
 
 function PopularProjectsSection({

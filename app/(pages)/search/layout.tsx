@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { buildMetadata } from "@/lib/seo/metadata";
+import ScopedIntlProvider from "@/components/i18n/ScopedIntlProvider";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("search");
@@ -12,5 +13,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function SearchLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <ScopedIntlProvider scope="search">{children}</ScopedIntlProvider>;
 }
