@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useVisiblePathname } from "@/hooks/useVisiblePathname";
 import { trackPromoView } from "@/lib/marketing/siteAnnouncements/analytics";
 import { markAnnouncementShown } from "@/lib/marketing/siteAnnouncements/dismissStorage";
 import { whenDocumentVisible } from "@/lib/marketing/siteAnnouncements/visibility";
@@ -15,7 +15,7 @@ import { useExitIntent } from "./useExitIntent";
 export function SiteAnnouncementOverlays() {
   const { skip, modal, exitIntent, hide, onCta } = useAnnouncementsCtx();
   const analyticsOk = useAnalyticsConsentFlag();
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
 
   const showModal = useDelayedReveal(
     modal

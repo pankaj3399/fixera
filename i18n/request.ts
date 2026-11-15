@@ -1,14 +1,6 @@
-import { cookies, headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 
-import { GEO_LOCALE_COOKIE } from "@/lib/marketing/siteAnnouncements/constants";
-import {
-  DEFAULT_LOCALE,
-  LOCALE_COOKIE,
-  LOCALE_REQUEST_HEADER,
-  type Locale,
-  isLocale,
-} from "./config";
+import { DEFAULT_LOCALE, type Locale, isLocale } from "./config";
 import { NAMESPACES, type Namespace } from "./namespaces";
 
 /**
@@ -53,28 +45,15 @@ async function loadMessages(locale: Locale): Promise<Record<string, MessageTree>
 }
 
 /**
- * Resolve the locale for this request. Middleware forwards the fully resolved
- * locale on `x-fixera-locale` (cookies set on the response are not visible to
- * the server render of that same request — headers are). Fallbacks cover
- * contexts where middleware did not run or the header was lost.
+ * The locale comes from the route: middleware resolves it (URL prefix, ?lang,
+ * NEXT_LOCALE cookie, geo) and encodes it in the `[ctx]` segment, and
+ * `routeContext()` (lib/server/routeContext.ts) passes it to `setRequestLocale`.
+ * Reading it from there instead of headers/cookies keeps public pages static.
+ * Outside page routes (route handlers, the root 404) it is English.
  */
-async function resolveRequestLocale(): Promise<Locale> {
-  const requestHeaders = await headers();
-  const headerValue = requestHeaders.get(LOCALE_REQUEST_HEADER);
-  if (isLocale(headerValue)) return headerValue;
-
-  const cookieStore = await cookies();
-  const localeValue = cookieStore.get(LOCALE_COOKIE)?.value;
-  if (isLocale(localeValue)) return localeValue;
-
-  const geoValue = cookieStore.get(GEO_LOCALE_COOKIE)?.value;
-  if (isLocale(geoValue)) return geoValue;
-
-  return DEFAULT_LOCALE;
-}
-
-export default getRequestConfig(async () => {
-  const locale = await resolveRequestLocale();
+export default getRequestConfig(async ({ requestLocale }) => {
+  const requested = await requestLocale;
+  const locale: Locale = isLocale(requested) ? requested : DEFAULT_LOCALE;
   return {
     locale,
     messages: await loadMessages(locale),

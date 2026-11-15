@@ -991,7 +991,7 @@ test('public: "machine translated" note only for autoTranslated === true, via pu
   assert.equal(new Set(Object.values(messages)).size, 3, 'nl and fr are translated, not copies of en')
 
   for (const page of ['blog/[slug]', 'news/[slug]', 'pages/[slug]', 'privacy-policy', 'about']) {
-    const code = readFileSync(new URL(`../app/(pages)/${page}/page.tsx`, import.meta.url), 'utf8')
+    const code = readFileSync(new URL(`../app/[ctx]/(pages)/${page}/page.tsx`, import.meta.url), 'utf8')
     assert.match(code, /<MachineTranslatedNote\s+autoTranslated=\{(post|content)\.autoTranslated\}\s+label=\{t\("machineTranslatedNote"\)\}/, page)
   }
 })
@@ -1000,7 +1000,7 @@ test('public SEO: OpenGraph follows the served document locale (en fallback stay
   const src = readFileSync(new URL('../lib/seo/metadata.ts', import.meta.url), 'utf8')
   assert.match(src, /export function servedContentLocale/)
   for (const page of ['blog/[slug]', 'news/[slug]', 'pages/[slug]', 'privacy-policy', 'about']) {
-    const code = readFileSync(new URL(`../app/(pages)/${page}/page.tsx`, import.meta.url), 'utf8')
+    const code = readFileSync(new URL(`../app/[ctx]/(pages)/${page}/page.tsx`, import.meta.url), 'utf8')
     assert.match(code, /locale: servedContentLocale\((post|content\??)\.locale\)/, `${page} metadata locale`)
     assert.match(code, /lang=\{servedContentLocale\((post|content)\.locale\)\}/, `${page} body lang`)
     // Canonical and hreflang come from buildMetadata (main's locale URLs); pages must not override them.

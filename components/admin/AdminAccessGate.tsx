@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useVisiblePathname } from '@/hooks/useVisiblePathname';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminAccess } from '@/hooks/useAdminAccess';
 import { AdminShell } from '@/components/admin/navigation/AdminShell';
@@ -9,7 +10,7 @@ import { AdminShell } from '@/components/admin/navigation/AdminShell';
 const PUBLIC_ADMIN_PATHS = ['/admin/accept-invite'];
 
 export default function AdminAccessGate({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   const router = useRouter();
   const { loading, isAuthenticated } = useAuth();
   const { isAdmin, canAccessPath } = useAdminAccess();

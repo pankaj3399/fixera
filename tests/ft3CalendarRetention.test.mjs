@@ -36,7 +36,7 @@ test('employee and team calendars pass the retained flag from the booking ranges
 })
 
 test('personal calendar shows only retained planned days, never the whole refunded window', () => {
-  const profile = readFileSync(new URL('../app/(pages)/profile/page.tsx', import.meta.url), 'utf8')
+  const profile = readFileSync(new URL('../app/[ctx]/(pages)/profile/page.tsx', import.meta.url), 'utf8')
   assert.match(profile, /bookingCalendarEventType\(booking\?\.status, \{ retainedAfterRefund: isRetainedPartialRefundBooking\(booking\) \}\) !== null/)
   assert.match(profile, /if \(retainedAfterRefund && !hasPlan\) return/)
 })

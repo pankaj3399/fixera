@@ -12,7 +12,7 @@ const {
   syncCancellationStatusFilterState,
 } = await import('@/lib/admin/cancellationRequestFilters')
 
-const pageSource = readFileSync(new URL('../app/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
+const pageSource = readFileSync(new URL('../app/[ctx]/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
 const handlerSource = pageSource.slice(pageSource.indexOf('  const selectStatusFilter ='), pageSource.indexOf('  const limit ='))
 const handlerCode = transformSync(handlerSource, { jsc: { parser: { syntax: 'typescript' } } }).code
 
@@ -110,7 +110,7 @@ test('URL written for a selection keeps other query values', () => {
 })
 
 test('the page derives its filter from the live query, not only on mount', () => {
-  const page = readFileSync(new URL('../app/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
   assert.doesNotMatch(page, /useState<StatusFilter>\(\(\) => parseCancellationStatusFilter/)
   assert.match(page, /const statusQuery = searchParams\.get\('status'\)/)
   assert.match(page, /const syncedFilterState = syncCancellationStatusFilterState\(filterState, statusQuery\)\n\s+if \(syncedFilterState !== filterState\) \{\n\s+[^\n]*\n\s+setFilterState\(syncedFilterState\)\n\s+if \(syncedFilterState\.filter !== filterState\.filter\) setPage\(1\)/)

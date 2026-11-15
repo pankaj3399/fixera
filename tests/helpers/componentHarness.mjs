@@ -51,6 +51,11 @@ export function componentHarness(file, imports = {}) {
       return new Proxy({ __esModule: true }, { get: (target, key) => target[key] ?? key })
     }
     if (name === 'next/link') return { __esModule: true, default: 'a' }
+    // Components read the pathname through this hook (pages are rewritten under app/[ctx]);
+    // in tests it is the mocked next/navigation pathname.
+    if (name === '@/hooks/useVisiblePathname' && imports['next/navigation']) {
+      return { useVisiblePathname: () => imports['next/navigation'].usePathname?.() ?? '' }
+    }
     throw new Error(`Missing component test import: ${name}`)
   }
   new Function('require', 'module', 'exports', source)(load, compiled, compiled.exports)

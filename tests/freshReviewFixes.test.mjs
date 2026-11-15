@@ -101,6 +101,11 @@ function loadComponent(file, mocks, exportName = 'default') {
   const exports = {}
   new Function('require', 'exports', code)(name => {
     if (name in mocks) return mocks[name]
+    // Components read the pathname through this hook (pages are rewritten under app/[ctx]);
+    // in tests it is the mocked next/navigation pathname.
+    if (name === '@/hooks/useVisiblePathname' && mocks['next/navigation']) {
+      return { useVisiblePathname: () => mocks['next/navigation'].usePathname?.() ?? '' }
+    }
     // Pure helper modules (no I/O, no React) resolve to the real code.
     if (name in REAL_PURE_MODULES) return REAL_PURE_MODULES[name]
     if (name.startsWith('@/')) throw new Error(`unmocked import ${name}`)
@@ -145,7 +150,7 @@ test('category page: an aborted request does not end the loading state of its re
     }
     let slug = 'small-tasks'
     const Skeleton = () => null
-    const Component = loadComponent('../app/(pages)/categories/[categorySlug]/page.tsx', {
+    const Component = loadComponent('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', {
       react: state.api,
       'next/link': { __esModule: true, default: () => null },
       sonner: { toast: { error() {} } },
@@ -420,7 +425,7 @@ test('professional payments: the onboarding empty state only shows for an unfilt
     const state = hooks()
     // The page picks the professional view for this role; that view is then
     // mounted on a fresh stand-in (the role switch's hooks are discarded).
-    const Dashboard = loadComponent('../app/(pages)/dashboard/payments/page.tsx', mocks(state))
+    const Dashboard = loadComponent('../app/[ctx]/(pages)/dashboard/payments/page.tsx', mocks(state))
     const ViewComponent = state.render(() => Dashboard()).type
     state.reset()
     assert.equal(ViewComponent.name, 'ProfessionalPaymentsView')
@@ -506,7 +511,7 @@ test('stripe return pages resume onboarding at the shared Stripe step', () => {
   assert.equal(stripeReturnPath(true), '/professional/onboarding?step=3')
   assert.equal(stripeReturnPath(false), '/dashboard')
   assert.equal(onboardingStepPath(ONBOARDING_STEPS.RULES), '/professional/onboarding?step=7')
-  for (const file of ['../app/professional/stripe/complete/page.tsx', '../app/professional/stripe/refresh/page.tsx']) {
+  for (const file of ['../app/[ctx]/professional/stripe/complete/page.tsx', '../app/[ctx]/professional/stripe/refresh/page.tsx']) {
     assert.doesNotMatch(readFileSync(new URL(file, import.meta.url), 'utf8'), /onboarding\?step=\d/, file)
   }
 })
@@ -566,7 +571,7 @@ test('category page: navigating to an unknown slug never shows the previous cate
     let slug = 'gardening'
     const replaces = []
     const router = { replace: href => replaces.push(href) }
-    const Component = loadComponent('../app/(pages)/categories/[categorySlug]/page.tsx', {
+    const Component = loadComponent('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', {
       react: state.api,
       'next/link': { __esModule: true, default: () => null },
       sonner: { toast: { error() {} } },
@@ -739,7 +744,7 @@ test('professional payments: an ok response with success:false clears the previo
     const currency = { formatMoney: amount => String(amount) }
     const locale = { intl: 'en-GB' }
     const state = hooks()
-    const Dashboard = loadComponent('../app/(pages)/dashboard/payments/page.tsx', {
+    const Dashboard = loadComponent('../app/[ctx]/(pages)/dashboard/payments/page.tsx', {
       react: state.api,
       'next/link': { __esModule: true, default: () => null },
       'next/navigation': { useRouter: () => router },
@@ -804,7 +809,7 @@ test('warranty claims: a deep-linked claim is not injected into a service-filter
     const auth = { user: { role: 'customer' }, isAuthenticated: true, loading: false }
     const searchParams = new URLSearchParams('claimId=c1')
     const state = hooks()
-    const Page = loadComponent('../app/(pages)/dashboard/warranty-claims/page.tsx', {
+    const Page = loadComponent('../app/[ctx]/(pages)/dashboard/warranty-claims/page.tsx', {
       react: state.api,
       'next/navigation': { useRouter: () => router, useSearchParams: () => searchParams },
       'next-intl': { useTranslations: () => t },
@@ -1132,6 +1137,7 @@ test('booking page: the real pinned-version hook and Accept & Pay gate follow Ov
         usePathname: () => location.pathname,
         useSearchParams: () => new URLSearchParams(location.search),
       },
+      '@/hooks/useVisiblePathname': { useVisiblePathname: () => location.pathname },
       'next-intl': { useTranslations: () => key => key },
       'lucide-react': stubModule(),
       '@/components/ui/tabs': stubModule(),
@@ -1255,7 +1261,7 @@ test('professional payments: a pending or failed query never shows the previous 
     const Button = function Button() { return null }
     const Skeleton = function Skeleton() { return null }
     const state = hooks()
-    const Dashboard = loadComponent('../app/(pages)/dashboard/payments/page.tsx', paymentsMocks(state, {
+    const Dashboard = loadComponent('../app/[ctx]/(pages)/dashboard/payments/page.tsx', paymentsMocks(state, {
       '@/components/ui/button': { Button },
       '@/components/ui/skeleton': { Skeleton },
       '@/components/ui/select': new Proxy({}, { get: (_, key) => (key === '__esModule' ? true : key === 'Select' ? Select : function Stub() { return null }) }),
@@ -1358,7 +1364,7 @@ test('warranty claims: a slower Refresh response never overwrites a newer filter
     const auth = { user: { role: 'customer' }, isAuthenticated: true, loading: false }
     const searchParams = new URLSearchParams('')
     const state = hooks()
-    const Page = loadComponent('../app/(pages)/dashboard/warranty-claims/page.tsx', {
+    const Page = loadComponent('../app/[ctx]/(pages)/dashboard/warranty-claims/page.tsx', {
       react: state.api,
       'next/navigation': { useRouter: () => ({ push() {}, replace() {} }), useSearchParams: () => searchParams },
       'next-intl': { useTranslations: () => t },
@@ -1451,7 +1457,7 @@ async function mountProfile({ deferSaves = false } = {}) {
   const router = { push() {}, replace() {} }
   const searchParams = new URLSearchParams('')
   const t = Object.assign(key => key, { rich: key => key, raw: key => key, has: () => true })
-  const Page = loadComponent('../app/(pages)/profile/page.tsx', {
+  const Page = loadComponent('../app/[ctx]/(pages)/profile/page.tsx', {
     react: state.api,
     'next-intl': { useTranslations: () => t },
     '@/contexts/AuthContext': { useAuth: () => auth },
@@ -1941,7 +1947,7 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
   const auth = { user: { _id: 'u1' }, loading: false }
   const Button = () => null
   const ui = stubModule()
-  const Component = loadComponent('../app/(pages)/dashboard/disputes/page.tsx', {
+  const Component = loadComponent('../app/[ctx]/(pages)/dashboard/disputes/page.tsx', {
     react: state.api,
     'next/navigation': { useRouter: () => ({ push() {} }), usePathname: () => '/dashboard/disputes' },
     'next-intl': { useTranslations: () => t },
@@ -2122,7 +2128,7 @@ test('an abandoned project filter render cannot strand the committed request on 
   const ProjectCard = () => null
   globalThis.fetch = url => { const d = deferred(); requests.push({ url: String(url), ...d }); return d.promise }
   try {
-    const Component = loadComponent('../app/(pages)/professional/projects/manage/page.tsx', {
+    const Component = loadComponent('../app/[ctx]/(pages)/professional/projects/manage/page.tsx', {
       react: state.api,
       '@/contexts/AuthContext': { useAuth: () => auth },
       'next/navigation': { useRouter: () => router },
@@ -2213,7 +2219,7 @@ test('onboarding completion preserves its stored workflow through repeated effec
   try {
     const resumeStep = await import('../lib/onboarding/resumeStep.ts')
     const useOnboardingStepSync = loadComponent('../lib/onboarding/useOnboardingStepSync.ts', { react: state.api, './resumeStep': resumeStep }, 'useOnboardingStepSync')
-    const Page = loadComponent('../app/(pages)/professional/onboarding/page.tsx', {
+    const Page = loadComponent('../app/[ctx]/(pages)/professional/onboarding/page.tsx', {
       react: state.api,
       '@/lib/auth/redirectResolver': await import('../lib/auth/redirectResolver.ts'),
       '@/lib/onboarding/useOnboardingStepSync': { useOnboardingStepSync },

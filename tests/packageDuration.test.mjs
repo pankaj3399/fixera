@@ -99,7 +99,7 @@ test('wizard wiring: new and re-typed packages get a basis; hourly shows "determ
   assert.match(step2, /=== 'customer_hours' \? \(\s*<div>[\s\S]*?step2\.timing\.determinedByCustomer/)
   assert.match(step2, /step2\.timing\.executionPerUnitLabel/)
   assert.match(step2, /value: undefined, unit: 'hours' as const/, 'hourly packages store no professional value')
-  const review = source('app/(pages)/projects/create/page.tsx')
+  const review = source('app/[ctx]/(pages)/projects/create/page.tsx')
   assert.match(review, /packageDurationMode\(sub\.pricing\) === 'customer_hours'/)
 })
 
@@ -192,7 +192,7 @@ test('wizard wiring: type select, auto-repair, option sync and saving use the du
   assert.match(step2, /\.\.\.withOptionPricingUnit\(sub, data\.selectedPricingOption\?\.unit, unitLabel\),\n\s*preparationDuration:/, 'mount initializer')
   assert.match(step2, /prev\.map\(\(sub\) => withOptionPricingUnit\(sub, data\.selectedPricingOption\?\.unit, unitLabel\)\)/, 'option sync')
   assert.doesNotMatch(step2, /pricing: withPricingUnit\(sub\.pricing, unitLabel\)/, 'mount must not overwrite the unit before the transition')
-  const page = source('app/(pages)/projects/create/page.tsx')
+  const page = source('app/[ctx]/(pages)/projects/create/page.tsx')
   assert.match(page, /subprojects: normalizePreparationDuration\(withoutRetainedDurations\(projectData\.subprojects\)\)/)
 })
 

@@ -189,35 +189,36 @@ test('middleware serves non-roll-out visitors as the default country, roll-out v
   try {
     const { NextRequest } = await import('next/server.js')
     const { middleware } = await import('../middleware.ts')
+    const { parseRouteContext } = await import('../lib/routeContext.ts')
     const run = (country, extraHeaders = {}, cookie) => middleware(new NextRequest('https://fixtract.test/', {
       headers: { 'x-vercel-ip-country': country, 'accept-language': 'de-DE,de;q=0.9', ...(cookie ? { cookie } : {}), ...extraHeaders },
     }))
-    const header = (res, name) => res.headers.get(`x-middleware-request-${name}`)
+    // The resolved values travel in the route context the page is rewritten to.
+    const context = (res) => parseRouteContext(new URL(res.headers.get('x-middleware-rewrite')).pathname.split('/')[1])
 
     const german = await run('DE')
     assert.equal(seen[0], 'https://backend.test/api/public/auto-conversion')
-    assert.equal(header(german, 'x-vercel-ip-country'), 'BE', 'CMS content of the default country')
-    assert.equal(header(german, 'x-fixera-content-country'), 'BE', 'first-party content country')
+    assert.equal(context(german).country, 'BE', 'CMS content of the default country')
     assert.equal(german.cookies.get('fixera_geo_country')?.value, 'BE')
     assert.equal(german.cookies.get('geo_currency')?.value, 'EUR')
     assert.equal(german.cookies.get('fixera_geo_locale')?.value, 'nl', 'Belgian default, not English for DE')
-    assert.equal(header(german, 'x-fixera-locale'), 'nl')
+    assert.equal(context(german).locale, 'nl')
 
     const forged = await run('DE', { 'x-fixera-content-country': 'NL' })
-    assert.equal(header(forged, 'x-fixera-content-country'), 'BE', 'a client-supplied content country is overwritten')
+    assert.equal(context(forged).country, 'BE', 'a client-supplied content country header is ignored')
 
     const dutch = await run('NL')
     assert.equal(dutch.cookies.get('fixera_geo_country')?.value, 'NL')
-    assert.equal(header(dutch, 'x-fixera-locale'), 'nl')
-    assert.equal(header(dutch, 'x-vercel-ip-country'), 'NL')
+    assert.equal(context(dutch).locale, 'nl')
+    assert.equal(context(dutch).country, 'NL')
 
     const swissManual = await run('CH', {}, 'NEXT_LOCALE=fr; NEXT_CURRENCY=CHF')
     assert.equal(swissManual.cookies.get('fixera_geo_country')?.value, 'BE')
     assert.equal(swissManual.cookies.get('geo_currency')?.value, 'EUR', 'geo default follows the default country')
-    assert.equal(header(swissManual, 'x-fixera-locale'), 'fr', 'manual language wins')
-    // The manual currency is applied in the browser; it never varies the server render.
-    assert.equal(header(swissManual, 'x-fixera-currency'), null)
+    assert.equal(context(swissManual).locale, 'fr', 'manual language wins')
+    // The manual currency is applied in the browser; it never varies the page.
     assert.equal(swissManual.cookies.get('NEXT_CURRENCY'), undefined, 'manual currency cookie left alone')
+    assert.deepEqual(context(swissManual), context(await run('CH', {}, 'NEXT_LOCALE=fr')))
     assert.equal(seen.length, 1, 'config fetched once per isolate within the TTL')
   } finally {
     globalThis.fetch = realFetch
@@ -249,13 +250,6 @@ test('a completed save only clears the submitted draft, never newer edits', () =
   assert.equal(result.draft, newer.draft)
   assert.equal(result.dirty, true)
   assert.equal(savedAutoConversionCard(state, saved, submitted).dirty, false)
-})
-
-test('content-country reader prefers middleware country and falls back to platform geo', async () => {
-  const { readContentCountry } = await import('../lib/geo/contentCountryHeader.ts')
-  assert.equal(readContentCountry(new Headers({ 'x-fixera-content-country': 'BE', 'x-vercel-ip-country': 'DE' })), 'BE')
-  assert.equal(readContentCountry(new Headers({ 'x-vercel-ip-country': 'DE' })), 'DE')
-  assert.equal(readContentCountry(new Headers({ 'x-fixera-content-country': 'bad', 'x-vercel-ip-country': 'NL' })), 'NL')
 })
 
 test('middleware matcher excludes static asset extensions and Next internals', async () => {

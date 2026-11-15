@@ -11,7 +11,7 @@ for (const staleFails of [false, true]) test(`admin reload ignores a stale same-
   const state = hooks()
   const requests = [], errors = []
   const user = { role: 'admin' }
-  const Page = loadComponent('../app/(pages)/admin/chat/page.tsx', {
+  const Page = loadComponent('../app/[ctx]/(pages)/admin/chat/page.tsx', {
     ...common, react: state.api,
     'next/navigation': { useRouter: () => ({ push() {}, replace() {} }), useSearchParams: () => new URLSearchParams('conversationId=c1') },
     '@/contexts/AuthContext': { useAuth: () => ({ user, loading: false }) },

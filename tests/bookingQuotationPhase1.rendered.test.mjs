@@ -73,7 +73,7 @@ test('admin booking renders server details in shared tabs while preserving gated
     const state = hooks()
     const Tabs = () => null
     const data = payload()
-    const Page = loadComponent('../app/(pages)/admin/bookings/[id]/page.tsx', {
+    const Page = loadComponent('../app/[ctx]/(pages)/admin/bookings/[id]/page.tsx', {
       ...common, react: state.api,
       '@/lib/apiErrors': { messageFromApiBody: () => 'Error' },
       '@/components/booking/details/BookingDetailsTabs': { BookingDetailsTabs: Tabs },

@@ -185,9 +185,11 @@ export function listSourceFiles(dir) {
 }
 
 const APP = path.join(ROOT, 'app')
+/** The layout that renders the document and the root message set (app/[ctx]). */
+const ROOT_LAYOUT_DIR = path.join(APP, '[ctx]')
 
 /** Files rendered by the root layout itself, outside any route subtree. */
-export const ROOT_ENTRY_FILES = ['layout.tsx', 'error.tsx', 'not-found.tsx'].map((f) => path.join(APP, f))
+export const ROOT_ENTRY_FILES = ['layout.tsx', 'error.tsx', 'not-found.tsx'].map((f) => path.join(ROOT_LAYOUT_DIR, f))
 
 /**
  * Every layout that wraps its subtree in <ScopedIntlProvider scope="...">,
@@ -199,7 +201,7 @@ export function findScopedLayouts() {
   const layouts = []
   for (const file of listSourceFiles(APP)) {
     if (!/^layout\.(t|j)sx?$/.test(path.basename(file))) continue
-    if (path.dirname(file) === APP) continue
+    if (path.dirname(file) === APP || path.dirname(file) === ROOT_LAYOUT_DIR) continue
     const text = readFileSync(file, 'utf8')
     const scopes = [...text.matchAll(/<ScopedIntlProvider\s+scope=["']([^"']+)["']/g)].map((m) => m[1])
     const mentions = (text.match(/<ScopedIntlProvider\b/g) ?? []).length

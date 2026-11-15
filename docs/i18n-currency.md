@@ -1,22 +1,30 @@
 # i18n & currency (frontend)
 
-Booking.com-style localization: the URL never changes, there is **no `/[locale]`
-segment**. Language and display currency are resolved per request from the URL,
-cookies, geo headers and `Accept-Language`.
+Booking.com-style localization: the visible URL has no locale segment (apart from
+the optional `/en|nl|fr` prefix of public pages). Language and display currency are
+resolved per request from the URL, cookies, geo headers and `Accept-Language`.
 
 Languages: `en` (default), `nl` (informal je/jij), `fr` (vous).
 Country/currency audience: Belgium, Netherlands, France (+ any visitor, via geo).
-Admin panel (`app/(pages)/admin/**`, `components/admin/**`) **stays English** —
+Admin panel (`app/[ctx]/(pages)/admin/**`, `components/admin/**`) **stays English** —
 never add translations there. Admin routes render `<html lang="en">` (set via
-the middleware document-locale header and kept in sync on client navigation)
+the route context's admin mode and kept in sync on client navigation)
 without changing `NEXT_LOCALE`, so returning to a public page restores the
 visitor's chosen language.
 
 ## How the values are resolved
 
-`middleware.ts` resolves the locale and forwards it on a request header
-(`x-fixera-locale`) because cookies set on a response are not visible to the
-server render of that same request.
+`middleware.ts` resolves the locale and the content country and rewrites every
+page request to an internal route whose first segment carries them:
+`/about` → `/<ctx>/about` (`app/[ctx]/...`, `lib/routeContext.ts`), e.g.
+`nl-BE-u` = Dutch, content country BE, unprefixed URL (`p` = language-prefixed URL,
+which sets the canonical; `a` = admin, `<html lang="en">`). Pages read the context
+from their route params (`routeContext(params)` in `lib/server/routeContext.ts`, which
+also calls next-intl's `setRequestLocale`), never from request headers or cookies,
+so a public page is cached as static HTML per context (ISR) instead of running a
+function on every visit. Internal paths are not reachable directly: a request whose
+first segment is a context finds no route (404). The blog/news index `?page=&tag=`
+listing is carried in the context too (`nl-BE-u~2~<tag>`).
 
 The display currency is not part of the server render. The browser resolves it
 (`contexts/CurrencyContext.tsx`) from the same cookies the middleware uses
@@ -66,14 +74,11 @@ answer (or `unknown`) is kept and retried after 60 seconds; fetch timeout 1.5 s,
 3 s for an isolate's first fetch. An admin change therefore reaches visitors
 within about 5 minutes.
 
-The effective country reaches server renders on the first-party
-`x-fixera-content-country` request header. The middleware deletes any
-client-supplied value and then sets it; `lib/geo/contentCountryHeader.ts`
-(`readContentCountry`) reads it first and falls back to `x-vercel-ip-country`.
-The middleware still also overrides `x-vercel-ip-country` for older readers, but
-no reader relies on the host forwarding that override. CMS reads send both
-headers to the backend, which prefers `x-fixera-content-country` and falls
-back to the platform geo headers.
+The effective country reaches server renders in the route context (`00` when
+there is none). CMS reads send it to the backend on both
+`x-fixera-content-country` and `x-vercel-ip-country`
+(`lib/geo/contentCountryHeader.ts`); the backend prefers
+`x-fixera-content-country` and falls back to the platform geo headers.
 
 `Accept-Language` parsing (`i18n/localeResolution.ts`) ignores `q=0` entries,
 clamps numeric out-of-range weights into `0…1`, ignores malformed qvalues and
@@ -97,8 +102,9 @@ and `geo_currency`. They are rewritten only from an authoritative config state
 (see the table above); a missing `geo_currency` is always written, because the
 browser needs it to pick the display currency.
 
-Server code reads the resolved locale with `getLocale()` (next-intl); client code
-reads the currency with `useCurrency()` (`currencyReady` says whether it is known yet).
+Server code reads the resolved locale with `getLocale()` (next-intl) once the page
+or layout has called `routeContext(params)`; client code reads the currency with
+`useCurrency()` (`currencyReady` says whether it is known yet).
 
 ## Messages: one file per namespace
 
@@ -146,7 +152,7 @@ export function Menu() {
 }
 ```
 
-`NextIntlClientProvider` is wired in `app/layout.tsx`, so client components just
+`NextIntlClientProvider` is wired in `app/[ctx]/layout.tsx`, so client components just
 work. Use `t("key", { count })` for ICU plurals; never concatenate translated
 sentences. Keep brand names ("Fixtract"), external brand names and admin-only UI
 untranslated.

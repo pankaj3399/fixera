@@ -38,7 +38,7 @@ test('the manifest only names real namespaces', () => {
 })
 
 test('the root layout serializes only the root namespaces to the client', () => {
-  const source = readFileSync(path.join(APP, 'layout.tsx'), 'utf8')
+  const source = readFileSync(path.join(APP, '[ctx]', 'layout.tsx'), 'utf8')
   const providers = [...source.matchAll(/<NextIntlClientProvider\b[^>]*>/g)].map((m) => m[0])
   assert.equal(providers.length, 1)
   assert.match(providers[0], /messages=\{pickMessages\(messages, ROOT_CLIENT_NAMESPACES\)\}/)

@@ -898,7 +898,7 @@ test('upload history renders server filename, date, truthful status and no downl
 })
 
 test('campaign pages keep invite-only policy, old defaults, audience payload and one send action', () => {
-  const campaignSource = readSource('app/(pages)/admin/campaigns/page.tsx')
+  const campaignSource = readSource('app/[ctx]/(pages)/admin/campaigns/page.tsx')
   assert.match(campaignSource, /audienceType: form\.audienceType/)
   assert.match(campaignSource, /audienceType: payload\.audienceType/)
   assert.match(campaignSource, /audienceType: parsedAudienceType \?\? "subscribers"/)
@@ -948,7 +948,7 @@ test('campaign pages keep invite-only policy, old defaults, audience payload and
 
 test('leads UI stores no history locally and never creates consent or subscribers', () => {
   const files = [
-    'app/(pages)/admin/campaigns/leads/page.tsx',
+    'app/[ctx]/(pages)/admin/campaigns/leads/page.tsx',
     'components/admin/marketing/LeadImportDialog.tsx',
     'components/admin/marketing/LeadTable.tsx',
     'components/admin/marketing/LeadFormDialogs.tsx',
@@ -1010,7 +1010,7 @@ test('effective marketing read/write gates allow read-only campaign and lead pag
 })
 
 test('subscribers page uses the shared sync summary and never turns opt-in on', () => {
-  const source = readSource('app/(pages)/admin/campaigns/subscribers/page.tsx')
+  const source = readSource('app/[ctx]/(pages)/admin/campaigns/subscribers/page.tsx')
   assert.match(source, /subscriberSyncSummary\(json\.data\)/)
   assert.match(source, /canWriteArea\("campaigns"\)/)
   assert.doesNotMatch(source, /marketingConsentAt|notificationPreferences\.promotions|MarketingSubscriber\b/)

@@ -9,7 +9,7 @@ const { renderToStaticMarkup } = await import('react-dom/server')
 const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
 const { canAccessAdminPage, permissionForAdminPage } = await import('@/lib/adminRbac')
 
-const pageUrl = new URL('../app/(pages)/admin/page.tsx', import.meta.url)
+const pageUrl = new URL('../app/[ctx]/(pages)/admin/page.tsx', import.meta.url)
 
 test('/admin has a page that hands off to the role-aware admin dashboard', async () => {
   assert.ok(existsSync(pageUrl), '/admin must not 404 (Settings "Dashboard" button, login redirect default)')
@@ -17,7 +17,7 @@ test('/admin has a page that hands off to the role-aware admin dashboard', async
   // Only the default export: Next rejects other page exports.
   assert.doesNotMatch(source, /^export (const|function|let)/m)
 
-  const { default: AdminIndexPage } = await import('@/app/(pages)/admin/page')
+  const { default: AdminIndexPage } = await import('@/app/[ctx]/(pages)/admin/page')
   // The redirect effect itself runs in adminReviewRuntime.test.mjs.
   const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }
   const html = renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router }, React.createElement(AdminIndexPage)))
@@ -25,13 +25,13 @@ test('/admin has a page that hands off to the role-aware admin dashboard', async
 })
 
 test('/admin stays inside the admin gate and needs no extra permission', () => {
-  const layout = readFileSync(new URL('../app/(pages)/admin/layout.tsx', import.meta.url), 'utf8')
+  const layout = readFileSync(new URL('../app/[ctx]/(pages)/admin/layout.tsx', import.meta.url), 'utf8')
   assert.match(layout, /<AdminAccessGate>\{children\}<\/AdminAccessGate>/)
   assert.equal(permissionForAdminPage('/admin'), null)
   assert.equal(canAccessAdminPage({ role: 'admin', adminRole: 'support', adminPermissions: ['disputes.manage'] }, '/admin'), true)
   assert.equal(canAccessAdminPage({ role: 'customer' }, '/admin'), false)
   assert.equal(canAccessAdminPage(null, '/admin'), false)
   // Settings' Dashboard button target now exists.
-  const settings = readFileSync(new URL('../app/(pages)/admin/settings/page.tsx', import.meta.url), 'utf8')
+  const settings = readFileSync(new URL('../app/[ctx]/(pages)/admin/settings/page.tsx', import.meta.url), 'utf8')
   assert.match(settings, /router\.push\('\/admin'\)/)
 })

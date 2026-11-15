@@ -236,7 +236,7 @@ test('the booking page shows the live or newest cancellation request, not the fi
 })
 
 test('the booking page wires the resolvers instead of the raw DTO rows', () => {
-  const page = readFileSync(new URL('../app/(pages)/bookings/[id]/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/bookings/[id]/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /resolveRescheduleEntries\(\{\s*reschedules: details\?\.reschedules,\s*liveRequest: booking\?\.rescheduleRequest,\s*bookingStatus: booking\?\.status,/)
   assert.match(page, /selectCancellationRequest\(details\?\.cancellations\)/)
   assert.doesNotMatch(page, /details\?\.cancellations\?\.\[0\]/)

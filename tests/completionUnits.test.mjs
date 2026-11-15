@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { bookedSubprojectIndex, bookedUnitPricing, canonicalUnit, resolveBookingUnit } from '../lib/bookingUnits.ts'
 
 const messages = (locale) => JSON.parse(readFileSync(new URL(`../messages/${locale}/bookings.json`, import.meta.url), 'utf8'))
-const PAGE = readFileSync(new URL('../app/(pages)/bookings/[id]/page.tsx', import.meta.url), 'utf8')
+const PAGE = readFileSync(new URL('../app/[ctx]/(pages)/bookings/[id]/page.tsx', import.meta.url), 'utf8')
 
 test('configured units map to a canonical unit; generic words do not', () => {
   for (const [raw, unit] of [['m2', 'm2'], ['m²', 'm2'], ['per m2', 'm2'], ['sqm', 'm2'], ['hour', 'hour'], ['Hours', 'hour'], ['h', 'hour'], ['day', 'day'], ['dagen', 'day'], ['meter', 'meter'], ['room', 'room'], ['m3', 'm3']]) {

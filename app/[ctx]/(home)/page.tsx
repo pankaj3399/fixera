@@ -1,0 +1,51 @@
+import type { Metadata } from 'next'
+import { getTranslations } from 'next-intl/server'
+import HeroSection from '@/components/HeroSection'
+import HowItWorksSection from '@/components/HowItWorksSection'
+import FeaturesSection from '@/components/FeaturesSection'
+import CTASection from '@/components/CTASection'
+import ProfessionalsSection from '@/components/ProfessionalsSection'
+import { getPopularProjects, getPopularServices } from '@/lib/server/popular'
+import { buildMetadata } from '@/lib/seo/metadata'
+import { normalizePopularProjectsQuery } from '@/lib/popularProject'
+import { routeContext, type RouteContextParams } from '@/lib/server/routeContext'
+
+export const revalidate = 21600
+
+/**
+ * Page-specific title and description for the home route, through the shared
+ * `buildMetadata` helper (canonical, OpenGraph and Twitter in the active locale).
+ */
+export async function generateMetadata({ params }: { params: RouteContextParams }): Promise<Metadata> {
+  await routeContext(params)
+  const t = await getTranslations('home')
+  return buildMetadata({
+    title: t('meta.title'),
+    description: t('meta.description'),
+    path: '/',
+  })
+}
+
+const POPULAR_PROJECTS_QUERY = normalizePopularProjectsQuery({ limit: 10 })
+
+export default async function Home({ params }: { params: RouteContextParams }) {
+  await routeContext(params)
+  const [popularServices, popularProjects] = await Promise.all([
+    getPopularServices(5),
+    getPopularProjects(POPULAR_PROJECTS_QUERY),
+  ])
+
+  return (
+    <main className="min-h-screen bg-white">
+      <HeroSection
+        popularServices={popularServices}
+        popularProjects={popularProjects}
+        popularProjectsQuery={POPULAR_PROJECTS_QUERY}
+      />
+      <HowItWorksSection />
+      <FeaturesSection />
+      <ProfessionalsSection/>
+      <CTASection />
+    </main>
+  )
+}

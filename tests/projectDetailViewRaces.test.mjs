@@ -6,7 +6,7 @@ import { componentHarness, elementText } from './helpers/componentHarness.mjs'
 register('./swc-loader.mjs', import.meta.url)
 process.env.NEXT_PUBLIC_BACKEND_URL = 'https://api.example.test'
 
-const file = new URL('../app/(pages)/projects/[id]/ProjectDetailView.tsx', import.meta.url)
+const file = new URL('../app/[ctx]/(pages)/projects/[id]/ProjectDetailView.tsx', import.meta.url)
 const originalFetch = globalThis.fetch
 const t = (key) => key
 const toasts = []

@@ -3,7 +3,8 @@
 import { apiErrorFromBody } from "@/lib/apiErrors";
 
 import { useEffect, useState, useCallback, useId } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useVisiblePathname } from "@/hooks/useVisiblePathname";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { authFetch } from "@/lib/utils";
@@ -47,7 +48,7 @@ export default function FavoriteButton({
   onToggled,
 }: FavoriteButtonProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   const t = useTranslations("favorites");
   const getErrorText = useErrorMessage();
   const { user, isAuthenticated, loading } = useAuth();

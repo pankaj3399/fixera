@@ -240,10 +240,10 @@ test('indicator is localised', () => {
 
 test('every affected admin page wires show-all into its requests and shows the indicator', () => {
   const pages = {
-    'app/(pages)/admin/disputes/page.tsx': ['historyQuery(showAll)', '<DashboardBaselineIndicator'],
-    'app/(pages)/admin/warranty-claims/page.tsx': ['params.set("history", "all")', 'historyQuery(showAll)', '<DashboardBaselineIndicator'],
-    'app/(pages)/admin/cancellation-requests/page.tsx': ["params.set('history', 'all')", '<DashboardBaselineIndicator'],
-    'app/(pages)/admin/kpi/page.tsx': ['historyQuery(showAll)', '<DashboardBaselineIndicator'],
+    'app/[ctx]/(pages)/admin/disputes/page.tsx': ['historyQuery(showAll)', '<DashboardBaselineIndicator'],
+    'app/[ctx]/(pages)/admin/warranty-claims/page.tsx': ['params.set("history", "all")', 'historyQuery(showAll)', '<DashboardBaselineIndicator'],
+    'app/[ctx]/(pages)/admin/cancellation-requests/page.tsx': ["params.set('history', 'all')", '<DashboardBaselineIndicator'],
+    'app/[ctx]/(pages)/admin/kpi/page.tsx': ['historyQuery(showAll)', '<DashboardBaselineIndicator'],
   }
   for (const [file, needles] of Object.entries(pages)) {
     const source = read(file)
@@ -253,12 +253,12 @@ test('every affected admin page wires show-all into its requests and shows the i
 })
 
 test('the KPI page applies show-all to every range request through appliedRange', () => {
-  const source = read('app/(pages)/admin/kpi/page.tsx')
+  const source = read('app/[ctx]/(pages)/admin/kpi/page.tsx')
   assert.match(source, /appliedRange = useMemo\([\s\S]*historyQuery\(showAll\)[\s\S]*\[appliedFrom, appliedTo, country, showAll\]/)
 })
 
 test('the reset section is mounted on platform settings for super admins only', () => {
-  const source = read('app/(pages)/admin/settings/page.tsx')
+  const source = read('app/[ctx]/(pages)/admin/settings/page.tsx')
   assert.match(source, /canManageDashboardBaselines\(user\)/)
   assert.match(source, /<DashboardBaselineSettingsCard canManage \/>/)
 })

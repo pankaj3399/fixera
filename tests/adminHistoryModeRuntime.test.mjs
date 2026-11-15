@@ -18,9 +18,9 @@ const disputeFilters = await import('@/lib/admin/disputeFilters')
 const warrantyClaim = await import('@/lib/warrantyClaim')
 
 const file = (path) => new URL(`../${path}`, import.meta.url)
-const CANCELLATIONS = 'app/(pages)/admin/cancellation-requests/page.tsx'
-const WARRANTY = 'app/(pages)/admin/warranty-claims/page.tsx'
-const DISPUTES = 'app/(pages)/admin/disputes/page.tsx'
+const CANCELLATIONS = 'app/[ctx]/(pages)/admin/cancellation-requests/page.tsx'
+const WARRANTY = 'app/[ctx]/(pages)/admin/warranty-claims/page.tsx'
+const DISPUTES = 'app/[ctx]/(pages)/admin/disputes/page.tsx'
 
 const OLD_RESET = '2026-10-01T09:00:00.000Z'
 const NEW_RESET = '2026-11-01T09:00:00.000Z'

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useVisiblePathname } from "@/hooks/useVisiblePathname";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { MessageSquare, X, Minus, ArrowLeft, Loader2, Plus, FileText } from "lucide-react";
@@ -85,7 +85,7 @@ const getOtherParticipantLabel = (conversation: ChatConversation, userRole?: str
 export default function ChatWidget() {
   const t = useTranslations("chat");
   const getErrorText = useErrorMessage();
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   const chatRouter = useRouter();
   const { user, isAuthenticated, loading } = useAuth();
 

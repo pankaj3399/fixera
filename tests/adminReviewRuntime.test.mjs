@@ -19,7 +19,7 @@ const toast = { success() {}, error() {} }
 test('/admin redirect effect actually replaces the route with /dashboard', async () => {
   const calls = []
   const router = { replace: (path) => calls.push(path) }
-  const h = componentHarness(file('app/(pages)/admin/page.tsx'), { 'next/navigation': { useRouter: () => router } })
+  const h = componentHarness(file('app/[ctx]/(pages)/admin/page.tsx'), { 'next/navigation': { useRouter: () => router } })
   h.render()
   await h.settle()
   assert.deepEqual(calls, ['/dashboard'])
@@ -28,7 +28,7 @@ test('/admin redirect effect actually replaces the route with /dashboard', async
 })
 
 function emailPage(fetcher) {
-  return componentHarness(file('app/(pages)/admin/email-logs/page.tsx'), {
+  return componentHarness(file('app/[ctx]/(pages)/admin/email-logs/page.tsx'), {
     '@/lib/admin/emailLogs': emailLogs,
     '@/lib/utils': { authFetch: fetcher },
     '@/lib/apiErrors': { messageFromApiBody: (_body, fallback) => fallback },
@@ -190,7 +190,7 @@ test('settings-load failure hides the editor; retry loads it and unrelated PUT r
     companyVatNumber: 'BE0123456789',
     companyAddress: { name: 'Fixtract', street: 'Street 1', city: 'Brussels', postalCode: '1000', country: 'BE' },
   }
-  const h = componentHarness(file('app/(pages)/admin/settings/page.tsx'), {
+  const h = componentHarness(file('app/[ctx]/(pages)/admin/settings/page.tsx'), {
     '@/lib/apiErrors': { getErrorMessage: (_e, fallback) => fallback, messageFromApiBody: (_b, fallback) => fallback },
     '@/contexts/AuthContext': { useAuth: () => auth },
     'next/navigation': { useRouter: () => router },

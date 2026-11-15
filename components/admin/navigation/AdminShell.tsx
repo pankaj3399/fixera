@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { useVisiblePathname } from '@/hooks/useVisiblePathname'
 import { ChevronDown, Menu } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAdminNavigationBadges } from '@/hooks/useAdminNavigationBadges'
@@ -20,7 +20,7 @@ import { AdminNavigationMenu } from './AdminNavigationMenu'
  * content column is `min-w-0` so wide tables scroll inside it.
  */
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname() || ''
+  const pathname = useVisiblePathname() || ''
   const { user } = useAuth()
   const groups = useMemo(() => visibleAdminNavigation(user), [user])
   const active = useMemo(() => resolveActiveAdminNav(pathname), [pathname])

@@ -1,7 +1,8 @@
 "use client";
 
 import { useId, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useVisiblePathname } from "@/hooks/useVisiblePathname";
 import { useTranslations } from "next-intl";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,7 @@ export default function StartChatButton({
 }: StartChatButtonProps) {
   const t = useTranslations("chat");
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   const { user, isAuthenticated, loading } = useAuth();
   const disabledReasonId = useId();
 

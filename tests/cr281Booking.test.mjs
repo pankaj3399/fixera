@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { transformSync } from '@swc/core'
 const require = createRequire(import.meta.url)
-const source = readFileSync(new URL('../app/(pages)/bookings/[id]/page.tsx', import.meta.url), 'utf8')
+const source = readFileSync(new URL('../app/[ctx]/(pages)/bookings/[id]/page.tsx', import.meta.url), 'utf8')
 function fragment(start, end, bindings, result) {
   const body = source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)))
   assert.ok(body.length > 0)
@@ -42,7 +42,7 @@ test('tracker shows recorded charges without live pricing and never calculates p
   assert.equal(resolve(true, [null], []), 121)
 })
 test('payment schedule resolves settled and expected charges while live pricing is unavailable', () => {
-  const paymentSource = readFileSync(new URL('../app/bookings/[id]/payment/page.tsx', import.meta.url), 'utf8')
+  const paymentSource = readFileSync(new URL('../app/[ctx]/bookings/[id]/payment/page.tsx', import.meta.url), 'utf8')
   const body = paymentSource.slice(paymentSource.indexOf('const getMilestoneDisplayAmount ='), paymentSource.indexOf('const getQuotedDurations ='))
   const code = transformSync(`${body}; getMilestoneDisplayAmount`, { jsc: { parser: { syntax: 'typescript' } } }).code
   const resolve = recorded => new Function('useCallback', 'milestoneDisplayAmount', 'recordedMilestonePlan', 'booking', 'milestoneGrossAmounts', 'customerPricingReady', 'customerPrice', `${code}; return getMilestoneDisplayAmount(0,100)`)(

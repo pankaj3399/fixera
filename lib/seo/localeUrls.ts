@@ -8,15 +8,9 @@ import { absoluteUrl } from "./site";
  * the client link/switcher code. No Node, React or next-intl imports.
  *
  * Middleware rewrites an allowlisted public route under a language prefix to the
- * existing route (`/nl/about` serves `app/(pages)/about`) and forces the locale for
- * that request. Unprefixed URLs keep the negotiated locale and act as x-default.
+ * existing route (`/nl/about` serves `app/[ctx]/(pages)/about`) and forces the locale
+ * for that request (lib/routeContext.ts). Unprefixed URLs keep the negotiated locale and act as x-default.
  */
-
-/**
- * Set by middleware on a language-prefixed request, to the prefix locale. Absent
- * otherwise. Any client-supplied value is removed before middleware sets its own.
- */
-export const URL_LOCALE_REQUEST_HEADER = "x-fixera-url-locale";
 
 /** Public routes that exist under every language prefix, as route paths (no group names). */
 const STATIC_LOCALIZED_PATHS: ReadonlySet<string> = new Set([

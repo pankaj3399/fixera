@@ -61,6 +61,8 @@ export default function CookieConsent() {
             <p className="font-medium text-foreground">{t('title')}</p>
             <p className="mt-1">
               {t('intro')}{' '}
+              {/* A plain link, as before; the rule matches every path since pages live under app/[ctx]. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a href="/privacy-policy" className="underline underline-offset-2 hover:text-foreground">
                 {t('privacyPolicy')}
               </a>

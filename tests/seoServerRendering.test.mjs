@@ -12,8 +12,8 @@ const require = createRequire(import.meta.url)
 const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
 const { PathParamsContext } = require('next/dist/shared/lib/hooks-client-context.shared-runtime')
 const { CatalogCountryProvider } = await import('@/components/catalog/CatalogCountryContext')
-const { default: CategoryPage } = await import('@/app/(pages)/categories/[categorySlug]/page')
-const { default: ServicesHubClient } = await import('@/app/(pages)/services/ServicesHubClient')
+const { default: CategoryPage } = await import('@/app/[ctx]/(pages)/categories/[categorySlug]/page')
+const { default: ServicesHubClient } = await import('@/app/[ctx]/(pages)/services/ServicesHubClient')
 
 const catalog = JSON.parse(readFileSync(new URL('../messages/en/catalog.json', import.meta.url), 'utf8'))
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }
@@ -61,9 +61,9 @@ test('services index: initial categories render server-side', () => {
 })
 
 test('services index page is a server component that loads the live catalog; no fabricated professionals on service pages', () => {
-  const page = read('app/(pages)/services/page.tsx')
+  const page = read('app/[ctx]/(pages)/services/page.tsx')
   assert.doesNotMatch(page, /^['"]use client['"]/)
   assert.match(page, /getServiceCategories/)
-  const servicePage = read('app/(pages)/services/[serviceId]/page.tsx')
+  const servicePage = read('app/[ctx]/(pages)/services/[serviceId]/page.tsx')
   assert.doesNotMatch(servicePage, /professionalsForService/)
 })

@@ -14,7 +14,7 @@ import {
 } from '../lib/admin/emailLogs.ts'
 import { canAccessAdminPage, permissionForAdminPage } from '../lib/adminRbac.ts'
 
-const PAGE = new URL('../app/(pages)/admin/email-logs/page.tsx', import.meta.url)
+const PAGE = new URL('../app/[ctx]/(pages)/admin/email-logs/page.tsx', import.meta.url)
 
 test('the /admin/email-logs route exists (previously a framework 404)', () => {
   assert.ok(existsSync(PAGE), 'email logs page must exist')
@@ -111,7 +111,7 @@ test('F10: an inverted range is called out instead of silently matching nothing'
   assert.match(emailLogDateRangeProblem({ from: '2026-11-04', until: '2026-11-03' }), /after/)
   assert.equal(emailLogDateRangeProblem({ from: '2026-11-03', until: '2026-11-03' }), null)
   assert.equal(emailLogDateRangeProblem({ from: '2026-11-03', until: '' }), null)
-  const page = readFileSync(new URL('../app/(pages)/admin/email-logs/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/admin/email-logs/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /emailLogDateRangeProblem\(filters\)/)
 })
 
