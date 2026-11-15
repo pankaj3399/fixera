@@ -19,10 +19,9 @@ export const LOCALE_COOKIE = "NEXT_LOCALE";
 /** Cookie holding the user's manual currency choice (set for 1 year). */
 export const CURRENCY_COOKIE = "NEXT_CURRENCY";
 
-/** Request headers middleware forwards the resolved values on (cookies are not
+/** Request headers middleware forwards the resolved locale on (cookies are not
  * visible to the same-request server render, headers are). */
 export const LOCALE_REQUEST_HEADER = "x-fixera-locale";
-export const CURRENCY_REQUEST_HEADER = "x-fixera-currency";
 /** Language of the rendered document; admin stays English while the visitor's
  * locale preference (and public pages) is unchanged. */
 export const DOCUMENT_LOCALE_REQUEST_HEADER = "x-fixera-document-locale";

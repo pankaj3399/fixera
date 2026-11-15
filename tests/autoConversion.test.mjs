@@ -215,7 +215,9 @@ test('middleware serves non-roll-out visitors as the default country, roll-out v
     assert.equal(swissManual.cookies.get('fixera_geo_country')?.value, 'BE')
     assert.equal(swissManual.cookies.get('geo_currency')?.value, 'EUR', 'geo default follows the default country')
     assert.equal(header(swissManual, 'x-fixera-locale'), 'fr', 'manual language wins')
-    assert.equal(header(swissManual, 'x-fixera-currency'), 'CHF', 'manual currency wins')
+    // The manual currency is applied in the browser; it never varies the server render.
+    assert.equal(header(swissManual, 'x-fixera-currency'), null)
+    assert.equal(swissManual.cookies.get('NEXT_CURRENCY'), undefined, 'manual currency cookie left alone')
     assert.equal(seen.length, 1, 'config fetched once per isolate within the TTL')
   } finally {
     globalThis.fetch = realFetch

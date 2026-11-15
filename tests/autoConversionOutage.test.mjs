@@ -39,14 +39,15 @@ test('F5: backend outage on a cold isolate keeps the visitor\'s previous decisio
     assert.equal(returning.cookies.getAll().length, 0, 'no geo cookie rewritten from an unknown config')
 
     // Roll-out visitor previously served as themselves (NL): stays NL.
-    const rollout = await run('NL', 'fixera_geo_country=NL')
+    const rollout = await run('NL', 'fixera_geo_country=NL; geo_currency=EUR')
     assert.equal(header(rollout, 'x-fixera-content-country'), 'NL')
 
     // First visit during the outage: geo country is not granted on its own.
     const fresh = await run('DE', undefined, { 'x-fixera-content-country': 'DE' })
     assert.equal(header(fresh, 'x-fixera-content-country'), 'BE', 'platform default, client header ignored')
-    assert.equal(header(fresh, 'x-fixera-currency'), 'EUR')
-    assert.equal(fresh.cookies.getAll().length, 0)
+    // The browser picks the display currency from cookies, so a missing currency
+    // cookie is the only one written (from the fallback country); no geo decision is.
+    assert.deepEqual(fresh.cookies.getAll().map((c) => [c.name, c.value]), [['geo_currency', 'EUR']])
     assert.equal(calls, 1, 'failure window: no fetch per request')
   } finally {
     globalThis.fetch = realFetch

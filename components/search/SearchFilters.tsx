@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Filter, X, ChevronDown, ChevronUp, Star, Search } from 'lucide-react';
-import { useCurrency } from '@/contexts/CurrencyContext';
+import { useCurrency, CURRENCY_CODE_PLACEHOLDER } from '@/contexts/CurrencyContext';
 import { formatSearchDateDraft, isSearchDateRangeValid, parseSearchDateDraft } from '@/lib/search/dateDraft';
 import LocationAutocomplete, { type LocationData } from '@/components/search/LocationAutocomplete';
 import {
@@ -144,9 +144,11 @@ const SearchFilters = ({
   onLocationCoordinatesChange,
 }: SearchFiltersProps) => {
   const t = useTranslations('search');
-  const { currency, rates } = useCurrency();
+  const { currency, currencyReady, rates } = useCurrency();
   const { levelColor } = useTierColors();
-  const priceCurrency = currency === 'EUR' || rates?.[currency] ? currency : 'EUR';
+  const priceCurrency = !currencyReady
+    ? CURRENCY_CODE_PLACEHOLDER
+    : currency === 'EUR' || rates?.[currency] ? currency : 'EUR';
   // Use dynamic filter options if provided, otherwise fall back to hardcoded values
   const servicesList = filterOptions?.services || COMMON_SERVICES;
   const projectTypesList = filterOptions?.projectTypes || PROJECT_TYPES;

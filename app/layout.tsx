@@ -14,7 +14,6 @@ import {
 } from "@/i18n/config";
 import { ROOT_CLIENT_NAMESPACES, pickMessages } from "@/i18n/clientNamespaces";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
-import { getActiveCurrency } from "@/lib/currency/server";
 import { getExchangeRates } from "@/lib/currency/rates";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -115,14 +114,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [requestHeaders, locale, messages, currency, exchangeRates, t] =
+  const [requestHeaders, locale, messages, exchangeRates, t] =
     await Promise.all([
       headers(),
       getLocale(),
       getMessages(),
-      getActiveCurrency(),
-      // One cached fetch (1h) seeds the client provider so prices don't flash
-      // from EUR to the selected currency after hydration.
+      // One cached fetch (1h) seeds the client provider so prices can be shown
+      // as soon as the browser knows the visitor's currency.
       getExchangeRates().catch(() => null),
       getTranslations("common"),
     ]);
@@ -140,10 +138,7 @@ export default async function RootLayout({
           locale={locale}
           messages={pickMessages(messages, ROOT_CLIENT_NAMESPACES)}
         >
-          <CurrencyProvider
-            initialCurrency={currency}
-            initialRates={exchangeRates?.rates ?? null}
-          >
+          <CurrencyProvider initialRates={exchangeRates?.rates ?? null}>
             <ServiceWorkerRegistrar />
             <DocumentLanguageSync />
             <BackendLocaleHeader />

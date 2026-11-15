@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Check, ChevronDown } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { CURRENCY_CODE_PLACEHOLDER, useCurrency } from "@/contexts/CurrencyContext";
 import { LOCALE_COOKIE, LOCALES, type Locale, isLocale } from "@/i18n/config";
 import { removeLangParam } from "@/i18n/localeResolution";
 import { switchLocaleInUrl } from "@/lib/seo/localeUrls";
@@ -126,7 +126,9 @@ export default function LocaleCurrencySwitcher({
   const t = useTranslations("localeSwitcher");
   const locale = useLocale();
   const router = useRouter();
-  const { currency, setCurrency } = useCurrency();
+  const { currency, currencyReady, setCurrency } = useCurrency();
+  // The visitor's currency is known only after hydration (see CurrencyProvider).
+  const currencyLabel = currencyReady ? currency : CURRENCY_CODE_PLACEHOLDER;
   const [, startTransition] = useTransition();
   const [languageOpen, setLanguageOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
@@ -248,7 +250,7 @@ export default function LocaleCurrencySwitcher({
           >
             <span>{t("currency")}</span>
             <span className="flex items-center gap-1.5 text-gray-600">
-              {currency}
+              {currencyLabel}
               <ChevronDown className="h-4 w-4" aria-hidden />
             </span>
           </button>
@@ -274,7 +276,7 @@ export default function LocaleCurrencySwitcher({
             aria-label={t("openCurrency")}
             className="flex h-9 items-center gap-1 rounded-md px-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
           >
-            {currency}
+            {currencyLabel}
             <ChevronDown className="h-3.5 w-3.5 text-gray-500" aria-hidden />
           </button>
           <button

@@ -14,6 +14,7 @@ import { useLocale } from "next-intl";
 import { CURRENCY_COOKIE, INTL_FORMAT_LOCALES, type Locale } from "@/i18n/config";
 import {
   BASE_CURRENCY,
+  GEO_CURRENCY_COOKIE,
   type CurrencyCode,
   isSupportedCurrency,
 } from "@/lib/currency/currencies";
@@ -26,8 +27,18 @@ import {
 import { readClientCookie, setClientCookie } from "@/lib/preferences/cookies";
 
 export interface CurrencyContextValue {
-  /** Active display currency. Payments are always charged in EUR. */
+  /**
+   * Active display currency. Payments are always charged in EUR. It is only
+   * known in the browser (see `currencyReady`); until then it reads EUR and
+   * must not be shown as the visitor's currency.
+   */
   currency: CurrencyCode;
+  /**
+   * False during the server render and hydration, true once the visitor's
+   * currency has been read from cookies. While false, `formatPrice` returns a
+   * blank placeholder of the same width instead of an amount.
+   */
+  currencyReady: boolean;
   /** Sets NEXT_CURRENCY (1 year) and updates the context instantly. */
   setCurrency: (code: string) => void;
   /** Euro-based rates from the backend, or null while unavailable. */
@@ -39,7 +50,8 @@ export interface CurrencyContextValue {
   /**
    * Formats a EUR amount in the active display currency using the active
    * next-intl locale. Falls back to the raw EUR amount when rates are missing;
-   * `{ charge: true }` always formats the charged (EUR) amount.
+   * `{ charge: true }` always formats the charged (EUR) amount. Before the
+   * currency is known it returns a blank placeholder (`pricePlaceholder`).
    */
   formatPrice: (eurAmount: number, options?: { charge?: boolean }) => string;
   /**
@@ -54,8 +66,6 @@ const CurrencyContext = createContext<CurrencyContextValue | null>(null);
 
 interface CurrencyProviderProps {
   children: React.ReactNode;
-  /** Resolved on the server (middleware header) so SSR matches hydration. */
-  initialCurrency: string;
   /** Server-fetched euro-based rates (optional seed). */
   initialRates?: Record<string, number> | null;
   /** Refetch exchange rates from the backend in the background (default true). */
@@ -67,16 +77,47 @@ interface CurrencyProviderProps {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 const DEFAULT_REFRESH_INTERVAL_MS = 60 * 60 * 12 * 1000;
 
+/** Figure spaces have the width of a digit, so a placeholder keeps the layout. */
+const FIGURE_SPACE = "\u2007";
+
+/**
+ * Blank stand-in for a price whose currency is not known yet: the EUR amount's
+ * shape with every visible character replaced by a figure space.
+ */
+export function pricePlaceholder(formatted: string): string {
+  return formatted.replace(/\S/g, FIGURE_SPACE);
+}
+
+/** Short blank stand-in for a currency code or symbol (e.g. "EUR"). */
+export const CURRENCY_CODE_PLACEHOLDER = FIGURE_SPACE.repeat(3);
+
+/**
+ * The visitor's display currency, as middleware resolves it: the manual
+ * NEXT_CURRENCY choice, else the geo currency cookie middleware writes, else EUR.
+ */
+export function readCurrencyFromCookies(): CurrencyCode {
+  const manual = readClientCookie(CURRENCY_COOKIE);
+  if (isSupportedCurrency(manual)) return manual;
+  const geo = readClientCookie(GEO_CURRENCY_COOKIE);
+  if (isSupportedCurrency(geo)) return geo;
+  return BASE_CURRENCY;
+}
+
+/**
+ * Display currency for prices. It is resolved in the browser from cookies, not
+ * on the server, so cached public HTML is the same for every currency. The
+ * server render and hydration show placeholders (`currencyReady` false), which
+ * keeps hydration consistent and never shows an amount in the wrong currency.
+ */
 export function CurrencyProvider({
   children,
-  initialCurrency,
   initialRates = null,
   refreshRates = true,
   ratesRefreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS,
 }: CurrencyProviderProps) {
-  const [currency, setCurrencyState] = useState<CurrencyCode>(() =>
-    isSupportedCurrency(initialCurrency) ? initialCurrency : BASE_CURRENCY
-  );
+  const [resolvedCurrency, setCurrencyState] = useState<CurrencyCode | null>(null);
+  const currency = resolvedCurrency ?? BASE_CURRENCY;
+  const currencyReady = resolvedCurrency !== null;
   const [rates, setRates] = useState<Record<string, number> | null>(initialRates);
   const locale = useLocale() as Locale;
   const hadSeedRef = useRef(initialRates !== null);
@@ -110,6 +151,11 @@ export function CurrencyProvider({
     }
   }, []);
 
+  // Cookies are only readable in the browser, after hydration.
+  useEffect(() => {
+    setCurrencyState(readCurrencyFromCookies());
+  }, []);
+
   // Background refresh so long-lived tabs see updated ECB rates.
   useEffect(() => {
     if (!refreshRates) return;
@@ -132,9 +178,10 @@ export function CurrencyProvider({
         charge: options?.charge,
         locale: INTL_FORMAT_LOCALES[locale] ?? locale,
       };
-      return formatPriceWithRates(eurAmount, optionsFull);
+      const formatted = formatPriceWithRates(eurAmount, optionsFull);
+      return currencyReady || options?.charge ? formatted : pricePlaceholder(formatted);
     },
-    [currency, rates, locale]
+    [currency, currencyReady, rates, locale]
   );
 
   const formatMoney = useCallback(
@@ -156,8 +203,8 @@ export function CurrencyProvider({
   );
 
   const value = useMemo<CurrencyContextValue>(
-    () => ({ currency, setCurrency, rates, convertFromEur: convert, convertToEur, formatPrice, formatMoney }),
-    [currency, setCurrency, rates, convert, convertToEur, formatPrice, formatMoney]
+    () => ({ currency, currencyReady, setCurrency, rates, convertFromEur: convert, convertToEur, formatPrice, formatMoney }),
+    [currency, currencyReady, setCurrency, rates, convert, convertToEur, formatPrice, formatMoney]
   );
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;

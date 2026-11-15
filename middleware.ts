@@ -5,8 +5,6 @@ import {
   GEO_LOCALE_COOKIE,
 } from "@/lib/marketing/siteAnnouncements/constants";
 import {
-  CURRENCY_COOKIE,
-  CURRENCY_REQUEST_HEADER,
   DEFAULT_LOCALE,
   DOCUMENT_LOCALE_REQUEST_HEADER,
   LOCALE_COOKIE,
@@ -16,12 +14,7 @@ import {
   isLocale,
 } from "@/i18n/config";
 import { countryToLocale, firstPreferredLocale } from "@/i18n/localeResolution";
-import {
-  GEO_CURRENCY_COOKIE,
-  countryToCurrency,
-  isSupportedCurrency,
-  type CurrencyCode,
-} from "@/lib/currency";
+import { GEO_CURRENCY_COOKIE, countryToCurrency } from "@/lib/currency";
 import {
   URL_LOCALE_REQUEST_HEADER,
   resolveLocalizedRequest,
@@ -40,7 +33,9 @@ import {
  * Locale:   /en|nl|fr prefix  >  ?lang=xx  >  NEXT_LOCALE cookie  >  geo country
  *           (BE via Accept-Language then x-vercel-ip-country-region, CH via
  *           Accept-Language)  >  Accept-Language  >  en.
- * Currency: NEXT_CURRENCY cookie  >  geo country  >  EUR.
+ * Currency: NEXT_CURRENCY cookie  >  geo country  >  EUR. Display-only and
+ *           resolved in the browser (contexts/CurrencyContext) from the same
+ *           cookies, so it never varies the server-rendered HTML.
  *
  * Language-prefixed public pages (`/nl/about`) are rewritten to the existing route
  * (`/about`) with the prefix locale forced. Only allowlisted public routes match
@@ -138,12 +133,8 @@ export async function middleware(request: NextRequest) {
     (isLocale(cookieLocale) ? cookieLocale : undefined) ??
     geoLocale;
 
-  // --- Currency: display only, payments stay in EUR ---
-  const geoCurrency: CurrencyCode = countryToCurrency(country);
-  const cookieCurrency = request.cookies.get(CURRENCY_COOKIE)?.value;
-  const currency: CurrencyCode = isSupportedCurrency(cookieCurrency)
-    ? cookieCurrency
-    : geoCurrency;
+  // --- Currency: display only (resolved in the browser), payments stay in EUR ---
+  const geoCurrency = countryToCurrency(country);
 
   const requestHeaders = new Headers(request.headers);
   // Server-side CMS/catalog reads use the content country; outside the
@@ -161,7 +152,6 @@ export async function middleware(request: NextRequest) {
     if (country !== vercelCountry) requestHeaders.set(PLATFORM_COUNTRY_REQUEST_HEADER, country);
   }
   requestHeaders.set(LOCALE_REQUEST_HEADER, locale);
-  requestHeaders.set(CURRENCY_REQUEST_HEADER, currency);
   // Admin UI is English-only; `lang` on <html> must say so for accessibility
   // and spellcheck. The locale cookie/preference itself is not changed.
   const isAdminPath =
@@ -188,6 +178,15 @@ export async function middleware(request: NextRequest) {
     // geo_locale is only ever en|nl|fr (consumers assume a supported locale).
     setCookieIfChanged(response, request, GEO_LOCALE_COOKIE, geoLocale, GEO_COOKIE_MAX_AGE);
     setCookieIfChanged(response, request, GEO_CURRENCY_COOKIE, geoCurrency, GEO_COOKIE_MAX_AGE);
+  } else if (!request.cookies.has(GEO_CURRENCY_COOKIE)) {
+    // The browser resolves the display currency from cookies, so it always needs
+    // one. Without an authoritative config only a missing cookie is written (the
+    // fallback country's currency); an existing decision is never overwritten.
+    response.cookies.set(GEO_CURRENCY_COOKIE, geoCurrency, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: GEO_COOKIE_MAX_AGE,
+    });
   }
 
   if (manualLang && !urlPrefixLocale) {

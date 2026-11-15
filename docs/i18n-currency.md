@@ -14,9 +14,16 @@ visitor's chosen language.
 
 ## How the values are resolved
 
-`middleware.ts` resolves both values and forwards them on request headers
-(`x-fixera-locale`, `x-fixera-currency`) because cookies set on a response are
-not visible to the server render of that same request.
+`middleware.ts` resolves the locale and forwards it on a request header
+(`x-fixera-locale`) because cookies set on a response are not visible to the
+server render of that same request.
+
+The display currency is not part of the server render. The browser resolves it
+(`contexts/CurrencyContext.tsx`) from the same cookies the middleware uses
+(`NEXT_CURRENCY`, else `geo_currency`, which the middleware always makes sure
+exists, else EUR). Until then — server HTML and hydration — prices render as a
+blank placeholder of the same width, so no amount is ever shown in the wrong
+currency.
 
 First the middleware picks the **effective country** for the request (see
 "Auto-conversion roll-out" below). It is the geo country (`?geo=XX` on
@@ -87,10 +94,11 @@ Middleware also keeps the legacy geo cookies for their existing consumers
 visitors outside the roll-out, not necessarily their geo country),
 `fixera_geo_locale` (always `en|nl|fr`, derived from the effective country)
 and `geo_currency`. They are rewritten only from an authoritative config state
-(see the table above).
+(see the table above); a missing `geo_currency` is always written, because the
+browser needs it to pick the display currency.
 
-Server code reads the resolved values with `getLocale()` (next-intl) or
-`getActiveCurrency()` (`lib/currency/server.ts`).
+Server code reads the resolved locale with `getLocale()` (next-intl); client code
+reads the currency with `useCurrency()` (`currencyReady` says whether it is known yet).
 
 ## Messages: one file per namespace
 
