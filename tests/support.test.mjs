@@ -772,7 +772,7 @@ test('admin reschedule picker sends the selected meeting and owner context', () 
 
 test('support conversation write UI is capability gated on every chat surface', () => {
   const page = readFileSync(
-    new URL('../app/(pages)/chat/page.tsx', import.meta.url),
+    new URL('../app/[ctx]/(pages)/chat/page.tsx', import.meta.url),
     'utf8',
   )
   assert.match(page, /useSupportChatAccess/)
@@ -841,7 +841,7 @@ test('calendar consumers surface support feed failures instead of hiding them', 
   assert.match(admin, /availabilityCalendar\.supportMeetingsLoadFailed/)
 
   const profile = readFileSync(
-    new URL('../app/(pages)/profile/page.tsx', import.meta.url),
+    new URL('../app/[ctx]/(pages)/profile/page.tsx', import.meta.url),
     'utf8',
   )
   assert.match(profile, /supportDateWindow\(timeZone, 31\)/)

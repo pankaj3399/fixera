@@ -371,13 +371,13 @@ test('transactional and return pages carry noindex metadata with their own canon
   // Each layout's generateMetadata is called, so the returned object is checked, not just its source.
   const bookingParams = { params: Promise.resolve({ id: 'bk1' }) }
   const cases = [
-    ['../app/bookings/[id]/payment/layout.tsx', bookingParams, '/bookings/bk1/payment'],
-    ['../app/bookings/[id]/payment/failed/layout.tsx', bookingParams, '/bookings/bk1/payment/failed'],
-    ['../app/bookings/[id]/payment/success/layout.tsx', bookingParams, '/bookings/bk1/payment/success'],
-    ['../app/professional/stripe/complete/layout.tsx', undefined, '/professional/stripe/complete'],
-    ['../app/professional/stripe/refresh/layout.tsx', undefined, '/professional/stripe/refresh'],
-    ['../app/professional/stripe/setup/layout.tsx', undefined, '/professional/stripe/setup'],
-    ['../app/(pages)/unsubscribe/layout.tsx', undefined, '/unsubscribe'],
+    ['../app/[ctx]/bookings/[id]/payment/layout.tsx', bookingParams, '/bookings/bk1/payment'],
+    ['../app/[ctx]/bookings/[id]/payment/failed/layout.tsx', bookingParams, '/bookings/bk1/payment/failed'],
+    ['../app/[ctx]/bookings/[id]/payment/success/layout.tsx', bookingParams, '/bookings/bk1/payment/success'],
+    ['../app/[ctx]/professional/stripe/complete/layout.tsx', undefined, '/professional/stripe/complete'],
+    ['../app/[ctx]/professional/stripe/refresh/layout.tsx', undefined, '/professional/stripe/refresh'],
+    ['../app/[ctx]/professional/stripe/setup/layout.tsx', undefined, '/professional/stripe/setup'],
+    ['../app/[ctx]/(pages)/unsubscribe/layout.tsx', undefined, '/unsubscribe'],
   ]
   for (const [rel, args, path] of cases) {
     const layout = await import(rel)
@@ -389,10 +389,10 @@ test('transactional and return pages carry noindex metadata with their own canon
 })
 
 test('project and professional bodies are fetched on the server and 404 when missing', () => {
-  const projectPage = readSource('../app/(pages)/projects/[id]/page.tsx')
+  const projectPage = readSource('../app/[ctx]/(pages)/projects/[id]/page.tsx')
   assert.match(projectPage, /notFound\(\)/)
   assert.match(projectPage, /initialProject=/)
-  const professionalPage = readSource('../app/(pages)/professional/[id]/page.tsx')
+  const professionalPage = readSource('../app/[ctx]/(pages)/professional/[id]/page.tsx')
   assert.match(professionalPage, /notFound\(\)/)
   assert.match(professionalPage, /initialProfessional=/)
 
@@ -400,28 +400,28 @@ test('project and professional bodies are fetched on the server and 404 when mis
   // not draw on the backend's per-IP review budget from the frontend server.
   assert.doesNotMatch(projectPage, /getPublicProjectReviews|\/reviews/)
   assert.doesNotMatch(professionalPage, /ProfessionalReviewsPayload|\/reviews/)
-  const professionalLayout = readSource('../app/(pages)/professional/[id]/layout.tsx')
+  const professionalLayout = readSource('../app/[ctx]/(pages)/professional/[id]/layout.tsx')
   assert.doesNotMatch(professionalLayout, /aggregateRating:|ratingsSummary|\/reviews/)
-  const projectView = readSource('../app/(pages)/projects/[id]/ProjectDetailView.tsx')
+  const projectView = readSource('../app/[ctx]/(pages)/projects/[id]/ProjectDetailView.tsx')
   assert.doesNotMatch(projectView, /initialReviews|skipInitialReviews/)
-  const professionalView = readSource('../app/(pages)/professional/[id]/ProfessionalProfileView.tsx')
+  const professionalView = readSource('../app/[ctx]/(pages)/professional/[id]/ProfessionalProfileView.tsx')
   assert.doesNotMatch(professionalView, /initialData|skipInitialReviews|ProfessionalReviewsPayload/)
 
-  for (const rel of ['../app/(pages)/projects/[id]/layout.tsx', '../app/(pages)/professional/[id]/layout.tsx']) {
+  for (const rel of ['../app/[ctx]/(pages)/projects/[id]/layout.tsx', '../app/[ctx]/(pages)/professional/[id]/layout.tsx']) {
     const source = readSource(rel)
     assert.doesNotMatch(source, /force-dynamic/, rel)
     assert.doesNotMatch(source, /no-store/, rel)
   }
-  const projectLayout = readSource('../app/(pages)/projects/[id]/layout.tsx')
+  const projectLayout = readSource('../app/[ctx]/(pages)/projects/[id]/layout.tsx')
   assert.match(projectLayout, /serviceSchema\(/)
   assert.doesNotMatch(projectLayout, /path: "\/projects"/)
 })
 
 test('home and categories use the shared metadata helper and no dead breadcrumbs', () => {
-  const home = readSource('../app/(home)/page.tsx')
+  const home = readSource('../app/[ctx]/(home)/page.tsx')
   assert.match(home, /buildMetadata\(\{/)
   assert.match(home, /t\('meta\.title'\)/)
-  const category = readSource('../app/(pages)/categories/[categorySlug]/layout.tsx')
+  const category = readSource('../app/[ctx]/(pages)/categories/[categorySlug]/layout.tsx')
   assert.doesNotMatch(category, /path: "\/categories"\s*\}/)
   assert.match(category, /breadcrumbs\.services/)
 })

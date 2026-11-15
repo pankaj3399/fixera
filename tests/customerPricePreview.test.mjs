@@ -129,7 +129,7 @@ test('a failed price preview shows its error and a retry beside the pay button',
 })
 
 test('the booking page renders the payment form and extra-cost amounts only when they are finite', () => {
-  const page = source('../app/(pages)/bookings/[id]/page.tsx')
+  const page = source('../app/[ctx]/(pages)/bookings/[id]/page.tsx')
   assert.match(page, /\(customerPricingReady && Number\.isFinite\(extraCostAmounts\.total\)\)/)
   assert.match(page, /const hasDisplayAmount = Number\.isFinite\(displayAmount\)/)
 })

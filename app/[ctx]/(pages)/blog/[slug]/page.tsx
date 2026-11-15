@@ -1,0 +1,161 @@
+import CoverImage from "@/components/cms/CoverImage";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Calendar, Tag } from "lucide-react";
+import type { Metadata } from "next";
+import { getLocale, getTranslations } from "next-intl/server";
+import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
+import { fetchCmsPostWithError } from "@/lib/cms/public";
+import RichTextRenderer from "@/components/cms/RichTextRenderer";
+import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
+import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
+import { buildMetadata, servedContentLocale } from "@/lib/seo/metadata";
+import JsonLd from "@/components/seo/JsonLd";
+import { articleSchema, breadcrumbSchema } from "@/lib/seo/jsonLd";
+import { intlLocale } from "@/lib/i18n/format";
+import { routeContext } from "@/lib/server/routeContext";
+
+export const revalidate = 21600;
+
+/** Rendered on the first visit of each post, then cached (ISR). */
+export function generateStaticParams(): Array<{ slug: string }> {
+  return [];
+}
+
+interface Props {
+  params: Promise<{ ctx: string; slug: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  await routeContext(params);
+  const { slug } = await params;
+  const t = await getTranslations("content");
+  const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
+  if (fetchError) {
+    throw new Error(`Failed to load blog metadata for ${slug}`);
+  }
+  if (!post) {
+    return buildMetadata({ title: t("blog.notFoundTitle"), path: `/blog/${slug}`, noindex: true });
+  }
+  return buildMetadata({
+    title: post.seo?.titleTag || post.title,
+    description: post.seo?.metaDescription || post.excerpt,
+    path: post.seo?.canonical || `/blog/${post.slug}`,
+    image: post.seo?.ogImage || post.coverImage,
+    noindex: post.seo?.noindex,
+    type: "article",
+    keywords: post.tags,
+    publishedTime: post.publishedAt,
+    modifiedTime: post.updatedAt,
+    authorName: cmsAuthorName(post),
+    locale: servedContentLocale(post.locale),
+  });
+}
+
+export default async function BlogDetailPage({ params }: Props) {
+  await routeContext(params);
+  const { slug } = await params;
+  const [t, locale] = await Promise.all([getTranslations("content"), getLocale()]);
+  const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
+  if (fetchError) throw new Error(`Failed to load blog post ${slug}`);
+  if (!post && !fetchError) notFound();
+  if (!post) notFound();
+
+  const authorName = cmsAuthorName(post);
+  const date = post.publishedAt || post.updatedAt;
+
+  return (
+    <article className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-white pb-20">
+      <JsonLd
+        data={[
+          articleSchema({
+            title: post.title,
+            description: post.excerpt,
+            path: `/blog/${post.slug}`,
+            image: post.coverImage,
+            datePublished: post.publishedAt,
+            dateModified: post.updatedAt,
+            authorName,
+            tags: post.tags,
+          }),
+          breadcrumbSchema([
+            { name: t("breadcrumbs.home"), path: "/" },
+            { name: t("breadcrumbs.blog"), path: "/blog" },
+            { name: post.title, path: `/blog/${post.slug}` },
+          ]),
+        ]}
+      />
+      <div className="mx-auto max-w-4xl px-6 pt-24">
+        <Link href="/blog" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-50">
+          <ArrowLeft size={16} /> {t("blog.backToBlog")}
+        </Link>
+      </div>
+
+      {post.coverImage && (
+        // Hidden (no empty frame) when the cover file is missing and CoverImage renders nothing.
+        <div className="mx-auto mt-4 hidden max-w-5xl px-6 has-[img]:block">
+          <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-200 via-pink-200 to-orange-200 p-[1.5px] shadow-xl shadow-rose-100">
+            <CoverImage
+              src={post.coverImage}
+              alt={cmsCoverAlt(post)}
+              width={1280}
+              height={560}
+              priority
+              unoptimized
+              className="aspect-[16/7] w-full rounded-[calc(1.5rem-1.5px)] object-cover"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="mx-auto mt-10 max-w-3xl px-6">
+        {post.tags?.length ? (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {post.tags.map((t) => (
+              <Link
+                key={t}
+                href={`/blog?tag=${encodeURIComponent(t)}`}
+                className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-100 to-pink-100 px-3 py-1 text-xs font-medium text-rose-700 transition hover:from-rose-200 hover:to-pink-200"
+              >
+                <Tag size={10} /> {t}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+        <h1 className="bg-gradient-to-r from-rose-700 via-pink-600 to-rose-500 bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
+          {post.title}
+        </h1>
+        <div className="mt-4 flex items-center gap-3 text-sm text-rose-500">
+          {date && (
+            <span className="inline-flex items-center gap-1">
+              <Calendar size={14} />
+              {new Date(date).toLocaleDateString(intlLocale(locale), {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </span>
+          )}
+          {authorName && <span>· {t("byAuthor", { author: authorName })}</span>}
+        </div>
+        {post.excerpt && (
+          <p className="mt-6 border-l-4 border-rose-300 bg-gradient-to-r from-rose-50 to-transparent px-5 py-3 text-lg italic text-rose-700 rounded-r-xl">
+            {post.excerpt}
+          </p>
+        )}
+        <div className="mt-8">
+          <MachineTranslatedNote
+            autoTranslated={post.autoTranslated}
+            label={t("machineTranslatedNote")}
+            className="mb-4"
+          />
+          <RichTextRenderer html={post.body} className="prose-lg" lang={servedContentLocale(post.locale)} />
+        </div>
+        <ArticleRelatedSections
+          relatedServiceSlug={post.relatedServiceSlug}
+          relatedContent={post.relatedContent}
+        />
+      </div>
+    </article>
+  );
+}

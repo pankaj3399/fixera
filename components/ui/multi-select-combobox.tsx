@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { useVisiblePathname } from "@/hooks/useVisiblePathname";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -71,7 +71,7 @@ export function MultiSelectCombobox({
   className,
 }: MultiSelectComboboxProps) {
   const t = useTranslations("common");
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   // Admin UI stays English; public pages use the common namespace. Explicit
   // labels passed by a caller always win over these localized defaults.
   const isAdmin = pathname?.startsWith("/admin") ?? false;

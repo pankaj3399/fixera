@@ -217,7 +217,7 @@ test('LevelUpPopup stays hidden without a level-up notification', () => {
 })
 
 test('booking page wires cancellation/reschedule cards, warranty clarification and RFQ titles', () => {
-  const page = readSource('../app/(pages)/bookings/[id]/page.tsx')
+  const page = readSource('../app/[ctx]/(pages)/bookings/[id]/page.tsx')
   assert.match(page, /<CancellationRequestCard/)
   // The DTO lists requests oldest first: the page selects the live/newest one.
   assert.match(page, /selectCancellationRequest\(details\?\.cancellations\)/)
@@ -258,7 +258,7 @@ test('new cards handle terminal states and validation', () => {
 })
 
 test('payment page shows full price first and recorded milestone charges', () => {
-  const page = readSource('../app/bookings/[id]/payment/page.tsx')
+  const page = readSource('../app/[ctx]/bookings/[id]/payment/page.tsx')
   assert.match(page, /paymentPage\.fullPrice/)
   assert.match(page, /originalServiceAmount/)
   assert.match(page, /expectedCustomerCharge/)
@@ -273,10 +273,10 @@ test('tier colours come from configuration everywhere tags appear', () => {
   for (const rel of [
     '../components/dashboard/TierBadge.tsx',
     '../lib/tierColors.ts',
-    '../app/(pages)/dashboard/benefits/page.tsx',
+    '../app/[ctx]/(pages)/dashboard/benefits/page.tsx',
     '../components/dashboard/BenefitsProgramCard.tsx',
-    '../app/(pages)/admin/customers/page.tsx',
-    '../app/(pages)/projects/[id]/ProjectDetailView.tsx',
+    '../app/[ctx]/(pages)/admin/customers/page.tsx',
+    '../app/[ctx]/(pages)/projects/[id]/ProjectDetailView.tsx',
     '../components/chat/ChatInfoPanel.tsx',
     '../components/Navbar.tsx',
     // Review item 5: residual hardcoded colours migrated to config colours.
@@ -293,7 +293,7 @@ test('tier colours come from configuration everywhere tags appear', () => {
   const colors = readSource('../lib/tierColors.ts')
   assert.match(colors, /api\/public\/loyalty-tiers/)
   assert.match(colors, /api\/public\/professional-levels/)
-  const benefits = readSource('../app/(pages)/dashboard/benefits/page.tsx')
+  const benefits = readSource('../app/[ctx]/(pages)/dashboard/benefits/page.tsx')
   assert.match(benefits, /tierInfo\?\.color/)
   assert.match(benefits, /benefits\.wallet\.title/)
   assert.match(benefits, /#wallet-balance/)

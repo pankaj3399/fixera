@@ -1,6 +1,7 @@
 'use client'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import { useVisiblePathname } from '@/hooks/useVisiblePathname'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 import { getAuthToken, setAuthToken } from '@/lib/utils'
@@ -227,7 +228,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const idExpiryAlertRef = useRef<string | null>(null)
   const idExpiryToastRef = useRef<string | number | null>(null)
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = useVisiblePathname()
   const tAuth = useTranslations('auth')
   const tErrors = useTranslations('common.errors')
   const errorMessage = useErrorMessage()

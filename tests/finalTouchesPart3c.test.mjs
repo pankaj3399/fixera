@@ -543,14 +543,14 @@ test('booking info and timeline consume the recorded end time', () => {
   assert.match(rescheduleCard, /hourMode\?: boolean \| null/)
   assert.match(rescheduleCard, /hourMode=\{hourMode\}/)
 
-  const page = readSource('../app/(pages)/bookings/[id]/page.tsx')
+  const page = readSource('../app/[ctx]/(pages)/bookings/[id]/page.tsx')
   assert.match(page, /resolvePanelHourMode\(booking, details\)/)
   assert.match(page, /hourMode=\{resolvePanelHourMode\(booking, details\)\}/)
 })
 
 // ── 19a: booking page saving uses the recorded quotation saving ──────
 test('booking page prefers the recorded quotation saving amount', () => {
-  const page = readSource('../app/(pages)/bookings/[id]/page.tsx')
+  const page = readSource('../app/[ctx]/(pages)/bookings/[id]/page.tsx')
   assert.match(page, /recordedQuotationSaving/)
   assert.match(page, /recordedQuotationPricing\(details\?\.quotation/ )
   assert.match(page, /quotationSavingAmount/)

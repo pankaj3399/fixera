@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useVisiblePathname } from '@/hooks/useVisiblePathname';
 import { CONSENT_EVENT, getConsent } from '@/lib/consent';
 import { getPageType, getTrafficAttribution, trackPageView } from '@/lib/analytics';
 
@@ -26,7 +27,7 @@ export default function AnalyticsProvider() {
 }
 
 function AnalyticsTracker({ analyticsConsented }: { analyticsConsented: boolean }) {
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {

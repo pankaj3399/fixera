@@ -12,7 +12,7 @@ register('./swc-loader.mjs', import.meta.url)
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
 test('FT2 #10a/#10b: payments pages send the service filter and render server facet counts', () => {
-  const src = read('app/(pages)/dashboard/payments/page.tsx')
+  const src = read('app/[ctx]/(pages)/dashboard/payments/page.tsx')
   // Customer view: counts from my-payments.
   assert.match(src, /setStatusCounts\(readFacetCounts\(payload\.data\.statusCounts\)\)/)
   assert.match(src, /setServiceCounts\(readFacetCounts\(payload\.data\.serviceCounts\)\)/)
@@ -27,7 +27,7 @@ test('FT2 #10a/#10b: payments pages send the service filter and render server fa
 })
 
 test('FT2 #10a: warranty, customer dashboard and manage projects show service counts', () => {
-  const warranty = read('app/(pages)/dashboard/warranty-claims/page.tsx')
+  const warranty = read('app/[ctx]/(pages)/dashboard/warranty-claims/page.tsx')
   assert.match(warranty, /setStatusCounts\(readFacetCounts\(data\.statusCounts\)\)/)
   assert.match(warranty, /facetCount\(serviceCounts, svc\)/)
   assert.match(warranty, /facetCount\(statusCounts, option\.value\)/)
@@ -35,7 +35,7 @@ test('FT2 #10a: warranty, customer dashboard and manage projects show service co
   assert.match(customer, /bookings\.serviceCounts,/)
   assert.match(customer, /quotes\.serviceCounts,/)
   assert.match(customer, /facetCount\(serviceCounts, svc\)/)
-  const manage = read('app/(pages)/professional/projects/manage/page.tsx')
+  const manage = read('app/[ctx]/(pages)/professional/projects/manage/page.tsx')
   assert.match(manage, /setServiceCounts\(readFacetCounts\(responseData\.serviceCounts\)\)/)
   assert.match(manage, /facetCount\(serviceCounts, svc\)/)
 })
@@ -72,7 +72,7 @@ test('FT1 #3/#8: a detailed project is fitted under the copy endpoint body limit
 })
 
 test('FT3 #14a: a manual customer level reads as set by Fixtract, not as the top level', () => {
-  const src = read('app/(pages)/dashboard/benefits/page.tsx')
+  const src = read('app/[ctx]/(pages)/dashboard/benefits/page.tsx')
   assert.match(src, /levelSource === 'manual'/)
   assert.match(src, /manualCustomerLevel\s*\?\s*t\("benefits\.manualLevelTitle"\)/)
   for (const locale of ['en', 'nl', 'fr']) {
@@ -99,7 +99,7 @@ test('FT1 #10: reached wizard steps whose saved data is valid show as done; inva
   assert.equal(wizardStepCompletion(new Array(8).fill(false), reopened, { ...step1Done, title: 'Too short' }, t)[0], false)
   // Review step keeps the page's submit-readiness result.
   assert.equal(wizardStepCompletion([false, false, false, false, false, false, false, true], reopened, step1Done, t)[7], true)
-  const page = read('app/(pages)/projects/create/page.tsx')
+  const page = read('app/[ctx]/(pages)/projects/create/page.tsx')
   assert.match(page, /index <= \(project\.currentStep \|\| 1\) - 1/)
   assert.match(page, /stepValidation=\{completedSteps\}/)
 })
@@ -115,7 +115,7 @@ test('FT1 #9: no post-booking template asks for a start date, a contact time or 
 })
 
 test('FT3 #16: declining the final warranty resolution opens the clarification dialog before escalating', () => {
-  const src = read('app/(pages)/bookings/[id]/page.tsx')
+  const src = read('app/[ctx]/(pages)/bookings/[id]/page.tsx')
   // The resolved-state decline button no longer escalates directly.
   assert.doesNotMatch(src, /onClick=\{\(\) =>\s*handleEscalateWarrantyClaim\("Customer declined final warranty resolution"\)\s*\}/)
   assert.match(src, /setDeclineDialogMode\("resolution"\)/)
@@ -129,7 +129,7 @@ test('FT3 #16: declining the final warranty resolution opens the clarification d
 })
 
 test('FT3 #19a: the payment page shows the quotation-recorded saving for quotation bookings', async () => {
-  const src = read('app/bookings/[id]/payment/page.tsx')
+  const src = read('app/[ctx]/bookings/[id]/payment/page.tsx')
   assert.match(src, /recordedQuotationPricing\(currentQuoteVersion/)
   assert.match(src, /data-testid="quotation-recorded-saving"/)
   // The live loyalty estimate is not shown for quotation bookings.
@@ -141,7 +141,7 @@ test('FT3 #19a: the payment page shows the quotation-recorded saving for quotati
 })
 
 test('FT3 #12: customers redeem points at checkout and professionals spend them on level credits', () => {
-  const payment = read('app/bookings/[id]/payment/page.tsx')
+  const payment = read('app/[ctx]/bookings/[id]/payment/page.tsx')
   // Points travel with every payment-intent request, next to any code.
   assert.match(payment, /\.\.\.\(pointsToRedeem > 0 \? \{ pointsToRedeem \} : \{\}\)/)
   assert.match(payment, /ensurePaymentIntent\(bookingId, booking, code, requestedPointsRef\.current\)/)
@@ -149,9 +149,9 @@ test('FT3 #12: customers redeem points at checkout and professionals spend them 
   assert.match(payment, /\/api\/user\/points\/balance/)
   assert.match(payment, /data-testid="checkout-points"/)
   // Points chosen on the booking page reach checkout.
-  const bookingPage = read('app/(pages)/bookings/[id]/page.tsx')
+  const bookingPage = read('app/[ctx]/(pages)/bookings/[id]/page.tsx')
   assert.equal((bookingPage.match(/\/payment\$\{pointsToRedeem > 0 \? `\?points=\$\{Math\.floor\(pointsToRedeem\)\}` : ''\}/g) || []).length, 2)
-  const benefits = read('app/(pages)/dashboard/benefits/page.tsx')
+  const benefits = read('app/[ctx]/(pages)/dashboard/benefits/page.tsx')
   assert.match(benefits, /\/api\/user\/professional-level\/boost/)
   assert.match(benefits, /professionalData\?\.points\?\.points/)
   assert.match(benefits, /result\.leveledUp && result\.newLevel/)

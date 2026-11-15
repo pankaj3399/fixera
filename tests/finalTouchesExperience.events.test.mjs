@@ -159,7 +159,7 @@ test('category loading keeps the resolved country even when its catalog is empty
       const redirects = []
       const geoArgs = []
       globalThis.fetch = async url => { requests.push(url); return { ok: true, json: async () => categories } }
-      const Component = loadComponent('../app/(pages)/categories/[categorySlug]/page.tsx', {
+      const Component = loadComponent('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', {
         react: state.api,
         'next/link': { default: () => null },
         sonner: { toast: { error() {} } },
@@ -196,7 +196,7 @@ test('a matched category renders its service links, or the empty-services state'
       const redirects = []
       globalThis.fetch = async () => ({ ok: true, json: async () => [{ slug: 'small-tasks', name: 'Small tasks', services }] })
       const Link = ({ children }) => children
-      const Component = loadComponent('../app/(pages)/categories/[categorySlug]/page.tsx', {
+      const Component = loadComponent('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', {
         react: state.api,
         'next/link': { __esModule: true, default: Link },
         sonner: { toast: { error() {} } },

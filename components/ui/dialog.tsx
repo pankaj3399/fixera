@@ -3,7 +3,7 @@
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
-import { usePathname } from "next/navigation"
+import { useVisiblePathname } from "@/hooks/useVisiblePathname"
 import { useTranslations } from "next-intl"
 
 import { cn } from "@/lib/utils"
@@ -40,7 +40,7 @@ const DialogContent = React.forwardRef<
   }
 >(({ className, children, showCloseButton = true, closeLabel, ...props }, ref) => {
   const t = useTranslations("common")
-  const pathname = usePathname()
+  const pathname = useVisiblePathname()
   // Admin deliberately stays English, even when the visitor's locale is nl/fr.
   const resolvedCloseLabel =
     closeLabel ?? (pathname?.startsWith("/admin") ? "Close" : t("close"))

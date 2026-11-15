@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useVisiblePathname } from "@/hooks/useVisiblePathname"
 import { useTranslations } from "next-intl"
 import { ClipboardList, FileText, Gauge, History, Wallet } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -41,7 +42,7 @@ export function BookingDetailsTabs({
   const t = useTranslations("bookings")
   const dt = useDetailT()
   const router = useRouter()
-  const pathname = usePathname() || `/bookings/${booking._id}`
+  const pathname = useVisiblePathname() || `/bookings/${booking._id}`
   const searchParams = useSearchParams()
   const search = searchParams?.toString() || ""
 

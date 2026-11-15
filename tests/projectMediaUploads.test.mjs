@@ -104,7 +104,7 @@ test('appendProjectMedia enforces the limits and tolerates missing lists', () =>
 })
 
 test('wizard wiring: uploads are page-owned, saves/navigation wait for them, Step 1 is not keyed by the id', () => {
-  const page = readFileSync(new URL('../app/(pages)/projects/create/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/projects/create/page.tsx', import.meta.url), 'utf8')
   const step = readFileSync(new URL('../components/professional/project-wizard/Step1BasicInfo.tsx', import.meta.url), 'utf8')
   assert.match(page, /createProjectMediaUploader\(/)
   assert.doesNotMatch(page, /key=\{projectData\.id/)

@@ -54,7 +54,7 @@ test('chat open/select flow loads lists and threads, admin reselect forces reloa
   // Launcher opens with a conversation id ensure the list resolves it.
   assert.match(widget, /if \(detail\.conversationId\) \{[\s\S]*?void loadConversationList\(false\)/)
 
-  const adminChat = readFileSync(new URL('../app/(pages)/admin/chat/page.tsx', import.meta.url), 'utf8')
+  const adminChat = readFileSync(new URL('../app/[ctx]/(pages)/admin/chat/page.tsx', import.meta.url), 'utf8')
   assert.match(adminChat, /setReloadKey\(\(key\) => key \+ 1\)/)
   assert.match(adminChat, /}, \[conversationId, reloadKey\]\)/)
   assert.doesNotMatch(adminChat, /if \(id === selectedId\) return/)
@@ -63,7 +63,7 @@ test('chat open/select flow loads lists and threads, admin reselect forces reloa
 test('search page wires relevance sort, preserves backend result order, and connects dispute/calendar consumers', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { readFileSync } = await import('node:fs')
-  const page = readFileSync(new URL('../app/(pages)/search/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/search/page.tsx', import.meta.url), 'utf8')
   // Server owns relevance order globally (pre-pagination slice): the client
   // must send the param and keep backend order untouched.
   assert.match(page, /if \(filters\.sortBy\) params\.append\('sortBy', filters\.sortBy\)/)
@@ -81,7 +81,7 @@ test('search page wires relevance sort, preserves backend result order, and conn
         requests.push(String(url))
         return { ok: true, json: async () => ({ results: structuredClone(orderedResults), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } }) }
       }
-      const Page = loadComponent('../app/(pages)/search/page.tsx', {
+      const Page = loadComponent('../app/[ctx]/(pages)/search/page.tsx', {
         ...common, react: state.api,
         'next/navigation': { useSearchParams: () => new URLSearchParams(`type=${type}`) },
         '@/components/ui/tabs': ui,
@@ -115,7 +115,7 @@ test('search page wires relevance sort, preserves backend result order, and conn
   assert.match(filters, /onFilterChange\('query', ''\)/)
   assert.match(filters, /filters\.keyword/)
 
-  const disputes = readFileSync(new URL('../app/(pages)/admin/disputes/page.tsx', import.meta.url), 'utf8')
+  const disputes = readFileSync(new URL('../app/[ctx]/(pages)/admin/disputes/page.tsx', import.meta.url), 'utf8')
   assert.match(disputes, /buildDisputeOverview\(\{ disputes, externalDisputes: externalRows, view: statusFilter, page \}\)/)
   assert.match(disputes, /visibleDisputes\.length === 0/)
   assert.match(disputes, /visibleDisputes\.map\(\(d\) => renderDisputeCard\(d\)\)/)
@@ -130,7 +130,7 @@ test('search page wires relevance sort, preserves backend result order, and conn
   assert.match(teamManagement, /bookingCalendarEventType\(range\.status[,)]/)
   assert.match(teamManagement, /status\?: string/)
 
-  const professionalProject = readFileSync(new URL('../app/(pages)/professional/projects/[id]/page.tsx', import.meta.url), 'utf8')
+  const professionalProject = readFileSync(new URL('../app/[ctx]/(pages)/professional/projects/[id]/page.tsx', import.meta.url), 'utf8')
   assert.match(professionalProject, /bookingCalendarEventType\(booking\.status\)/)
   assert.doesNotMatch(professionalProject, /type: 'booking',\n\s+title: booking\.project/)
 
@@ -144,7 +144,7 @@ test('search page wires relevance sort, preserves backend result order, and conn
   assert.match(calendar, /eventTitles\.bookingActive/)
   assert.match(calendar, /eventTitles\.bookingCompleted/)
 
-  const profile = readFileSync(new URL('../app/(pages)/profile/page.tsx', import.meta.url), 'utf8')
+  const profile = readFileSync(new URL('../app/[ctx]/(pages)/profile/page.tsx', import.meta.url), 'utf8')
   assert.match(profile, /bookingCalendarEventType\(booking\?\.status[,)]/)
   assert.doesNotMatch(profile, /!\['completed', 'cancelled', 'refunded'\]/)
 })

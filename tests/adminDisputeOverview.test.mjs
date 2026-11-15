@@ -116,7 +116,7 @@ test('refund queue: ?status=escalated opens the escalated view; default stays pe
 })
 
 test('pages keep the lists apart and wire the own-queue links', () => {
-  const page = readFileSync(new URL('../app/(pages)/admin/disputes/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/admin/disputes/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /setDisputes\(paginated\)/)
   assert.match(page, /setExternalRows\(external\)/)
   assert.doesNotMatch(page, /\[\.\.\.external, \.\.\.paginated\]/)
@@ -131,7 +131,7 @@ test('pages keep the lists apart and wire the own-queue links', () => {
   // The existing filter/page reset on filter change is preserved.
   assert.match(page, /setStatusFilter\(value\); setPage\(1\)/)
 
-  const refunds = readFileSync(new URL('../app/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
+  const refunds = readFileSync(new URL('../app/[ctx]/(pages)/admin/cancellation-requests/page.tsx', import.meta.url), 'utf8')
   assert.match(refunds, /syncCancellationStatusFilterState\(filterState, statusQuery\)/)
   assert.match(refunds, /const statusQuery = searchParams\.get\('status'\)/)
   assert.match(refunds, /<SelectItem value="escalated">Escalated<\/SelectItem>/)

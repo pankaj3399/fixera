@@ -25,28 +25,31 @@ test('F5: backend outage on a cold isolate keeps the visitor\'s previous decisio
   try {
     const { NextRequest } = await import('next/server.js')
     const { middleware } = await import('../middleware.ts')
+    const { parseRouteContext } = await import('../lib/routeContext.ts')
     const run = (country, cookie, extra = {}) => middleware(new NextRequest('https://fixtract.test/', {
       headers: { 'x-vercel-ip-country': country, 'accept-language': 'de-DE,de;q=0.9', ...(cookie ? { cookie } : {}), ...extra },
     }))
-    const header = (res, name) => res.headers.get(`x-middleware-request-${name}`)
+    // The resolved values travel in the route context the page is rewritten to.
+    const context = (res) => parseRouteContext(new URL(res.headers.get('x-middleware-rewrite')).pathname.split('/')[1])
 
     // German visitor previously served as the admin default (BE): stays BE.
     const returning = await run('DE', 'fixera_geo_country=BE; fixera_geo_locale=nl; geo_currency=EUR')
     assert.equal(calls, 1)
-    assert.equal(header(returning, 'x-fixera-content-country'), 'BE')
-    assert.equal(header(returning, 'x-vercel-ip-country'), 'BE')
-    assert.equal(header(returning, 'x-fixera-locale'), 'nl')
+    assert.equal(context(returning).country, 'BE')
+    assert.equal(context(returning).locale, 'nl')
     assert.equal(returning.cookies.getAll().length, 0, 'no geo cookie rewritten from an unknown config')
 
     // Roll-out visitor previously served as themselves (NL): stays NL.
-    const rollout = await run('NL', 'fixera_geo_country=NL')
-    assert.equal(header(rollout, 'x-fixera-content-country'), 'NL')
+    const rollout = await run('NL', 'fixera_geo_country=NL; geo_currency=EUR')
+    assert.equal(context(rollout).country, 'NL')
+    assert.equal(rollout.cookies.getAll().length, 0)
 
     // First visit during the outage: geo country is not granted on its own.
     const fresh = await run('DE', undefined, { 'x-fixera-content-country': 'DE' })
-    assert.equal(header(fresh, 'x-fixera-content-country'), 'BE', 'platform default, client header ignored')
-    assert.equal(header(fresh, 'x-fixera-currency'), 'EUR')
-    assert.equal(fresh.cookies.getAll().length, 0)
+    assert.equal(context(fresh).country, 'BE', 'platform default, client header ignored')
+    // The browser picks the display currency from cookies, so a missing currency
+    // cookie is the only one written (from the fallback country); no geo decision is.
+    assert.deepEqual(fresh.cookies.getAll().map((c) => [c.name, c.value]), [['geo_currency', 'EUR']])
     assert.equal(calls, 1, 'failure window: no fetch per request')
   } finally {
     globalThis.fetch = realFetch

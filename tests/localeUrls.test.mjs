@@ -51,11 +51,11 @@ test('localizable routes are the public indexable pages and their dynamic childr
 })
 
 test('every static folder beside a dynamic public segment is excluded from the prefix', () => {
-  // A new static sibling (e.g. app/(pages)/projects/new) must be added to the reserved set.
+  // A new static sibling (e.g. app/[ctx]/(pages)/projects/new) must be added to the reserved set.
   const siblings = [
-    ['/projects', '../app/(pages)/projects'],
-    ['/professional', '../app/(pages)/professional'],
-    ['/professional', '../app/professional'],
+    ['/projects', '../app/[ctx]/(pages)/projects'],
+    ['/professional', '../app/[ctx]/(pages)/professional'],
+    ['/professional', '../app/[ctx]/professional'],
   ]
   for (const [section, rel] of siblings) {
     for (const entry of readdirSync(new URL(rel, import.meta.url), { withFileTypes: true })) {
@@ -112,43 +112,65 @@ test('middleware rewrites allowlisted prefixed pages and forces the prefix local
         ...headers,
       },
     }))
-    const forwarded = (res, name) => res.headers.get(`x-middleware-request-${name}`)
+    const { parseRouteContext, formatRouteContext } = await import('../lib/routeContext.ts')
+    // Every page is rewritten to /<ctx><path>; the context carries the resolved values.
+    const rewrite = (res) => {
+      const target = res.headers.get('x-middleware-rewrite')
+      if (!target) return null
+      const url = new URL(target)
+      const [, ctx, ...rest] = url.pathname.split('/')
+      return { context: parseRouteContext(ctx), path: `/${rest.join('/')}`, search: url.search }
+    }
 
     // Prefix → same route, locale forced, URL keeps the prefix.
     const nl = await run('https://fixtract.test/nl/about?lang=fr', { cookie: 'NEXT_LOCALE=en' })
-    assert.equal(nl.headers.get('x-middleware-rewrite'), 'https://fixtract.test/about?lang=fr')
-    assert.equal(forwarded(nl, 'x-fixera-locale'), 'nl', 'prefix beats ?lang and the cookie')
-    assert.equal(forwarded(nl, 'x-fixera-document-locale'), 'nl')
-    assert.equal(forwarded(nl, 'x-fixera-url-locale'), 'nl')
+    assert.deepEqual(rewrite(nl), { context: { locale: 'nl', country: 'BE', mode: 'p' }, path: '/about', search: '?lang=fr' },
+      'prefix beats ?lang and the cookie; the URL locale is the prefix')
     assert.equal(nl.cookies.get('NEXT_LOCALE'), undefined, 'a prefixed visit writes no preference cookie')
 
     const fr = await run('https://fixtract.test/fr')
-    assert.equal(fr.headers.get('x-middleware-rewrite'), 'https://fixtract.test/')
-    assert.equal(forwarded(fr, 'x-fixera-locale'), 'fr')
+    assert.equal(fr.headers.get('x-middleware-rewrite'), `https://fixtract.test/${formatRouteContext({ locale: 'fr', country: 'BE', mode: 'p' })}`)
 
     const en = await run('https://fixtract.test/en/projects/64b7f0c2a1b2c3d4e5f60720')
-    assert.equal(en.headers.get('x-middleware-rewrite'), 'https://fixtract.test/projects/64b7f0c2a1b2c3d4e5f60720')
-    assert.equal(forwarded(en, 'x-fixera-locale'), 'en')
+    assert.deepEqual(rewrite(en), { context: { locale: 'en', country: 'BE', mode: 'p' }, path: '/projects/64b7f0c2a1b2c3d4e5f60720', search: '' })
 
-    // Unprefixed: no rewrite, negotiated locale as before, no URL-locale header.
+    // Unprefixed: same path, negotiated locale as before, no URL locale.
     const plain = await run('https://fixtract.test/about', { cookie: 'NEXT_LOCALE=fr' })
-    assert.equal(plain.headers.get('x-middleware-rewrite'), null)
-    assert.equal(forwarded(plain, 'x-fixera-locale'), 'fr')
-    assert.equal(forwarded(plain, 'x-fixera-url-locale'), null)
+    assert.deepEqual(rewrite(plain), { context: { locale: 'fr', country: 'BE', mode: 'u' }, path: '/about', search: '' })
 
-    // A client cannot claim a prefix on an unprefixed URL.
+    // Request headers play no part: a client cannot claim a prefix on an unprefixed URL.
     const forged = await run('https://fixtract.test/about', { headers: { 'x-fixera-url-locale': 'nl' } })
-    assert.equal(forwarded(forged, 'x-fixera-url-locale'), null, 'client-supplied prefix header is removed')
+    assert.equal(rewrite(forged).context.mode, 'u', 'client-supplied prefix header is ignored')
 
-    // Private, admin, auth, unknown and nested prefixed paths are never rewritten.
+    // Admin pages render <html lang="en"> without touching the visitor's locale.
+    const admin = await run('https://fixtract.test/admin/cms', { cookie: 'NEXT_LOCALE=fr' })
+    assert.deepEqual(rewrite(admin), { context: { locale: 'fr', country: 'BE', mode: 'a' }, path: '/admin/cms', search: '' })
+
+    // Private, admin, auth, unknown and nested prefixed paths keep their prefix, so no route
+    // matches them (404), and carry no URL locale.
     for (const path of [
       '/nl/dashboard', '/en/admin', '/fr/login', '/nl/projects/create', '/en/professional/onboarding',
       '/nl/chat', '/nl/api/x', '/nl/projects/abc/edit', '/nlx/about', '/nl/bookings/1/payment',
     ]) {
-      const res = await run(`https://fixtract.test${path}`)
-      assert.equal(res.headers.get('x-middleware-rewrite'), null, `${path} must not be rewritten`)
-      assert.equal(forwarded(res, 'x-fixera-url-locale'), null, `${path} carries no URL locale`)
+      const res = rewrite(await run(`https://fixtract.test${path}`))
+      assert.equal(res.path, path, `${path} must not be served as its unprefixed route`)
+      assert.notEqual(res.context.mode, 'p', `${path} carries no URL locale`)
     }
+
+    // Internal paths are not reachable directly: they are nested under a new context.
+    const internal = rewrite(await run(`https://fixtract.test/${formatRouteContext({ locale: 'nl', country: 'NL', mode: 'p' })}/about`))
+    assert.equal(internal.path, '/nl-NL-p/about')
+
+    // Route handlers, metadata files and Next internals keep their path.
+    for (const path of ['/api/cms/revalidate', '/sitemap.xml', '/sitemap/0.xml', '/robots.txt', '/llms.txt']) {
+      assert.equal((await run(`https://fixtract.test${path}`)).headers.get('x-middleware-rewrite'), null, path)
+    }
+
+    // Blog/news listings travel in the context instead of searchParams.
+    const listing = rewrite(await run('https://fixtract.test/nl/blog?page=2&tag=t%C3%BCr'))
+    assert.deepEqual(listing.context, { locale: 'nl', country: 'BE', mode: 'p', listing: { page: 2, tag: 'tür' } })
+    assert.equal(rewrite(await run('https://fixtract.test/news?page=1')).context.listing, undefined, 'page 1 is the index')
+    assert.equal(rewrite(await run('https://fixtract.test/about?page=2')).context.listing, undefined, 'only blog/news')
   } finally {
     globalThis.fetch = realFetch
   }

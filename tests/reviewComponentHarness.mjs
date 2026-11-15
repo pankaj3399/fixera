@@ -80,6 +80,11 @@ function loadComponent(file, mocks, exportName = 'default') {
   const exports = {}
   new Function('require', 'exports', code)(name => {
     if (name in mocks) return mocks[name]
+    // Components read the pathname through this hook (pages are rewritten under app/[ctx]);
+    // in tests it is the mocked next/navigation pathname.
+    if (name === '@/hooks/useVisiblePathname' && mocks['next/navigation']) {
+      return { useVisiblePathname: () => mocks['next/navigation'].usePathname?.() ?? '' }
+    }
     if (name.startsWith('@/')) throw new Error(`unmocked import ${name}`)
     return require(name)
   }, exports)

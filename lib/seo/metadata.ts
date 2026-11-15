@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "@/i18n/config";
+import { urlLocaleOf } from "@/lib/routeContext";
+import { currentRouteContext } from "@/lib/server/routeContext";
 import { SITE_DESCRIPTION, siteUrl } from "./site";
-import { URL_LOCALE_REQUEST_HEADER } from "./localeUrls";
 import { assembleMetadata, type BuildMetadataInput } from "./metadataAssembly";
 
 export type { BuildMetadataInput } from "./metadataAssembly";
@@ -16,15 +16,15 @@ export { assembleMetadata } from "./metadataAssembly";
  * locale, so a page rendered in Dutch/French never advertises en_US metadata.
  * The canonical follows the URL: a `/nl/...` page canonicalises to itself, and an
  * unprefixed page to itself too. Every localizable page lists its en/nl/fr twins and
- * x-default in `alternates.languages`. Callers are `generateMetadata()` functions and
+ * x-default in `alternates.languages`. Callers are `generateMetadata()` functions that
+ * have called `routeContext(params)` (the URL's language prefix comes from there) and
  * can simply `return buildMetadata(...)` — the promise is awaited by Next.
  */
 export async function buildMetadata(input: BuildMetadataInput): Promise<Metadata> {
   const locale = input.locale ?? (await getLocale());
   const t = await getTranslations("common");
-  const requestHeaders = await headers();
-  const urlLocaleHeader = requestHeaders.get(URL_LOCALE_REQUEST_HEADER);
-  const urlLocale = isLocale(urlLocaleHeader) ? urlLocaleHeader : undefined;
+  const context = currentRouteContext();
+  const urlLocale = context ? urlLocaleOf(context) : undefined;
   return assembleMetadata(input, locale, t("meta.siteDescription"), urlLocale);
 }
 

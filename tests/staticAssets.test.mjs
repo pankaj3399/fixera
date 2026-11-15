@@ -58,12 +58,12 @@ test('a missing CMS cover falls back to the local cover, then to nothing (no bro
 })
 
 test('blog and news covers use the fallback-aware image', () => {
-  for (const rel of ['components/cms/BlogCard.tsx', 'app/(pages)/blog/[slug]/page.tsx', 'app/(pages)/news/[slug]/page.tsx']) {
+  for (const rel of ['components/cms/BlogCard.tsx', 'app/[ctx]/(pages)/blog/[slug]/page.tsx', 'app/[ctx]/(pages)/news/[slug]/page.tsx']) {
     const source = readFileSync(path.join(root, rel), 'utf8')
     assert.match(source, /<CoverImage\b/, rel)
     assert.doesNotMatch(source, /from "next\/image"/, rel)
   }
-  for (const rel of ['app/(pages)/blog/[slug]/page.tsx', 'app/(pages)/news/[slug]/page.tsx']) {
+  for (const rel of ['app/[ctx]/(pages)/blog/[slug]/page.tsx', 'app/[ctx]/(pages)/news/[slug]/page.tsx']) {
     // The frame is hidden when the image renders nothing.
     assert.match(readFileSync(path.join(root, rel), 'utf8'), /hidden max-w-5xl px-6 has-\[img\]:block/, rel)
   }

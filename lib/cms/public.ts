@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { getLocale } from "next-intl/server";
 import { sanitizeRichText } from "@/lib/cms/sanitize";
 import type {
@@ -8,12 +7,11 @@ import type {
   FaqCategory,
   FaqGroup,
 } from "@/lib/cms";
-import { getVisitorCountryCode } from "@/lib/cms/visitorCountry";
 import {
   CONTENT_COUNTRY_REQUEST_HEADER,
   PLATFORM_COUNTRY_REQUEST_HEADER,
-  readContentCountry,
 } from "@/lib/geo/contentCountryHeader";
+import { currentRouteContext } from "@/lib/server/routeContext";
 import { PUBLIC_REVALIDATE_SECONDS } from "@/lib/publicCache";
 import { ApiRequestError, apiErrorFromBody } from "@/lib/apiErrors";
 
@@ -41,17 +39,11 @@ async function parseJsonRequired<T>(res: Response): Promise<T> {
   return (data?.data ?? data) as T;
 }
 
-async function getTrustedRequestCountry(): Promise<string | undefined> {
-  // Middleware-set first-party content country (auto-conversion aware), then
-  // the platform geo header.
-  const requestCountry = readContentCountry(await headers());
-  if (requestCountry) return requestCountry;
-  // Local development has no platform geo header; retain the middleware's dev override.
-  return process.env.NODE_ENV === "production" ? undefined : getVisitorCountryCode();
-}
-
-async function cmsFetchHeaders(): Promise<HeadersInit | undefined> {
-  const country = await getTrustedRequestCountry();
+function cmsFetchHeaders(): HeadersInit | undefined {
+  // Content country resolved by middleware (auto-conversion aware, dev `?geo=`
+  // override) and carried in the route context. The caller's page or layout has
+  // called routeContext(); the country is part of the fetch cache key.
+  const country = currentRouteContext()?.country;
   // The backend filters by x-vercel-ip-country today; the first-party header
   // is sent too so the backend can prefer it (a hosting edge in front of the
   // backend may replace x-vercel-ip-country with the caller's geo).
@@ -85,7 +77,7 @@ export async function publicListCms(
   if (params.serviceSlug) qs.set("serviceSlug", params.serviceSlug);
   qs.set("locale", await resolveContentLocale(params.locale));
   const res = await fetch(`${API}/api/public/cms/${type}?${qs.toString()}`, {
-    headers: await cmsFetchHeaders(),
+    headers: cmsFetchHeaders(),
     next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", `cms:${type}`] },
   });
   const data = await parseJsonRequired<CmsListResponse>(res);
@@ -104,7 +96,7 @@ export async function publicGetCms(
   const res = await fetch(
     `${API}/api/public/cms/${type}/${encodeURIComponent(slug)}?${qs.toString()}`,
     {
-      headers: await cmsFetchHeaders(),
+      headers: cmsFetchHeaders(),
       next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", `cms:${type}`, `cms:${type}:${slug}`] },
     },
   );
@@ -130,7 +122,7 @@ export async function publicGetFaq(
 ): Promise<{ groups: FaqGroup[]; categories: FaqCategory[] }> {
   const qs = new URLSearchParams({ locale: await resolveContentLocale(params.locale) });
   const res = await fetch(`${API}/api/public/cms/faq?${qs.toString()}`, {
-    headers: await cmsFetchHeaders(),
+    headers: cmsFetchHeaders(),
     next: { revalidate: PUBLIC_REVALIDATE_SECONDS, tags: ["cms", "cms:faq"] },
   });
   const data = await parseJsonRequired<{ groups: FaqGroup[]; categories: FaqCategory[] }>(res);

@@ -85,7 +85,7 @@ test('new-project path without Stripe stays blocked, also after a query-only ?id
   assert.equal(resolveProjectEditorView({ authLoading: false, user: approvedProWithoutStripe, projectId: null, load: idle }), 'blocked')
   assert.equal(resolveProjectEditorView({ authLoading: false, user: approvedProWithStripe, projectId: null, load: idle }), 'ready')
   // The page re-checks the redirect whenever the query id changes.
-  const page = readFileSync(new URL('../app/(pages)/projects/create/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/projects/create/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /const stripeRedirect = projectWizardStripeRedirect\(user, '\/projects\/create', projectId \? `\?id=\$\{encodeURIComponent\(projectId\)\}` : ''\)\s*if \(stripeRedirect\) router\.replace\(stripeRedirect\)\s*\}, \[loading, isAuthenticated, user, canCreateProjects, projectId, router, t\]\)/)
   assert.equal(projectWizardStripeRedirect(approvedProWithoutStripe, '/projects/create', ''), STRIPE_SETUP_PATH)
   assert.equal(projectWizardStripeRedirect(approvedProWithoutStripe, '/projects/create', '?id=draft1'), null)
@@ -216,7 +216,7 @@ test('unmounted before the answer: nothing is applied', async () => {
 })
 
 test('wizard page wiring: form gated on the editor view, latest-wins load, retry and back, self-assigned id stays loaded', () => {
-  const page = readFileSync(new URL('../app/(pages)/projects/create/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/projects/create/page.tsx', import.meta.url), 'utf8')
   const gate = page.indexOf("if (editorView !== 'ready') {")
   assert.ok(gate > 0, 'non-ready views return before the wizard renders')
   assert.ok(gate < page.indexOf('<WizardLayout'), 'gate precedes the wizard')

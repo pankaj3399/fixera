@@ -19,13 +19,13 @@ function layoutHarness(categories, slug, urlLocale = null) {
   const countries = []
   const redirects = []
   const t = key => key === 'names.categories.outdoor-garden.name' ? 'Extérieur et jardin' : key
-  const exports = moduleWithMocks(new URL('../app/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), {
+  const exports = moduleWithMocks(new URL('../app/[ctx]/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), {
     // Mirrors React's per-request cache: one call per distinct argument list.
     react: { cache: fn => { const memo = new Map(); return (...args) => { const key = JSON.stringify(args); if (!memo.has(key)) memo.set(key, fn(...args)); return memo.get(key) } } },
-    'next/headers': { headers: async () => ({ get: name => name === 'x-fixera-content-country' ? 'NL' : name === 'x-fixera-url-locale' ? urlLocale : null }) },
-    '@/i18n/config': { isLocale: value => ['en', 'nl', 'fr'].includes(value) },
+    // The route context middleware encoded: content country NL, prefixed URL when urlLocale is set.
+    '@/lib/server/routeContext': { routeContext: async () => ({ locale: urlLocale ?? 'en', country: 'NL', mode: urlLocale ? 'p' : 'u' }) },
+    '@/lib/routeContext': { urlLocaleOf: context => (context.mode === 'p' ? context.locale : undefined) },
     '@/lib/seo/localeUrls': {
-      URL_LOCALE_REQUEST_HEADER: 'x-fixera-url-locale',
       localizedPath: (locale, path) => (path === '/' ? `/${locale}` : `/${locale}${path}`),
     },
     'next/navigation': { permanentRedirect: to => { redirects.push(to); throw new Error('redirect') }, notFound: () => { throw new Error('not found') } },
@@ -35,11 +35,10 @@ function layoutHarness(categories, slug, urlLocale = null) {
     '@/components/seo/JsonLd': { __esModule: true, default: () => null },
     '@/lib/seo/jsonLd': { breadcrumbSchema: entries => entries },
     '@/lib/server/serviceCategories': { getServiceCategories: async country => { countries.push(country); return categories } },
-    '@/lib/geo/contentCountryHeader': { readContentCountry: headers => headers.get('x-fixera-content-country') },
     '@/lib/catalog/categoryLayoutLookup': categoryLookup,
     '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
   })
-  return { exports, countries, redirects, props: { children: 'category body', params: Promise.resolve({ categorySlug: slug }) } }
+  return { exports, countries, redirects, props: { children: 'category body', params: Promise.resolve({ ctx: 'ctx', categorySlug: slug }) } }
 }
 
 test('server category layout propagates NL to catalog lookup and preserves a live route', async () => {
@@ -82,7 +81,7 @@ test('malformed array or services responses reach the retry UI and recover witho
       let response = malformed
       const urls = []
       globalThis.fetch = async url => { urls.push(String(url)); return { ok: true, json: async () => response } }
-      const ui = componentHarness(new URL('../app/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), {
+      const ui = componentHarness(new URL('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), {
         'next/navigation': { useParams: () => ({ categorySlug: 'garden-work' }), useRouter: () => router },
         'next-intl': { useTranslations: () => t },
         sonner: { toast: { error() {} } },
@@ -141,7 +140,7 @@ test('uncertain-only savings retain coverage warnings and unknown currencies nev
   const user = { _id: 'u1', role: 'customer' }
   const auth = { user, isAuthenticated: true, loading: false }
   const formatted = []
-  const ui = componentHarness(new URL('../app/(pages)/dashboard/benefits/page.tsx', import.meta.url), {
+  const ui = componentHarness(new URL('../app/[ctx]/(pages)/dashboard/benefits/page.tsx', import.meta.url), {
     'next/navigation': { useRouter: () => router }, 'next-intl': { useTranslations: () => t },
     '@/contexts/AuthContext': { useAuth: () => auth },
     '@/lib/utils': { getAuthToken: () => null },
@@ -172,7 +171,7 @@ test('approved professionals with no completion timestamp retain their explicit 
   const resolver = await import('../lib/auth/redirectResolver.ts')
   const auth = { loading: false, isAuthenticated: true, user: { role: 'professional', professionalStatus: 'approved', isEmailVerified: true, isPhoneVerified: true }, login: async () => true }
   const params = new URLSearchParams({ redirect: '/bookings/approved-booking' })
-  const ui = componentHarness(new URL('../app/(pages)/login/page.tsx', import.meta.url), {
+  const ui = componentHarness(new URL('../app/[ctx]/(pages)/login/page.tsx', import.meta.url), {
     'next/navigation': { useRouter: () => router, useSearchParams: () => params },
     'next-intl': { useTranslations: () => t }, '@/contexts/AuthContext': { useAuth: () => auth },
     '@/lib/auth/redirectResolver': resolver,
@@ -217,7 +216,7 @@ test('category page fetches the server-selected BE catalog for an nl-NL browser 
         const services = String(url).endsWith('country=BE') ? [{ slug: 'painting', name: 'Painting' }] : null
         return { ok: true, json: async () => (services ? [{ slug: 'garden-work', name: 'Garden work', services }] : []) }
       }
-      const ui = componentHarness(new URL('../app/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), {
+      const ui = componentHarness(new URL('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), {
         'next/navigation': { useParams: () => ({ categorySlug: 'garden-work' }), useRouter: () => router },
         'next-intl': { useTranslations: () => t },
         sonner: { toast: { error() {} } },

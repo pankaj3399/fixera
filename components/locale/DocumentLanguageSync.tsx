@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useVisiblePathname } from "@/hooks/useVisiblePathname";
 import { useLocale } from "next-intl";
 
 /**
  * Keep `<html lang>` accurate when the root layout is preserved across
  * client-side navigation. Admin pages are English-only; public pages follow
  * the resolved visitor locale. Server rendering already uses the same rule via
- * the middleware document-locale header.
+ * the route context (lib/routeContext.ts, `documentLocaleOf`).
  */
 export default function DocumentLanguageSync() {
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   const locale = useLocale();
 
   useEffect(() => {

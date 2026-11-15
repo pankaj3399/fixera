@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
+import { useVisiblePathname } from "@/hooks/useVisiblePathname";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { hasConsented, CONSENT_EVENT } from "@/lib/consent";
@@ -32,7 +32,7 @@ import {
 export function SiteAnnouncementsProvider({ children }: { children: ReactNode }) {
   const t = useTranslations("content");
   const uiLocale = useLocale();
-  const pathname = usePathname();
+  const pathname = useVisiblePathname();
   const skip = shouldSkipAnnouncements(pathname);
 
   const [items, setItems] = useState<SiteAnnouncement[]>([]);

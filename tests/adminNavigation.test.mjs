@@ -18,7 +18,7 @@ const {
 } = nav
 
 const read = (relative) => readFileSync(new URL(`../${relative}`, import.meta.url), 'utf8')
-const pageFile = (href) => new URL(`../app/(pages)${href}/page.tsx`, import.meta.url)
+const pageFile = (href) => new URL(`../app/[ctx]/(pages)${href}/page.tsx`, import.meta.url)
 
 // Literal labels and order from the restructuring document.
 const DOCX = [
@@ -352,7 +352,7 @@ test('shared shell: rendered by the admin gate after admission, onboarding exclu
   const checking = gate.indexOf('Checking admin access…')
   const shell = gate.indexOf('return <AdminShell>{children}</AdminShell>;')
   assert.ok(publicReturn > -1 && checking > publicReturn && shell > checking, 'menu only after the access check, never on accept-invite')
-  assert.match(read('app/(pages)/admin/layout.tsx'), /<AdminAccessGate>\{children\}<\/AdminAccessGate>/)
+  assert.match(read('app/[ctx]/(pages)/admin/layout.tsx'), /<AdminAccessGate>\{children\}<\/AdminAccessGate>/)
   const shellSource = read('components/admin/navigation/AdminShell.tsx')
   assert.match(shellSource, /<div className="min-w-0 flex-1">\{children\}<\/div>/)
   assert.match(shellSource, /aria-expanded=\{mobileOpen\}/)
@@ -368,7 +368,7 @@ test('shared shell: rendered by the admin gate after admission, onboarding exclu
 })
 
 test('/dashboard admin view uses the same menu; customer and professional dashboards are untouched', () => {
-  const source = read('app/(pages)/dashboard/page.tsx')
+  const source = read('app/[ctx]/(pages)/dashboard/page.tsx')
   const adminStart = source.indexOf("if (user?.role === 'admin') {\n    return (")
   const proStart = source.indexOf('// Professional dashboard')
   const shellOpen = source.indexOf('<AdminShell>')
@@ -384,7 +384,7 @@ test('/dashboard admin view uses the same menu; customer and professional dashbo
 test('Background Checks reuses the existing maintenance checks, behind maintenance.run, run only on click', () => {
   assert.equal(permissionForAdminPage('/admin/background-checks'), 'maintenance.run')
   assert.equal(canAccessAdminPage(adminUser('super'), '/admin/background-checks'), true)
-  const page = read('app/(pages)/admin/background-checks/page.tsx')
+  const page = read('app/[ctx]/(pages)/admin/background-checks/page.tsx')
   assert.match(page, /<RequireAdminPermission permission="maintenance\.run">/)
   assert.match(page, /<BackgroundChecksPanel /)
   assert.doesNotMatch(page, /useEffect|fetch\(/, 'opening the page runs nothing')
@@ -397,7 +397,7 @@ test('Background Checks reuses the existing maintenance checks, behind maintenan
   assert.doesNotMatch(panel, /useEffect/, 'no automatic job execution')
   for (const type of ['warranty', 'rfq', 'notif', 'autoaccept']) assert.match(panel, new RegExp(`onClick=\\{\\(\\) => runSchedulerCheck\\('${type}'\\)\\}`))
   // The dashboard keeps its Run Automated Checks card, same permission, still refreshing its stats.
-  const dashboard = read('app/(pages)/dashboard/page.tsx')
+  const dashboard = read('app/[ctx]/(pages)/dashboard/page.tsx')
   assert.match(dashboard, /const canRunMaintenance = can\('maintenance\.run'\)/)
   assert.match(dashboard, /\{canRunMaintenance && <BackgroundChecksPanel onCompleted=\{fetchAdminData\} runningState=\{backgroundCheckState\} \/>\}/)
   assert.doesNotMatch(dashboard, /run-warranty-checks/)

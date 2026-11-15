@@ -131,7 +131,7 @@ test('ticket display marks a link that came from the assigned admin default', ()
 
   const inbox = readFileSync(new URL('../components/admin/SupportInbox.tsx', import.meta.url), 'utf8')
   assert.match(inbox, /<SupportMeetingLinkSourceNote linkSource=\{meeting\.linkSource\} \/>/)
-  const page = readFileSync(new URL('../app/(pages)/admin/support/page.tsx', import.meta.url), 'utf8')
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/admin/support/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /<SupportMeetingLinkSettings \/>/)
 })
 
