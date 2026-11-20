@@ -1015,3 +1015,14 @@ test('subscribers page uses the shared sync summary and never turns opt-in on', 
   assert.match(source, /canWriteArea\("campaigns"\)/)
   assert.doesNotMatch(source, /marketingConsentAt|notificationPreferences\.promotions|MarketingSubscriber\b/)
 })
+
+test('CA5: a re-import of known leads with an invalid row is "No new leads", not "Import failed"', async () => {
+  const { leadImportKind, leadImportOutcome, leadImportStatusLabel } = await import('../lib/admin/marketingLeads.ts')
+  const record = { status: 'duplicate_only', totalRows: 5, importedRows: 0, duplicateRows: 4, failedRows: 1, suppressedRows: 0, fileError: null, errors: [] }
+  assert.equal(leadImportKind(record), 'duplicate')
+  assert.equal(leadImportStatusLabel(record), 'No new leads')
+  assert.match(leadImportOutcome(record).message, /Nothing new was imported: 4 rows already exist and 1 row failed\./)
+  // A file-level error or a run with only invalid rows is still a failure.
+  assert.equal(leadImportKind({ ...record, status: 'failed', duplicateRows: 0 }), 'failed')
+  assert.equal(leadImportKind({ ...record, fileError: 'Unreadable workbook' }), 'failed')
+})
