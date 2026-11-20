@@ -668,8 +668,17 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
                       <span className="mt-1 block">{dt("fields.customDueDate", "Due date")}: {formatCalendarDate(milestone.customDueDate, intl) || dt("notRecorded", "Not recorded")}</span>
                       {milestone.dueCondition ? <span className="ml-2 text-[10px] text-gray-500"><EnumText prefix="details.enums.dueCondition" value={milestone.dueCondition} /></span> : null}
                     </span>
-                    <span className="tabular-nums">
-                      <MoneyText amount={milestone.amount} currency={selected.currency} formatMoney={formatMoney} />
+                    <span className="tabular-nums text-right">
+                      {role === "customer" ? (
+                        <MoneyText amount={milestone.customerTotalWithVat} currency={selected.currency} formatMoney={formatMoney} />
+                      ) : (
+                        <MoneyText amount={milestone.amount} currency={selected.currency} formatMoney={formatMoney} />
+                      )}
+                      {role !== "customer" && typeof milestone.customerTotalWithVat === "number" ? (
+                        <span className="block text-[10px] text-gray-500">
+                          {dt("quotation.milestoneCustomerTotal", "Customer total incl. VAT")}: <MoneyText amount={milestone.customerTotalWithVat} currency={selected.currency} formatMoney={formatMoney} />
+                        </span>
+                      ) : null}
                     </span>
                   </li>
                 ))}

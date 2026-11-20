@@ -990,7 +990,8 @@
       "rejectedAt": "Refusé le",
       "acceptedOn": "accepté le {date}",
       "rejectionTimestampConflict": "Les données du serveur contiennent aussi un horodatage de refus pour cette version ({date}), mais la version est {status}. L'horodatage est affiché tel qu'enregistré et ne change pas le statut.",
-      "rejectionReason": "Motif de refus enregistré"
+      "rejectionReason": "Motif de refus enregistré",
+      "milestoneCustomerTotal": "Total client TVA incl."
     },
     "payments": {
       "title": "Enregistrements de paiement",

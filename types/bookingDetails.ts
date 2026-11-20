@@ -370,6 +370,8 @@ export interface QuotationVersionDto {
   milestones?: Array<{
     title?: string;
     amount?: number | null;
+    /** Customer-side milestone total incl. VAT (the professional amount is withheld from customers). */
+    customerTotalWithVat?: number | null;
     description?: string | null;
     dueCondition?: string;
     customDueDate?: string | null;

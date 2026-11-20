@@ -990,7 +990,8 @@
       "rejectedAt": "Rejected at",
       "acceptedOn": "accepted {date}",
       "rejectionTimestampConflict": "Backend data also contains a rejection timestamp for this version ({date}), but the version is {status}. The timestamp is shown as recorded and does not change the status.",
-      "rejectionReason": "Recorded rejection reason"
+      "rejectionReason": "Recorded rejection reason",
+      "milestoneCustomerTotal": "Customer total incl. VAT"
     },
     "payments": {
       "title": "Payment records",

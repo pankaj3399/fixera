@@ -990,7 +990,8 @@
       "rejectedAt": "Afgewezen op",
       "acceptedOn": "geaccepteerd {date}",
       "rejectionTimestampConflict": "De backend bevat ook een afwijzingstijdstempel voor deze versie ({date}), maar de versie is {status}. Het tijdstempel wordt als vastgelegd getoond en wijzigt de status niet.",
-      "rejectionReason": "Vastgelegde afwijzingsreden"
+      "rejectionReason": "Vastgelegde afwijzingsreden",
+      "milestoneCustomerTotal": "Klanttotaal incl. btw"
     },
     "payments": {
       "title": "Betalingsgegevens",
