@@ -153,3 +153,27 @@ test('reverse charge overrides an unentered custom VAT rate restored by a stale 
     assert.deepEqual(h.errors, [])
   } finally { h.state.unmount(); globalThis.fetch = previousFetch }
 })
+
+test('FT2-14: typing the country letter by letter neither refetches nor resets the entered VAT rate', async () => {
+  const previousFetch = globalThis.fetch, h = wizard()
+  globalThis.fetch = h.fetch
+  try {
+    h.render()
+    h.change('scopePlaceholder', 'Installation work')
+    h.change('pricingLineDescriptionPlaceholder', 'Work')
+    h.change('pricePlaceholder', '100')
+    h.change('countryPlaceholder', 'BE')
+    const standard = { options: [{ rate: 21, country: 'BE', label: '21%', reverseCharge: false, source: 'standard' }, { rate: 6, country: 'BE', label: '6%', reverseCharge: false, source: 'reduced' }] }
+    h.requests.at(-1).resolve(response(standard)); await settle(); h.render()
+    // The already entered line gets the country's default rate (it was not pristine before).
+    assert.equal(h.form().pricingLines[0].vatRate, 21)
+    assert.equal(h.form().pricingLines[0].vatCountry, 'BE')
+    const requestsBefore = h.requests.length
+    // Retyping the same country as a name, letter by letter.
+    for (const text of ['B', 'Bel', 'Belg', 'Belgium']) h.change('countryPlaceholder', text)
+    assert.equal(h.requests.length, requestsBefore)
+    assert.equal(h.form().pricingLines[0].vatRate, 21)
+    assert.equal(h.form().pricingLines[0].vatCountry, 'BE')
+    assert.equal(h.submit().props.disabled, false)
+  } finally { h.state.unmount(); globalThis.fetch = previousFetch }
+})

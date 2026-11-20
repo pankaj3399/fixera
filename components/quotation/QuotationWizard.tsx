@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +23,8 @@ import {
   isReverseChargeDetermination,
   parseQuotationVatOptionsResponse,
   type QuotationVatDetermination,
+  applyCountryDefaultVat,
+  quotationCountryKey,
 } from '@/lib/quotationVat'
 
 interface QuotationWizardProps {
@@ -247,7 +249,18 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
   const [vatOptionsError, setVatOptionsError] = useState(false)
   const [vatLoadedCountry, setVatLoadedCountry] = useState<string | null>(null)
   const [vatLookupRetry, setVatLookupRetry] = useState(0)
-  const vatDataReady = vatLoadedCountry === (form.serviceLocation?.country?.trim() || '') && !vatOptionsError
+  // FT2-14: the lookup and the line-rate reset follow the recognised country
+  // code, not every keystroke ("B", "Be", "Bel"… each failed and reset rates).
+  const typedServiceCountry = form.serviceLocation?.country?.trim() || ''
+  const serviceCountryKey = quotationCountryKey(typedServiceCountry)
+  // null: text that names no country yet → no lookup, submission blocked.
+  const lookupCountry: string | null = serviceCountryKey || (typedServiceCountry ? null : '')
+  // While the text names no country the last looked-up country stays the
+  // effect key, so finishing "Belgium" after "BE" does not refetch.
+  const lastLookupCountryRef = useRef<string>(lookupCountry ?? '')
+  if (lookupCountry !== null) lastLookupCountryRef.current = lookupCountry
+  const effectLookupCountry = lastLookupCountryRef.current
+  const vatDataReady = lookupCountry !== null && vatLoadedCountry === lookupCountry && !vatOptionsError
   const [vatRateDrafts, setVatRateDrafts] = useState<Record<string, string>>({})
 
   // Stored VAT labels are identifiers (they are persisted with the quote), so
@@ -322,7 +335,7 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
         const headers: Record<string, string> = { 'Content-Type': 'application/json' }
         if (token) headers.Authorization = `Bearer ${token}`
 
-        const serviceCountry = form.serviceLocation?.country?.trim() || ''
+        const serviceCountry = effectLookupCountry
         const query = serviceCountry ? `?serviceCountry=${encodeURIComponent(serviceCountry)}` : ''
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/quotations/${bookingId}/vat-rates${query}`,
@@ -361,29 +374,17 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
             // Reverse charge is the determined VAT for every line: force it
             // even onto already-entered or legacy lines so no other rate can
             // be rendered or submitted.
-            setForm(prev => (prev.serviceLocation?.country?.trim() || '') !== serviceCountry ? prev : ({
+            setForm(prev => quotationCountryKey(prev.serviceLocation?.country) !== serviceCountry ? prev : ({
               ...prev,
               pricingLines: applyReverseChargeToLines(prev.pricingLines, reverseChargeForced),
             }))
-          } else if (!existingVersion && firstOption) {
+          } else if (firstOption) {
+            // Lines without a valid rate for this country get its default;
+            // typed custom rates and this country's presets stay (FT2-14).
             setForm(prev => {
-              if ((prev.serviceLocation?.country?.trim() || '') !== serviceCountry) return prev
-              const isPristine = prev.pricingLines.every((line) =>
-                !line.description.trim() && Number(line.price) === 0 &&
-                line.vatRateMode === 'custom' && line.vatRateExplicitlyEntered !== true
-              )
-              if (!isPristine) return prev
-              return {
-                ...prev,
-                pricingLines: prev.pricingLines.map(line => ({
-                  ...line,
-                  vatRate: firstOption.rate,
-                  vatCountry: firstOption.country,
-                  vatLabel: firstOption.label,
-                  vatRateMode: firstOption.isCustom ? 'custom' : 'preset',
-                  vatRateExplicitlyEntered: firstOption.isCustom ? false : true,
-                })),
-              }
+              if (quotationCountryKey(prev.serviceLocation?.country) !== serviceCountry) return prev
+              const pricingLines = applyCountryDefaultVat(prev.pricingLines, firstOption, parsed.options)
+              return pricingLines.every((line, index) => line === prev.pricingLines[index]) ? prev : { ...prev, pricingLines }
             })
           }
         }
@@ -400,10 +401,19 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     return () => {
       cancelled = true
     }
-  }, [bookingId, existingVersion, form.serviceLocation?.country, vatLookupRetry])
+  }, [bookingId, existingVersion, effectLookupCountry, vatLookupRetry])
 
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
-    if (key === 'serviceLocation' && (value as QuotationWizardFormData['serviceLocation'])?.country?.trim() !== form.serviceLocation?.country?.trim()) {
+    const nextCountryKey = key === 'serviceLocation'
+      ? quotationCountryKey((value as QuotationWizardFormData['serviceLocation'])?.country)
+      : null
+    // Compared with the country the current rates belong to (the last one
+    // looked up), not with the half-typed text before this keystroke.
+    if (key === 'serviceLocation' && nextCountryKey && nextCountryKey !== lastLookupCountryRef.current) {
+      // A real switch to another country: the old country's rates (reverse
+      // charge included) are invalid. They get the new country's default once
+      // its options load (applyCountryDefaultVat). Half-typed text that names
+      // no country yet changes nothing (FT2-14).
       setVatRateOptions([])
       setVatDetermination(null)
       setVatLoadedCountry(null)
@@ -837,7 +847,8 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
                 </Button>
               </div>
             ) : null}
-            {!vatCountryKnown && !isReverseCharge && (
+            {/* Only once the lookup for the typed country finished (FT2-14): not while typing. */}
+            {!vatCountryKnown && !isReverseCharge && (lookupCountry === null || (vatLoadedCountry === lookupCountry && !vatOptionsError)) && (
               <p role="status" className="text-sm text-amber-700">{t('wizard.vatCountryMissing')}</p>
             )}
             {form.pricingLines.map((line, index) => (

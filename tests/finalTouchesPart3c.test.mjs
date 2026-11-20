@@ -579,3 +579,27 @@ test('FT3-18b: recorded quotation VAT parameters map to the panel shape, all fou
   assert.match(panel, /article47NotApplicable/)
   assert.match(readFileSync(new URL('../components/booking/details/QuotationPanel.tsx', import.meta.url), 'utf8'), /recordedQuotationVatDetermination\(selected\.vatDetermination\)/)
 })
+
+test('FT2-14: typing the service country never wipes entered VAT rates; stale lines get the country default', async () => {
+  const { applyCountryDefaultVat } = await import('../lib/quotationVat.ts')
+  const be = [{ rate: 21, country: 'BE', label: '21% standard VAT' }, { rate: 6, country: 'BE', label: '6% reduced VAT' }]
+  const lines = [
+    { description: 'Works', vatRate: 0, vatCountry: '', vatLabel: 'Custom VAT rate (enter below)', vatRateMode: 'custom', vatRateExplicitlyEntered: false },
+    { description: 'Typed', vatRate: 12, vatCountry: '', vatLabel: 'Custom VAT rate', vatRateMode: 'custom', vatRateExplicitlyEntered: true },
+    { description: 'Kept', vatRate: 6, vatCountry: 'BE', vatLabel: '6% reduced VAT', vatRateMode: 'preset', vatRateExplicitlyEntered: true },
+    { description: 'Other country', vatRate: 9, vatCountry: 'NL', vatLabel: '9% NL', vatRateMode: 'preset', vatRateExplicitlyEntered: true },
+  ]
+  const out = applyCountryDefaultVat(lines, be[0], be)
+  assert.deepEqual(out.map((line) => [line.vatRate, line.vatCountry]), [[21, 'BE'], [12, ''], [6, 'BE'], [21, 'BE']])
+  assert.equal(out[1], lines[1])
+  assert.equal(out[2], lines[2])
+  const { quotationCountryKey } = await import('../lib/quotationVat.ts')
+  const eu = [{ code: 'BE', name: 'Belgium' }, { code: 'NL', name: 'Netherlands' }]
+  // Half-typed text names no country: no lookup and no reset happen for it.
+  assert.deepEqual(['B', 'Be', 'Bel', 'Belg'].map((text) => quotationCountryKey(text, eu)), ['', 'BE', '', ''])
+  assert.equal(quotationCountryKey('Belgium', eu), 'BE')
+  assert.equal(quotationCountryKey('België', eu), 'BE')
+  assert.equal(quotationCountryKey('Belgique', eu), 'BE')
+  assert.equal(quotationCountryKey('nl', eu), 'NL')
+  assert.equal(quotationCountryKey('', eu), '')
+})
