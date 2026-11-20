@@ -506,7 +506,11 @@
         "piece": "pieces",
         "unit": "units"
       }
-    }
+    },
+    "resolvedDueTitle": "Extra costs due after the dispute resolution",
+    "resolvedDueDescription": "An administrator resolved the extra-cost dispute. The extra costs below are still due; please pay them to settle this booking.",
+    "resolvedDueButton": "Pay extra costs",
+    "resolvedPaid": "Extra costs paid. Thank you!"
   },
   "review": {
     "leaveReview": "Leave a Review",

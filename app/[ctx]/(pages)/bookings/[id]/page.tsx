@@ -43,7 +43,7 @@ import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelp
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { useCommissionRate } from "@/hooks/useCommissionRate"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
-import { getExtraCostAmounts, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
+import { getExtraCostAmounts, hasPositiveExtraCost, isResolvedExtraCostDue, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
@@ -145,6 +145,8 @@ interface BookingDetail {
     extraCostCustomerDiscount?: number
     extraCostLoyaltyTier?: string
     extraCostLoyaltyPercentage?: number
+    extraCostStatus?: string
+    extraCostPaymentSucceeded?: boolean
     authorizedAt?: string
     capturedAt?: string
     transferredAt?: string
@@ -347,6 +349,7 @@ interface BookingDetail {
     type?: 'extra_costs' | 'reschedule' | 'completion_request' | 'warranty_claim' | 'warranty_resolve' | 'refund_request' | 'in_progress'
     attachments?: string[]
     resolutionAttachments?: string[]
+    resolvedAt?: string
   }
   statusHistory?: Array<{
     status?: BookingStatus
@@ -987,7 +990,7 @@ function BookingDetailContent() {
     if (!autoPayExtras) return
     if (user?.role !== "customer") return
     if (booking?.status !== "professional_completed") return
-    if ((booking?.extraCostTotal || 0) <= 0) return
+    if (!hasPositiveExtraCost(booking, details?.extraCosts?.totalCustomerAmount)) return
     if (extraCostClientSecret) return
     if (booking?.extraCostStatus === "confirmed" || booking?.extraCostStatus === "disputed") return
     let cancelled = false
@@ -1005,7 +1008,7 @@ function BookingDetailContent() {
     }
     // initializeExtraCostPayment is stable enough — intentionally not in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPayExtras, user?.role, booking?.status, booking?.extraCostTotal, booking?.extraCostStatus, extraCostClientSecret, router, bookingId])
+  }, [autoPayExtras, user?.role, booking?.status, booking?.extraCostTotal, details?.extraCosts?.totalCustomerAmount, booking?.extraCostStatus, extraCostClientSecret, router, bookingId])
 
   const handleAnswerChange = (index: number, answer: string) => {
     setPostBookingAnswers(prev => ({ ...prev, [index]: answer }))
@@ -2110,7 +2113,7 @@ function BookingDetailContent() {
         return true
       }
 
-      if (result.error?.code === "EXTRA_COST_NOT_PAID" && (booking?.extraCostTotal || 0) > 0) {
+      if (result.error?.code === "EXTRA_COST_NOT_PAID" && extraCostDue) {
         const paymentReady = await initializeExtraCostPayment()
         if (paymentReady) {
           toast.info(t("extraCosts.toasts.payToComplete"))
@@ -2135,6 +2138,12 @@ function BookingDetailContent() {
 
   const handleExtraCostPaymentSuccess = async () => {
     setExtraCostPaymentCompleted(true)
+    if (booking?.status === "completed") {
+      // Resolved dispute: the booking is already complete, only the payment was due.
+      toast.success(t("extraCosts.resolvedPaid"))
+      await refreshBooking()
+      return
+    }
     toast.success(t("extraCosts.toasts.paid"))
     await submitCustomerConfirmCompletion(true)
   }
@@ -2583,6 +2592,9 @@ function BookingDetailContent() {
       ? Math.max(booking?.extraCostTotal || 0, customerExtraCostEstimate)
       : customerExtraCostEstimate,
   )
+
+  const extraCostDue = hasPositiveExtraCost(booking, details?.extraCosts?.totalCustomerAmount)
+  const resolvedExtraCostDue = isResolvedExtraCostDue(booking, details?.extraCosts?.totalCustomerAmount)
 
   // Tasks 1/19b: recorded per-milestone customer charges from the shared
   // charge plan (options in full on the first milestone). Falls back to the
@@ -4258,7 +4270,7 @@ function BookingDetailContent() {
                         {confirmingCompletion || loadingExtraCostPayment ? (
                           <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.processing")}</>
                         ) : (
-                          <><CheckCheck className="h-4 w-4 mr-2" />{booking.extraCostTotal && booking.extraCostTotal > 0 ? t("completion.reviewPaymentAndComplete") : t("completion.confirmButton")}</>
+                          <><CheckCheck className="h-4 w-4 mr-2" />{extraCostDue ? t("completion.reviewPaymentAndComplete") : t("completion.confirmButton")}</>
                         )}
                       </Button>
                       <Button
@@ -4272,7 +4284,7 @@ function BookingDetailContent() {
                       </Button>
                     </div>
 
-                    {(booking.extraCostTotal || 0) > 0 && extraCostClientSecret && (booking.payment?.extraCostAmount != null || (customerPricingReady && Number.isFinite(extraCostAmounts.total))) && (
+                    {extraCostDue && extraCostClientSecret && (booking.payment?.extraCostAmount != null || (customerPricingReady && Number.isFinite(extraCostAmounts.total))) && (
                       <div className="rounded-lg border border-teal-200 bg-white/80 p-3 space-y-3">
                         <div>
                           <p className="text-sm font-semibold text-teal-900">{t("extraCosts.payBeforeConfirmTitle")}</p>
@@ -4295,6 +4307,44 @@ function BookingDetailContent() {
                           />
                         </StripeProvider>
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Customer: extra costs still due after an admin dispute resolution (FT3-13a) */}
+                {user?.role === "customer" && resolvedExtraCostDue && (
+                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-900 mb-1">{t("extraCosts.resolvedDueTitle")}</h3>
+                      <p className="text-xs text-amber-800">{t("extraCosts.resolvedDueDescription")}</p>
+                    </div>
+                    {Number.isFinite(extraCostAmounts.total) && (
+                      <div className="flex justify-between items-center rounded bg-white/60 px-3 py-2 text-xs">
+                        <span className="font-semibold text-gray-800">{t("extraCosts.total")}</span>
+                        <span className="text-sm font-bold text-red-600">{formatMoney(extraCostAmounts.total, booking.payment?.currency || "EUR")}</span>
+                      </div>
+                    )}
+                    {extraCostClientSecret && (booking.payment?.extraCostAmount != null || Number.isFinite(extraCostAmounts.total)) ? (
+                      <StripeProvider>
+                        <PaymentForm
+                          clientSecret={extraCostClientSecret}
+                          amount={extraCostAmounts.total}
+                          currency={booking.payment?.currency || "EUR"}
+                          onSuccess={handleExtraCostPaymentSuccess}
+                          onError={handleExtraCostPaymentError}
+                        />
+                      </StripeProvider>
+                    ) : (
+                      <Button
+                        onClick={() => { void initializeExtraCostPayment() }}
+                        disabled={loadingExtraCostPayment}
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                        size="sm"
+                      >
+                        {loadingExtraCostPayment
+                          ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("common.processing")}</>
+                          : t("extraCosts.resolvedDueButton")}
+                      </Button>
                     )}
                   </div>
                 )}

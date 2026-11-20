@@ -506,7 +506,11 @@
         "piece": "articles",
         "unit": "unités"
       }
-    }
+    },
+    "resolvedDueTitle": "Frais supplémentaires dus après la résolution du litige",
+    "resolvedDueDescription": "Un administrateur a résolu le litige sur les frais supplémentaires. Les frais ci-dessous restent dus ; veuillez les payer pour régler cette réservation.",
+    "resolvedDueButton": "Payer les frais supplémentaires",
+    "resolvedPaid": "Frais supplémentaires payés. Merci !"
   },
   "review": {
     "leaveReview": "Laisser un avis",

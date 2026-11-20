@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { getExtraCostAmounts, mergePersistedExtraCostCharge } from '../lib/extraCostPricing.ts'
+import { getExtraCostAmounts, hasPositiveExtraCost, isResolvedExtraCostDue, mergePersistedExtraCostCharge } from '../lib/extraCostPricing.ts'
 
 test('initial summary includes booking VAT on the discounted extra cost', () => {
   assert.deepEqual(getExtraCostAmounts(null, { vatRate: 21 }, 21.90), {
@@ -52,4 +52,27 @@ test('reload uses saved terms and a replaced intent drops the previous breakdown
   }
   assert.deepEqual(mergePersistedExtraCostCharge(previous, saved), mergePersistedExtraCostCharge(null, saved))
   assert.equal(mergePersistedExtraCostCharge(previous, undefined), null)
+})
+
+test('FT3-13a: customers detect extra costs from their customer-side total', () => {
+  // The /api boundary withholds the professional extraCostTotal from customers.
+  assert.equal(hasPositiveExtraCost({ status: 'professional_completed' }, 181.5), true)
+  assert.equal(hasPositiveExtraCost({ extraCostTotal: 150 }, undefined), true)
+  assert.equal(hasPositiveExtraCost({}, undefined), false)
+  assert.equal(hasPositiveExtraCost({}, -20), false)
+})
+
+test('FT3-13a: an extra cost resolved by an admin dispute stays due on the completed booking', () => {
+  const resolved = {
+    status: 'completed',
+    extraCostStatus: 'confirmed',
+    dispute: { type: 'extra_costs', resolvedAt: '2026-11-20T07:54:29Z' },
+    payment: { extraCostStatus: 'pending', extraCostPaymentSucceeded: false },
+  }
+  assert.equal(isResolvedExtraCostDue(resolved, 181.5), true)
+  assert.equal(isResolvedExtraCostDue({ ...resolved, payment: { extraCostPaymentSucceeded: true } }, 181.5), false)
+  assert.equal(isResolvedExtraCostDue({ ...resolved, payment: { extraCostStatus: 'succeeded' } }, 181.5), false)
+  assert.equal(isResolvedExtraCostDue(resolved, 0), false)
+  assert.equal(isResolvedExtraCostDue({ ...resolved, dispute: { type: 'reschedule', resolvedAt: '2026-11-20' } }, 181.5), false)
+  assert.equal(isResolvedExtraCostDue({ ...resolved, status: 'professional_completed' }, 181.5), false)
 })

@@ -506,7 +506,11 @@
         "piece": "stuks",
         "unit": "eenheden"
       }
-    }
+    },
+    "resolvedDueTitle": "Meerkosten verschuldigd na de beslissing over het geschil",
+    "resolvedDueDescription": "Een beheerder heeft het geschil over de meerkosten beslecht. De onderstaande meerkosten zijn nog verschuldigd; betaal ze om deze boeking af te sluiten.",
+    "resolvedDueButton": "Meerkosten betalen",
+    "resolvedPaid": "Meerkosten betaald. Bedankt!"
   },
   "review": {
     "leaveReview": "Beoordeling schrijven",

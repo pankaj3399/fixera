@@ -62,3 +62,40 @@ export function getExtraCostAmounts(
   const vat = savedVat ?? (gross != null ? money(gross - net) : money(net * rate / 100))
   return { net, vat, total: gross ?? money(net + vat), vatRate: rate }
 }
+
+interface ExtraCostDueBooking {
+  status?: string
+  extraCostTotal?: number
+  extraCostStatus?: string
+  dispute?: { type?: string; resolvedAt?: string | Date | null }
+  payment?: { extraCostPaymentSucceeded?: boolean; extraCostStatus?: string }
+}
+
+/**
+ * Whether the booking carries a positive extra cost. Customers never receive
+ * the professional `extraCostTotal` (ADR 0001), so their customer-side total
+ * from the booking details is used instead.
+ */
+export function hasPositiveExtraCost(
+  booking: ExtraCostDueBooking | null | undefined,
+  customerExtraCostTotal?: number | null,
+): boolean {
+  return (booking?.extraCostTotal ?? customerExtraCostTotal ?? 0) > 0
+}
+
+/**
+ * FT3-13a: an admin-resolved extra-cost dispute completes the booking before
+ * the customer reached the extra-cost checkout; the amount is still due.
+ */
+export function isResolvedExtraCostDue(
+  booking: ExtraCostDueBooking | null | undefined,
+  customerExtraCostTotal?: number | null,
+): boolean {
+  return booking?.status === 'completed'
+    && booking?.dispute?.type === 'extra_costs'
+    && Boolean(booking?.dispute?.resolvedAt)
+    && booking?.extraCostStatus === 'confirmed'
+    && hasPositiveExtraCost(booking, customerExtraCostTotal)
+    && booking?.payment?.extraCostPaymentSucceeded !== true
+    && booking?.payment?.extraCostStatus !== 'succeeded'
+}
