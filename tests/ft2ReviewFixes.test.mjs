@@ -37,7 +37,7 @@ function layoutHarness(categories, slug, urlLocale = null) {
     '@/lib/server/serviceCategories': { getServiceCategories: async country => { countries.push(country); return categories } },
     '@/lib/catalog/categoryLayoutLookup': categoryLookup,
     '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE' },
-    '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+    '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
   })
   return { exports, countries, redirects, props: { children: 'category body', params: Promise.resolve({ ctx: 'ctx', categorySlug: slug }) } }
 }
@@ -88,7 +88,7 @@ test('malformed array or services responses reach the retry UI and recover witho
         sonner: { toast: { error() {} } },
         '@/lib/catalog/resolveCategory': categoryResolver,
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
       })
       ui.render(); await ui.settle()
       assert.match(elementText(ui.render()), /servicesPage.errorMessage/)
@@ -223,7 +223,7 @@ test('category page fetches the server-selected BE catalog for an nl-NL browser 
         sonner: { toast: { error() {} } },
         '@/lib/catalog/resolveCategory': categoryResolver,
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => serverCountry, useInitialCatalogCategory: () => null },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => serverCountry, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
       })
       ui.render(); await ui.settle()
       assert.match(urls[0], new RegExp(`country=${expected}$`), `server country ${serverCountry}`)

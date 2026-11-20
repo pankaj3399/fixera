@@ -168,7 +168,7 @@ test('category loading keeps the resolved country even when its catalog is empty
         '@/components/ui/skeleton': { Skeleton: () => null }, '@/components/ui/button': { Button: () => null },
         '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: geo => { geoArgs.push(geo); return 'NL' }, matchCatalogCategory: (rows, slug) => rows.find(row => row.slug === slug), normalizeCategorySlug: s => s },
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
       })
       state.render(() => Component())
       state.flush()
@@ -207,7 +207,7 @@ test('a matched category renders its service links, or the empty-services state'
         '@/components/ui/skeleton': { Skeleton: () => null }, '@/components/ui/button': { Button: () => null },
         '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: geo => geo, matchCatalogCategory: (rows, slug) => rows.find(row => row.slug === slug), normalizeCategorySlug: s => s },
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
       })
       state.render(() => Component())
       state.flush()

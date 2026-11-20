@@ -1,5 +1,6 @@
 'use client'
 
+import { useCatalogNames } from '@/lib/catalog/catalogNames';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -35,6 +36,7 @@ export interface ServiceCategory {
 // Reusable Service Card Component
 const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service; categoryName: string; categoryIcon?: IconName }) => {
   const t = useTranslations('catalog');
+  const { serviceName } = useCatalogNames();
   const serviceIconName = getServiceIconName(service.slug, service.icon) as IconName;
   return (
     <Card className="group overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border-gray-200 flex flex-col">
@@ -44,7 +46,7 @@ const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service
       <CardContent className="p-4 flex flex-col flex-grow">
         <p className="text-sm text-gray-500 font-medium">{categoryName}</p>
         <h3 className="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors mt-1">
-          {service.name}
+          {serviceName(service.name)}
         </h3>
         {service.description && (
           <p className="text-sm text-gray-600 mt-2 flex-grow line-clamp-2">
@@ -76,6 +78,7 @@ const ServiceCard = ({ service, categoryName, categoryIcon }: { service: Service
  * when the server had no live data (backend outage) or on retry.
  */
 export default function ServicesHubPage({ initialCategories = null }: { initialCategories?: ServiceCategory[] | null }) {
+  const { categoryName } = useCatalogNames();
   const t = useTranslations('catalog');
   const [activeCategory, setActiveCategory] = useState('all');
   const [categories, setCategories] = useState<ServiceCategory[]>(initialCategories ?? []);
@@ -121,7 +124,7 @@ export default function ServicesHubPage({ initialCategories = null }: { initialC
       return categories.flatMap(cat =>
         cat.services.map(service => ({
           service,
-          categoryName: cat.name,
+          categoryName: categoryName(cat.name),
           categoryIcon: cat.icon
         }))
       );
@@ -133,7 +136,7 @@ export default function ServicesHubPage({ initialCategories = null }: { initialC
 
     return selectedCategory.services.map(service => ({
       service,
-      categoryName: selectedCategory.name,
+      categoryName: categoryName(selectedCategory.name),
       categoryIcon: selectedCategory.icon
     }));
   };
@@ -199,7 +202,7 @@ export default function ServicesHubPage({ initialCategories = null }: { initialC
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 h-auto">
             <TabsTrigger value="all">{t('servicesPage.title')}</TabsTrigger>
             {categories.map(cat => (
-              <TabsTrigger key={cat.slug} value={cat.slug}>{cat.name}</TabsTrigger>
+              <TabsTrigger key={cat.slug} value={cat.slug}>{categoryName(cat.name)}</TabsTrigger>
             ))}
           </TabsList>
 
@@ -208,7 +211,7 @@ export default function ServicesHubPage({ initialCategories = null }: { initialC
               <h2 className="text-3xl font-bold text-gray-900 mb-6">
                 {activeCategory === 'all'
                   ? t('servicesPage.title')
-                  : categories.find(c => c.slug === activeCategory)?.name || t('servicesPage.servicesLabel')}
+                  : categoryName(categories.find(c => c.slug === activeCategory)?.name) || t('servicesPage.servicesLabel')}
               </h2>
               {filteredData.length === 0 ? (
                 <div className="text-center py-12">

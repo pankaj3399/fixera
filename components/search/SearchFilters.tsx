@@ -21,6 +21,7 @@ import {
 } from '@/lib/professionalLevel';
 import TierBadge from '@/components/dashboard/TierBadge';
 import { useTierColors } from '@/lib/tierColors';
+import { useCatalogNames } from '@/lib/catalog/catalogNames';
 
 export type SortOption = 'relevant' | 'price_low' | 'price_high' | 'newest' | 'availability' | 'popularity';
 
@@ -144,6 +145,7 @@ const SearchFilters = ({
   onLocationCoordinatesChange,
 }: SearchFiltersProps) => {
   const t = useTranslations('search');
+  const { categoryName, serviceName } = useCatalogNames();
   const { currency, currencyReady, rates } = useCurrency();
   const { levelColor } = useTierColors();
   const priceCurrency = !currencyReady
@@ -465,7 +467,7 @@ const SearchFilters = ({
                     className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                   >
                     <span className="flex w-full items-center justify-between">
-                      <Badge variant="secondary" className="font-medium bg-blue-50 text-blue-700 border-blue-200">{value}</Badge>
+                      <Badge variant="secondary" className="font-medium bg-blue-50 text-blue-700 border-blue-200">{serviceName(value)}</Badge>
                       {typeof count === 'number' && (
                         <span className="text-xs text-gray-500 ml-2">{count}</span>
                       )}
@@ -849,7 +851,7 @@ const SearchFilters = ({
                     htmlFor={`category-${value}`}
                     className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                   >
-                    {renderOptionContent(value, count)}
+                    {renderOptionContent(categoryName(value), count)}
                   </Label>
                 </div>
               ))}
