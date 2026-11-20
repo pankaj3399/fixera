@@ -897,6 +897,10 @@ test('quotation tab: picking a historical version announces the hash change the 
       '@/lib/booking/usePinnedQuoteVersion': loadPinnedVersionModule(state.api, bookingDetails),
       './DetailPrimitives': detailPrimitives,
       './BookingDataPanel': ui,
+      // FT3-18b / C11-1 additions to the panel.
+      '@/components/quotation/VatDeterminationPanel': { __esModule: true, default: () => null },
+      '@/lib/quotationVat': await import('../lib/quotationVat.ts'),
+      '@/lib/booking/checkoutQuote': await import('../lib/booking/checkoutQuote.ts'),
     }
     const exports = {}
     new Function('require', 'exports', code)(name => {
