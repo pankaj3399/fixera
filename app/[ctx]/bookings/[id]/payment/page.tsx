@@ -30,6 +30,8 @@ import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVe
 import { milestoneDisplayAmount } from '@/lib/booking/milestoneDisplay';
 import { recordedQuotationPricing } from '@/lib/booking/quotationPricing';
 import type { QuotationPricingLine } from '@/types/quotation';
+import { formatCalendarDate } from '@/lib/bookingDetails';
+import { vatLineLabel } from '@/lib/booking/vatLineLabel';
 
 interface BookingPayment {
   milestoneIndex?: number;
@@ -1100,7 +1102,13 @@ export default function BookingPaymentPage() {
     }
     return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + persistedOptionsBaseTotal)) < 0.02;
   })();
-  const optionsLocked = Boolean(booking?.quoteVersions?.length || extrasIncludedInQuote);
+  // FT3-19b: an accepted quotation may still get the project's options before
+  // the first milestone is paid; they are charged in full with that first
+  // milestone. Options already folded into an agreed price stay locked.
+  const optionsLocked = Boolean(
+    extrasIncludedInQuote
+    || booking?.milestonePayments?.some((milestone) => milestone?.status === 'paid')
+  );
   const breakdownBaseTotal = extrasIncludedInQuote
     ? quoteAmount
     : quoteAmount + breakdownOptionsBaseTotal;
@@ -1727,7 +1735,7 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('paymentPage.startDateLabel')}</span>
                   <span className="font-medium text-gray-900">
-                    {new Date(booking.scheduledStartDate).toLocaleDateString(intl)}
+                    {formatCalendarDate(booking.scheduledStartDate, intl, booking.scheduleTimeZone || booking.professional?.businessInfo?.timezone) || new Date(booking.scheduledStartDate).toLocaleDateString(intl)}
                   </span>
                 </div>
               )}
@@ -1963,7 +1971,7 @@ export default function BookingPaymentPage() {
                   {booking.payment.vatBreakdown.map((line, index) => (
                     <div key={`${line.description}-${index}`} className="flex justify-between text-xs">
                       <span className="text-gray-600">
-                        {line.description} ({line.vatLabel || t('paymentPage.vatRateLabel', { rate: line.vatRate })})
+                        {vatLineLabel(line.description, booking.project?.extraOptions)} ({line.vatLabel || t('paymentPage.vatRateLabel', { rate: line.vatRate })})
                       </span>
                       <span className="text-gray-900">
                         {formatMoney(line.vatAmount, paymentCurrency)}

@@ -153,3 +153,58 @@ test('reverse charge overrides an unentered custom VAT rate restored by a stale 
     assert.deepEqual(h.errors, [])
   } finally { h.state.unmount(); globalThis.fetch = previousFetch }
 })
+
+test('FT2-14: typing the country letter by letter neither refetches nor resets the entered VAT rate', async () => {
+  const previousFetch = globalThis.fetch, h = wizard()
+  globalThis.fetch = h.fetch
+  try {
+    h.render()
+    h.change('scopePlaceholder', 'Installation work')
+    h.change('pricingLineDescriptionPlaceholder', 'Work')
+    h.change('pricePlaceholder', '100')
+    h.change('countryPlaceholder', 'BE')
+    const standard = { options: [{ rate: 21, country: 'BE', label: '21%', reverseCharge: false, source: 'standard' }, { rate: 6, country: 'BE', label: '6%', reverseCharge: false, source: 'reduced' }] }
+    h.requests.at(-1).resolve(response(standard)); await settle(); h.render()
+    // The already entered line gets the country's default rate (it was not pristine before).
+    assert.equal(h.form().pricingLines[0].vatRate, 21)
+    assert.equal(h.form().pricingLines[0].vatCountry, 'BE')
+    const requestsBefore = h.requests.length
+    // Retyping the same country as a name, letter by letter.
+    for (const text of ['B', 'Bel', 'Belg', 'Belgium']) h.change('countryPlaceholder', text)
+    assert.equal(h.requests.length, requestsBefore)
+    assert.equal(h.form().pricingLines[0].vatRate, 21)
+    assert.equal(h.form().pricingLines[0].vatCountry, 'BE')
+    assert.equal(h.submit().props.disabled, false)
+  } finally { h.state.unmount(); globalThis.fetch = previousFetch }
+})
+
+test('F1-16: typing the country after the first line keeps or restores the default VAT rate', async () => {
+  const previousFetch = globalThis.fetch, h = wizard()
+  globalThis.fetch = h.fetch
+  try {
+    h.render()
+    // The form opens without a country: the lookup for the booking address
+    // already returns Belgium's rate (staging BK-2026-000061).
+    const standard = { options: [{ rate: 21, country: 'BE', label: '21% standard VAT', reverseCharge: false, source: 'standard' }] }
+    h.requests.at(-1).resolve(response(standard)); await settle(); h.render()
+    h.change('scopePlaceholder', 'Kitchen installation')
+    h.change('pricingLineDescriptionPlaceholder', 'Kitchen installation')
+    h.change('pricePlaceholder', '8000')
+    assert.equal(h.form().pricingLines[0].vatRate, 21)
+    // "Be" is already recognised as BE: the lines are reset and BE is looked
+    // up. Its answer arrives while the text reads "Bel" (no country).
+    h.change('countryPlaceholder', 'B')
+    h.change('countryPlaceholder', 'Be')
+    const lookup = h.requests.at(-1)
+    assert.match(lookup.url, /serviceCountry=BE/)
+    h.change('countryPlaceholder', 'Bel')
+    lookup.resolve(response(standard)); await settle(); h.render()
+    for (const text of ['Belg', 'Belgi', 'Belgiu', 'Belgium']) h.change('countryPlaceholder', text)
+    await settle(); h.render()
+    const line = h.form().pricingLines[0]
+    assert.equal(line.vatRate, 21)
+    assert.equal(line.vatCountry, 'BE')
+    assert.equal(line.vatRateMode, 'preset')
+    assert.equal(h.submit().props.disabled, false)
+  } finally { h.state.unmount(); globalThis.fetch = previousFetch }
+})

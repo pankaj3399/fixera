@@ -105,6 +105,23 @@ export async function publicGetCms(
   return { ...data, body: sanitizeRichText(data.body || "") };
 }
 
+/** How long a "content unavailable" render may stay cached (CA4). */
+export const CMS_UNAVAILABLE_REVALIDATE_SECONDS = 60;
+
+/**
+ * Call before rendering a CMS page's unavailable state. Next.js caches an ISR
+ * page for the lowest `revalidate` of the fetches made while rendering it, so
+ * this one short-lived probe of the backend keeps the outage page for at most
+ * a minute instead of the 6-hour page lifetime. Never throws.
+ */
+export async function shortenCmsUnavailableCache(): Promise<void> {
+  try {
+    await fetch(`${API}/health`, { next: { revalidate: CMS_UNAVAILABLE_REVALIDATE_SECONDS } });
+  } catch {
+    // The backend is down: the fetch still lowered the page's revalidate.
+  }
+}
+
 export async function fetchCmsPostWithError(
   type: CmsContentType,
   slug: string,

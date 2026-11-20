@@ -8,6 +8,7 @@ import JsonLd from "@/components/seo/JsonLd";
 import { breadcrumbSchema } from "@/lib/seo/jsonLd";
 import { getServiceCategories } from "@/lib/server/serviceCategories";
 import { resolveCategoryRoute, type CategoryLayoutMatch } from "@/lib/catalog/categoryLayoutLookup";
+import { CATALOG_HOME_COUNTRY } from "@/lib/catalog/resolveCategory";
 import { CatalogCountryProvider, type InitialCatalogCategory } from "@/components/catalog/CatalogCountryContext";
 import { localizedPath } from "@/lib/seo/localeUrls";
 import type { Locale } from "@/i18n/config";
@@ -56,7 +57,11 @@ const resolveCategoryCached = cache(async (
   urlLocale: Locale | undefined,
   categorySlug: string,
 ): Promise<CategoryLayoutMatch> => {
-  const route = resolveCategoryRoute(categorySlug, serviceCategories, await loadLiveCategories(country));
+  let route = resolveCategoryRoute(categorySlug, serviceCategories, await loadLiveCategories(country));
+  if (route.kind === "not_found" && country !== CATALOG_HOME_COUNTRY) {
+    // FT2-1b: the top bar links the home-country catalog; never 404 its links.
+    route = resolveCategoryRoute(categorySlug, serviceCategories, await loadLiveCategories(country), await loadLiveCategories(CATALOG_HOME_COUNTRY));
+  }
   if (route.kind === "redirect") permanentRedirect(redirectTarget(urlLocale, route.to));
   if (route.kind === "not_found") notFound();
   return route.category;
@@ -79,17 +84,26 @@ export async function generateMetadata({ params }: { params: CategoryParams }): 
   });
 }
 
+type LiveCategory = Awaited<ReturnType<typeof getServiceCategories>>[number];
+
+const toInitialCategory = (category: LiveCategory): InitialCatalogCategory => ({
+  name: category.name,
+  slug: category.slug,
+  services: (category.services || [])
+    .filter((service) => typeof service?.slug === "string" && typeof service?.name === "string")
+    .map((service) => ({ name: service.name, slug: service.slug })),
+});
+
 /** The live category with its services (null on the static outage fallback). */
 async function initialCategoryFor(country: string, slug: string): Promise<InitialCatalogCategory | null> {
   const live = (await loadLiveCategories(country)).find((category) => category.slug === slug && !category.isFallback);
-  if (!live) return null;
-  return {
-    name: live.name,
-    slug: live.slug,
-    services: (live.services || [])
-      .filter((service) => typeof service?.slug === "string" && typeof service?.name === "string")
-      .map((service) => ({ name: service.name, slug: service.slug })),
-  };
+  if (live) return toInitialCategory(live);
+  // A top-bar category the visitor's country does not offer (FT2-1b): show the
+  // home-country (top-bar) services list, the same services the bar's dropdown
+  // lists, instead of a 404 or the generic services page.
+  if (country === CATALOG_HOME_COUNTRY) return null;
+  const bar = (await loadLiveCategories(CATALOG_HOME_COUNTRY)).find((category) => category.slug === slug && !category.isFallback);
+  return bar ? toInitialCategory(bar) : null;
 }
 
 export default async function CategoryLayout({ children, params }: Props) {

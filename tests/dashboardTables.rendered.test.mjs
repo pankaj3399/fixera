@@ -10,7 +10,7 @@ const { renderToStaticMarkup } = await import('react-dom/server')
 const { NextIntlClientProvider } = await import('next-intl')
 const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
 const { AuthProvider } = await import('@/contexts/AuthContext')
-const { default: SharedBookingsTable, completionAdditionOf } = await import('@/components/dashboard/SharedBookingsTable')
+const { default: SharedBookingsTable, completionAdditionOf, payoutColumnOf } = await import('@/components/dashboard/SharedBookingsTable')
 const { default: SharedQuotesTable } = await import('@/components/dashboard/SharedQuotesTable')
 const messages = Object.fromEntries(['auth', 'dashboardWidgets', 'search'].map(name => [name, JSON.parse(readFileSync(new URL(`../messages/en/${name}.json`, import.meta.url), 'utf8'))]))
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }
@@ -257,4 +257,17 @@ test('FT3 #14b: the professional level renders as a coloured tier tag in both ta
   }
   const quote = renderIn('en', SharedQuotesTable, { ...booking, status: 'quoted', currentQuoteVersion: 1, quoteVersions: [{ version: 1, totalAmount: 100, currency: 'EUR' }] }, 'customer')
   assert.match(quote, /background-color:#[0-9A-Fa-f]{6}[^>]*>Expert</)
+})
+
+test('FT2-13: the pro payout column uses the server overview (same basis), with a raw fallback', () => {
+  // BK-27: payout 1,400 net; the 700 refund incl. VAT is 578.51 on the professional basis.
+  const booking = { _id: 'b27', status: 'cancelled', payment: { professionalPayout: 1400, refundAmount: 700, totalWithVat: 1694, currency: 'EUR' },
+    overview: { payoutAmount: { amount: 1400, currency: 'EUR', source: 'recorded' }, refundAmount: { amount: 578.51, currency: 'EUR', source: 'recorded' } } }
+  assert.deepEqual(payoutColumnOf(booking).refund.amount, 578.51)
+  const pro = render(SharedBookingsTable, booking, 'professional')
+  assert.match(pro, /EUR 1400.00/)
+  assert.match(pro, /EUR 578.51/)
+  assert.doesNotMatch(pro, /EUR 700.00/)
+  const legacy = { ...booking, overview: undefined }
+  assert.equal(payoutColumnOf(legacy).refund.amount, 700)
 })

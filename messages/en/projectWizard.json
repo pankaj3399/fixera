@@ -141,7 +141,7 @@
       "generate": "Suggest a title",
       "generating": "Generating…",
       "generateFailed": "Could not generate title suggestions. Please try again.",
-      "localFallback": "OpenAI is not configured. Showing one local title idea from your project details.",
+      "localFallback": "OpenAI is not configured. Showing local title ideas from your project details.",
       "useGenerated": "Use Generated Title",
       "suggested": "Suggested Title:",
       "label": "Project Title *",

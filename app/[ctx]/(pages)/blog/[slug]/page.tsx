@@ -5,7 +5,8 @@ import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
-import { fetchCmsPostWithError } from "@/lib/cms/public";
+import { fetchCmsPostWithError, shortenCmsUnavailableCache } from "@/lib/cms/public";
+import CmsUnavailable from "@/components/cms/CmsUnavailable";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
 import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await getTranslations("content");
   const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
   if (fetchError) {
-    throw new Error(`Failed to load blog metadata for ${slug}`);
+    return buildMetadata({ title: t("unavailable.title"), path: `/blog/${slug}`, noindex: true });
   }
   if (!post) {
     return buildMetadata({ title: t("blog.notFoundTitle"), path: `/blog/${slug}`, noindex: true });
@@ -57,7 +58,10 @@ export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
   const [t, locale] = await Promise.all([getTranslations("content"), getLocale()]);
   const { post, fetchError } = await fetchCmsPostWithError("blog", slug);
-  if (fetchError) throw new Error(`Failed to load blog post ${slug}`);
+  if (fetchError) {
+    await shortenCmsUnavailableCache();
+    return <CmsUnavailable retryHref={`/blog/${encodeURIComponent(slug)}`} backHref="/blog" backLabel={t("blog.backToBlog")} />;
+  }
   if (!post && !fetchError) notFound();
   if (!post) notFound();
 

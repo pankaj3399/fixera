@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { type CmsContent } from "@/lib/cms";
-import { publicListCms } from "@/lib/cms/public";
+import { publicListCms, shortenCmsUnavailableCache } from "@/lib/cms/public";
+import CmsUnavailable from "@/components/cms/CmsUnavailable";
 import BlogCard from "@/components/cms/BlogCard";
 import { buildMetadata } from "@/lib/seo/metadata";
 import JsonLd from "@/components/seo/JsonLd";
@@ -32,7 +33,14 @@ export default async function BlogIndexPage({ params }: PageProps) {
   const t = await getTranslations("content");
   const page = listing?.page ?? 1;
   const tag = listing?.tag;
-  const res = await publicListCms("blog", { page, limit: 12, tag });
+  let res: Awaited<ReturnType<typeof publicListCms>>;
+  try {
+    res = await publicListCms("blog", { page, limit: 12, tag });
+  } catch {
+    // CA4: a localized outage state, never Next's bare 500 page.
+    await shortenCmsUnavailableCache();
+    return <CmsUnavailable retryHref="/blog" backHref="/" backLabel={t("breadcrumbs.home")} />;
+  }
   const items: CmsContent[] = res.items;
   const pagination = res.pagination;
 

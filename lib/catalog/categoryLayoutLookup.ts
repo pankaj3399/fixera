@@ -13,6 +13,8 @@
  * in the browser:
  * - live slug                       → render (canonical = the live slug);
  * - live slug, other casing/spacing → permanent redirect to the live slug;
+ * - top-bar (home-country) slug the visitor's country lacks → render with
+ *   an empty services list (FT2-1b: a bar link never 404s);
  * - legacy static marketing slug    → permanent redirect to `/services`;
  * - anything else                   → 404.
  */
@@ -60,6 +62,12 @@ export function resolveCategoryRoute(
   rawSlug: unknown,
   staticCategories: readonly StaticCategoryLike[],
   liveCategories: readonly LiveCategoryLike[],
+  /**
+   * FT2-1b: the top category bar links the home-country catalog. A bar
+   * category the visitor's content country does not offer is still a
+   * category page (rendered with an empty services list), never a 404.
+   */
+  barCategories: readonly LiveCategoryLike[] = [],
 ): CategoryRouteResolution {
   const slug = normalizeRouteSlug(rawSlug);
   if (!slug) return { kind: "not_found" };
@@ -75,6 +83,14 @@ export function resolveCategoryRoute(
     return decodeSlug(rawSlug) === live.slug
       ? { kind: "category", category: { slug: live.slug, name: live.name } }
       : { kind: "redirect", to: `/categories/${encodeURIComponent(live.slug)}` };
+  }
+  const bar = barCategories.find(
+    (category) => !category?.isFallback && typeof category?.slug === "string" && normalizeRouteSlug(category.slug) === slug,
+  );
+  if (bar) {
+    return decodeSlug(rawSlug) === bar.slug
+      ? { kind: "category", category: { slug: bar.slug, name: bar.name } }
+      : { kind: "redirect", to: `/categories/${encodeURIComponent(bar.slug)}` };
   }
   if (staticCategories.some((category) => normalizeRouteSlug(category.slug) === slug)) {
     return { kind: "redirect", to: CATEGORY_FALLBACK_PATH };

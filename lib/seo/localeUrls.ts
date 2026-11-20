@@ -25,6 +25,23 @@ const STATIC_LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   "/services",
 ]);
 
+/**
+ * Public pages without a prefixed twin (no hreflang/sitemap entry, canonical
+ * stays unprefixed) that a visitor may still reach under a language prefix,
+ * e.g. `/nl/search` typed or shared. They redirect to the unprefixed page with
+ * `?lang=` so the language is kept, instead of the 404 every other
+ * non-allowlisted prefixed path gets.
+ */
+const PREFIX_REDIRECT_PATHS: ReadonlySet<string> = new Set(["/search"]);
+
+/** `{ locale, path }` when a language-prefixed request must redirect to its unprefixed page, else null. */
+export function resolvePrefixRedirect(pathname: string): { locale: Locale; path: string } | null {
+  const split = splitLocalePrefix(pathname);
+  if (!split) return null;
+  const path = split.path.length > 1 ? split.path.replace(/\/+$/, "") : split.path;
+  return PREFIX_REDIRECT_PATHS.has(path) ? { locale: split.locale, path } : null;
+}
+
 interface SegmentRule {
   /** The section, e.g. `/projects` for `/projects/[id]`. */
   section: string;

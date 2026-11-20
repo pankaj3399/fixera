@@ -77,7 +77,7 @@ test('a prefixed URL that 404s resolves its locale from the prefix; unprefixed U
       return { context: parseRouteContext(ctx), path: `/${rest.join('/')}` }
     }
 
-    for (const [path, locale] of [['/nl/login', 'nl'], ['/fr/does-not-exist', 'fr'], ['/nl/search?q=x', 'nl']]) {
+    for (const [path, locale] of [['/nl/login', 'nl'], ['/fr/does-not-exist', 'fr']]) {
       const res = await run(`https://fixtract.test${path}`, 'NEXT_LOCALE=en')
       const { context, path: internalPath } = rewrite(res)
       // The prefix stays in the internal path, so no route matches it (app/[ctx]/[...rest]: 404).
@@ -87,6 +87,11 @@ test('a prefixed URL that 404s resolves its locale from the prefix; unprefixed U
       assert.equal(urlLocaleOf(context), undefined)
       assert.equal(res.cookies.get('NEXT_LOCALE'), undefined, 'a prefix never writes the preference cookie')
     }
+    // /search has no prefixed twin; a prefixed search URL redirects to it keeping the language.
+    const search = await run('https://fixtract.test/nl/search?q=x', 'NEXT_LOCALE=en')
+    assert.equal(search.status, 307)
+    assert.equal(search.headers.get('location'), 'https://fixtract.test/search?q=x&lang=nl')
+
     const prefixedWithLang = await run('https://fixtract.test/fr/missing?lang=nl')
     assert.equal(rewrite(prefixedWithLang).context.locale, 'fr')
     assert.equal(prefixedWithLang.cookies.get('NEXT_LOCALE'), undefined)

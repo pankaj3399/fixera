@@ -16,6 +16,7 @@ import {
   fetchSiteAnnouncements,
   saveSiteAnnouncement,
   setSiteAnnouncementActive,
+  deleteSiteAnnouncement,
   validateAnnouncementForm,
 } from "@/lib/admin/siteAnnouncements";
 
@@ -161,6 +162,27 @@ export function useSiteAnnouncementsAdmin() {
     }
   };
 
+  /** CA6: delete after an explicit confirmation; the list reloads afterwards. */
+  const deleteAnnouncement = async (item: AdminSiteAnnouncement) => {
+    if (typeof window !== "undefined" && !window.confirm(`Delete "${item.name}"? This cannot be undone. To only take it offline, switch "Live" off instead.`)) return;
+    setTogglingIds((prev) => new Set(prev).add(item._id));
+    try {
+      await deleteSiteAnnouncement(item._id);
+      setItems((prev) => prev.filter((row) => row._id !== item._id));
+      setTotal((prev) => Math.max(0, prev - 1));
+      toast.success("Announcement deleted");
+      setReloadKey((key) => key + 1);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not delete"));
+    } finally {
+      setTogglingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item._id);
+        return next;
+      });
+    }
+  };
+
   return {
     authLoading,
     showPage,
@@ -180,5 +202,6 @@ export function useSiteAnnouncementsAdmin() {
     save,
     togglingIds,
     toggleActive,
+    deleteAnnouncement,
   };
 }

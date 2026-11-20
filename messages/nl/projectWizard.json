@@ -141,7 +141,7 @@
       "generate": "Titel voorstellen",
       "generating": "Genereren…",
       "generateFailed": "Titelsuggesties konden niet worden gemaakt. Probeer het opnieuw.",
-      "localFallback": "OpenAI is niet geconfigureerd. Er wordt één lokaal titelidee op basis van je projectgegevens getoond.",
+      "localFallback": "OpenAI is niet geconfigureerd. Er worden lokale titelideeën op basis van je projectgegevens getoond.",
       "useGenerated": "Gegenereerde titel gebruiken",
       "suggested": "Voorgestelde titel:",
       "label": "Projecttitel *",

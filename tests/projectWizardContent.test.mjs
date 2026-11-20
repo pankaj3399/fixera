@@ -119,3 +119,45 @@ test('merging late FAQ suggestions uses the latest edited or cleared collection'
   assert.deepEqual(mergeFAQSuggestions([currentEdit], [suggestion]), [currentEdit])
   assert.deepEqual(mergeFAQSuggestions([], [suggestion]), [suggestion])
 })
+
+test('FT1-3/FT1-8 no-AI fallback: three distinct titles, never cut mid-word', async () => {
+  const { buildProjectTitleSuggestions, clipAtWord } = await import('../lib/projectWizardContent.ts')
+  const input = {
+    service: 'Painter & Wallpaperer',
+    area: 'Living room and hallway walls',
+    packageName: 'Standard room repaint',
+    keyword: 'wallpaper removal',
+    description: 'We repaint the walls and ceiling of one room with two coats of premium paint, including masking, filling small holes and cleaning up afterwards. Furniture is covered.',
+  }
+  const titles = buildProjectTitleSuggestions(input)
+  assert.equal(titles.length, 3)
+  assert.equal(new Set(titles.map(title => title.toLowerCase())).size, 3)
+  for (const title of titles) {
+    assert.ok(title.length >= 30 && title.length <= 90, title)
+    // Either the whole text fits or it ends on a whole word with an ellipsis.
+    assert.match(title, /(\w|…|\))$/u, title)
+  }
+  const sentenceSource = input.description
+  for (const title of titles) {
+    const body = title.replace(/…$/, '')
+    const lastWord = body.split(/[\s:·—,]+/).filter(Boolean).at(-1)
+    if (title.endsWith('…')) assert.ok(sentenceSource.includes(lastWord) || Object.values(input).some(v => v.includes(lastWord)), `${lastWord} is a whole word`)
+  }
+  assert.equal(buildProjectTitleSuggestions({ service: 'A', description: 'x' }).length, 3)
+
+  assert.equal(clipAtWord('short text', 50), 'short text')
+  assert.equal(clipAtWord('Remove the existing shower and install a replacement unit', 30), 'Remove the existing shower…')
+  assert.equal(clipAtWord('First sentence is here. Second sentence follows on and on.', 40), 'First sentence is here.')
+  assert.ok(clipAtWord('x'.repeat(80), 20).length <= 20)
+})
+
+test('FT1-8 no-AI FAQ fallback quotes whole words and offers up to eight questions', async () => {
+  const { readFileSync } = await import('node:fs')
+  const step4 = readFileSync(new URL('../components/professional/project-wizard/Step4FAQ.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(step4, /fact\.slice\(/)
+  assert.match(step4, /clipAtWord\(fact, 60\)/)
+  assert.match(step4, /clipAtWord\(fact, room\)/)
+  assert.match(step4, /\.slice\(0, 8\)/)
+  const step1 = readFileSync(new URL('../components/professional/project-wizard/Step1BasicInfo.tsx', import.meta.url), 'utf8')
+  assert.match(step1, /setSuggestedTitles\(buildProjectTitleSuggestions\(/)
+})

@@ -40,3 +40,13 @@ test('savings stay unknown if any immutable pricing line has incomplete or non-f
     assert.equal(recordedQuotationPricing(input).saving, null)
   }
 })
+
+test('FT3-19a: customers get the server milestone totals although the professional amounts are withheld', () => {
+  // QT-2026-000004-v1: the customer payload carries no milestone `amount`.
+  const input = { version: 1, milestones: [{ customerTotalWithVat: 3618.65 }, { customerTotalWithVat: 6031.1 }],
+    customerTotals: { customerNetAmount: 7975, vatAmount: 1674.75, totalWithVat: 9649.75 } }
+  assert.deepEqual(recordedQuotationPricing(input).milestones, [3618.65, 6031.1])
+  // Without server totals and without amounts the old allocation gave 0 / everything.
+  const withoutTotals = { ...input, milestones: [{}, {}] }
+  assert.deepEqual(recordedQuotationPricing(withoutTotals).milestones, [0, 9649.75])
+})
