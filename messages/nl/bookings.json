@@ -1394,7 +1394,13 @@
       "approved": "Annulering goedgekeurd en terugbetaling uitgevoerd.",
       "rejected": "Annuleringsverzoek afgewezen."
     },
-    "adminNote": "Beheerdersnotitie: {note}"
+    "adminNote": "Beheerdersnotitie: {note}",
+    "confirmApproveTitle": "Deze annulering goedkeuren?",
+    "confirmApproveFull": "De klant krijgt het volledige bedrag terug en de boeking wordt geannuleerd. Dit kan niet ongedaan worden gemaakt.",
+    "confirmApproveAmount": "De klant krijgt {amount} terug en de boeking wordt geannuleerd. Dit kan niet ongedaan worden gemaakt.",
+    "confirmApprovePartialHint": "Wil je liever een gedeeltelijke terugbetaling voorstellen? Gebruik Onderhandelen onder Dashboard → Terugbetalingsverzoeken.",
+    "confirmApproveButton": "Ja, goedkeuren en terugbetalen",
+    "confirmApproveCancel": "Terug"
   },
   "rescheduleRequest": {
     "title": "Verzoek tot verzetten",

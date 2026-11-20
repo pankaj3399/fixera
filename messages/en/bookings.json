@@ -1394,7 +1394,13 @@
       "approved": "Cancellation approved and refund issued.",
       "rejected": "Cancellation request rejected."
     },
-    "adminNote": "Admin note: {note}"
+    "adminNote": "Admin note: {note}",
+    "confirmApproveTitle": "Approve this cancellation?",
+    "confirmApproveFull": "The customer is refunded in full and the booking is cancelled. This cannot be undone.",
+    "confirmApproveAmount": "The customer is refunded {amount} and the booking is cancelled. This cannot be undone.",
+    "confirmApprovePartialHint": "To offer a partial refund instead, use Negotiate under Dashboard → Refund requests.",
+    "confirmApproveButton": "Yes, approve and refund",
+    "confirmApproveCancel": "Go back"
   },
   "rescheduleRequest": {
     "title": "Reschedule request",

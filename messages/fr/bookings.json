@@ -1394,7 +1394,13 @@
       "approved": "Annulation approuvée et remboursement effectué.",
       "rejected": "Demande d'annulation rejetée."
     },
-    "adminNote": "Note admin : {note}"
+    "adminNote": "Note admin : {note}",
+    "confirmApproveTitle": "Approuver cette annulation ?",
+    "confirmApproveFull": "Le client est remboursé intégralement et la réservation est annulée. Cette action est irréversible.",
+    "confirmApproveAmount": "Le client est remboursé de {amount} et la réservation est annulée. Cette action est irréversible.",
+    "confirmApprovePartialHint": "Pour proposer plutôt un remboursement partiel, utilisez Négocier dans Tableau de bord → Demandes de remboursement.",
+    "confirmApproveButton": "Oui, approuver et rembourser",
+    "confirmApproveCancel": "Retour"
   },
   "rescheduleRequest": {
     "title": "Demande de report",
