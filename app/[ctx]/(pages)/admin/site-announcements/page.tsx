@@ -30,6 +30,7 @@ export default function AdminSiteAnnouncementsPage() {
     save,
     togglingIds,
     toggleActive,
+    deleteAnnouncement,
   } = useSiteAnnouncementsAdmin();
 
   if (authLoading || !showPage) {
@@ -69,6 +70,7 @@ export default function AdminSiteAnnouncementsPage() {
         onPreview={(item) => startPreview(toLiveAnnouncement(item))}
         onEdit={openEdit}
         onToggleActive={toggleActive}
+        onDelete={deleteAnnouncement}
       />
 
       <AnnouncementFormDialog
