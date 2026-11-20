@@ -495,7 +495,8 @@
     "viewBooking": "View Booking",
     "allStatuses": "All statuses",
     "allServices": "All services",
-    "filterService": "Filter by service"
+    "filterService": "Filter by service",
+    "search": "Search booking #…"
   },
   "favorites": {
     "title": "Your Favorites",

@@ -803,6 +803,7 @@ function ProfessionalPaymentsView() {
                   <SelectItem value="transfer_pending">{withFacetCount(t('payments.professional.transferPending'), txStatusCounts, 'transfer_pending')}</SelectItem>
                   <SelectItem value="transfer_failed">{withFacetCount(t('payments.professional.transferFailed'), txStatusCounts, 'transfer_failed')}</SelectItem>
                   <SelectItem value="refunded">{withFacetCount(t('payments.status.refunded'), txStatusCounts, 'refunded')}</SelectItem>
+                  <SelectItem value="partially_refunded">{withFacetCount(t('payments.status.partiallyRefunded'), txStatusCounts, 'partially_refunded')}</SelectItem>
                   <SelectItem value="failed">{withFacetCount(t('payments.status.failed'), txStatusCounts, 'failed')}</SelectItem>
                 </SelectContent>
               </Select>

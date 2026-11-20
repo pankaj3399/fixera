@@ -1956,7 +1956,7 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
     '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
     '@/components/ui/card': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
     '@/components/ui/button': { Button }, 'lucide-react': ui, sonner: { toast: { error() {} } },
-    '@/components/ui/select': ui, '@/lib/dashboardOverview': await import('../lib/dashboardOverview.ts'),
+    '@/components/ui/select': ui, '@/components/ui/input': ui, '@/lib/dashboardOverview': await import('../lib/dashboardOverview.ts'),
   })
   const render = () => state.render(() => Component())
   let tree = render(); state.flush()
@@ -1989,6 +1989,7 @@ test('FT2 #10a: participant disputes filter by status and service and show the c
   const Button = () => null
   const Select = () => null
   const SelectItem = () => null
+  const Input = () => null
   const ui = stubModule()
   const Component = loadComponent('../app/[ctx]/(pages)/dashboard/disputes/page.tsx', {
     react: state.api,
@@ -1999,6 +2000,7 @@ test('FT2 #10a: participant disputes filter by status and service and show the c
     '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
     '@/components/ui/card': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
     '@/components/ui/button': { Button }, 'lucide-react': ui, sonner: { toast: { error() {} } },
+    '@/components/ui/input': { Input },
     '@/components/ui/select': { Select, SelectItem, SelectContent: ui.SelectContent ?? (() => null), SelectTrigger: ui.SelectTrigger ?? (() => null), SelectValue: ui.SelectValue ?? (() => null) },
     '@/lib/dashboardOverview': await import('../lib/dashboardOverview.ts'),
   })
@@ -2021,6 +2023,11 @@ test('FT2 #10a: participant disputes filter by status and service and show the c
   findAll(tree, node => node.type === Select)[0].props.onValueChange('Painting'); tree = render(); state.flush()
   assert.match(requests.at(-1).url, /status=resolved&service=Painting$/)
   assert.ok(serviceSelect)
+  const before = requests.length
+  findAll(tree, node => node.type === Input)[0].props.onChange({ target: { value: ' BK-7 ' } }); tree = render(); state.flush()
+  await new Promise(resolve => setTimeout(resolve, 450)); tree = render(); state.flush()
+  assert.ok(requests.length > before)
+  assert.match(requests.at(-1).url, /page=1&limit=20&status=resolved&service=Painting&q=BK-7$/)
   state.unmount()
 })
 

@@ -14,6 +14,7 @@ import { AlertTriangle, RefreshCw, Scale, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { facetCount, readFacetCounts } from "@/lib/dashboardOverview"
 
 type DisputeStatusFilter = "all" | "open" | "resolved"
@@ -64,6 +65,13 @@ export default function DashboardDisputesPage() {
   const [serviceFilter, setServiceFilter] = useState("all")
   const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null)
   const [serviceCounts, setServiceCounts] = useState<Record<string, number> | null>(null)
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(timer)
+  }, [search])
 
   useEffect(() => {
     if (!loading && !user) {
@@ -83,6 +91,7 @@ export default function DashboardDisputesPage() {
       const params = new URLSearchParams({ page: String(page), limit: "20" })
       if (statusFilter !== "all") params.set("status", statusFilter)
       if (serviceFilter !== "all") params.set("service", serviceFilter)
+      if (debouncedSearch) params.set("q", debouncedSearch)
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine?${params.toString()}`, { signal: controller.signal })
       if (!res.ok) throw new Error('Disputes request failed')
       const json = await res.json()
@@ -100,7 +109,7 @@ export default function DashboardDisputesPage() {
     } finally {
       if (!controller.signal.aborted) setIsLoading(false)
     }
-  }, [t, page, statusFilter, serviceFilter])
+  }, [t, page, statusFilter, serviceFilter, debouncedSearch])
 
   useEffect(() => {
     if (user) void fetchDisputes()
@@ -139,6 +148,13 @@ export default function DashboardDisputesPage() {
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            aria-label={t("disputes.search")}
+            placeholder={t("disputes.search")}
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="w-full sm:w-64 bg-white"
+          />
           <Select value={serviceFilter} onValueChange={(value) => { setPage(1); setServiceFilter(value) }}>
             <SelectTrigger className="w-full sm:w-[220px]" aria-label={t("disputes.filterService")}>
               <SelectValue placeholder={t("disputes.filterService")} />

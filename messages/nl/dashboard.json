@@ -495,7 +495,8 @@
     "viewBooking": "Boeking bekijken",
     "allStatuses": "Alle statussen",
     "allServices": "Alle diensten",
-    "filterService": "Filteren op dienst"
+    "filterService": "Filteren op dienst",
+    "search": "Zoek op boekingsnummer…"
   },
   "favorites": {
     "title": "Je favorieten",

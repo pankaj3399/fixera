@@ -166,3 +166,8 @@ test('FT3 #8: completed bookings have their own colour, distinct from personal b
   }
   assert.doesNotMatch(completed.gradient, /emerald|teal|green|lime/)
 })
+
+test('FT2 #10a: the professional payouts status filter offers partially refunded with its count', () => {
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/dashboard/payments/page.tsx', import.meta.url), 'utf8')
+  assert.match(page, /<SelectItem value="partially_refunded">\{withFacetCount\(t\('payments\.status\.partiallyRefunded'\), txStatusCounts, 'partially_refunded'\)\}<\/SelectItem>/)
+})
