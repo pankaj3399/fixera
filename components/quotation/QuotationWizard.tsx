@@ -403,6 +403,22 @@ export default function QuotationWizard({ bookingId, existingVersion, isEditing,
     }
   }, [bookingId, existingVersion, effectLookupCountry, vatLookupRetry])
 
+  // F1-16: the lookup answer can arrive while the country text names no
+  // country ("Be" is already BE, the answer lands during "Bel"), so the
+  // default was skipped and "Belgium" (still BE) never re-applied it. Once the
+  // loaded options belong to the recognised country, lines without a valid
+  // rate get its default.
+  useEffect(() => {
+    if (!vatDataReady || vatRateOptions.length === 0) return
+    if (isReverseChargeDetermination(vatDetermination, vatRateOptions)) return
+    const firstOption = vatRateOptions[0]
+    setForm(prev => {
+      if (quotationCountryKey(prev.serviceLocation?.country) !== vatLoadedCountry) return prev
+      const pricingLines = applyCountryDefaultVat(prev.pricingLines, firstOption, vatRateOptions)
+      return pricingLines.every((line, index) => line === prev.pricingLines[index]) ? prev : { ...prev, pricingLines }
+    })
+  }, [vatDataReady, vatLoadedCountry, vatRateOptions, vatDetermination])
+
   const updateForm = <K extends keyof QuotationWizardFormData>(key: K, value: QuotationWizardFormData[K]) => {
     const nextCountryKey = key === 'serviceLocation'
       ? quotationCountryKey((value as QuotationWizardFormData['serviceLocation'])?.country)
