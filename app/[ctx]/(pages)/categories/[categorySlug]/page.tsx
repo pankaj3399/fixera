@@ -92,9 +92,9 @@ export default function CategoryPage() {
         let match = matchCatalogCategory(categories, rawSlug);
         if (!match && resolvedCountry !== CATALOG_HOME_COUNTRY) {
           // FT2-1b: the top bar links the home-country catalog. A bar category
-          // this country does not offer shows its empty services list.
-          const barMatch = matchCatalogCategory(await fetchCategories(CATALOG_HOME_COUNTRY, controller.signal), rawSlug);
-          if (barMatch) match = { ...barMatch, services: [] };
+          // this country does not offer shows the home-country services list
+          // (what the bar's dropdown lists), never the generic services page.
+          match = matchCatalogCategory(await fetchCategories(CATALOG_HOME_COUNTRY, controller.signal), rawSlug);
         }
         if (!match) {
           // Unknown slug: fall back to the existing services index, never a 404.

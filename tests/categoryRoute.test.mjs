@@ -90,7 +90,7 @@ test('FT2-1b: a top-bar category the visitor country lacks renders (empty) inste
   assert.deepEqual(resolveCategoryRoute('exterior', STATIC, DE, [{ slug: 'exterior', name: 'Exterior', isFallback: true }]), { kind: 'not_found' })
   const layout = readFileSync(new URL('../app/[ctx]/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), 'utf8')
   assert.match(layout, /await loadLiveCategories\(CATALOG_HOME_COUNTRY\)/)
-  assert.match(layout, /services: \[\] \}/)
+  assert.match(layout, /return bar \? toInitialCategory\(bar\) : null;/)
   const page = readFileSync(new URL('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /fetchCategories\(CATALOG_HOME_COUNTRY, controller\.signal\)/)
 })
