@@ -167,3 +167,31 @@ export function applyReverseChargeToLines<T extends QuotationPricingLineLike>(
     vatRateExplicitlyEntered: true,
   }))
 }
+
+/**
+ * The VAT parameters recorded with a quotation version (booking details DTO),
+ * in the shape the VAT determination panel shows. Null for versions recorded
+ * before the parameters were stored (FT3-18b).
+ */
+export function recordedQuotationVatDetermination(
+  recorded: {
+    customerType?: string | null
+    article47Class?: string | null
+    vatAddressType?: string | null
+    vatCountry?: string | null
+    reverseCharge?: boolean | null
+  } | null | undefined,
+): QuotationVatDetermination | null {
+  if (!recorded || (recorded.customerType !== 'B2B' && recorded.customerType !== 'B2C')) return null
+  const article47 = recorded.article47Class
+  return {
+    customerType: recorded.customerType,
+    article47Class: article47 === 'Movable' || article47 === 'Immovable'
+      || article47 === 'Immovable but exempt from Belgian reverse charge'
+      ? article47
+      : null,
+    vatAddressType: recorded.vatAddressType === 'Customer business address' ? 'Customer business address' : 'Booking address',
+    vatCountry: recorded.vatCountry || '',
+    reverseCharge: recorded.reverseCharge === true,
+  }
+}

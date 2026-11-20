@@ -206,7 +206,7 @@ test('applyReverseChargeToLines forces every line onto the RC option', () => {
   assert.equal(lines[0].vatRate, 21)
 })
 
-test('VatDeterminationPanel shows Article 47 only for B2B and the RC note', () => {
+test('VatDeterminationPanel always shows Article 47 (FT3-18b) and the RC note', () => {
   const b2b = renderPanel({
     customerType: 'B2B',
     article47Class: 'Immovable',
@@ -231,7 +231,9 @@ test('VatDeterminationPanel shows Article 47 only for B2B and the RC note', () =
   })
   assert.match(b2c, /Consumer \(B2C\)/)
   assert.match(b2c, /Booking address/)
-  assert.doesNotMatch(b2c, /Article 47/)
+  // Card FT3-18b: all four parameters, Article 47 shown as not applicable for consumers.
+  assert.match(b2c, /Article 47/)
+  assert.match(b2c, /Not applicable \(consumer\)/)
   assert.doesNotMatch(b2c, /0% VAT on all lines/)
 
   // nl + fr render without crashing and translate the panel.
@@ -563,4 +565,17 @@ test('recorded schedule execution unit wins over package and live project units 
   assert.equal(resolvePanelHourMode(booking, details), true)
   assert.equal(resolvePanelHourMode({ ...booking, scheduleSnapshot: { executionDuration: { unit: 'days' } }, project: { timeMode: 'hours' } }, { bookingSnapshot: { selectedSubproject: { executionDuration: { unit: 'hours' } } } }), false)
   assert.equal(resolvePanelHourMode({ ...booking, scheduleSnapshot: null }, details), false)
+})
+
+test('FT3-18b: recorded quotation VAT parameters map to the panel shape, all four always present', async () => {
+  const { recordedQuotationVatDetermination } = await import('../lib/quotationVat.ts')
+  assert.equal(recordedQuotationVatDetermination(null), null)
+  assert.deepEqual(recordedQuotationVatDetermination({ customerType: 'B2C', article47Class: null, vatAddressType: 'Booking address', vatCountry: 'BE', reverseCharge: false }),
+    { customerType: 'B2C', article47Class: null, vatAddressType: 'Booking address', vatCountry: 'BE', reverseCharge: false })
+  assert.equal(recordedQuotationVatDetermination({ customerType: 'B2B', article47Class: 'Immovable', vatAddressType: 'Customer business address', vatCountry: 'NL', reverseCharge: true }).article47Class, 'Immovable')
+  const panel = readFileSync(new URL('../components/quotation/VatDeterminationPanel.tsx', import.meta.url), 'utf8')
+  // The Article 47 row is no longer hidden for B2C or an undetermined class.
+  assert.doesNotMatch(panel, /shouldShowArticle47Class\(determination\) &&/)
+  assert.match(panel, /article47NotApplicable/)
+  assert.match(readFileSync(new URL('../components/booking/details/QuotationPanel.tsx', import.meta.url), 'utf8'), /recordedQuotationVatDetermination\(selected\.vatDetermination\)/)
 })

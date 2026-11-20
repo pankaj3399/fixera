@@ -349,6 +349,14 @@ export interface BookingWizardDto {
 
 export interface QuotationVersionDto {
   firstPossibleStart?: string | null;
+  /** VAT parameters recorded with this version (FT3-18b); null/absent on older versions. */
+  vatDetermination?: {
+    customerType: 'B2B' | 'B2C';
+    article47Class: string | null;
+    vatAddressType: string | null;
+    vatCountry: string | null;
+    reverseCharge: boolean | null;
+  } | null;
   version: number;
   quotationNumber?: string | null;
   scope?: string | null;

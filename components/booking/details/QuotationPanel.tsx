@@ -47,6 +47,8 @@ import {
   useDetailT,
 } from "./DetailPrimitives"
 import { QuestionAnswerList } from "./BookingDataPanel"
+import VatDeterminationPanel from "@/components/quotation/VatDeterminationPanel"
+import { recordedQuotationVatDetermination } from "@/lib/quotationVat"
 
 interface QuotationPanelProps {
   viewerRole?: DetailViewerRole | null
@@ -685,6 +687,12 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
               </ul>
             </div>
           ) : null}
+
+          {(() => {
+            // FT3-18b: the VAT parameters recorded with this version.
+            const determination = recordedQuotationVatDetermination(selected.vatDetermination)
+            return determination ? <VatDeterminationPanel determination={determination} /> : null
+          })()}
 
           {selected.changeNote ? (
             <div>

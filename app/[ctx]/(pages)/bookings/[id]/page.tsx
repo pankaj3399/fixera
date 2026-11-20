@@ -48,6 +48,8 @@ import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
 import { milestoneDisplayAmount } from "@/lib/booking/milestoneDisplay"
+import VatDeterminationPanel from "@/components/quotation/VatDeterminationPanel"
+import { recordedQuotationVatDetermination } from "@/lib/quotationVat"
 import { recordedQuotationPricing } from "@/lib/booking/quotationPricing"
 import { QuoteResponseActions } from "@/components/booking/details/QuoteResponseActions"
 import { requestBookingDetailsRefresh } from "@/lib/bookingDetailsRefresh"
@@ -3411,6 +3413,13 @@ function BookingDetailContent() {
                           </ul>
                         </div>
                       )}
+                      {/* FT3-18b: VAT parameters recorded with this version */}
+                      {(() => {
+                        const determination = recordedQuotationVatDetermination(
+                          details?.quotation?.versions?.find((version) => version.version === currentVersion.version)?.vatDetermination
+                        )
+                        return determination ? <VatDeterminationPanel determination={determination} /> : null
+                      })()}
                       {/* Milestones */}
                       {currentVersion.milestones && currentVersion.milestones.length > 0 && (
                         <div>
