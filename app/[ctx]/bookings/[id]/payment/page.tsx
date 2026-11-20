@@ -1100,7 +1100,13 @@ export default function BookingPaymentPage() {
     }
     return Number.isFinite(baseSubtotal) && Math.abs(quoteAmount - (baseSubtotal + persistedOptionsBaseTotal)) < 0.02;
   })();
-  const optionsLocked = Boolean(booking?.quoteVersions?.length || extrasIncludedInQuote);
+  // FT3-19b: an accepted quotation may still get the project's options before
+  // the first milestone is paid; they are charged in full with that first
+  // milestone. Options already folded into an agreed price stay locked.
+  const optionsLocked = Boolean(
+    extrasIncludedInQuote
+    || booking?.milestonePayments?.some((milestone) => milestone?.status === 'paid')
+  );
   const breakdownBaseTotal = extrasIncludedInQuote
     ? quoteAmount
     : quoteAmount + breakdownOptionsBaseTotal;
