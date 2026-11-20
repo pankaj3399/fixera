@@ -13,6 +13,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, RefreshCw, Scale, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { facetCount, readFacetCounts } from "@/lib/dashboardOverview"
+
+type DisputeStatusFilter = "all" | "open" | "resolved"
 
 interface DisputeRecord {
   _id: string
@@ -55,6 +59,11 @@ export default function DashboardDisputesPage() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
+  // FT2 #10a: status/service filters with counts, like the other dashboards.
+  const [statusFilter, setStatusFilter] = useState<DisputeStatusFilter>("all")
+  const [serviceFilter, setServiceFilter] = useState("all")
+  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null)
+  const [serviceCounts, setServiceCounts] = useState<Record<string, number> | null>(null)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -71,13 +80,18 @@ export default function DashboardDisputesPage() {
     setLoadFailed(false)
     setItems([])
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine?page=${page}&limit=20`, { signal: controller.signal })
+      const params = new URLSearchParams({ page: String(page), limit: "20" })
+      if (statusFilter !== "all") params.set("status", statusFilter)
+      if (serviceFilter !== "all") params.set("service", serviceFilter)
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/disputes/mine?${params.toString()}`, { signal: controller.signal })
       if (!res.ok) throw new Error('Disputes request failed')
       const json = await res.json()
       if (controller.signal.aborted) return
       if (!json.success) throw new Error('Disputes request failed')
       setItems(json.data?.items || [])
       setTotalPages(json.data?.pagination?.totalPages || 0)
+      setStatusCounts(readFacetCounts(json.data?.statusCounts))
+      setServiceCounts(readFacetCounts(json.data?.serviceCounts))
     } catch {
       if (!controller.signal.aborted) {
         setLoadFailed(true)
@@ -86,7 +100,7 @@ export default function DashboardDisputesPage() {
     } finally {
       if (!controller.signal.aborted) setIsLoading(false)
     }
-  }, [t, page])
+  }, [t, page, statusFilter, serviceFilter])
 
   useEffect(() => {
     if (user) void fetchDisputes()
@@ -94,6 +108,18 @@ export default function DashboardDisputesPage() {
   }, [user, fetchDisputes])
 
   if (loading || !user) return null
+
+  // Services come from the counts; a selected service stays listed even
+  // when the other filter leaves it with no disputes.
+  const serviceOptions = Array.from(new Set([
+    ...Object.keys(serviceCounts ?? {}),
+    ...(serviceFilter !== "all" ? [serviceFilter] : []),
+  ])).sort((a, b) => a.localeCompare(b))
+  const statusOptions: Array<{ value: DisputeStatusFilter; label: string }> = [
+    { value: "all", label: t("disputes.allStatuses") },
+    { value: "open", label: t("disputes.statusOpen") },
+    { value: "resolved", label: t("disputes.statusResolved") },
+  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-pink-50 p-4">
@@ -110,6 +136,35 @@ export default function DashboardDisputesPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             {t("common.refresh")}
           </Button>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Select value={serviceFilter} onValueChange={(value) => { setPage(1); setServiceFilter(value) }}>
+            <SelectTrigger className="w-full sm:w-[220px]" aria-label={t("disputes.filterService")}>
+              <SelectValue placeholder={t("disputes.filterService")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("disputes.allServices")}</SelectItem>
+              {serviceOptions.map((service) => (
+                <SelectItem key={service} value={service}>
+                  {serviceCounts ? `${service} (${facetCount(serviceCounts, service)})` : service}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={(value) => { setPage(1); setStatusFilter(value as DisputeStatusFilter) }}>
+            <SelectTrigger className="w-full sm:w-[220px]" aria-label={t("common.filterStatus")}>
+              <SelectValue placeholder={t("common.filterStatus")} />
+            </SelectTrigger>
+            <SelectContent>
+              {statusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                  {option.value !== "all" && statusCounts ? ` (${facetCount(statusCounts, option.value)})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {(() => {

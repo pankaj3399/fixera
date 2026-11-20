@@ -492,7 +492,10 @@
     "resolution": "Resolution: {value}",
     "raised": "Raised: {date}",
     "resolvedOn": "Resolved: {date}",
-    "viewBooking": "View Booking"
+    "viewBooking": "View Booking",
+    "allStatuses": "All statuses",
+    "allServices": "All services",
+    "filterService": "Filter by service"
   },
   "favorites": {
     "title": "Your Favorites",

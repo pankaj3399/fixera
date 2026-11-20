@@ -1956,6 +1956,7 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
     '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
     '@/components/ui/card': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
     '@/components/ui/button': { Button }, 'lucide-react': ui, sonner: { toast: { error() {} } },
+    '@/components/ui/select': ui, '@/lib/dashboardOverview': await import('../lib/dashboardOverview.ts'),
   })
   const render = () => state.render(() => Component())
   let tree = render(); state.flush()
@@ -1979,6 +1980,49 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
   state.unmount()
 })
 
+
+test('FT2 #10a: participant disputes filter by status and service and show the counts', async () => {
+  const state = hooks()
+  const requests = []
+  const t = key => key
+  const auth = { user: { _id: 'u1' }, loading: false }
+  const Button = () => null
+  const Select = () => null
+  const SelectItem = () => null
+  const ui = stubModule()
+  const Component = loadComponent('../app/[ctx]/(pages)/dashboard/disputes/page.tsx', {
+    react: state.api,
+    'next/navigation': { useRouter: () => ({ push() {} }), usePathname: () => '/dashboard/disputes' },
+    'next-intl': { useTranslations: () => t },
+    '@/contexts/AuthContext': { useAuth: () => auth },
+    '@/lib/utils': { authFetch: (url, options) => { const d = deferred(); requests.push({ url, ...options, ...d }); return d.promise } },
+    '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+    '@/components/ui/card': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
+    '@/components/ui/button': { Button }, 'lucide-react': ui, sonner: { toast: { error() {} } },
+    '@/components/ui/select': { Select, SelectItem, SelectContent: ui.SelectContent ?? (() => null), SelectTrigger: ui.SelectTrigger ?? (() => null), SelectValue: ui.SelectValue ?? (() => null) },
+    '@/lib/dashboardOverview': await import('../lib/dashboardOverview.ts'),
+  })
+  const render = () => state.render(() => Component())
+  let tree = render(); state.flush()
+  assert.doesNotMatch(requests[0].url, /status=|service=/)
+  requests[0].resolve({ ok: true, json: async () => ({ success: true, data: {
+    items: [{ _id: 'b1', bookingNumber: 'BK-1', dispute: { reason: 'r' } }],
+    statusCounts: { open: 1, resolved: 2 }, serviceCounts: { Plumbing: 1, Painting: 2 },
+    pagination: { totalPages: 3 },
+  } }) }); await settle()
+  tree = render()
+  const items = findAll(tree, node => node.type === SelectItem).map(node => textOf(node))
+  assert.deepEqual(items, ['disputes.allServices', 'Painting (2)', 'Plumbing (1)', 'disputes.allStatuses', 'disputes.statusOpen (1)', 'disputes.statusResolved (2)'])
+  const [serviceSelect, statusSelect] = findAll(tree, node => node.type === Select)
+  findAll(tree, node => node.type === Button && textOf(node).includes('common.next'))[0].props.onClick(); tree = render(); state.flush()
+  assert.match(requests[1].url, /page=2/)
+  statusSelect.props.onValueChange('resolved'); tree = render(); state.flush()
+  assert.match(requests.at(-1).url, /page=1&limit=20&status=resolved$/)
+  findAll(tree, node => node.type === Select)[0].props.onValueChange('Painting'); tree = render(); state.flush()
+  assert.match(requests.at(-1).url, /status=resolved&service=Painting$/)
+  assert.ok(serviceSelect)
+  state.unmount()
+})
 
 test('normalized quotation panels cannot leave quote response actions enabled on a historical version', () => {
   const { resolveQuoteVersionView } = loadPinnedVersionModule(hooks().api, {})
