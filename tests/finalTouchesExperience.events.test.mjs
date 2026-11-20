@@ -173,8 +173,10 @@ test('category loading keeps the resolved country even when its catalog is empty
       state.render(() => Component())
       state.flush()
       await new Promise(resolve => setImmediate(resolve))
-      assert.equal(requests.length, 1)
+      // FT2-1b: an unmatched slug is also looked up in the home (top-bar) catalog.
+      assert.equal(requests.length, 2)
       assert.match(requests[0], /country=NL$/)
+      assert.match(requests[1], /country=BE$/)
       // The page passes the geo cookie value itself, not a derived country.
       assert.deepEqual(geoArgs, ['NL'])
       assert.deepEqual(redirects, ['/services'])

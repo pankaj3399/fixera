@@ -36,6 +36,7 @@ function layoutHarness(categories, slug, urlLocale = null) {
     '@/lib/seo/jsonLd': { breadcrumbSchema: entries => entries },
     '@/lib/server/serviceCategories': { getServiceCategories: async country => { countries.push(country); return categories } },
     '@/lib/catalog/categoryLayoutLookup': categoryLookup,
+    '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE' },
     '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
   })
   return { exports, countries, redirects, props: { children: 'category body', params: Promise.resolve({ ctx: 'ctx', categorySlug: slug }) } }
@@ -230,8 +231,13 @@ test('category page fetches the server-selected BE catalog for an nl-NL browser 
         assert.deepEqual(redirects, [], 'a valid BE category is not redirected')
         assert.ok(ui.findAll(node => node.props.href === '/services/painting').length)
       } else {
-        // Outside the layout the browser-language fallback still applies.
-        assert.deepEqual(redirects, ['/services'])
+        // Outside the layout the browser-language fallback still applies. The
+        // NL catalog lacks the category, so (FT2-1b) the home/top-bar BE
+        // catalog is checked and the page shows an empty services list
+        // instead of leaving it.
+        assert.match(urls[1], /country=BE$/)
+        assert.deepEqual(redirects, [])
+        assert.equal(ui.findAll(node => node.props.href === '/services/painting').length, 0)
       }
       ui.unmount()
     }

@@ -87,7 +87,13 @@ export default function CategoryPage() {
             ? resolveCatalogCountry(geoCountry, navigator.language, CATALOG_HOME_COUNTRY)
             : CATALOG_HOME_COUNTRY);
         const categories = await fetchCategories(resolvedCountry, controller.signal);
-        const match = matchCatalogCategory(categories, rawSlug);
+        let match = matchCatalogCategory(categories, rawSlug);
+        if (!match && resolvedCountry !== CATALOG_HOME_COUNTRY) {
+          // FT2-1b: the top bar links the home-country catalog. A bar category
+          // this country does not offer shows its empty services list.
+          const barMatch = matchCatalogCategory(await fetchCategories(CATALOG_HOME_COUNTRY, controller.signal), rawSlug);
+          if (barMatch) match = { ...barMatch, services: [] };
+        }
         if (!match) {
           // Unknown slug: fall back to the existing services index, never a 404.
           router.replace('/services');
