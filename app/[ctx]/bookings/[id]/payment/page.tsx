@@ -31,6 +31,7 @@ import { milestoneDisplayAmount } from '@/lib/booking/milestoneDisplay';
 import { recordedQuotationPricing } from '@/lib/booking/quotationPricing';
 import type { QuotationPricingLine } from '@/types/quotation';
 import { formatCalendarDate } from '@/lib/bookingDetails';
+import { vatLineLabel } from '@/lib/booking/vatLineLabel';
 
 interface BookingPayment {
   milestoneIndex?: number;
@@ -1970,7 +1971,7 @@ export default function BookingPaymentPage() {
                   {booking.payment.vatBreakdown.map((line, index) => (
                     <div key={`${line.description}-${index}`} className="flex justify-between text-xs">
                       <span className="text-gray-600">
-                        {line.description} ({line.vatLabel || t('paymentPage.vatRateLabel', { rate: line.vatRate })})
+                        {vatLineLabel(line.description, booking.project?.extraOptions)} ({line.vatLabel || t('paymentPage.vatRateLabel', { rate: line.vatRate })})
                       </span>
                       <span className="text-gray-900">
                         {formatMoney(line.vatAmount, paymentCurrency)}
