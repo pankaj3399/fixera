@@ -63,3 +63,21 @@ test('CA3-1: the category bar, popular chips, card tags, search filters and /ser
   assert.match(hub, /\{serviceName\(service\.name\)\}/)
   assert.match(read('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx'), /\{serviceName\(service\.name\)\}/)
 })
+
+test('F2-8: home project cards show category and service tags, and search cards the service tag, in the visitor language', () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
+  const carousel = read('../components/PopularProjectsCarousel.tsx')
+  assert.match(carousel, /useCatalogNames\(\)/)
+  assert.match(carousel, /\{categoryName\(project\.category\)\}/)
+  assert.match(carousel, /\{serviceName\(project\.service\)\}/)
+  assert.doesNotMatch(carousel, /\{project\.(category|service)\}/)
+  const card = read('../components/search/ProjectCard.tsx')
+  assert.match(card, /\{serviceName\(project\.service\)\}/)
+  assert.doesNotMatch(card, /\{project\.service\}/)
+  // The staging card values have nl/fr names.
+  for (const [locale, interior, painter] of [['nl', 'Interieur', 'Schilder en behanger'], ['fr', 'Intérieur', 'Peintre-tapissier']]) {
+    const names = messages(locale).catalogNames
+    assert.equal(names.categories.interior, interior)
+    assert.equal(names.services['painter-wallpaperer'], painter)
+  }
+})
