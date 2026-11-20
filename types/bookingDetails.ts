@@ -262,6 +262,13 @@ export interface BookingSnapshotDto {
     customerPackageTotal?: number | null;
     /** Customer total of the package and its options (checkout arithmetic). Null for professionals. */
     customerTotal?: number | null;
+    /** Customer-side equivalents of the professional amounts (C11-1); not sent to professionals. */
+    customerPrices?: {
+      unitPrice: number;
+      baseSubtotal: number;
+      extraOptionsTotal: number;
+      options: Array<{ unitPrice: number; totalPrice: number }>;
+    } | null;
     pricingType?: string;
     unitAmount?: number | null;
     quantity?: number | null;

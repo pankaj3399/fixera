@@ -843,7 +843,8 @@
       "milestoneStatus": "Status",
       "customDueDate": "Vervaldatum",
       "quoteDate": "Offertedatum",
-      "extraCostsCustomer": "Extra kosten bij oplevering (jouw prijs, excl. btw)"
+      "extraCostsCustomer": "Extra kosten bij oplevering (jouw prijs, excl. btw)",
+      "totalAmountCustomer": "Totaal (excl. btw, vóór kortingen)"
     },
     "parties": {
       "customer": "Klant",
@@ -1099,7 +1100,8 @@
       "transferAttemptedAt": "Uitbetaling geprobeerd",
       "extraCostTransferStatus": "Uitbetaling meerwerk",
       "peppolStatusLabel": "Peppolstatus:",
-      "refundPending": "Terugbetaling in afwachting — het geld is nog niet teruggestort"
+      "refundPending": "Terugbetaling in afwachting — het geld is nog niet teruggestort",
+      "checkoutDescriptionCustomer": "Je prijzen bij het afrekenen (excl. btw, vóór kortingen)."
     },
     "activity": {
       "deletedActor": "Verwijderde gebruiker",

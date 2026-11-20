@@ -843,7 +843,8 @@
       "milestoneStatus": "Status",
       "customDueDate": "Due date",
       "quoteDate": "Quote date",
-      "extraCostsCustomer": "Completion extras (your price, excl. VAT)"
+      "extraCostsCustomer": "Completion extras (your price, excl. VAT)",
+      "totalAmountCustomer": "Total (excl. VAT, before discounts)"
     },
     "parties": {
       "customer": "Customer",
@@ -1099,7 +1100,8 @@
       "transferAttemptedAt": "Transfer attempted",
       "extraCostTransferStatus": "Extra-cost payout transfer",
       "peppolStatusLabel": "Peppol status:",
-      "refundPending": "Refund pending — funds have not been returned"
+      "refundPending": "Refund pending — funds have not been returned",
+      "checkoutDescriptionCustomer": "Your prices at checkout (excl. VAT, before discounts)."
     },
     "activity": {
       "deletedActor": "Deleted user",

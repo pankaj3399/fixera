@@ -843,7 +843,8 @@
       "milestoneStatus": "Statut",
       "customDueDate": "Date d’échéance",
       "quoteDate": "Date du devis",
-      "extraCostsCustomer": "Frais supplémentaires à la fin (votre prix, HTVA)"
+      "extraCostsCustomer": "Frais supplémentaires à la fin (votre prix, HTVA)",
+      "totalAmountCustomer": "Total (hors TVA, avant remises)"
     },
     "parties": {
       "customer": "Client",
@@ -1099,7 +1100,8 @@
       "transferAttemptedAt": "Virement tenté",
       "extraCostTransferStatus": "Virement des frais supplémentaires",
       "peppolStatusLabel": "Statut Peppol :",
-      "refundPending": "Remboursement en attente — les fonds ne sont pas encore remboursés"
+      "refundPending": "Remboursement en attente — les fonds ne sont pas encore remboursés",
+      "checkoutDescriptionCustomer": "Vos prix au moment du paiement (hors TVA, avant remises)."
     },
     "activity": {
       "deletedActor": "Utilisateur supprimé",
