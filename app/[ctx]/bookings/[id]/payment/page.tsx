@@ -30,6 +30,7 @@ import { resolveAuthoritativeQuoteVersion } from '@/lib/booking/usePinnedQuoteVe
 import { milestoneDisplayAmount } from '@/lib/booking/milestoneDisplay';
 import { recordedQuotationPricing } from '@/lib/booking/quotationPricing';
 import type { QuotationPricingLine } from '@/types/quotation';
+import { formatCalendarDate } from '@/lib/bookingDetails';
 
 interface BookingPayment {
   milestoneIndex?: number;
@@ -1727,7 +1728,7 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('paymentPage.startDateLabel')}</span>
                   <span className="font-medium text-gray-900">
-                    {new Date(booking.scheduledStartDate).toLocaleDateString(intl)}
+                    {formatCalendarDate(booking.scheduledStartDate, intl, booking.scheduleTimeZone || booking.professional?.businessInfo?.timezone) || new Date(booking.scheduledStartDate).toLocaleDateString(intl)}
                   </span>
                 </div>
               )}

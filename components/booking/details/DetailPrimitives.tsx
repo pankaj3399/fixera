@@ -496,7 +496,7 @@ export function ScheduleSummary({
   hourMode?: boolean | null
 }) {
   const startValue = schedule?.scheduledStartDate || schedule?.preferredStartDate
-  const startDate = formatCalendarDate(startValue, intl)
+  const startDate = formatCalendarDate(startValue, intl, timeZone)
   const startTime = schedule?.scheduledStartTime || schedule?.preferredStartTime
   // Wall times render only with an explicit hour-mode signal. Unknown or
   // day mode stays date-only: showing a wrong time is worse than none.
@@ -505,9 +505,9 @@ export function ScheduleSummary({
     hourMode === true
       ? (startTime && endTime ? `${startTime}–${endTime}` : startTime)
       : null
-  const endDate = formatCalendarDate(schedule?.scheduledExecutionEndDate, intl)
-  const bufferStart = formatCalendarDate(schedule?.scheduledBufferStartDate, intl)
-  const bufferEnd = formatCalendarDate(schedule?.scheduledBufferEndDate, intl)
+  const endDate = formatCalendarDate(schedule?.scheduledExecutionEndDate, intl, timeZone)
+  const bufferStart = formatCalendarDate(schedule?.scheduledBufferStartDate, intl, timeZone)
+  const bufferEnd = formatCalendarDate(schedule?.scheduledBufferEndDate, intl, timeZone)
   return (
     <div className="space-y-1 text-xs text-gray-700">
       <p>
