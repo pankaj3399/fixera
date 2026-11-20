@@ -43,7 +43,7 @@ import { BOOKING_STATUSES, type BookingStatus } from "@/lib/dashboardBookingHelp
 import { useCustomerPricing } from "@/hooks/useCustomerPricing"
 import { useCommissionRate } from "@/hooks/useCommissionRate"
 import { commissionedExtraCost, commissionedExtraCostTotal } from "@/lib/customerPricing"
-import { getExtraCostAmounts, hasPositiveExtraCost, isResolvedExtraCostDue, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
+import { extraCostEstimatedNet, getExtraCostAmounts, hasPositiveExtraCost, isResolvedExtraCostDue, mergePersistedExtraCostCharge, type ExtraCostChargeSummary } from "@/lib/extraCostPricing"
 import { resolveRecordCurrency } from "@/lib/currency/convert"
 import { buildPostBookingAnswerPayload, missingRequiredPostBookingQuestionIndexes, resolvePanelHourMode, resolvePostBookingFormQuestions, resolveRescheduleEntries, selectCancellationRequest, vatAnswerFieldLabelKey, vatAnswerValueKey, withSubmittedPostBookingAnswers } from "@/lib/bookingDetails"
 import { resolveQuoteVersionView, usePinnedQuoteVersion } from "@/lib/booking/usePinnedQuoteVersion"
@@ -2080,7 +2080,9 @@ function BookingDetailContent() {
         return true
       }
 
-      toast.error(getErrorText(result, t("extraCosts.toasts.initFailed")))
+      toast.error(result?.error?.code === "PROFESSIONAL_PAYMENTS_UNAVAILABLE"
+        ? t("extraCosts.toasts.professionalPaymentsUnavailable")
+        : getErrorText(result, t("extraCosts.toasts.initFailed")))
       return false
     } catch (err) {
       console.error("Failed to initialize extra cost payment:", err)
@@ -2587,12 +2589,17 @@ function BookingDetailContent() {
   const extraCostAmounts = getExtraCostAmounts(
     extraCostCharge,
     booking?.payment,
-    // Extra-cost loyalty is capped at the commission, preserving the supplier's
-    // net; a refund of fewer units already includes the commission and has no
-    // discount to cap, so the floor applies to positive totals only.
-    (booking?.extraCostTotal || 0) > 0
-      ? Math.max(booking?.extraCostTotal || 0, customerExtraCostEstimate)
-      : customerExtraCostEstimate,
+    // The server's amount due (customers) is what the charge will take.
+    // Otherwise: extra-cost loyalty is capped at the commission, preserving
+    // the supplier's net; a refund of fewer units already includes the
+    // commission and has no discount to cap, so the floor applies to positive
+    // totals only.
+    extraCostEstimatedNet(
+      details?.extraCosts?.customerChargeDue,
+      (booking?.extraCostTotal || 0) > 0
+        ? Math.max(booking?.extraCostTotal || 0, customerExtraCostEstimate)
+        : customerExtraCostEstimate,
+    ),
   )
 
   const extraCostDue = hasPositiveExtraCost(booking, details?.extraCosts?.totalCustomerAmount)

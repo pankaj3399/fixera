@@ -63,6 +63,20 @@ export function getExtraCostAmounts(
   return { net, vat, total: gross ?? money(net + vat), vatRate: rate }
 }
 
+/**
+ * Net the extra-cost card shows before a charge exists. The server's amount
+ * (the one the PaymentIntent will charge, loyalty capped at the commission)
+ * wins over the local estimate, which a customer cannot cap because the
+ * commission is never sent to them (F1-3: 71.15 vs invoice 72.60).
+ */
+export function extraCostEstimatedNet(
+  chargeDue: { netAmount?: number | null } | null | undefined,
+  localEstimate: number,
+): number {
+  const net = Number(chargeDue?.netAmount)
+  return chargeDue && Number.isFinite(net) ? net : localEstimate
+}
+
 interface ExtraCostDueBooking {
   status?: string
   extraCostTotal?: number

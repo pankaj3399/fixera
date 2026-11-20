@@ -478,6 +478,7 @@
     "calculated": "Calculé : {amount}",
     "toasts": {
       "initFailed": "L'initialisation du paiement des frais supplémentaires a échoué",
+      "professionalPaymentsUnavailable": "Le compte de paiement du professionnel ne peut pas encore recevoir ce paiement : les frais supplémentaires ne peuvent pas être payés pour le moment. Veuillez réessayer plus tard ou contacter le support.",
       "initFailedRetry": "L'initialisation du paiement des frais supplémentaires a échoué. Veuillez réessayer.",
       "payToComplete": "Payez les frais supplémentaires ci-dessous pour finaliser la réservation.",
       "paid": "Frais supplémentaires payés. Finalisation de la réservation...",

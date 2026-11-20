@@ -478,6 +478,7 @@
     "calculated": "Berekend: {amount}",
     "toasts": {
       "initFailed": "Betaling van de meerkosten starten is mislukt",
+      "professionalPaymentsUnavailable": "De betaalrekening van de vakman kan deze betaling nog niet ontvangen, dus de meerkosten kunnen nu niet betaald worden. Probeer het later opnieuw of neem contact op met support.",
       "initFailedRetry": "Betaling van de meerkosten starten is mislukt. Probeer het opnieuw.",
       "payToComplete": "Betaal de meerkosten hieronder om de boeking af te ronden.",
       "paid": "Meerkosten betaald. Boeking wordt afgerond...",

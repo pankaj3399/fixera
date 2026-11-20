@@ -478,6 +478,7 @@
     "calculated": "Calculated: {amount}",
     "toasts": {
       "initFailed": "Failed to initialize extra cost payment",
+      "professionalPaymentsUnavailable": "The professional's payment account cannot receive this payment yet, so the extra costs cannot be paid right now. Please try again later or contact support.",
       "initFailedRetry": "Failed to initialize extra cost payment. Please try again.",
       "payToComplete": "Pay the extra costs below to complete the booking.",
       "paid": "Extra costs paid. Finalizing booking...",
