@@ -2170,7 +2170,7 @@ test('an abandoned project filter render cannot strand the committed request on 
   } finally { state.unmount(); globalThis.fetch = previousFetch }
 })
 
-test('comparison tabs reveal selected packages by scrolling only their horizontal container', async () => {
+test('comparison tabs: every package is a visible, selectable tab in a wrapping strip (FT2-3)', async () => {
   const state = hooks()
   const ui = stubModule()
   const Component = loadComponent('../components/project/SubprojectComparisonTable.tsx', {
@@ -2183,22 +2183,16 @@ test('comparison tabs reveal selected packages by scrolling only their horizonta
     '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: String }) },
     '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
   })
-  const props = { subprojects: [0, 1, 2].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 1, onSelectPackage() {}, onSelectIndex() {} }
-  const scrolls = []
-  let pageScrolls = 0
-  const container = { getBoundingClientRect: () => ({ left: 0, right: 240 }), scrollBy: options => scrolls.push(options) }
+  const selected = []
+  const props = { subprojects: [0, 1, 2, 3, 4].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 3, onSelectPackage() {}, onSelectIndex: i => selected.push(i) }
   const tree = state.render(() => Component(props))
-  findAll(tree, node => node.props.className === 'flex overflow-x-auto')[0].props.ref.current = container
-  const buttons = findAll(tree, node => node.type === 'button' && typeof node.props.ref === 'function')
-  const bounds = [{ left: -40, right: 80 }, { left: 240, right: 360 }, { left: 60, right: 180 }]
-  buttons.forEach((button, i) => button.props.ref({ getBoundingClientRect: () => bounds[i], scrollIntoView: () => pageScrolls++ }))
-  state.flush()
-  assert.deepEqual(scrolls, [{ left: 120 }])
-  state.render(() => Component({ ...props, selectedIndex: 2 })); state.flush()
-  assert.equal(scrolls.length, 1, 'already-visible tab does not scroll')
-  state.render(() => Component({ ...props, selectedIndex: 0 })); state.flush()
-  assert.deepEqual(scrolls, [{ left: 120 }, { left: -40 }])
-  assert.equal(pageScrolls, 0)
+  const strip = findAll(tree, node => node.props.role === 'tablist')[0]
+  assert.equal(strip.props.className, 'flex flex-wrap')
+  const tabs = findAll(tree, node => node.type === 'button' && node.props.role === 'tab')
+  assert.equal(tabs.length, 5)
+  assert.deepEqual(tabs.map(tab => tab.props['aria-selected']), [false, false, false, true, false])
+  tabs[4].props.onClick()
+  assert.deepEqual(selected, [4])
   state.unmount()
 })
 
