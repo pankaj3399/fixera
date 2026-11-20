@@ -90,6 +90,9 @@ export interface SharedBookingRow {
   overview?: {
     paidPrice?: OverviewMoney | null
     completionAddition?: OverviewMoney | null
+    /** Professionals only: recorded payout and the professional share of a refund (same basis). */
+    payoutAmount?: OverviewMoney | null
+    refundAmount?: OverviewMoney | null
   } | null
   warrantyCoverage?: {
     duration?: { value?: number; unit?: "months" | "years" }
@@ -141,6 +144,24 @@ function authoritativeOverviewMoney(value: OverviewMoney | null | undefined): Ov
     return NOT_RECORDED
   }
   return recordedMoney(value.amount, value.currency)
+}
+
+/**
+ * Pro payout column (FT2-13): the server overview puts payout and refund on
+ * the same professional basis; payloads without it fall back to the raw
+ * recorded payout and refund.
+ */
+export function payoutColumnOf(booking: SharedBookingRow): { payout: OverviewMoney; refund: OverviewMoney } {
+  const payment = booking.payment
+  const fallbackPayout = isFiniteNumber(payment?.professionalPayout)
+    ? recordedMoney(payment!.professionalPayout as number, payment?.currency)
+    : NOT_RECORDED
+  const rawRefund = payment?.refundedTotal ?? payment?.refundAmount
+  const fallbackRefund = isFiniteNumber(rawRefund) ? recordedMoney(rawRefund, payment?.currency) : NOT_RECORDED
+  return {
+    payout: authoritativeOverviewMoney(booking.overview?.payoutAmount) ?? fallbackPayout,
+    refund: authoritativeOverviewMoney(booking.overview?.refundAmount) ?? fallbackRefund,
+  }
 }
 
 /**
@@ -372,12 +393,17 @@ export default function SharedBookingsTable({
                 )}
                 {payoutVisible && (
                   <td className="px-3 py-3 text-gray-700">
-                    {booking.payment?.professionalPayout != null
-                      ? formatMoney(booking.payment.professionalPayout, booking.payment?.currency)
-                      : DASH}
-                    {(booking.payment?.refundedTotal ?? booking.payment?.refundAmount) != null && (
-                      <div className="mt-0.5">− {formatMoney((booking.payment?.refundedTotal ?? booking.payment?.refundAmount) as number, booking.payment?.currency)}</div>
-                    )}
+                    {(() => {
+                      const { payout, refund } = payoutColumnOf(booking)
+                      return (
+                        <>
+                          {payout.amount != null ? formatMoney(payout.amount, payout.currency || booking.payment?.currency) : DASH}
+                          {refund.amount != null && (
+                            <div className="mt-0.5">− {formatMoney(refund.amount, refund.currency || booking.payment?.currency)}</div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </td>
                 )}
                 <td className="px-3 py-3">
