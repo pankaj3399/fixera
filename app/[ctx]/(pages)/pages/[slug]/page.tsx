@@ -2,7 +2,9 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { publicGetCms } from "@/lib/cms/public";
+import { publicGetCms, shortenCmsUnavailableCache } from "@/lib/cms/public";
+import CmsUnavailable from "@/components/cms/CmsUnavailable";
+import type { CmsContent } from "@/lib/cms";
 import { cmsCoverAlt } from "@/lib/cms";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
@@ -20,6 +22,15 @@ export function generateStaticParams(): Array<{ slug: string }> {
 
 const RESERVED_SLUGS = new Set(["about", "privacy-policy"]);
 
+/** Landing page, else policy page; "unavailable" when the CMS could not be reached (CA4). */
+async function loadCmsPage(slug: string): Promise<CmsContent | null | "unavailable"> {
+  try {
+    return (await publicGetCms("landing", slug)) || (await publicGetCms("policy", slug));
+  } catch {
+    return "unavailable";
+  }
+}
+
 interface Props {
   params: Promise<{ ctx: string; slug: string }>;
 }
@@ -29,8 +40,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const t = await getTranslations("content");
   if (RESERVED_SLUGS.has(slug)) return buildMetadata({ title: t("cmsPage.notFoundTitle"), path: `/pages/${slug}`, noindex: true });
-  const landing = await publicGetCms("landing", slug);
-  const content = landing || (await publicGetCms("policy", slug));
+  const loaded = await loadCmsPage(slug);
+  if (loaded === "unavailable") return buildMetadata({ title: t("unavailable.title"), path: `/pages/${slug}`, noindex: true });
+  const content = loaded;
   if (!content) return buildMetadata({ title: t("cmsPage.notFoundTitle"), path: `/pages/${slug}`, noindex: true });
   return buildMetadata({
     title: content.seo?.titleTag || content.title,
@@ -47,9 +59,11 @@ export default async function GenericCmsPage({ params }: Props) {
   const { slug } = await params;
   const t = await getTranslations("content");
   if (RESERVED_SLUGS.has(slug)) notFound();
-  const landing = await publicGetCms("landing", slug);
-  const policy = !landing ? await publicGetCms("policy", slug) : null;
-  const content = landing || policy;
+  const content = await loadCmsPage(slug);
+  if (content === "unavailable") {
+    await shortenCmsUnavailableCache();
+    return <CmsUnavailable retryHref={`/pages/${encodeURIComponent(slug)}`} backHref="/" backLabel={t("breadcrumbs.home")} />;
+  }
   if (!content) notFound();
 
   return (
