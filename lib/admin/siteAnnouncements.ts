@@ -378,6 +378,24 @@ export async function saveSiteAnnouncement(
   }
 }
 
+/** CA6: permanently deletes an announcement (the Live switch only hides it). */
+export async function deleteSiteAnnouncement(id: string) {
+  const res = await authFetch(`${API_BASE}/api/admin/site-announcements/${id}`, { method: "DELETE" });
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    throw new ApiRequestError("The server returned an unexpected response. Please try again.", {
+      kind: "invalidResponse",
+      status: res.status,
+    });
+  }
+  const j = json as { success?: unknown; msg?: string } | null;
+  if (!res.ok || !j?.success) {
+    throw apiErrorFromBody(j, "Delete failed", { status: res.status });
+  }
+}
+
 export async function setSiteAnnouncementActive(id: string, isActive: boolean) {
   const res = await authFetch(`${API_BASE}/api/admin/site-announcements/${id}/active`, {
     method: "PATCH",

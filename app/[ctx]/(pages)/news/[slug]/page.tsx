@@ -5,7 +5,8 @@ import { ArrowLeft, Calendar } from "lucide-react";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { cmsAuthorName, cmsCoverAlt } from "@/lib/cms";
-import { fetchCmsPostWithError } from "@/lib/cms/public";
+import { fetchCmsPostWithError, shortenCmsUnavailableCache } from "@/lib/cms/public";
+import CmsUnavailable from "@/components/cms/CmsUnavailable";
 import RichTextRenderer from "@/components/cms/RichTextRenderer";
 import MachineTranslatedNote from "@/components/cms/MachineTranslatedNote";
 import ArticleRelatedSections from "@/components/cms/ArticleRelatedSections";
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await getTranslations("content");
   const { post, fetchError } = await fetchCmsPostWithError("news", slug);
   if (fetchError) {
-    return buildMetadata({ title: t("news.notFoundTitle"), path: `/news/${slug}` });
+    return buildMetadata({ title: t("unavailable.title"), path: `/news/${slug}`, noindex: true });
   }
   if (!post) return buildMetadata({ title: t("news.articleNotFoundTitle"), path: `/news/${slug}`, noindex: true });
   return buildMetadata({
@@ -53,7 +54,10 @@ export default async function NewsDetailPage({ params }: Props) {
   const { slug } = await params;
   const [t, locale] = await Promise.all([getTranslations("content"), getLocale()]);
   const { post, fetchError } = await fetchCmsPostWithError("news", slug);
-  if (fetchError) throw new Error(`Failed to load news article ${slug}`);
+  if (fetchError) {
+    await shortenCmsUnavailableCache();
+    return <CmsUnavailable retryHref={`/news/${encodeURIComponent(slug)}`} backHref="/news" backLabel={t("news.allNews")} />;
+  }
   if (!post && !fetchError) notFound();
   if (!post) {
     return (

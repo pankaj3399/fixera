@@ -589,13 +589,13 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
             {schedule?.preferredStartTime}
           </DetailField>
           <DetailField label={dt("fields.scheduledStart", "Scheduled start")} empty={!schedule?.scheduledStartDate && !booking.scheduledStartDate}>
-            {formatCalendarDate(schedule?.scheduledStartDate || booking.scheduledStartDate, intl) ||
+            {formatCalendarDate(schedule?.scheduledStartDate || booking.scheduledStartDate, intl, recordedScheduleZone) ||
               schedule?.scheduledStartDate ||
               booking.scheduledStartDate}
             {scheduleTimeRange ? ` ${scheduleTimeRange}` : ""}
           </DetailField>
           <DetailField label={dt("fields.scheduledExecutionEnd", "Scheduled execution end")} empty={!schedule?.scheduledExecutionEndDate && !booking.scheduledExecutionEndDate}>
-            {formatCalendarDate(schedule?.scheduledExecutionEndDate || booking.scheduledExecutionEndDate, intl) ||
+            {formatCalendarDate(schedule?.scheduledExecutionEndDate || booking.scheduledExecutionEndDate, intl, recordedScheduleZone) ||
               schedule?.scheduledExecutionEndDate ||
               booking.scheduledExecutionEndDate}
           </DetailField>

@@ -119,5 +119,10 @@
     "claimOffer": "Profiteer van de actie",
     "previewToast": "Voorbeeld wordt {seconds} seconden getoond"
   },
-  "machineTranslatedNote": "Deze pagina is automatisch vertaald, dus de formulering is mogelijk niet perfect."
+  "machineTranslatedNote": "Deze pagina is automatisch vertaald, dus de formulering is mogelijk niet perfect.",
+  "unavailable": {
+    "title": "Deze inhoud is tijdelijk niet beschikbaar",
+    "description": "We konden deze pagina nu niet laden. Probeer het zo meteen opnieuw.",
+    "retry": "Opnieuw proberen"
+  }
 }

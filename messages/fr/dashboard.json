@@ -492,7 +492,11 @@
     "resolution": "Résolution : {value}",
     "raised": "Ouvert : {date}",
     "resolvedOn": "Résolu : {date}",
-    "viewBooking": "Voir la réservation"
+    "viewBooking": "Voir la réservation",
+    "allStatuses": "Tous les statuts",
+    "allServices": "Tous les services",
+    "filterService": "Filtrer par service",
+    "search": "Rechercher un n° de réservation…"
   },
   "favorites": {
     "title": "Vos favoris",

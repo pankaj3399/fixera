@@ -119,5 +119,10 @@
     "claimOffer": "Claim offer",
     "previewToast": "Showing preview for {seconds} seconds"
   },
-  "machineTranslatedNote": "This page was translated automatically, so the wording may not be perfect."
+  "machineTranslatedNote": "This page was translated automatically, so the wording may not be perfect.",
+  "unavailable": {
+    "title": "This content is temporarily unavailable",
+    "description": "We couldn't load this page right now. Please try again in a moment.",
+    "retry": "Try again"
+  }
 }

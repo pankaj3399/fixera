@@ -159,7 +159,7 @@ test('category page: an aborted request does not end the loading state of its re
       '@/components/ui/skeleton': { Skeleton }, '@/components/ui/button': { Button: () => null },
       '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: () => 'BE', matchCatalogCategory: (rows, s) => rows.find(row => row.slug === s), normalizeCategorySlug: s => s },
       '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
     })
     state.render(() => Component())
     state.flush()
@@ -580,7 +580,7 @@ test('category page: navigating to an unknown slug never shows the previous cate
       '@/components/ui/skeleton': { Skeleton: () => null }, '@/components/ui/button': { Button: () => null },
       '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE', resolveCatalogCountry: () => 'BE', matchCatalogCategory: (rows, s) => rows.find(row => row.slug === s), normalizeCategorySlug: s => s },
       '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+      '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
     })
     const catalog = [{ slug: 'gardening', name: 'Gardening', services: [] }]
     state.render(() => Component())
@@ -1960,6 +1960,7 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
     '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
     '@/components/ui/card': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
     '@/components/ui/button': { Button }, 'lucide-react': ui, sonner: { toast: { error() {} } },
+    '@/components/ui/select': ui, '@/components/ui/input': ui, '@/lib/dashboardOverview': await import('../lib/dashboardOverview.ts'),
   })
   const render = () => state.render(() => Component())
   let tree = render(); state.flush()
@@ -1983,6 +1984,56 @@ test('participant disputes: later pages clear stale rows on failure and Refresh 
   state.unmount()
 })
 
+
+test('FT2 #10a: participant disputes filter by status and service and show the counts', async () => {
+  const state = hooks()
+  const requests = []
+  const t = key => key
+  const auth = { user: { _id: 'u1' }, loading: false }
+  const Button = () => null
+  const Select = () => null
+  const SelectItem = () => null
+  const Input = () => null
+  const ui = stubModule()
+  const Component = loadComponent('../app/[ctx]/(pages)/dashboard/disputes/page.tsx', {
+    react: state.api,
+    'next/navigation': { useRouter: () => ({ push() {} }), usePathname: () => '/dashboard/disputes' },
+    'next-intl': { useTranslations: () => t },
+    '@/contexts/AuthContext': { useAuth: () => auth },
+    '@/lib/utils': { authFetch: (url, options) => { const d = deferred(); requests.push({ url, ...options, ...d }); return d.promise } },
+    '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-GB' }) },
+    '@/components/ui/card': ui, '@/components/ui/badge': ui, '@/components/ui/skeleton': ui,
+    '@/components/ui/button': { Button }, 'lucide-react': ui, sonner: { toast: { error() {} } },
+    '@/components/ui/input': { Input },
+    '@/components/ui/select': { Select, SelectItem, SelectContent: ui.SelectContent ?? (() => null), SelectTrigger: ui.SelectTrigger ?? (() => null), SelectValue: ui.SelectValue ?? (() => null) },
+    '@/lib/dashboardOverview': await import('../lib/dashboardOverview.ts'),
+  })
+  const render = () => state.render(() => Component())
+  let tree = render(); state.flush()
+  assert.doesNotMatch(requests[0].url, /status=|service=/)
+  requests[0].resolve({ ok: true, json: async () => ({ success: true, data: {
+    items: [{ _id: 'b1', bookingNumber: 'BK-1', dispute: { reason: 'r' } }],
+    statusCounts: { open: 1, resolved: 2 }, serviceCounts: { Plumbing: 1, Painting: 2 },
+    pagination: { totalPages: 3 },
+  } }) }); await settle()
+  tree = render()
+  const items = findAll(tree, node => node.type === SelectItem).map(node => textOf(node))
+  assert.deepEqual(items, ['disputes.allServices', 'Painting (2)', 'Plumbing (1)', 'disputes.allStatuses', 'disputes.statusOpen (1)', 'disputes.statusResolved (2)'])
+  const [serviceSelect, statusSelect] = findAll(tree, node => node.type === Select)
+  findAll(tree, node => node.type === Button && textOf(node).includes('common.next'))[0].props.onClick(); tree = render(); state.flush()
+  assert.match(requests[1].url, /page=2/)
+  statusSelect.props.onValueChange('resolved'); tree = render(); state.flush()
+  assert.match(requests.at(-1).url, /page=1&limit=20&status=resolved$/)
+  findAll(tree, node => node.type === Select)[0].props.onValueChange('Painting'); tree = render(); state.flush()
+  assert.match(requests.at(-1).url, /status=resolved&service=Painting$/)
+  assert.ok(serviceSelect)
+  const before = requests.length
+  findAll(tree, node => node.type === Input)[0].props.onChange({ target: { value: ' BK-7 ' } }); tree = render(); state.flush()
+  await new Promise(resolve => setTimeout(resolve, 450)); tree = render(); state.flush()
+  assert.ok(requests.length > before)
+  assert.match(requests.at(-1).url, /page=1&limit=20&status=resolved&service=Painting&q=BK-7$/)
+  state.unmount()
+})
 
 test('normalized quotation panels cannot leave quote response actions enabled on a historical version', () => {
   const { resolveQuoteVersionView } = loadPinnedVersionModule(hooks().api, {})
@@ -2174,7 +2225,7 @@ test('an abandoned project filter render cannot strand the committed request on 
   } finally { state.unmount(); globalThis.fetch = previousFetch }
 })
 
-test('comparison tabs reveal selected packages by scrolling only their horizontal container', async () => {
+test('comparison tabs: every package is a visible, selectable tab in a wrapping strip (FT2-3)', async () => {
   const state = hooks()
   const ui = stubModule()
   const Component = loadComponent('../components/project/SubprojectComparisonTable.tsx', {
@@ -2187,22 +2238,16 @@ test('comparison tabs reveal selected packages by scrolling only their horizonta
     '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: String }) },
     '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
   })
-  const props = { subprojects: [0, 1, 2].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 1, onSelectPackage() {}, onSelectIndex() {} }
-  const scrolls = []
-  let pageScrolls = 0
-  const container = { getBoundingClientRect: () => ({ left: 0, right: 240 }), scrollBy: options => scrolls.push(options) }
+  const selected = []
+  const props = { subprojects: [0, 1, 2, 3, 4].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 3, onSelectPackage() {}, onSelectIndex: i => selected.push(i) }
   const tree = state.render(() => Component(props))
-  findAll(tree, node => node.props.className === 'flex overflow-x-auto')[0].props.ref.current = container
-  const buttons = findAll(tree, node => node.type === 'button' && typeof node.props.ref === 'function')
-  const bounds = [{ left: -40, right: 80 }, { left: 240, right: 360 }, { left: 60, right: 180 }]
-  buttons.forEach((button, i) => button.props.ref({ getBoundingClientRect: () => bounds[i], scrollIntoView: () => pageScrolls++ }))
-  state.flush()
-  assert.deepEqual(scrolls, [{ left: 120 }])
-  state.render(() => Component({ ...props, selectedIndex: 2 })); state.flush()
-  assert.equal(scrolls.length, 1, 'already-visible tab does not scroll')
-  state.render(() => Component({ ...props, selectedIndex: 0 })); state.flush()
-  assert.deepEqual(scrolls, [{ left: 120 }, { left: -40 }])
-  assert.equal(pageScrolls, 0)
+  const strip = findAll(tree, node => node.props.role === 'tablist')[0]
+  assert.equal(strip.props.className, 'flex flex-wrap')
+  const tabs = findAll(tree, node => node.type === 'button' && node.props.role === 'tab')
+  assert.equal(tabs.length, 5)
+  assert.deepEqual(tabs.map(tab => tab.props['aria-selected']), [false, false, false, true, false])
+  tabs[4].props.onClick()
+  assert.deepEqual(selected, [4])
   state.unmount()
 })
 

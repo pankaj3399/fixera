@@ -10,6 +10,7 @@ import SearchAutocomplete from './search/SearchAutocomplete'
 import LocationAutocomplete, { type LocationData } from './search/LocationAutocomplete'
 import { useSearchAutocomplete, type Suggestion } from '@/hooks/useSearchAutocomplete'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCatalogNames } from '@/lib/catalog/catalogNames'
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ export default function HeroSearchForm({
 }) {
   const router = useRouter()
   const t = useTranslations('home')
+  const { serviceName } = useCatalogNames()
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [location, setLocation] = useState('')
@@ -157,7 +159,7 @@ export default function HeroSearchForm({
                   onClick={() => setSearchQuery(service)}
                   className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-full text-gray-700 hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                 >
-                  {service}
+                  {serviceName(service)}
                 </button>
               ))}
             </div>

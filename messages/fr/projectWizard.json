@@ -141,7 +141,7 @@
       "generate": "Suggérer un titre",
       "generating": "Génération…",
       "generateFailed": "Impossible de générer des titres. Veuillez réessayer.",
-      "localFallback": "OpenAI n’est pas configuré. Une idée locale basée sur les détails du projet est affichée.",
+      "localFallback": "OpenAI n’est pas configuré. Des idées de titres locales basées sur les détails du projet sont affichées.",
       "useGenerated": "Utiliser le titre généré",
       "suggested": "Titre suggéré :",
       "label": "Titre du projet *",

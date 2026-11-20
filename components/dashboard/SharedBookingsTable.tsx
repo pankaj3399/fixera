@@ -9,6 +9,7 @@ import ProfessionalTableTags from "./ProfessionalTableTags"
 import ProfessionalLevelTag from "./ProfessionalLevelTag"
 import { useSharedTableText } from "./sharedTableText"
 import { getBookingStatusMeta } from "@/lib/dashboardBookingHelpers"
+import { formatCalendarDate } from "@/lib/bookingDetails"
 import {
   bookingHref,
   DASH,
@@ -30,6 +31,7 @@ export interface SharedBookingRow {
   createdAt?: string | null
   scheduledStartDate?: string | null
   scheduledExecutionEndDate?: string | null
+  scheduleTimeZone?: string | null
   actualStartDate?: string | null
   actualEndDate?: string | null
   priceModel?: string | null
@@ -354,7 +356,7 @@ export default function SharedBookingsTable({
                 )}
                 <td className="px-3 py-3 text-gray-700">{formatUnknownDate(booking.createdAt, intl)}</td>
                 <td className="px-3 py-3 text-gray-700">
-                  {formatUnknownDate(booking.scheduledStartDate, intl)} / {formatUnknownDate(booking.scheduledExecutionEndDate, intl)}
+                  {formatCalendarDate(booking.scheduledStartDate, intl, booking.scheduleTimeZone) || DASH} / {formatCalendarDate(booking.scheduledExecutionEndDate, intl, booking.scheduleTimeZone) || DASH}
                 </td>
                 <td className="px-3 py-3 text-gray-700">
                   {formatUnknownDate(booking.actualStartDate, intl)} / {formatUnknownDate(booking.actualEndDate, intl)}

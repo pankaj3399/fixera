@@ -59,3 +59,20 @@ test('timezone labels are localized and retain the IANA identifier', () => {
   assert.equal(formatTimeZoneLabel(null, 'en-GB'), null)
   assert.equal(formatTimeZoneLabel('Not/AZone', 'en-GB'), 'Not/AZone')
 })
+
+test('C11-1x: a day-mode start stored as local midnight shows its own day', async () => {
+  const { calendarDateKey, formatCalendarDate } = await import('../lib/bookingDetails.ts')
+  // 23/11 00:00 in Brussels, stored as an instant.
+  const stored = '2026-11-22T23:00:00.000Z'
+  assert.equal(calendarDateKey(stored, 'Europe/Brussels'), '2026-11-23')
+  assert.equal(formatCalendarDate(stored, 'en-GB', 'Europe/Brussels'), '23/11/2026')
+  // No recorded zone: the viewer's zone (Europe/Amsterdam here), not UTC.
+  assert.equal(formatCalendarDate(stored, 'en-GB'), '23/11/2026')
+  // Date-only values and UTC midnights keep their own date in any zone.
+  assert.equal(formatCalendarDate('2026-11-23', 'en-GB', 'America/New_York'), '23/11/2026')
+  assert.equal(formatCalendarDate('2026-11-23T00:00:00.000Z', 'en-GB', 'America/New_York'), '23/11/2026')
+  assert.equal(calendarDateKey('2026-11-23T00:00:00.000Z'), '2026-11-23')
+  // Invalid recorded zone falls back to the viewer zone.
+  assert.equal(calendarDateKey(stored, 'Not/AZone'), '2026-11-23')
+  assert.equal(formatCalendarDate('not-a-date', 'en-GB'), null)
+})

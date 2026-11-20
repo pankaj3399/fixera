@@ -445,11 +445,12 @@ export function leadImportKind(record: LeadImportRecord): LeadImportKind {
   ) {
     return "empty";
   }
+  // Nothing new but known leads (plus any invalid rows): not a failure (CA5).
+  if (record.importedRows === 0 && record.duplicateRows > 0) {
+    return "duplicate";
+  }
   if (record.importedRows === 0 && record.failedRows > 0) {
     return "failed";
-  }
-  if (record.importedRows === 0 && record.duplicateRows > 0 && record.failedRows === 0) {
-    return "duplicate";
   }
   if (
     record.importedRows > 0 &&
@@ -529,7 +530,9 @@ export function leadImportOutcome(record: LeadImportRecord): LeadImportOutcome {
       kind,
       tone: "neutral",
       title: "No new leads",
-      message: `All ${plural(record.duplicateRows, "row")} already exist. Nothing was imported.`,
+      message: record.failedRows > 0
+        ? `Nothing new was imported: ${plural(record.duplicateRows, "row")} already exist and ${plural(record.failedRows, "row")} failed.`
+        : `All ${plural(record.duplicateRows, "row")} already exist. Nothing was imported.`,
       statusLabel,
       counts,
     };

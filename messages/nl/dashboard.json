@@ -492,7 +492,11 @@
     "resolution": "Oplossing: {value}",
     "raised": "Geopend: {date}",
     "resolvedOn": "Opgelost: {date}",
-    "viewBooking": "Boeking bekijken"
+    "viewBooking": "Boeking bekijken",
+    "allStatuses": "Alle statussen",
+    "allServices": "Alle diensten",
+    "filterService": "Filteren op dienst",
+    "search": "Zoek op boekingsnummer…"
   },
   "favorites": {
     "title": "Je favorieten",

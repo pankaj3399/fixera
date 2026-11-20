@@ -1,3 +1,4 @@
+import { useCatalogNames } from '@/lib/catalog/catalogNames';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -131,6 +132,7 @@ interface ProjectCardProps {
 
 const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, onFavoriteToggled }: ProjectCardProps) => {
   const t = useTranslations('search');
+  const { categoryName } = useCatalogNames();
   const { formatPrice } = useCurrency();
   const { intl } = useFormatLocale();
   const { levelColor } = useTierColors();
@@ -261,7 +263,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
 
         {/* Category Badge */}
         <Badge className="absolute top-3 right-14 bg-blue-600 text-white">
-          {project.category}
+          {categoryName(project.category)}
         </Badge>
         <div className="absolute top-3 right-3">
           <FavoriteButton

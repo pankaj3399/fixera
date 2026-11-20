@@ -344,7 +344,7 @@ export function OverviewPanel({
         <DetailCard title={dt("overview.schedule", "Schedule")}>
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <DetailField label={dt("fields.scheduledStart", "Scheduled start")} empty={!schedule?.scheduledStartDate && !booking.scheduledStartDate}>
-              {formatCalendarDate(schedule?.scheduledStartDate || booking.scheduledStartDate, intl) ||
+              {formatCalendarDate(schedule?.scheduledStartDate || booking.scheduledStartDate, intl, recordedScheduleZone) ||
                 schedule?.scheduledStartDate ||
                 booking.scheduledStartDate}
               {scheduleTimeRange ? (
@@ -355,18 +355,18 @@ export function OverviewPanel({
               label={dt("fields.scheduledExecutionEnd", "Scheduled execution end")}
               empty={!schedule?.scheduledExecutionEndDate && !booking.scheduledExecutionEndDate && !booking.scheduledEndDate}
             >
-              {formatCalendarDate(schedule?.scheduledExecutionEndDate || booking.scheduledExecutionEndDate || booking.scheduledEndDate, intl) ||
+              {formatCalendarDate(schedule?.scheduledExecutionEndDate || booking.scheduledExecutionEndDate || booking.scheduledEndDate, intl, recordedScheduleZone) ||
                 schedule?.scheduledExecutionEndDate ||
                 booking.scheduledExecutionEndDate ||
                 booking.scheduledEndDate}
             </DetailField>
             <DetailField label={dt("fields.bufferStart", "Buffer start")} empty={!schedule?.scheduledBufferStartDate && !booking.scheduledBufferStartDate}>
-              {formatCalendarDate(schedule?.scheduledBufferStartDate || booking.scheduledBufferStartDate, intl) ||
+              {formatCalendarDate(schedule?.scheduledBufferStartDate || booking.scheduledBufferStartDate, intl, recordedScheduleZone) ||
                 schedule?.scheduledBufferStartDate ||
                 booking.scheduledBufferStartDate}
             </DetailField>
             <DetailField label={dt("fields.bufferEnd", "Buffer end")} empty={!schedule?.scheduledBufferEndDate && !booking.scheduledBufferEndDate}>
-              {formatCalendarDate(schedule?.scheduledBufferEndDate || booking.scheduledBufferEndDate, intl) ||
+              {formatCalendarDate(schedule?.scheduledBufferEndDate || booking.scheduledBufferEndDate, intl, recordedScheduleZone) ||
                 schedule?.scheduledBufferEndDate ||
                 booking.scheduledBufferEndDate}
             </DetailField>

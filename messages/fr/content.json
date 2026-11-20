@@ -119,5 +119,10 @@
     "claimOffer": "Profiter de l'offre",
     "previewToast": "Aperçu affiché pendant {seconds} secondes"
   },
-  "machineTranslatedNote": "Cette page a été traduite automatiquement ; la formulation peut donc être imparfaite."
+  "machineTranslatedNote": "Cette page a été traduite automatiquement ; la formulation peut donc être imparfaite.",
+  "unavailable": {
+    "title": "Ce contenu est temporairement indisponible",
+    "description": "Nous n'avons pas pu charger cette page pour le moment. Veuillez réessayer dans un instant.",
+    "retry": "Réessayer"
+  }
 }

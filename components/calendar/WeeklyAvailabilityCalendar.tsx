@@ -129,10 +129,12 @@ const EVENT_STYLES: Record<
     badge: 'bg-indigo-50 text-indigo-800',
     text: 'text-indigo-900',
   },
+  // FT3 #8: completed bookings use a neutral slate, clearly distinct from the
+  // green personal blocks (and from pending blue / active indigo).
   'booking-completed': {
-    gradient: 'from-emerald-200 via-teal-200 to-green-200',
-    badge: 'bg-emerald-50 text-emerald-800',
-    text: 'text-emerald-900',
+    gradient: 'from-slate-300 via-slate-200 to-zinc-200',
+    badge: 'bg-slate-100 text-slate-700',
+    text: 'text-slate-800',
   },
   'booking-buffer': {
     gradient: 'from-violet-200 via-fuchsia-200 to-pink-200',
