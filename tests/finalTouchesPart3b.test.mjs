@@ -313,3 +313,23 @@ test('RFQ wording and milestone/price keys exist with placeholders intact', () =
   assert.equal(checkoutEn.paymentPage.selectedOptionsInfo, 'Selected options (included)')
   assert.ok(bookingsEn.cancellationRequest.professionalNote.includes('{note}'))
 })
+
+test('item 13: approving a cancellation on the booking page asks for confirmation first', () => {
+  const source = readSource('../components/booking/CancellationRequestCard.tsx')
+  // The first click only opens the confirmation; only its confirm button calls the API.
+  assert.match(source, /onClick=\{\(\) => setConfirmingApprove\(true\)\}/)
+  assert.doesNotMatch(source, /onClick=\{\(\) => void respond\('approve'\)\}/)
+  assert.match(source, /void respond\('approve'\)\.finally\(\(\) => setConfirmingApprove\(false\)\)/)
+  for (const locale of ['en', 'nl', 'fr']) {
+    const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}/bookings.json`, import.meta.url), 'utf8'))
+    for (const key of ['confirmApproveTitle', 'confirmApproveFull', 'confirmApproveAmount', 'confirmApprovePartialHint', 'confirmApproveButton', 'confirmApproveCancel']) {
+      assert.ok(messages.cancellationRequest[key], `${locale}: cancellationRequest.${key}`)
+    }
+  }
+  // The initial render still shows Approve/Reject but no confirmation yet.
+  const html = renderCard(React.createElement(CancellationRequestCard, {
+    bookingId: 'b1', request: { id: 'c1', status: 'pending', requestedRole: 'customer' }, viewerRole: 'professional', currency: 'EUR',
+  }))
+  assert.match(html, /Approve cancellation/)
+  assert.doesNotMatch(html, /Yes, approve and refund/)
+})

@@ -9,6 +9,7 @@ const React = (await import('react')).default
 const { renderToStaticMarkup } = await import('react-dom/server')
 const intl = await import('next-intl')
 const { loadComponent } = await import('./reviewComponentHarness.mjs')
+const catalogNames = await import('../lib/catalog/catalogNames.ts')
 const { componentHarness } = await import('./helpers/componentHarness.mjs')
 const popularLib = await import('../lib/popularProject.ts')
 const publicCache = await import('../lib/publicCache.ts')
@@ -136,6 +137,7 @@ function loadCarousel(hook) {
     '@/components/ui/badge': { Badge: ({ children }) => h('span', null, children) },
     '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: (n) => `€${n}` }) },
     '@/components/home/useDeferredPopularImages': hook,
+    '@/lib/catalog/catalogNames': catalogNames,
   })
 }
 

@@ -562,9 +562,46 @@ export function isCalendarDate(value: string | null | undefined): boolean {
  * Date-only schedule fields are calendar dates. Parsing them as local parts
  * avoids the UTC-midnight shift that `new Date("2026-06-24")` causes west of UTC.
  */
-export function parseCalendarDate(value: string | null | undefined): Date | null {
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// A stored UTC midnight is a date-only value serialized as a Date.
+const UTC_MIDNIGHT_PATTERN = /^\d{4}-\d{2}-\d{2}T00:00(?::00(?:\.0+)?)?(?:Z|[+-]00:?00)$/;
+
+/**
+ * The calendar day (YYYY-MM-DD) a stored schedule value names. Date-only
+ * values and UTC midnights keep their own date. Any other instant (e.g. a
+ * day-mode start stored as the professional's local midnight,
+ * 2026-11-22T23:00Z for 23/11 in Brussels) is read in the booking's zone
+ * when known, otherwise in the viewer's zone — never as its UTC date, which
+ * showed such bookings one day early (C11-1x).
+ */
+export function calendarDateKey(value: string | null | undefined, timeZone?: string | null): string | null {
   if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (DATE_ONLY_PATTERN.test(value) || UTC_MIDNIGHT_PATTERN.test(value)) return value.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    const instant = new Date(value);
+    if (Number.isFinite(instant.getTime())) {
+      if (timeZone) {
+        try {
+          return new Intl.DateTimeFormat("en-CA", {
+            timeZone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(instant);
+        } catch {
+          // Invalid zone: fall back to the viewer's local day.
+        }
+      }
+      return `${instant.getFullYear()}-${String(instant.getMonth() + 1).padStart(2, "0")}-${String(instant.getDate()).padStart(2, "0")}`;
+    }
+  }
+  return value.slice(0, 10);
+}
+
+export function parseCalendarDate(value: string | null | undefined, timeZone?: string | null): Date | null {
+  const key = calendarDateKey(value, timeZone);
+  if (!key) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
   if (!match) return null;
   const year = Number(match[1]);
   const month = Number(match[2]);
@@ -574,8 +611,12 @@ export function parseCalendarDate(value: string | null | undefined): Date | null
   return parsed;
 }
 
-export function formatCalendarDate(value: string | null | undefined, intl: string): string | null {
-  const parsed = parseCalendarDate(value);
+export function formatCalendarDate(
+  value: string | null | undefined,
+  intl: string,
+  timeZone?: string | null
+): string | null {
+  const parsed = parseCalendarDate(value, timeZone);
   return parsed ? parsed.toLocaleDateString(intl) : null;
 }
 

@@ -78,3 +78,19 @@ test('the category page fetches with the country the server layout validated aga
   // The mounted page test covers the country preference; refetch when it changes.
   assert.match(page, /\[rawSlug, router, t, reloadToken, serverCountry\]/)
 })
+
+test('FT2-1b: a top-bar category the visitor country lacks renders (empty) instead of a 404', () => {
+  // DE catalog only has `interior`; the bar links the BE catalog.
+  const DE = [{ slug: 'interior', name: 'Interior', services: [] }]
+  const BAR = [...LIVE, { slug: 'exterior', name: 'Exterior', services: [{ slug: 'roofing', name: 'Roofing' }] }]
+  assert.deepEqual(resolveCategoryRoute('exterior', STATIC, DE, BAR), { kind: 'category', category: { slug: 'exterior', name: 'Exterior' } })
+  assert.deepEqual(resolveCategoryRoute('Outdoor_Work', STATIC, DE, BAR), { kind: 'redirect', to: '/categories/outdoor-work' })
+  // Unknown slugs still 404, and outage placeholders never authorize a page.
+  assert.deepEqual(resolveCategoryRoute('does-not-exist', STATIC, DE, BAR), { kind: 'not_found' })
+  assert.deepEqual(resolveCategoryRoute('exterior', STATIC, DE, [{ slug: 'exterior', name: 'Exterior', isFallback: true }]), { kind: 'not_found' })
+  const layout = readFileSync(new URL('../app/[ctx]/(pages)/categories/[categorySlug]/layout.tsx', import.meta.url), 'utf8')
+  assert.match(layout, /await loadLiveCategories\(CATALOG_HOME_COUNTRY\)/)
+  assert.match(layout, /return bar \? toInitialCategory\(bar\) : null;/)
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/categories/[categorySlug]/page.tsx', import.meta.url), 'utf8')
+  assert.match(page, /fetchCategories\(CATALOG_HOME_COUNTRY, controller\.signal\)/)
+})

@@ -2,11 +2,12 @@
 
 import { useTranslations } from 'next-intl'
 import type { QuotationVatDetermination } from '@/lib/quotationVat'
-import { shouldShowArticle47Class } from '@/lib/quotationVat'
 
 interface VatDeterminationPanelProps {
   determination: QuotationVatDetermination
 }
+
+/** Card FT3-18b: all four parameters are always listed, Article 47 included. */
 
 /**
  * Shows the professional why a VAT rate (or reverse charge) applies:
@@ -28,7 +29,9 @@ export default function VatDeterminationPanel({ determination }: VatDeterminatio
         ? t('wizard.vatDetermination.article47Classes.immovable')
         : determination.article47Class === 'Immovable but exempt from Belgian reverse charge'
           ? t('wizard.vatDetermination.article47Classes.immovableExempt')
-          : null
+          : determination.customerType === 'B2B'
+            ? t('wizard.vatDetermination.article47NotDetermined')
+            : t('wizard.vatDetermination.article47NotApplicable')
 
   const addressTypeValue =
     determination.vatAddressType === 'Customer business address'
@@ -45,19 +48,17 @@ export default function VatDeterminationPanel({ determination }: VatDeterminatio
           <dt className="text-gray-500">{t('wizard.vatDetermination.customerType')}</dt>
           <dd className="font-medium text-gray-800">{customerTypeValue}</dd>
         </div>
-        {shouldShowArticle47Class(determination) && article47Value ? (
-          <div className="flex justify-between gap-2">
-            <dt className="text-gray-500">{t('wizard.vatDetermination.article47')}</dt>
-            <dd className="text-right font-medium text-gray-800">{article47Value}</dd>
-          </div>
-        ) : null}
+        <div className="flex justify-between gap-2">
+          <dt className="text-gray-500">{t('wizard.vatDetermination.article47')}</dt>
+          <dd className="text-right font-medium text-gray-800">{article47Value}</dd>
+        </div>
         <div className="flex justify-between gap-2">
           <dt className="text-gray-500">{t('wizard.vatDetermination.addressType')}</dt>
           <dd className="text-right font-medium text-gray-800">{addressTypeValue}</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-gray-500">{t('wizard.vatDetermination.country')}</dt>
-          <dd className="font-medium text-gray-800">{determination.vatCountry}</dd>
+          <dd className="font-medium text-gray-800">{determination.vatCountry || '—'}</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-gray-500">{t('wizard.vatDetermination.reverseCharge')}</dt>

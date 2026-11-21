@@ -206,7 +206,7 @@ test('applyReverseChargeToLines forces every line onto the RC option', () => {
   assert.equal(lines[0].vatRate, 21)
 })
 
-test('VatDeterminationPanel shows Article 47 only for B2B and the RC note', () => {
+test('VatDeterminationPanel always shows Article 47 (FT3-18b) and the RC note', () => {
   const b2b = renderPanel({
     customerType: 'B2B',
     article47Class: 'Immovable',
@@ -231,7 +231,9 @@ test('VatDeterminationPanel shows Article 47 only for B2B and the RC note', () =
   })
   assert.match(b2c, /Consumer \(B2C\)/)
   assert.match(b2c, /Booking address/)
-  assert.doesNotMatch(b2c, /Article 47/)
+  // Card FT3-18b: all four parameters, Article 47 shown as not applicable for consumers.
+  assert.match(b2c, /Article 47/)
+  assert.match(b2c, /Not applicable \(consumer\)/)
   assert.doesNotMatch(b2c, /0% VAT on all lines/)
 
   // nl + fr render without crashing and translate the panel.
@@ -563,4 +565,41 @@ test('recorded schedule execution unit wins over package and live project units 
   assert.equal(resolvePanelHourMode(booking, details), true)
   assert.equal(resolvePanelHourMode({ ...booking, scheduleSnapshot: { executionDuration: { unit: 'days' } }, project: { timeMode: 'hours' } }, { bookingSnapshot: { selectedSubproject: { executionDuration: { unit: 'hours' } } } }), false)
   assert.equal(resolvePanelHourMode({ ...booking, scheduleSnapshot: null }, details), false)
+})
+
+test('FT3-18b: recorded quotation VAT parameters map to the panel shape, all four always present', async () => {
+  const { recordedQuotationVatDetermination } = await import('../lib/quotationVat.ts')
+  assert.equal(recordedQuotationVatDetermination(null), null)
+  assert.deepEqual(recordedQuotationVatDetermination({ customerType: 'B2C', article47Class: null, vatAddressType: 'Booking address', vatCountry: 'BE', reverseCharge: false }),
+    { customerType: 'B2C', article47Class: null, vatAddressType: 'Booking address', vatCountry: 'BE', reverseCharge: false })
+  assert.equal(recordedQuotationVatDetermination({ customerType: 'B2B', article47Class: 'Immovable', vatAddressType: 'Customer business address', vatCountry: 'NL', reverseCharge: true }).article47Class, 'Immovable')
+  const panel = readFileSync(new URL('../components/quotation/VatDeterminationPanel.tsx', import.meta.url), 'utf8')
+  // The Article 47 row is no longer hidden for B2C or an undetermined class.
+  assert.doesNotMatch(panel, /shouldShowArticle47Class\(determination\) &&/)
+  assert.match(panel, /article47NotApplicable/)
+  assert.match(readFileSync(new URL('../components/booking/details/QuotationPanel.tsx', import.meta.url), 'utf8'), /recordedQuotationVatDetermination\(selected\.vatDetermination\)/)
+})
+
+test('FT2-14: typing the service country never wipes entered VAT rates; stale lines get the country default', async () => {
+  const { applyCountryDefaultVat } = await import('../lib/quotationVat.ts')
+  const be = [{ rate: 21, country: 'BE', label: '21% standard VAT' }, { rate: 6, country: 'BE', label: '6% reduced VAT' }]
+  const lines = [
+    { description: 'Works', vatRate: 0, vatCountry: '', vatLabel: 'Custom VAT rate (enter below)', vatRateMode: 'custom', vatRateExplicitlyEntered: false },
+    { description: 'Typed', vatRate: 12, vatCountry: '', vatLabel: 'Custom VAT rate', vatRateMode: 'custom', vatRateExplicitlyEntered: true },
+    { description: 'Kept', vatRate: 6, vatCountry: 'BE', vatLabel: '6% reduced VAT', vatRateMode: 'preset', vatRateExplicitlyEntered: true },
+    { description: 'Other country', vatRate: 9, vatCountry: 'NL', vatLabel: '9% NL', vatRateMode: 'preset', vatRateExplicitlyEntered: true },
+  ]
+  const out = applyCountryDefaultVat(lines, be[0], be)
+  assert.deepEqual(out.map((line) => [line.vatRate, line.vatCountry]), [[21, 'BE'], [12, ''], [6, 'BE'], [21, 'BE']])
+  assert.equal(out[1], lines[1])
+  assert.equal(out[2], lines[2])
+  const { quotationCountryKey } = await import('../lib/quotationVat.ts')
+  const eu = [{ code: 'BE', name: 'Belgium' }, { code: 'NL', name: 'Netherlands' }]
+  // Half-typed text names no country: no lookup and no reset happen for it.
+  assert.deepEqual(['B', 'Be', 'Bel', 'Belg'].map((text) => quotationCountryKey(text, eu)), ['', 'BE', '', ''])
+  assert.equal(quotationCountryKey('Belgium', eu), 'BE')
+  assert.equal(quotationCountryKey('België', eu), 'BE')
+  assert.equal(quotationCountryKey('Belgique', eu), 'BE')
+  assert.equal(quotationCountryKey('nl', eu), 'NL')
+  assert.equal(quotationCountryKey('', eu), '')
 })

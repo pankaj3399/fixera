@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import type { PopularProject, PopularProjectsQuery } from '@/lib/popularProject';
 import { useDeferredPopularImages } from '@/components/home/useDeferredPopularImages';
+import { useCatalogNames } from '@/lib/catalog/catalogNames';
 
 export type { PopularProject };
 
@@ -25,6 +26,8 @@ const PopularProjectsCarousel = ({
   imageQuery,
 }: PopularProjectsCarouselProps) => {
   const t = useTranslations('home');
+  // CA3-1 / F2-8: catalog names shown in the visitor's language (labels only).
+  const { categoryName, serviceName } = useCatalogNames();
   const projects = useDeferredPopularImages(serverProjects, imageQuery);
   const { formatPrice } = useCurrency();
   const headingText = heading ?? t('popularProjects.heading');
@@ -129,7 +132,7 @@ const PopularProjectsCarousel = ({
                     </div>
                   )}
                   <Badge className="absolute top-2 right-2 bg-blue-600 text-white text-[10px]">
-                    {project.category}
+                    {categoryName(project.category)}
                   </Badge>
                 </div>
 
@@ -139,7 +142,7 @@ const PopularProjectsCarousel = ({
                   </h4>
 
                   <Badge variant="outline" className="text-[10px] w-fit mb-2">
-                    {project.service}
+                    {serviceName(project.service)}
                   </Badge>
 
                   <p className="text-sm font-bold text-gray-900 mb-2">

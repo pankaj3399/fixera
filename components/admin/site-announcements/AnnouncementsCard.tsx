@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,7 @@ interface AnnouncementsCardProps {
   onPreview: (item: AdminSiteAnnouncement) => void;
   onEdit: (item: AdminSiteAnnouncement) => void;
   onToggleActive: (item: AdminSiteAnnouncement, isActive: boolean) => void;
+  onDelete?: (item: AdminSiteAnnouncement) => void;
 }
 
 export function AnnouncementsCard({
@@ -54,6 +55,7 @@ export function AnnouncementsCard({
   onPreview,
   onEdit,
   onToggleActive,
+  onDelete,
 }: AnnouncementsCardProps) {
   return (
     <Card>
@@ -193,6 +195,19 @@ export function AnnouncementsCard({
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    {onDelete && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-500 hover:text-red-600"
+                        disabled={togglingIds.has(item._id)}
+                        onClick={() => onDelete(item)}
+                        title="Delete"
+                        aria-label={`Delete ${item.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     <div className="ml-1 flex items-center gap-2 border-l border-slate-200 pl-3">
                       <Label
                         htmlFor={`live-${item._id}`}

@@ -34,9 +34,10 @@ function layoutHarness(categories, slug, urlLocale = null) {
     '@/lib/seo/metadata': { buildMetadata: input => input },
     '@/components/seo/JsonLd': { __esModule: true, default: () => null },
     '@/lib/seo/jsonLd': { breadcrumbSchema: entries => entries },
-    '@/lib/server/serviceCategories': { getServiceCategories: async country => { countries.push(country); return categories } },
+    '@/lib/server/serviceCategories': { getServiceCategories: async country => { countries.push(country); return typeof categories === 'function' ? categories(country) : categories } },
     '@/lib/catalog/categoryLayoutLookup': categoryLookup,
-    '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+    '@/lib/catalog/resolveCategory': { CATALOG_HOME_COUNTRY: 'BE' },
+    '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
   })
   return { exports, countries, redirects, props: { children: 'category body', params: Promise.resolve({ ctx: 'ctx', categorySlug: slug }) } }
 }
@@ -61,6 +62,18 @@ test('outage fallback cannot reject a real category outside its six navigation e
   const ui = layoutHarness([{ slug: 'interior', name: 'Interior', services: [], isFallback: true }], 'custom-live-category')
   assert.equal((await ui.exports.default(ui.props)).props.children[1], 'category body')
   assert.deepEqual(ui.redirects, [])
+})
+test('FT2-1b: a top-bar category the visitor country lacks lists the home-country services', async () => {
+  const PLACEHOLDERS = [{ slug: 'interior', name: 'Interior', services: [], isFallback: true }]
+  for (const nlCatalog of [PLACEHOLDERS, [{ slug: 'interior', name: 'Interior', services: [] }]]) {
+    const ui = layoutHarness(country => country === 'BE'
+      ? [{ slug: 'exterior', name: 'Exterior', services: [{ slug: 'roofing', name: 'Roofing' }] }]
+      : nlCatalog, 'exterior')
+    const tree = await ui.exports.default(ui.props)
+    assert.deepEqual(ui.redirects, [])
+    assert.deepEqual(tree.props.initialCategory, { name: 'Exterior', slug: 'exterior', services: [{ name: 'Roofing', slug: 'roofing' }] })
+    assert.ok(ui.countries.includes('BE'))
+  }
 })
 test('category metadata and breadcrumbs use the same translated category label', async () => {
   const ui = layoutHarness([{ slug: 'outdoor-garden', name: 'Outdoor & Garden', services: [] }], 'outdoor-garden')
@@ -87,7 +100,7 @@ test('malformed array or services responses reach the retry UI and recover witho
         sonner: { toast: { error() {} } },
         '@/lib/catalog/resolveCategory': categoryResolver,
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => null, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
       })
       ui.render(); await ui.settle()
       assert.match(elementText(ui.render()), /servicesPage.errorMessage/)
@@ -222,7 +235,7 @@ test('category page fetches the server-selected BE catalog for an nl-NL browser 
         sonner: { toast: { error() {} } },
         '@/lib/catalog/resolveCategory': categoryResolver,
         '@/lib/marketing/siteAnnouncements/constants': { GEO_COUNTRY_COOKIE: 'fixera_geo_country' },
-        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => serverCountry, useInitialCatalogCategory: () => null },
+        '@/components/catalog/CatalogCountryContext': { CatalogCountryProvider: ({ children }) => children, useCatalogCountry: () => serverCountry, useInitialCatalogCategory: () => null }, '@/lib/catalog/catalogNames': { useCatalogNames: () => ({ categoryName: value => value, serviceName: value => value }) },
       })
       ui.render(); await ui.settle()
       assert.match(urls[0], new RegExp(`country=${expected}$`), `server country ${serverCountry}`)
@@ -230,8 +243,13 @@ test('category page fetches the server-selected BE catalog for an nl-NL browser 
         assert.deepEqual(redirects, [], 'a valid BE category is not redirected')
         assert.ok(ui.findAll(node => node.props.href === '/services/painting').length)
       } else {
-        // Outside the layout the browser-language fallback still applies.
-        assert.deepEqual(redirects, ['/services'])
+        // Outside the layout the browser-language fallback still applies. The
+        // NL catalog lacks the category, so (FT2-1b) the home/top-bar BE
+        // catalog is checked and the page lists that catalog's services
+        // instead of leaving it.
+        assert.match(urls[1], /country=BE$/)
+        assert.deepEqual(redirects, [])
+        assert.ok(ui.findAll(node => node.props.href === '/services/painting').length)
       }
       ui.unmount()
     }

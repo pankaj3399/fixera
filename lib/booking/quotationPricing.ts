@@ -26,6 +26,11 @@ export function recordedQuotationPricing(version: QuotationVersionDto | null | u
     }
   }
   const weights = version.milestones || []
+  // FT3-19a: the server's customer-side milestone totals, computed like the
+  // checkouts. The professional weights below are withheld from customers.
+  const recordedMilestones = weights.length > 0 && weights.every((milestone) => finite(milestone.customerTotalWithVat))
+    ? weights.map((milestone) => milestone.customerTotalWithVat as number)
+    : null
   const weightTotal = weights.reduce((sum, milestone) => sum + Math.max(0, milestone.amount || 0), 0)
   let allocated = 0
   const milestones = weights.map((milestone, index) => {
@@ -38,6 +43,6 @@ export function recordedQuotationPricing(version: QuotationVersionDto | null | u
     totals: { netAmount: totals.customerNetAmount, vatAmount: totals.vatAmount, total: totals.totalWithVat },
     saving: finite(saving) ? saving : null,
     lines: totals.vatBreakdown || null,
-    milestones,
+    milestones: recordedMilestones ?? milestones,
   }
 }

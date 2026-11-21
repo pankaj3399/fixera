@@ -9,6 +9,7 @@ import ProfessionalTableTags from "./ProfessionalTableTags"
 import ProfessionalLevelTag from "./ProfessionalLevelTag"
 import { useSharedTableText } from "./sharedTableText"
 import { getBookingStatusMeta } from "@/lib/dashboardBookingHelpers"
+import { formatCalendarDate } from "@/lib/bookingDetails"
 import {
   bookingHref,
   DASH,
@@ -30,6 +31,7 @@ export interface SharedBookingRow {
   createdAt?: string | null
   scheduledStartDate?: string | null
   scheduledExecutionEndDate?: string | null
+  scheduleTimeZone?: string | null
   actualStartDate?: string | null
   actualEndDate?: string | null
   priceModel?: string | null
@@ -90,6 +92,9 @@ export interface SharedBookingRow {
   overview?: {
     paidPrice?: OverviewMoney | null
     completionAddition?: OverviewMoney | null
+    /** Professionals only: recorded payout and the professional share of a refund (same basis). */
+    payoutAmount?: OverviewMoney | null
+    refundAmount?: OverviewMoney | null
   } | null
   warrantyCoverage?: {
     duration?: { value?: number; unit?: "months" | "years" }
@@ -141,6 +146,24 @@ function authoritativeOverviewMoney(value: OverviewMoney | null | undefined): Ov
     return NOT_RECORDED
   }
   return recordedMoney(value.amount, value.currency)
+}
+
+/**
+ * Pro payout column (FT2-13): the server overview puts payout and refund on
+ * the same professional basis; payloads without it fall back to the raw
+ * recorded payout and refund.
+ */
+export function payoutColumnOf(booking: SharedBookingRow): { payout: OverviewMoney; refund: OverviewMoney } {
+  const payment = booking.payment
+  const fallbackPayout = isFiniteNumber(payment?.professionalPayout)
+    ? recordedMoney(payment!.professionalPayout as number, payment?.currency)
+    : NOT_RECORDED
+  const rawRefund = payment?.refundedTotal ?? payment?.refundAmount
+  const fallbackRefund = isFiniteNumber(rawRefund) ? recordedMoney(rawRefund, payment?.currency) : NOT_RECORDED
+  return {
+    payout: authoritativeOverviewMoney(booking.overview?.payoutAmount) ?? fallbackPayout,
+    refund: authoritativeOverviewMoney(booking.overview?.refundAmount) ?? fallbackRefund,
+  }
 }
 
 /**
@@ -333,7 +356,7 @@ export default function SharedBookingsTable({
                 )}
                 <td className="px-3 py-3 text-gray-700">{formatUnknownDate(booking.createdAt, intl)}</td>
                 <td className="px-3 py-3 text-gray-700">
-                  {formatUnknownDate(booking.scheduledStartDate, intl)} / {formatUnknownDate(booking.scheduledExecutionEndDate, intl)}
+                  {formatCalendarDate(booking.scheduledStartDate, intl, booking.scheduleTimeZone) || DASH} / {formatCalendarDate(booking.scheduledExecutionEndDate, intl, booking.scheduleTimeZone) || DASH}
                 </td>
                 <td className="px-3 py-3 text-gray-700">
                   {formatUnknownDate(booking.actualStartDate, intl)} / {formatUnknownDate(booking.actualEndDate, intl)}
@@ -372,12 +395,17 @@ export default function SharedBookingsTable({
                 )}
                 {payoutVisible && (
                   <td className="px-3 py-3 text-gray-700">
-                    {booking.payment?.professionalPayout != null
-                      ? formatMoney(booking.payment.professionalPayout, booking.payment?.currency)
-                      : DASH}
-                    {(booking.payment?.refundedTotal ?? booking.payment?.refundAmount) != null && (
-                      <div className="mt-0.5">− {formatMoney((booking.payment?.refundedTotal ?? booking.payment?.refundAmount) as number, booking.payment?.currency)}</div>
-                    )}
+                    {(() => {
+                      const { payout, refund } = payoutColumnOf(booking)
+                      return (
+                        <>
+                          {payout.amount != null ? formatMoney(payout.amount, payout.currency || booking.payment?.currency) : DASH}
+                          {refund.amount != null && (
+                            <div className="mt-0.5">− {formatMoney(refund.amount, refund.currency || booking.payment?.currency)}</div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </td>
                 )}
                 <td className="px-3 py-3">

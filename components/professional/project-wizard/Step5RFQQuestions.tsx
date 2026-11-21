@@ -218,9 +218,19 @@ const QUESTION_TYPES = [
   { value: 'attachment', labelKey: 'questionTypeOptions.attachment', shortKey: 'questionTypeNames.attachment' }
 ] as const
 
+export function withQuestionIds<T extends { id?: string; _id?: string }>(questions: T[]): Array<T & { id: string }> {
+  return questions.map((question, index) => ({
+    ...question,
+    id: question.id || (question._id ? String(question._id) : `saved-${index}`),
+  }))
+}
+
 export default function Step5RFQQuestions({ data, onChange, onValidate }: Step5Props) {
   const t = useTranslations('projectWizardSteps')
-  const [rfqQuestions, setRfqQuestions] = useState<IRFQQuestion[]>(data.rfqQuestions || [])
+  // Saved questions come back without the client-only `id` (the server keeps
+  // `_id`); without one, deleting or editing a saved question hit every saved
+  // question at once (C11-2). Give each a stable id.
+  const [rfqQuestions, setRfqQuestions] = useState<IRFQQuestion[]>(() => withQuestionIds(data.rfqQuestions || []))
   const [customQuestion, setCustomQuestion] = useState('')
   const [customType, setCustomType] = useState<'text' | 'multiple_choice' | 'attachment'>('text')
   const [customOptions, setCustomOptions] = useState<string[]>([''])

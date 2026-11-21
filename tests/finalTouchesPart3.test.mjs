@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
 import { register } from 'node:module'
 import { hooks, loadComponent, findAll, common, ui, settle } from './reviewComponentHarness.mjs'
 
@@ -147,4 +148,26 @@ test('search page wires relevance sort, preserves backend result order, and conn
   const profile = readFileSync(new URL('../app/[ctx]/(pages)/profile/page.tsx', import.meta.url), 'utf8')
   assert.match(profile, /bookingCalendarEventType\(booking\?\.status[,)]/)
   assert.doesNotMatch(profile, /!\['completed', 'cancelled', 'refunded'\]/)
+})
+
+test('FT3 #8: completed bookings have their own colour, distinct from personal blocks and pending bookings', () => {
+  const calendar = readFileSync(new URL('../components/calendar/WeeklyAvailabilityCalendar.tsx', import.meta.url), 'utf8')
+  const styleOf = (type) => {
+    const match = new RegExp(`(?:'${type}'|\\b${type}): \\{\\s*gradient: '([^']+)',\\s*badge: '([^']+)'`).exec(calendar)
+    assert.ok(match, `${type} style found`)
+    return { gradient: match[1], badge: match[2] }
+  }
+  const completed = styleOf('booking-completed')
+  for (const other of ['personal', 'booking', 'booking-active', 'company', 'support', 'booking-buffer']) {
+    const style = styleOf(other)
+    assert.notEqual(completed.badge, style.badge, `completed badge differs from ${other}`)
+    const hue = (gradient) => gradient.match(/from-([a-z]+)-/)[1]
+    assert.notEqual(hue(completed.gradient), hue(style.gradient), `completed hue differs from ${other}`)
+  }
+  assert.doesNotMatch(completed.gradient, /emerald|teal|green|lime/)
+})
+
+test('FT2 #10a: the professional payouts status filter offers partially refunded with its count', () => {
+  const page = readFileSync(new URL('../app/[ctx]/(pages)/dashboard/payments/page.tsx', import.meta.url), 'utf8')
+  assert.match(page, /<SelectItem value="partially_refunded">\{withFacetCount\(t\('payments\.status\.partiallyRefunded'\), txStatusCounts, 'partially_refunded'\)\}<\/SelectItem>/)
 })

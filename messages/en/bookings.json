@@ -478,6 +478,7 @@
     "calculated": "Calculated: {amount}",
     "toasts": {
       "initFailed": "Failed to initialize extra cost payment",
+      "professionalPaymentsUnavailable": "The professional's payment account cannot receive this payment yet, so the extra costs cannot be paid right now. Please try again later or contact support.",
       "initFailedRetry": "Failed to initialize extra cost payment. Please try again.",
       "payToComplete": "Pay the extra costs below to complete the booking.",
       "paid": "Extra costs paid. Finalizing booking...",
@@ -506,7 +507,11 @@
         "piece": "pieces",
         "unit": "units"
       }
-    }
+    },
+    "resolvedDueTitle": "Extra costs due after the dispute resolution",
+    "resolvedDueDescription": "An administrator resolved the extra-cost dispute. The extra costs below are still due; please pay them to settle this booking.",
+    "resolvedDueButton": "Pay extra costs",
+    "resolvedPaid": "Extra costs paid. Thank you!"
   },
   "review": {
     "leaveReview": "Leave a Review",
@@ -839,7 +844,8 @@
       "milestoneStatus": "Status",
       "customDueDate": "Due date",
       "quoteDate": "Quote date",
-      "extraCostsCustomer": "Completion extras (your price, excl. VAT)"
+      "extraCostsCustomer": "Completion extras (your price, excl. VAT)",
+      "totalAmountCustomer": "Total (excl. VAT, before discounts)"
     },
     "parties": {
       "customer": "Customer",
@@ -986,7 +992,8 @@
       "rejectedAt": "Rejected at",
       "acceptedOn": "accepted {date}",
       "rejectionTimestampConflict": "Backend data also contains a rejection timestamp for this version ({date}), but the version is {status}. The timestamp is shown as recorded and does not change the status.",
-      "rejectionReason": "Recorded rejection reason"
+      "rejectionReason": "Recorded rejection reason",
+      "milestoneCustomerTotal": "Customer total incl. VAT"
     },
     "payments": {
       "title": "Payment records",
@@ -1094,7 +1101,8 @@
       "transferAttemptedAt": "Transfer attempted",
       "extraCostTransferStatus": "Extra-cost payout transfer",
       "peppolStatusLabel": "Peppol status:",
-      "refundPending": "Refund pending — funds have not been returned"
+      "refundPending": "Refund pending — funds have not been returned",
+      "checkoutDescriptionCustomer": "Your prices at checkout (excl. VAT, before discounts)."
     },
     "activity": {
       "deletedActor": "Deleted user",
@@ -1387,7 +1395,13 @@
       "approved": "Cancellation approved and refund issued.",
       "rejected": "Cancellation request rejected."
     },
-    "adminNote": "Admin note: {note}"
+    "adminNote": "Admin note: {note}",
+    "confirmApproveTitle": "Approve this cancellation?",
+    "confirmApproveFull": "The customer is refunded in full and the booking is cancelled. This cannot be undone.",
+    "confirmApproveAmount": "The customer is refunded {amount} and the booking is cancelled. This cannot be undone.",
+    "confirmApprovePartialHint": "To offer a partial refund instead, use Negotiate under Dashboard → Refund requests.",
+    "confirmApproveButton": "Yes, approve and refund",
+    "confirmApproveCancel": "Go back"
   },
   "rescheduleRequest": {
     "title": "Reschedule request",

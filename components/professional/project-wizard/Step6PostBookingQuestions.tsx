@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { withQuestionIds } from './Step5RFQQuestions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -127,8 +128,9 @@ const QUESTION_TYPES = [
 
 export default function Step6PostBookingQuestions({ data, onChange, onValidate }: Step6Props) {
   const t = useTranslations('projectWizardSteps')
+  // Same stable ids as the RFQ step: saved questions come back without one.
   const [postBookingQuestions, setPostBookingQuestions] = useState<IPostBookingQuestion[]>(
-    data.postBookingQuestions || []
+    () => withQuestionIds(data.postBookingQuestions || [])
   )
   const [customQuestion, setCustomQuestion] = useState('')
   const [customType, setCustomType] = useState<'text' | 'multiple_choice' | 'attachment'>('text')

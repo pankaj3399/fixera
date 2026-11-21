@@ -25,7 +25,7 @@ import {
   type Step1ServiceConfig,
   type Step1ValidationContext,
 } from "@/lib/projectWizardValidation"
-import { buildProjectTitleSuggestion, normalizeProjectKeywords } from '@/lib/projectWizardContent'
+import { buildProjectTitleSuggestions, normalizeProjectKeywords } from '@/lib/projectWizardContent'
 import { generateProjectCopy, ProjectCopyApiError } from '@/lib/projectCopyApi'
 
 interface IServiceSelection {
@@ -556,13 +556,13 @@ const Step1BasicInfo = forwardRef<Step1Ref, Step1Props>(({ data, media: mediaPro
       if (currentTitleSignatureRef.current !== requestSignature) return
       if (error instanceof ProjectCopyApiError && error.code === 'AI_NOT_CONFIGURED') {
         suggestedTitleSignatureRef.current = requestSignature
-        setSuggestedTitles([buildProjectTitleSuggestion({
+        setSuggestedTitles(buildProjectTitleSuggestions({
           service,
           area: formData.areaOfWork,
           packageName: formData.selectedPricingOption?.name,
           keyword: formData.keywords?.[0],
           description: formData.description,
-        }, t('step1.projectTitle.fallbackSuffix'))])
+        }, t('step1.projectTitle.fallbackSuffix')))
         setSelectedTitleIndex(0)
         toast.info(t('step1.projectTitle.localFallback'))
       } else {

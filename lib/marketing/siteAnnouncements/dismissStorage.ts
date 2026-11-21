@@ -45,7 +45,8 @@ function hasValidSuppression(
 export function isAnnouncementDismissed(announcement: SiteAnnouncement): boolean {
   try {
     if (localStorage.getItem(storageKey(announcement)) === "1") return true;
-    if (announcement.frequency === "once_pageview") return false;
+    // A dismissal holds for the browser session even for "once per page view"
+    // campaigns (the frequency only governs how often an undismissed one shows).
     return hasValidSuppression(announcement, `${frequencyKey(announcement)}:dismissed`);
   } catch {
     return false;
@@ -88,7 +89,8 @@ export function markAnnouncementShown(
 export function dismissAnnouncement(announcement: SiteAnnouncement): void {
   try {
     const frequency = announcement.frequency || DEFAULT_FREQUENCY;
-    if (frequency === "once_pageview") return;
+    // once_pageview: stored in sessionStorage, so a closed popup does not come
+    // back on reload during the same visit (CA6).
     const storage = storageFor(frequency);
     storage.setItem(
       `${frequencyKey(announcement)}:dismissed`,

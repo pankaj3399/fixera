@@ -47,6 +47,9 @@ import {
   useDetailT,
 } from "./DetailPrimitives"
 import { QuestionAnswerList } from "./BookingDataPanel"
+import VatDeterminationPanel from "@/components/quotation/VatDeterminationPanel"
+import { recordedQuotationVatDetermination } from "@/lib/quotationVat"
+import { isCheckoutSnapshotLine, isCheckoutSnapshotQuote } from "@/lib/booking/checkoutQuote"
 
 interface QuotationPanelProps {
   viewerRole?: DetailViewerRole | null
@@ -668,14 +671,29 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
                       <span className="mt-1 block">{dt("fields.customDueDate", "Due date")}: {formatCalendarDate(milestone.customDueDate, intl) || dt("notRecorded", "Not recorded")}</span>
                       {milestone.dueCondition ? <span className="ml-2 text-[10px] text-gray-500"><EnumText prefix="details.enums.dueCondition" value={milestone.dueCondition} /></span> : null}
                     </span>
-                    <span className="tabular-nums">
-                      <MoneyText amount={milestone.amount} currency={selected.currency} formatMoney={formatMoney} />
+                    <span className="tabular-nums text-right">
+                      {role === "customer" ? (
+                        <MoneyText amount={milestone.customerTotalWithVat} currency={selected.currency} formatMoney={formatMoney} />
+                      ) : (
+                        <MoneyText amount={milestone.amount} currency={selected.currency} formatMoney={formatMoney} />
+                      )}
+                      {role !== "customer" && typeof milestone.customerTotalWithVat === "number" ? (
+                        <span className="block text-[10px] text-gray-500">
+                          {dt("quotation.milestoneCustomerTotal", "Customer total incl. VAT")}: <MoneyText amount={milestone.customerTotalWithVat} currency={selected.currency} formatMoney={formatMoney} />
+                        </span>
+                      ) : null}
                     </span>
                   </li>
                 ))}
               </ul>
             </div>
           ) : null}
+
+          {(() => {
+            // FT3-18b: the VAT parameters recorded with this version.
+            const determination = recordedQuotationVatDetermination(selected.vatDetermination)
+            return determination ? <VatDeterminationPanel determination={determination} /> : null
+          })()}
 
           {selected.changeNote ? (
             <div>
@@ -690,7 +708,9 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
         </DetailCard>
       )}
 
-      {booking.quote && versions.length === 0 ? (
+      {/* C11-1: a direct booking stores an auto-generated checkout quote with
+          internal checkout_snapshot:* lines; it is not a quotation. */}
+      {booking.quote && versions.length === 0 && !isCheckoutSnapshotQuote(booking.quote) ? (
         <DetailCard
           title={dt("quotation.legacyTitle", "Legacy quotation")}
           description={dt("quotation.legacyDescription", "The old quote format is shown as stored. It has no version history.")}
@@ -714,7 +734,7 @@ export function QuotationPanel({ booking, details, pathname, search, viewerRole 
           ) : null}
           {Array.isArray(booking.quote.breakdown) && booking.quote.breakdown.length > 0 ? (
             <ul className="space-y-1 text-xs text-gray-700">
-              {booking.quote.breakdown.map((line, index) => (
+              {booking.quote.breakdown.filter((line) => !isCheckoutSnapshotLine(line)).map((line, index) => (
                 <li key={`${line.item}-${index}`} className="flex flex-wrap justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
                   <span>{line.item}</span>
                   <span className="tabular-nums">

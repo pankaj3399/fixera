@@ -478,6 +478,7 @@
     "calculated": "Calculé : {amount}",
     "toasts": {
       "initFailed": "L'initialisation du paiement des frais supplémentaires a échoué",
+      "professionalPaymentsUnavailable": "Le compte de paiement du professionnel ne peut pas encore recevoir ce paiement : les frais supplémentaires ne peuvent pas être payés pour le moment. Veuillez réessayer plus tard ou contacter le support.",
       "initFailedRetry": "L'initialisation du paiement des frais supplémentaires a échoué. Veuillez réessayer.",
       "payToComplete": "Payez les frais supplémentaires ci-dessous pour finaliser la réservation.",
       "paid": "Frais supplémentaires payés. Finalisation de la réservation...",
@@ -506,7 +507,11 @@
         "piece": "articles",
         "unit": "unités"
       }
-    }
+    },
+    "resolvedDueTitle": "Frais supplémentaires dus après la résolution du litige",
+    "resolvedDueDescription": "Un administrateur a résolu le litige sur les frais supplémentaires. Les frais ci-dessous restent dus ; veuillez les payer pour régler cette réservation.",
+    "resolvedDueButton": "Payer les frais supplémentaires",
+    "resolvedPaid": "Frais supplémentaires payés. Merci !"
   },
   "review": {
     "leaveReview": "Laisser un avis",
@@ -839,7 +844,8 @@
       "milestoneStatus": "Statut",
       "customDueDate": "Date d’échéance",
       "quoteDate": "Date du devis",
-      "extraCostsCustomer": "Frais supplémentaires à la fin (votre prix, HTVA)"
+      "extraCostsCustomer": "Frais supplémentaires à la fin (votre prix, HTVA)",
+      "totalAmountCustomer": "Total (hors TVA, avant remises)"
     },
     "parties": {
       "customer": "Client",
@@ -986,7 +992,8 @@
       "rejectedAt": "Refusé le",
       "acceptedOn": "accepté le {date}",
       "rejectionTimestampConflict": "Les données du serveur contiennent aussi un horodatage de refus pour cette version ({date}), mais la version est {status}. L'horodatage est affiché tel qu'enregistré et ne change pas le statut.",
-      "rejectionReason": "Motif de refus enregistré"
+      "rejectionReason": "Motif de refus enregistré",
+      "milestoneCustomerTotal": "Total client TVA incl."
     },
     "payments": {
       "title": "Enregistrements de paiement",
@@ -1094,7 +1101,8 @@
       "transferAttemptedAt": "Virement tenté",
       "extraCostTransferStatus": "Virement des frais supplémentaires",
       "peppolStatusLabel": "Statut Peppol :",
-      "refundPending": "Remboursement en attente — les fonds ne sont pas encore remboursés"
+      "refundPending": "Remboursement en attente — les fonds ne sont pas encore remboursés",
+      "checkoutDescriptionCustomer": "Vos prix au moment du paiement (hors TVA, avant remises)."
     },
     "activity": {
       "deletedActor": "Utilisateur supprimé",
@@ -1387,7 +1395,13 @@
       "approved": "Annulation approuvée et remboursement effectué.",
       "rejected": "Demande d'annulation rejetée."
     },
-    "adminNote": "Note admin : {note}"
+    "adminNote": "Note admin : {note}",
+    "confirmApproveTitle": "Approuver cette annulation ?",
+    "confirmApproveFull": "Le client est remboursé intégralement et la réservation est annulée. Cette action est irréversible.",
+    "confirmApproveAmount": "Le client est remboursé de {amount} et la réservation est annulée. Cette action est irréversible.",
+    "confirmApprovePartialHint": "Pour proposer plutôt un remboursement partiel, utilisez Négocier dans Tableau de bord → Demandes de remboursement.",
+    "confirmApproveButton": "Oui, approuver et rembourser",
+    "confirmApproveCancel": "Retour"
   },
   "rescheduleRequest": {
     "title": "Demande de report",

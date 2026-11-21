@@ -699,6 +699,8 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
     return []
   }, [booking.cancellationRequests, details?.cancellations, finalCancellation])
   const checkout = payments?.checkout || details?.bookingSnapshot?.checkoutSnapshot || booking.checkoutSnapshot
+  // C11-1: customers get their own prices; the professional amounts are withheld from them.
+  const customerPrices = viewerRole === "customer" ? checkout?.customerPrices ?? null : null
   const extraCostsCurrency = ownRecordedCurrency(extraCosts)
   const extraCostPaymentCurrency = extraCosts?.payment ? ownRecordedCurrency(extraCosts.payment) : null
   const extraCostItemCurrency = (item: NonNullable<ExtraCostsDetailsDto["items"]>[number]) =>
@@ -767,25 +769,33 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
       {checkout || booking.checkoutSnapshot ? (
         <DetailCard
           title={dt("payments.checkoutTitle", "Original booking charge composition")}
-          description={dt("payments.checkoutDescription", "Professional unit price and quantity stored at checkout, before commission/VAT/discount.")}
+          description={customerPrices
+            ? dt("payments.checkoutDescriptionCustomer", "Your prices at checkout (excl. VAT, before discounts).")
+            : dt("payments.checkoutDescription", "Professional unit price and quantity stored at checkout, before commission/VAT/discount.")}
         >
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <DetailField label={dt("fields.pricingType", "Pricing")} empty={!checkout?.pricingType}><EnumText prefix="details.enums.pricingType" value={checkout?.pricingType} /></DetailField>
-            <DetailField label={dt("fields.unitPrice", "Unit price")} empty={checkout?.unitAmount == null}>
-              <MoneyText amount={checkout?.unitAmount} currency={checkout?.currency} formatMoney={formatMoney} />
+            <DetailField label={dt("fields.unitPrice", "Unit price")} empty={(customerPrices?.unitPrice ?? checkout?.unitAmount) == null}>
+              <MoneyText amount={customerPrices?.unitPrice ?? checkout?.unitAmount} currency={checkout?.currency} formatMoney={formatMoney} />
             </DetailField>
             <DetailField label={dt("fields.quantity", "Quantity")} empty={checkout?.quantity == null}>
               {checkout?.quantity}{checkout?.unit ? <> <EnumText prefix="unit" value={checkout.unit} /></> : null}
             </DetailField>
-            <DetailField label={dt("fields.baseSubtotal", "Base subtotal")} empty={checkout?.baseSubtotal == null}>
-              <MoneyText amount={checkout?.baseSubtotal} currency={checkout?.currency} formatMoney={formatMoney} />
+            <DetailField label={dt("fields.baseSubtotal", "Base subtotal")} empty={(customerPrices?.baseSubtotal ?? checkout?.baseSubtotal) == null}>
+              <MoneyText amount={customerPrices?.baseSubtotal ?? checkout?.baseSubtotal} currency={checkout?.currency} formatMoney={formatMoney} />
             </DetailField>
-            <DetailField label={dt("fields.extraOptionsTotal", "Extra options total")} empty={checkout?.extraOptionsTotal == null}>
-              <MoneyText amount={checkout?.extraOptionsTotal} currency={checkout?.currency} formatMoney={formatMoney} />
+            <DetailField label={dt("fields.extraOptionsTotal", "Extra options total")} empty={(customerPrices?.extraOptionsTotal ?? checkout?.extraOptionsTotal) == null}>
+              <MoneyText amount={customerPrices?.extraOptionsTotal ?? checkout?.extraOptionsTotal} currency={checkout?.currency} formatMoney={formatMoney} />
             </DetailField>
-            <DetailField label={dt("fields.totalAmount", "Total (professional amount)")} empty={checkout?.totalAmount == null}>
-              <MoneyText amount={checkout?.totalAmount} currency={checkout?.currency} formatMoney={formatMoney} />
-            </DetailField>
+            {customerPrices ? (
+              <DetailField label={dt("fields.totalAmountCustomer", "Total (excl. VAT, before discounts)")} empty={checkout?.customerTotal == null}>
+                <MoneyText amount={checkout?.customerTotal} currency={checkout?.currency} formatMoney={formatMoney} />
+              </DetailField>
+            ) : (
+              <DetailField label={dt("fields.totalAmount", "Total (professional amount)")} empty={checkout?.totalAmount == null}>
+                <MoneyText amount={checkout?.totalAmount} currency={checkout?.currency} formatMoney={formatMoney} />
+              </DetailField>
+            )}
           </dl>
           {Array.isArray(checkout?.selectedOptions) && checkout.selectedOptions.length > 0 ? (
             <ul className="space-y-1 text-xs text-gray-700">
@@ -794,13 +804,13 @@ export function PaymentsPanel({ booking, details, viewerRole }: PaymentsPanelPro
                   <span>
                     {option.name}
                     {option.quantity != null && option.quantity !== 1 ? ` × ${option.quantity}` : ""}
-                    {option.unitPrice != null ? (
+                    {(customerPrices?.options?.[index]?.unitPrice ?? option.unitPrice) != null ? (
                       <span className="ml-2 text-[10px] text-gray-500">
-                        @ <MoneyText amount={option.unitPrice} currency={checkout?.currency} formatMoney={formatMoney} />
+                        @ <MoneyText amount={customerPrices?.options?.[index]?.unitPrice ?? option.unitPrice} currency={checkout?.currency} formatMoney={formatMoney} />
                       </span>
                     ) : null}
                   </span>
-                  <span className="tabular-nums"><MoneyText amount={option.totalPrice ?? option.unitPrice} currency={checkout?.currency} formatMoney={formatMoney} /></span>
+                  <span className="tabular-nums"><MoneyText amount={customerPrices?.options?.[index]?.totalPrice ?? option.totalPrice ?? option.unitPrice} currency={checkout?.currency} formatMoney={formatMoney} /></span>
                 </li>
               ))}
             </ul>

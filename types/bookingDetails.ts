@@ -262,6 +262,13 @@ export interface BookingSnapshotDto {
     customerPackageTotal?: number | null;
     /** Customer total of the package and its options (checkout arithmetic). Null for professionals. */
     customerTotal?: number | null;
+    /** Customer-side equivalents of the professional amounts (C11-1); not sent to professionals. */
+    customerPrices?: {
+      unitPrice: number;
+      baseSubtotal: number;
+      extraOptionsTotal: number;
+      options: Array<{ unitPrice: number; totalPrice: number }>;
+    } | null;
     pricingType?: string;
     unitAmount?: number | null;
     quantity?: number | null;
@@ -349,6 +356,14 @@ export interface BookingWizardDto {
 
 export interface QuotationVersionDto {
   firstPossibleStart?: string | null;
+  /** VAT parameters recorded with this version (FT3-18b); null/absent on older versions. */
+  vatDetermination?: {
+    customerType: 'B2B' | 'B2C';
+    article47Class: string | null;
+    vatAddressType: string | null;
+    vatCountry: string | null;
+    reverseCharge: boolean | null;
+  } | null;
   version: number;
   quotationNumber?: string | null;
   scope?: string | null;
@@ -370,6 +385,8 @@ export interface QuotationVersionDto {
   milestones?: Array<{
     title?: string;
     amount?: number | null;
+    /** Customer-side milestone total incl. VAT (the professional amount is withheld from customers). */
+    customerTotalWithVat?: number | null;
     description?: string | null;
     dueCondition?: string;
     customDueDate?: string | null;
@@ -611,6 +628,8 @@ export interface ExtraCostsDetailsDto {
   totalProfessionalAmount?: number | null;
   /** Customer-side total of the extra costs (commission-inclusive, before discounts). Null for professionals. */
   totalCustomerAmount?: number | null;
+  /** Customer view: what the extra-cost payment will charge while no matching charge exists (F1-3). */
+  customerChargeDue?: { netAmount: number; loyaltyDiscount: number; vatAmount: number; totalAmount: number } | null;
   currency?: string | null;
   currencySource?: string;
   items?: Array<{

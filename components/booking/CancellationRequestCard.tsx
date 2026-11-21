@@ -43,6 +43,8 @@ export default function CancellationRequestCard({
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
+  // Approving refunds the customer and cancels the booking: never in one click.
+  const [confirmingApprove, setConfirmingApprove] = useState(false)
 
   const requesterName =
     request.requestedBy?.name ||
@@ -174,8 +176,8 @@ export default function CancellationRequestCard({
             <Button
               size="sm"
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={busy !== null}
-              onClick={() => void respond('approve')}
+              disabled={busy !== null || confirmingApprove}
+              onClick={() => setConfirmingApprove(true)}
             >
               {busy === 'approve' ? (
                 <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
@@ -198,6 +200,31 @@ export default function CancellationRequestCard({
               )}
               {t("cancellationRequest.reject")}
             </Button>
+          </div>
+        ) : null}
+        {canAct && confirmingApprove ? (
+          <div role="alertdialog" aria-live="assertive" className="mt-2 space-y-2 rounded-md border border-rose-200 bg-white p-3">
+            <p className="font-medium text-rose-800">{t("cancellationRequest.confirmApproveTitle")}</p>
+            <p className="text-xs text-gray-700">
+              {request.refundAmount != null
+                ? t("cancellationRequest.confirmApproveAmount", { amount: formatMoney(request.refundAmount, displayCurrency) })
+                : t("cancellationRequest.confirmApproveFull")}
+            </p>
+            <p className="text-xs text-gray-500">{t("cancellationRequest.confirmApprovePartialHint")}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                disabled={busy !== null}
+                onClick={() => void respond('approve').finally(() => setConfirmingApprove(false))}
+              >
+                {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />}
+                {t("cancellationRequest.confirmApproveButton")}
+              </Button>
+              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setConfirmingApprove(false)}>
+                {t("cancellationRequest.confirmApproveCancel")}
+              </Button>
+            </div>
           </div>
         ) : null}
       </CardContent>

@@ -13,7 +13,7 @@ import {
 } from "@/i18n/config";
 import { countryToLocale, firstPreferredLocale } from "@/i18n/localeResolution";
 import { GEO_CURRENCY_COOKIE, countryToCurrency } from "@/lib/currency";
-import { resolveLocalizedRequest, splitLocalePrefix } from "@/lib/seo/localeUrls";
+import { resolvePrefixRedirect, resolveLocalizedRequest, splitLocalePrefix } from "@/lib/seo/localeUrls";
 import { resolveRequestCountry } from "@/lib/i18n/autoConversion";
 import { loadAutoConversionState } from "@/lib/i18n/autoConversionLoader";
 import { PLATFORM_COUNTRY_REQUEST_HEADER } from "@/lib/geo/contentCountryHeader";
@@ -131,6 +131,16 @@ export async function middleware(request: NextRequest) {
   const geoLocale: Locale = country
     ? countryToLocale(country, { acceptLanguage, region })
     : firstPreferredLocale(acceptLanguage) ?? DEFAULT_LOCALE;
+
+  // A public page without a prefixed twin (`/nl/search`): keep the language via
+  // ?lang= on the unprefixed page instead of a 404.
+  const prefixRedirect = resolvePrefixRedirect(request.nextUrl.pathname);
+  if (prefixRedirect) {
+    const target = request.nextUrl.clone();
+    target.pathname = prefixRedirect.path;
+    target.searchParams.set("lang", prefixRedirect.locale);
+    return NextResponse.redirect(target, 307);
+  }
 
   // --- Locale: language prefix, then explicit ?lang= (persisted), cookie, geo ---
   const localized = resolveLocalizedRequest(request.nextUrl.pathname);

@@ -17,6 +17,7 @@ import {
 } from '@/lib/catalog/resolveCategory';
 import { GEO_COUNTRY_COOKIE } from '@/lib/marketing/siteAnnouncements/constants';
 import { useCatalogCountry, useInitialCatalogCategory } from '@/components/catalog/CatalogCountryContext';
+import { useCatalogNames } from '@/lib/catalog/catalogNames';
 
 /** Catalog categories with translated copy in the `catalog` namespace. */
 const TRANSLATED_CATEGORY_SLUGS = [
@@ -51,6 +52,7 @@ export default function CategoryPage() {
   const router = useRouter();
   const rawSlug = params?.categorySlug as string;
   const t = useTranslations('catalog');
+  const { categoryName, serviceName } = useCatalogNames();
   // The layout's server-selected country, so both catalog lookups agree.
   const serverCountry = useCatalogCountry();
 
@@ -87,7 +89,13 @@ export default function CategoryPage() {
             ? resolveCatalogCountry(geoCountry, navigator.language, CATALOG_HOME_COUNTRY)
             : CATALOG_HOME_COUNTRY);
         const categories = await fetchCategories(resolvedCountry, controller.signal);
-        const match = matchCatalogCategory(categories, rawSlug);
+        let match = matchCatalogCategory(categories, rawSlug);
+        if (!match && resolvedCountry !== CATALOG_HOME_COUNTRY) {
+          // FT2-1b: the top bar links the home-country catalog. A bar category
+          // this country does not offer shows the home-country services list
+          // (what the bar's dropdown lists), never the generic services page.
+          match = matchCatalogCategory(await fetchCategories(CATALOG_HOME_COUNTRY, controller.signal), rawSlug);
+        }
         if (!match) {
           // Unknown slug: fall back to the existing services index, never a 404.
           router.replace('/services');
@@ -119,7 +127,7 @@ export default function CategoryPage() {
   const displayCategoryName = category
     ? isTranslatedCategorySlug(category.slug)
       ? t(`names.categories.${category.slug}.name`)
-      : category.name
+      : categoryName(category.name)
     : '';
 
   if (isLoading) {
@@ -185,7 +193,7 @@ export default function CategoryPage() {
                   className="flex items-center justify-between gap-4 py-4 px-2 hover:bg-gray-50 rounded transition-colors group"
                 >
                   <span className="text-lg font-medium text-gray-900 group-hover:text-blue-700">
-                    {service.name}
+                    {serviceName(service.name)}
                   </span>
                   <span className="flex items-center gap-1 text-sm text-blue-600 shrink-0">
                     {t('servicesPage.viewDetails')}

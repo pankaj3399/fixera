@@ -8,6 +8,7 @@ import { getServiceIcon, getCategoryIcon } from "@/lib/serviceIcons";
 import { ANNOUNCE_BANNER_HEIGHT_PX } from "@/lib/marketing/siteAnnouncements/constants";
 import { useActiveTopBar } from "@/components/marketing/site-announcements/useActiveTopBar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCatalogNames } from "@/lib/catalog/catalogNames";
 
 interface Service {
   name: string;
@@ -72,6 +73,7 @@ export function SubNavbarFallback() {
 
 const SubNavbar = ({ categories }: { categories: Category[] }) => {
   const t = useTranslations("nav");
+  const { categoryName, serviceName } = useCatalogNames();
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -143,7 +145,7 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
                 : undefined;
               const categoryLabel = fallbackKey
                 ? t(fallbackKey)
-                : category.name;
+                : categoryName(category.name);
               return (
                 <div
                   key={category.slug}
@@ -204,7 +206,7 @@ const SubNavbar = ({ categories }: { categories: Category[] }) => {
                       className="flex items-center gap-3 text-gray-700 hover:text-blue-600 hover:bg-gray-50 p-2.5 rounded-md transition-colors"
                     >
                       <ServiceIcon className="w-4 h-4 text-blue-500" />
-                      {service.name}
+                      {serviceName(service.name)}
                     </Link>
                   </li>
                 );

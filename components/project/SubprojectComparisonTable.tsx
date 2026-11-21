@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -78,19 +78,6 @@ export default function SubprojectComparisonTable({
   actionsDisabled = false,
 }: SubprojectComparisonTableProps) {
   const t = useTranslations('projects')
-  const packageTabContainerRef = useRef<HTMLDivElement | null>(null)
-  const packageTabsRef = useRef<Array<HTMLButtonElement | null>>([])
-  useEffect(() => {
-    const container = packageTabContainerRef.current
-    const tab = packageTabsRef.current[selectedIndex]
-    if (!container || !tab) return
-    const containerBounds = container.getBoundingClientRect()
-    const tabBounds = tab.getBoundingClientRect()
-    const offset = tabBounds.left < containerBounds.left
-      ? tabBounds.left - containerBounds.left
-      : tabBounds.right > containerBounds.right ? tabBounds.right - containerBounds.right : 0
-    if (offset) container.scrollBy({ left: offset })
-  }, [selectedIndex])
   const tWizard = useTranslations('projectWizard')
   const { formatPrice } = useCurrency()
   const { customerPrice, originalPrice, loyalty, pricingReady, loyaltyLoaded } = useCustomerPricing()
@@ -267,15 +254,18 @@ export default function SubprojectComparisonTable({
       <Card className="border-2 border-blue-600 shadow-lg">
         <CardContent className="p-0">
           {/* Tab Navigation */}
-          <div className="relative border-b border-gray-200">
-            {subprojects.length > 1 && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-10 w-5 bg-gradient-to-l from-white to-transparent" />}
-            <div ref={packageTabContainerRef} className="flex overflow-x-auto">
+          {/* FT2-3: tabs wrap onto extra rows so every package is visible on
+              a laptop-width card (5 packages used to need a sideways scroll). */}
+          <div className="border-b border-gray-200">
+            <div role="tablist" className="flex flex-wrap">
               {subprojects.map((subproject, index) => (
                 <button
                   key={index}
-                  ref={node => { packageTabsRef.current[index] = node }}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedIndex === index}
                   onClick={() => onSelectIndex(index)}
-                  className={`flex-[1_0_120px] px-3 sm:px-6 py-4 flex flex-col items-center justify-end gap-1 text-center font-semibold text-base transition-all ${selectedIndex === index
+                  className={`flex-[1_0_96px] px-3 sm:px-4 py-3 flex flex-col items-center justify-end gap-1 text-center font-semibold text-sm transition-all ${selectedIndex === index
                     ? 'text-gray-900 border-b-2 border-gray-900'
                     : 'text-gray-500 hover:text-gray-700'
                     }`}
@@ -283,9 +273,10 @@ export default function SubprojectComparisonTable({
                 >
                   {/* The badge sits in flow above the label (labels stay bottom-aligned
                       across tabs), so it can never cover a long name on a narrow tab.
-                      Tabs never shrink below 120px or below their longest word (the
+                      Tabs never shrink below 96px or below their longest word (the
                       flex item's automatic min-content width), so names wrap between
-                      words and the strip scrolls instead of breaking "Standar d". */}
+                      words and extra tabs wrap to a new row instead of breaking
+                      "Standar d" or hiding behind a scroll. */}
                   {index === 1 && subprojects.length === 3 && (
                     <span className="whitespace-nowrap bg-blue-500 text-white text-xs px-2 py-0.5 rounded">
                       {t('comparison.popular')}

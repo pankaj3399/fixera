@@ -403,3 +403,12 @@ test('llms.txt points to the language URLs', () => {
   }
   assert.ok(body.includes('https://example.test/nl/about'))
 })
+
+test('/nl/search and friends redirect to the unprefixed search page keeping the language', () => {
+  assert.deepEqual(urls.resolvePrefixRedirect('/nl/search'), { locale: 'nl', path: '/search' })
+  assert.deepEqual(urls.resolvePrefixRedirect('/fr/search/'), { locale: 'fr', path: '/search' })
+  assert.equal(urls.resolvePrefixRedirect('/search'), null)
+  assert.equal(urls.resolvePrefixRedirect('/nl/login'), null, 'private pages keep their 404')
+  assert.equal(urls.resolvePrefixRedirect('/nl/about'), null, 'localized pages are rewritten, not redirected')
+  assert.equal(urls.isLocalizableRoute('/search'), false, 'still no prefixed twin for SEO')
+})
