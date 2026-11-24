@@ -64,7 +64,8 @@ function mount(relative, net, state) {
     '@/components/admin/DashboardBaselineIndicator': { default: () => null },
     '@/components/admin/disputes/DisputeOverviewSummary': {
       BookingDisputeCards: () => null,
-      SeparateQueueCounts: () => null,
+      DisputeCounterSummary: () => null,
+      EscalationCounts: () => null,
       REFUND_QUEUE_HREF: '/admin/disputes?status=refunds',
       WARRANTY_QUEUE_HREF: '/admin/warranty-claims',
     },
@@ -167,6 +168,38 @@ test('warranty claims have no reset of their own: history=all in the URL is not 
   } finally {
     globalThis.fetch = previousFetch
   }
+})
+
+test('disputes: the search box sends a debounced server search and restarts on page 1', async () => {
+  const net = createNet()
+  const state = newState('')
+  const h = mount(DISPUTES, net, state)
+  h.render()
+  await h.settle()
+  for (const request of net.requests) {
+    request.respond(request.url.pathname.endsWith('/analytics') ? disputesAnalyticsBody(null) : disputesBody(null))
+  }
+  await h.settle()
+  clickButton(h, 'Next')
+  await h.settle()
+  assert.equal(lastFor(net, '/api/admin/disputes').params.get('page'), '2')
+  const before = net.requests.length
+
+  const input = () => h.findAll((node) => node.props['data-testid'] === 'dispute-search')[0]
+  input().props.onChange({ target: { value: '  Anna ' } })
+  await h.settle()
+  assert.equal(net.requests.length, before, 'nothing is sent while the admin is typing')
+  await new Promise((resolve) => setTimeout(resolve, 450))
+  await h.settle()
+  const searched = lastFor(net, '/api/admin/disputes')
+  assert.equal(searched.params.get('search'), 'Anna')
+  assert.equal(searched.params.get('page'), '1')
+
+  input().props.onChange({ target: { value: '' } })
+  await h.settle()
+  await new Promise((resolve) => setTimeout(resolve, 450))
+  await h.settle()
+  assert.equal(lastFor(net, '/api/admin/disputes').params.get('search'), null, 'clearing the box drops the search')
 })
 
 test('disputes: switching only the history mode restarts on page 1 and requests history=all', async () => {
