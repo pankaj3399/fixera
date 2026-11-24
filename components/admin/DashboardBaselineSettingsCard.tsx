@@ -7,6 +7,7 @@ import { Loader2, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { authFetch } from '@/lib/utils'
+import { ADMIN_NAV_BADGES_REFRESH_EVENT } from '@/hooks/useAdminNavigationBadges'
 import {
   DASHBOARD_BASELINE_KEYS,
   DASHBOARD_BASELINES_PATH,
@@ -17,6 +18,7 @@ import {
   resetRequestPath,
   undoRequestPath,
   type DashboardBaselineHistoryEvent,
+  type DashboardBaselineHistoryKey,
   type DashboardBaselineKey,
   type DashboardBaselineSnapshot,
   type DashboardBaselineView,
@@ -25,17 +27,23 @@ import {
 /** A reset waiting for confirmation: one dashboard, or every dashboard. */
 export type PendingDashboardReset = { target: DashboardBaselineKey | 'all' }
 
+// Labels also cover retired dashboards, which can still appear in the history.
 const LABEL_KEY = {
   disputes: 'dashboards.disputes.label',
-  warrantyClaims: 'dashboards.warrantyClaims.label',
   cancellations: 'dashboards.cancellations.label',
+  supportTickets: 'dashboards.supportTickets.label',
+  chatReports: 'dashboards.chatReports.label',
+  reviewModeration: 'dashboards.reviewModeration.label',
   bookingKpis: 'dashboards.bookingKpis.label',
-} as const satisfies Record<DashboardBaselineKey, string>
+  warrantyClaims: 'dashboards.warrantyClaims.label',
+} as const satisfies Record<DashboardBaselineHistoryKey, string>
 
 const DESCRIPTION_KEY = {
   disputes: 'dashboards.disputes.description',
-  warrantyClaims: 'dashboards.warrantyClaims.description',
   cancellations: 'dashboards.cancellations.description',
+  supportTickets: 'dashboards.supportTickets.description',
+  chatReports: 'dashboards.chatReports.description',
+  reviewModeration: 'dashboards.reviewModeration.description',
   bookingKpis: 'dashboards.bookingKpis.description',
 } as const satisfies Record<DashboardBaselineKey, string>
 
@@ -114,7 +122,7 @@ export function DashboardBaselineSettingsView({
     return t('settings.historyEntry', { action, date, name: event.actorName || '—' })
   }
 
-  const dashboardLabel = (key: DashboardBaselineKey) => t(LABEL_KEY[key])
+  const dashboardLabel = (key: DashboardBaselineHistoryKey) => t(LABEL_KEY[key])
 
   const confirmTitle = pending
     ? pending.target === 'all'
@@ -298,6 +306,8 @@ export default function DashboardBaselineSettingsCard({ canManage }: { canManage
     const parsed = res.ok ? parseDashboardBaselineSnapshot(await res.json().catch(() => null)) : null
     if (!parsed) throw new Error('dashboard-baseline-request-failed')
     setSnapshot(parsed)
+    // A reset or undo changes the nav counters: show the new numbers at once.
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(ADMIN_NAV_BADGES_REFRESH_EVENT))
   }
 
   const confirmReset = async () => {

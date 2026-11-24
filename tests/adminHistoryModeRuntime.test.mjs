@@ -64,7 +64,8 @@ function mount(relative, net, state) {
     '@/components/admin/DashboardBaselineIndicator': { default: () => null },
     '@/components/admin/disputes/DisputeOverviewSummary': {
       BookingDisputeCards: () => null,
-      SeparateQueueCounts: () => null,
+      DisputeCounterSummary: () => null,
+      EscalationCounts: () => null,
       REFUND_QUEUE_HREF: '/admin/disputes?status=refunds',
       WARRANTY_QUEUE_HREF: '/admin/warranty-claims',
     },
@@ -105,10 +106,6 @@ const cancellationBody = (resetAt) => ({
   data: { items: [cancellationRow], total: 45, baseline: baseline('cancellations', resetAt) },
 })
 
-const warrantyBody = (request, resetAt, totalPages = 3) =>
-  request.url.pathname.endsWith('/analytics')
-    ? { success: true, data: { baseline: baseline('warrantyClaims', resetAt) } }
-    : { success: true, data: { claims: [], pagination: { totalPages, total: 50 }, baseline: baseline('warrantyClaims', resetAt) } }
 
 const disputeRow = { _id: 'bk1', bookingNumber: 'BK-1', status: 'dispute', dispute: { type: 'extra_costs', reason: 'Extra hours' } }
 const disputesBody = (resetAt, pages = 2) => ({
@@ -157,63 +154,52 @@ test('cancellation queue ignores a response from the previous history mode', asy
   assert.equal(indicatorBaseline(h).resetAt, NEW_RESET)
 })
 
-test('warranty claims: switching only the history mode restarts on page 1 and requests history=all for list and analytics', async () => {
+test('warranty claims have no reset of their own: history=all in the URL is not sent', async () => {
   const previousFetch = globalThis.fetch
   const net = createNet()
   globalThis.fetch = net.send
   try {
-    const state = newState('')
-    const h = mount(WARRANTY, net, state)
+    const h = mount(WARRANTY, net, newState('history=all'))
     h.render()
     await h.settle()
-    for (const request of net.requests) request.respond(warrantyBody(request, OLD_RESET))
-    await h.settle()
-    clickButton(h, 'Next')
-    await h.settle()
-    assert.equal(lastFor(net, '/admin/list').params.get('page'), '2')
-
-    setSearch(h, state, 'history=all')
-    await h.settle()
-    const list = lastFor(net, '/admin/list')
-    const analytics = lastFor(net, '/admin/analytics')
-    assert.equal(list.params.get('page'), '1')
-    assert.equal(list.params.get('history'), 'all')
-    assert.equal(analytics.params.get('history'), 'all')
+    assert.ok(lastFor(net, '/admin/list'), 'claims are requested')
+    assert.ok(lastFor(net, '/admin/analytics'), 'analytics are requested')
+    for (const request of net.requests) assert.equal(request.params.get('history'), null, request.url.href)
   } finally {
     globalThis.fetch = previousFetch
   }
 })
 
-test('warranty claims ignores responses from the previous mode, including a manual Refresh in flight', async () => {
-  const previousFetch = globalThis.fetch
+test('disputes: the search box sends a debounced server search and restarts on page 1', async () => {
   const net = createNet()
-  globalThis.fetch = net.send
-  try {
-    const state = newState('')
-    const h = mount(WARRANTY, net, state)
-    h.render()
-    await h.settle()
-    const initial = [...net.requests]
-    for (const request of initial) request.respond(warrantyBody(request, OLD_RESET))
-    await h.settle()
-
-    clickButton(h, 'Refresh')
-    await h.settle()
-    const refresh = net.requests.slice(initial.length)
-    assert.equal(refresh.length, 2, 'Refresh requests claims and analytics')
-
-    setSearch(h, state, 'history=all')
-    await h.settle()
-    const current = net.requests.slice(initial.length + refresh.length)
-    assert.equal(current.length, 2)
-    for (const request of current) request.respond(warrantyBody(request, NEW_RESET))
-    await h.settle()
-    for (const request of refresh) request.respond(warrantyBody(request, OLD_RESET))
-    await h.settle()
-    assert.equal(indicatorBaseline(h).resetAt, NEW_RESET)
-  } finally {
-    globalThis.fetch = previousFetch
+  const state = newState('')
+  const h = mount(DISPUTES, net, state)
+  h.render()
+  await h.settle()
+  for (const request of net.requests) {
+    request.respond(request.url.pathname.endsWith('/analytics') ? disputesAnalyticsBody(null) : disputesBody(null))
   }
+  await h.settle()
+  clickButton(h, 'Next')
+  await h.settle()
+  assert.equal(lastFor(net, '/api/admin/disputes').params.get('page'), '2')
+  const before = net.requests.length
+
+  const input = () => h.findAll((node) => node.props['data-testid'] === 'dispute-search')[0]
+  input().props.onChange({ target: { value: '  Anna ' } })
+  await h.settle()
+  assert.equal(net.requests.length, before, 'nothing is sent while the admin is typing')
+  await new Promise((resolve) => setTimeout(resolve, 450))
+  await h.settle()
+  const searched = lastFor(net, '/api/admin/disputes')
+  assert.equal(searched.params.get('search'), 'Anna')
+  assert.equal(searched.params.get('page'), '1')
+
+  input().props.onChange({ target: { value: '' } })
+  await h.settle()
+  await new Promise((resolve) => setTimeout(resolve, 450))
+  await h.settle()
+  assert.equal(lastFor(net, '/api/admin/disputes').params.get('search'), null, 'clearing the box drops the search')
 })
 
 test('disputes: switching only the history mode restarts on page 1 and requests history=all', async () => {

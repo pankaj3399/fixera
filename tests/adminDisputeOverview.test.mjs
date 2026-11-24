@@ -8,7 +8,7 @@ const React = await import('react')
 const { renderToStaticMarkup } = await import('react-dom/server')
 const { AppRouterContext } = require('next/dist/shared/lib/app-router-context.shared-runtime')
 const { buildDisputeOverview, filterDisputeOverviewRows } = await import('@/lib/admin/disputeFilters')
-const { BookingDisputeCards, SeparateQueueCounts } = await import('@/components/admin/disputes/DisputeOverviewSummary')
+const { BookingDisputeCards, DisputeCounterSummary, EscalationCounts } = await import('@/components/admin/disputes/DisputeOverviewSummary')
 const { parseCancellationStatusFilter, isAdminActionableCancellation } = await import('@/lib/admin/cancellationRequestFilters')
 
 // Rows shaped like GET /api/admin/disputes (booking disputes in `disputes`,
@@ -80,30 +80,43 @@ test('rendered cards state booking-dispute scope and show zero for zero data', (
   assert.match(zero, /data-testid="open-booking-disputes">0</)
   assert.match(zero, /data-testid="resolved-booking-disputes">0</)
   assert.match(zero, /data-testid="bookings-in-dispute">0</)
-  assert.match(text(zero), /Booking disputes only\. Warranty claims and refund requests are separate queues/)
+  // Escalations are handled here and count toward the dispute-management counter (not "separate queues").
+  assert.match(text(zero), /Escalated refund requests and escalated warranty claims are also handled here: they are listed below and count toward the Dispute Management counter\./)
+  assert.doesNotMatch(text(zero), /separate queues/i)
   assert.match(text(zero), /Open booking disputes/)
   assert.match(text(zero), /Resolved \(history\)/)
   assert.doesNotMatch(text(zero), /Total Disputes/)
 
-  const one = render(React.createElement(BookingDisputeCards, { analytics: { totalOpen: 1, totalResolved: 0, totalDisputes: 1, separateQueues: { activeWarrantyClaims: 2, escalatedRefundRequests: 1 } } }))
+  const one = render(React.createElement(BookingDisputeCards, { analytics: { totalOpen: 1, totalResolved: 0, totalDisputes: 1, escalations: { escalatedWarrantyClaims: 2, escalatedRefundRequests: 1 } } }))
   assert.match(one, /data-testid="open-booking-disputes">1</)
   assert.match(one, /data-testid="bookings-in-dispute">1</)
-  // Separate-queue counts are never summed into the booking cards.
+  // Escalation counts are never summed into the booking cards.
   assert.doesNotMatch(one, />(3|4)</)
 })
 
-test('rendered separate-queue counts carry their own labels and resolution links', () => {
-  const html = render(React.createElement(SeparateQueueCounts, {
-    queues: { activeWarrantyClaims: 2, escalatedRefundRequests: 1, warrantyClaimsHref: '/admin/warranty-claims', refundRequestsHref: '/admin/cancellation-requests?status=escalated' },
+test('rendered escalation counts carry their own labels and resolution links', () => {
+  const html = render(React.createElement(EscalationCounts, {
+    escalations: { escalatedWarrantyClaims: 2, escalatedRefundRequests: 1, warrantyClaimsHref: '/admin/warranty-claims', refundRequestsHref: '/admin/cancellation-requests?status=escalated' },
   }))
-  assert.match(text(html), /Active warranty claims: 2/)
+  assert.match(text(html), /Escalated warranty claims: 2/)
   assert.match(text(html), /Escalated refund requests: 1/)
   assert.match(html, /href="\/admin\/warranty-claims"/)
   assert.match(html, /href="\/admin\/cancellation-requests\?status=escalated"/)
-  // Older backend without hrefs still links to the own queues.
-  const fallback = render(React.createElement(SeparateQueueCounts, { queues: { activeWarrantyClaims: 0, escalatedRefundRequests: 0 } }))
-  assert.match(text(fallback), /Active warranty claims: 0/)
+  // Without hrefs from the backend it still links to the own pages.
+  const fallback = render(React.createElement(EscalationCounts, { escalations: { escalatedWarrantyClaims: 0, escalatedRefundRequests: 0 } }))
+  assert.match(text(fallback), /Escalated warranty claims: 0/)
   assert.match(fallback, /href="\/admin\/cancellation-requests\?status=escalated"/)
+})
+
+test('the dispute-management counter is the sum of disputes and escalations, and says when it was reset', () => {
+  const fresh = text(render(React.createElement(DisputeCounterSummary, {
+    counter: { total: 4, bookingDisputes: 2, escalatedRefundRequests: 1, escalatedWarrantyClaims: 1, resetAt: null },
+  })))
+  assert.match(fresh, /Dispute management counter: 4 — 2 booking disputes, 1 escalated refund request and 1 escalated warranty claim waiting on an admin\./)
+  const afterReset = text(render(React.createElement(DisputeCounterSummary, {
+    counter: { total: 0, bookingDisputes: 0, escalatedRefundRequests: 0, escalatedWarrantyClaims: 0, resetAt: '2026-11-20T10:00:00.000Z' },
+  })))
+  assert.match(afterReset, /Dispute management counter: 0 — 0 booking disputes, 0 escalated refund requests and 0 escalated warranty claims that came in since the counter was last reset\./)
 })
 
 test('refund queue: ?status=escalated opens the escalated view; default stays pending', () => {
@@ -124,7 +137,12 @@ test('pages keep the lists apart and wire the own-queue links', () => {
   assert.match(page, /Showing \{visibleDisputes\.length\} of \{totalBookingDisputes\} booking/)
   assert.match(page, /No booking disputes found/)
   assert.match(page, /<BookingDisputeCards analytics=\{analytics\} \/>/)
-  assert.match(page, /<SeparateQueueCounts queues=\{analytics\.separateQueues\} \/>/)
+  assert.match(page, /<EscalationCounts escalations=\{analytics\.escalations\} \/>/)
+  assert.match(page, /<DisputeCounterSummary counter=\{analytics\.counter\} \/>/)
+  // The old statement that escalations are not dispute-management work is gone.
+  assert.doesNotMatch(page, /Separate queues\. These are not booking disputes/)
+  assert.match(page, /These escalations are handled in dispute management and count toward the Dispute Management counter\./)
+  assert.match(page, /if \(searchQuery\) params\.set\('search', searchQuery\)/)
   assert.match(page, /visibleExternalRows\.map\(\(d\) => renderDisputeCard\(d\)\)/)
   assert.match(page, /refund: 'Escalated refund request'/)
   assert.match(page, /'Open in warranty claims' : 'Open in refund requests'/)

@@ -7,32 +7,44 @@
   },
   "dashboards": {
     "disputes": {
-      "label": "Booking disputes",
-      "description": "Dispute list, Open and Resolved totals, and the disputes badge."
-    },
-    "warrantyClaims": {
-      "label": "Warranty claims",
-      "description": "Warranty claim list and claim totals."
+      "label": "Dispute management",
+      "description": "Dispute management counter: open booking disputes, escalated refund requests and escalated warranty claims. Also hides resolved disputes from before the reset in the dispute list."
     },
     "cancellations": {
-      "label": "Cancellations and refunds",
-      "description": "Cancellation and refund request queue, its totals and the cancellations badge."
+      "label": "Cancellation requests",
+      "description": "Cancellation requests counter: pending cancellations requested by a professional. Also hides finished requests from before the reset in the list."
+    },
+    "supportTickets": {
+      "label": "Support tickets",
+      "description": "Support tickets counter: tickets and meeting requests that wait on an admin."
+    },
+    "chatReports": {
+      "label": "Reported chats",
+      "description": "Reported chats counter: reports that are still pending."
+    },
+    "reviewModeration": {
+      "label": "Review moderation",
+      "description": "Review moderation counter: published reviews submitted since the last reset."
     },
     "bookingKpis": {
       "label": "Booking KPIs",
       "description": "KPI summary and breakdowns that count bookings in a date range."
+    },
+    "warrantyClaims": {
+      "label": "Warranty claims (no longer reset here)",
+      "description": "Escalated warranty claims are counted under Dispute management."
     }
   },
   "settings": {
     "title": "Reset dashboards",
-    "description": "Booking dashboards can start counting fresh from a chosen moment. A reset only changes where counting starts. Nothing is deleted, and older records stay reachable through Show all history.",
+    "description": "Reset a counter once its work has been looked at. After a reset the counter shows 0 and only counts items that arrive, or need an admin again, after the reset. Nothing is deleted.",
     "resetAll": "Reset all",
     "reset": "Reset",
     "undo": "Undo last reset",
     "loading": "Loading dashboard baselines…",
     "loadError": "Could not load dashboard baselines.",
     "retry": "Try again",
-    "notSetYet": "Not reset yet. Counting all history.",
+    "notSetYet": "Never reset. The counter includes all open work.",
     "countingSince": "Counting since {date} · set by {name}",
     "countingSinceNoName": "Counting since {date}",
     "historyTitle": "Reset history",
@@ -46,15 +58,15 @@
     "notePlaceholder": "Why are you resetting this dashboard?",
     "noteHelp": "Up to 500 characters. Saved with the reset in the history.",
     "confirmTitle": "Reset {dashboard}?",
-    "confirmTitleAll": "Reset all booking dashboards?",
-    "confirmBody": "Nothing is deleted. Bookings, disputes, claims, cancellations and KPI source data stay exactly as they are. From now on the dashboard counts from the moment you reset it. Older items stay reachable with Show all history.",
-    "confirmOpenItems": "Open and pending items are never hidden by a reset, so they keep appearing in their work queues.",
+    "confirmTitleAll": "Reset all dashboards?",
+    "confirmBody": "The counter goes back to 0 right away. From then on it only counts items that arrive, or need an admin again, after this moment.",
+    "confirmOpenItems": "Nothing is deleted or changed. Open and pending items stay in their lists and can still be handled there; they just no longer add to the counter. Older finished items stay reachable with Show all history, and you can undo the reset.",
     "confirmCancel": "Cancel",
     "confirmReset": "Confirm reset",
     "confirmResetAll": "Reset all dashboards",
     "saving": "Saving…",
-    "resetDone": "{dashboard} now counts from this moment.",
-    "resetAllDone": "All booking dashboards now count from this moment.",
+    "resetDone": "The {dashboard} counter is now 0 and counts from this moment.",
+    "resetAllDone": "All counters are now 0 and count from this moment.",
     "undoDone": "The previous baseline was restored for {dashboard}.",
     "error": "Could not update the dashboards. Please try again.",
     "undoBaselineChanged": "This dashboard was reset again by someone else. Refreshed — review before undoing."
