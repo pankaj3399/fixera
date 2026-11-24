@@ -1,4 +1,6 @@
 import { useCatalogNames } from '@/lib/catalog/catalogNames';
+import { translatedLabel } from '@/lib/contentTranslations';
+import { useContentText } from '@/components/i18n/ContentTranslationsProvider';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -133,6 +135,7 @@ interface ProjectCardProps {
 const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, onFavoriteToggled }: ProjectCardProps) => {
   const t = useTranslations('search');
   const { categoryName, serviceName } = useCatalogNames();
+  const ct = useContentText();
   const { formatPrice } = useCurrency();
   const { intl } = useFormatLocale();
   const { levelColor } = useTierColors();
@@ -146,13 +149,13 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
   const priceModelLabel = (value?: string | null) => {
     if (!value) return '';
     const key = PRICE_MODEL_KEYS[value.toLowerCase() as keyof typeof PRICE_MODEL_KEYS];
-    return key ? t(key) : formatPriceModelLabel(value);
+    return key ? t(key) : translatedLabel(ct, value, formatPriceModelLabel);
   };
   const perUnitSuffix = () => {
     const model = project.priceModel?.toLowerCase();
     if (model) {
       const key = UNIT_SUFFIX_KEYS[model as keyof typeof UNIT_SUFFIX_KEYS];
-      return key ? t(key) : `/${formatPriceModelLabel(project.priceModel)}`;
+      return key ? t(key) : `/${translatedLabel(ct, project.priceModel ?? model, formatPriceModelLabel)}`;
     }
     return t('units.unitSuffix');
   };
@@ -250,7 +253,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
         {currentImage ? (
           <img
             src={currentImage}
-            alt={project.title}
+            alt={ct(project.title)}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -332,7 +335,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
       <CardContent className="p-5 flex flex-col flex-grow">
         <div className="flex-grow">
           <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-2 line-clamp-2">
-            {project.title}
+            {ct(project.title)}
           </h3>
 
           {project.projectAvgRating != null && project.projectAvgRating > 0 && (
@@ -357,7 +360,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
           )}
 
           <p className="text-sm text-gray-600 mb-4 line-clamp-3">
-            {project.description}
+            {ct(project.description)}
           </p>
 
           <div className="flex flex-wrap gap-2 mb-4">
@@ -406,7 +409,7 @@ const ProjectCard = ({ customerPrice, originalPrice, project, initialFavorited, 
               {project.subprojects.slice(0, 3).map((subproject, idx) => (
                 <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs border border-gray-200">
                   <div className="flex-1 min-w-0 mr-2">
-                    <p className="font-medium text-gray-900 truncate">{subproject.name}</p>
+                    <p className="font-medium text-gray-900 truncate">{ct(subproject.name)}</p>
                     <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-gray-500">
                       <PackageDurationLabel subproject={subproject} />
                       {subproject.warrantyPeriod && (

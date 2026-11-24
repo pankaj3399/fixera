@@ -63,6 +63,8 @@ import {
 import TierBadge from '@/components/dashboard/TierBadge';
 import { useTierColors } from '@/lib/tierColors';
 import { trackBeginRfq, trackEvent, trackProfessionalContact, trackProjectView } from '@/lib/analytics';
+import { translateContentText, translatedLabel } from '@/lib/contentTranslations';
+import { ContentTranslationsProvider } from '@/components/i18n/ContentTranslationsProvider';
 
 interface ScheduleProposalsResponse {
   success: boolean;
@@ -312,6 +314,9 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
   const { formatPrice } = useCurrency();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [project, setProject] = useState<Project | null>(initialProject);
+  // Machine translations of the professional's text in the page language (shown, never submitted).
+  const ct = <T extends string | null | undefined>(value: T) =>
+    translateContentText(project?.contentTranslations, value);
   const [loading, setLoading] = useState(initialProject === null);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -692,7 +697,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
   const priceModelLabel = project.priceModel
     ? priceModelKey
       ? t(priceModelKey)
-      : formatPriceModelLabel(project.priceModel)
+      : translatedLabel(ct, project.priceModel, formatPriceModelLabel)
     : null;
   const qualityCertificates = filterQualityCertificates(project.certifications);
   const formatWarrantyLabel = (warranty?: {
@@ -707,7 +712,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
   const warrantySummaries = project.subprojects
     .map((sub) => {
       const label = formatWarrantyLabel(sub.warrantyPeriod);
-      return label ? { name: sub.name, label } : null;
+      return label ? { name: ct(sub.name), label } : null;
     })
     .filter(Boolean) as Array<{ name: string; label: string }>;
   const hasQualityHighlights =
@@ -764,18 +769,21 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
 
   if (showBookingForm) {
     return (
-      <ProjectBookingForm
-        project={project}
-        onBack={() => {
-          setShowBookingForm(false);
-          setSelectedSubprojectIndex(null);
-        }}
-        selectedSubprojectIndex={selectedSubprojectIndex}
-      />
+      <ContentTranslationsProvider value={project.contentTranslations}>
+        <ProjectBookingForm
+          project={project}
+          onBack={() => {
+            setShowBookingForm(false);
+            setSelectedSubprojectIndex(null);
+          }}
+          selectedSubprojectIndex={selectedSubprojectIndex}
+        />
+      </ContentTranslationsProvider>
     );
   }
 
   return (
+    <ContentTranslationsProvider value={project.contentTranslations}>
     <div className='min-h-screen bg-gray-50 py-8'>
       <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
         {/* Back Button */}
@@ -796,7 +804,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                   <div className='relative h-96 w-full group'>
                     <Image
                       src={project.media.images[currentImageIndex]}
-                      alt={project.title}
+                      alt={ct(project.title)}
                       fill
                       className='object-cover rounded-t-lg'
                     />
@@ -874,7 +882,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                 <div className='flex items-start justify-between gap-3'>
                   <div>
                     <CardTitle className='text-3xl mb-2'>
-                      {project.title}
+                      {ct(project.title)}
                     </CardTitle>
                     {ratingsSummary && ratingsSummary.totalReviews > 0 && (
                       <RatingSummary ratingsSummary={ratingsSummary} size='md' />
@@ -907,7 +915,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                 <div>
                   <h3 className='font-semibold text-lg mb-2'>{t('page.description')}</h3>
                   <p className='text-gray-700 whitespace-pre-wrap'>
-                    {project.description}
+                    {ct(project.description)}
                   </p>
                 </div>
 
@@ -1136,7 +1144,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                                     <Shield className='h-4 w-4 text-blue-600' />
                                   )}
                                   <h4 className='font-semibold text-gray-900'>
-                                    {term.name}
+                                    {ct(term.name)}
                                   </h4>
                                   {isWarning && (
                                     <Badge
@@ -1148,7 +1156,7 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                                   )}
                                 </div>
                                 <p className='mt-2 text-sm text-gray-600'>
-                                  {term.description}
+                                  {ct(term.description)}
                                 </p>
                                 {!isWarning &&
                                   term.additionalCost != null &&
@@ -1187,8 +1195,8 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                 <CardContent className='space-y-4'>
                   {(project.faq || []).map((item, idx) => (
                     <div key={idx} className='space-y-2'>
-                      <h4 className='font-semibold'>{item.question}</h4>
-                      <p className='text-gray-600 text-sm'>{item.answer}</p>
+                      <h4 className='font-semibold'>{ct(item.question)}</h4>
+                      <p className='text-gray-600 text-sm'>{ct(item.answer)}</p>
                     </div>
                   ))}
                 </CardContent>
@@ -1374,10 +1382,10 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
                       className='flex justify-between items-start text-sm'
                     >
                       <div>
-                        <p className='font-medium'>{option.name}</p>
+                        <p className='font-medium'>{ct(option.name)}</p>
                         {option.description && (
                           <p className='text-gray-600 text-xs'>
-                            {option.description}
+                            {ct(option.description)}
                           </p>
                         )}
                       </div>
@@ -1495,5 +1503,6 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
         </div>
       </div>
     </div >
+    </ContentTranslationsProvider>
   );
 }
