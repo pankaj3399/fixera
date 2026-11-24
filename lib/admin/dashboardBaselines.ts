@@ -1,14 +1,34 @@
 /**
  * Client helpers for the super-admin "Reset dashboards" feature.
  *
- * A reset moves a booking dashboard's "counting since" baseline forward. It
- * never deletes records. Every admin sees the baseline on the dashboards it
+ * A reset sets a dashboard's counter back to 0: from then on the counter only
+ * counts work that arrives after the reset. It never deletes records, and open
+ * items stay in their lists. Every admin sees the baseline on the dashboards it
  * affects; only a super admin can change it.
  */
 
-export const DASHBOARD_BASELINE_KEYS = ['disputes', 'warrantyClaims', 'cancellations', 'bookingKpis'] as const
+export const DASHBOARD_BASELINE_KEYS = [
+  'disputes',
+  'cancellations',
+  'supportTickets',
+  'chatReports',
+  'reviewModeration',
+  'bookingKpis',
+] as const
 
 export type DashboardBaselineKey = (typeof DASHBOARD_BASELINE_KEYS)[number]
+
+/**
+ * Dashboards that could be reset before and no longer can. Their old entries
+ * stay in the reset history. Warranty claims have no counter of their own:
+ * escalated warranty claims are counted (and reset) under disputes.
+ */
+export const RETIRED_DASHBOARD_BASELINE_KEYS = ['warrantyClaims'] as const
+
+export type RetiredDashboardBaselineKey = (typeof RETIRED_DASHBOARD_BASELINE_KEYS)[number]
+
+/** Keys a reset-history entry can carry: current dashboards and retired ones. */
+export type DashboardBaselineHistoryKey = DashboardBaselineKey | RetiredDashboardBaselineKey
 
 export const DASHBOARD_BASELINE_NOTE_MAX_LENGTH = 500
 
@@ -26,7 +46,7 @@ export interface DashboardBaselineView {
 }
 
 export interface DashboardBaselineHistoryEvent {
-  dashboardKey: DashboardBaselineKey
+  dashboardKey: DashboardBaselineHistoryKey
   action: 'reset' | 'undo'
   resetAt: string | null
   previousResetAt: string | null
@@ -52,6 +72,10 @@ export interface DashboardBaselineInfo {
 
 export const isDashboardBaselineKey = (value: unknown): value is DashboardBaselineKey =>
   typeof value === 'string' && (DASHBOARD_BASELINE_KEYS as readonly string[]).includes(value)
+
+export const isDashboardBaselineHistoryKey = (value: unknown): value is DashboardBaselineHistoryKey =>
+  isDashboardBaselineKey(value)
+  || (typeof value === 'string' && (RETIRED_DASHBOARD_BASELINE_KEYS as readonly string[]).includes(value))
 
 /** Only a super admin may view or change the reset controls. Mirrors the server's `/platform-settings` rule. */
 export const canManageDashboardBaselines = (user: { adminRole?: string | null } | null | undefined): boolean =>
@@ -138,7 +162,7 @@ export const parseDashboardBaselineSnapshot = (body: unknown): DashboardBaseline
     for (const raw of history) {
       if (!raw || typeof raw !== 'object') continue
       const row = raw as Record<string, unknown>
-      if (!isDashboardBaselineKey(row.dashboardKey)) continue
+      if (!isDashboardBaselineHistoryKey(row.dashboardKey)) continue
       events.push({
         dashboardKey: row.dashboardKey,
         action: row.action === 'undo' ? 'undo' : 'reset',

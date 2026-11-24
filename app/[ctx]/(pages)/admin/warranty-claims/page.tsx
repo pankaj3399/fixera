@@ -3,16 +3,7 @@
 import { getErrorMessage, messageFromApiBody } from '@/lib/apiErrors'
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useVisiblePathname } from "@/hooks/useVisiblePathname"
-import DashboardBaselineIndicator from "@/components/admin/DashboardBaselineIndicator"
-import {
-  buildHistoryToggleHref,
-  historyQuery,
-  isShowAllHistory,
-  parseDashboardBaselineInfo,
-  type DashboardBaselineInfo,
-} from "@/lib/admin/dashboardBaselines"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAuthToken } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -97,12 +88,6 @@ const formatDate = (value?: string) => {
 export default function AdminWarrantyClaimsPage() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
-  const pathname = useVisiblePathname()
-  const searchParams = useSearchParams()
-  // Counting-since baseline: ?history=all shows the full history for this view.
-  const showAll = isShowAllHistory(searchParams)
-  const baselineToggleHref = buildHistoryToggleHref(pathname, searchParams, showAll)
-  const [baselineInfo, setBaselineInfo] = useState<DashboardBaselineInfo | null>(null)
 
   const [claims, setClaims] = useState<WarrantyClaimRecord[]>([])
   const [analytics, setAnalytics] = useState<WarrantyAnalytics | null>(null)
@@ -113,14 +98,8 @@ export default function AdminWarrantyClaimsPage() {
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [page, setPage] = useState(1)
-  // Switching the history mode starts the claims queue again on page 1.
-  const [pagedHistoryMode, setPagedHistoryMode] = useState(showAll)
-  if (pagedHistoryMode !== showAll) {
-    setPagedHistoryMode(showAll)
-    setPage(1)
-  }
   // Latest request ids: a response only lands if no newer request has started
-  // (Refresh, close, filters, or a history-mode switch).
+  // (Refresh, close or filters).
   const analyticsRequestRef = useRef(0)
   const claimsRequestRef = useRef(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -159,9 +138,8 @@ export default function AdminWarrantyClaimsPage() {
       const token = getAuthToken()
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
-      const history = historyQuery(showAll)
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics${history ? `?${history}` : ""}`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/analytics`,
         { credentials: "include", headers, signal }
       )
       const payload = await response.json()
@@ -170,7 +148,6 @@ export default function AdminWarrantyClaimsPage() {
       }
       if (requestId !== analyticsRequestRef.current) return
       setAnalytics(payload.data || null)
-      setBaselineInfo(parseDashboardBaselineInfo(payload.data?.baseline))
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
       if (requestId !== analyticsRequestRef.current) return
@@ -179,7 +156,7 @@ export default function AdminWarrantyClaimsPage() {
     } finally {
       if (requestId === analyticsRequestRef.current) setIsLoadingAnalytics(false)
     }
-  }, [isAuthenticated, showAll, user?.role])
+  }, [isAuthenticated, user?.role])
 
   const fetchClaims = useCallback(async (signal?: AbortSignal) => {
     if (!isAuthenticated || user?.role !== "admin") return
@@ -195,7 +172,6 @@ export default function AdminWarrantyClaimsPage() {
       params.set("limit", "20")
       if (statusFilter !== "all") params.set("status", statusFilter)
       if (searchQuery) params.set("search", searchQuery)
-      if (showAll) params.set("history", "all")
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/warranty-claims/admin/list?${params.toString()}`,
@@ -208,7 +184,6 @@ export default function AdminWarrantyClaimsPage() {
 
       if (requestId !== claimsRequestRef.current) return
       const data = payload.data || {}
-      setBaselineInfo(parseDashboardBaselineInfo(data.baseline))
       setClaims(Array.isArray(data.claims) ? data.claims : [])
       setTotalPages(data.pagination?.totalPages || 1)
       setTotalClaims(data.pagination?.total || 0)
@@ -223,7 +198,7 @@ export default function AdminWarrantyClaimsPage() {
     } finally {
       if (requestId === claimsRequestRef.current) setIsLoadingClaims(false)
     }
-  }, [isAuthenticated, page, searchQuery, showAll, statusFilter, user?.role])
+  }, [isAuthenticated, page, searchQuery, statusFilter, user?.role])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -329,7 +304,6 @@ export default function AdminWarrantyClaimsPage() {
             <p className="text-slate-600">
               Monitor claims, escalations, and resolution quality in one place.
             </p>
-            <DashboardBaselineIndicator baseline={baselineInfo} toggleHref={baselineToggleHref} />
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => router.push("/dashboard")}>

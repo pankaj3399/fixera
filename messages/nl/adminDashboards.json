@@ -7,32 +7,44 @@
   },
   "dashboards": {
     "disputes": {
-      "label": "Boekingsgeschillen",
-      "description": "Geschillenlijst, totalen Open en Opgelost, en de badge voor geschillen."
-    },
-    "warrantyClaims": {
-      "label": "Garantieclaims",
-      "description": "Lijst met garantieclaims en claimtotalen."
+      "label": "Geschillenbeheer",
+      "description": "Teller van geschillenbeheer: open boekingsgeschillen, geëscaleerde terugbetalingsverzoeken en geëscaleerde garantieclaims. Verbergt ook opgeloste geschillen van vóór de reset in de geschillenlijst."
     },
     "cancellations": {
-      "label": "Annuleringen en terugbetalingen",
-      "description": "Wachtrij met annulerings- en terugbetalingsverzoeken, de totalen ervan en de badge voor annuleringen."
+      "label": "Annuleringsverzoeken",
+      "description": "Teller van annuleringsverzoeken: openstaande annuleringen die een vakman heeft aangevraagd. Verbergt ook afgehandelde verzoeken van vóór de reset in de lijst."
+    },
+    "supportTickets": {
+      "label": "Supporttickets",
+      "description": "Teller van supporttickets: tickets en afspraakverzoeken die op een beheerder wachten."
+    },
+    "chatReports": {
+      "label": "Gemelde chats",
+      "description": "Teller van gemelde chats: meldingen die nog openstaan."
+    },
+    "reviewModeration": {
+      "label": "Reviewmoderatie",
+      "description": "Teller van reviewmoderatie: gepubliceerde reviews die sinds de laatste reset zijn geplaatst."
     },
     "bookingKpis": {
       "label": "Boeking-KPI's",
       "description": "KPI-overzicht en uitsplitsingen die boekingen tellen binnen een periode."
+    },
+    "warrantyClaims": {
+      "label": "Garantieclaims (hier niet meer te resetten)",
+      "description": "Geëscaleerde garantieclaims worden geteld onder Geschillenbeheer."
     }
   },
   "settings": {
     "title": "Dashboards resetten",
-    "description": "Boekingsdashboards kunnen vanaf een gekozen moment opnieuw beginnen met tellen. Een reset wijzigt alleen waar het tellen begint. Er wordt niets verwijderd, en oudere gegevens blijven bereikbaar via Toon volledige geschiedenis.",
+    "description": "Reset een teller zodra het werk is bekeken. Na een reset staat de teller op 0 en telt hij alleen items die na de reset binnenkomen of opnieuw een beheerder nodig hebben. Er wordt niets verwijderd.",
     "resetAll": "Alles resetten",
     "reset": "Resetten",
     "undo": "Laatste reset ongedaan maken",
     "loading": "Basislijnen van dashboards laden…",
     "loadError": "De basislijnen van de dashboards konden niet worden geladen.",
     "retry": "Opnieuw proberen",
-    "notSetYet": "Nog niet gereset. Alle geschiedenis wordt geteld.",
+    "notSetYet": "Nog nooit gereset. De teller omvat al het openstaande werk.",
     "countingSince": "Telt vanaf {date} · ingesteld door {name}",
     "countingSinceNoName": "Telt vanaf {date}",
     "historyTitle": "Resetgeschiedenis",
@@ -46,15 +58,15 @@
     "notePlaceholder": "Waarom reset je dit dashboard?",
     "noteHelp": "Maximaal 500 tekens. Wordt bij de reset in de geschiedenis opgeslagen.",
     "confirmTitle": "{dashboard} resetten?",
-    "confirmTitleAll": "Alle boekingsdashboards resetten?",
-    "confirmBody": "Er wordt niets verwijderd. Boekingen, geschillen, claims, annuleringen en de brongegevens van de KPI's blijven precies zoals ze zijn. Vanaf nu telt het dashboard vanaf het moment van de reset. Oudere items blijven bereikbaar via Toon volledige geschiedenis.",
-    "confirmOpenItems": "Open en wachtende items worden door een reset nooit verborgen, dus ze blijven zichtbaar in hun werkwachtrijen.",
+    "confirmTitleAll": "Alle dashboards resetten?",
+    "confirmBody": "De teller gaat meteen terug naar 0. Daarna telt hij alleen items die na dit moment binnenkomen of opnieuw een beheerder nodig hebben.",
+    "confirmOpenItems": "Er wordt niets verwijderd of gewijzigd. Open en wachtende items blijven in hun lijsten staan en kunnen daar nog worden afgehandeld; ze tellen alleen niet meer mee in de teller. Oudere afgehandelde items blijven bereikbaar via Toon volledige geschiedenis, en je kunt de reset ongedaan maken.",
     "confirmCancel": "Annuleren",
     "confirmReset": "Reset bevestigen",
     "confirmResetAll": "Alle dashboards resetten",
     "saving": "Opslaan…",
-    "resetDone": "{dashboard} telt nu vanaf dit moment.",
-    "resetAllDone": "Alle boekingsdashboards tellen nu vanaf dit moment.",
+    "resetDone": "De teller van {dashboard} staat nu op 0 en telt vanaf dit moment.",
+    "resetAllDone": "Alle tellers staan nu op 0 en tellen vanaf dit moment.",
     "undoDone": "De vorige basislijn is hersteld voor {dashboard}.",
     "error": "De dashboards konden niet worden bijgewerkt. Probeer het opnieuw.",
     "undoBaselineChanged": "Dit dashboard is door iemand anders opnieuw gereset. Vernieuwd — controleer het voordat je het ongedaan maakt."
