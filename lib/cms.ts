@@ -1043,3 +1043,61 @@ export function slugify(input: string): string {
   if (ascii) return ascii;
   return `untitled-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+// ---------- Site-wide auto-translation (admin) ----------
+
+/** CMS translation coverage (`GET /api/admin/cms/translation-backfill`). */
+export interface CmsTranslationOverview {
+  /** False when AZURE_TRANSLATOR_KEY is not set on the API server. */
+  enabled: boolean;
+  disabledReason?: string;
+  /** Originals (content written by an admin, any language). */
+  sources: number;
+  /** Originals without a translation in at least one other language. */
+  missing: number;
+  queued: number;
+  running: number;
+}
+
+/** Catalogue + project text translation memory (`GET /api/admin/content-translations/status`). */
+export interface ContentTranslationStatus {
+  enabled: boolean;
+  disabledReason?: string;
+  pending: number;
+  done: number;
+  failed: number;
+  running: number;
+}
+
+export async function adminGetCmsTranslationOverview(): Promise<CmsTranslationOverview> {
+  const res = await authFetch(`${API}/api/admin/cms/translation-backfill`);
+  return parseJsonRequired<CmsTranslationOverview>(res);
+}
+
+/** Super admin: machine-translate every existing original that misses a language. */
+export async function adminRunCmsTranslationBackfill(): Promise<CmsTranslationOverview> {
+  const res = await authFetch(`${API}/api/admin/cms/translation-backfill`, { method: "POST" });
+  return parseJsonRequired<CmsTranslationOverview>(res);
+}
+
+export async function adminGetContentTranslationStatus(): Promise<ContentTranslationStatus> {
+  const res = await authFetch(`${API}/api/admin/content-translations/status`);
+  return parseJsonRequired<ContentTranslationStatus>(res);
+}
+
+/** Super admin: queue the service catalogue and every visible project for translation. */
+export async function adminRunContentTranslationBackfill(
+  options: { retryFailed?: boolean } = {}
+): Promise<ContentTranslationStatus> {
+  const res = await authFetch(`${API}/api/admin/content-translations/backfill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ retryFailed: options.retryFailed === true }),
+  });
+  return parseJsonRequired<ContentTranslationStatus>(res);
+}
+
+/** Flushes every cached public CMS page (after a site-wide translation run). */
+export async function revalidateAllPublicCms(): Promise<void> {
+  await revalidatePublicCms(undefined);
+}
