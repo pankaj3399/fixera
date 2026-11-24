@@ -6,6 +6,7 @@ import { buildMetadata, noindexMetadata } from "@/lib/seo/metadata";
 import { getPublicProject } from "@/lib/server/publicEntities";
 import ScopedIntlProvider from "@/components/i18n/ScopedIntlProvider";
 import { routeContext } from "@/lib/server/routeContext";
+import { translateContentText } from "@/lib/contentTranslations";
 
 interface Props {
   children: React.ReactNode;
@@ -20,11 +21,11 @@ export function generateStaticParams(): Array<{ id: string }> {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ ctx: string; id: string }> }): Promise<Metadata> {
-  await routeContext(params);
+  const { locale } = await routeContext(params);
   const { id } = await params;
   const t = await getTranslations("projects");
   const safePath = `/projects/${encodeURIComponent(id)}`;
-  const lookup = await getPublicProject(id);
+  const lookup = await getPublicProject(id, locale);
   if (lookup.status === "not_found") {
     return noindexMetadata(safePath, t("meta.projectTitle"));
   }
@@ -36,9 +37,11 @@ export async function generateMetadata({ params }: { params: Promise<{ ctx: stri
       path: safePath,
     });
   }
-  const title = project.title || t("meta.projectTitle");
+  const ct = (value?: string) => translateContentText(project.contentTranslations, value);
+  const title = ct(project.title) || t("meta.projectTitle");
+  const projectDescription = ct(project.description);
   const description =
-    (project.description && project.description.slice(0, 160)) ||
+    (projectDescription && projectDescription.slice(0, 160)) ||
     t("meta.projectFallbackDescription", { title: title.toLowerCase() });
   // No project image here: buildMetadata declares 1200x630, which a project photo does not match.
   return buildMetadata({
@@ -49,13 +52,14 @@ export async function generateMetadata({ params }: { params: Promise<{ ctx: stri
 }
 
 export default async function ProjectLayout({ children, params }: Props) {
-  await routeContext(params);
+  const { locale } = await routeContext(params);
   const { id } = await params;
   const t = await getTranslations("projects");
-  const lookup = await getPublicProject(id);
+  const lookup = await getPublicProject(id, locale);
   const project = lookup.status === "found" ? lookup.data : null;
   const safePath = `/projects/${encodeURIComponent(id)}`;
-  const title = project?.title || t("meta.projectTitle");
+  const ct = (value?: string) => translateContentText(project?.contentTranslations, value);
+  const title = ct(project?.title) || t("meta.projectTitle");
 
   // There is no /projects index page, so the trail goes Home > project.
   const schemas: Array<Record<string, unknown>> = [
@@ -74,7 +78,7 @@ export default async function ProjectLayout({ children, params }: Props) {
     schemas.push(
       serviceSchema({
         name: title,
-        description: project.description?.slice(0, SCHEMA_DESCRIPTION_LENGTH) || undefined,
+        description: ct(project.description)?.slice(0, SCHEMA_DESCRIPTION_LENGTH) || undefined,
         path: safePath,
         provider:
           pro?._id && providerName

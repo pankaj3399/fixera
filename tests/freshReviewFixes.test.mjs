@@ -2237,6 +2237,8 @@ test('comparison tabs: every package is a visible, selectable tab in a wrapping 
     '@/hooks/useCustomerPricing': { useCustomerPricing: () => ({ customerPrice: value => value, originalPrice: value => value, pricingReady: true, loyaltyLoaded: true }) },
     '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: String }) },
     '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
+    '@/lib/contentTranslations': await import('../lib/contentTranslations.ts'),
+    '@/components/i18n/ContentTranslationsProvider': { useContentText: () => (value) => value },
   })
   const selected = []
   const props = { subprojects: [0, 1, 2, 3, 4].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 3, onSelectPackage() {}, onSelectIndex: i => selected.push(i) }

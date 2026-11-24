@@ -1,5 +1,6 @@
 'use client';
 
+import { useContentText } from '@/components/i18n/ContentTranslationsProvider';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl'
@@ -293,6 +294,8 @@ export default function ProjectBookingForm({
   const router = useRouter();
   const { user } = useAuth();
   const t = useTranslations('projectBooking');
+  // Machine translations of the professional's/catalogue text (labels only; values are submitted as stored).
+  const ct = useContentText();
   const getErrorText = useErrorMessage();
   const { formatMoney, currency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
@@ -324,10 +327,10 @@ export default function ProjectBookingForm({
         case 'm²':
           return t('units.squareMeter');
         default:
-          return unit;
+          return ct(unit);
       }
     },
-    [t]
+    [t, ct]
   );
 
   const getPricingTypeLabel = useCallback(
@@ -3201,7 +3204,7 @@ export default function ProjectBookingForm({
             {t('header.back')}
           </Button>
           <h1 className='text-3xl font-bold text-gray-900'>
-            {t('header.title', { title: project.title })}
+            {t('header.title', { title: ct(project.title) })}
           </h1>
           <p className='text-gray-600 mt-2'>
             {t('header.subtitle')}
@@ -3307,10 +3310,10 @@ export default function ProjectBookingForm({
                         <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
                           <div>
                             <h3 className='text-lg font-semibold'>
-                              {selectedPackage.name}
+                              {ct(selectedPackage.name)}
                             </h3>
                             <p className='text-sm text-gray-600 mt-1'>
-                              {selectedPackage.description}
+                              {ct(selectedPackage.description)}
                             </p>
                           </div>
                           <div className='text-right'>
@@ -3365,7 +3368,7 @@ export default function ProjectBookingForm({
                           <Label htmlFor='estimated-usage'>
                             {t('package.estimatedUsage')}{' '}
                             {project.priceModel
-                              ? `(${project.priceModel})`
+                              ? `(${ct(project.priceModel)})`
                               : ''}{' '}
                             *
                           </Label>
@@ -3396,7 +3399,7 @@ export default function ProjectBookingForm({
                               <span className='text-sm text-gray-500 whitespace-nowrap'>{t('package.hoursDeterminedByCustomer')}</span>
                             ) : project.priceModel && (
                               <span className='text-sm text-gray-500 whitespace-nowrap'>
-                                {project.priceModel}
+                                {ct(project.priceModel)}
                               </span>
                             )}
                           </div>
@@ -3957,11 +3960,11 @@ export default function ProjectBookingForm({
                               <div className='flex items-start justify-between gap-4'>
                                 <div>
                                   <h3 className='font-semibold text-gray-900'>
-                                    {option.name}
+                                    {ct(option.name)}
                                   </h3>
                                   {option.description && (
                                     <p className='text-sm text-gray-600 mt-1'>
-                                      {option.description}
+                                      {ct(option.description)}
                                     </p>
                                   )}
                                 </div>
@@ -4016,7 +4019,7 @@ export default function ProjectBookingForm({
                                 >
                                   <span className='text-gray-700'>
                                     <CheckCircle2 className='h-4 w-4 inline mr-2 text-green-600' />
-                                    {option.name}
+                                    {ct(option.name)}
                                   </span>
                                   <span className='font-semibold text-green-600'>
                                     +{formatAmount(
@@ -4111,7 +4114,7 @@ export default function ProjectBookingForm({
                 {project.rfqQuestions.map((question, idx) => (
                   <div key={idx} className='space-y-2'>
                     <Label htmlFor={`question-${idx}`}>
-                      {question.question}
+                      {ct(question.question)}
                       {question.isRequired && (
                         <span className='text-red-500 ml-1'>*</span>
                       )}
@@ -4186,7 +4189,7 @@ export default function ProjectBookingForm({
                                 htmlFor={`q${idx}-opt${optIdx}`}
                                 className='font-normal'
                               >
-                                {option}
+                                {ct(option)}
                               </Label>
                             </div>
                           ))}
@@ -4248,7 +4251,7 @@ export default function ProjectBookingForm({
                       return (
                         <div key={question.fieldName} className='space-y-2'>
                           <Label htmlFor={`vat-${question.fieldName}`}>
-                            {question.question}
+                            {ct(question.question)}
                             {question.isRequired && <span className='text-red-500 ml-1'>*</span>}
                           </Label>
 
@@ -4266,7 +4269,7 @@ export default function ProjectBookingForm({
                               />
                               {question.unit && (
                                 <span className='flex items-center rounded-md border bg-gray-50 px-3 text-sm text-gray-600'>
-                                  {question.unit}
+                                  {ct(question.unit)}
                                 </span>
                               )}
                             </div>
@@ -4307,7 +4310,7 @@ export default function ProjectBookingForm({
                                         );
                                       }}
                                     />
-                                    {option}
+                                    {ct(option)}
                                   </label>
                                 );
                               })}
@@ -4399,10 +4402,10 @@ export default function ProjectBookingForm({
                   {selectedPackage ? (
                     <div className='bg-gray-50 p-4 rounded space-y-1'>
                       <p className='font-medium text-gray-900'>
-                        {selectedPackage.name}
+                        {ct(selectedPackage.name)}
                       </p>
                       <p className='text-sm text-gray-600'>
-                        {selectedPackage.description}
+                        {ct(selectedPackage.description)}
                       </p>
                       <div className='text-sm text-gray-700 mt-2'>
                         {selectedPackage.pricing.type === 'fixed' &&
@@ -4692,11 +4695,11 @@ export default function ProjectBookingForm({
                                     <CheckCircle2 className='h-4 w-4 text-green-600 mt-0.5 flex-shrink-0' />
                                     <div>
                                       <p className='text-gray-700 font-medium'>
-                                        {option.name}
+                                        {ct(option.name)}
                                       </p>
                                       {option.description && (
                                         <p className='text-xs text-gray-600 mt-0.5'>
-                                          {option.description}
+                                          {ct(option.description)}
                                         </p>
                                       )}
                                     </div>

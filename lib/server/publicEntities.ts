@@ -1,4 +1,5 @@
 import type { PublicProjectDto } from "@/types/project";
+import { normalizeBackendLocale } from "@/lib/i18n/backendLocale";
 import { normalizePublicProject } from "@/lib/publicProjectShape";
 
 /**
@@ -60,20 +61,22 @@ export interface ProfessionalData {
 const backendPath = (path: string) => `${process.env.NEXT_PUBLIC_BACKEND_URL || ""}${path}`;
 
 /** Fetch with the deadline applied. Throws on network failure or timeout. */
-const backendFetch = (path: string, revalidate: number) =>
+const backendFetch = (path: string, revalidate: number, headers?: Record<string, string>) =>
   fetch(backendPath(path), {
     next: { revalidate },
     signal: AbortSignal.timeout(BACKEND_READ_TIMEOUT_MS),
+    ...(headers ? { headers } : {}),
   });
 
 async function fetchPublicEntity<T>(
   path: string,
   label: string,
   pick: (json: unknown) => T | null,
+  headers?: Record<string, string>,
 ): Promise<EntityLookup<T>> {
   let res: Response;
   try {
-    res = await backendFetch(path, PUBLIC_ENTITY_REVALIDATE_SECONDS);
+    res = await backendFetch(path, PUBLIC_ENTITY_REVALIDATE_SECONDS, headers);
   } catch (error) {
     console.warn(`[public-entity] ${label} unavailable: request failed`, error);
     return { status: "unavailable" };
@@ -102,15 +105,22 @@ interface ProfessionalEnvelope {
   data?: { professional?: ProfessionalData };
 }
 
-export function getPublicProject(id: string): Promise<EntityLookup<PublicProjectDto>> {
+/**
+ * Public project record. With `locale`, the API adds the stored machine
+ * translations of the project text in that language (`contentTranslations`);
+ * the locale is part of the URL so each language has its own cache entry.
+ */
+export function getPublicProject(id: string, locale?: string): Promise<EntityLookup<PublicProjectDto>> {
+  const lang = locale ? normalizeBackendLocale(locale) : undefined;
   return fetchPublicEntity<PublicProjectDto>(
-    `/api/public/projects/${encodeURIComponent(id)}`,
+    `/api/public/projects/${encodeURIComponent(id)}${lang ? `?lang=${lang}` : ""}`,
     "project",
     (json) => {
       const body = json as ProjectEnvelope | null;
       // A record without a usable professional or id is treated as unavailable here.
       return body?.success ? normalizePublicProject(body.project) : null;
     },
+    lang ? { "Accept-Language": lang } : undefined,
   );
 }
 

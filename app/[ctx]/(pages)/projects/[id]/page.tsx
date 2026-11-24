@@ -10,9 +10,9 @@ import { routeContext } from '@/lib/server/routeContext';
  * read here: they load on the client, so they do not use the backend's per-IP budget.
  */
 export default async function ProjectDetailPage({ params }: { params: Promise<{ ctx: string; id: string }> }) {
-  await routeContext(params);
+  const { locale } = await routeContext(params);
   const { id } = await params;
-  const project = await getPublicProject(id);
+  const project = await getPublicProject(id, locale);
   if (project.status === 'not_found') notFound();
 
   // The server's clock for the first render: the closure list must match what hydration renders.
