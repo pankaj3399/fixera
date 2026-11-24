@@ -220,6 +220,8 @@ export default function AdminDisputesPage() {
   const [totalBookingDisputes, setTotalBookingDisputes] = useState(0)
   const [analytics, setAnalytics] = useState<DisputeAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Set when the latest list request failed; the rows of an earlier query are cleared then.
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<DisputeFilter>('all')
   const [page, setPage] = useState(1)
   // Server-side search (booking number, customer/professional, dispute text).
@@ -324,19 +326,25 @@ export default function AdminDisputesPage() {
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes?${params}${history ? `&${history}` : ''}`)
       const json = await res.json()
       if (requestId !== disputesRequestRef.current) return
-      if (json.success) {
-        setBaselineInfo(parseDashboardBaselineInfo(json.data?.baseline))
-        const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
-        const external = Array.isArray(json.data?.externalDisputes) ? json.data.externalDisputes : []
-        // Booking disputes and the escalated warranty/refund rows are kept
-        // apart so the list, its count and pagination match the cards.
-        setDisputes(paginated)
-        setExternalRows(external)
-        setTotalBookingDisputes(Number(json.data?.pagination?.total) || 0)
-        setTotalPages(Number(json.data?.pagination?.pages) || 1)
-      }
+      if (!res.ok || !json?.success) throw new Error(json?.msg || json?.message || 'Failed to load disputes')
+      setLoadError(null)
+      setBaselineInfo(parseDashboardBaselineInfo(json.data?.baseline))
+      const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
+      const external = Array.isArray(json.data?.externalDisputes) ? json.data.externalDisputes : []
+      // Booking disputes and the escalated warranty/refund rows are kept
+      // apart so the list, its count and pagination match the cards.
+      setDisputes(paginated)
+      setExternalRows(external)
+      setTotalBookingDisputes(Number(json.data?.pagination?.total) || 0)
+      setTotalPages(Number(json.data?.pagination?.pages) || 1)
     } catch {
       if (requestId !== disputesRequestRef.current) return
+      // Never show another query's rows under the current search/filter.
+      setDisputes([])
+      setExternalRows([])
+      setTotalBookingDisputes(0)
+      setTotalPages(1)
+      setLoadError(searchQuery ? `Couldn't load disputes matching "${searchQuery}".` : "Couldn't load disputes.")
       toast.error('Failed to load disputes')
     } finally {
       if (requestId === disputesRequestRef.current) setIsLoading(false)
@@ -874,7 +882,7 @@ export default function AdminDisputesPage() {
               </SelectContent>
             </Select>
           </div>
-          {!isLoading && (
+          {!isLoading && !loadError && (
             <p className="text-sm text-gray-500">
               Showing {visibleDisputes.length} of {totalBookingDisputes} booking {totalBookingDisputes === 1 ? 'dispute' : 'disputes'}
             </p>
@@ -885,6 +893,13 @@ export default function AdminDisputesPage() {
           <div className="space-y-3">
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
           </div>
+        ) : loadError ? (
+          <Card data-testid="disputes-load-error">
+            <CardContent className="py-12 text-center">
+              <p className="text-red-600 mb-3">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={() => { void fetchDisputes() }}>Retry</Button>
+            </CardContent>
+          </Card>
         ) : visibleDisputes.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
@@ -919,7 +934,7 @@ export default function AdminDisputesPage() {
               </p>
             </div>
             {analytics?.escalations && <EscalationCounts escalations={analytics.escalations} />}
-            {isLoading ? null : overview.separatePreviewOnPageOne ? (
+            {isLoading || loadError ? null : overview.separatePreviewOnPageOne ? (
               <p className="text-xs text-gray-500">Escalations are listed on page 1.</p>
             ) : visibleExternalRows.length === 0 ? (
               <p className="text-sm text-gray-500">

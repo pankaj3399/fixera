@@ -49,9 +49,12 @@ export function mergeContentTranslations(
 ): ContentTranslations | undefined {
   const valid = maps.filter(isContentTranslations);
   if (valid.length === 0) return undefined;
+  // Only maps for the final locale are merged: a Dutch entry must never be
+  // shown as French (missing entries fall back to the source text instead).
+  const locale = valid[valid.length - 1].locale;
   return {
-    locale: valid[valid.length - 1].locale,
-    texts: Object.assign({}, ...valid.map((map) => map.texts)),
+    locale,
+    texts: Object.assign({}, ...valid.filter((map) => map.locale === locale).map((map) => map.texts)),
   };
 }
 

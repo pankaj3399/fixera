@@ -36,6 +36,11 @@ test('mergeContentTranslations: later maps win and the latest locale is kept', (
   assert.equal(mergeContentTranslations(undefined, null), undefined)
 })
 
+test('mergeContentTranslations: maps of another locale are not mixed in', () => {
+  const merged = mergeContentTranslations(nl, { locale: 'fr', texts: { 'Total price': 'Prix total' } })
+  assert.deepEqual(merged, { locale: 'fr', texts: { 'Total price': 'Prix total' } })
+})
+
 test('provider + useContentText render translations; without a provider text is unchanged', () => {
   const Label = ({ text }) => React.createElement('span', null, useContentText()(text))
   const html = renderToStaticMarkup(

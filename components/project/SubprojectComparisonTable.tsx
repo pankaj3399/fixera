@@ -216,7 +216,8 @@ export default function SubprojectComparisonTable({
           : undefined;
       return { ...item, paramValue: hasValue ? formatProfessionalInputValue(match!.value, suffix ? unitSuffixLabel(suffix) : undefined) : undefined };
     });
-  }, [allIncludedItems, currentSubproject?.professionalInputs, currentSubproject?.pricing?.type, priceModel]);
+    // ct and t: the cached values are translated, so a new language or translation map must recompute them.
+  }, [allIncludedItems, currentSubproject?.professionalInputs, currentSubproject?.pricing?.type, priceModel, ct, t]);
 
   if (!subprojects || subprojects.length === 0 || !currentSubproject) {
     return null;

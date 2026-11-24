@@ -41,26 +41,44 @@ export default function AutoTranslateOverview({ canRun }: { canRun: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<"cms" | "content" | null>(null)
   const wasCmsActive = useRef(false)
+  // Bumped when a run starts, so loads that began earlier can't overwrite its state.
+  const loadGeneration = useRef(0)
+  // Set when a CMS run finished but the public-page flush hasn't succeeded yet.
+  const pendingInvalidation = useRef(false)
 
-  const load = useCallback(async () => {
+  const flushPublicCms = useCallback(async () => {
+    if (!pendingInvalidation.current) return
     try {
-      const [nextCms, nextContent] = await Promise.all([
-        adminGetCmsTranslationOverview(),
-        adminGetContentTranslationStatus(),
-      ])
-      setCms(nextCms)
-      setContent(nextContent)
-      setError(null)
-      // A CMS run just finished: public pages are cached, flush them once.
-      const active = cmsBackfillActive(nextCms)
-      if (wasCmsActive.current && !active) {
-        revalidateAllPublicCms().catch((err) => console.warn("CMS revalidation after translation failed", err))
-      }
-      wasCmsActive.current = active
+      await revalidateAllPublicCms()
+      pendingInvalidation.current = false
     } catch (err) {
-      setError(getErrorMessage(err, "Couldn't load the translation status."))
+      // Stays pending: the next load (poll or Refresh) retries it.
+      console.warn("CMS revalidation after translation failed", err)
     }
   }, [])
+
+  const load = useCallback(async () => {
+    const generation = loadGeneration.current
+    const [cmsResult, contentResult] = await Promise.allSettled([
+      adminGetCmsTranslationOverview(),
+      adminGetContentTranslationStatus(),
+    ])
+    if (generation !== loadGeneration.current) return
+
+    if (cmsResult.status === "fulfilled") {
+      setCms(cmsResult.value)
+      // A CMS run just finished: public pages are cached, flush them once.
+      const active = cmsBackfillActive(cmsResult.value)
+      if (wasCmsActive.current && !active) pendingInvalidation.current = true
+      wasCmsActive.current = active
+    }
+    if (contentResult.status === "fulfilled") setContent(contentResult.value)
+
+    const failed = [cmsResult, contentResult].find((r): r is PromiseRejectedResult => r.status === "rejected")
+    setError(failed ? getErrorMessage(failed.reason, "Couldn't load the translation status.") : null)
+
+    await flushPublicCms()
+  }, [flushPublicCms])
 
   useEffect(() => {
     void load()
@@ -76,7 +94,9 @@ export default function AutoTranslateOverview({ canRun }: { canRun: boolean }) {
   const runCms = async () => {
     setBusy("cms")
     try {
-      setCms(await adminRunCmsTranslationBackfill())
+      const started = await adminRunCmsTranslationBackfill()
+      loadGeneration.current += 1
+      setCms(started)
       wasCmsActive.current = true
       toast.success("Translating existing content in the background.")
       setTimeout(() => void load(), 1_500)
@@ -90,7 +110,9 @@ export default function AutoTranslateOverview({ canRun }: { canRun: boolean }) {
   const runContent = async () => {
     setBusy("content")
     try {
-      setContent(await adminRunContentTranslationBackfill({ retryFailed: true }))
+      const started = await adminRunContentTranslationBackfill({ retryFailed: true })
+      loadGeneration.current += 1
+      setContent(started)
       toast.success("Translating the service catalogue and projects in the background.")
       setTimeout(() => void load(), 1_500)
     } catch (err) {
